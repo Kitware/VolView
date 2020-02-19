@@ -69,9 +69,9 @@ export default {
       el.style.backgroundColor = 'transparent';
       // NOTE: dynamically setting "right" won't update the border position
       if ('right' in this.$attrs) {
-        el.style.borderLeft = '2px solid rgba(224, 224, 224, 1)';
+        el.style.borderLeft = '2px solid rgba(0, 0, 0, 0.24)';
       } else {
-        el.style.borderRight = '2px solid rgba(224, 224, 224, 1)';
+        el.style.borderRight = '2px solid rgba(0, 0, 0, 0.24)';
       }
       el.style.cursor = RESIZE_CURSOR;
     },

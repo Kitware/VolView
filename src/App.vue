@@ -3,14 +3,11 @@
     <resizable-nav-drawer
       app
       permanent
+      color="#e0e0e0"
       :min-width="200"
       :max-width="400"
       :width="300"
     >
-      <v-tabs>
-        <v-tab>Data</v-tab>
-        <v-tab>Annotations</v-tab>
-      </v-tabs>
     </resizable-nav-drawer>
 
     <v-content id="content-wrapper">
@@ -43,12 +40,12 @@
         </div>
         <v-container class="d-flex flex-column flex-grow-1 pa-0">
           <v-row no-gutters>
-            <v-col class="pa-0 view-box" cols="6">Sag</v-col>
-            <v-col class="pa-0 view-box" cols="6">3D</v-col>
+            <v-col class="pa-0" cols="6"><vtk-view /></v-col>
+            <v-col class="pa-0" cols="6"><vtk-view /></v-col>
           </v-row>
           <v-row no-gutters>
-            <v-col class="pa-0 view-box" cols="6">Cor</v-col>
-            <v-col class="pa-0 view-box" cols="6">Axi</v-col>
+            <v-col class="pa-0" cols="6"><vtk-view /></v-col>
+            <v-col class="pa-0" cols="6"><vtk-view /></v-col>
           </v-row>
         </v-container>
       </div>
@@ -58,12 +55,14 @@
 
 <script>
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
+import VtkView from './components/VtkView.vue';
 
 export default {
   name: 'App',
 
   components: {
     ResizableNavDrawer,
+    VtkView,
   },
 
   data: () => ({
