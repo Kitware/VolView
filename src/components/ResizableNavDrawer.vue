@@ -84,7 +84,7 @@ export default {
     clearEvents() {
       const el = this.$refs.infoPane.$el.querySelector('.v-navigation-drawer__border');
       el.removeEventListener('mousedown', this.startResize);
-      document.addEventListener('mouseup', this.stopResize);
+      document.removeEventListener('mouseup', this.stopResize);
     },
 
     startResize() {
