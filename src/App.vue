@@ -24,29 +24,17 @@
                 :key="i"
                 v-slot:default="{ active, toggle }"
               >
-                <v-tooltip
-                  right
-                  transition="slide-x-transition"
-                >
-                  <template v-slot:activator="{ on }">
-                    <v-btn
-                      class="white--text mt-1"
-                      :class="active ? 'button-selected' : ''"
-                      text
-                      tile
-                      dark
-                      height="40"
-                      width="40"
-                      min-width="40"
-                      max-width="40"
-                      v-on="on"
-                      @click="toggle"
-                    >
-                      <v-icon>mdi-{{ tool.icon }}</v-icon>
-                    </v-btn>
-                  </template>
-                  <span>{{ tool.name }}</span>
-                </v-tooltip>
+                <tool-button
+                  size="40"
+                  :icon="`mdi-${tool.icon}`"
+                  :name="tool.name"
+                  :buttonClass="[
+                    'white--text',
+                    'mt-1',
+                    active ? 'button-selected' : '',
+                  ]"
+                  @click="toggle"
+                />
               </v-item>
               <div
                 v-if="tool.separatorBelow"
@@ -102,20 +90,17 @@
 
 <script>
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
+import ToolButton from './components/ToolButton.vue';
 import VtkView from './components/VtkView.vue';
 
 import { readSingleFile } from './io';
 
-const NO_DS = -1;
+export const NO_DS = -1;
 
-const Tools = [
+export const Tools = [
   {
-    name: 'Data',
-    icon: 'database',
-  },
-  {
-    name: 'Info',
-    icon: 'information-outline',
+    name: 'Open',
+    icon: 'folder-open',
     separatorBelow: true,
   },
   {
@@ -141,6 +126,7 @@ export default {
 
   components: {
     ResizableNavDrawer,
+    ToolButton,
     VtkView,
   },
 
