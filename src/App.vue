@@ -8,41 +8,54 @@
       :max-width="400"
       :width="300"
     >
+      {{ Tools[selectedTool].name }}
     </resizable-nav-drawer>
 
     <v-content id="content-wrapper">
       <div class="d-flex flex-row flex-grow-1 grey darken-3">
-        <div id="tools-strip" class="d-flex flex-column blue lighten-2 align-center">
-          <template v-for="(tool,i) in tools">
-            <template v-if="tool === 'SEPARATOR'">
-              <div :key="i" class="mt-2 mb-1 tool-separator" />
-            </template>
-            <template v-else>
-              <v-tooltip
+        <div id="tools-strip" class="grey darken-4">
+          <v-item-group
+            v-model="selectedTool"
+            mandatory
+            class="d-flex flex-column align-center"
+          >
+            <template v-for="(tool,i) in Tools">
+              <v-item
                 :key="i"
-                right
-                transition="slide-x-transition"
+                v-slot:default="{ active, toggle }"
               >
-                <template v-slot:activator="{ on }">
-                  <v-btn
-                    class="white--text mt-1"
-                    text
-                    tile
-                    dark
-                    :disabled="!activeDataset"
-                    height="40"
-                    width="40"
-                    min-width="40"
-                    max-width="40"
-                    v-on="on"
-                  >
-                    <v-icon>mdi-{{ tool }}</v-icon>
-                  </v-btn>
-                </template>
-                <span>{{ tool }}</span>
-              </v-tooltip>
+                <v-tooltip
+                  right
+                  transition="slide-x-transition"
+                >
+                  <template v-slot:activator="{ on }">
+                    <v-btn
+                      class="white--text mt-1"
+                      :class="active ? 'button-selected' : ''"
+                      text
+                      tile
+                      dark
+                      :disabled="!!activeDataset"
+                      height="40"
+                      width="40"
+                      min-width="40"
+                      max-width="40"
+                      v-on="on"
+                      @click="toggle"
+                    >
+                      <v-icon>mdi-{{ tool.icon }}</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>{{ tool.name }}</span>
+                </v-tooltip>
+              </v-item>
+              <div
+                v-if="tool.separatorBelow"
+                :key="`sep${i}`"
+                class="mt-2 mb-1 tool-separator"
+              />
             </template>
-          </template>
+          </v-item-group>
         </div>
         <v-container class="d-flex flex-column flex-grow-1 pa-0">
           <template v-if="!datasets.length">
@@ -94,6 +107,34 @@ import VtkView from './components/VtkView.vue';
 
 const NO_DS = -1;
 
+const Tools = [
+  {
+    name: 'Data',
+    icon: 'database',
+  },
+  {
+    name: 'Info',
+    icon: 'information-outline',
+    separatorBelow: true,
+  },
+  {
+    name: 'Paint',
+    icon: 'brush',
+  },
+  {
+    name: 'Box',
+    icon: 'selection',
+  },
+  {
+    name: 'Ellipse',
+    icon: 'selection-ellipse',
+  },
+  {
+    name: 'Crop',
+    icon: 'crop',
+  },
+];
+
 export default {
   name: 'App',
 
@@ -105,26 +146,9 @@ export default {
   data: () => ({
     datasets: [],
     activeDatasetIndex: NO_DS,
-    tools: [
-      'angle-acute',
-      'ruler',
-      'pencil',
-      'SEPARATOR',
-      'crop',
-      'death-star-variant',
-      'eyedropper',
-      'fire',
-      'flask-empty-plus',
-      'gesture',
-      'layers',
-      'magnet-on',
-      'SEPARATOR',
-      'pipe-wrench',
-      'run',
-      'seat-flat-angled',
-      'SEPARATOR',
-      'white-balance-incandescent',
-    ],
+    selectedTool: 0,
+
+    Tools,
   }),
 
   computed: {
@@ -182,6 +206,10 @@ export default {
   width: 75%;
   height: 1px;
   border: none;
-  border-top: 1px solid rgb(212, 212, 212);
+  border-top: 1px solid rgb(112, 112, 112);
+}
+
+.button-selected {
+  background-color: rgba(128, 128, 255, 0.7);
 }
 </style>
