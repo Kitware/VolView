@@ -105,6 +105,8 @@
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import VtkView from './components/VtkView.vue';
 
+import { readSingleFile } from './io';
+
 const NO_DS = -1;
 
 const Tools = [
@@ -172,9 +174,13 @@ export default {
       this.fileEl.click();
     },
 
-    onFileSelect(/* evt */) {
-      // const { files } = evt.target;
+    onFileSelect(evt) {
+      const { files } = evt.target;
       this.loadingFiles = true;
+
+      readSingleFile(files[0])
+        .then((result) => console.log('good', result))
+        .catch((err) => console.error('bad', err));
     },
   },
 };
