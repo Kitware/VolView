@@ -1,7 +1,7 @@
 <script>
 import { VNavigationDrawer } from 'vuetify/lib';
 
-const RESIZE_CURSOR = 'ew-resize';
+export const RESIZE_CURSOR = 'ew-resize';
 
 export default {
   name: 'ResizableNavDrawer',
