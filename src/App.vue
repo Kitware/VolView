@@ -35,7 +35,6 @@
                       text
                       tile
                       dark
-                      :disabled="!!activeDataset"
                       height="40"
                       width="40"
                       min-width="40"

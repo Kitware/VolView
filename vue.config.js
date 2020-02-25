@@ -18,8 +18,6 @@ module.exports = {
     resolve: {
       alias: {
         '@': __dirname,
-        'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps.json':
-          'vtk.js/Sources/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
       },
     },
     plugins: [
