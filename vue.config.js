@@ -21,6 +21,7 @@ module.exports = {
       },
     },
     plugins: [
+      // disable webvr
       new webpack.NormalModuleReplacementPlugin(/^webvr-polyfill$/, ((resource) => {
         /* eslint-disable-next-line no-param-reassign */
         resource.request = '@/src/vtk/webvr-empty.js';
