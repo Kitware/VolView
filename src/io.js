@@ -36,7 +36,7 @@ export function readSingleFile(file) {
     const { name } = file;
     const reader = getSingleFileReaderFor(getExtension(name));
     if (!reader) {
-      throw new Error(`No reader for ${file}`);
+      throw new Error(`No reader for ${name}`);
     }
 
     const fio = new FileReader();

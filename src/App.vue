@@ -8,17 +8,15 @@
       :max-width="400"
       :width="300"
     >
-      {{ Tools[selectedTool].name }}
+      {{ Tools[selectedTool] ? Tools[selectedTool].name : '' }}
     </resizable-nav-drawer>
 
     <v-content id="content-wrapper">
       <div class="d-flex flex-row flex-grow-1 grey darken-3">
-        <div id="tools-strip" class="grey darken-4">
-          <v-item-group
-            v-model="selectedTool"
-            mandatory
-            class="d-flex flex-column align-center"
-          >
+        <div id="tools-strip" class="grey darken-4 d-flex flex-column align-center">
+          <tool-button size="40" icon="mdi-folder-open" name="Open files" buttonClass="tool-btn" />
+          <div class="mt-2 mb-1 tool-separator" />
+          <v-item-group v-model="selectedTool">
             <template v-for="(tool,i) in Tools">
               <v-item
                 :key="i"
@@ -29,18 +27,12 @@
                   :icon="`mdi-${tool.icon}`"
                   :name="tool.name"
                   :buttonClass="[
-                    'white--text',
-                    'mt-1',
-                    active ? 'button-selected' : '',
+                    'tool-btn',
+                    active ? 'tool-btn-selected' : '',
                   ]"
                   @click="toggle"
                 />
               </v-item>
-              <div
-                v-if="tool.separatorBelow"
-                :key="`sep${i}`"
-                class="mt-2 mb-1 tool-separator"
-              />
             </template>
           </v-item-group>
         </div>
@@ -99,11 +91,6 @@ export const NO_DS = -1;
 
 export const Tools = [
   {
-    name: 'Open',
-    icon: 'folder-open',
-    separatorBelow: true,
-  },
-  {
     name: 'Paint',
     icon: 'brush',
   },
@@ -133,7 +120,7 @@ export default {
   data: () => ({
     datasets: [],
     activeDatasetIndex: NO_DS,
-    selectedTool: 0,
+    selectedTool: null,
 
     Tools,
   }),
@@ -200,7 +187,11 @@ export default {
   border-top: 1px solid rgb(112, 112, 112);
 }
 
-.button-selected {
+.tool-btn {
+  margin-top: 4px;
+}
+
+.tool-btn-selected {
   background-color: rgba(128, 128, 255, 0.7);
 }
 </style>
