@@ -3,6 +3,9 @@ import { VNavigationDrawer } from 'vuetify/lib';
 
 export const RESIZE_CURSOR = 'ew-resize';
 
+/**
+ * Events: onResize(width:Number)
+ */
 export default {
   name: 'ResizableNavDrawer',
   props: {
@@ -112,6 +115,8 @@ export default {
       const min = this.minWidth || this.handleSize;
       const max = this.maxWidth || Infinity;
       this.internalWidth = Math.min(max, Math.max(min, width));
+
+      this.$emit('resize', this.internalWidth);
     },
 
     setCursor(cursor) {
