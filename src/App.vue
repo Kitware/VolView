@@ -8,7 +8,13 @@
       :max-width="400"
       :width="300"
     >
-      {{ Tools[selectedTool] ? Tools[selectedTool].name : '' }}
+      <div id="left-pane-outer">
+        <div id="left-pane">
+          {{ Tools[selectedTool] ? Tools[selectedTool].name : '' }}
+          This is a very very long sentence that should at least span 300px
+          but if it doesn't then I will be sad.
+        </div>
+      </div>
     </resizable-nav-drawer>
 
     <v-content id="content-wrapper">
@@ -36,8 +42,8 @@
             </template>
           </v-item-group>
         </div>
-        <v-container class="d-flex flex-column flex-grow-1 pa-0">
-          <template v-if="!datasets.length">
+        <div class="d-flex flex-column flex-grow-1">
+          <template v-if="datasets.length">
             <v-row
               no-gutters
               align="center"
@@ -66,15 +72,15 @@
           </template>
           <template v-else>
             <v-row no-gutters>
-              <v-col class="pa-0" cols="6"><vtk-view /></v-col>
-              <v-col class="pa-0" cols="6"><vtk-view /></v-col>
+              <v-col class="pa-0" cols="6"><vtk-view key="coronal" active /></v-col>
+              <v-col class="pa-0" cols="6"><vtk-view key="3D" /></v-col>
             </v-row>
             <v-row no-gutters>
-              <v-col class="pa-0" cols="6"><vtk-view /></v-col>
-              <v-col class="pa-0" cols="6"><vtk-view /></v-col>
+              <v-col class="pa-0" cols="6"><vtk-view key="axial" /></v-col>
+              <v-col class="pa-0" cols="6"><vtk-view key="sagittal" /></v-col>
             </v-row>
           </template>
-        </v-container>
+        </div>
       </div>
     </v-content>
   </v-app>
@@ -193,5 +199,15 @@ export default {
 
 .tool-btn-selected {
   background-color: rgba(128, 128, 255, 0.7);
+}
+
+#left-pane {
+  min-width: 300px;
+}
+
+#left-pane-outer {
+  overflow: auto;
+  height: 100%;
+  width: 100%;
 }
 </style>
