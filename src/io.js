@@ -3,6 +3,23 @@ import vtkITKImageReader from 'vtk.js/Sources/IO/Misc/ITKImageReader';
 import extensionToImageIO from 'itk/extensionToImageIO';
 import readImageArrayBuffer from 'itk/readImageArrayBuffer';
 
+// How much data to read when extracting file magic
+const HEAD_CHUNK = 512;
+
+// file magic database
+// Used to handle certain cases where files have no extension
+const FILE_MAGIC_DB = [
+  {
+    type: 'nrrd',
+    header: 'NRRD'.map((c) => c.charCodeAt(0)),
+  },
+  {
+    type: 'dcm',
+    skip: 128,
+    header: 'DICM'.map((c) => c.charCodeAt(0)),
+  },
+];
+
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
 
 const itkImageExtensions = Array.from(
@@ -31,18 +48,59 @@ function getExtension(name) {
   return '';
 }
 
-export function readSingleFile(file) {
-  return new Promise((resolve, reject) => {
-    const { name } = file;
-    const reader = getSingleFileReaderFor(getExtension(name));
-    if (!reader) {
-      throw new Error(`No reader for ${name}`);
+function prefixEquals(target, prefix) {
+  if (prefix.length > target.length) {
+    return false;
+  }
+  for (let i = 0; i < prefix.length; i += 1) {
+    if (prefix[i] !== target[i]) {
+      return false;
     }
+  }
+  return true;
+}
 
+/**
+ * Returns file type based on magic
+ * @param {File} file
+ */
+export function readFileMagic(file) {
+  return new Promise((resolve, reject) => {
+    const head = file.slice(0, HEAD_CHUNK);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const chunk = new Uint8Array(reader.result);
+      for (let i = 0; i < FILE_MAGIC_DB.length; i += 1) {
+        const { type, header, skip = 0 } = FILE_MAGIC_DB[i];
+        if (prefixEquals(chunk.slice(skip), header)) {
+          resolve(type);
+          return;
+        }
+      }
+      reject(new Error('Unknown file'));
+    };
+    reader.parseAsArrayBuffer(head);
+  });
+}
+
+export async function readSingleFile(file) {
+  const { name } = file;
+
+  let type = getExtension(name);
+  if (!type) {
+    type = await readFileMagic(file);
+  }
+
+  const reader = getSingleFileReaderFor(type);
+  if (!reader) {
+    throw new Error(`No reader for ${name}`);
+  }
+
+  const readPromise = new Promise((resolve) => {
     const fio = new FileReader();
-    fio.onload = () => {
-      const ret = reader.parseFunc({ name, data: fio.result });
-      Promise.resolve(ret).then(resolve).catch(reject);
+    fio.onload = async () => {
+      const ret = await reader.parseFunc({ name, data: fio.result });
+      resolve(ret);
     };
 
     const method = `readAs${reader.readFileAs}`;
@@ -52,6 +110,8 @@ export function readSingleFile(file) {
 
     fio[method](file);
   });
+
+  return readPromise;
 }
 
 export function readDICOMSeries(files) {
