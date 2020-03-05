@@ -71,14 +71,7 @@
             </v-row>
           </template>
           <template v-else>
-            <v-row no-gutters>
-              <v-col class="pa-0" cols="6"><vtk-view key="coronal" active /></v-col>
-              <v-col class="pa-0" cols="6"><vtk-view key="3D" /></v-col>
-            </v-row>
-            <v-row no-gutters>
-              <v-col class="pa-0" cols="6"><vtk-view key="axial" /></v-col>
-              <v-col class="pa-0" cols="6"><vtk-view key="sagittal" /></v-col>
-            </v-row>
+            <layout-grid :layout="layout" />
           </template>
         </div>
       </div>
@@ -90,6 +83,7 @@
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkView from './components/VtkView.vue';
+import LayoutGrid from './components/LayoutGrid.vue';
 
 import { readSingleFile } from './io';
 
@@ -120,13 +114,15 @@ export default {
   components: {
     ResizableNavDrawer,
     ToolButton,
-    VtkView,
+    LayoutGrid,
   },
 
   data: () => ({
     datasets: [],
     activeDatasetIndex: NO_DS,
     selectedTool: null,
+
+    layout: ['H', VtkView, ['V', null, VtkView, null]],
 
     Tools,
   }),
