@@ -1,12 +1,14 @@
 <template>
   <v-app>
     <resizable-nav-drawer
+      id="left-nav"
       app
       permanent
       color="#e0e0e0"
       :min-width="200"
       :max-width="400"
       :width="300"
+      :handle-size="4"
     >
       <div id="left-pane-outer">
         <div id="left-pane">
@@ -168,6 +170,14 @@ export default {
 
 #content-wrapper > .v-content__wrap {
   display: flex;
+}
+</style>
+
+<style scoped>
+#left-nav {
+  padding: 2px;
+  /* left-nav handle size is 4px */
+  padding-right: 4px;
 }
 
 #tools-strip {
