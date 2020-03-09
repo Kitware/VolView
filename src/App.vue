@@ -4,7 +4,6 @@
       id="left-nav"
       app
       permanent
-      color="#e0e0e0"
       :min-width="200"
       :max-width="400"
       :width="300"
@@ -12,9 +11,35 @@
     >
       <div id="left-pane-outer">
         <div id="left-pane">
-          {{ Tools[selectedTool] ? Tools[selectedTool].name : '' }}
-          This is a very very long sentence that should at least span 300px
-          but if it doesn't then I will be sad.
+
+          <div id="module-switcher" class="mt-1 mb-2">
+            <v-select
+              v-model="selectedModule"
+              outlined
+              single-line
+              hide-details
+              :prepend-inner-icon="`mdi-${selectedModule.icon}`"
+              :items="Modules"
+              item-text="name"
+              return-object
+            >
+              <template v-slot:item="{ item }">
+                <v-icon v-if="item.icon" class="mr-1">mdi-{{ item.icon }}</v-icon>
+                {{ item.name }}
+              </template>
+            </v-select>
+          </div>
+
+          <!-- Preserve component state of modules when switching between modules -->
+          <div id="module-container">
+            <template v-for="mod in Modules">
+              <component
+                :key="mod.name"
+                v-show="selectedModule === mod"
+                :is="mod.component"
+              />
+            </template>
+          </div>
         </div>
       </div>
     </resizable-nav-drawer>
@@ -86,10 +111,24 @@ import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkView from './components/VtkView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
+import DataBrowser from './components/DataBrowser.vue';
 
 import { readSingleFile } from './io';
 
 export const NO_DS = -1;
+
+export const Modules = [
+  {
+    name: 'Data',
+    icon: 'database',
+    component: DataBrowser,
+  },
+  {
+    name: 'Measurements',
+    icon: 'pencil-ruler',
+    component: null,
+  },
+];
 
 export const Tools = [
   {
@@ -123,10 +162,12 @@ export default {
     datasets: [],
     activeDatasetIndex: NO_DS,
     selectedTool: null,
+    selectedModule: Modules[0],
 
     layout: ['H', VtkView, ['V', null, VtkView, null]],
 
     Tools,
+    Modules,
   }),
 
   computed: {
@@ -208,12 +249,26 @@ export default {
 }
 
 #left-pane {
-  min-width: 300px;
+  display: flex;
+  flex-flow: column;
+  min-width: 250px;
+  flex: 1;
 }
 
 #left-pane-outer {
+  display: flex;
   overflow: auto;
   height: 100%;
   width: 100%;
+}
+
+#module-switcher {
+  flex: 0 2 30px;
+}
+
+#module-container {
+  position: relative;
+  flex: 2;
+  overflow: auto;
 }
 </style>
