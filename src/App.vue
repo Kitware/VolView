@@ -112,7 +112,7 @@ import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkView from './components/VtkView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
-import DataBrowser from './components/DataBrowser.vue';
+import PatientBrowser from './components/PatientBrowser.vue';
 
 import { readSingleFile } from './io';
 
@@ -120,9 +120,9 @@ export const NO_DS = -1;
 
 export const Modules = [
   {
-    name: 'Data',
-    icon: 'database',
-    component: DataBrowser,
+    name: 'Patients',
+    icon: 'account',
+    component: PatientBrowser,
   },
   {
     name: 'Measurements',
@@ -213,6 +213,11 @@ export default {
 #content-wrapper > .v-content__wrap {
   display: flex;
 }
+
+#module-switcher .v-input__prepend-inner {
+  /* better icon alignment */
+  margin-top: 15px;
+}
 </style>
 
 <style scoped>
@@ -271,6 +276,5 @@ export default {
   position: relative;
   flex: 2;
   overflow: auto;
-  overflow-y: scroll;
 }
 </style>
