@@ -26,8 +26,5 @@ export default {
       return this.layout.slice(1);
     },
   },
-  mounted() {
-    console.log(this.layout);
-  },
 };
 </script>
