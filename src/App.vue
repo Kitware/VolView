@@ -22,6 +22,7 @@
               :items="Modules"
               item-text="name"
               return-object
+              class="no-select"
             >
               <template v-slot:item="{ item }">
                 <v-icon v-if="item.icon" class="mr-1">mdi-{{ item.icon }}</v-icon>
