@@ -4,9 +4,9 @@
       id="left-nav"
       app
       permanent
-      :min-width="200"
-      :max-width="400"
-      :width="300"
+      :min-width="250"
+      :max-width="450"
+      :width="350"
       :handle-size="4"
     >
       <div id="left-pane-outer">
@@ -264,12 +264,13 @@ export default {
 }
 
 #module-switcher {
-  flex: 0 2 30px;
+  flex: 0 2;
 }
 
 #module-container {
   position: relative;
   flex: 2;
   overflow: auto;
+  overflow-y: scroll;
 }
 </style>
