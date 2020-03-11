@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-column mx-2 height-100">
+  <div id="patient-module" class="mx-2 height-100">
     <div id="patient-filter-controls">
       <v-select
         dense
@@ -93,6 +93,11 @@ export default {
 </style>
 
 <style scoped>
+#patient-module {
+  display: flex;
+  flex-flow: column;
+}
+
 #patient-filter-controls {
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   padding-bottom: 12px;
