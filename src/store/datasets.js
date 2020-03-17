@@ -1,8 +1,28 @@
-export default ({ loader }) => ({
+import { FileTypes } from '../io/io';
+
+/**
+ * Loads a single file
+ *
+ * Returns an object: {}
+ * @param {*} file
+ */
+async function loadSingleFile(file, loader, dicomDB) {
+  if (await loader.getFileType(file) === FileTypes.DICOM) {
+    await dicomDB.importFile(file);
+  } else {
+    await loader.parseFile(file);
+  }
+}
+
+export default ({ loader, dicomDB }) => ({
   namespaced: true,
 
   state: {
     errors: {},
+    patients: [],
+    patientStudies: {},
+    studySeries: {},
+    seriesImages: {},
   },
 
   mutations: {
@@ -11,6 +31,22 @@ export default ({ loader }) => ({
         ...state.errors,
         [name]: error,
       };
+    },
+
+    updatePatients(state, patients) {
+      state.patients = patients;
+    },
+
+    updateStudies(state, patientStudies) {
+      state.patientStudies = patientStudies;
+    },
+
+    updateSeries(state, studySeries) {
+      state.studySeries = studySeries;
+    },
+
+    updateImages(state, seriesImages) {
+      state.seriesImages = seriesImages;
     },
   },
 
@@ -24,23 +60,32 @@ export default ({ loader }) => ({
      * @param {[]File} files
      */
     async loadFiles({ commit, dispatch }, files) {
-      const results = await Promise.allSettled(files.map((file) => dispatch('loadSingleFile', file)));
+      const results = await Promise.allSettled(
+        files.map((file) => loadSingleFile(file, loader, dicomDB)),
+      );
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           const fileName = files[index].name;
           commit('setError', fileName, result.reason);
         }
       });
+
+      return dispatch('updateDICOM');
     },
 
-    /**
-     * Loads a single file
-     *
-     * Returns an object: {}
-     * @param {*} file
-     */
-    async loadSingleFile(_, file) {
-      await loader.parseFile(file);
+
+    updateDICOM({ commit }) {
+      dicomDB.postProcess();
+
+      const patients = Array.from(dicomDB.getPatients());
+      const patientStudies = { ...dicomDB.getPatientStudyMap() };
+      const studySeries = { ...dicomDB.getStudySeriesMap() };
+      const seriesImages = { ...dicomDB.getSeriesImagesMap() };
+
+      commit('updatePatients', patients);
+      commit('updateStudies', patientStudies);
+      commit('updateSeries', studySeries);
+      commit('updateImages', seriesImages);
     },
   },
 });
