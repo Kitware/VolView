@@ -71,7 +71,7 @@
           </v-item-group>
         </div>
         <div class="d-flex flex-column flex-grow-1">
-          <template v-if="datasets.length">
+          <template v-if="!datasets.length">
             <v-row
               no-gutters
               align="center"
@@ -108,13 +108,14 @@
 </template>
 
 <script>
+import { mapActions } from 'vuex';
+
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkView from './components/VtkView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
-
-import { readSingleFile } from './io';
+// import MeasurementsModule from './components/MeasurementsModule.vue';
 
 export const NO_DS = -1;
 
@@ -196,10 +197,10 @@ export default {
       const { files } = evt.target;
       this.loadingFiles = true;
 
-      readSingleFile(files[0])
-        .then((result) => console.log('good', result))
-        .catch((err) => console.error('bad', err));
+      this.loadFiles(Array.from(files));
     },
+
+    ...mapActions('datasets', ['loadFiles']),
   },
 };
 </script>

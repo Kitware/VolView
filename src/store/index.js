@@ -1,15 +1,20 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 
+import datasetsModule from './datasets';
+
 Vue.use(Vuex);
 
-export default new Vuex.Store({
+const modules = (services) => ({
+  datasets: datasetsModule(services),
+});
+
+export default (services) => new Vuex.Store({
   state: {
   },
   mutations: {
   },
   actions: {
   },
-  modules: {
-  },
+  modules: modules(services),
 });
