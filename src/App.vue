@@ -104,6 +104,16 @@
         </div>
       </div>
     </v-content>
+
+    <v-snackbar
+      v-model="toastState"
+      bottom
+      left
+      :color="toast.type"
+    >
+      {{ toast.message }}
+      <v-btn text @click="toastState = false">Close</v-btn>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -165,6 +175,11 @@ export default {
     activeDatasetIndex: NO_DS,
     selectedTool: null,
     selectedModule: Modules[0],
+    toastState: false,
+    toast: {
+      type: '',
+      message: '',
+    },
 
     layout: ['H', VtkView, ['V', null, VtkView, null]],
 
@@ -197,7 +212,19 @@ export default {
       const { files } = evt.target;
       this.loadingFiles = true;
 
-      this.loadFiles(Array.from(files));
+      this.loadFiles(Array.from(files))
+        .then(() => {
+          this.showToast('success', 'Files imported');
+        })
+        .catch(() => {
+          // TODO: persist toast and show error details
+          this.showToast('error', 'Error occurred!');
+        });
+    },
+
+    showToast(type, message) {
+      this.toast = { type, message };
+      this.toastState = true;
     },
 
     ...mapActions('datasets', ['loadFiles']),
