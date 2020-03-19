@@ -158,8 +158,8 @@ export class FileLoader {
    * @param {File} file
    * @returns Boolean
    */
-  canRead(file) {
-    const type = this.getFileType(file);
+  async canRead(file) {
+    const type = await this.getFileType(file);
     return !!this.fileReaders[type];
   }
 
@@ -171,7 +171,7 @@ export class FileLoader {
    * @throws Error either the type info is not found or no reader is found
    */
   async parseFile(file) {
-    const type = this.getFileType(file);
+    const type = await this.getFileType(file);
     if (!type) {
       throw new Error(`No type info found for ${file.name}`);
     }

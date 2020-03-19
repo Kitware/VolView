@@ -40,4 +40,16 @@ describe('I/O', () => {
     type = await loader.getFileType(makeNrrdFile('file'));
     expect(type).to.equal('nrrd');
   });
+
+  it('Async file reader should succeed', async () => {
+    const loader = new FileLoader();
+    const reader = async (f) => `${f.name} data`;
+    loader.registerReader('nrrd', reader);
+
+    const file = makeNrrdFile('file');
+    expect(await loader.canRead(file)).to.be.true;
+
+    const result = await loader.parseFile(file);
+    expect(result).to.equal('file data');
+  });
 });
