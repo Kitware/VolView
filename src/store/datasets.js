@@ -74,8 +74,8 @@ export default ({ loader, dicomDB }) => ({
     },
 
 
-    updateDICOM({ commit }) {
-      dicomDB.postProcess();
+    async updateDICOM({ commit }) {
+      await dicomDB.postProcess();
 
       const patients = Array.from(dicomDB.getPatients());
       const patientStudies = { ...dicomDB.getPatientStudyMap() };
