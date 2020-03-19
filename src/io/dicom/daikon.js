@@ -8,7 +8,7 @@ import Series from './series';
 import Image from './image';
 
 function extractValue(tag) {
-  return tag.value ? tag.value[0] : null;
+  return tag?.value ? tag.value[0] : null;
 }
 
 export default class DaikonDatabase extends DICOMDatabase {
