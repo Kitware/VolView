@@ -6,6 +6,8 @@ export default class Patient {
     this.sex = null;
     this.comments = null;
 
+    this.studies = [];
+
     if (data) {
       this.update(data);
     }

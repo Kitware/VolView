@@ -1,4 +1,4 @@
-export const PATIENT_UNSPECIFIED = 'UNSPECIFIED';
+export const PATIENT_UNKNOWN = 'UNKNOWN';
 
 /* eslint-disable class-methods-use-this, no-unused-vars */
 export default class DICOMDatabase {
@@ -9,37 +9,37 @@ export default class DICOMDatabase {
   async importFile(file) { throw new Error('Abstract'); }
 
   /**
-   * Run any post-processing tasks.
-   */
-  async postProcess() { throw new Error('Abstract'); }
-
-  /**
-   * Returns a list of patients.
-   */
-  getPatients() { throw new Error('Abstract'); }
-
-  /**
-   * Returns a mapping from patient ID to an array of studies.
-   */
-  getPatientStudyMap() { throw new Error('Abstract'); }
-
-  /**
-   * Returns a mapping from a study UID to an array of series.
-   */
-  getStudySeriesMap() { throw new Error('Abstract'); }
-
-  /**
-   * Returns a mapping from a series UID to an array of images.
+   * Updates database after importing new files.
    *
-   * Order of images may be affected by calls to postProcess().
+   * This should be called after importing files.
    */
-  getSeriesImagesMap() { throw new Error('Abstract'); }
+  async settleDatabase() { throw new Error('Abstract'); }
 
   /**
-   * Gets the series dataset as a single vtkObject, if applicable.
+   * Returns map of patientID to Patient
+   */
+  getPatientIndex() { throw new Error('Abstract'); }
+
+  /**
+   * Returns a mapping from study UID a Study
+   */
+  getStudyIndex() { throw new Error('Abstract'); }
+
+  /**
+   * Returns a mapping from a series UID to a Series
+   */
+  getSeriesIndex() { throw new Error('Abstract'); }
+
+  /**
+   * Returns a mapping from a series UID to an array of DicomImages
+   */
+  getSeriesImages() { throw new Error('Abstract'); }
+
+  /**
+   * Gets the series dataset as a single vtkImageData, if applicable.
    * @param {String} seriesID
    * @returns vtkObject|null
    */
-  async getSeriesAsDataset(seriesID) { throw new Error('Abstract'); }
+  async getSeriesAsVolume(seriesID) { throw new Error('Abstract'); }
 }
 /* eslint-enable */

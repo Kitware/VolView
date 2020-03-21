@@ -7,6 +7,8 @@ export default class Study {
     this.accessionNumber = null;
     this.description = null;
 
+    this.series = [];
+
     if (data) {
       this.update(data);
     }

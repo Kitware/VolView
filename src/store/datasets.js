@@ -19,9 +19,10 @@ export default ({ loader, dicomDB }) => ({
 
   state: {
     errors: {},
-    patients: [],
-    patientStudies: {},
-    studySeries: {},
+
+    patientIndex: {},
+    studyIndex: {},
+    seriesIndex: {},
     seriesImages: {},
   },
 
@@ -33,16 +34,16 @@ export default ({ loader, dicomDB }) => ({
       };
     },
 
-    updatePatients(state, patients) {
-      state.patients = patients;
+    updatePatients(state, patientIndex) {
+      state.patientIndex = patientIndex;
     },
 
-    updateStudies(state, patientStudies) {
-      state.patientStudies = patientStudies;
+    updateStudies(state, studyIndex) {
+      state.studyIndex = studyIndex;
     },
 
-    updateSeries(state, studySeries) {
-      state.studySeries = studySeries;
+    updateSeries(state, seriesIndex) {
+      state.seriesIndex = seriesIndex;
     },
 
     updateImages(state, seriesImages) {
@@ -67,6 +68,7 @@ export default ({ loader, dicomDB }) => ({
         if (result.status === 'rejected') {
           const fileName = files[index].name;
           commit('setError', fileName, result.reason);
+          console.error('ERROR TODO', fileName, result.reason);
         }
       });
 
@@ -75,16 +77,16 @@ export default ({ loader, dicomDB }) => ({
 
 
     async updateDICOM({ commit }) {
-      await dicomDB.postProcess();
+      await dicomDB.settleDatabase();
 
-      const patients = Array.from(dicomDB.getPatients());
-      const patientStudies = { ...dicomDB.getPatientStudyMap() };
-      const studySeries = { ...dicomDB.getStudySeriesMap() };
-      const seriesImages = { ...dicomDB.getSeriesImagesMap() };
+      const patientIndex = { ...dicomDB.getPatientIndex() };
+      const studyIndex = { ...dicomDB.getStudyIndex() };
+      const seriesIndex = { ...dicomDB.getSeriesIndex() };
+      const seriesImages = { ...dicomDB.getSeriesImages() };
 
-      commit('updatePatients', patients);
-      commit('updateStudies', patientStudies);
-      commit('updateSeries', studySeries);
+      commit('updatePatients', patientIndex);
+      commit('updateStudies', studyIndex);
+      commit('updateSeries', seriesIndex);
       commit('updateImages', seriesImages);
     },
   },

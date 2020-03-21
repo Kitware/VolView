@@ -12,6 +12,7 @@
         hide-details
         label="Patient"
         prepend-icon="mdi-account"
+        no-data-text="No patients loaded"
         class="no-select"
       />
       <v-select
@@ -25,6 +26,7 @@
         hide-details
         label="Study"
         prepend-icon="mdi-folder-table"
+        no-data-text="No patient selected"
         class="no-select mt-2"
       />
     </div>
@@ -41,9 +43,15 @@
               </v-row>
             </v-expansion-panel-header>
             <v-expansion-panel-content>
-              <div class="d-flex flex-row flex-wrap ma-2">
+              <v-container class="series-info body-1">
+                <v-row no-gutters>
+                  <v-col>{{ series.date }} {{ series.time }}</v-col>
+                  <v-col>{{ seriesImages[series.instanceUID].length }} images</v-col>
+                </v-row>
+              </v-container>
+              <div class="image-grid ma-2">
                 <template v-for="(image, i) in seriesImages[series.instanceUID]">
-                  <img :key="i" class="meow" :src="imageToDataURL(image)" />
+                  <img :key="i" class="image-item" />
                 </template>
               </div>
             </v-expansion-panel-content>
@@ -63,6 +71,7 @@ function imageToDataURL(image) {
   $canvas.width = image.cols;
   $canvas.height = image.rows;
   const ctx = $canvas.getContext('2d');
+  console.time('dataurl');
   const imageData = ctx.createImageData($canvas.width, $canvas.height);
   for (let i = 0, si = 0; i < image.pixelData.length; i += 1, si += 4) {
     const pixel = Math.floor(255 * ((image.pixelData[i] - image.minValue) / image.maxValue));
@@ -73,6 +82,7 @@ function imageToDataURL(image) {
   }
 
   ctx.putImageData(imageData, 0, 0);
+  console.timeEnd('dataurl');
   return $canvas.toDataURL('image/png');
 }
 
@@ -88,18 +98,26 @@ export default {
 
   computed: {
     ...mapState('datasets', {
-      patients: (state) => state.patients.map((patient) => ({
-        id: patient.patientID,
-        label: `${patient.name} (${patient.patientID})`,
-      })),
+      patients: (state) => Object.keys(state.patientIndex).map((patientID) => {
+        const patient = state.patientIndex[patientID];
+        return {
+          id: patientID,
+          label: `${patient.name} (${patient.patientID})`,
+        };
+      }),
       studies(state) {
-        return (state.patientStudies[this.patientID] || []).map((study) => ({
-          id: study.instanceUID,
-          label: `${study.description}`,
-        }));
+        const studies = state.patientIndex[this.patientID]?.studies || [];
+        return studies.map((instanceUID) => {
+          const study = state.studyIndex[instanceUID];
+          return {
+            id: study.instanceUID,
+            label: study.description,
+          };
+        });
       },
       seriesList(state) {
-        return (state.studySeries[this.studyUID] || []);
+        const series = state.studyIndex[this.studyUID]?.series || [];
+        return series.map((instanceUID) => state.seriesIndex[instanceUID]);
       },
       seriesImages: 'seriesImages',
     }),
@@ -161,10 +179,17 @@ export default {
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-.meow {
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 50px);
+  grid-auto-rows: 50px;
+  grid-gap: 6px;
+  justify-content: center;
+}
+
+.image-item {
   width: 50px;
   height: 50px;
-  background: grey;
-  margin: 4px;
+  border: 1px solid grey;
 }
 </style>

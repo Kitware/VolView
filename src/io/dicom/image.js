@@ -1,14 +1,16 @@
-export default class Image {
+// Avoid name conflicts with window.Image
+export default class DicomImage {
   constructor(data) {
-    this.instanceNumber = null;
-    this.imageType = null;
-    this.comments = null;
-    this.filename = null;
+    this.instanceNumber = '';
+    this.imageType = '';
+    this.comments = '';
+    this.filename = '';
     this.pixelData = null;
-    this.rows = null;
-    this.cols = null;
-    this.minValue = null;
-    this.maxValue = null;
+    this.rows = 0;
+    this.cols = 0;
+    this.minValue = 0;
+    this.maxValue = 0;
+    this.thumbnail = '';
 
     if (data) {
       this.update(data);
