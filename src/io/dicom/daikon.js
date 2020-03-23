@@ -46,18 +46,17 @@ function extractSeriesInfo(image) {
 }
 
 function extractImageInfo(image) {
+  const imageData = image.getInterpretedData(false, true);
   return {
     instanceNumber: image.getImageNumber(),
     imageType: image.getImageType(),
     comments: extractTagValue(image, Tags.ImageComments),
     rows: image.getRows(),
     cols: image.getCols(),
-    minValue: image.getImageMin(),
-    maxValue: image.getImageMax(),
+    minValue: image.getImageMin() ?? imageData.min,
+    maxValue: image.getImageMax() ?? imageData.max,
+    pixelData: imageData.data,
   };
-}
-
-function generateThumbnailURI() {
 }
 
 export default class DaikonDatabase extends DICOMDatabase {
@@ -130,9 +129,6 @@ export default class DaikonDatabase extends DICOMDatabase {
       if (!this.$imageMap.has(image)) {
         this.$imageMap.set(image, new DicomImage(imageInfo));
       }
-
-      const dicomImage = this.$imageMap.get(image);
-      generateThumbnailURI(dicomImage);
     }
 
     // update image ordering

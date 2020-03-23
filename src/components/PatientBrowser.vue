@@ -31,58 +31,42 @@
       />
     </div>
     <div id="patient-data-list">
-      <v-expansion-panels accordion multiple id="patient-data-list-panels">
-        <template v-for="(series, i) in seriesList">
-          <v-expansion-panel :key="i">
-            <v-expansion-panel-header color="#1976fa0a" class="no-select subtitle-2">
-              <v-row no-gutters align="center">
-                <v-col>{{ series.description }}</v-col>
-                <!--
-                <v-col>({{ seriesImages[series.instanceUID].length }} images)</v-col>
-                -->
-              </v-row>
-            </v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <v-container class="series-info body-1">
-                <v-row no-gutters>
-                  <v-col>{{ series.date }} {{ series.time }}</v-col>
-                  <v-col>{{ seriesImages[series.instanceUID].length }} images</v-col>
-                </v-row>
-              </v-container>
-              <div class="image-grid ma-2">
-                <template v-for="(image, i) in seriesImages[series.instanceUID]">
-                  <img :key="i" class="image-item" />
-                </template>
-              </div>
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-        </template>
-      </v-expansion-panels>
+      <v-item-group mandatory>
+        <v-item
+          v-for="series in seriesList"
+          :key="series.instanceUID"
+          v-slot:default="{ active, toggle }"
+        >
+          <v-card
+            outlined
+            width="100%"
+            ripple
+            :color="active ? 'light-blue accent-1' : ''"
+            class="series-card"
+            @click="toggle"
+          >
+            <v-img contain height="100px" :src="thumbnails[series.instanceUID]" />
+            <v-card-text class="text--primary caption text-center">
+              {{ series.description || '(no name)' }}
+            </v-card-text>
+          </v-card>
+        </v-item>
+      </v-item-group>
     </div>
   </div>
 </template>
 
 <script>
 import { mapState } from 'vuex';
+import ThumbnailCache from '@/src/io/dicom/thumbnailCache';
 
 const $canvas = document.createElement('canvas');
 
-function imageToDataURL(image) {
-  $canvas.width = image.cols;
-  $canvas.height = image.rows;
+function generateImageURI(imageData) {
+  $canvas.width = imageData.width;
+  $canvas.height = imageData.height;
   const ctx = $canvas.getContext('2d');
-  console.time('dataurl');
-  const imageData = ctx.createImageData($canvas.width, $canvas.height);
-  for (let i = 0, si = 0; i < image.pixelData.length; i += 1, si += 4) {
-    const pixel = Math.floor(255 * ((image.pixelData[i] - image.minValue) / image.maxValue));
-    imageData.data[si + 0] = pixel;
-    imageData.data[si + 1] = pixel;
-    imageData.data[si + 2] = pixel;
-    imageData.data[si + 3] = 255;
-  }
-
   ctx.putImageData(imageData, 0, 0);
-  console.timeEnd('dataurl');
   return $canvas.toDataURL('image/png');
 }
 
@@ -93,6 +77,7 @@ export default {
     return {
       patientID: '',
       studyUID: '',
+      thumbnails: {},
     };
   },
 
@@ -111,7 +96,7 @@ export default {
           const study = state.studyIndex[instanceUID];
           return {
             id: study.instanceUID,
-            label: study.description,
+            label: study.description || study.studyID,
           };
         });
       },
@@ -127,35 +112,26 @@ export default {
     patientID() {
       this.studyUID = '';
     },
+    seriesList(list) {
+      for (let i = 0; i < list.length; i += 1) {
+        const series = list[i];
+        const images = this.seriesImages[series.instanceUID];
+        // pick middle image for thumbnailing
+        const thumbnailTarget = images[Math.floor(images.length / 2)];
+        this.thumbnailCache
+          .getThumbnail(thumbnailTarget)
+          .then((imageData) => {
+            this.$set(this.thumbnails, series.instanceUID, generateImageURI(imageData));
+          });
+      }
+    },
   },
 
-  methods: {
-    imageToDataURL,
+  mounted() {
+    this.thumbnailCache = new ThumbnailCache(100, 100);
   },
 };
 </script>
-
-<style>
-#patient-data-list-panels .v-expansion-panel--active > .v-expansion-panel-header {
-  /* don't grow expansion panel when opened */
-  min-height: unset;
-}
-
-#patient-data-list-panels .v-expansion-panel--active > .v-expansion-panel-header {
-  /* don't grow expansion panel when opened */
-  min-height: unset;
-}
-
-#patient-data-list-panels .v-expansion-panel-content__wrap {
-  /* reduce content padding */
-  padding: 0 8px;
-}
-
-#patient-data-list-panels .v-expansion-panel::before {
-  /* no drop-shadow */
-  box-shadow: none;
-}
-</style>
 
 <style scoped>
 #patient-module {
@@ -174,22 +150,9 @@ export default {
   overflow-y: scroll;
 }
 
-#patient-data-list-panels {
-  width: calc(100% - 0px);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 50px);
-  grid-auto-rows: 50px;
-  grid-gap: 6px;
-  justify-content: center;
-}
-
-.image-item {
-  width: 50px;
-  height: 50px;
-  border: 1px solid grey;
+.series-card {
+  display: inline-block;
+  padding: 8px;
+  cursor: pointer;
 }
 </style>
