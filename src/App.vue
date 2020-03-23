@@ -106,13 +106,26 @@
     </v-content>
 
     <v-snackbar
-      v-model="toastState"
+      v-model="loadingToast"
       bottom
-      left
-      :color="toast.type"
+      right
+      color="info"
+      :timeout="0"
     >
-      {{ toast.message }}
-      <v-btn text @click="toastState = false">Close</v-btn>
+      <span class="pa-2 body-1">Loading...</span>
+    </v-snackbar>
+
+    <v-snackbar
+      v-model="infoToast"
+      bottom
+      right
+      :color="toast.type"
+      :timeout="toast.timeout"
+    >
+      <span class="pa-2 body-1">{{ toast.message }}</span>
+      <v-btn text @click="infoToast = false">
+        <span>Close</span>
+      </v-btn>
     </v-snackbar>
   </v-app>
 </template>
@@ -175,7 +188,8 @@ export default {
     activeDatasetIndex: NO_DS,
     selectedTool: null,
     selectedModule: Modules[0],
-    toastState: false,
+    loadingToast: false,
+    infoToast: false,
     toast: {
       type: '',
       message: '',
@@ -212,6 +226,7 @@ export default {
       const { files } = evt.target;
       this.loadingFiles = true;
 
+      this.loadingToast = true;
       this.loadFiles(Array.from(files))
         .then(() => {
           this.showToast('success', 'Files imported');
@@ -219,12 +234,19 @@ export default {
         .catch(() => {
           // TODO: persist toast and show error details
           this.showToast('error', 'Error occurred!');
+        })
+        .finally(() => {
+          this.loadingToast = false;
         });
     },
 
-    showToast(type, message) {
-      this.toast = { type, message };
-      this.toastState = true;
+    showToast(type, message, options = {}) {
+      this.toast = {
+        type,
+        message,
+        timeout: options.permanent ? 0 : 6000,
+      };
+      this.infoToast = true;
     },
 
     ...mapActions('datasets', ['loadFiles']),
@@ -245,6 +267,11 @@ export default {
 #module-switcher .v-input__prepend-inner {
   /* better icon alignment */
   margin-top: 15px;
+}
+
+.alert > .v-snack__wrapper {
+  /* transition background color */
+  transition: background-color 0.25s;
 }
 </style>
 
