@@ -14,10 +14,10 @@ export default class Patient {
   }
 
   update(newData) {
-    this.patientID = newData.patientID || this.patientID;
-    this.name = newData.name || this.name;
-    this.birthDate = newData.birthDate || this.birthDate;
-    this.sex = newData.sex || this.sex;
-    this.comments = newData.comments || this.comments;
+    this.patientID = newData.patientID ?? this.patientID;
+    this.name = newData.name ?? this.name;
+    this.birthDate = newData.birthDate ?? this.birthDate;
+    this.sex = newData.sex ?? this.sex;
+    this.comments = newData.comments ?? this.comments;
   }
 }

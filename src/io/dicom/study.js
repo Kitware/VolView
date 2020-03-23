@@ -15,11 +15,11 @@ export default class Study {
   }
 
   update(newData) {
-    this.instanceUID = newData.instanceUID || this.instanceUID;
-    this.studyID = newData.studyID || this.studyID;
-    this.date = newData.date || this.date;
-    this.time = newData.time || this.time;
-    this.accessionNumber = newData.accessionNumber || this.accessionNumber;
-    this.description = newData.description || this.description;
+    this.instanceUID = newData.instanceUID ?? this.instanceUID;
+    this.studyID = newData.studyID ?? this.studyID;
+    this.date = newData.date ?? this.date;
+    this.time = newData.time ?? this.time;
+    this.accessionNumber = newData.accessionNumber ?? this.accessionNumber;
+    this.description = newData.description ?? this.description;
   }
 }

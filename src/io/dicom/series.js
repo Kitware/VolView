@@ -13,11 +13,11 @@ export default class Series {
   }
 
   update(newData) {
-    this.instanceUID = newData.instanceUID || this.instanceUID;
-    this.modality = newData.modality || this.modality;
-    this.number = newData.number || this.number;
-    this.date = newData.date || this.date;
-    this.time = newData.time || this.time;
-    this.description = newData.description || this.description;
+    this.instanceUID = newData.instanceUID ?? this.instanceUID;
+    this.modality = newData.modality ?? this.modality;
+    this.number = newData.number ?? this.number;
+    this.date = newData.date ?? this.date;
+    this.time = newData.time ?? this.time;
+    this.description = newData.description ?? this.description;
   }
 }
