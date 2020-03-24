@@ -13,12 +13,32 @@ module.exports = {
   ],
   chainWebpack: (config) => {
     vtkChainWebpack(config);
+    // do not cache worker files
+    // https://github.com/webpack-contrib/worker-loader/issues/195
+    config.module.rule('js').exclude.add(/\.worker\.js$/);
   },
   configureWebpack: {
     resolve: {
       alias: {
         '@': __dirname,
       },
+    },
+    module: {
+      rules: [
+        {
+          test: /\.worker\.js$/,
+          exclude: /node_modules/,
+          use: [
+            {
+              loader: 'worker-loader',
+              options: {
+                inline: true,
+                fallback: false,
+              },
+            },
+          ],
+        },
+      ],
     },
     plugins: [
       // disable webvr
