@@ -29,6 +29,7 @@
               class="no-select"
               :title="`${study.description || ''} (${study.date.toDateString()})`"
             >
+              <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
               <div class="study-header">
                 <div class="subtitle-2 study-header-line">
                   {{ study.description || study.date.toDateString() }}
