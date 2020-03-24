@@ -17,7 +17,7 @@
       />
     </div>
     <div id="patient-data-list">
-      <v-item-group mandatory>
+      <v-item-group mandatory v-model="selection">
         <v-expansion-panels id="patient-data-studies" accordion multiple>
           <v-expansion-panel
             v-for="study in getStudies(patientID)"
@@ -45,6 +45,7 @@
                   v-for="series in getSeries(study.instanceUID)"
                   :key="series.instanceUID"
                   v-slot:default="{ active, toggle }"
+                  :value="`${study.instanceUID}::${series.instanceUID}`"
                 >
                   <v-card
                     outlined
@@ -78,7 +79,7 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapState, mapActions } from 'vuex';
 import ThumbnailCache from '@/src/io/dicom/thumbnailCache';
 
 const $canvas = document.createElement('canvas');
@@ -98,6 +99,7 @@ export default {
     return {
       patientID: '',
       thumbnails: {},
+      selection: '',
     };
   },
 
@@ -118,6 +120,17 @@ export default {
   },
 
   watch: {
+    selection(sel) {
+      // :: is used as the separator for the v-item value
+      const [studyUID, seriesUID] = sel.split('::');
+      this.selectSeries([this.patientID, studyUID, seriesUID]);
+    },
+    patientIndex(index) {
+      // if patient index is updated, then try to select first one
+      if (!this.patientID) {
+        [this.patientID] = Object.keys(index);
+      }
+    },
     patientID(patientID) {
       const studies = this.getStudies(patientID);
       for (let i = 0; i < studies.length; i += 1) {
@@ -142,6 +155,7 @@ export default {
   },
 
   methods: {
+    ...mapActions('datasets', ['selectSeries']),
     getStudies(patientID) {
       return (this.patientIndex[patientID]?.studies ?? []).map(
         (studyUID) => this.studyIndex[studyUID],

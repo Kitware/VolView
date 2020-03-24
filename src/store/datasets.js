@@ -19,6 +19,9 @@ export default ({ loader, dicomDB }) => ({
 
   state: {
     errors: {},
+    selectedPatientID: '',
+    selectedStudyUID: '',
+    selectedSeriesUID: '',
 
     patientIndex: {},
     studyIndex: {},
@@ -48,6 +51,20 @@ export default ({ loader, dicomDB }) => ({
 
     updateImages(state, seriesImages) {
       state.seriesImages = seriesImages;
+    },
+
+    selectSeries(state, selection) {
+      // Can I assume seriesUID will be unique across ALL series?
+      const [patientID, studyUID, seriesUID] = selection;
+      if (patientID && studyUID && seriesUID) {
+        state.selectedPatientID = patientID;
+        state.selectedStudyUID = studyUID;
+        state.selectedSeriesUID = seriesUID;
+      } else {
+        state.selectedPatientID = '';
+        state.selectedStudyUID = '';
+        state.selectedSeriesUID = '';
+      }
     },
   },
 
@@ -88,6 +105,14 @@ export default ({ loader, dicomDB }) => ({
       commit('updateStudies', studyIndex);
       commit('updateSeries', seriesIndex);
       commit('updateImages', seriesImages);
+    },
+
+    async selectSeries({ state, commit }, selection) {
+      commit('selectSeries', selection);
+
+      if (state.selectedSeriesUID) {
+        await dicomDB.getSeriesAsVolume(state.selectedSeriesUID);
+      }
     },
   },
 });
