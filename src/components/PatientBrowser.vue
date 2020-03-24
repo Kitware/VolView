@@ -15,42 +15,60 @@
         no-data-text="No patients loaded"
         class="no-select"
       />
-      <v-select
-        v-model="studyUID"
-        :items="studies"
-        item-text="label"
-        item-value="id"
-        dense
-        filled
-        single-line
-        hide-details
-        label="Study"
-        prepend-icon="mdi-folder-table"
-        no-data-text="No patient selected"
-        class="no-select mt-2"
-      />
     </div>
     <div id="patient-data-list">
       <v-item-group mandatory>
-        <v-item
-          v-for="series in seriesList"
-          :key="series.instanceUID"
-          v-slot:default="{ active, toggle }"
-        >
-          <v-card
-            outlined
-            width="100%"
-            ripple
-            :color="active ? 'light-blue accent-1' : ''"
-            class="series-card"
-            @click="toggle"
+        <v-expansion-panels id="patient-data-studies" accordion multiple>
+          <v-expansion-panel
+            v-for="study in getStudies(patientID)"
+            :key="study.instanceUID"
+            class="patient-data-study-panel"
           >
-            <v-img contain height="100px" :src="thumbnails[series.instanceUID]" />
-            <v-card-text class="text--primary caption text-center">
-              {{ series.description || '(no name)' }}
-            </v-card-text>
-          </v-card>
-        </v-item>
+            <v-expansion-panel-header
+              color="#1976fa0a"
+              class="no-select"
+              :title="`${study.description || ''} (${study.date.toDateString()})`"
+            >
+              <div class="study-header">
+                <div class="subtitle-2 study-header-line">
+                  {{ study.description || study.date.toDateString() }}
+                </div>
+                <div v-if="study.description" class="caption study-header-line">
+                  {{ study.date.toDateString() }}
+                </div>
+              </div>
+            </v-expansion-panel-header>
+            <v-expansion-panel-content>
+              <div class="my-2 series-list">
+                <v-item
+                  v-for="series in getSeries(study.instanceUID)"
+                  :key="series.instanceUID"
+                  v-slot:default="{ active, toggle }"
+                >
+                  <v-card
+                    outlined
+                    ripple
+                    :color="active ? 'light-blue lighten-4' : ''"
+                    class="series-card"
+                    :title="series.description"
+                    @click="toggle"
+                  >
+                    <v-img
+                      contain
+                      height="100px"
+                      :src="thumbnails[series.instanceUID]"
+                    />
+                    <v-card-text class="text--primary caption text-center series-desc mt-n3">
+                      <div>[{{ seriesImages[series.instanceUID].length }}]</div>
+                      <div>{{ series.description || '(no description)' }}</div>
+                    </v-card-text>
+                  </v-card>
+                </v-item>
+              </div>
+            </v-expansion-panel-content>
+          </v-expansion-panel>
+        </v-expansion-panels>
+
       </v-item-group>
     </div>
   </div>
@@ -76,7 +94,6 @@ export default {
   data() {
     return {
       patientID: '',
-      studyUID: '',
       thumbnails: {},
     };
   },
@@ -90,39 +107,29 @@ export default {
           label: `${patient.name} (${patient.patientID})`,
         };
       }),
-      studies(state) {
-        const studies = state.patientIndex[this.patientID]?.studies || [];
-        return studies.map((instanceUID) => {
-          const study = state.studyIndex[instanceUID];
-          return {
-            id: study.instanceUID,
-            label: study.description || study.studyID,
-          };
-        });
-      },
-      seriesList(state) {
-        const series = state.studyIndex[this.studyUID]?.series || [];
-        return series.map((instanceUID) => state.seriesIndex[instanceUID]);
-      },
+      patientIndex: 'patientIndex',
+      studyIndex: 'studyIndex',
+      seriesIndex: 'seriesIndex',
       seriesImages: 'seriesImages',
     }),
   },
 
   watch: {
-    patientID() {
-      this.studyUID = '';
-    },
-    seriesList(list) {
-      for (let i = 0; i < list.length; i += 1) {
-        const series = list[i];
-        const images = this.seriesImages[series.instanceUID];
-        // pick middle image for thumbnailing
-        const thumbnailTarget = images[Math.floor(images.length / 2)];
-        this.thumbnailCache
-          .getThumbnail(thumbnailTarget)
-          .then((imageData) => {
-            this.$set(this.thumbnails, series.instanceUID, generateImageURI(imageData));
-          });
+    patientID(patientID) {
+      const studies = this.getStudies(patientID);
+      for (let i = 0; i < studies.length; i += 1) {
+        const seriesList = this.getSeries(studies[i].instanceUID);
+        for (let j = 0; j < seriesList.length; j += 1) {
+          const series = seriesList[j];
+          const images = this.seriesImages[series.instanceUID];
+          // pick middle image for thumbnailing
+          const thumbnailTarget = images[Math.floor(images.length / 2)];
+          this.thumbnailCache
+            .getThumbnail(thumbnailTarget)
+            .then((imageData) => {
+              this.$set(this.thumbnails, series.instanceUID, generateImageURI(imageData));
+            });
+        }
       }
     },
   },
@@ -130,8 +137,35 @@ export default {
   mounted() {
     this.thumbnailCache = new ThumbnailCache(100, 100);
   },
+
+  methods: {
+    getStudies(patientID) {
+      return (this.patientIndex[patientID]?.studies ?? []).map(
+        (studyUID) => this.studyIndex[studyUID],
+      );
+    },
+    getSeries(studyUID) {
+      return (this.studyIndex[studyUID]?.series ?? []).map(
+        (seriesUID) => this.seriesIndex[seriesUID],
+      );
+    },
+  },
 };
 </script>
+
+<style>
+#patient-data-studies .v-expansion-panel--active > .v-expansion-panel-header {
+  min-height: unset;
+}
+
+#patient-data-studies .v-expansion-panel-content__wrap {
+  padding: 0 8px;
+}
+
+#patient-data-studies .v-expansion-panel::before {
+  box-shadow: none;
+}
+</style>
 
 <style scoped>
 #patient-module {
@@ -150,9 +184,37 @@ export default {
   overflow-y: scroll;
 }
 
+.patient-data-study-panel {
+  border: 1px solid #ddd;
+}
+
+.series-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-rows: 180px;
+  justify-content: center;
+}
+
 .series-card {
-  display: inline-block;
   padding: 8px;
   cursor: pointer;
+}
+
+.study-header {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.study-header-line {
+  width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.series-desc {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 </style>

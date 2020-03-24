@@ -312,7 +312,7 @@ export default {
 #left-pane {
   display: flex;
   flex-flow: column;
-  min-width: 250px;
+  min-width: 225px;
   flex: 1;
 }
 
