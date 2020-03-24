@@ -61,7 +61,9 @@
                     />
                     <v-card-text class="text--primary caption text-center series-desc mt-n3">
                       <div>[{{ seriesImages[series.instanceUID].length }}]</div>
-                      <div>{{ series.description || '(no description)' }}</div>
+                      <div class="text-ellipsis">
+                        {{ series.description || '(no description)' }}
+                      </div>
                     </v-card-text>
                   </v-card>
                 </v-item>
