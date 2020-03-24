@@ -233,7 +233,7 @@ export default {
         })
         .catch(() => {
           // TODO: persist toast and show error details
-          this.showToast('error', 'Error occurred!');
+          this.showToast('error', 'Error occurred!', { permanent: true });
         })
         .finally(() => {
           this.loadingToast = false;
