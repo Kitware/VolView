@@ -13,6 +13,7 @@
         label="Patient"
         prepend-icon="mdi-account"
         no-data-text="No patients loaded"
+        placeholder="Select a patient"
         class="no-select"
       />
     </div>
