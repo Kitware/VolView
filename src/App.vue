@@ -105,28 +105,31 @@
       </div>
     </v-content>
 
-    <v-snackbar
-      v-model="loadingToast"
-      bottom
-      right
-      color="info"
-      :timeout="0"
+    <notifications
+      position="bottom left"
+      :duration="6000"
     >
-      <span class="pa-2 body-1">Loading...</span>
-    </v-snackbar>
+      <template slot="body" slot-scope="{ item, close }">
+        <div
+          class="vue-notification-template general-notifications"
+          :class="`notify-${item.type}`"
+        >
+          <div class="notification-content d-flex flex-row align-center">
+            <span class="subtitle-1 flex-grow-1">{{ item.text }}</span>
+            <!-- duration = length - 2*speed -->
+            <v-btn
+              v-if="item.length - 2*item.speed <= 0"
+              text
+              color="white"
+              @click="close"
+            >
+              Close
+            </v-btn>
+          </div>
+        </div>
+      </template>
+    </notifications>
 
-    <v-snackbar
-      v-model="infoToast"
-      bottom
-      right
-      :color="toast.type"
-      :timeout="toast.timeout"
-    >
-      <span class="pa-2 body-1">{{ toast.message }}</span>
-      <v-btn text @click="infoToast = false">
-        <span>Close</span>
-      </v-btn>
-    </v-snackbar>
   </v-app>
 </template>
 
@@ -188,12 +191,6 @@ export default {
     activeDatasetIndex: NO_DS,
     selectedTool: null,
     selectedModule: Modules[0],
-    loadingToast: false,
-    infoToast: false,
-    toast: {
-      type: '',
-      message: '',
-    },
 
     layout: ['H', VtkView, ['V', null, VtkView, null]],
 
@@ -224,29 +221,22 @@ export default {
 
     onFileSelect(evt) {
       const { files } = evt.target;
-      this.loadingFiles = true;
 
-      this.loadingToast = true;
-      this.loadFiles(Array.from(files))
-        .then(() => {
-          this.showToast('success', 'Files imported');
-        })
-        .catch(() => {
-          // TODO: persist toast and show error details
-          this.showToast('error', 'Error occurred!', { permanent: true });
-        })
-        .finally(() => {
-          this.loadingToast = false;
+      this.$notify({ id: 'loading', text: 'Loading...' });
+      const promise = this.loadFiles(Array.from(files));
+
+      // TODO only close if there are no pending files
+      promise.finally(() => this.$notify.close('loading'));
+      promise.then(() => {
+        this.$notify({ type: 'success', text: 'Files loaded' });
+      });
+      promise.catch(() => {
+        this.$notify({
+          type: 'error',
+          duration: -1,
+          text: 'Unknown error occurred!',
         });
-    },
-
-    showToast(type, message, options = {}) {
-      this.toast = {
-        type,
-        message,
-        timeout: options.permanent ? 0 : 6000,
-      };
-      this.infoToast = true;
+      });
     },
 
     ...mapActions('datasets', ['loadFiles']),
@@ -272,6 +262,29 @@ export default {
 .alert > .v-snack__wrapper {
   /* transition background color */
   transition: background-color 0.25s;
+}
+
+.general-notifications {
+  padding: 10px;
+  margin: 0 20px 20px;
+  color: #fff;
+  background: #44A4FC;
+  border-left: 5px solid #187FE7;
+}
+
+.general-notifications.notify-success {
+  background: #4caf50;
+  border-left-color: #42A85F;
+}
+
+.general-notifications.notify-warn {
+  background: #ffb648;
+  border-left-color: #f48a06;
+}
+
+.general-notifications.notify-error {
+  background: #E54D42;
+  border-left-color: #B82E24;
 }
 </style>
 

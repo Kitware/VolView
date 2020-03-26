@@ -1,6 +1,7 @@
 import '@/public/global.css';
 
 import Vue from 'vue';
+import VueNotifications from 'vue-notification';
 import App from './App.vue';
 import createStore from './store';
 import vuetify from './plugins/vuetify';
@@ -10,6 +11,7 @@ import DaikonDatabase from './io/dicom/daikon';
 
 Vue.config.productionTip = false;
 
+Vue.use(VueNotifications);
 const loader = new FileLoader();
 registerAllReaders(loader);
 
