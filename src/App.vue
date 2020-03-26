@@ -118,15 +118,28 @@
         >
           <div class="notification-content d-flex flex-row align-center">
             <span class="subtitle-1 flex-grow-1">{{ item.text }}</span>
-            <!-- duration = length - 2*speed -->
-            <v-btn
-              v-if="item.length - 2*item.speed <= 0"
-              text
-              color="white"
-              @click="close"
-            >
-              Close
-            </v-btn>
+            <div class="actions-stack d-flex flex-column align-right">
+              <template v-if="item.data && item.data.actions">
+                <v-btn
+                  v-for="(action,i) in item.data.actions"
+                  :key="i"
+                  text
+                  color="white"
+                  @click="action.onclick"
+                >
+                  {{ action.text }}
+                </v-btn>
+              </template>
+              <!-- duration = length - 2*speed -->
+              <v-btn
+                v-if="item.length - 2*item.speed <= 0"
+                text
+                color="white"
+                @click="close"
+              >
+                Close
+              </v-btn>
+            </div>
           </div>
         </div>
       </template>
