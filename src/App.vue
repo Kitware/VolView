@@ -108,6 +108,8 @@
     <notifications
       position="bottom left"
       :duration="6000"
+      width="350px"
+      animation-name="notify-fade"
     >
       <template slot="body" slot-scope="{ item, close }">
         <div
@@ -285,6 +287,16 @@ export default {
 .general-notifications.notify-error {
   background: #E54D42;
   border-left-color: #B82E24;
+}
+
+.notify-fade-enter-active, .notify-fade-leave-active, .notify-fade-move  {
+  transition: all 0.2s;
+}
+
+.notify-fade-enter, .notify-fade-leave-to {
+  opacity: 0;
+  /* ensure we don't get a weird height flash on the new item */
+  height: 0;
 }
 </style>
 
