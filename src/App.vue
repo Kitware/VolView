@@ -107,14 +107,14 @@
 
     <notifications
       position="bottom left"
-      :duration="6000"
+      :duration="4000"
       width="350px"
-      animation-name="notify-fade"
     >
       <template slot="body" slot-scope="{ item, close }">
         <div
           class="vue-notification-template general-notifications"
           :class="`notify-${item.type}`"
+          @click="close"
         >
           <div class="notification-content d-flex flex-row align-center">
             <span class="subtitle-1 flex-grow-1">{{ item.text }}</span>
@@ -125,17 +125,16 @@
                   :key="i"
                   text
                   color="white"
-                  @click="action.onclick"
+                  @click.stop="close(); action.onclick()"
                 >
                   {{ action.text }}
                 </v-btn>
               </template>
-              <!-- duration = length - 2*speed -->
               <v-btn
-                v-if="item.length - 2*item.speed <= 0"
+                v-if="item.type !== 'loading'"
                 text
                 color="white"
-                @click="close"
+                @click.stop="close"
               >
                 Close
               </v-btn>
@@ -237,13 +236,40 @@ export default {
     onFileSelect(evt) {
       const { files } = evt.target;
 
-      this.$notify({ id: 'loading', text: 'Loading...' });
+      this.$notify({
+        id: 'loading',
+        type: 'loading',
+        duration: -1,
+        text: 'Loading...',
+      });
+
       const promise = this.loadFiles(Array.from(files));
 
+      promise.finally(() => {
+        this.$notify.close('loading');
+      });
+
       // TODO only close if there are no pending files
-      promise.finally(() => this.$notify.close('loading'));
       promise.then(() => {
-        this.$notify({ type: 'success', text: 'Files loaded' });
+        if (this.fileLoadErrors.length) {
+          this.$notify({
+            type: 'error',
+            duration: -1,
+            text: 'Some files failed to load!',
+            data: {
+              actions: [
+                {
+                  text: 'details',
+                  onclick: () => {
+                    this.fileErrorDialog = true;
+                  },
+                },
+              ],
+            },
+          });
+        } else {
+          this.$notify({ type: 'success', text: 'Files loaded' });
+        }
       });
       promise.catch(() => {
         this.$notify({
@@ -285,6 +311,7 @@ export default {
   color: #fff;
   background: #44A4FC;
   border-left: 5px solid #187FE7;
+  user-select: none;
 }
 
 .general-notifications.notify-success {
@@ -300,16 +327,6 @@ export default {
 .general-notifications.notify-error {
   background: #E54D42;
   border-left-color: #B82E24;
-}
-
-.notify-fade-enter-active, .notify-fade-leave-active, .notify-fade-move  {
-  transition: all 0.2s;
-}
-
-.notify-fade-enter, .notify-fade-leave-to {
-  opacity: 0;
-  /* ensure we don't get a weird height flash on the new item */
-  height: 0;
 }
 </style>
 
