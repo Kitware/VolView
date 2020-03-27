@@ -17,7 +17,12 @@ export async function itkReader(file) {
 
   const reader = vtkITKImageReader.newInstance();
   reader.setFileName(file.name);
-  await reader.parseAsArrayBuffer(fileBuffer);
+  try {
+    await reader.parseAsArrayBuffer(fileBuffer);
+  } catch (e) {
+    // itkreader doesn't give us a meaningful error
+    throw new Error('Failed to parse file');
+  }
 
   return reader.getOutputData();
 }

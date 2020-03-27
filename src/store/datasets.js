@@ -18,7 +18,8 @@ export default ({ loader, dicomDB }) => ({
   namespaced: true,
 
   state: {
-    errors: {},
+    errors: [],
+
     selectedPatientID: '',
     selectedStudyUID: '',
     selectedSeriesUID: '',
@@ -30,11 +31,13 @@ export default ({ loader, dicomDB }) => ({
   },
 
   mutations: {
-    setError(state, { name, error }) {
-      state.errors = {
-        ...state.errors,
-        [name]: error,
-      };
+    addError(state, { name, reason }) {
+      state.errors.push({ name, reason });
+      console.log('asdf', state.errors);
+    },
+
+    clearErrors(state) {
+      state.errors = [];
     },
 
     updatePatients(state, patientIndex) {
@@ -84,8 +87,10 @@ export default ({ loader, dicomDB }) => ({
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
           const fileName = files[index].name;
-          commit('setError', fileName, result.reason);
-          console.error('ERROR TODO', fileName, result.reason);
+          commit('addError', {
+            name: fileName,
+            reason: result.reason,
+          });
         }
       });
 

@@ -105,6 +105,48 @@
       </div>
     </v-content>
 
+    <v-dialog
+      v-model="fileErrorDialog"
+      width="50%"
+      @click:outside="clearAndCloseErrors"
+    >
+      <v-card>
+        <v-card-title>Load Errors</v-card-title>
+        <v-card-text>
+          <v-container>
+            <v-row
+              v-for="(error,i) in fileLoadErrors"
+              :key="i"
+              no-gutters
+              class="align-center mt-2"
+            >
+              <v-col
+                cols="6"
+                class="text-ellipsis subtitle-1 black--text"
+                :title="error.name"
+              >
+                {{ error.name }}
+              </v-col>
+              <v-col>
+                <span class="ml-2">
+                  {{ error.reason.message || 'Unknown error' }}
+                </span>
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="primary"
+            @click="clearAndCloseErrors"
+          >
+            Clear
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <notifications
       position="bottom left"
       :duration="4000"
@@ -148,7 +190,7 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -206,6 +248,8 @@ export default {
     selectedTool: null,
     selectedModule: Modules[0],
 
+    fileErrorDialog: false,
+
     layout: ['H', VtkView, ['V', null, VtkView, null]],
 
     Tools,
@@ -213,6 +257,9 @@ export default {
   }),
 
   computed: {
+    ...mapState('datasets', {
+      fileLoadErrors: 'errors',
+    }),
     activeDataset() {
       return this.activeDatasetIndex === NO_DS ? null : this.datasets[this.activeDatasetIndex];
     },
@@ -280,7 +327,12 @@ export default {
       });
     },
 
-    ...mapActions('datasets', ['loadFiles']),
+    clearAndCloseErrors() {
+      this.clearErrors();
+      this.fileErrorDialog = false;
+    },
+
+    ...mapActions('datasets', ['loadFiles', 'clearErrors']),
   },
 };
 </script>
