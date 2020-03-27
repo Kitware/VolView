@@ -33,5 +33,21 @@ module.exports = {
         'no-unused-expressions': 'off',
       },
     },
+    {
+      files: ['src/vtk/**/*.js'],
+      rules: {
+        'no-param-reassign': [
+          'error',
+          {
+            props: true,
+            ignorePropertyModificationsFor: [
+              'publicAPI',
+              'model',
+              'state',
+            ],
+          },
+        ],
+      },
+    },
   ],
 };

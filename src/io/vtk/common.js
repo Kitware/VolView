@@ -1,15 +1,13 @@
-import { readFileAsArrayBuffer } from '../io';
+import { readFileAsArrayBuffer, readFileAsUTF8Text } from '../io';
 
 export default async function readFile(file, vtkReaderClass, asBinary = true) {
-  const buffer = await readFileAsArrayBuffer(file);
   const reader = vtkReaderClass.newInstance();
   if (asBinary) {
+    const buffer = await readFileAsArrayBuffer(file);
     reader.parseAsArrayBuffer(buffer);
   } else {
-    // assume single-byte chars
-    const str = String.fromCharCode.apply(null, new Uint8Array(buffer));
-    reader.parseAsText(str);
+    const buffer = await readFileAsUTF8Text(file);
+    reader.parseAsText(buffer);
   }
-
   return reader.getOutputData();
 }
