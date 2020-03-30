@@ -1,4 +1,5 @@
 import { FileTypes } from '../io/io';
+import { MultipleErrors } from '../utils/errors';
 
 function splitonce(str, delim) {
   const idx = str.indexOf(delim);
@@ -20,8 +21,6 @@ export default ({ loader, dicomDB }) => ({
   namespaced: true,
 
   state: {
-    errors: [],
-
     // format: <type>;<id>
     // type can be either "dicom" or "data"
     // dicom id has format <studyID>:<seriesID>
@@ -68,14 +67,6 @@ export default ({ loader, dicomDB }) => ({
   },
 
   mutations: {
-    addError(state, { name, reason }) {
-      state.errors.push({ name, reason });
-    },
-
-    clearErrors(state) {
-      state.errors = [];
-    },
-
     updatePatients(state, patientIndex) {
       state.patientIndex = patientIndex;
     },
@@ -128,19 +119,20 @@ export default ({ loader, dicomDB }) => ({
      * If no errors are encountered, then the object is empty.
      * @param {[]File} files
      */
-    async loadFiles({ commit, dispatch }, files) {
+    async loadFiles({ dispatch }, files) {
       const results = await Promise.allSettled(
         files.map((file) => dispatch('loadSingleFile', file)),
       );
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const fileName = files[index].name;
-          commit('addError', {
-            name: fileName,
-            reason: result.reason,
-          });
-        }
-      });
+      const rejected = results
+        .map((result, index) => (result.status === 'rejected'
+          ? { name: files[index].name, reason: result.reason }
+          : null))
+        .filter(Boolean);
+
+      if (rejected.length) {
+        console.log('ERROR', rejected);
+        throw new MultipleErrors(rejected, 'Some files failed to load!');
+      }
 
       // update dicom db after importing it all into the db
       return dispatch('updateDICOM');

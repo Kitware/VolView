@@ -108,7 +108,6 @@
     <v-dialog
       v-model="fileErrorDialog"
       width="50%"
-      @click:outside="clearAndCloseErrors"
     >
       <v-card>
         <v-card-title>Load Errors</v-card-title>
@@ -172,14 +171,16 @@
                   {{ action.text }}
                 </v-btn>
               </template>
-              <v-btn
-                v-if="item.type !== 'loading'"
-                text
-                color="white"
-                @click.stop="close"
-              >
-                Close
-              </v-btn>
+              <template v-else>
+                <v-btn
+                  v-if="item.type !== 'loading'"
+                  text
+                  color="white"
+                  @click.stop="close"
+                >
+                  Close
+                </v-btn>
+              </template>
             </div>
           </div>
         </div>
@@ -190,7 +191,7 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex';
+import { mapActions } from 'vuex';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -198,6 +199,7 @@ import VtkView from './components/VtkView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
+import { MultipleErrors } from './utils/errors';
 
 export const NO_DS = -1;
 
@@ -248,6 +250,7 @@ export default {
     selectedTool: null,
     selectedModule: Modules[0],
 
+    fileLoadErrors: [],
     fileErrorDialog: false,
 
     layout: ['H', VtkView, ['V', null, VtkView, null]],
@@ -257,11 +260,16 @@ export default {
   }),
 
   computed: {
-    ...mapState('datasets', {
-      fileLoadErrors: 'errors',
-    }),
     activeDataset() {
       return this.activeDatasetIndex === NO_DS ? null : this.datasets[this.activeDatasetIndex];
+    },
+  },
+
+  watch: {
+    fileErrorDialog(state) {
+      if (!state) {
+        this.fileLoadErrors = [];
+      }
     },
   },
 
@@ -280,7 +288,7 @@ export default {
       this.fileEl.click();
     },
 
-    onFileSelect(evt) {
+    async onFileSelect(evt) {
       const { files } = evt.target;
 
       this.$notify({
@@ -290,49 +298,51 @@ export default {
         text: 'Loading...',
       });
 
-      const promise = this.loadFiles(Array.from(files));
+      try {
+        await this.loadFiles(Array.from(files));
+        this.$notify({ type: 'success', text: 'Files loaded' });
+      } catch (error) {
+        const actions = [
+          {
+            text: 'details',
+            onclick: () => {
+              this.fileErrorDialog = true;
+            },
+          },
+          {
+            text: 'close',
+            onclick: this.clearAndCloseErrors,
+          },
+        ];
 
-      promise.finally(() => {
-        this.$notify.close('loading');
-      });
-
-      // TODO only close if there are no pending files
-      promise.then(() => {
-        if (this.fileLoadErrors.length) {
+        if (error instanceof MultipleErrors) {
+          this.fileLoadErrors = error.errors;
           this.$notify({
             type: 'error',
             duration: -1,
-            text: 'Some files failed to load!',
-            data: {
-              actions: [
-                {
-                  text: 'details',
-                  onclick: () => {
-                    this.fileErrorDialog = true;
-                  },
-                },
-              ],
-            },
+            text: error.message,
+            data: { actions },
           });
         } else {
-          this.$notify({ type: 'success', text: 'Files loaded' });
+          this.$notify({
+            type: 'error',
+            duration: -1,
+            text: `Unknown error: ${error}`,
+            data: { actions },
+          });
         }
-      });
-      promise.catch(() => {
-        this.$notify({
-          type: 'error',
-          duration: -1,
-          text: 'Unknown error occurred!',
-        });
-      });
+      } finally {
+        // TODO only close if there are no pending files
+        this.$notify.close('loading');
+      }
     },
 
     clearAndCloseErrors() {
-      this.clearErrors();
+      this.errors = [];
       this.fileErrorDialog = false;
     },
 
-    ...mapActions('datasets', ['loadFiles', 'clearErrors']),
+    ...mapActions('datasets', ['loadFiles']),
   },
 };
 </script>
