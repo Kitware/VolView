@@ -18,7 +18,10 @@
       />
     </div>
     <div id="patient-data-list">
-      <v-item-group mandatory v-model="selection">
+      <v-item-group
+        :value="selection"
+        @change="setSelection"
+      >
         <v-expansion-panels id="patient-data-studies" accordion multiple>
           <v-expansion-panel
             v-for="study in getStudies(patientID)"
@@ -80,7 +83,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapGetters } from 'vuex';
 import ThumbnailCache from '@/src/io/dicom/thumbnailCache';
 
 const $canvas = document.createElement('canvas');
@@ -94,17 +97,17 @@ function generateImageURI(imageData) {
 }
 
 export default {
-  name: 'DataBrowser',
+  name: 'PatientBrowser',
 
   data() {
     return {
       patientID: '',
       thumbnails: {},
-      selection: '',
     };
   },
 
   computed: {
+    ...mapGetters('datasets', ['selectedDicomStudyUID', 'selectedDicomSeriesUID']),
     ...mapState('datasets', {
       patients: (state) => Object.keys(state.patientIndex).map((patientID) => {
         const patient = state.patientIndex[patientID];
@@ -118,14 +121,15 @@ export default {
       seriesIndex: 'seriesIndex',
       seriesImages: 'seriesImages',
     }),
+    selection() {
+      const studyUID = this.selectedDicomStudyUID;
+      const seriesUID = this.selectedDicomSeriesUID;
+      // :: is used as the separator for the v-item value
+      return studyUID && seriesUID ? `${studyUID}::${seriesUID}` : null;
+    },
   },
 
   watch: {
-    selection(sel) {
-      // :: is used as the separator for the v-item value
-      const [studyUID, seriesUID] = sel.split('::');
-      this.selectSeries([this.patientID, studyUID, seriesUID]);
-    },
     patientIndex(index) {
       // if patient index is updated, then try to select first one
       if (!this.patientID) {
@@ -140,6 +144,7 @@ export default {
           const series = seriesList[j];
           const images = this.seriesImages[series.instanceUID];
           // pick middle image for thumbnailing
+          // TODO allow this to be configurable (e.g. through context menu)
           const thumbnailTarget = images[Math.floor(images.length / 2)];
           this.thumbnailCache
             .getThumbnail(thumbnailTarget)
@@ -166,6 +171,13 @@ export default {
       return (this.studyIndex[studyUID]?.series ?? []).map(
         (seriesUID) => this.seriesIndex[seriesUID],
       );
+    },
+    setSelection(sel) {
+      if (sel) {
+        // :: is used as the separator for the v-item value
+        const [studyUID, seriesUID] = sel.split('::');
+        this.selectSeries([studyUID, seriesUID]);
+      }
     },
   },
 };

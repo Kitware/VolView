@@ -1,5 +1,20 @@
 import { FileTypes } from '../io/io';
 
+function splitonce(str, delim) {
+  const idx = str.indexOf(delim);
+  if (idx > -1) {
+    return [str.substr(0, idx), str.substr(idx + delim.length)];
+  }
+  return [str];
+}
+
+function makeDicomSelection(studyUID, seriesUID) {
+  return `dicom;${studyUID}::${seriesUID}`;
+}
+
+function makeDataSelection(proxyID) {
+  return `data;${proxyID}`;
+}
 
 export default ({ loader, dicomDB }) => ({
   namespaced: true,
@@ -7,9 +22,11 @@ export default ({ loader, dicomDB }) => ({
   state: {
     errors: [],
 
-    selectedPatientID: '',
-    selectedStudyUID: '',
-    selectedSeriesUID: '',
+    // format: <type>;<id>
+    // type can be either "dicom" or "data"
+    // dicom id has format <studyID>:<seriesID>
+    // data id has format <proxyID>
+    selectedDataset: '',
 
     // PatientID -> Patient
     patientIndex: {},
@@ -25,6 +42,29 @@ export default ({ loader, dicomDB }) => ({
     data: [],
     // proxyID -> { proxyID: number, name: string, type: DataType }
     dataIndex: {},
+  },
+
+  getters: {
+    selectedDicomStudyUID: (state) => {
+      const [type, id] = splitonce(state.selectedDataset, ';');
+      if (type === 'dicom' && id) {
+        const [studyUID] = splitonce(id, '::');
+        return studyUID || null;
+      }
+      return null;
+    },
+    selectedDicomSeriesUID: (state) => {
+      const [type, id] = splitonce(state.selectedDataset, ';');
+      if (type === 'dicom' && id) {
+        const seriesUID = splitonce(id, '::')[1];
+        return seriesUID || null;
+      }
+      return null;
+    },
+    selectedDataProxyID: (state) => {
+      const [type, id] = splitonce(state.selectedDataset, ';');
+      return type === 'data' && id ? id : null;
+    },
   },
 
   mutations: {
@@ -53,16 +93,28 @@ export default ({ loader, dicomDB }) => ({
     },
 
     selectSeries(state, selection) {
-      // Can I assume seriesUID will be unique across ALL series?
-      const [patientID, studyUID, seriesUID] = selection;
-      if (patientID && studyUID && seriesUID) {
-        state.selectedPatientID = patientID;
-        state.selectedStudyUID = studyUID;
-        state.selectedSeriesUID = seriesUID;
-      } else {
-        state.selectedPatientID = '';
-        state.selectedStudyUID = '';
-        state.selectedSeriesUID = '';
+      // Can I assume studyUID:seriesUID will be practically unique,
+      // or should I also include the (non-mandatory) patientID?
+      const [studyUID, seriesUID] = selection;
+      if (studyUID && seriesUID) {
+        state.selectedDataset = makeDicomSelection(studyUID, seriesUID);
+      }
+    },
+
+    /**
+     * @param {object} dataInfo Of form { proxyID: number, name: string, type: string }
+     */
+    addDataset(state, dataInfo) {
+      const { proxyID } = dataInfo;
+      if (!(proxyID in state.dataIndex)) {
+        state.data.push(proxyID);
+        state.dataIndex[proxyID] = dataInfo;
+      }
+    },
+
+    selectDataset(state, proxyID) {
+      if (proxyID in state.dataIndex) {
+        state.selectedDataset = makeDataSelection(proxyID);
       }
     },
   },
