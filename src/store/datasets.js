@@ -1,18 +1,5 @@
 import { FileTypes } from '../io/io';
 
-/**
- * Loads a single file
- *
- * Returns an object: {}
- * @param {*} file
- */
-async function loadSingleFile(file, loader, dicomDB) {
-  if (await loader.getFileType(file) === FileTypes.DICOM) {
-    await dicomDB.importFile(file);
-  } else {
-    await loader.parseFile(file);
-  }
-}
 
 export default ({ loader, dicomDB }) => ({
   namespaced: true,
@@ -24,16 +11,25 @@ export default ({ loader, dicomDB }) => ({
     selectedStudyUID: '',
     selectedSeriesUID: '',
 
+    // PatientID -> Patient
     patientIndex: {},
+    // StudyUID -> Study
     studyIndex: {},
+    // SeriesUID -> Series
     seriesIndex: {},
+    // SeriesUID -> [DicomImage]
     seriesImages: {},
+
+    // non-dicom data
+    // [ proxyID: number, ... ]
+    data: [],
+    // proxyID -> { proxyID: number, name: string, type: DataType }
+    dataIndex: {},
   },
 
   mutations: {
     addError(state, { name, reason }) {
       state.errors.push({ name, reason });
-      console.log('asdf', state.errors);
     },
 
     clearErrors(state) {
@@ -82,7 +78,7 @@ export default ({ loader, dicomDB }) => ({
      */
     async loadFiles({ commit, dispatch }, files) {
       const results = await Promise.allSettled(
-        files.map((file) => loadSingleFile(file, loader, dicomDB)),
+        files.map((file) => dispatch('loadSingleFile', file)),
       );
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -94,9 +90,32 @@ export default ({ loader, dicomDB }) => ({
         }
       });
 
+      // update dicom db after importing it all into the db
       return dispatch('updateDICOM');
     },
 
+    /**
+     * Loads a single file
+     *
+     * @param {*} file
+     */
+    async loadSingleFile(_, file) {
+      if (await loader.getFileType(file) === FileTypes.DICOM) {
+        await dicomDB.importFile(file);
+      } else {
+        // const dataset = await loader.parseFile(file);
+        // const proxy = proxyManager.createProxy('Sources', 'TrivialProducer', {
+        //   name: file.name,
+        // });
+        // proxy.setInputData(dataset);
+
+        // commit('addDataset', {
+        //   name: proxy.getName(),
+        //   proxyID: proxy.getProxyId(),
+        //   dataType: proxy.getType(),
+        // });
+      }
+    },
 
     async updateDICOM({ commit }) {
       await dicomDB.settleDatabase();
