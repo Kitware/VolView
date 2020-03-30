@@ -18,7 +18,7 @@
       />
     </div>
     <div id="patient-data-list">
-      <v-item-group
+      <item-group
         :value="selection"
         @change="setSelection"
       >
@@ -45,10 +45,10 @@
             </v-expansion-panel-header>
             <v-expansion-panel-content>
               <div class="my-2 series-list">
-                <v-item
+                <groupable-item
                   v-for="series in getSeries(study.instanceUID)"
                   :key="series.instanceUID"
-                  v-slot:default="{ active, toggle }"
+                  v-slot:default="{ active, select }"
                   :value="`${study.instanceUID}::${series.instanceUID}`"
                 >
                   <v-card
@@ -57,7 +57,7 @@
                     :color="active ? 'light-blue lighten-4' : ''"
                     class="series-card"
                     :title="series.description"
-                    @click="toggle"
+                    @click="select"
                   >
                     <v-img
                       contain
@@ -71,13 +71,13 @@
                       </div>
                     </v-card-text>
                   </v-card>
-                </v-item>
+                </groupable-item>
               </div>
             </v-expansion-panel-content>
           </v-expansion-panel>
         </v-expansion-panels>
 
-      </v-item-group>
+      </item-group>
     </div>
   </div>
 </template>
@@ -85,6 +85,8 @@
 <script>
 import { mapState, mapActions, mapGetters } from 'vuex';
 import ThumbnailCache from '@/src/io/dicom/thumbnailCache';
+import ItemGroup from '@/src/components/ItemGroup.vue';
+import GroupableItem from '@/src/components/GroupableItem.vue';
 
 const $canvas = document.createElement('canvas');
 
@@ -98,6 +100,11 @@ function generateImageURI(imageData) {
 
 export default {
   name: 'PatientBrowser',
+
+  components: {
+    ItemGroup,
+    GroupableItem,
+  },
 
   data() {
     return {
