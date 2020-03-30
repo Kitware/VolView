@@ -5,10 +5,6 @@
  */
 export default {
   name: 'ItemGroup',
-  model: {
-    prop: 'value',
-    event: 'change',
-  },
   provide() {
     return {
       group: {
@@ -17,24 +13,37 @@ export default {
       },
     };
   },
+  props: ['value'],
+  model: {
+    prop: 'value',
+    event: 'change',
+  },
   data() {
     return {
-      value: null,
+      internalValue: null,
     };
   },
+  watch: {
+    value(v) {
+      this.internalValue = v;
+    },
+  },
+  mounted() {
+    this.internalValue = this.value;
+  },
   render(h) {
-    return h('div', null, this.$scopedSlots.default());
+    return h('div', null, this.$slots.default);
   },
   methods: {
     selectItem(itemValue) {
-      this.value = itemValue;
-      this.$emit('change', itemValue);
+      this.internalValue = itemValue;
+      this.$emit('change', this.internalValue);
     },
     isSelected(valueToTest) {
-      if (this.value === null || this.value === undefined) {
+      if (this.internalValue === null || this.internalValue === undefined) {
         return false;
       }
-      return valueToTest === this.value;
+      return valueToTest === this.internalValue;
     },
   },
 };
