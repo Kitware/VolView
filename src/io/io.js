@@ -139,6 +139,13 @@ export class FileLoader {
 
     let type = null;
 
+    const registeredTypes = Object.keys(this.fileReaders);
+    for (let i = 0; i < registeredTypes.length; i += 1) {
+      if (file.name.endsWith(registeredTypes[i])) {
+        return registeredTypes[i];
+      }
+    }
+
     const extension = getFileExtension(file.name).toLowerCase();
     if (extension) {
       type = extension;

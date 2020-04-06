@@ -52,4 +52,13 @@ describe('I/O', () => {
     const result = await loader.parseFile(file);
     expect(result).to.equal('file data');
   });
+
+  it('Extensions with dots should be supported', async () => {
+    const loader = new FileLoader();
+    const reader = async (f) => `${f.name} data`;
+    loader.registerReader('nrrd.gz', reader);
+
+    const file = makeNrrdFile('file.nrrd.gz');
+    expect(await loader.canRead(file)).to.be.true;
+  });
 });
