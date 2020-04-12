@@ -8,6 +8,14 @@ import Series from './series';
 import DicomImage from './image';
 import Tags from './tags';
 
+const DataTypes = {
+  [Daikon.Image.BYTE_TYPE_UNKNOWN]: 'Unknown',
+  [Daikon.Image.BYTE_TYPE_BINARY]: 'Binary',
+  [Daikon.Image.BYTE_TYPE_INTEGER]: 'Integer32',
+  [Daikon.Image.BYTE_TYPE_INTEGER_UNSIGNED]: 'UnsignedInteger32',
+  [Daikon.Image.BYTE_TYPE_FLOAT]: 'Float32',
+};
+
 function extractTagValue(image, tagId) {
   const tag = image.getTag(...tagId);
   return tag?.value ? tag.value[0] : null;
@@ -46,7 +54,7 @@ function extractSeriesInfo(image) {
 }
 
 function extractImageInfo(image) {
-  const imageData = image.getInterpretedData(false, true);
+  const imageData = image.getInterpretedData(false, true /* imageStats */);
   return {
     instanceNumber: image.getImageNumber(),
     imageType: image.getImageType(),
@@ -56,6 +64,10 @@ function extractImageInfo(image) {
     minValue: image.getImageMin() ?? imageData.min,
     maxValue: image.getImageMax() ?? imageData.max,
     pixelData: imageData.data,
+    pixelType: DataTypes[image.getDataType()] || 'Unknown',
+    pixelSpacing: image.getPixelSpacing(),
+    position: image.getImagePosition(),
+    sliceThickness: image.getSliceThickness(),
   };
 }
 
