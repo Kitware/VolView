@@ -6,7 +6,7 @@
       class="d-flex flex-grow-1"
     >
       <layout-grid v-if="Array.isArray(item)" :layout="item" />
-      <component v-else :is="item" />
+      <component v-else-if="item" :is="item.comp" v-bind="item.props" />
     </div>
   </div>
 </template>
