@@ -72,7 +72,10 @@
           </v-item-group>
         </div>
         <div class="d-flex flex-column flex-grow-1">
-          <template v-if="!datasets.length">
+          <template v-if="selectedDataset">
+            <layout-grid :layout="layout" />
+          </template>
+          <template v-else>
             <v-row
               no-gutters
               align="center"
@@ -98,9 +101,6 @@
                 </v-row>
               </v-col>
             </v-row>
-          </template>
-          <template v-else>
-            <layout-grid :layout="layout" />
           </template>
         </div>
       </div>
@@ -192,7 +192,7 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -261,9 +261,7 @@ export default {
   }),
 
   computed: {
-    activeDataset() {
-      return this.activeDatasetIndex === NO_DS ? null : this.datasets[this.activeDatasetIndex];
-    },
+    ...mapState('datasets', ['selectedDataset']),
   },
 
   watch: {
@@ -329,7 +327,6 @@ export default {
             type: 'error',
             duration: -1,
             text: `Unknown error: ${error}`,
-            data: { actions },
           });
         }
       } finally {
