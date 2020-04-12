@@ -9,4 +9,10 @@ export function defer() {
   return { promise, resolve, reject };
 }
 
-export default {};
+/**
+ * Turns an action into a mutation wrapper
+ * @param {string} mutation
+ */
+export function asMutation(mutation) {
+  return ({ commit }, args) => commit(mutation, args);
+}
