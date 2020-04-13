@@ -5,6 +5,7 @@ import VueNotifications from 'vue-notification';
 import App from './App.vue';
 import createStore from './store';
 import vuetify from './plugins/vuetify';
+import EventBusPlugin from './plugins/events';
 import { FileLoader } from './io/io';
 import { registerAllReaders } from './io/readers';
 import DaikonDatabase from './io/dicom/daikon';
@@ -12,6 +13,8 @@ import DaikonDatabase from './io/dicom/daikon';
 Vue.config.productionTip = false;
 
 Vue.use(VueNotifications);
+Vue.use(EventBusPlugin);
+
 const loader = new FileLoader();
 registerAllReaders(loader);
 
