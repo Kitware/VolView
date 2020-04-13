@@ -5,7 +5,7 @@ import { readFileAsArrayBuffer } from '../io';
 import Patient from './patient';
 import Study from './study';
 import Series from './series';
-import DicomImage from './image';
+import DicomImage, { PixelTypes } from './image';
 import Tags from './tags';
 
 const DataTypes = {
@@ -15,6 +15,10 @@ const DataTypes = {
   [Daikon.Image.BYTE_TYPE_INTEGER_UNSIGNED]: 'UnsignedInteger32',
   [Daikon.Image.BYTE_TYPE_FLOAT]: 'Float32',
 };
+
+function cross(a, b) {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
 
 function extractTagValue(image, tagId) {
   const tag = image.getTag(...tagId);
@@ -183,13 +187,35 @@ export default class DaikonDatabase extends DICOMDatabase {
   getSeriesImages() { return this.$seriesImageOrder; }
 
   async getSeriesAsVolume(seriesID) {
-    return new Promise((resolve, reject) => {
-      if (seriesID in this.$daikonSeriesIndex) {
-        const series = this.$daikonSeriesIndex[seriesID];
-        series.concatenateImageData(null, resolve);
-      } else {
-        reject(new Error(`Cannot find series ${seriesID}`));
+    const images = this.$seriesImageOrder[seriesID];
+    if (images) {
+      const image0 = images[0];
+      // assume first image defines origin of entire volume
+      const origin = image0.position;
+      const spacing = [
+        ...image0.pixelSpacing,
+        image0.sliceThickness,
+      ];
+      const dir0 = image0.orientation;
+      const directions = [
+        ...dir0,
+        cross(dir0.slice(0, 3), dir0.slice(3, 6)),
+      ];
+      const TypeCtor = PixelTypes[image0.pixelType];
+      const size2 = image0.rows * image0.cols;
+      const pixelData = new TypeCtor(size2 * images.length);
+
+      for (let i = 0, off = 0; i < images.length; i += 1, off += size2) {
+        pixelData.set(images[i].pixelData, off);
       }
-    });
+
+      return {
+        origin,
+        spacing,
+        directions,
+        pixelData,
+      };
+    }
+    return null;
   }
 }
