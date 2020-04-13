@@ -1,5 +1,25 @@
+import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
+
 import { FileTypes } from '../io/io';
 import { MultipleErrors } from '../utils/errors';
+import { asMutation } from '../utils/common';
+import { renderProxies } from '../vtk/proxyUtils';
+
+function createVtkImageData(volume) {
+  const ds = vtkImageData.newInstance({
+    origin: volume.origin,
+    spacing: volume.spacing,
+    direction: volume.directions,
+  });
+  const da = vtkDataArray.newInstance({
+    // TODO handle multi-component images
+    numberOfComponents: 1,
+    values: volume.pixelData,
+  });
+  ds.getPointData().setScalars(da);
+  return ds;
+}
 
 function splitonce(str, delim) {
   const idx = str.indexOf(delim);
@@ -9,15 +29,15 @@ function splitonce(str, delim) {
   return [str];
 }
 
-function makeDicomSelection(studyUID, seriesUID) {
+export function makeDicomSelection(studyUID, seriesUID) {
   return `dicom;${studyUID}::${seriesUID}`;
 }
 
-function makeDataSelection(proxyID) {
+export function makeDataSelection(proxyID) {
   return `data;${proxyID}`;
 }
 
-export default ({ loader, dicomDB }) => ({
+export default ({ proxyManager, loader, dicomDB }) => ({
   namespaced: true,
 
   state: {
@@ -26,6 +46,9 @@ export default ({ loader, dicomDB }) => ({
     // dicom id has format <studyID>:<seriesID>
     // data id has format <proxyID>
     selectedDataset: '',
+
+    // selectedDataset:string -> { proxyID: number, name: string, type: string }
+    selectionIndex: {},
 
     // PatientID -> Patient
     patientIndex: {},
@@ -36,11 +59,10 @@ export default ({ loader, dicomDB }) => ({
     // SeriesUID -> [DicomImage]
     seriesImages: {},
 
-    // non-dicom data
-    // [ proxyID: number, ... ]
-    data: [],
-    // proxyID -> { proxyID: number, name: string, type: DataType }
-    dataIndex: {},
+    // The following have type proxyID[]
+    images: [],
+    labelmaps: [],
+    geometry: [],
   },
 
   getters: {
@@ -83,30 +105,54 @@ export default ({ loader, dicomDB }) => ({
       state.seriesImages = seriesImages;
     },
 
+    addData(state, { selection, proxy }) {
+      const meta = {
+        proxyID: proxy.getProxyId(),
+        type: proxy.getType(),
+        name: proxy.getName(),
+      };
+      state.selectionIndex[selection] = meta;
+
+      // dicom datasets are excluded
+      if (selection.startsWith('data')) {
+        if (meta.type === 'vtkLabelMap') {
+          state.labelmaps.push(meta.proxyID);
+        } else if (meta.type === 'vtkImageData') {
+          state.images.push(meta.proxyID);
+        } else if (meta.type === 'vtkPolyData') {
+          state.geometry.push(meta.proxyID);
+        } else {
+          throw new Error(`Unknown data type: ${meta.type}`);
+        }
+      }
+    },
+
+    deleteData(state, selection) {
+      delete state.selectionIndex[selection];
+    },
+
     selectSeries(state, selection) {
       // Can I assume studyUID:seriesUID will be practically unique,
       // or should I also include the (non-mandatory) patientID?
       const [studyUID, seriesUID] = selection;
       if (studyUID && seriesUID) {
         state.selectedDataset = makeDicomSelection(studyUID, seriesUID);
-      }
-    },
-
-    /**
-     * @param {object} dataInfo Of form { proxyID: number, name: string, type: string }
-     */
-    addDataset(state, dataInfo) {
-      const { proxyID } = dataInfo;
-      if (!(proxyID in state.dataIndex)) {
-        state.data.push(proxyID);
-        state.dataIndex[proxyID] = dataInfo;
+      } else {
+        state.selectedDataset = '';
       }
     },
 
     selectDataset(state, proxyID) {
-      if (proxyID in state.dataIndex) {
-        state.selectedDataset = makeDataSelection(proxyID);
+      const selection = makeDataSelection(proxyID);
+      if (selection in state.selectionIndex) {
+        state.selectedDataset = selection;
+      } else {
+        state.selectedDataset = '';
       }
+    },
+
+    clearSelection(state) {
+      state.selectedDataset = '';
     },
   },
 
@@ -143,21 +189,21 @@ export default ({ loader, dicomDB }) => ({
      *
      * @param {*} file
      */
-    async loadSingleFile(_, file) {
+    async loadSingleFile({ commit }, file) {
       if (await loader.getFileType(file) === FileTypes.DICOM) {
         await dicomDB.importFile(file);
       } else {
-        // const dataset = await loader.parseFile(file);
-        // const proxy = proxyManager.createProxy('Sources', 'TrivialProducer', {
-        //   name: file.name,
-        // });
-        // proxy.setInputData(dataset);
+        const dataset = await loader.parseFile(file);
+        const proxy = proxyManager.createProxy('Sources', 'TrivialProducer', {
+          name: file.name,
+        });
+        proxy.setInputData(dataset);
 
-        // commit('addDataset', {
-        //   name: proxy.getName(),
-        //   proxyID: proxy.getProxyId(),
-        //   dataType: proxy.getType(),
-        // });
+        // register dataset
+        commit('addData', {
+          selection: makeDataSelection(proxy.getProxyId()),
+          proxy,
+        });
       }
     },
 
@@ -175,12 +221,50 @@ export default ({ loader, dicomDB }) => ({
       commit('updateImages', seriesImages);
     },
 
-    async selectSeries({ state, commit }, selection) {
+    async selectSeries({
+      state, getters, commit, dispatch,
+    }, selection) {
       commit('selectSeries', selection);
 
-      if (state.selectedSeriesUID) {
-        await dicomDB.getSeriesAsVolume(state.selectedSeriesUID);
+      const seriesUID = getters.selectedDicomSeriesUID;
+      if (seriesUID) {
+        const sel = state.selectedDataset;
+        let proxy = state.selectionIndex[sel];
+        if (!proxy) {
+          const volume = await dicomDB.getSeriesAsVolume(seriesUID);
+          const ds = createVtkImageData(volume);
+          proxy = proxyManager.createProxy('Sources', 'TrivialProducer', {
+            name: state.selectedDataset,
+          });
+          proxy.setInputData(ds);
+          // assign studyID:seriesID to proxyID
+          commit('addData', {
+            selection: sel,
+            proxy,
+          });
+        }
       }
+
+      return dispatch('updateRendering');
+    },
+
+    selectDataset({ commit, dispatch }, proxyID) {
+      commit('selectDataset', proxyID);
+      return dispatch('updateRendering');
+    },
+
+    clearSelection: asMutation('clearSelection'),
+
+    updateRendering({ state }) {
+      const layers = [].concat(state.labelmaps, state.geometry);
+      const baseImage = state.selectionIndex[state.selectedDataset];
+      if (baseImage) {
+        layers.unshift(baseImage.proxyID);
+      }
+      renderProxies(
+        proxyManager,
+        layers.map((id) => proxyManager.getProxyById(id)),
+      );
     },
   },
 });

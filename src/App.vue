@@ -194,6 +194,8 @@
 <script>
 import { mapActions, mapState } from 'vuex';
 
+import { createFourUpViews } from '@/src/vtk/proxyUtils';
+
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkView from './components/VtkView.vue';
@@ -279,6 +281,8 @@ export default {
     fileEl.setAttribute('accept', '*');
     fileEl.addEventListener('change', this.onFileSelect);
     this.fileEl = fileEl;
+
+    createFourUpViews(this.$proxyManager);
   },
 
   methods: {
