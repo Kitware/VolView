@@ -34,5 +34,6 @@ export function renderProxies(proxyManager, proxies) {
     const view = views[i];
     const reps = proxies.map((p) => proxyManager.getRepresentation(p, view));
     reps.forEach((r) => view.addRepresentation(r));
+    view.renderLater();
   }
 }

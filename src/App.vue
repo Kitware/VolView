@@ -198,7 +198,7 @@ import { createFourUpViews } from '@/src/vtk/proxyUtils';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
-import VtkView from './components/VtkView.vue';
+import VtkTwoView from './components/VtkTwoView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
@@ -248,15 +248,62 @@ export default {
   },
 
   data: () => ({
-    datasets: [],
-    activeDatasetIndex: NO_DS,
     selectedTool: null,
     selectedModule: Modules[0],
 
     fileLoadErrors: [],
     fileErrorDialog: false,
 
-    layout: ['H', VtkView, ['V', null, VtkView, null]],
+    // initial four-up layout
+    layout: [
+      'H',
+      [
+        'V',
+        {
+          comp: VtkTwoView,
+          props: {
+            viewType: 'ViewX',
+            viewName: 'X:1',
+            axis: 0,
+            orientation: 1,
+            viewUp: [0, 0, 1],
+          },
+        },
+        {
+          comp: VtkTwoView,
+          props: {
+            viewType: 'ViewY',
+            viewName: 'Y:1',
+            axis: 1,
+            orientation: -1,
+            viewUp: [0, 0, 1],
+          },
+        },
+      ],
+      [
+        'V',
+        {
+          comp: VtkTwoView,
+          props: {
+            viewType: 'ViewZ',
+            viewName: 'Z:1',
+            axis: 2,
+            orientation: -1,
+            viewUp: [0, -1, 0],
+          },
+        },
+        {
+          comp: VtkTwoView,
+          props: {
+            viewType: 'ViewY',
+            viewName: 'Y:2',
+            axis: 1,
+            orientation: -1,
+            viewUp: [0, 0, 1],
+          },
+        },
+      ],
+    ],
 
     Tools,
     Modules,
