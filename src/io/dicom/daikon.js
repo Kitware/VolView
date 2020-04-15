@@ -71,6 +71,7 @@ function extractImageInfo(image) {
     pixelType: DataTypes[image.getDataType()] || 'Unknown',
     pixelSpacing: image.getPixelSpacing(),
     position: image.getImagePosition(),
+    orientation: image.getImageDirections(),
     sliceThickness: image.getSliceThickness(),
   };
 }
@@ -196,10 +197,11 @@ export default class DaikonDatabase extends DICOMDatabase {
         ...image0.pixelSpacing,
         image0.sliceThickness,
       ];
+      const dimensions = [image0.cols, image0.rows, images.length];
       const dir0 = image0.orientation;
       const directions = [
         ...dir0,
-        cross(dir0.slice(0, 3), dir0.slice(3, 6)),
+        ...cross(dir0.slice(0, 3), dir0.slice(3, 6)),
       ];
       const TypeCtor = PixelTypes[image0.pixelType];
       const size2 = image0.rows * image0.cols;
@@ -214,6 +216,7 @@ export default class DaikonDatabase extends DICOMDatabase {
         spacing,
         directions,
         pixelData,
+        dimensions,
       };
     }
     return null;

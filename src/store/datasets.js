@@ -17,7 +17,10 @@ function createVtkImageData(volume) {
     numberOfComponents: 1,
     values: volume.pixelData,
   });
+
+  ds.setDimensions(volume.dimensions);
   ds.getPointData().setScalars(da);
+  ds.computeTransforms();
   return ds;
 }
 

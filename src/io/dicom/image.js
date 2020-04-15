@@ -21,7 +21,7 @@ export default class DicomImage {
     this.pixelType = 'Unknown';
     this.pixelSpacing = [1, 1, 1];
     this.position = [0, 0, 0];
-    this.orientation = [1, 1, 0, 1, 0, 1]; // direction cosines
+    this.orientation = [1, 0, 0, 0, 1, 0]; // X/Y direction cosines
     this.sliceThickness = 1;
 
     if (data) {
