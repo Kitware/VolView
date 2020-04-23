@@ -5,7 +5,6 @@ const HEAD_CHUNK = 512;
  * special file types that we handle specifically
  */
 export const FileTypes = {
-  NRRD: 'nrrd',
   DICOM: 'dcm',
 };
 
@@ -14,10 +13,6 @@ export const FileTypes = {
  * Used to handle certain cases where files have no extension
  */
 export const FILE_MAGIC_DB = [
-  {
-    type: FileTypes.NRRD,
-    header: Array.from('NRRD').map((c) => c.charCodeAt(0)),
-  },
   {
     type: FileTypes.DICOM,
     skip: 128,
@@ -38,23 +33,13 @@ function prefixEquals(target, prefix) {
 }
 
 /**
- * Returns the file extension for a given filename
- * @param {String} name
- */
-export function getFileExtension(name) {
-  const idx = name.lastIndexOf('.');
-  if (idx > -1) {
-    return name.slice(idx + 1);
-  }
-  return '';
-}
-
-/**
  * Returns file type based on magic
+ * @async
  * @param {File} file
+ * @returns {string|null}
  */
 export async function getFileMagic(file) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const head = file.slice(0, HEAD_CHUNK);
     const reader = new window.FileReader();
     reader.onload = () => {
@@ -66,7 +51,7 @@ export async function getFileMagic(file) {
           return;
         }
       }
-      reject(new Error('Unknown file'));
+      resolve(null);
     };
     reader.readAsArrayBuffer(head);
   });
@@ -86,6 +71,7 @@ async function readFileAs(file, type) {
 
 /**
  * Reads a file and returns an ArrayBuffer
+ * @async
  * @param {File} file
  */
 export async function readFileAsArrayBuffer(file) {
@@ -94,43 +80,62 @@ export async function readFileAsArrayBuffer(file) {
 
 /**
  * Reads a file and returns UTF-8 text
+ * @async
  * @param {File} file
  */
 export async function readFileAsUTF8Text(file) {
   return readFileAs(file, 'Text');
 }
 
-export class FileLoader {
+export class FileIO {
   constructor() {
     this.fileReaders = Object.create(null);
+    this.typeAliases = Object.create(null);
     // Cache for file type. Prevents re-reading magic every time.
     this.typeCache = new WeakMap();
   }
 
   /**
-   * Registers a file reader, which takes in a file and outputs a dataset.
-   *
-   * File type is treated case-insensitively.
-   * @param {String} fileType the file type to handle
-   * @param {Function} readerFunc a function with signature File -> (vtkObject|Promise<vtkObject>)
+   * readerFunc parses a given file.
+   * @callback readerFunc
+   * @param {File} file
+   * @returns {any}
    */
-  registerReader(fileType, readerFunc) {
+  /**
+   * Adds a reader for a file type.
+   *
+   * All file types are treated case-insensitively.
+   * @param {String} fileType
+   * @param {readerFunc} readerFunc
+   */
+  addSingleReader(fileType, readerFunc) {
     this.fileReaders[fileType.toLowerCase()] = readerFunc;
   }
 
   /**
-   * Returns a reader for a file type
-   * @param {String} fileType
-   * @returns ReaderFunction|null
+   * Adds type aliases for a particular file type.
+   *
+   * All types are treated case-insensitively.
+   * The baseType must already be registered to a reader.
+   * Example: jpg is equivalent to jpeg
+   *
+   * @param {String} baseType
+   * @param {String[]} aliases
    */
-  getReader(fileType) {
-    return this.fileReaders[fileType.toLowerCase()] || null;
+  addFileTypeAliases(baseType, aliases) {
+    if (baseType.toLowerCase() in this.fileReaders) {
+      aliases.forEach((alias) => {
+        this.typeAliases[alias.toLowerCase()] = baseType;
+      });
+    }
   }
 
   /**
-   * Infers the file type from a file
+   * Infers the file type from a File object
+   *
+   * @async
    * @param {File} file
-   * @returns String|null
+   * @returns {String|null}
    */
   async getFileType(file) {
     if (this.typeCache.has(file)) {
@@ -139,20 +144,31 @@ export class FileLoader {
 
     let type = null;
 
+    // first see if file matches a registered type
     const registeredTypes = Object.keys(this.fileReaders);
     for (let i = 0; i < registeredTypes.length; i += 1) {
-      if (file.name.endsWith(registeredTypes[i])) {
-        return registeredTypes[i];
+      if (file.name.toLowerCase().endsWith(`.${registeredTypes[i]}`)) {
+        type = registeredTypes[i];
+        break;
       }
     }
 
-    const extension = getFileExtension(file.name).toLowerCase();
-    if (extension) {
-      type = extension;
-    } else {
-      const magic = (await getFileMagic(file)).toLowerCase();
+    if (!type) {
+      // see if there's a type alias
+      const aliases = Object.keys(this.typeAliases);
+      for (let i = 0; i < aliases.length; i += 1) {
+        if (file.name.toLowerCase().endsWith(`.${aliases[i]}`)) {
+          type = this.typeAliases[aliases[i]];
+          break;
+        }
+      }
+    }
+
+    if (!type) {
+      // read file mimetype
+      const magic = await getFileMagic(file);
       if (magic) {
-        type = magic;
+        type = magic.toLowerCase();
       }
     }
 
@@ -161,11 +177,13 @@ export class FileLoader {
   }
 
   /**
-   * Determines if a file can be handled.
+   * Determines if a file can be read.
+   *
+   * @async
    * @param {File} file
-   * @returns Boolean
+   * @returns {Boolean}
    */
-  async canRead(file) {
+  async canReadFile(file) {
     const type = await this.getFileType(file);
     return !!this.fileReaders[type];
   }
@@ -173,11 +191,12 @@ export class FileLoader {
   /**
    * Parses a single file to produce a single output dataset.
    *
+   * @async
    * @param {File} file
-   * @returns vtkObject|null
-   * @throws Error either the type info is not found or no reader is found
+   * @returns {any}
+   * @throws {Error}
    */
-  async parseFile(file) {
+  async readSingleFile(file) {
     const type = await this.getFileType(file);
     if (!type) {
       throw new Error(`No type info found for ${file.name}`);

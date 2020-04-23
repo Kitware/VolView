@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 
-import { FileTypes, FileLoader } from '@/src/io/io';
+import { FileTypes, FileIO } from '@/src/io/io';
+
+function makeEmptyFile(name) {
+  return new File([], name);
+}
 
 function makeDicomFile(name) {
   const buffer = new Uint8Array(132);
@@ -11,54 +15,65 @@ function makeDicomFile(name) {
   return new File([buffer.buffer], name);
 }
 
-function makeNrrdFile(name) {
-  const buffer = new Uint8Array(8);
-  buffer[0] = 'N'.charCodeAt(0);
-  buffer[1] = 'R'.charCodeAt(0);
-  buffer[2] = 'R'.charCodeAt(0);
-  buffer[3] = 'D'.charCodeAt(0);
-  return new File([buffer.buffer], name);
-}
-
 describe('I/O', () => {
-  it('File type works with extensions', async () => {
-    const loader = new FileLoader();
+  it('should detect dicom file type', async () => {
+    const fio = new FileIO();
     let type;
-    type = await loader.getFileType(makeDicomFile('file.DCM'));
+
+    type = await fio.getFileType(makeDicomFile('file.DCM'));
     expect(type).to.equal(FileTypes.DICOM);
 
-    type = await loader.getFileType(makeNrrdFile('file.nrrd'));
-    expect(type).to.equal('nrrd');
-  });
-
-  it('File type works without extensions', async () => {
-    const loader = new FileLoader();
-    let type;
-    type = await loader.getFileType(makeDicomFile('file'));
+    type = await fio.getFileType(makeDicomFile('file'));
     expect(type).to.equal(FileTypes.DICOM);
-
-    type = await loader.getFileType(makeNrrdFile('file'));
-    expect(type).to.equal('nrrd');
   });
 
-  it('Async file reader should succeed', async () => {
-    const loader = new FileLoader();
-    const reader = async (f) => `${f.name} data`;
-    loader.registerReader('nrrd', reader);
+  it('should detect single files that can be handled', async () => {
+    const fio = new FileIO();
+    fio.addSingleReader('nii.gz', () => null);
+    fio.addSingleReader('nii', () => null);
+    fio.addSingleReader('jpeg', () => null);
+    // all types are converted to lowercase anyways
+    fio.addFileTypeAliases('jpeg', ['jpg', 'JPG']);
+    let type;
 
-    const file = makeNrrdFile('file');
-    expect(await loader.canRead(file)).to.be.true;
+    type = await fio.getFileType(makeEmptyFile('filejpeg'));
+    expect(type).to.be.null;
 
-    const result = await loader.parseFile(file);
-    expect(result).to.equal('file data');
+    type = await fio.getFileType(makeEmptyFile('file.jpeg'));
+    expect(type).to.equal('jpeg');
+
+    type = await fio.getFileType(makeEmptyFile('file.JPG'));
+    expect(type).to.equal('jpeg');
+
+    // case insensitivity
+    type = await fio.getFileType(makeEmptyFile('file.NII.gz'));
+    expect(type).to.equal('nii.gz');
+
+    type = await fio.getFileType(makeEmptyFile('file.nii'));
+    expect(type).to.equal('nii');
   });
 
-  it('Extensions with dots should be supported', async () => {
-    const loader = new FileLoader();
-    const reader = async (f) => `${f.name} data`;
-    loader.registerReader('nrrd.gz', reader);
+  it('should load files that have readers', async () => {
+    const fio = new FileIO();
+    fio.addSingleReader('nii.gz', () => 'nii');
+    fio.addSingleReader('nii', () => 'nii');
+    fio.addSingleReader('jpeg', () => 'jpeg');
+    // all types are converted to lowercase anyways
+    fio.addFileTypeAliases('jpeg', ['jpg', 'JPG']);
 
-    const file = makeNrrdFile('file.nrrd.gz');
-    expect(await loader.canRead(file)).to.be.true;
+    let file;
+    let data;
+
+    file = makeDicomFile('test.dcm');
+    expect(await fio.canReadFile(file)).to.be.false;
+
+    file = makeEmptyFile('test.nii.gz');
+    expect(await fio.canReadFile(file)).to.be.true;
+
+    data = await fio.readSingleFile(makeEmptyFile('test.nii.gz'));
+    expect(data).to.equal('nii');
+
+    data = await fio.readSingleFile(makeEmptyFile('test.jpg'));
+    expect(data).to.equal('jpeg');
   });
 });
