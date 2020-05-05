@@ -1,6 +1,6 @@
 // import dicom from './dicom';
 import { FileTypes } from '../io/io';
-import { FileLoaded } from '../types';
+import { FileLoaded, Data } from '../types';
 
 export default ({ fileIO }) => ({
   namespaced: true,
@@ -9,9 +9,15 @@ export default ({ fileIO }) => ({
   //   dicom: dicom({ proxyManager, fileIO, dicomIO }),
   // },
 
-  state: {},
+  state: {
+    datasets: [],
+  },
 
-  mutations: {},
+  mutations: {
+    addData(state, data) {
+      state.datasets.push(data);
+    },
+  },
 
   actions: {
 
@@ -21,7 +27,7 @@ export default ({ fileIO }) => ({
      * @async
      * @param {File[]} files
      */
-    async loadFiles({ dispatch }, files) {
+    async loadFiles({ commit, dispatch }, files) {
       const dicomFiles = [];
       const regularFiles = [];
 
@@ -51,6 +57,7 @@ export default ({ fileIO }) => ({
       const regularFilesLoaded = (await regularFilesPromise).map((r, i) => {
         switch (r.status) {
           case 'fulfilled':
+            commit('addData', Data.VtkData(r.value));
             return FileLoaded.Success(regularFiles[i].name, r.value);
           case 'rejected':
             return FileLoaded.Failure(regularFiles[i].name, r.reason);

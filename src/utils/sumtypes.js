@@ -48,9 +48,9 @@ function createConstructor(typeName, name, params) {
     // validate parameters
     params.forEach((p, i) => {
       if (Array.isArray(p)) {
-        const validator = p[1] || TRUE;
+        const [paramName, validator = TRUE] = p;
         if (!validator(args[i])) {
-          throw new Error(`Arg ${name} does not validate for ${typeName}.${name}`);
+          throw new Error(`Arg ${paramName} does not validate for ${typeName}.${name}`);
         }
       }
     });

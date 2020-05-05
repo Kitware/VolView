@@ -18,7 +18,10 @@ function vuexFakes() {
 
 function services() {
   const fileIO = new FileIO();
-  fileIO.addSingleReader('nrrd', (f) => f.name);
+  fileIO.addSingleReader('nrrd', (f) => ({
+    vtkClass: 'vtkTest',
+    name: f.name,
+  }));
   const dicomIO = sinon.stub(new DicomIO());
   return { fileIO, dicomIO };
 }
@@ -40,12 +43,14 @@ describe('Datasets module', () => {
       ],
     );
 
+    expect(commit.args[0][0]).to.equal('addData');
+
     const { fileResults, dicomResult } = result;
     expect(fileResults.length).to.equal(2);
     expect(
       FileLoaded.mapSuccess(
         fileResults[0],
-        (_, value) => value === 'test.nrrd',
+        (_, value) => value.name === 'test.nrrd',
       ),
     ).to.be.true;
     expect(FileLoaded.isFailure(fileResults[1])).to.be.true;
