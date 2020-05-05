@@ -43,23 +43,13 @@ describe('Datasets module', () => {
     const { fileResults, dicomResult } = result;
     expect(fileResults.length).to.equal(2);
     expect(
-      FileLoaded.case(fileResults[0], {
-        Success: (_, value) => value === 'test.nrrd',
-        Failure: () => false,
-      }),
+      FileLoaded.mapSuccess(
+        fileResults[0],
+        (_, value) => value === 'test.nrrd',
+      ),
     ).to.be.true;
-    expect(
-      FileLoaded.case(fileResults[1], {
-        Success: () => false,
-        Failure: (_, error) => !!error,
-      }),
-    ).to.be.true;
-    expect(
-      FileLoaded.case(dicomResult, {
-        Success: () => true,
-        Failure: () => false,
-      }),
-    ).to.be.true;
+    expect(FileLoaded.isFailure(fileResults[1])).to.be.true;
+    expect(FileLoaded.isSuccess(dicomResult)).to.be.true;
   });
 
   it('should handle empty array', async () => {

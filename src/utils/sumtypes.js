@@ -1,3 +1,7 @@
+export const Otherwise = Symbol('TypeOtherwise');
+
+function noop() {}
+
 function TRUE() {
   return true;
 }
@@ -19,6 +23,21 @@ function setsEqual(a, b) {
 
 function normalizeNames(names) {
   return names.filter(Boolean).map((n) => `${n[0].toUpperCase()}${n.substr(1)}`);
+}
+
+function getTypeName(obj) {
+  // eslint-disable-next-line no-underscore-dangle
+  return (obj && obj._type) || undefined;
+}
+
+function getTagName(obj) {
+  // eslint-disable-next-line no-underscore-dangle
+  return (obj && obj._tag) || undefined;
+}
+
+function getValues(obj) {
+  // eslint-disable-next-line no-underscore-dangle
+  return (obj && obj._values) || [];
 }
 
 function createConstructor(typeName, name, params) {
@@ -46,18 +65,46 @@ function createConstructor(typeName, name, params) {
 function createCaseFunc(typeName, names) {
   const nameSet = new Set(names);
   return (obj, cases) => {
-    /* eslint-disable no-underscore-dangle */
-    if (!obj || obj._type !== typeName) {
+    if (!obj || getTypeName(obj) !== typeName) {
       throw new Error(`Cannot case on ${typeName} with object ${JSON.stringify(obj)}`);
     }
     const caseKeys = new Set(Object.keys(cases));
-    if (!setsEqual(nameSet, caseKeys)) {
+    if (!(Otherwise in cases) && !setsEqual(nameSet, caseKeys)) {
       throw new Error('Cases are not exhaustive');
     }
-    // in the event _values is somehow not set, use empty list.
-    return cases[obj._tag](...(obj._values || []));
-    /* eslint-enable no-underscore-dangle */
+    const tagName = getTagName(obj);
+    if (tagName in cases) {
+      return cases[tagName](...getValues(obj));
+    }
+    return cases[Otherwise](...getValues(obj));
   };
+}
+
+function generateHelpers(typeName, ctorNames) {
+  const helpers = {
+    case: createCaseFunc(typeName, ctorNames),
+  };
+
+  ctorNames.forEach((name) => {
+    const nameSpecificHelpers = {
+      /**
+       * Determines if a given obj is of the correct tag
+       */
+      [`is${name}`]: (obj) => getTagName(obj) === name,
+
+      /**
+       * If obj matches type, then returns result of function
+       * If obj does not match type, then returns undefined
+       */
+      [`map${name}`]: (obj, fn) => helpers.case(obj, {
+        [name]: (...args) => fn(...args),
+        [Otherwise]: noop,
+      }),
+    };
+    Object.assign(helpers, nameSpecificHelpers);
+  });
+
+  return helpers;
 }
 
 export function newArgValidator(validator) {
@@ -82,7 +129,9 @@ export function newSumType(typeName, constructorSpec) {
     type[name] = createConstructor(typeName, name, params);
   }
 
-  type.case = createCaseFunc(typeName, ctors.map((ctor) => ctor.name));
+  const constructorNames = ctors.map((ctor) => ctor.name);
+  const helpers = generateHelpers(typeName, constructorNames);
+  Object.assign(type, helpers);
 
   return type;
 }
