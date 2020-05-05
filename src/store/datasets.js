@@ -2,7 +2,9 @@
 import { FileTypes } from '../io/io';
 import { FileLoaded, Data } from '../types';
 
-export default ({ fileIO }) => ({
+export const NO_SELECTION = -1;
+
+export default (dependencies) => ({
   namespaced: true,
 
   // modules: {
@@ -11,6 +13,7 @@ export default ({ fileIO }) => ({
 
   state: {
     datasets: [],
+    selDataset: NO_SELECTION,
   },
 
   mutations: {
@@ -28,6 +31,8 @@ export default ({ fileIO }) => ({
      * @param {File[]} files
      */
     async loadFiles({ commit, dispatch }, files) {
+      const { fileIO } = dependencies;
+
       const dicomFiles = [];
       const regularFiles = [];
 
