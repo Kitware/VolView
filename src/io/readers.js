@@ -28,8 +28,8 @@ export async function itkReader(file) {
 }
 
 export function registerAllReaders(io) {
-  itkImageExtensions.forEach((ext) => io.registerReader(ext, itkReader));
-  io.registerReader('vti', VtkVtiReader);
-  io.registerReader('vtp', VtkVtpReader);
-  io.registerReader('stl', VtkStlReader);
+  itkImageExtensions.forEach((ext) => io.addSingleReader(ext, itkReader));
+  io.addSingleReader('vti', VtkVtiReader);
+  io.addSingleReader('vtp', VtkVtpReader);
+  io.addSingleReader('stl', VtkStlReader);
 }

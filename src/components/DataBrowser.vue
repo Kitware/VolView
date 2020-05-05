@@ -19,9 +19,11 @@
 </template>
 
 <script>
+import { mapState } from 'vuex';
+
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { mapActions, mapGetters, mapState } from 'vuex';
+import { Data } from '@/src/types';
 
 export default {
   name: 'DataBrowser',
@@ -32,23 +34,9 @@ export default {
   },
 
   computed: {
-    ...mapGetters('datasets', ['selectedDataProxyID']),
     ...mapState('datasets', {
-      datasets: (state) => state.data.map((id) => state.dataIndex[id]),
+      datasets: (state) => Data.onlyVtkData(state.datasets),
     }),
-    selection() {
-      return this.selectedDataProxyID || null;
-    },
-  },
-
-  methods: {
-    setSelection(proxyID) {
-      if (proxyID) {
-        this.selectDataset(proxyID);
-      }
-    },
-
-    ...mapActions('datasets', ['selectDataset']),
   },
 };
 </script>

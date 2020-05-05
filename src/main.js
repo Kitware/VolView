@@ -8,10 +8,9 @@ import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
 import EventBusPlugin from './plugins/events';
-import { FileLoader } from './io/io';
+import { FileIO } from './io/io';
 import { registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
-import DaikonDatabase from './io/dicom/daikon';
 
 Vue.config.productionTip = false;
 
@@ -21,19 +20,16 @@ Vue.use(EventBusPlugin);
 
 const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
 
-const loader = new FileLoader();
-registerAllReaders(loader);
+const fileIO = new FileIO();
+registerAllReaders(fileIO);
 
-const dicomDB = new DaikonDatabase();
-
-const services = {
+const dependencies = {
   proxyManager,
-  loader,
-  dicomDB,
+  fileIO,
 };
 
 new Vue({
-  store: createStore(services),
+  store: createStore(dependencies),
   vuetify,
   proxyManager,
   render: (h) => h(App),
