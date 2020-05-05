@@ -86,20 +86,35 @@ function generateHelpers(typeName, ctorNames) {
   };
 
   ctorNames.forEach((name) => {
-    const nameSpecificHelpers = {
-      /**
-       * Determines if a given obj is of the correct tag
-       */
-      [`is${name}`]: (obj) => getTagName(obj) === name,
+    /**
+     * Determines if a given obj is of the correct tag
+     */
+    const is = (obj) => getTagName(obj) === name;
 
-      /**
-       * If obj matches type, then returns result of function
-       * If obj does not match type, then returns undefined
-       */
-      [`map${name}`]: (obj, fn) => helpers.case(obj, {
-        [name]: (...args) => fn(...args),
-        [Otherwise]: noop,
-      }),
+    /**
+     * If obj matches type, then returns result of function
+     * If obj does not match type, then returns undefined
+     */
+    const map = (obj, fn) => helpers.case(obj, {
+      [name]: (...args) => fn(...args),
+      [Otherwise]: noop,
+    });
+
+    /**
+     * Filters only for the specific tag.
+     */
+    const only = (objs) => objs.filter((obj) => is(obj));
+
+    /**
+     * Filters all but this tag.
+     */
+    const not = (objs) => objs.filter((obj) => !is(obj));
+
+    const nameSpecificHelpers = {
+      [`is${name}`]: is,
+      [`map${name}`]: map,
+      [`only${name}`]: only,
+      [`not${name}`]: not,
     };
     Object.assign(helpers, nameSpecificHelpers);
   });
