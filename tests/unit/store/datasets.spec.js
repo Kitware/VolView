@@ -19,7 +19,7 @@ function vuexFakes() {
 function services() {
   const fileIO = new FileIO();
   fileIO.addSingleReader('nrrd', (f) => ({
-    vtkClass: 'vtkTest',
+    isA: (type) => type === 'vtkObject',
     name: f.name,
   }));
   const dicomIO = sinon.stub(new DicomIO());

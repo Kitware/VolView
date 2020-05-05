@@ -4,7 +4,7 @@ export const ArgType = {
   Any: () => true,
   String: (a) => typeof a === 'string',
   Error: (a) => a instanceof Error,
-  VtkObject: (a) => !!(a && a.vtkClass),
+  VtkObject: (a) => !!(a && a.isA instanceof Function && a.isA('vtkObject')),
 };
 
 export const FileLoaded = newSumType('FileLoaded', {
