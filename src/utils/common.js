@@ -16,3 +16,12 @@ export function defer() {
 export function asMutation(mutation) {
   return ({ commit }, args) => commit(mutation, args);
 }
+
+/**
+ * Picks out a subset of an object
+ * @param {Object} obj
+ * @param {String[]} keys
+ */
+export function pick(obj, keys) {
+  return keys.reduce((o, k) => ({ ...o, [k]: obj[k] }), {});
+}

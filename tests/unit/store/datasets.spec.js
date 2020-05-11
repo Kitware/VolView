@@ -4,7 +4,6 @@ import sinon from 'sinon';
 import datasets from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
 import { FileLoaded } from '@/src/types';
-import DicomIO from '@/src/io/dicom';
 
 function makeEmptyFile(name) {
   return new File([], name);
@@ -22,8 +21,7 @@ function services() {
     isA: (type) => type === 'vtkObject',
     name: f.name,
   }));
-  const dicomIO = sinon.stub(new DicomIO());
-  return { fileIO, dicomIO };
+  return { fileIO };
 }
 
 describe('Datasets module', () => {
