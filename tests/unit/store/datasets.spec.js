@@ -1,10 +1,13 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
 import sinon from 'sinon';
+import sinonChai from 'sinon-chai';
 
 import datasets from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
 import { FileLoaded } from '@/src/types';
 import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
+
+chai.use(sinonChai);
 
 function services() {
   const fileIO = new FileIO();
@@ -47,7 +50,7 @@ describe('Datasets module', () => {
         ],
       );
 
-      expect(commit.args[0][0]).to.equal('addData');
+      expect(commit).to.have.been.calledWith('addData');
 
       const { fileResults, dicomResult } = result;
       expect(fileResults.length).to.equal(2);
