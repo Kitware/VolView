@@ -9,6 +9,15 @@ function makeEmptyFile(name) {
   return new File([], name);
 }
 
+function makeDicomFile(name) {
+  const buffer = new Uint8Array(132);
+  buffer[128] = 'D'.charCodeAt(0);
+  buffer[129] = 'I'.charCodeAt(0);
+  buffer[130] = 'C'.charCodeAt(0);
+  buffer[131] = 'M'.charCodeAt(0);
+  return new File([buffer.buffer], name);
+}
+
 function vuexFakes() {
   const dispatch = sinon.fake();
   const commit = sinon.fake();
@@ -29,37 +38,53 @@ describe('Datasets module', () => {
     sinon.restore();
   });
 
-  it('should load a list of files', async () => {
-    const mod = datasets(services());
+  describe('File loading', () => {
+    it('should load a list of dicom and regular files', async () => {
+      const mod = datasets(services());
+      const { state } = mod;
 
-    const { dispatch, commit } = vuexFakes();
-    const result = await mod.actions.loadFiles(
-      { dispatch, commit },
-      [
-        makeEmptyFile('test.nrrd'),
-        makeEmptyFile('test.bad'),
-      ],
-    );
+      const { commit } = vuexFakes();
+      const dispatch = async (actionName) => {
+        if (actionName === 'dicom/importFiles') {
+          return [{
+            patientKey: 'patientKey',
+            studyKey: 'studyKey',
+            seriesKey: 'seriesKey',
+          }];
+        }
+        return null;
+      };
 
-    expect(commit.args[0][0]).to.equal('addData');
+      const result = await mod.actions.loadFiles(
+        { state, dispatch, commit },
+        [
+          makeEmptyFile('test.nrrd'),
+          makeEmptyFile('test.bad'),
+          makeDicomFile('file1.dcm'),
+          makeDicomFile('file2.dcm'),
+        ],
+      );
 
-    const { fileResults, dicomResult } = result;
-    expect(fileResults.length).to.equal(2);
-    expect(
-      FileLoaded.mapSuccess(
-        fileResults[0],
-        (_, value) => value.name === 'test.nrrd',
-      ),
-    ).to.be.true;
-    expect(FileLoaded.isFailure(fileResults[1])).to.be.true;
-    expect(FileLoaded.isSuccess(dicomResult)).to.be.true;
-  });
+      expect(commit.args[0][0]).to.equal('addData');
 
-  it('should handle empty array', async () => {
-    const mod = datasets(services());
+      const { fileResults, dicomResult } = result;
+      expect(fileResults.length).to.equal(2);
+      expect(
+        FileLoaded.mapSuccess(
+          fileResults[0],
+          (_, value) => value.name === 'test.nrrd',
+        ),
+      ).to.be.true;
+      expect(FileLoaded.isFailure(fileResults[1])).to.be.true;
+      expect(FileLoaded.isSuccess(dicomResult)).to.be.true;
+    });
 
-    const { dispatch, commit } = vuexFakes();
-    const result = await mod.actions.loadFiles({ dispatch, commit }, []);
-    expect(result.fileResults.length).to.equal(0);
+    it('should handle empty array', async () => {
+      const mod = datasets(services());
+
+      const { dispatch, commit } = vuexFakes();
+      const result = await mod.actions.loadFiles({ dispatch, commit }, []);
+      expect(result.fileResults.length).to.equal(0);
+    });
   });
 });

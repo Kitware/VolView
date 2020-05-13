@@ -19,13 +19,20 @@ export default (dependencies) => {
     },
 
     state: {
-      datasets: [],
+      datasets: {},
+      datasetOrder: [],
       selDataset: NO_SELECTION,
+      // track the mapping from seriesUID to data ID
+      seriesToDataID: {},
     },
 
     mutations: {
       addData(state, data) {
-        state.datasets.push(data);
+        const id = Data.mapId(data, (i) => i);
+        if (!(id in state.datasets)) {
+          state.datasetOrder.push(id);
+          state.datasets[id] = data;
+        }
       },
     },
 
@@ -37,7 +44,7 @@ export default (dependencies) => {
        * @async
        * @param {File[]} files
        */
-      async loadFiles({ commit, dispatch }, files) {
+      async loadFiles({ state, commit, dispatch }, files) {
         const { fileIO } = dependencies;
 
         const dicomFiles = [];
@@ -55,11 +62,6 @@ export default (dependencies) => {
           }
         }
 
-        // for each regular file, use fileIO
-        // wrap in try/catch or promise reject
-        // if return type is not a vtk.js data object, then
-        // set error condition
-
         const dicomFilesPromise = dispatch('dicom/importFiles', dicomFiles);
 
         const regularFilesPromise = Promise.allSettled(
@@ -71,8 +73,10 @@ export default (dependencies) => {
             case 'fulfilled':
               commit('addData', Data.VtkData(nextID(), r.value));
               return FileLoaded.Success(regularFiles[i].name, r.value);
+
             case 'rejected':
               return FileLoaded.Failure(regularFiles[i].name, r.reason);
+
             default:
               return FileLoaded.Failure(
                 regularFiles[i],
@@ -83,9 +87,20 @@ export default (dependencies) => {
 
         let dicomFilesResult = null;
         try {
-          await dicomFilesPromise;
+          const updatedSeriesKeys = await dicomFilesPromise;
+          updatedSeriesKeys.forEach((keys) => {
+            if (!(keys.seriesKey in state.seriesToDataID)) {
+              const dataID = nextID();
+              const data = Data.DicomSeriesData(
+                dataID,
+                keys.patientKey,
+                keys.studyKey,
+                keys.seriesKey,
+              );
+              commit('addData', data);
+            }
+          });
           dicomFilesResult = FileLoaded.Success('DICOM', true);
-          // TODO create DicomSeriesData obj
         } catch (e) {
           dicomFilesResult = FileLoaded.Failure('DICOM', e);
         }
