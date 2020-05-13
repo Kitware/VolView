@@ -4,6 +4,8 @@ import sinon from 'sinon';
 import dicom from '@/src/store/dicom';
 import DicomIO from '@/src/io/dicom';
 
+import { vuexFakes } from '@/tests/testUtils';
+
 const SAMPLE_DATA = [
   {
     uid: '1.2.3.4',
@@ -32,12 +34,6 @@ const SAMPLE_DATA = [
     },
   },
 ];
-
-function vuexFakes() {
-  const dispatch = sinon.fake();
-  const commit = sinon.fake();
-  return { dispatch, commit };
-}
 
 function dependencies() {
   const dicomIO = new DicomIO();

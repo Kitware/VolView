@@ -4,25 +4,7 @@ import sinon from 'sinon';
 import datasets from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
 import { FileLoaded } from '@/src/types';
-
-function makeEmptyFile(name) {
-  return new File([], name);
-}
-
-function makeDicomFile(name) {
-  const buffer = new Uint8Array(132);
-  buffer[128] = 'D'.charCodeAt(0);
-  buffer[129] = 'I'.charCodeAt(0);
-  buffer[130] = 'C'.charCodeAt(0);
-  buffer[131] = 'M'.charCodeAt(0);
-  return new File([buffer.buffer], name);
-}
-
-function vuexFakes() {
-  const dispatch = sinon.fake();
-  const commit = sinon.fake();
-  return { dispatch, commit };
-}
+import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
 
 function services() {
   const fileIO = new FileIO();
