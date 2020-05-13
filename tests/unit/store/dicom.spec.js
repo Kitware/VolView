@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import dicom, { ANONYMOUS_PATIENT_ID } from '@/src/store/dicom';
+import dicom from '@/src/store/dicom';
 import DicomIO from '@/src/io/dicom';
-import { pick } from '../../../src/utils/common';
 
 const SAMPLE_DATA = [
   {
@@ -11,6 +10,8 @@ const SAMPLE_DATA = [
     info: {
       PatientName: 'anon',
       PatientID: 'none',
+      PatientBirthDate: ' ',
+      PatientSex: 'O ',
       StudyInstanceUID: '2.4.2.4',
       StudyID: 's1',
       SeriesInstanceUID: '1.2.3.4',
@@ -22,6 +23,8 @@ const SAMPLE_DATA = [
     info: {
       PatientName: '',
       PatientID: '',
+      PatientBirthDate: ' ',
+      PatientSex: 'O ',
       StudyInstanceUID: '1.1.1.1',
       StudyID: 's2',
       SeriesInstanceUID: '2.3.4.5',
@@ -41,73 +44,49 @@ function dependencies() {
   return { dicomIO };
 }
 
-describe('DICOM module actions', () => {
+describe('DICOM module', () => {
   afterEach(() => {
     sinon.restore();
   });
 
-  it('should import a list of dicom objects', async () => {
-    const deps = dependencies();
-    const mod = dicom(deps);
+  describe('Actions', () => {
+    it('should import a list of dicom objects', async () => {
+      const deps = dependencies();
+      const mod = dicom(deps);
 
-    sinon.stub(deps.dicomIO, 'importFiles').returns({});
+      const data = SAMPLE_DATA.reduce(
+        (obj, sample) => ({ ...obj, [sample.uid]: sample.info }),
+        {},
+      );
+      sinon.stub(deps.dicomIO, 'importFiles').returns(data);
 
-    const fakes = vuexFakes();
-    await mod.actions.importFiles(fakes, [/* empty files */]);
-
-    const firstCommit = fakes.commit.args[0];
-    expect(firstCommit[0]).to.equal('upsertSeries');
-  });
-});
-
-describe('DICOM module mutations', () => {
-  afterEach(() => {
-    sinon.restore();
-  });
-
-  it('should update the local dicom db with upsertSeries', () => {
-    const mod = dicom();
-    const { state } = mod;
-
-    SAMPLE_DATA.forEach(({ uid, info }) => mod.mutations.upsertSeries(state, {
-      seriesUID: uid,
-      info,
-    }));
-
-    const pickPatientInfo = (info) => pick(info, [
-      'PatientID',
-      'PatientName',
-      'PatientBirthDate',
-      'PatientSex',
-    ]);
-    const pickStudyInfo = (info) => pick(info, ['StudyID']);
-    const pickSeriesInfo = (info) => pick(info, ['SeriesDescription']);
-
-    expect(state.patientIndex).to.deep.equal({
-      [SAMPLE_DATA[0].info.PatientID]: {
-        ...pickPatientInfo(SAMPLE_DATA[0].info),
-      },
-      [ANONYMOUS_PATIENT_ID]: {
-        ...pickPatientInfo(SAMPLE_DATA[1].info),
-      },
+      const fakes = vuexFakes();
+      const updatedKeys = await mod.actions.importFiles(fakes, []);
+      expect(updatedKeys.length).to.equal(2);
+      expect(updatedKeys[0]).to.have.property('patientKey');
+      expect(updatedKeys[0]).to.have.property('studyKey');
+      expect(updatedKeys[0]).to.have.property('seriesKey');
     });
+  });
 
-    expect(state.studyIndex).to.deep.equal({
-      [SAMPLE_DATA[0].info.StudyInstanceUID]: {
-        ...pickStudyInfo(SAMPLE_DATA[0].info),
-      },
-      [SAMPLE_DATA[1].info.StudyInstanceUID]: {
-        ...pickStudyInfo(SAMPLE_DATA[1].info),
-      },
-    });
+  describe('Mutations', () => {
+    it('should not clobber existing patient, study, series keys', () => {
+      const mod = dicom();
+      const { state } = mod;
+      mod.mutations.addPatient(state, { patientKey: 'PKEY', patient: { id: 1 } });
+      mod.mutations.addPatient(state, { patientKey: 'PKEY', patient: { id: 2 } });
+      expect(state.patientIndex).to.have.property('PKEY');
+      expect(state.patientIndex.PKEY.id).to.equal(1);
 
-    expect(state.seriesIndex).to.deep.equal({
-      [SAMPLE_DATA[0].info.SeriesInstanceUID]: {
-        ...pickSeriesInfo(SAMPLE_DATA[0].info),
-      },
-      [SAMPLE_DATA[1].info.SeriesInstanceUID]: {
-        ...pickSeriesInfo(SAMPLE_DATA[1].info),
-      },
+      mod.mutations.addStudy(state, { studyKey: 'STKEY', study: { id: 1 } });
+      mod.mutations.addStudy(state, { studyKey: 'STKEY', study: { id: 2 } });
+      expect(state.studyIndex).to.have.property('STKEY');
+      expect(state.studyIndex.STKEY.id).to.equal(1);
+
+      mod.mutations.addSeries(state, { seriesKey: 'SKEY', series: { id: 1 } });
+      mod.mutations.addSeries(state, { seriesKey: 'SKEY', series: { id: 2 } });
+      expect(state.seriesIndex).to.have.property('SKEY');
+      expect(state.seriesIndex.SKEY.id).to.equal(1);
     });
   });
 });
