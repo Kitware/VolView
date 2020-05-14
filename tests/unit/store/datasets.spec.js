@@ -2,18 +2,17 @@ import chai, { expect } from 'chai';
 import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
 
-import datasets from '@/src/store/datasets';
+import datasets, { DataTypes } from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
-import { FileLoaded } from '@/src/types';
 import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
 
 chai.use(sinonChai);
 
 function services() {
   const fileIO = new FileIO();
-  fileIO.addSingleReader('nrrd', (f) => ({
-    isA: (type) => type === 'vtkObject',
-    name: f.name,
+  fileIO.addSingleReader('nrrd', () => ({
+    // simulate all vtk objects
+    isA: () => true,
   }));
   return { fileIO };
 }
@@ -24,7 +23,7 @@ describe('Datasets module', () => {
   });
 
   describe('File loading', () => {
-    it('should load a list of dicom and regular files', async () => {
+    it('loadFiles action should load a list of dicom and regular files', async () => {
       const mod = datasets(services());
       const { state } = mod;
 
@@ -40,36 +39,61 @@ describe('Datasets module', () => {
         return null;
       };
 
-      const result = await mod.actions.loadFiles(
+      const files = [
+        makeEmptyFile('test.nrrd'),
+        makeEmptyFile('test.bad'),
+        makeDicomFile('file1.dcm'),
+        makeDicomFile('file2.dcm'),
+      ];
+
+      const errors = await mod.actions.loadFiles(
         { state, dispatch, commit },
-        [
-          makeEmptyFile('test.nrrd'),
-          makeEmptyFile('test.bad'),
-          makeDicomFile('file1.dcm'),
-          makeDicomFile('file2.dcm'),
-        ],
+        files,
       );
 
-      expect(commit).to.have.been.calledWith('addData');
+      expect(commit).to.have.been.calledWith('addImage');
+      expect(commit).to.have.been.calledWith('addDicom');
+      // expect(commit).to.have.been.calledWith('addModel');
 
-      const { fileResults, dicomResult } = result;
-      expect(fileResults.length).to.equal(2);
-      expect(
-        FileLoaded.mapSuccess(
-          fileResults[0],
-          (_, value) => value.name === 'test.nrrd',
-        ),
-      ).to.be.true;
-      expect(FileLoaded.isFailure(fileResults[1])).to.be.true;
-      expect(FileLoaded.isSuccess(dicomResult)).to.be.true;
+      expect(errors).to.have.lengthOf(1);
+      expect(errors[0]).to.have.property('name').that.equals('test.bad');
+      expect(errors[0]).to.have.property('error').that.is.a('error');
     });
 
-    it('should handle empty array', async () => {
+    it('add* mutations should add info appropriately', () => {
       const mod = datasets(services());
+      const { state } = mod;
 
-      const { dispatch, commit } = vuexFakes();
-      const result = await mod.actions.loadFiles({ dispatch, commit }, []);
-      expect(result.fileResults.length).to.equal(0);
+      mod.mutations.addImage(state, {
+        id: 1,
+        image: {},
+        name: 'myimage.jpg',
+      });
+      expect(state.data.imageIDs).to.have.lengthOf(1);
+      expect(state.data.index)
+        .to.have.property(String(1))
+        .that.has.property('type', DataTypes.Image);
+
+      mod.mutations.addDicom(state, {
+        id: 2,
+        patientKey: 'patientkey',
+        studyKey: 'studykey',
+        seriesKey: 'serieskey',
+      });
+      expect(state.data.dicomIDs).to.have.lengthOf(1);
+      expect(state.data.index)
+        .to.have.property(2)
+        .that.has.property('type', DataTypes.Dicom);
+
+      // duplicate IDs should be ignored
+      mod.mutations.addImage(state, {
+        id: 1,
+        image: {},
+        name: 'otherimage.jpg',
+      });
+      expect(state.data.imageIDs).to.have.lengthOf(1);
+
+      // TODO addModel
     });
   });
 });

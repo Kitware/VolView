@@ -1,8 +1,14 @@
 import dicom from './dicom';
 import { FileTypes } from '../io/io';
-import { FileLoaded, Data } from '../types';
+import { isVtkObject } from '../utils/common';
 
 export const NO_SELECTION = -1;
+
+export const DataTypes = {
+  Image: 'Image',
+  Dicom: 'DICOM',
+  Model: 'Model',
+};
 
 export default (dependencies) => {
   let idCounter = 0;
@@ -10,6 +16,9 @@ export default (dependencies) => {
     idCounter += 1;
     return idCounter;
   };
+
+  // used to avoid making the entire vtk object reactive
+  const idToVtkData = new Map();
 
   return {
     namespaced: true,
@@ -19,19 +28,42 @@ export default (dependencies) => {
     },
 
     state: {
-      datasets: {},
-      datasetOrder: [],
-      selDataset: NO_SELECTION,
+      data: {
+        index: {},
+        imageIDs: [],
+        dicomIDs: [],
+      },
       // track the mapping from seriesUID to data ID
-      seriesToDataID: {},
+      dicomSeriesToID: {},
     },
 
     mutations: {
-      addData(state, data) {
-        const id = Data.mapId(data, (i) => i);
-        if (!(id in state.datasets)) {
-          state.datasetOrder.push(id);
-          state.datasets[id] = data;
+      /**
+       * Args: { id, imageData, name }
+       */
+      addImage(state, { id, name, imageData }) {
+        if (!(id in state.data.index)) {
+          idToVtkData.set(id, imageData);
+          state.data.index[id] = {
+            type: DataTypes.Image,
+            name,
+          };
+          state.data.imageIDs.push(id);
+        }
+      },
+
+      /**
+       * Args: { id, patientKey, studyKey, seriesKey }
+       */
+      addDicom(state, { id, ...props }) {
+        if (!(id in state.data.index)) {
+          state.data.index[id] = {
+            type: DataTypes.Dicom,
+            patientKey: props.patientKey,
+            studyKey: props.studyKey,
+            seriesKey: props.seriesKey,
+          };
+          state.data.dicomIDs.push(id);
         }
       },
     },
@@ -49,6 +81,7 @@ export default (dependencies) => {
 
         const dicomFiles = [];
         const regularFiles = [];
+        const errors = [];
 
         const fileTypesP = files.map(async (file) => fileIO.getFileType(file));
         const fileTypes = await Promise.all(fileTypesP);
@@ -64,51 +97,67 @@ export default (dependencies) => {
 
         const dicomFilesPromise = dispatch('dicom/importFiles', dicomFiles);
 
-        const regularFilesPromise = Promise.allSettled(
+        const regularFilesLoadResults = await Promise.allSettled(
           regularFiles.map((f) => fileIO.readSingleFile(f)),
         );
 
-        const regularFilesLoaded = (await regularFilesPromise).map((r, i) => {
+        regularFilesLoadResults.forEach((r, i) => {
           switch (r.status) {
-            case 'fulfilled':
-              commit('addData', Data.VtkData(nextID(), r.value));
-              return FileLoaded.Success(regularFiles[i].name, r.value);
+            case 'fulfilled': {
+              const obj = r.value;
+              const { name } = regularFiles[i];
+              if (isVtkObject(obj)) {
+                if (obj.isA('vtkImageData')) {
+                  commit('addImage', {
+                    id: nextID(),
+                    name,
+                    imageData: obj,
+                  });
+                }
+              } else {
+                errors.push({
+                  name,
+                  error: new Error('loadFiles: Read file is not a VTK object'),
+                });
+              }
+              break;
+            }
 
             case 'rejected':
-              return FileLoaded.Failure(regularFiles[i].name, r.reason);
+              errors.push({
+                name: regularFiles[i].name,
+                error: r.reason,
+              });
+              break;
 
             default:
-              return FileLoaded.Failure(
-                regularFiles[i],
-                new Error('loadFiles: Entered invalid state'),
-              );
+              errors.push({
+                name: regularFiles[i].name,
+                error: new Error('loadFiles: Invalid allSettled state'),
+              });
           }
         });
 
-        let dicomFilesResult = null;
         try {
           const updatedSeriesKeys = await dicomFilesPromise;
           updatedSeriesKeys.forEach((keys) => {
-            if (!(keys.seriesKey in state.seriesToDataID)) {
-              const dataID = nextID();
-              const data = Data.DicomSeriesData(
-                dataID,
-                keys.patientKey,
-                keys.studyKey,
-                keys.seriesKey,
-              );
-              commit('addData', data);
+            if (!(keys.seriesKey in state.dicomSeriesToID)) {
+              commit('addDicom', {
+                id: nextID(),
+                patientKey: keys.patientKey,
+                studyKey: keys.studyKey,
+                seriesKey: keys.seriesKey,
+              });
             }
           });
-          dicomFilesResult = FileLoaded.Success('DICOM', true);
         } catch (e) {
-          dicomFilesResult = FileLoaded.Failure('DICOM', e);
+          errors.push({
+            name: 'DICOM files',
+            error: e,
+          });
         }
 
-        return {
-          fileResults: regularFilesLoaded,
-          dicomResult: dicomFilesResult,
-        };
+        return errors;
       },
     },
   };
