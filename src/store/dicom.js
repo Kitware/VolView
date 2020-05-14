@@ -59,6 +59,11 @@ export default (dependencies) => ({
   actions: {
     async importFiles({ commit }, files) {
       const { dicomIO } = dependencies;
+
+      if (files.length === 0) {
+        return [];
+      }
+
       const updatedSeriesInfo = await dicomIO.importFiles(files);
       const seriesUIDs = Object.keys(updatedSeriesInfo);
       const updatedSeriesKeys = []; // to be returned to caller
