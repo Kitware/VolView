@@ -107,15 +107,15 @@
     </v-content>
 
     <v-dialog
-      v-model="fileErrorDialog"
+      v-model="errors.dialog"
       width="50%"
     >
       <v-card>
-        <v-card-title>Load Errors</v-card-title>
+        <v-card-title>Application Errors</v-card-title>
         <v-card-text>
           <v-container>
             <v-row
-              v-for="(error,i) in fileLoadErrors"
+              v-for="(error,i) in errors.fileLoading"
               :key="i"
               no-gutters
               class="align-center mt-2"
@@ -125,11 +125,11 @@
                 class="text-ellipsis subtitle-1 black--text"
                 :title="error.name"
               >
-                {{ error.name }}
+                Load error: {{ error.name }}
               </v-col>
               <v-col>
                 <span class="ml-2">
-                  {{ error.reason.message || 'Unknown error' }}
+                  {{ error.message || 'Unknown error' }}
                 </span>
               </v-col>
             </v-row>
@@ -202,7 +202,6 @@ import VtkTwoView from './components/VtkTwoView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
-import { MultipleErrors } from './utils/errors';
 
 export const NO_DS = -1;
 
@@ -251,8 +250,10 @@ export default {
     selectedTool: null,
     selectedModule: Modules[0],
 
-    fileLoadErrors: [],
-    fileErrorDialog: false,
+    errors: {
+      dialog: false,
+      fileLoading: [],
+    },
 
     // initial four-up layout
     layout: [
@@ -348,38 +349,40 @@ export default {
         text: 'Loading...',
       });
 
-      try {
-        await this.loadFiles(Array.from(files));
-        this.$notify({ type: 'success', text: 'Files loaded' });
-      } catch (error) {
-        const actions = [
-          {
-            text: 'details',
-            onclick: () => {
-              this.fileErrorDialog = true;
-            },
+      const actions = [
+        {
+          text: 'details',
+          onclick: () => {
+            this.errors.dialog = true;
           },
-          {
-            text: 'close',
-            onclick: this.clearAndCloseErrors,
-          },
-        ];
+        },
+        {
+          text: 'close',
+          onclick: this.clearAndCloseErrors,
+        },
+      ];
 
-        if (error instanceof MultipleErrors) {
-          this.fileLoadErrors = error.errors;
+      try {
+        const errors = await this.loadFiles(Array.from(files));
+        if (errors.length) {
+          this.errors.fileLoading = errors;
           this.$notify({
             type: 'error',
             duration: -1,
-            text: error.message,
+            text: 'Some files failed to load',
             data: { actions },
           });
         } else {
-          this.$notify({
-            type: 'error',
-            duration: -1,
-            text: `Unknown error: ${error}`,
-          });
+          this.$notify({ type: 'success', text: 'Files loaded' });
         }
+      } catch (error) {
+        this.errors.actionErrors.push(error);
+        this.$notify({
+          type: 'error',
+          duration: -1,
+          text: 'An unknown file loading error occurred',
+          data: { actions },
+        });
       } finally {
         // TODO only close if there are no pending files
         this.$notify.close('loading');
@@ -387,8 +390,9 @@ export default {
     },
 
     clearAndCloseErrors() {
-      this.errors = [];
-      this.fileErrorDialog = false;
+      this.errors.dialog = false;
+      this.errors.fileLoading = [];
+      this.errors.actionErrors = [];
     },
 
     ...mapActions('datasets', ['loadFiles']),
