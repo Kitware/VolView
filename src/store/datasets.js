@@ -33,6 +33,7 @@ export default (dependencies) => {
         imageIDs: [],
         dicomIDs: [],
       },
+      selectedBaseImage: NO_SELECTION,
       // track the mapping from seriesUID to data ID
       dicomSeriesToID: {},
     },
@@ -64,6 +65,17 @@ export default (dependencies) => {
             seriesKey: props.seriesKey,
           };
           state.data.dicomIDs.push(id);
+        }
+      },
+
+      selectBaseImage(state, id) {
+        if (
+          id in state.data.index
+          && state.data.index[id].type === DataTypes.Image
+        ) {
+          state.selectedBaseImage = id;
+        } else {
+          state.selectedBaseImage = NO_SELECTION;
         }
       },
     },
@@ -158,6 +170,19 @@ export default (dependencies) => {
         }
 
         return errors;
+      },
+
+      /**
+       * Selects a base image.
+       *
+       * If the dataset is not an image or NO_SELECTION,
+       * then the selection will be cleared.
+       */
+      async selectBaseImage({ state, dispatch, commit }, id) {
+        commit('selectBaseImage', id);
+        if (state.selectedBaseImage !== NO_SELECTION) {
+          await dispatch('updateRenderPipeline');
+        }
       },
     },
   };

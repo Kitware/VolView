@@ -2,7 +2,7 @@ import chai, { expect } from 'chai';
 import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
 
-import datasets, { DataTypes } from '@/src/store/datasets';
+import datasets, { DataTypes, NO_SELECTION } from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
 import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
 
@@ -94,6 +94,38 @@ describe('Datasets module', () => {
       expect(state.data.imageIDs).to.have.lengthOf(1);
 
       // TODO addModel
+    });
+  });
+
+  describe('Base image selection', () => {
+    it('selectBaseImage action', async () => {
+      const mod = datasets(services());
+      const { state } = mod;
+
+      state.selectedBaseImage = 100;
+
+      const { dispatch, commit } = vuexFakes();
+      mod.actions.selectBaseImage({ state, dispatch, commit }, 100);
+      expect(commit).to.have.been.calledWith('selectBaseImage', 100);
+      expect(dispatch).to.have.been.calledWith('updateRenderPipeline');
+    });
+
+    it('selectBaseImage mutation', () => {
+      const mod = datasets(services());
+      const { state } = mod;
+
+      // invalid selection
+      mod.mutations.selectBaseImage(state, 100);
+      expect(state.selectedBaseImage).to.equal(NO_SELECTION);
+
+      // valid selection
+      mod.mutations.addImage(state, {
+        id: 1,
+        name: 'testing.bmp',
+        imageData: {},
+      });
+      mod.mutations.selectBaseImage(state, 1);
+      expect(state.selectedBaseImage).to.equal(1);
     });
   });
 });
