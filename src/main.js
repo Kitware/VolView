@@ -9,6 +9,7 @@ import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
 import EventBusPlugin from './plugins/events';
 import { FileIO } from './io/io';
+import DicomIO from './io/dicom';
 import { registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
 
@@ -23,9 +24,13 @@ const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
 const fileIO = new FileIO();
 registerAllReaders(fileIO);
 
+const dicomIO = new DicomIO();
+// dicomIO.initialize();
+
 const dependencies = {
   proxyManager,
   fileIO,
+  dicomIO,
 };
 
 new Vue({
