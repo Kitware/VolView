@@ -55,6 +55,11 @@ module.exports = {
           from: path.join(__dirname, 'node_modules', 'itk', 'ImageIOs'),
           to: path.join(__dirname, 'dist', 'itk', 'ImageIOs'),
         },
+        {
+          from: path.join(__dirname, 'src', 'io', 'itk-dicom', 'web-build', 'dicom*'),
+          to: path.join(__dirname, 'dist', 'itk', 'Pipelines'),
+          flatten: true,
+        },
       ]),
     ],
   },

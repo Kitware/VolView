@@ -25,7 +25,7 @@ const fileIO = new FileIO();
 registerAllReaders(fileIO);
 
 const dicomIO = new DicomIO();
-// dicomIO.initialize();
+dicomIO.initialize();
 
 const dependencies = {
   proxyManager,
