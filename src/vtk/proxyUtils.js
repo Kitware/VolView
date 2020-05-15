@@ -15,6 +15,41 @@ export function createFourUpViews(proxyManager) {
   createOrGetView(proxyManager, 'View3D', '3D:1');
 }
 
+/**
+ * Adds all representations of a given source proxy.
+ *
+ * We call addRepresentation to handle the case where
+ * the representation already exists, but doesn't exist in a view.
+ * @param {vtkSourceProxy} source
+ * @param {vtkProxyManager} proxyManager
+ */
+export function renderRepresentationsOf(source, proxyManager) {
+  const views = proxyManager.getViews();
+  for (let i = 0; i < views.length; i += 1) {
+    const view = views[i];
+    const rep = proxyManager.getRepresentation(source, view);
+    if (rep) {
+      view.addRepresentation(rep);
+    }
+  }
+}
+
+/**
+ * Removes all representations of a given source proxy.
+ * @param {vtkSourceProxy} source
+ * @param {vtkProxyManager} proxyManager
+ */
+export function removeRepresentationsOf(source, proxyManager) {
+  const views = proxyManager.getViews();
+  for (let i = 0; i < views.length; i += 1) {
+    const view = views[i];
+    const rep = proxyManager.getRepresentation(source, view);
+    if (rep) {
+      view.removeRepresentation(rep);
+    }
+  }
+}
+
 export function removeAllRepresentations(proxyManager) {
   const views = proxyManager.getViews();
   for (let i = 0; i < views.length; i += 1) {

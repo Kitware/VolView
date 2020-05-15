@@ -72,7 +72,7 @@
           </v-item-group>
         </div>
         <div class="d-flex flex-column flex-grow-1">
-          <template v-if="selectedDataset">
+          <template v-if="hasSelectedBaseImage">
             <layout-grid :layout="layout" />
           </template>
           <template v-else>
@@ -195,6 +195,7 @@
 import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
+import { NO_SELECTION } from '@/src/store/datasets';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -202,8 +203,6 @@ import VtkTwoView from './components/VtkTwoView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
-
-export const NO_DS = -1;
 
 export const Modules = [
   {
@@ -311,7 +310,10 @@ export default {
   }),
 
   computed: {
-    ...mapState('datasets', ['selectedDataset']),
+    ...mapState('datasets', ['selectedBaseImage']),
+    hasSelectedBaseImage() {
+      return this.selectedBaseImage !== NO_SELECTION;
+    },
   },
 
   watch: {

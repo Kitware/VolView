@@ -102,11 +102,16 @@ describe('Datasets module', () => {
       const mod = datasets(services());
       const { state } = mod;
 
-      state.selectedBaseImage = 100;
+      mod.mutations.addImage(state, {
+        id: 100,
+        image: {},
+        name: 'somename.tiff',
+      });
 
       const { dispatch, commit } = vuexFakes();
       mod.actions.selectBaseImage({ state, dispatch, commit }, 100);
       expect(commit).to.have.been.calledWith('selectBaseImage', 100);
+      expect(commit).to.have.been.calledWith('setBaseMetadata');
       expect(dispatch).to.have.been.calledWith('updateRenderPipeline');
     });
 

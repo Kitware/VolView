@@ -44,6 +44,7 @@ module.exports = {
               'publicAPI',
               'model',
               'state',
+              'outData',
             ],
           },
         ],

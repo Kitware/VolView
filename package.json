@@ -11,6 +11,7 @@
   "dependencies": {
     "core-js": "^3.6.4",
     "daikon": "^1.2.42",
+    "gl-matrix": "^3.3.0",
     "itk": "^10.2.1",
     "vtk.js": "^13.9.1",
     "vue": "^2.6.11",

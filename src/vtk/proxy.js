@@ -4,10 +4,12 @@ import vtk3DView from 'vtk.js/Sources/Proxy/Core/ViewProxy';
 import vtkLookupTableProxy from 'vtk.js/Sources/Proxy/Core/LookupTableProxy';
 import vtkPiecewiseFunctionProxy from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy';
 
-import vtkProxySource from 'vtk.js/Sources/Proxy/Core/SourceProxy';
+import vtkSourceProxy from 'vtk.js/Sources/Proxy/Core/SourceProxy';
 
 import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SliceRepresentationProxy';
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
+
+import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter/index';
 
 function createProxyDefinition(
   classFactory,
@@ -38,7 +40,17 @@ export default {
       PiecewiseFunction: createProxyDefinition(vtkPiecewiseFunctionProxy),
     },
     Sources: {
-      TrivialProducer: createProxyDefinition(vtkProxySource),
+      TrivialProducer: createProxyDefinition(vtkSourceProxy),
+      ImageTransform: {
+        class: vtkSourceProxy,
+        options: {
+          algoFactory: vtkImageTransformFilter,
+          autoUpdate: true,
+          proxyPropertyMapping: {
+            transform: { modelKey: 'algo', property: 'transform' },
+          },
+        },
+      },
     },
     Representations: {
       Volume: createProxyDefinition(
