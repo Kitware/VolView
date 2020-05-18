@@ -41,12 +41,19 @@ export default (dependencies) => ({
   mutations: {
     addPatient(state, { patientKey, patient }) {
       if (!(patientKey in state.patientIndex)) {
-        state.patientIndex[patientKey] = patient;
+        state.patientIndex = {
+          ...state.patientIndex,
+          [patientKey]: patient,
+        };
       }
     },
 
     addStudy(state, { studyKey, study, patientID }) {
       if (!(studyKey in state.studyIndex)) {
+        state.studyIndex = {
+          ...state.studyIndex,
+          [studyKey]: study,
+        };
         state.studyIndex[studyKey] = study;
         state.patientStudies[patientID] = state.patientStudies[patientID] ?? [];
         state.patientStudies[patientID].push(studyKey);
@@ -55,7 +62,10 @@ export default (dependencies) => ({
 
     addSeries(state, { seriesKey, series, studyUID }) {
       if (!(seriesKey in state.seriesIndex)) {
-        state.seriesIndex[seriesKey] = series;
+        state.seriesIndex = {
+          ...state.seriesIndex,
+          [seriesKey]: series,
+        };
         state.studySeries[studyUID] = state.studySeries[studyUID] ?? [];
         state.studySeries[studyUID].push(seriesKey);
       }

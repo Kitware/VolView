@@ -89,9 +89,12 @@ export default (dependencies) => {
       addImage(state, { id, name, imageData }) {
         if (!(id in state.data.index)) {
           idToVtkData.set(id, imageData);
-          state.data.index[id] = {
-            type: DataTypes.Image,
-            name,
+          state.data.index = {
+            ...state.data.index,
+            [id]: {
+              type: DataTypes.Image,
+              name,
+            },
           };
           state.data.imageIDs.push(id);
         }
@@ -102,11 +105,18 @@ export default (dependencies) => {
        */
       addDicom(state, { id, ...props }) {
         if (!(id in state.data.index)) {
-          state.data.index[id] = {
-            type: DataTypes.Dicom,
-            patientKey: props.patientKey,
-            studyKey: props.studyKey,
-            seriesKey: props.seriesKey,
+          state.data.index = {
+            ...state.data.index,
+            [id]: {
+              type: DataTypes.Dicom,
+              patientKey: props.patientKey,
+              studyKey: props.studyKey,
+              seriesKey: props.seriesKey,
+            },
+          };
+          state.dicomSeriesToID = {
+            ...state.dicomSeriesToID,
+            [props.seriesKey]: id,
           };
           state.data.dicomIDs.push(id);
         }
