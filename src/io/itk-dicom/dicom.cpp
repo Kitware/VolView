@@ -214,7 +214,7 @@ int main( int argc, char * argv[] )
 
     std::ofstream outfile;
     outfile.open( outFileName );
-    outfile << importInfo.dump();
+    outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
   }
 
