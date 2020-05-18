@@ -115,7 +115,7 @@
         <v-card-text>
           <v-container>
             <v-row
-              v-for="(error,i) in errors.fileLoading"
+              v-for="(errorInfo,i) in errors.fileLoading"
               :key="i"
               no-gutters
               class="align-center mt-2"
@@ -123,13 +123,13 @@
               <v-col
                 cols="6"
                 class="text-ellipsis subtitle-1 black--text"
-                :title="error.name"
+                :title="errorInfo.name"
               >
-                Load error: {{ error.name }}
+                Load error: {{ errorInfo.name }}
               </v-col>
               <v-col>
                 <span class="ml-2">
-                  {{ error.message || 'Unknown error' }}
+                  {{ errorInfo.error.message || 'Unknown error' }}
                 </span>
               </v-col>
             </v-row>
