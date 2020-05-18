@@ -19,55 +19,54 @@
     </div>
     <div id="patient-data-list">
       <item-group
-        :value="selection"
+        :value="selectedBaseImage"
         @change="setSelection"
       >
         <v-expansion-panels id="patient-data-studies" accordion multiple>
           <v-expansion-panel
-            v-for="study in getStudies(patientID)"
-            :key="study.instanceUID"
+            v-for="study in studies"
+            :key="study.StudyInstanceUID"
             class="patient-data-study-panel"
           >
             <v-expansion-panel-header
               color="#1976fa0a"
               class="no-select"
-              :title="`${study.description || ''} (${study.date.toDateString()})`"
+              :title="study.StudyDate"
             >
               <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
               <div class="study-header">
                 <div class="subtitle-2 study-header-line">
-                  {{ study.description || study.date.toDateString() }}
+                  {{ study.StudyDescription || study.StudyDate }}
                 </div>
-                <div v-if="study.description" class="caption study-header-line">
-                  {{ study.date.toDateString() }}
+                <div v-if="study.StudyDescription" class="caption study-header-line">
+                  {{ study.StudyDate }}
                 </div>
               </div>
             </v-expansion-panel-header>
             <v-expansion-panel-content>
               <div class="my-2 series-list">
                 <groupable-item
-                  v-for="series in getSeries(study.instanceUID)"
-                  :key="series.instanceUID"
+                  v-for="series in getSeries(study.StudyInstanceUID)"
+                  :key="series.SeriesInstanceUID"
                   v-slot:default="{ active, select }"
-                  :value="`${study.instanceUID}::${series.instanceUID}`"
+                  :value="dicomSeriesToID[series.SeriesInstanceUID]"
                 >
                   <v-card
                     outlined
                     ripple
                     :color="active ? 'light-blue lighten-4' : ''"
                     class="series-card"
-                    :title="series.description"
+                    :title="series.SeriesDescription"
                     @click="select"
                   >
                     <v-img
                       contain
                       height="100px"
-                      :src="thumbnails[series.instanceUID]"
                     />
                     <v-card-text class="text--primary caption text-center series-desc mt-n3">
-                      <div>[{{ seriesImages[series.instanceUID].length }}]</div>
+                      <div>[{{ series.NumberOfSlices }}]</div>
                       <div class="text-ellipsis">
-                        {{ series.description || '(no description)' }}
+                        {{ series.SeriesDescription || '(no description)' }}
                       </div>
                     </v-card-text>
                   </v-card>
@@ -83,20 +82,9 @@
 </template>
 
 <script>
-import { mapState, mapActions, mapGetters } from 'vuex';
-import ThumbnailCache from '@/src/io/dicom/thumbnailCache';
+import { mapState } from 'vuex';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-
-const $canvas = document.createElement('canvas');
-
-function generateImageURI(imageData) {
-  $canvas.width = imageData.width;
-  $canvas.height = imageData.height;
-  const ctx = $canvas.getContext('2d');
-  ctx.putImageData(imageData, 0, 0);
-  return $canvas.toDataURL('image/png');
-}
 
 export default {
   name: 'PatientBrowser',
@@ -109,82 +97,53 @@ export default {
   data() {
     return {
       patientID: '',
-      thumbnails: {},
     };
   },
 
   computed: {
-    ...mapGetters('datasets', ['selectedDicomStudyUID', 'selectedDicomSeriesUID']),
-    ...mapState('datasets', {
-      patients: (state) => Object.keys(state.patientIndex).map((patientID) => {
-        const patient = state.patientIndex[patientID];
-        return {
-          id: patientID,
-          label: `${patient.name} (${patient.patientID})`,
-        };
-      }),
-      patientIndex: 'patientIndex',
-      studyIndex: 'studyIndex',
+    ...mapState('datasets', ['selectedBaseImage', 'dicomSeriesToID']),
+    ...mapState('datasets/dicom', {
+      patientStudies: 'patientStudies',
+      studySeries: 'studySeries',
       seriesIndex: 'seriesIndex',
-      seriesImages: 'seriesImages',
+      patients(state) {
+        const patients = Object.values(state.patientIndex);
+        patients.sort((a, b) => a.PatientName < b.PatientName);
+        return patients.map((p) => ({
+          id: p.PatientID,
+          label: p.PatientName,
+        }));
+      },
+      studies(state) {
+        const studyKeys = state.patientStudies[this.patientID] ?? [];
+        return studyKeys
+          .map((key) => state.studyIndex[key])
+          .filter(Boolean);
+      },
     }),
-    selection() {
-      const studyUID = this.selectedDicomStudyUID;
-      const seriesUID = this.selectedDicomSeriesUID;
-      // :: is used as the separator for the v-item value
-      return studyUID && seriesUID ? `${studyUID}::${seriesUID}` : null;
-    },
   },
 
   watch: {
-    patientIndex(index) {
+    patients() {
       // if patient index is updated, then try to select first one
       if (!this.patientID) {
-        [this.patientID] = Object.keys(index);
-      }
-    },
-    patientID(patientID) {
-      const studies = this.getStudies(patientID);
-      for (let i = 0; i < studies.length; i += 1) {
-        const seriesList = this.getSeries(studies[i].instanceUID);
-        for (let j = 0; j < seriesList.length; j += 1) {
-          const series = seriesList[j];
-          const images = this.seriesImages[series.instanceUID];
-          // pick middle image for thumbnailing
-          // TODO allow this to be configurable (e.g. through context menu)
-          const thumbnailTarget = images[Math.floor(images.length / 2)];
-          this.thumbnailCache
-            .getThumbnail(thumbnailTarget)
-            .then((imageData) => {
-              this.$set(this.thumbnails, series.instanceUID, generateImageURI(imageData));
-            });
+        if (this.patients.length) {
+          this.patientID = this.patients[0].id;
+        } else {
+          this.patientID = '';
         }
       }
     },
   },
 
-  mounted() {
-    this.thumbnailCache = new ThumbnailCache(100, 100);
-  },
-
   methods: {
-    ...mapActions('datasets', ['selectSeries']),
-    getStudies(patientID) {
-      return (this.patientIndex[patientID]?.studies ?? []).map(
-        (studyUID) => this.studyIndex[studyUID],
-      );
-    },
     getSeries(studyUID) {
-      return (this.studyIndex[studyUID]?.series ?? []).map(
+      return (this.studySeries[studyUID] ?? []).map(
         (seriesUID) => this.seriesIndex[seriesUID],
       );
     },
     setSelection(sel) {
-      if (sel) {
-        // :: is used as the separator for the v-item value
-        const [studyUID, seriesUID] = sel.split('::');
-        this.selectSeries([studyUID, seriesUID]);
-      }
+      console.log('setSelection', sel);
     },
   },
 };

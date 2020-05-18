@@ -201,15 +201,14 @@ import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkTwoView from './components/VtkTwoView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
-// import PatientBrowser from './components/PatientBrowser.vue';
+import PatientBrowser from './components/PatientBrowser.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
 
 export const Modules = [
   {
     name: 'Patients',
     icon: 'account',
-    // component: PatientBrowser,
-    component: null,
+    component: PatientBrowser,
   },
   {
     name: 'Measurements',
