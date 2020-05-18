@@ -1,6 +1,6 @@
 import { pick } from '@/src/utils/common';
 
-export const ANONYMOUS_PATIENT = '(Anonymous)';
+export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
 
 /**
@@ -30,9 +30,11 @@ export default (dependencies) => ({
   namespaced: true,
 
   state: {
-    patientIndex: {},
-    studyIndex: {},
-    seriesIndex: {},
+    patientIndex: {}, // patientKey -> Patient
+    patientStudies: {}, // patientID -> [studyKey]; use patientID to combine Anonymous patients
+    studyIndex: {}, // studyKey -> Study
+    studySeries: {}, // studyUID -> [seriesKey]
+    seriesIndex: {}, // seriesKey -> Series
     imageIndex: {},
   },
 
@@ -43,15 +45,19 @@ export default (dependencies) => ({
       }
     },
 
-    addStudy(state, { studyKey, study }) {
+    addStudy(state, { studyKey, study, patientID }) {
       if (!(studyKey in state.studyIndex)) {
         state.studyIndex[studyKey] = study;
+        state.patientStudies[patientID] = state.patientStudies[patientID] ?? [];
+        state.patientStudies[patientID].push(studyKey);
       }
     },
 
-    addSeries(state, { seriesKey, series }) {
+    addSeries(state, { seriesKey, series, studyUID }) {
       if (!(seriesKey in state.seriesIndex)) {
         state.seriesIndex[seriesKey] = series;
+        state.studySeries[studyUID] = state.studySeries[studyUID] ?? [];
+        state.studySeries[studyUID].push(seriesKey);
       }
     },
   },
@@ -78,8 +84,10 @@ export default (dependencies) => ({
           ...pick(info, ['PatientBirthDate', 'PatientSex']),
         };
         const patientKey = genSynPatientKey(patient);
+        const patientID = patient.PatientID;
 
         const studyKey = info.StudyInstanceUID;
+        const studyUID = studyKey;
         const study = pick(info, [
           'StudyID',
           'StudyInstanceUID',
@@ -106,8 +114,8 @@ export default (dependencies) => ({
         });
 
         commit('addPatient', { patientKey, patient });
-        commit('addStudy', { studyKey, study });
-        commit('addSeries', { seriesKey, series });
+        commit('addStudy', { studyKey, study, patientID });
+        commit('addSeries', { seriesKey, series, studyUID });
       }
       return updatedSeriesKeys;
     },

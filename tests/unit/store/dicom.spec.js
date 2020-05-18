@@ -57,7 +57,8 @@ describe('DICOM module', () => {
       sinon.stub(deps.dicomIO, 'importFiles').returns(data);
 
       const fakes = vuexFakes();
-      const updatedKeys = await mod.actions.importFiles(fakes, []);
+      // fake non-empty files
+      const updatedKeys = await mod.actions.importFiles(fakes, [1, 2, 3]);
       expect(updatedKeys.length).to.equal(2);
       expect(updatedKeys[0]).to.have.property('patientKey');
       expect(updatedKeys[0]).to.have.property('studyKey');
@@ -74,15 +75,37 @@ describe('DICOM module', () => {
       expect(state.patientIndex).to.have.property('PKEY');
       expect(state.patientIndex.PKEY.id).to.equal(1);
 
-      mod.mutations.addStudy(state, { studyKey: 'STKEY', study: { id: 1 } });
-      mod.mutations.addStudy(state, { studyKey: 'STKEY', study: { id: 2 } });
+      mod.mutations.addStudy(state, {
+        studyKey: 'STKEY',
+        study: { id: 1 },
+        patientID: 1,
+      });
+      mod.mutations.addStudy(state, {
+        studyKey: 'STKEY',
+        study: { id: 2 },
+        patientID: 1,
+      });
       expect(state.studyIndex).to.have.property('STKEY');
       expect(state.studyIndex.STKEY.id).to.equal(1);
+      expect(state.patientStudies)
+        .to.have.property(1)
+        .that.has.lengthOf(1);
 
-      mod.mutations.addSeries(state, { seriesKey: 'SKEY', series: { id: 1 } });
-      mod.mutations.addSeries(state, { seriesKey: 'SKEY', series: { id: 2 } });
+      mod.mutations.addSeries(state, {
+        seriesKey: 'SKEY',
+        series: { id: 1 },
+        studyUID: 1,
+      });
+      mod.mutations.addSeries(state, {
+        seriesKey: 'SKEY',
+        series: { id: 2 },
+        studyUID: 1,
+      });
       expect(state.seriesIndex).to.have.property('SKEY');
       expect(state.seriesIndex.SKEY.id).to.equal(1);
+      expect(state.studySeries)
+        .to.have.property(1)
+        .that.has.lengthOf(1);
     });
   });
 });
