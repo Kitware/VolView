@@ -14,6 +14,9 @@ function services() {
     // simulate all vtk objects
     isA: () => true,
   }));
+  fileIO.addSingleReader('bad', () => {
+    throw new Error('whoops');
+  });
   return { fileIO };
 }
 
@@ -84,6 +87,9 @@ describe('Datasets module', () => {
       expect(state.data.index)
         .to.have.property(2)
         .that.has.property('type', DataTypes.Dicom);
+      expect(state.dicomSeriesToID)
+        .to.have.property('serieskey')
+        .that.equals(2);
 
       // duplicate IDs should be ignored
       mod.mutations.addImage(state, {
