@@ -40,13 +40,14 @@ export default class DicomIO {
         data: buffer,
       };
     }));
+
     const result = await runPipelineBrowser(
       this.webWorker,
       // module
       'dicom',
       // args
       [
-        'import', 'results.json', fileData.map((fd) => fd.name),
+        'import', 'results.json', ...fileData.map((fd) => fd.name),
       ],
       // outputs
       [{ path: 'results.json', type: IOTypes.Text }],
