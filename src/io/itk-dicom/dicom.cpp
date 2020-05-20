@@ -12,17 +12,24 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <emscripten.h>
+
 #include "itkCommonEnums.h"
 #include "itkImageIOBase.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImageSeriesReader.h"
+#include "itkImageFileReader.h"
+#include "itkImageFileWriter.h"
 #include "itkGDCMImageIO.h"
 #include "itkVectorImage.h"
+#include "itkImage.h"
+#include "itkCastImageFilter.h"
 
 #include "thirdparty/json.hpp"
 
 using json = nlohmann::json;
-using ImageType = itk::VectorImage< float, 3 >;
+using VectorImageType = itk::VectorImage< float, 3 >;
+using ImageType = itk::Image< float, 3 >;
 using ReaderType = itk::ImageFileReader< ImageType >;
 using FileNamesContainer = std::vector< std::string >;
 using DictionaryType = itk::MetaDataDictionary;
@@ -37,6 +44,12 @@ using SeriesIndex = std::unordered_map< std::string, std::vector< std::string > 
 static int rc = 0;
 static ImageIndex imageIndex;
 static SeriesIndex seriesIndex;
+
+extern "C" const char * EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr)
+{
+    auto error = reinterpret_cast<std::runtime_error *>(ptr);
+    return error->what();
+}
 
 void list_dir( const char *path )
 {
@@ -104,6 +117,8 @@ const json import( const FileNamesContainer & files )
   seriesFileNames->SetGlobalWarningDisplay( false );
   seriesFileNames->AddSeriesRestriction( "0008|0021" );
   seriesFileNames->SetRecursive( false );
+  // Does this affect series organization?
+  seriesFileNames->SetLoadPrivateTags( false );
 
   using SeriesIdContainer = std::vector<std::string>;
   const SeriesIdContainer & seriesUIDs = seriesFileNames->GetSeriesUIDs();
@@ -118,7 +133,7 @@ const json import( const FileNamesContainer & files )
 
     makedir( seriesUID );
 
-    std::vector< std::string > seriesFileList = seriesIndex[ seriesUID ];
+    std::vector< std::string > & seriesFileList = seriesIndex[ seriesUID ];
 
     bool first = true;
     for( auto filename : fileNames )
@@ -144,7 +159,7 @@ const json import( const FileNamesContainer & files )
       {
         imageIndex.insert( sopInstanceUID );
         std::string newName = std::to_string( seriesFileList.size() );
-        std::string fullNewName = tmpdir + "/" + newName;
+        std::string fullNewName = seriesUID + "/" + newName;
         seriesFileList.push_back( newName );
         movefile( filename, fullNewName );
       }
@@ -167,7 +182,9 @@ const json import( const FileNamesContainer & files )
         seriesInfo[ "SeriesInstanceUID" ] = unpackMetaAsString( tags[ "0020|000e" ] );
         seriesInfo[ "SeriesNumber" ] = unpackMetaAsString( tags[ "0020|0011" ] );
         seriesInfo[ "SeriesDescription" ] = unpackMetaAsString( tags[ "0008|103e" ] );
+        // Custom keys
         seriesInfo[ "NumberOfSlices" ] = std::to_string( seriesFileList.size() );
+        seriesInfo[ "ITKGDCMSeriesUID" ] = seriesUID;
       }
     }
 
@@ -175,6 +192,41 @@ const json import( const FileNamesContainer & files )
   }
 
   return output;
+}
+
+void thumbnail( const std::string & seriesUID, const std::string & outFileName )
+{
+  SeriesIndex::const_iterator found = seriesIndex.find( seriesUID );
+  if( found != seriesIndex.end() )
+  {
+    std::vector< std::string > seriesFileList = seriesIndex.at( seriesUID );
+    int middle = seriesFileList.size() / 2;
+    std::string filename = seriesUID + "/" + seriesFileList[ middle ];
+
+    typename DicomIO::Pointer dicomIO = DicomIO::New();
+    dicomIO->LoadPrivateTagsOff();
+    typename ReaderType::Pointer reader = ReaderType::New();
+    reader->SetFileName( filename );
+
+    // cast images to unsigned char for easier thumbnailing to canvas ImageData.
+    using InputImageType = ImageType;
+    using OutputImageType = itk::Image< unsigned char, 3 >;
+    using CastImageFilter = itk::CastImageFilter< InputImageType, OutputImageType >;
+
+    auto castFilter = CastImageFilter::New();
+    castFilter->SetInput( reader->GetOutput() );
+
+    using WriterType = itk::ImageFileWriter< OutputImageType >;
+    auto writer = WriterType::New();
+    writer->SetInput( castFilter->GetOutput() );
+    writer->SetFileName( outFileName );
+    writer->Update();
+  }
+  else
+  {
+    throw std::runtime_error( "No thumbnail for series UID: " + seriesUID );
+    std::ofstream empty( outFileName );
+  }
 }
 
 int main( int argc, char * argv[] )
@@ -216,6 +268,25 @@ int main( int argc, char * argv[] )
     outfile.open( outFileName );
     outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
+  }
+  else if ( 0 == action.compare( "thumbnail" ) && argc == 4)
+  {
+    // dicom thumbnail output.image SERIES_UID
+    std::string outFileName = argv[ 2 ];
+    std::string seriesUID = argv[ 3 ];
+
+    try
+    {
+      thumbnail( seriesUID, outFileName );
+    }
+    catch( const itk::ExceptionObject &e )
+    {
+      std::cerr << "ITK error: " << e.what() << '\n';
+    }
+    catch ( const std::runtime_error &e )
+    {
+      std::cerr << "Runtime error: " << e.what() << std::endl;
+    }
   }
 
   return 0;

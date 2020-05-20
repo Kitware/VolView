@@ -47,10 +47,10 @@ export default class DicomIO {
       'dicom',
       // args
       [
-        'import', 'results.json', ...fileData.map((fd) => fd.name),
+        'import', 'output.json', ...fileData.map((fd) => fd.name),
       ],
       // outputs
-      [{ path: 'results.json', type: IOTypes.Text }],
+      [{ path: 'output.json', type: IOTypes.Text }],
       // inputs
       fileData.map((fd) => ({
         path: fd.name,
@@ -80,14 +80,11 @@ export default class DicomIO {
     const result = await runPipelineBrowser(
       this.webWorker,
       'dicom',
-      ['thumbnail', String(seriesUID)],
-      [{ path: 'thumbnail.image', type: IOTypes.Image }],
+      ['thumbnail', 'output.json', seriesUID],
+      [{ path: 'output.json', type: IOTypes.Image }],
       [],
     );
 
-    const itkImage = result.outputs[0].data;
-    // pixel type?
-    const pixelData = new Float32Array(itkImage.data);
-    console.log(pixelData);
+    return result.outputs[0].data;
   }
 }

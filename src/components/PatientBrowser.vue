@@ -62,6 +62,7 @@
                     <v-img
                       contain
                       height="100px"
+                      :src="thumbnails[series.SeriesInstanceUID]"
                     />
                     <v-card-text class="text--primary caption text-center series-desc mt-n3">
                       <div>[{{ series.NumberOfSlices }}]</div>
@@ -82,9 +83,31 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapState, mapActions } from 'vuex';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
+
+const canvas = document.createElement('canvas');
+
+// Assume itkImage type is Uint8Array
+function itkImageToURI(itkImage) {
+  const [width, height] = itkImage.size;
+  const im = new ImageData(width, height);
+  const arr32 = new Uint32Array(im.data.buffer);
+  const itkBuf = itkImage.data;
+  for (let i = 0; i < itkBuf.length; i += 1) {
+    const byte = itkBuf[i];
+    // ABGR order
+    // eslint-disable-next-line no-bitwise
+    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.putImageData(im, 0, 0);
+  return canvas.toDataURL('image/png');
+}
 
 export default {
   name: 'PatientBrowser',
@@ -97,6 +120,8 @@ export default {
   data() {
     return {
       patientID: '',
+      thumbnails: {}, // seriesUID -> Image
+      pendingThumbnails: {},
     };
   },
 
@@ -138,13 +163,39 @@ export default {
 
   methods: {
     getSeries(studyUID) {
-      return (this.studySeries[studyUID] ?? []).map(
+      const seriesList = (this.studySeries[studyUID] ?? []).map(
         (seriesUID) => this.seriesIndex[seriesUID],
       );
+
+      // trigger a background job fetch thumbnails
+      this.doBackgroundThumbnails(seriesList);
+
+      return seriesList;
     },
+
     setSelection(sel) {
       console.log('setSelection', sel);
     },
+
+    async doBackgroundThumbnails(seriesList) {
+      seriesList.forEach(async (series) => {
+        const uid = series.SeriesInstanceUID;
+        if (!(uid in this.thumbnails || uid in this.pendingThumbnails)) {
+          this.pendingThumbnails[uid] = true;
+          try {
+            // we need to use the ITKGDCM-specific SeriesUID for thumbnailing
+            const itkUid = series.ITKGDCMSeriesUID;
+            const thumbItkImage = await this.getThumbnail(itkUid);
+
+            this.$set(this.thumbnails, uid, itkImageToURI(thumbItkImage));
+          } finally {
+            delete this.pendingThumbnails[uid];
+          }
+        }
+      });
+    },
+
+    ...mapActions('datasets/dicom', ['getThumbnail']),
   },
 };
 </script>

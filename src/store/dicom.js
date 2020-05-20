@@ -115,6 +115,7 @@ export default (dependencies) => ({
           'SeriesDescription',
           // not standard dicom
           'NumberOfSlices',
+          'ITKGDCMSeriesUID',
         ]);
 
         updatedSeriesKeys.push({
@@ -128,6 +129,11 @@ export default (dependencies) => ({
         commit('addSeries', { seriesKey, series, studyUID });
       }
       return updatedSeriesKeys;
+    },
+
+    async getThumbnail(_, seriesUID) {
+      const { dicomIO } = dependencies;
+      return dicomIO.generateThumbnail(seriesUID);
     },
   },
 });
