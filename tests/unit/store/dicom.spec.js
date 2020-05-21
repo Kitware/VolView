@@ -45,7 +45,7 @@ describe('DICOM module', () => {
     sinon.restore();
   });
 
-  describe('Actions', () => {
+  describe('importFiles', () => {
     it('should import a list of dicom objects', async () => {
       const deps = dependencies();
       const mod = dicom(deps);
@@ -64,10 +64,8 @@ describe('DICOM module', () => {
       expect(updatedKeys[0]).to.have.property('studyKey');
       expect(updatedKeys[0]).to.have.property('seriesKey');
     });
-  });
 
-  describe('Mutations', () => {
-    it('should not clobber existing patient, study, series keys', () => {
+    it('add* should not clobber existing patient, study, series keys', () => {
       const mod = dicom();
       const { state } = mod;
       mod.mutations.addPatient(state, { patientKey: 'PKEY', patient: { id: 1 } });
