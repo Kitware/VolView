@@ -1,10 +1,15 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
 import sinon from 'sinon';
+import chaiAsPromised from 'chai-as-promised';
+import sinonChai from 'sinon-chai';
 
 import dicom from '@/src/store/dicom';
 import DicomIO from '@/src/io/dicom';
 
 import { vuexFakes } from '@/tests/testUtils';
+
+chai.use(chaiAsPromised);
+chai.use(sinonChai);
 
 const SAMPLE_DATA = [
   {
@@ -18,6 +23,8 @@ const SAMPLE_DATA = [
       StudyID: 's1',
       SeriesInstanceUID: '1.2.3.4',
       SeriesDescription: 'ser1',
+      NumberOfSlices: 15,
+      ITKGDCMSeriesUID: '1.2.3.4',
     },
   },
   {
@@ -31,6 +38,8 @@ const SAMPLE_DATA = [
       StudyID: 's2',
       SeriesInstanceUID: '2.3.4.5',
       SeriesDescription: 'ser2',
+      NumberOfSlices: 10,
+      ITKGDCMSeriesUID: '2.3.4.5',
     },
   },
 ];
@@ -104,6 +113,58 @@ describe('DICOM module', () => {
       expect(state.studySeries)
         .to.have.property(1)
         .that.has.lengthOf(1);
+    });
+  });
+
+  describe('Series images', () => {
+    it('getSeriesImage fetches a series slice', async () => {
+      const deps = dependencies();
+      const mod = dicom(deps);
+      const { state } = mod;
+
+      const data = SAMPLE_DATA.reduce(
+        (obj, sample) => ({ ...obj, [sample.uid]: sample.info }),
+        {},
+      );
+      const itkSliceImage = { data: 1 }; // dummy image obj
+
+      // fake state
+      SAMPLE_DATA.forEach((d) => {
+        state.seriesIndex[d.uid] = { ...d.info };
+      });
+
+      sinon.stub(deps.dicomIO, 'importFiles').returns(data);
+      const getSeriesImageStub = sinon
+        .stub(deps.dicomIO, 'getSeriesImage')
+        .returns(itkSliceImage);
+
+      let result;
+      let fakes;
+
+      fakes = vuexFakes();
+      result = await mod.actions.getSeriesImage({ ...fakes, state }, {
+        seriesKey: '1.2.3.4',
+        slice: 5,
+      });
+      expect(result).to.deep.equal(itkSliceImage);
+      expect(getSeriesImageStub).to.have.been.calledWith('1.2.3.4', 5);
+
+      // invalid series key
+      // no await so we can test promise rejection
+      fakes = vuexFakes();
+      result = mod.actions.getSeriesImage({ ...fakes, state }, {
+        seriesKey: 'INVALID',
+        slice: 5,
+      });
+      expect(result).to.eventually.be.rejectedWith(Error);
+
+      // out of bounds
+      fakes = vuexFakes();
+      result = mod.actions.getSeriesImage({ ...fakes, state }, {
+        seriesKey: '2.3.4.5',
+        slice: 100,
+      });
+      expect(result).to.eventually.be.rejectedWith(Error);
     });
   });
 });

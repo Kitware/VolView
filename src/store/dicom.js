@@ -135,5 +135,26 @@ export default (dependencies) => ({
       const { dicomIO } = dependencies;
       return dicomIO.generateThumbnail(seriesUID);
     },
+
+    /**
+     * Returns an ITK image for a single slice.
+     */
+    async getSeriesImage({ state }, { seriesKey, slice }) {
+      const { dicomIO } = dependencies;
+      if (!(seriesKey in state.seriesIndex)) {
+        throw new Error(`Cannot find given series key: ${seriesKey}`);
+      }
+      const series = state.seriesIndex[seriesKey];
+      const numSlices = series.NumberOfSlices;
+
+      if (slice < 1 || slice > numSlices) {
+        throw new Error(`Slice ${slice} is out of bounds`);
+      }
+
+      // we need to use the ITKGDCM-specific SeriesUID, since
+      // that's what the internal dicom db indexes series on
+      const uid = series.ITKGDCMSeriesUID;
+      return dicomIO.getSeriesImage(uid, slice);
+    },
   },
 });

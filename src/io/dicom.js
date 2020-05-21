@@ -69,10 +69,10 @@ export default class DicomIO {
   /**
    * Generates a thumbnail image for a series
    * @async
-   * @param {String} seriesUID
+   * @param {String} seriesUID the ITK-GDCM series UID
    * @returns ImageData
    */
-  async generateThumbnail(seriesUID) {
+  async getSeriesImage(seriesUID, slice) {
     if (!this.webWorker) {
       throw new Error('DicomIO: initialize not called');
     }
@@ -80,7 +80,7 @@ export default class DicomIO {
     const result = await runPipelineBrowser(
       this.webWorker,
       'dicom',
-      ['thumbnail', 'output.json', seriesUID],
+      ['getslice', 'output.json', seriesUID, String(slice)],
       [{ path: 'output.json', type: IOTypes.Image }],
       [],
     );

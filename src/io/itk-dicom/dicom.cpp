@@ -194,14 +194,13 @@ const json import( const FileNamesContainer & files )
   return output;
 }
 
-void thumbnail( const std::string & seriesUID, const std::string & outFileName )
+void getSlice( const std::string & seriesUID, unsigned long slice, const std::string & outFileName )
 {
   SeriesIndex::const_iterator found = seriesIndex.find( seriesUID );
   if( found != seriesIndex.end() )
   {
     std::vector< std::string > seriesFileList = seriesIndex.at( seriesUID );
-    int middle = seriesFileList.size() / 2;
-    std::string filename = seriesUID + "/" + seriesFileList[ middle ];
+    std::string filename = seriesUID + "/" + seriesFileList.at( slice );
 
     typename DicomIO::Pointer dicomIO = DicomIO::New();
     dicomIO->LoadPrivateTagsOff();
@@ -269,15 +268,16 @@ int main( int argc, char * argv[] )
     outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
   }
-  else if ( 0 == action.compare( "thumbnail" ) && argc == 4)
+  else if ( 0 == action.compare( "getslice" ) && argc == 5)
   {
-    // dicom thumbnail output.image SERIES_UID
+    // dicom getslice output.image SERIES_UID SLICENUM
     std::string outFileName = argv[ 2 ];
     std::string seriesUID = argv[ 3 ];
+    unsigned long sliceNum = std::stoul( argv[ 4 ] );
 
     try
     {
-      thumbnail( seriesUID, outFileName );
+      getSlice( seriesUID, sliceNum, outFileName );
     }
     catch( const itk::ExceptionObject &e )
     {
