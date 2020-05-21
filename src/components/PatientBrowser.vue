@@ -181,12 +181,13 @@ export default {
       seriesList.forEach(async (series) => {
         const uid = series.SeriesInstanceUID;
         if (!(uid in this.thumbnails || uid in this.pendingThumbnails)) {
-          this.pendingThumbnails[uid] = true;
+          this.$set(this.pendingThumbnails, uid, true);
           try {
-            // we need to use the ITKGDCM-specific SeriesUID for thumbnailing
-            const itkUid = series.ITKGDCMSeriesUID;
-            const thumbItkImage = await this.getThumbnail(itkUid);
-
+            const middleSlice = Math.round(series.NumberOfSlices / 2);
+            const thumbItkImage = await this.getSeriesImage({
+              seriesKey: uid,
+              slice: middleSlice,
+            });
             this.$set(this.thumbnails, uid, itkImageToURI(thumbItkImage));
           } finally {
             delete this.pendingThumbnails[uid];
@@ -195,7 +196,7 @@ export default {
       });
     },
 
-    ...mapActions('datasets/dicom', ['getThumbnail']),
+    ...mapActions('datasets/dicom', ['getSeriesImage']),
   },
 };
 </script>
