@@ -92,12 +92,12 @@ export default class DicomIO {
   }
 
   /**
-   * Generates a thumbnail image for a series
+   * Retrieves a slice of a series.
    * @async
    * @param {String} seriesUID the ITK-GDCM series UID
    * @param {Number} slice the slice to retrieve
    * @param {Boolean} asThumbnail cast image to unsigned char. Defaults to false.
-   * @returns ImageData
+   * @returns ItkImage
    */
   async getSeriesImage(seriesUID, slice, asThumbnail = false) {
     if (!this.webWorker) {
