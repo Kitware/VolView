@@ -3,7 +3,7 @@ import sinon from 'sinon';
 import chaiAsPromised from 'chai-as-promised';
 import sinonChai from 'sinon-chai';
 
-import dicom from '@/src/store/dicom';
+import dicom, { imageCacheMultiKey } from '@/src/store/dicom';
 import DicomIO from '@/src/io/dicom';
 
 import { vuexFakes } from '@/tests/testUtils';
@@ -144,6 +144,14 @@ describe('DICOM module', () => {
       });
       expect(result).to.deep.equal(itkSliceImage);
       expect(getSeriesImageStub).to.have.been.calledWith('1.2.3.4', 5);
+      expect(fakes.commit).to.have.been.calledWith('cacheImageSlice', {
+        seriesKey: '1.2.3.4',
+        offset: 5,
+        image: itkSliceImage,
+        asThumbnail: true,
+      });
+
+      // TODO test skipping getSeriesImage stub when image is cached.
 
       // invalid series key
       // no await so we can test promise rejection
@@ -163,6 +171,24 @@ describe('DICOM module', () => {
         asThumbnail: true,
       });
       expect(result).to.eventually.be.rejectedWith(Error);
+    });
+
+    it('cacheImageSlice should cache an image', () => {
+      const deps = dependencies();
+      const mod = dicom(deps);
+      const { state } = mod;
+
+      const itkSliceImage = { data: 1 }; // dummy image obj
+
+      mod.mutations.cacheImageSlice(state, {
+        seriesKey: '1.2.3.4',
+        offset: 5,
+        asThumbnail: false,
+        image: itkSliceImage,
+      });
+      expect(state.imageCache)
+        .to.have.property('1.2.3.4')
+        .that.has.property(imageCacheMultiKey(5, false));
     });
   });
 });

@@ -3,6 +3,10 @@ import { pick } from '@/src/utils/common';
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
 
+export function imageCacheMultiKey(offset, asThumbnail) {
+  return `${offset}!!${asThumbnail}`;
+}
+
 /**
  * Generate a synthetic multi-key patient key from a Patient object.
  *
@@ -36,6 +40,8 @@ export default (dependencies) => ({
     studySeries: {}, // studyUID -> [seriesKey]
     seriesIndex: {}, // seriesKey -> Series
     imageIndex: {},
+
+    imageCache: {}, // seriesKey -> { imageCacheMultiKey: ITKImage }
   },
 
   mutations: {
@@ -69,6 +75,22 @@ export default (dependencies) => ({
         state.studySeries[studyUID] = state.studySeries[studyUID] ?? [];
         state.studySeries[studyUID].push(seriesKey);
       }
+    },
+
+    cacheImageSlice(
+      state,
+      {
+        seriesKey, offset, asThumbnail, image,
+      },
+    ) {
+      const key = imageCacheMultiKey(offset, asThumbnail);
+      state.imageCache = {
+        ...state.imageCache,
+        [seriesKey]: {
+          ...(state.imageCache[seriesKey] || {}),
+          [key]: image,
+        },
+      };
     },
   },
 
@@ -138,8 +160,17 @@ export default (dependencies) => ({
      * slice: the slice offset to retrieve
      * asThumbnail: whether to cast image to unsigned char. Defaults to false.
      */
-    async getSeriesImage({ state }, { seriesKey, slice, asThumbnail = false }) {
+    async getSeriesImage({ commit, state }, { seriesKey, slice, asThumbnail = false }) {
       const { dicomIO } = dependencies;
+
+      const cacheKey = imageCacheMultiKey(slice, asThumbnail);
+      if (
+        seriesKey in state.imageCache
+        && cacheKey in state.imageCache[seriesKey]
+      ) {
+        return state.imageCache[seriesKey][cacheKey];
+      }
+
       if (!(seriesKey in state.seriesIndex)) {
         throw new Error(`Cannot find given series key: ${seriesKey}`);
       }
@@ -153,7 +184,16 @@ export default (dependencies) => ({
       // we need to use the ITKGDCM-specific SeriesUID, since
       // that's what the internal dicom db indexes series on
       const uid = series.ITKGDCMSeriesUID;
-      return dicomIO.getSeriesImage(uid, slice, asThumbnail);
+      const itkImage = dicomIO.getSeriesImage(uid, slice, asThumbnail);
+
+      commit('cacheImageSlice', {
+        seriesKey,
+        offset: slice,
+        asThumbnail,
+        image: itkImage,
+      });
+
+      return itkImage;
     },
   },
 });
