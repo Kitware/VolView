@@ -131,11 +131,6 @@ export default (dependencies) => ({
       return updatedSeriesKeys;
     },
 
-    async getThumbnail(_, seriesUID) {
-      const { dicomIO } = dependencies;
-      return dicomIO.generateThumbnail(seriesUID);
-    },
-
     /**
      * Returns an ITK image for a single slice.
      */
