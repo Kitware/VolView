@@ -122,10 +122,6 @@ describe('DICOM module', () => {
       const mod = dicom(deps);
       const { state } = mod;
 
-      const data = SAMPLE_DATA.reduce(
-        (obj, sample) => ({ ...obj, [sample.uid]: sample.info }),
-        {},
-      );
       const itkSliceImage = { data: 1 }; // dummy image obj
 
       // fake state
@@ -133,7 +129,6 @@ describe('DICOM module', () => {
         state.seriesIndex[d.uid] = { ...d.info };
       });
 
-      sinon.stub(deps.dicomIO, 'importFiles').returns(data);
       const getSeriesImageStub = sinon
         .stub(deps.dicomIO, 'getSeriesImage')
         .returns(itkSliceImage);
@@ -145,6 +140,7 @@ describe('DICOM module', () => {
       result = await mod.actions.getSeriesImage({ ...fakes, state }, {
         seriesKey: '1.2.3.4',
         slice: 5,
+        asThumbnail: true,
       });
       expect(result).to.deep.equal(itkSliceImage);
       expect(getSeriesImageStub).to.have.been.calledWith('1.2.3.4', 5);
@@ -155,6 +151,7 @@ describe('DICOM module', () => {
       result = mod.actions.getSeriesImage({ ...fakes, state }, {
         seriesKey: 'INVALID',
         slice: 5,
+        asThumbnail: true,
       });
       expect(result).to.eventually.be.rejectedWith(Error);
 
@@ -163,6 +160,7 @@ describe('DICOM module', () => {
       result = mod.actions.getSeriesImage({ ...fakes, state }, {
         seriesKey: '2.3.4.5',
         slice: 100,
+        asThumbnail: true,
       });
       expect(result).to.eventually.be.rejectedWith(Error);
     });

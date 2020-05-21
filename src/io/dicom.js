@@ -95,16 +95,24 @@ export default class DicomIO {
    * Generates a thumbnail image for a series
    * @async
    * @param {String} seriesUID the ITK-GDCM series UID
+   * @param {Number} slice the slice to retrieve
+   * @param {Boolean} asThumbnail cast image to unsigned char. Defaults to false.
    * @returns ImageData
    */
-  async getSeriesImage(seriesUID, slice) {
+  async getSeriesImage(seriesUID, slice, asThumbnail = false) {
     if (!this.webWorker) {
       throw new Error('DicomIO: initialize not called');
     }
 
     const result = await this.addTask(
       'dicom',
-      ['getslice', 'output.json', seriesUID, String(slice)],
+      [
+        'getSliceImage',
+        'output.json',
+        seriesUID,
+        String(slice),
+        asThumbnail ? '1' : '0',
+      ],
       [{ path: 'output.json', type: IOTypes.Image }],
       [],
     );

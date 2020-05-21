@@ -187,6 +187,7 @@ export default {
             const thumbItkImage = await this.getSeriesImage({
               seriesKey: uid,
               slice: middleSlice,
+              asThumbnail: true,
             });
             this.$set(this.thumbnails, uid, itkImageToURI(thumbItkImage));
           } finally {

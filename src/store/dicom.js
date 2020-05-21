@@ -133,8 +133,12 @@ export default (dependencies) => ({
 
     /**
      * Returns an ITK image for a single slice.
+     *
+     * seriesKey: the target series
+     * slice: the slice offset to retrieve
+     * asThumbnail: whether to cast image to unsigned char. Defaults to false.
      */
-    async getSeriesImage({ state }, { seriesKey, slice }) {
+    async getSeriesImage({ state }, { seriesKey, slice, asThumbnail = false }) {
       const { dicomIO } = dependencies;
       if (!(seriesKey in state.seriesIndex)) {
         throw new Error(`Cannot find given series key: ${seriesKey}`);
@@ -149,7 +153,7 @@ export default (dependencies) => ({
       // we need to use the ITKGDCM-specific SeriesUID, since
       // that's what the internal dicom db indexes series on
       const uid = series.ITKGDCMSeriesUID;
-      return dicomIO.getSeriesImage(uid, slice);
+      return dicomIO.getSeriesImage(uid, slice, asThumbnail);
     },
   },
 });

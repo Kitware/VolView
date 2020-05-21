@@ -194,12 +194,17 @@ const json import( const FileNamesContainer & files )
   return output;
 }
 
-void getSlice( const std::string & seriesUID, unsigned long slice, const std::string & outFileName )
+void getSliceImage(
+  const std::string & seriesUID,
+  unsigned long slice,
+  const std::string & outFileName,
+  bool asThumbnail
+)
 {
   SeriesIndex::const_iterator found = seriesIndex.find( seriesUID );
   if( found != seriesIndex.end() )
   {
-    std::vector< std::string > seriesFileList = seriesIndex.at( seriesUID );
+    FileNamesContainer seriesFileList = seriesIndex.at( seriesUID );
     std::string filename = seriesUID + "/" + seriesFileList.at( slice );
 
     typename DicomIO::Pointer dicomIO = DicomIO::New();
@@ -207,19 +212,31 @@ void getSlice( const std::string & seriesUID, unsigned long slice, const std::st
     typename ReaderType::Pointer reader = ReaderType::New();
     reader->SetFileName( filename );
 
-    // cast images to unsigned char for easier thumbnailing to canvas ImageData.
-    using InputImageType = ImageType;
-    using OutputImageType = itk::Image< unsigned char, 3 >;
-    using CastImageFilter = itk::CastImageFilter< InputImageType, OutputImageType >;
+    // cast images to unsigned char for easier thumbnailing to canvas ImageData
+    // if asThumbnail is specified.
+    if( asThumbnail )
+    {
+      using InputImageType = ImageType;
+      using OutputImageType = itk::Image< unsigned char, 3 >;
+      using CastImageFilter = itk::CastImageFilter< InputImageType, OutputImageType >;
 
-    auto castFilter = CastImageFilter::New();
-    castFilter->SetInput( reader->GetOutput() );
+      auto castFilter = CastImageFilter::New();
+      castFilter->SetInput( reader->GetOutput() );
 
-    using WriterType = itk::ImageFileWriter< OutputImageType >;
-    auto writer = WriterType::New();
-    writer->SetInput( castFilter->GetOutput() );
-    writer->SetFileName( outFileName );
-    writer->Update();
+      using WriterType = itk::ImageFileWriter< OutputImageType >;
+      auto writer = WriterType::New();
+      writer->SetInput( castFilter->GetOutput() );
+      writer->SetFileName( outFileName );
+      writer->Update();
+    }
+    else
+    {
+      using WriterType = itk::ImageFileWriter< ImageType >;
+      auto writer = WriterType::New();
+      writer->SetInput( reader->GetOutput() );
+      writer->SetFileName( outFileName );
+      writer->Update();
+    }
   }
   else
   {
@@ -268,16 +285,17 @@ int main( int argc, char * argv[] )
     outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
   }
-  else if ( 0 == action.compare( "getslice" ) && argc == 5)
+  else if ( 0 == action.compare( "getSliceImage" ) && argc == 6)
   {
-    // dicom getslice output.image SERIES_UID SLICENUM
+    // dicom getSliceImage outputImage.json SERIES_UID SLICENUM
     std::string outFileName = argv[ 2 ];
     std::string seriesUID = argv[ 3 ];
     unsigned long sliceNum = std::stoul( argv[ 4 ] );
+    bool asThumbnail = std::string( argv[ 5 ] ) == "1";
 
     try
     {
-      getSlice( seriesUID, sliceNum, outFileName );
+      getSliceImage( seriesUID, sliceNum, outFileName, asThumbnail );
     }
     catch( const itk::ExceptionObject &e )
     {
