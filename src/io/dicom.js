@@ -1,10 +1,40 @@
 import runPipelineBrowser from 'itk/runPipelineBrowser';
 import { readFileAsArrayBuffer } from '@/src/io/io';
 import IOTypes from 'itk/IOTypes';
+import { defer } from '../utils/common';
 
 export default class DicomIO {
   constructor() {
     this.webWorker = null;
+    this.queue = [];
+  }
+
+  async addTask(...runArgs) {
+    const deferred = defer();
+    this.queue.push({
+      deferred,
+      runArgs,
+    });
+    this.runTasks();
+    return deferred.promise;
+  }
+
+  async runTasks() {
+    if (this.tasksRunning) {
+      return;
+    }
+    this.tasksRunning = true;
+
+    while (this.queue.length) {
+      const { deferred, runArgs } = this.queue.shift();
+      // we don't want parallelization. This is to work around
+      // an issue in itk.js.
+      // eslint-disable-next-line no-await-in-loop
+      const result = await runPipelineBrowser(this.webWorker, ...runArgs);
+      deferred.resolve(result);
+    }
+
+    this.tasksRunning = false;
   }
 
   /**
@@ -14,7 +44,7 @@ export default class DicomIO {
    * @throws Error initialization failed
    */
   async initialize() {
-    const result = await runPipelineBrowser(this.webWorker, 'dicom', [], [], []);
+    const result = await this.addTask('dicom', [], [], []);
     if (result.webWorker) {
       this.webWorker = result.webWorker;
     } else {
@@ -41,8 +71,7 @@ export default class DicomIO {
       };
     }));
 
-    const result = await runPipelineBrowser(
-      this.webWorker,
+    const result = await this.addTask(
       // module
       'dicom',
       // args
@@ -59,10 +88,6 @@ export default class DicomIO {
       })),
     );
 
-    if (result.webWorker) {
-      this.webWorker = result.webWorker;
-    }
-
     return JSON.parse(result.outputs[0].data);
   }
 
@@ -77,8 +102,7 @@ export default class DicomIO {
       throw new Error('DicomIO: initialize not called');
     }
 
-    const result = await runPipelineBrowser(
-      this.webWorker,
+    const result = await this.addTask(
       'dicom',
       ['getslice', 'output.json', seriesUID, String(slice)],
       [{ path: 'output.json', type: IOTypes.Image }],
