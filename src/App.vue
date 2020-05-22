@@ -49,7 +49,13 @@
     <v-content id="content-wrapper">
       <div class="d-flex flex-row flex-grow-1 grey darken-3">
         <div id="tools-strip" class="grey darken-4 d-flex flex-column align-center">
-          <tool-button size="40" icon="mdi-folder-open" name="Open files" buttonClass="tool-btn" />
+          <tool-button
+            size="40"
+            icon="mdi-folder-open"
+            name="Open files"
+            buttonClass="tool-btn"
+            @click="userPromptFiles"
+          />
           <div class="mt-2 mb-1 tool-separator" />
           <v-item-group v-model="selectedTool">
             <template v-for="(tool,i) in Tools">
