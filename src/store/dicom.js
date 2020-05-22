@@ -1,3 +1,5 @@
+import vtkITKHelper from 'vtk.js/Sources/Common/DataModel/ITKHelper';
+
 import { pick } from '@/src/utils/common';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
@@ -41,7 +43,10 @@ export default (dependencies) => ({
     seriesIndex: {}, // seriesKey -> Series
     imageIndex: {},
 
+    // image slice cache
     imageCache: {}, // seriesKey -> { imageCacheMultiKey: ITKImage }
+    // series volume cache
+    volumeCache: {}, // seriesKey -> ItkImage or vtk image?
   },
 
   mutations: {
@@ -90,6 +95,13 @@ export default (dependencies) => ({
           ...(state.imageCache[seriesKey] || {}),
           [key]: image,
         },
+      };
+    },
+
+    cacheSeriesVolume(state, { seriesKey, image }) {
+      state.volumeCache = {
+        ...state.volumeCache,
+        [seriesKey]: image,
       };
     },
   },
@@ -194,6 +206,37 @@ export default (dependencies) => ({
       });
 
       return itkImage;
+    },
+
+    /**
+     * Builds a series volume and returns it as a VTK image.
+     *
+     * Volumes may be invalidated if new files are imported
+     * into the series.
+     */
+    async buildSeriesVolume({ state, commit }, seriesKey) {
+      const { dicomIO } = dependencies;
+
+      if (seriesKey in state.volumeCache) {
+        return state.volumeCache[seriesKey];
+      }
+
+      if (!(seriesKey in state.seriesIndex)) {
+        throw new Error(`Cannot find given series key: ${seriesKey}`);
+      }
+
+      const series = state.seriesIndex[seriesKey];
+      const uid = series.ITKGDCMSeriesUID;
+      const itkImage = dicomIO.buildSeriesVolume(uid);
+
+      const vtkImage = vtkITKHelper.convertItkToVtkImage(itkImage);
+
+      commit('cacheSeriesVolume', {
+        seriesKey,
+        image: vtkImage,
+      });
+
+      return vtkImage;
     },
   },
 });

@@ -3,6 +3,8 @@ import sinon from 'sinon';
 import chaiAsPromised from 'chai-as-promised';
 import sinonChai from 'sinon-chai';
 
+import vtkITKHelper from 'vtk.js/Sources/Common/DataModel/ITKHelper';
+
 import dicom, { imageCacheMultiKey } from '@/src/store/dicom';
 import DicomIO from '@/src/io/dicom';
 
@@ -189,6 +191,56 @@ describe('DICOM module', () => {
       expect(state.imageCache)
         .to.have.property('1.2.3.4')
         .that.has.property(imageCacheMultiKey(5, false));
+    });
+  });
+
+  describe('Series volume', () => {
+    let deps;
+    let mod;
+    let state;
+    let itkImageVolume;
+
+    beforeEach(() => {
+      deps = dependencies();
+      mod = dicom(deps);
+      state = mod.state;
+
+      itkImageVolume = { data: 1 }; // dummy image obj
+
+      // fake state
+      SAMPLE_DATA.forEach((d) => {
+        state.seriesIndex[d.uid] = { ...d.info };
+      });
+    });
+
+    it('buildVolume should return an itkImage volume', async () => {
+      const buildSeriesVolumeStub = sinon
+        .stub(deps.dicomIO, 'buildSeriesVolume')
+        .returns(itkImageVolume);
+
+      const dummyVtkImage = { vtkClass: 'vtkImageData' };
+      sinon.stub(vtkITKHelper, 'convertItkToVtkImage').returns(dummyVtkImage);
+
+      const fakes = vuexFakes();
+      const seriesKey = '1.2.3.4';
+      const result = await mod.actions.buildSeriesVolume({ ...fakes, state }, seriesKey);
+      expect(buildSeriesVolumeStub).to.have.been.calledWith(seriesKey);
+      expect(result).to.deep.equal(dummyVtkImage);
+    });
+
+    it('buildVolume should error on invalid series key', () => {
+      const fakes = vuexFakes();
+      const seriesKey = 'INVALID';
+      const result = mod.actions.buildSeriesVolume({ ...fakes, state }, seriesKey);
+      expect(result).to.eventually.be.rejectedWith(Error);
+    });
+
+    it('cacheSeriesVolume should save a volume', () => {
+      mod.mutations.cacheSeriesVolume(state, {
+        seriesKey: '1.2.3.4',
+        image: { some: 'vtkImage' },
+      });
+      expect(state.volumeCache).to.have.property('1.2.3.4');
     });
   });
 });
