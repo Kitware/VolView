@@ -1,3 +1,4 @@
+import Vue from 'vue';
 import vtkITKHelper from 'vtk.js/Sources/Common/DataModel/ITKHelper';
 
 import { pick } from '@/src/utils/common';
@@ -104,10 +105,14 @@ export default (dependencies) => ({
         [seriesKey]: image,
       };
     },
+
+    deleteSeriesVolume(state, seriesKey) {
+      Vue.delete(state.volumeCache, seriesKey);
+    },
   },
 
   actions: {
-    async importFiles({ commit }, files) {
+    async importFiles({ state, commit }, files) {
       const { dicomIO } = dependencies;
 
       if (files.length === 0) {
@@ -161,6 +166,11 @@ export default (dependencies) => ({
         commit('addPatient', { patientKey, patient });
         commit('addStudy', { studyKey, study, patientID });
         commit('addSeries', { seriesKey, series, studyUID });
+
+        // invalidate volume
+        if (seriesKey in state.volumeCache) {
+          commit('deleteSeriesVolume', seriesKey);
+        }
       }
       return updatedSeriesKeys;
     },

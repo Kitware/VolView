@@ -60,6 +60,7 @@ describe('DICOM module', () => {
     it('should import a list of dicom objects', async () => {
       const deps = dependencies();
       const mod = dicom(deps);
+      const { state } = mod;
 
       const data = SAMPLE_DATA.reduce(
         (obj, sample) => ({ ...obj, [sample.uid]: sample.info }),
@@ -69,7 +70,10 @@ describe('DICOM module', () => {
 
       const fakes = vuexFakes();
       // fake non-empty files
-      const updatedKeys = await mod.actions.importFiles(fakes, [1, 2, 3]);
+      const updatedKeys = await mod.actions.importFiles(
+        { ...fakes, state },
+        [1, 2, 3],
+      );
       expect(updatedKeys.length).to.equal(2);
       expect(updatedKeys[0]).to.have.property('patientKey');
       expect(updatedKeys[0]).to.have.property('studyKey');
@@ -235,12 +239,36 @@ describe('DICOM module', () => {
       expect(result).to.eventually.be.rejectedWith(Error);
     });
 
-    it('cacheSeriesVolume should save a volume', () => {
-      mod.mutations.cacheSeriesVolume(state, {
-        seriesKey: '1.2.3.4',
-        image: { some: 'vtkImage' },
+    describe('Volume cache', () => {
+      beforeEach(() => {
+        mod.mutations.cacheSeriesVolume(state, {
+          seriesKey: '1.2.3.4',
+          image: { some: 'vtkImage' },
+        });
       });
-      expect(state.volumeCache).to.have.property('1.2.3.4');
+
+      it('cacheSeriesVolume should save a volume', () => {
+        expect(state.volumeCache).to.have.property('1.2.3.4');
+      });
+
+      it('importing files into existing series should delete volume', async () => {
+        const seriesKey = '1.2.3.4';
+        state.seriesIndex[seriesKey] = {};
+        sinon.stub(deps.dicomIO, 'importFiles').returns({
+          [seriesKey]: {
+            ...SAMPLE_DATA[0].info,
+          },
+        });
+
+        const fakes = vuexFakes();
+        await mod.actions.importFiles({ ...fakes, state }, [1]);
+        expect(fakes.commit).to.have.been.calledWith('deleteSeriesVolume', seriesKey);
+      });
+
+      it('deleteSeriesVolume should remove a volume', () => {
+        mod.mutations.deleteSeriesVolume(state, '1.2.3.4');
+        expect(state.volumeCache).to.not.have.property('1.2.3.4');
+      });
     });
   });
 });
