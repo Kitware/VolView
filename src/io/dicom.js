@@ -7,6 +7,7 @@ export default class DicomIO {
   constructor() {
     this.webWorker = null;
     this.queue = [];
+    this.initializeCheck = null;
   }
 
   async addTask(...runArgs) {
@@ -44,12 +45,19 @@ export default class DicomIO {
    * @throws Error initialization failed
    */
   async initialize() {
-    const result = await this.addTask('dicom', [], [], []);
-    if (result.webWorker) {
-      this.webWorker = result.webWorker;
-    } else {
-      throw new Error('Could not initialize webworker');
+    if (!this.initializeCheck) {
+      this.initializeCheck = new Promise((resolve, reject) => this.addTask('dicom', [], [], [])
+        .then((result) => {
+          if (result.webWorker) {
+            this.webWorker = result.webWorker;
+            resolve();
+          } else {
+            reject(new Error('Could not initialize webworker'));
+          }
+        })
+        .catch(reject));
     }
+    return this.initializeCheck;
   }
 
   /**
@@ -59,9 +67,7 @@ export default class DicomIO {
    * @returns SeriesUIDs and series information
    */
   async importFiles(files) {
-    if (!this.webWorker) {
-      throw new Error('DicomIO: initialize not called');
-    }
+    await this.initialize();
 
     const fileData = await Promise.all(files.map(async (file) => {
       const buffer = await readFileAsArrayBuffer(file);
@@ -100,9 +106,7 @@ export default class DicomIO {
    * @returns ItkImage
    */
   async getSeriesImage(seriesUID, slice, asThumbnail = false) {
-    if (!this.webWorker) {
-      throw new Error('DicomIO: initialize not called');
-    }
+    await this.initialize();
 
     const result = await this.addTask(
       'dicom',
@@ -127,9 +131,7 @@ export default class DicomIO {
    * @returns ItkImage
    */
   async buildSeriesVolume(seriesUID) {
-    if (!this.webWorker) {
-      throw new Error('DicomIO: initialize not called');
-    }
+    await this.initialize();
 
     const result = await this.addTask(
       'dicom',
