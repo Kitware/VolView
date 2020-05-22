@@ -174,7 +174,7 @@ export default {
     },
 
     setSelection(sel) {
-      console.log('setSelection', sel);
+      this.selectBaseImage(sel);
     },
 
     async doBackgroundThumbnails(seriesList) {
@@ -197,6 +197,7 @@ export default {
       });
     },
 
+    ...mapActions('datasets', ['selectBaseImage']),
     ...mapActions('datasets/dicom', ['getSeriesImage']),
   },
 };
