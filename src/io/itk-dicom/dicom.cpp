@@ -31,6 +31,7 @@ using json = nlohmann::json;
 using VectorImageType = itk::VectorImage< float, 3 >;
 using ImageType = itk::Image< float, 3 >;
 using ReaderType = itk::ImageFileReader< ImageType >;
+using SeriesReaderType = itk::ImageSeriesReader< ImageType >;
 using FileNamesContainer = std::vector< std::string >;
 using DictionaryType = itk::MetaDataDictionary;
 using SOPInstanceUID = std::string;
@@ -245,6 +246,37 @@ void getSliceImage(
   }
 }
 
+void buildSeriesVolume( const std::string & seriesUID, const std::string & outFileName )
+{
+  SeriesIndex::const_iterator found = seriesIndex.find( seriesUID );
+  if( found != seriesIndex.end() )
+  {
+    FileNamesContainer seriesFileList = seriesIndex.at( seriesUID );
+    FileNamesContainer fileNames( seriesFileList );
+
+    for( FileNamesContainer::iterator it = fileNames.begin(); it != fileNames.end(); ++it)
+    {
+      *it = seriesUID + "/" + *it;
+    }
+
+    DicomIO::Pointer dicomIO = DicomIO::New();
+    dicomIO->LoadPrivateTagsOff();
+    SeriesReaderType::Pointer reader = SeriesReaderType::New();
+    // this should be ordered from import
+    reader->SetFileNames( fileNames );
+    reader->ForceOrthogonalDirectionOff();
+    // hopefully this makes things faster?
+    reader->MetaDataDictionaryArrayUpdateOff();
+    reader->UseStreamingOn();
+
+    using WriterType = itk::ImageFileWriter< ImageType >;
+    auto writer = WriterType::New();
+    writer->SetInput( reader->GetOutput() );
+    writer->SetFileName( outFileName );
+    writer->Update();
+  }
+}
+
 int main( int argc, char * argv[] )
 {
   if( argc < 2 )
@@ -304,6 +336,21 @@ int main( int argc, char * argv[] )
     catch ( const std::runtime_error &e )
     {
       std::cerr << "Runtime error: " << e.what() << std::endl;
+    }
+  }
+  else if ( 0 == action.compare( "buildSeriesVolume" ) && argc == 4 )
+  {
+    // dicom buildSeriesVolume outputImage.json SERIES_UID
+    std::string outFileName = argv[ 2 ];
+    std::string seriesUID = argv[ 3 ];
+
+    try
+    {
+      buildSeriesVolume( seriesUID, outFileName );
+    }
+    catch(const std::runtime_error &e)
+    {
+      std::cerr << e.what() << std::endl;
     }
   }
 

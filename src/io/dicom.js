@@ -119,4 +119,25 @@ export default class DicomIO {
 
     return result.outputs[0].data;
   }
+
+  /**
+   * Builds a volume for a given series.
+   * @async
+   * @param {String} seriesUID the ITK-GDCM series UID
+   * @returns ItkImage
+   */
+  async buildSeriesVolume(seriesUID) {
+    if (!this.webWorker) {
+      throw new Error('DicomIO: initialize not called');
+    }
+
+    const result = await this.addTask(
+      'dicom',
+      ['buildSeriesVolume', 'output.json', seriesUID],
+      [{ path: 'output.json', type: IOTypes.Image }],
+      [],
+    );
+
+    return result.outputs[0].data;
+  }
 }

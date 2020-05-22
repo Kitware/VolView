@@ -44,6 +44,7 @@ export default (dependencies) => ({
     seriesIndex: {}, // seriesKey -> Series
     imageIndex: {},
 
+    // TODO move caches out of state to avoid making entire objects reactive
     // image slice cache
     imageCache: {}, // seriesKey -> { imageCacheMultiKey: ITKImage }
     // series volume cache
@@ -237,7 +238,7 @@ export default (dependencies) => ({
 
       const series = state.seriesIndex[seriesKey];
       const uid = series.ITKGDCMSeriesUID;
-      const itkImage = dicomIO.buildSeriesVolume(uid);
+      const itkImage = await dicomIO.buildSeriesVolume(uid);
 
       const vtkImage = vtkITKHelper.convertItkToVtkImage(itkImage);
 

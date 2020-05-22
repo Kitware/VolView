@@ -124,8 +124,10 @@ export default (dependencies) => {
 
       selectBaseImage(state, id) {
         if (
-          id in state.data.index
-          && state.data.index[id].type === DataTypes.Image
+          id in state.data.index && (
+            state.data.index[id].type === DataTypes.Image
+            || state.data.index[id].type === DataTypes.Dicom
+          )
         ) {
           state.selectedBaseImage = id;
         } else {
@@ -250,7 +252,7 @@ export default (dependencies) => {
           if (!idToVtkData.has(baseID)) {
             if (state.data.index[baseID].type === DataTypes.Dicom) {
               const { seriesKey } = state.data.index[baseID];
-              const imageData = await dispatch('dicom/buildVolume', seriesKey);
+              const imageData = await dispatch('dicom/buildSeriesVolume', seriesKey);
               idToVtkData.set(baseID, imageData);
             } else {
               throw new Error('updateRenderPipeline: no VTK data for selection');
