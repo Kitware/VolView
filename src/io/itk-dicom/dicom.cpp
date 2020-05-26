@@ -24,6 +24,7 @@
 #include "itkVectorImage.h"
 #include "itkImage.h"
 #include "itkCastImageFilter.h"
+#include "itkRescaleIntensityImageFilter.h"
 
 #include "thirdparty/json.hpp"
 
@@ -218,11 +219,18 @@ void getSliceImage(
     if( asThumbnail )
     {
       using InputImageType = ImageType;
-      using OutputImageType = itk::Image< unsigned char, 3 >;
+      using OutputPixelType = unsigned char;
+      using OutputImageType = itk::Image< OutputPixelType, 3 >;
+      using RescaleFilter = itk::RescaleIntensityImageFilter< InputImageType, InputImageType >;
       using CastImageFilter = itk::CastImageFilter< InputImageType, OutputImageType >;
 
+      auto rescaleFilter = RescaleFilter::New();
+      rescaleFilter->SetInput( reader->GetOutput() );
+      rescaleFilter->SetOutputMinimum( 0 );
+      rescaleFilter->SetOutputMaximum( itk::NumericTraits< OutputPixelType >::max() );
+
       auto castFilter = CastImageFilter::New();
-      castFilter->SetInput( reader->GetOutput() );
+      castFilter->SetInput( rescaleFilter->GetOutput() );
 
       using WriterType = itk::ImageFileWriter< OutputImageType >;
       auto writer = WriterType::New();

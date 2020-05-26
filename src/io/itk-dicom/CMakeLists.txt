@@ -12,6 +12,8 @@ endif()
 find_package(ITK REQUIRED
   COMPONENTS ${io_components}
     ITKSmoothing
+    # for rescale image intensity
+    ITKImageIntensity
     # for GDCMSeriesFileNames.h
     ITKIOGDCM
   )
