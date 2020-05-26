@@ -183,7 +183,7 @@ export default {
         if (!(uid in this.thumbnails || uid in this.pendingThumbnails)) {
           this.$set(this.pendingThumbnails, uid, true);
           try {
-            const middleSlice = Math.round(series.NumberOfSlices / 2);
+            const middleSlice = Math.round(Number(series.NumberOfSlices) / 2);
             const thumbItkImage = await this.getSeriesImage({
               seriesKey: uid,
               slice: middleSlice,

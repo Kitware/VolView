@@ -185,10 +185,12 @@ const json import( const FileNamesContainer & files )
         seriesInfo[ "SeriesNumber" ] = unpackMetaAsString( tags[ "0020|0011" ] );
         seriesInfo[ "SeriesDescription" ] = unpackMetaAsString( tags[ "0008|103e" ] );
         // Custom keys
-        seriesInfo[ "NumberOfSlices" ] = std::to_string( seriesFileList.size() );
         seriesInfo[ "ITKGDCMSeriesUID" ] = seriesUID;
       }
     }
+
+    // Custom keys
+    seriesInfo[ "NumberOfSlices" ] = std::to_string( seriesFileList.size() );
 
     output[ seriesUID ] = seriesInfo;
   }
@@ -207,7 +209,7 @@ void getSliceImage(
   if( found != seriesIndex.end() )
   {
     FileNamesContainer seriesFileList = seriesIndex.at( seriesUID );
-    std::string filename = seriesUID + "/" + seriesFileList.at( slice );
+    std::string filename = seriesUID + "/" + seriesFileList.at( slice - 1 );
 
     typename DicomIO::Pointer dicomIO = DicomIO::New();
     dicomIO->LoadPrivateTagsOff();
