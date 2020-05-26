@@ -7,7 +7,8 @@
     "build": "vue-cli-service build",
     "test:unit": "vue-cli-service test:unit",
     "lint": "vue-cli-service lint",
-    "build:dicom": "itk-js build src/io/itk-dicom/"
+    "build:dicom": "itk-js build src/io/itk-dicom/",
+    "build:all": "npm run build:dicom && npm run build"
   },
   "dependencies": {
     "core-js": "^3.6.5",
