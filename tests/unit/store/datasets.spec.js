@@ -114,6 +114,8 @@ describe('Datasets module', () => {
         name: 'somename.tiff',
       });
 
+      state.selectedBaseImage = 100;
+
       const { dispatch, commit } = vuexFakes();
       mod.actions.selectBaseImage({ state, dispatch, commit }, 100);
       expect(commit).to.have.been.calledWith('selectBaseImage', 100);
