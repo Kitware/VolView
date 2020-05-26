@@ -2,6 +2,8 @@ import chai, { expect } from 'chai';
 import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
 
+import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+
 import datasets, { DataTypes, NO_SELECTION } from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
 import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
@@ -108,9 +110,10 @@ describe('Datasets module', () => {
       const mod = datasets(services());
       const { state } = mod;
 
+      const image = vtkImageData.newInstance();
       mod.mutations.addImage(state, {
         id: 100,
-        image: {},
+        imageData: image,
         name: 'somename.tiff',
       });
 
