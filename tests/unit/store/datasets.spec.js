@@ -10,7 +10,7 @@ import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
 
 chai.use(sinonChai);
 
-function services() {
+function dependencies() {
   const fileIO = new FileIO();
   fileIO.addSingleReader('nrrd', () => ({
     // simulate all vtk objects
@@ -23,26 +23,31 @@ function services() {
 }
 
 describe('Datasets module', () => {
+  let deps;
+  let mod;
+  let state;
+
+  beforeEach(() => {
+    deps = dependencies();
+    mod = datasets(deps);
+    ({ state } = mod);
+  });
+
   afterEach(() => {
     sinon.restore();
   });
 
   describe('File loading', () => {
     it('loadFiles action should load a list of dicom and regular files', async () => {
-      const mod = datasets(services());
-      const { state } = mod;
-
-      const { commit } = vuexFakes();
-      const dispatch = async (actionName) => {
-        if (actionName === 'dicom/importFiles') {
-          return [{
-            patientKey: 'patientKey',
-            studyKey: 'studyKey',
-            seriesKey: 'seriesKey',
-          }];
-        }
-        return null;
-      };
+      const fakes = vuexFakes();
+      fakes.dispatch = sinon
+        .stub()
+        .withArgs('dicom/importFiles')
+        .returns([{
+          patientKey: 'patientKey',
+          studyKey: 'studyKey',
+          seriesKey: 'seriesKey',
+        }]);
 
       const files = [
         makeEmptyFile('test.nrrd'),
@@ -52,12 +57,12 @@ describe('Datasets module', () => {
       ];
 
       const errors = await mod.actions.loadFiles(
-        { state, dispatch, commit },
+        { state, ...fakes },
         files,
       );
 
-      expect(commit).to.have.been.calledWith('addImage');
-      expect(commit).to.have.been.calledWith('addDicom');
+      expect(fakes.commit).to.have.been.calledWith('addImage');
+      expect(fakes.commit).to.have.been.calledWith('addDicom');
       // expect(commit).to.have.been.calledWith('addModel');
 
       expect(errors).to.have.lengthOf(1);
@@ -65,10 +70,7 @@ describe('Datasets module', () => {
       expect(errors[0]).to.have.property('error').that.is.a('error');
     });
 
-    it('add* mutations should add info appropriately', () => {
-      const mod = datasets(services());
-      const { state } = mod;
-
+    it('addImage mutations', () => {
       mod.mutations.addImage(state, {
         id: 1,
         image: {},
@@ -78,7 +80,9 @@ describe('Datasets module', () => {
       expect(state.data.index)
         .to.have.property(String(1))
         .that.has.property('type', DataTypes.Image);
+    });
 
+    it('addDicom mutations', () => {
       mod.mutations.addDicom(state, {
         id: 2,
         patientKey: 'patientkey',
@@ -92,7 +96,9 @@ describe('Datasets module', () => {
       expect(state.dicomSeriesToID)
         .to.have.property('serieskey')
         .that.equals(2);
+    });
 
+    it('addImage duplicate IDs should be ignored', () => {
       // duplicate IDs should be ignored
       mod.mutations.addImage(state, {
         id: 1,
@@ -100,16 +106,13 @@ describe('Datasets module', () => {
         name: 'otherimage.jpg',
       });
       expect(state.data.imageIDs).to.have.lengthOf(1);
-
-      // TODO addModel
     });
+
+    // TODO addModel
   });
 
   describe('Base image selection', () => {
     it('selectBaseImage action', async () => {
-      const mod = datasets(services());
-      const { state } = mod;
-
       const image = vtkImageData.newInstance();
       mod.mutations.addImage(state, {
         id: 100,
@@ -127,9 +130,6 @@ describe('Datasets module', () => {
     });
 
     it('selectBaseImage mutation', () => {
-      const mod = datasets(services());
-      const { state } = mod;
-
       // invalid selection
       mod.mutations.selectBaseImage(state, 100);
       expect(state.selectedBaseImage).to.equal(NO_SELECTION);

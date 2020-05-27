@@ -52,16 +52,27 @@ function dependencies() {
 }
 
 describe('DICOM module', () => {
+  let deps;
+  let mod;
+  let state;
+
+  beforeEach(() => {
+    deps = dependencies();
+    mod = dicom(deps);
+    state = mod.state;
+
+    // fake state
+    SAMPLE_DATA.forEach((d) => {
+      state.seriesIndex[d.uid] = { ...d.info };
+    });
+  });
+
   afterEach(() => {
     sinon.restore();
   });
 
   describe('importFiles', () => {
     it('should import a list of dicom objects', async () => {
-      const deps = dependencies();
-      const mod = dicom(deps);
-      const { state } = mod;
-
       const data = SAMPLE_DATA.reduce(
         (obj, sample) => ({ ...obj, [sample.uid]: sample.info }),
         {},
@@ -81,8 +92,6 @@ describe('DICOM module', () => {
     });
 
     it('add* should not clobber existing patient, study, series keys', () => {
-      const mod = dicom();
-      const { state } = mod;
       mod.mutations.addPatient(state, { patientKey: 'PKEY', patient: { id: 1 } });
       mod.mutations.addPatient(state, { patientKey: 'PKEY', patient: { id: 2 } });
       expect(state.patientIndex).to.have.property('PKEY');
@@ -124,10 +133,6 @@ describe('DICOM module', () => {
 
   describe('Series images', () => {
     it('getSeriesImage fetches a series slice', async () => {
-      const deps = dependencies();
-      const mod = dicom(deps);
-      const { state } = mod;
-
       const itkSliceImage = { data: 1 }; // dummy image obj
 
       // fake state
@@ -180,10 +185,6 @@ describe('DICOM module', () => {
     });
 
     it('cacheImageSlice should cache an image', () => {
-      const deps = dependencies();
-      const mod = dicom(deps);
-      const { state } = mod;
-
       const itkSliceImage = { data: 1 }; // dummy image obj
 
       mod.mutations.cacheImageSlice(state, {
@@ -199,22 +200,10 @@ describe('DICOM module', () => {
   });
 
   describe('Series volume', () => {
-    let deps;
-    let mod;
-    let state;
     let itkImageVolume;
 
     beforeEach(() => {
-      deps = dependencies();
-      mod = dicom(deps);
-      state = mod.state;
-
       itkImageVolume = { data: 1 }; // dummy image obj
-
-      // fake state
-      SAMPLE_DATA.forEach((d) => {
-        state.seriesIndex[d.uid] = { ...d.info };
-      });
     });
 
     it('buildVolume should return an itkImage volume', async () => {
