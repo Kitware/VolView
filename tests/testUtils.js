@@ -1,5 +1,3 @@
-import sinon from 'sinon';
-
 export function makeEmptyFile(name) {
   return new File([], name);
 }
@@ -11,10 +9,4 @@ export function makeDicomFile(name) {
   buffer[130] = 'C'.charCodeAt(0);
   buffer[131] = 'M'.charCodeAt(0);
   return new File([buffer.buffer], name);
-}
-
-export function vuexFakes() {
-  const dispatch = sinon.fake();
-  const commit = sinon.fake();
-  return { dispatch, commit };
 }

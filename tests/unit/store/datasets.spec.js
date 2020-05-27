@@ -4,33 +4,35 @@ import sinonChai from 'sinon-chai';
 
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 
-import datasets, { DataTypes, NO_SELECTION } from '@/src/store/datasets';
+import datasets, { NO_SELECTION } from '@/src/store/datasets';
 import { FileIO } from '@/src/io/io';
-import { makeEmptyFile, makeDicomFile, vuexFakes } from '@/tests/testUtils';
+import { makeEmptyFile, makeDicomFile } from '@/tests/testUtils';
 
 chai.use(sinonChai);
 
 function dependencies() {
   const fileIO = new FileIO();
-  fileIO.addSingleReader('nrrd', () => ({
-    // simulate all vtk objects
-    isA: () => true,
-  }));
-  fileIO.addSingleReader('bad', () => {
-    throw new Error('whoops');
-  });
   return { fileIO };
 }
 
 describe('Datasets module', () => {
   let deps;
   let mod;
-  let state;
+  let context;
 
   beforeEach(() => {
     deps = dependencies();
     mod = datasets(deps);
-    ({ state } = mod);
+    context = {
+      state: mod.state,
+      dispatch: sinon.spy(),
+      commit: sinon.stub().callsFake((mutation) => {
+        // is this assertion necessary
+        if (!(mutation in mod.mutations)) {
+          throw new Error(`mutation ${mutation} not found`);
+        }
+      }),
+    };
   });
 
   afterEach(() => {
@@ -38,110 +40,139 @@ describe('Datasets module', () => {
   });
 
   describe('File loading', () => {
-    it('loadFiles action should load a list of dicom and regular files', async () => {
-      const fakes = vuexFakes();
-      fakes.dispatch = sinon
-        .stub()
+    let dummyProxy;
+    let dummyVtkData;
+    beforeEach(() => {
+      dummyVtkData = {
+        // simulate all vtk objects
+        isA: () => true,
+      };
+      dummyProxy = {
+        setInputData: () => {},
+        getProxyId: () => {},
+      };
+
+      deps.fileIO.addSingleReader('nrrd', () => dummyVtkData);
+      deps.fileIO.addSingleReader('bad', () => {
+        throw new Error('whoops');
+      });
+      deps.proxyManager = {
+        createProxy: () => dummyProxy,
+      };
+    });
+
+    it('loadRegularFiles should load readable files', async () => {
+      // we care about data being saved into proxy manager
+      const mock = sinon.mock(dummyProxy);
+      sinon.stub(dummyProxy, 'getProxyId').returns(1);
+      mock.expects('setInputData').once();
+
+      const files = [makeEmptyFile('test.nrrd')];
+      const errors = await mod.actions.loadRegularFiles(context, files);
+
+      expect(errors).to.have.lengthOf(0);
+      expect(context.commit).to.have.been.calledWith('addImage', {
+        name: 'test.nrrd',
+        image: dummyVtkData,
+      });
+    });
+
+    it('loadRegularFiles should error on unreadable files', async () => {
+      const files = [makeEmptyFile('test.bad')];
+      const errors = await mod.actions.loadRegularFiles(context, files);
+
+      expect(errors).to.have.lengthOf(1);
+    });
+
+    it('loadRegularFiles should handle dicom', async () => {
+      context.dispatch = sinon.stub()
         .withArgs('dicom/importFiles')
         .returns([{
-          patientKey: 'patientKey',
-          studyKey: 'studyKey',
-          seriesKey: 'seriesKey',
+          patientKey: 'patient1',
+          studyKey: 'study1',
+          seriesKey: 'series1',
         }]);
 
       const files = [
-        makeEmptyFile('test.nrrd'),
-        makeEmptyFile('test.bad'),
         makeDicomFile('file1.dcm'),
         makeDicomFile('file2.dcm'),
       ];
 
-      const errors = await mod.actions.loadFiles(
-        { state, ...fakes },
-        files,
-      );
+      const errors = await mod.actions.loadDicomFiles(context, files);
 
-      expect(fakes.commit).to.have.been.calledWith('addImage');
-      expect(fakes.commit).to.have.been.calledWith('addDicom');
-      // expect(commit).to.have.been.calledWith('addModel');
-
-      expect(errors).to.have.lengthOf(1);
-      expect(errors[0]).to.have.property('name').that.equals('test.bad');
-      expect(errors[0]).to.have.property('error').that.is.a('error');
-    });
-
-    it('addImage mutations', () => {
-      mod.mutations.addImage(state, {
-        id: 1,
-        image: {},
-        name: 'myimage.jpg',
+      expect(errors).to.have.lengthOf(0);
+      expect(context.commit).to.have.been.calledWith('addDicom', {
+        patientKey: 'patient1',
+        studyKey: 'study1',
+        seriesKey: 'series1',
       });
-      expect(state.data.imageIDs).to.have.lengthOf(1);
-      expect(state.data.index)
-        .to.have.property(String(1))
-        .that.has.property('type', DataTypes.Image);
     });
 
-    it('addDicom mutations', () => {
-      mod.mutations.addDicom(state, {
-        id: 2,
-        patientKey: 'patientkey',
-        studyKey: 'studykey',
-        seriesKey: 'serieskey',
-      });
-      expect(state.data.dicomIDs).to.have.lengthOf(1);
-      expect(state.data.index)
-        .to.have.property(2)
-        .that.has.property('type', DataTypes.Dicom);
-      expect(state.dicomSeriesToID)
-        .to.have.property('serieskey')
-        .that.equals(2);
-    });
+    it('loadFiles should separate dicom and regular files', async () => {
+      const dicomFiles = [
+        makeDicomFile('file1.dcm'),
+        makeDicomFile('file2.dcm'),
+      ];
+      const regularFiles = [
+        makeEmptyFile('file1.nrrd'),
+        makeEmptyFile('file2.nrrd'),
+      ];
+      const files = [...regularFiles, ...dicomFiles];
 
-    it('addImage duplicate IDs should be ignored', () => {
-      // duplicate IDs should be ignored
-      mod.mutations.addImage(state, {
-        id: 1,
-        image: {},
-        name: 'otherimage.jpg',
-      });
-      expect(state.data.imageIDs).to.have.lengthOf(1);
-    });
+      await mod.actions.loadFiles(context, files);
 
-    // TODO addModel
+      expect(context.dispatch)
+        .to.have.been.calledWith('loadDicomFiles', dicomFiles);
+      expect(context.dispatch)
+        .to.have.been.calledWith('loadRegularFiles', regularFiles);
+    });
   });
 
   describe('Base image selection', () => {
-    it('selectBaseImage action', async () => {
-      const image = vtkImageData.newInstance();
-      mod.mutations.addImage(state, {
-        id: 100,
-        imageData: image,
-        name: 'somename.tiff',
+    beforeEach(() => {
+      context.state.data.nextID = 100;
+      // ID: 100
+      mod.mutations.addImage(context.state, {
+        name: 'image',
+        image: vtkImageData.newInstance(),
       });
-
-      state.selectedBaseImage = 100;
-
-      const { dispatch, commit } = vuexFakes();
-      mod.actions.selectBaseImage({ state, dispatch, commit }, 100);
-      expect(commit).to.have.been.calledWith('selectBaseImage', 100);
-      expect(commit).to.have.been.calledWith('setBaseMetadata');
-      expect(dispatch).to.have.been.calledWith('updateRenderPipeline');
+      // ID: 101
+      mod.mutations.addDicom(context.state, {
+        patientKey: 'patient1',
+        studyKey: 'study1',
+        seriesKey: 'series1',
+      });
     });
 
-    it('selectBaseImage mutation', () => {
-      // invalid selection
-      mod.mutations.selectBaseImage(state, 100);
-      expect(state.selectedBaseImage).to.equal(NO_SELECTION);
+    it('selectBaseImage selects a valid ID', async () => {
+      await mod.actions.selectBaseImage(context, 100);
 
-      // valid selection
-      mod.mutations.addImage(state, {
-        id: 1,
-        name: 'testing.bmp',
-        imageData: {},
+      expect(context.commit).to.have.been.calledWith('setBaseImage', 100);
+      expect(context.commit).to.have.been.calledWith('setBaseMetadata');
+    });
+
+    it('selectBaseImage selects a dicom ID', async () => {
+      const dummyData = vtkImageData.newInstance();
+      context.dispatch = sinon.stub()
+        .withArgs('dicom/buildSeriesVolume', 'series1')
+        .returns(dummyData);
+
+      await mod.actions.selectBaseImage(context, 101);
+
+      expect(context.commit).to.have.been.calledWith('setBaseImage', 101);
+      expect(context.commit).to.have.been.calledWith('cacheDicomImage', {
+        seriesKey: 'series1',
+        image: dummyData,
       });
-      mod.mutations.selectBaseImage(state, 1);
-      expect(state.selectedBaseImage).to.equal(1);
+      expect(context.commit).to.have.been.calledWith('setBaseMetadata');
+      expect(context.dispatch)
+        .to.have.been.calledWith('dicom/buildSeriesVolume', 'series1');
+    });
+
+    it('selectBaseImage rejects invalid IDs', async () => {
+      await mod.actions.selectBaseImage(context, 999);
+
+      expect(context.commit).to.have.been.calledWith('setBaseImage', NO_SELECTION);
     });
   });
 });
