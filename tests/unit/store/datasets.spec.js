@@ -4,7 +4,9 @@ import sinonChai from 'sinon-chai';
 
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 
-import datasets, { NO_SELECTION } from '@/src/store/datasets';
+import { mutations, makeActions } from '@/src/store/datasets';
+import { initialState } from '@/src/store';
+import { NO_SELECTION } from '@/src/constants';
 import { FileIO } from '@/src/io/io';
 import { makeEmptyFile, makeDicomFile } from '@/tests/testUtils';
 
@@ -17,18 +19,18 @@ function dependencies() {
 
 describe('Datasets module', () => {
   let deps;
-  let mod;
   let context;
+  let actions;
 
   beforeEach(() => {
     deps = dependencies();
-    mod = datasets(deps);
+    actions = makeActions(deps);
     context = {
-      state: mod.state,
+      state: initialState(),
       dispatch: sinon.spy(),
       commit: sinon.stub().callsFake((mutation) => {
         // is this assertion necessary
-        if (!(mutation in mod.mutations)) {
+        if (!(mutation in mutations)) {
           throw new Error(`mutation ${mutation} not found`);
         }
       }),
@@ -68,7 +70,7 @@ describe('Datasets module', () => {
       mock.expects('setInputData').once();
 
       const files = [makeEmptyFile('test.nrrd')];
-      const errors = await mod.actions.loadRegularFiles(context, files);
+      const errors = await actions.loadRegularFiles(context, files);
 
       expect(errors).to.have.lengthOf(0);
       expect(context.commit).to.have.been.calledWith('addImage', {
@@ -79,7 +81,7 @@ describe('Datasets module', () => {
 
     it('loadRegularFiles should error on unreadable files', async () => {
       const files = [makeEmptyFile('test.bad')];
-      const errors = await mod.actions.loadRegularFiles(context, files);
+      const errors = await actions.loadRegularFiles(context, files);
 
       expect(errors).to.have.lengthOf(1);
     });
@@ -98,7 +100,7 @@ describe('Datasets module', () => {
         makeDicomFile('file2.dcm'),
       ];
 
-      const errors = await mod.actions.loadDicomFiles(context, files);
+      const errors = await actions.loadDicomFiles(context, files);
 
       expect(errors).to.have.lengthOf(0);
       expect(context.commit).to.have.been.calledWith('addDicom', {
@@ -119,7 +121,7 @@ describe('Datasets module', () => {
       ];
       const files = [...regularFiles, ...dicomFiles];
 
-      await mod.actions.loadFiles(context, files);
+      await actions.loadFiles(context, files);
 
       expect(context.dispatch)
         .to.have.been.calledWith('loadDicomFiles', dicomFiles);
@@ -132,12 +134,12 @@ describe('Datasets module', () => {
     beforeEach(() => {
       context.state.data.nextID = 100;
       // ID: 100
-      mod.mutations.addImage(context.state, {
+      mutations.addImage(context.state, {
         name: 'image',
         image: vtkImageData.newInstance(),
       });
       // ID: 101
-      mod.mutations.addDicom(context.state, {
+      mutations.addDicom(context.state, {
         patientKey: 'patient1',
         studyKey: 'study1',
         seriesKey: 'series1',
@@ -145,7 +147,7 @@ describe('Datasets module', () => {
     });
 
     it('selectBaseImage selects a valid ID', async () => {
-      await mod.actions.selectBaseImage(context, 100);
+      await actions.selectBaseImage(context, 100);
 
       expect(context.commit).to.have.been.calledWith('setBaseImage', 100);
       expect(context.commit).to.have.been.calledWith('setBaseMetadata');
@@ -157,7 +159,7 @@ describe('Datasets module', () => {
         .withArgs('dicom/buildSeriesVolume', 'series1')
         .returns(dummyData);
 
-      await mod.actions.selectBaseImage(context, 101);
+      await actions.selectBaseImage(context, 101);
 
       expect(context.commit).to.have.been.calledWith('setBaseImage', 101);
       expect(context.commit).to.have.been.calledWith('cacheDicomImage', {
@@ -170,7 +172,7 @@ describe('Datasets module', () => {
     });
 
     it('selectBaseImage rejects invalid IDs', async () => {
-      await mod.actions.selectBaseImage(context, 999);
+      await actions.selectBaseImage(context, 999);
 
       expect(context.commit).to.have.been.calledWith('setBaseImage', NO_SELECTION);
     });

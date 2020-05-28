@@ -126,8 +126,8 @@ export default {
   },
 
   computed: {
-    ...mapState('datasets', ['selectedBaseImage', 'dicomSeriesToID']),
-    ...mapState('datasets/dicom', {
+    ...mapState(['selectedBaseImage', 'dicomSeriesToID']),
+    ...mapState('dicom', {
       patientStudies: 'patientStudies',
       studySeries: 'studySeries',
       seriesIndex: 'seriesIndex',
@@ -197,8 +197,8 @@ export default {
       });
     },
 
-    ...mapActions('datasets', ['selectBaseImage']),
-    ...mapActions('datasets/dicom', ['getSeriesImage']),
+    ...mapActions(['selectBaseImage']),
+    ...mapActions('dicom', ['getSeriesImage']),
   },
 };
 </script>

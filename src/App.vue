@@ -201,7 +201,7 @@
 import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
-import { NO_SELECTION } from '@/src/store/datasets';
+import { NO_SELECTION } from '@/src/constants';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -316,7 +316,7 @@ export default {
   }),
 
   computed: {
-    ...mapState('datasets', ['selectedBaseImage']),
+    ...mapState(['selectedBaseImage']),
     hasSelectedBaseImage() {
       return this.selectedBaseImage !== NO_SELECTION;
     },
@@ -403,7 +403,7 @@ export default {
       this.errors.actionErrors = [];
     },
 
-    ...mapActions('datasets', ['loadFiles']),
+    ...mapActions(['loadFiles']),
   },
 };
 </script>
