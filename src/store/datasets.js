@@ -1,10 +1,9 @@
+import { NO_SELECTION } from '@/src/constants';
+
 import dicom from './dicom';
+import visualization from './visualization';
 import { FileTypes } from '../io/io';
 import { isVtkObject } from '../utils/common';
-import { renderRepresentationsOf, removeRepresentationsOf } from '../vtk/proxyUtils';
-
-export const NO_SELECTION = -1;
-export const NO_PROXY = -1;
 
 export const DataTypes = {
   Image: 'Image',
@@ -12,41 +11,12 @@ export const DataTypes = {
   Model: 'Model',
 };
 
-function createVizPipelineFor(data, proxyManager) {
-  let transformType = null;
-  if (data.isA('vtkImageData')) {
-    transformType = 'ImageTransform';
-  } else if (data.isA('vtkPolyData')) {
-    transformType = 'PolyDataTransform';
-  } else {
-    throw new Error('createVizPipelineFor: data is not image or geometry');
-  }
-
-  const dataSource = proxyManager.createProxy(
-    'Sources',
-    'TrivialProducer',
-  );
-  dataSource.setInputData(data);
-
-  const transformFilter = proxyManager.createProxy(
-    'Sources',
-    transformType,
-    {
-      inputProxy: dataSource,
-    },
-  );
-
-  return {
-    dataSource,
-    transformFilter,
-  };
-}
-
 export default (dependencies) => ({
   namespaced: true,
 
   modules: {
     dicom: dicom(dependencies),
+    visualization: visualization(dependencies),
   },
 
   state: {
@@ -67,11 +37,6 @@ export default (dependencies) => ({
       // identity
       worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
     },
-    basePipeline: {
-      sourcePID: NO_PROXY,
-      transformFilterPID: NO_PROXY,
-    },
-    pipelines: {},
   },
 
   mutations: {
@@ -122,11 +87,6 @@ export default (dependencies) => ({
     cacheDicomImage(state, { seriesKey, image }) {
       const id = state.dicomSeriesToID[seriesKey];
       state.data.vtkCache[id] = image;
-    },
-
-    setBasePipeline(state, { sourcePID, transformFilterPID }) {
-      state.basePipeline.sourcePID = sourcePID;
-      state.basePipeline.transformFilterPID = transformFilterPID;
     },
 
     setBaseMetadata(state, { spacing, worldToIndex }) {
@@ -285,46 +245,6 @@ export default (dependencies) => ({
       }
 
       await dispatch('updateRenderPipeline');
-    },
-
-    /**
-     * Updates the rendering pipeline.
-     */
-    async updateRenderPipeline({ state, commit }) {
-      const { proxyManager } = dependencies;
-
-      const baseID = state.selectedBaseImage;
-      if (baseID !== NO_SELECTION) {
-        const imageData = state.data.vtkCache[baseID];
-
-        if (state.basePipeline.sourcePID === NO_PROXY) {
-          const { dataSource, transformFilter } = createVizPipelineFor(
-            imageData,
-            proxyManager,
-          );
-          commit('setBasePipeline', {
-            sourcePID: dataSource.getProxyId(),
-            transformFilterPID: transformFilter.getProxyId(),
-          });
-        }
-
-        const { sourcePID, transformFilterPID } = state.basePipeline;
-        const source = proxyManager.getProxyById(sourcePID);
-        const transformFilter = proxyManager.getProxyById(transformFilterPID);
-
-        source.setInputData(imageData);
-        transformFilter.setTransform(imageData.getWorldToIndex());
-        renderRepresentationsOf(transformFilter, proxyManager);
-
-        // TODO update all other layers
-
-        proxyManager.renderAllViews();
-      } else if (state.basePipeline.sourcePID !== NO_PROXY) {
-        // detach representations
-        const { transformFilterPID } = state.basePipeline;
-        const transformFilter = proxyManager.getProxyById(transformFilterPID);
-        removeRepresentationsOf(transformFilter, proxyManager);
-      }
     },
   },
 });
