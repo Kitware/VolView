@@ -14,12 +14,12 @@
 </template>
 
 <script>
-import VtkVueMixin from '@/src/mixins/VtkView';
+import VtkViewMixin from '@/src/mixins/VtkView';
 
 export default {
   name: 'VtkTwoView',
 
-  mixins: [VtkVueMixin],
+  mixins: [VtkViewMixin],
 };
 </script>
 

@@ -1,7 +1,8 @@
+import { isVtkObject } from 'vtk.js/Sources/macro';
+
 import { DataTypes, NO_SELECTION } from '@/src/constants';
 
 import { FileTypes } from '../io/io';
-import { isVtkObject } from '../utils/common';
 
 export const mutations = {
   /**
@@ -205,8 +206,10 @@ export const makeActions = (dependencies) => ({
         spacing,
         worldToIndex,
       });
-    }
 
-    await dispatch('updateRenderPipeline');
+      await dispatch('renderBaseImage', imageData);
+    } else {
+      await dispatch('renderEmptyBase');
+    }
   },
 });

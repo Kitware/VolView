@@ -23,7 +23,7 @@ export function createFourUpViews(proxyManager) {
  * @param {vtkSourceProxy} source
  * @param {vtkProxyManager} proxyManager
  */
-export function renderRepresentationsOf(source, proxyManager) {
+export function addRepresentationsOf(source, proxyManager) {
   const views = proxyManager.getViews();
   for (let i = 0; i < views.length; i += 1) {
     const view = views[i];

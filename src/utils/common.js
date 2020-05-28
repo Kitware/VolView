@@ -25,11 +25,3 @@ export function asMutation(mutation) {
 export function pick(obj, keys) {
   return keys.reduce((o, k) => ({ ...o, [k]: obj[k] }), {});
 }
-
-/**
- * Determines if a given object is a VTK object
- * @param {Object} obj
- */
-export function isVtkObject(obj) {
-  return obj && typeof obj.isA === 'function' && obj.isA('vtkObject');
-}

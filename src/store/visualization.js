@@ -1,5 +1,7 @@
-import { NO_PROXY, NO_SELECTION } from '@/src/constants';
-import { renderRepresentationsOf, removeRepresentationsOf } from '../vtk/proxyUtils';
+import { isVtkObject } from 'vtk.js/Sources/macro';
+
+import { NO_PROXY } from '@/src/constants';
+import { addRepresentationsOf, removeRepresentationsOf } from '../vtk/proxyUtils';
 
 function createVizPipelineFor(data, proxyManager) {
   let transformType = null;
@@ -40,12 +42,9 @@ export default (dependencies) => ({
       transformFilterPID: NO_PROXY,
     },
     pipelines: {},
-  },
-
-  getters: {
-    datasets(state, getters, rootState) {
-      return rootState.datasets;
-    },
+    xSlice: 0,
+    ySlice: 0,
+    zSlice: 0,
   },
 
   mutations: {
@@ -53,24 +52,25 @@ export default (dependencies) => ({
       state.basePipeline.sourcePID = sourcePID;
       state.basePipeline.transformFilterPID = transformFilterPID;
     },
+
+    resetSlices(state) {
+      state.xSlice = 0;
+      state.ySlice = 0;
+      state.zSlice = 0;
+    },
   },
 
   actions: {
     /**
      * Updates the rendering pipeline.
-     *
-     * Assumes the selected base image has cached vtk data.
      */
-    async updateRenderPipeline({ getters, state, commit }) {
+    renderBaseImage({ state, commit }, image) {
       const { proxyManager } = dependencies;
 
-      const baseID = getters.datasets.selectedBaseImage;
-      if (baseID !== NO_SELECTION) {
-        const imageData = getters.datasets.data.vtkCache[baseID];
-
+      if (isVtkObject(image) && image.isA('vtkImageData')) {
         if (state.basePipeline.sourcePID === NO_PROXY) {
           const { dataSource, transformFilter } = createVizPipelineFor(
-            imageData,
+            image,
             proxyManager,
           );
           commit('setBasePipeline', {
@@ -83,16 +83,19 @@ export default (dependencies) => ({
         const source = proxyManager.getProxyById(sourcePID);
         const transformFilter = proxyManager.getProxyById(transformFilterPID);
 
-        source.setInputData(imageData);
-        transformFilter.setTransform(
-          getters.datasets.baseMetadata.worldToIndex,
-        );
-        renderRepresentationsOf(transformFilter, proxyManager);
+        source.setInputData(image);
+        transformFilter.setTransform(image.getWorldToIndex());
+        addRepresentationsOf(transformFilter, proxyManager);
 
         // TODO update all other layers
 
         proxyManager.renderAllViews();
-      } else if (state.basePipeline.sourcePID !== NO_PROXY) {
+      }
+    },
+
+    renderEmptyBase({ state }) {
+      if (state.basePipeline.sourcePID !== NO_PROXY) {
+        const { proxyManager } = dependencies;
         // detach representations
         const { transformFilterPID } = state.basePipeline;
         const transformFilter = proxyManager.getProxyById(transformFilterPID);
