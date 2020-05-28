@@ -80,15 +80,17 @@ export function renderProxies(proxyManager, proxies) {
  * Renders must be triggered manually.
  */
 export function resize2DCameraToFit(view, bounds) {
-  const [w, h] = view.getOpenglRenderWindow().getSize();
   const camera = view.getCamera();
-
+  const [w, h] = view.getOpenglRenderWindow().getSize();
   const [bw, bh] = bounds;
+  const viewAspect = w / h;
+  const boundsAspect = bw / bh;
+
   let scale = 0;
-  if (w >= h) {
+  if (viewAspect >= boundsAspect) {
     scale = bh / 2;
   } else {
-    scale = bw / 2 / (w / h);
+    scale = bw / 2 / viewAspect;
   }
 
   view.resetCamera();
