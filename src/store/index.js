@@ -5,16 +5,16 @@ import datasetsModule from './datasets';
 
 Vue.use(Vuex);
 
-const modules = (services) => ({
-  datasets: datasetsModule(services),
+const modules = (deps) => ({
+  datasets: datasetsModule(deps),
 });
 
-export default (services) => new Vuex.Store({
+export default (deps) => new Vuex.Store({
   state: {
   },
   mutations: {
   },
   actions: {
   },
-  modules: modules(services),
+  modules: modules(deps),
 });
