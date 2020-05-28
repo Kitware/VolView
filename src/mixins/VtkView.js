@@ -56,9 +56,12 @@ export default {
   },
 
   methods: {
+    beforeViewUnmount() {},
+    afterViewMount() {},
+
     remountView() {
       if (this.view) {
-        // unmount
+        this.beforeViewUnmount();
         this.view.setContainer(null);
       }
 
@@ -78,6 +81,8 @@ export default {
         this.view.setContainer(container);
         this.view.getRenderer().setBackground(0, 0, 0);
         this.updateCamera();
+
+        this.afterViewMount();
 
         // let vue rendering settle before resizing canvas
         this.$nextTick(() => {
@@ -101,7 +106,6 @@ export default {
     onResize() {
       if (this.view) {
         this.view.resize();
-        this.view.renderLater();
       }
     },
 

@@ -14,12 +14,57 @@
 </template>
 
 <script>
+import { mapState } from 'vuex';
+
 import VtkViewMixin from '@/src/mixins/VtkView';
+import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 
 export default {
   name: 'VtkTwoView',
 
   mixins: [VtkViewMixin],
+
+  computed: {
+    ...mapState({
+      resizeToFit: (state) => state.visualization.resizeToFit,
+      baseMetadata: (state) => state.visualization.baseMetadata,
+    }),
+  },
+
+  mounted() {
+    this.resizeListener = null;
+  },
+
+  beforeDestroy() {
+    if (this.resizeListener) {
+      this.resizeListener.unsubscribe();
+    }
+  },
+
+  methods: {
+    beforeViewUnmount() {
+      if (this.resizeListener) {
+        this.resizeListener.unsubscribe();
+        this.resizeListener = null;
+      }
+    },
+
+    afterViewMount() {
+      this.resizeListener = this.view.onResize(this.tryResizingToFit);
+    },
+
+    tryResizingToFit() {
+      if (this.view && this.resizeToFit) {
+        const { spacing } = this.baseMetadata;
+        const size = this.baseMetadata
+          .dimensions
+          .map((d, i) => d * spacing[i])
+          .filter((_, i) => i !== this.axis);
+
+        resize2DCameraToFit(this.view, size);
+      }
+    },
+  },
 };
 </script>
 

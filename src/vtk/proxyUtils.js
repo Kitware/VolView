@@ -72,3 +72,25 @@ export function renderProxies(proxyManager, proxies) {
     view.renderLater();
   }
 }
+
+/**
+ * Sets parallel scale of 2D view camera to fit a given bounds.
+ *
+ * Bounds is specified as width/height of orthographic view.
+ * Renders must be triggered manually.
+ */
+export function resize2DCameraToFit(view, bounds) {
+  const [w, h] = view.getOpenglRenderWindow().getSize();
+  const camera = view.getCamera();
+
+  const [bw, bh] = bounds;
+  let scale = 0;
+  if (w >= h) {
+    scale = bh / 2;
+  } else {
+    scale = bw / 2 / (w / h);
+  }
+
+  view.resetCamera();
+  camera.setParallelScale(scale);
+}

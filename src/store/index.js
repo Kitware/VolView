@@ -21,13 +21,7 @@ export const initialState = () => ({
 
   // track the mapping from seriesUID to data ID
   dicomSeriesToID: {},
-
   selectedBaseImage: NO_SELECTION,
-  baseMetadata: {
-    spacing: [1, 1, 1],
-    // identity
-    worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-  },
 });
 
 export default (deps) => new Vuex.Store({

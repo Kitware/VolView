@@ -53,11 +53,6 @@ export const mutations = {
     const id = state.dicomSeriesToID[seriesKey];
     state.data.vtkCache[id] = image;
   },
-
-  setBaseMetadata(state, { spacing, worldToIndex }) {
-    state.baseMetadata.spacing = [...spacing];
-    state.baseMetadata.worldToIndex = [...worldToIndex];
-  },
 };
 
 export const makeActions = (dependencies) => ({
@@ -198,14 +193,6 @@ export const makeActions = (dependencies) => ({
       } else {
         imageData = state.data.vtkCache[baseImageId];
       }
-
-      const spacing = imageData.getSpacing();
-      const worldToIndex = imageData.getWorldToIndex();
-
-      commit('setBaseMetadata', {
-        spacing,
-        worldToIndex,
-      });
 
       await dispatch('renderBaseImage', imageData);
     } else {

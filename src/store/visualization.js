@@ -2,7 +2,7 @@ import { isVtkObject } from 'vtk.js/Sources/macro';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 
 import { NO_PROXY } from '@/src/constants';
-import { addRepresentationsOf, removeRepresentationsOf } from '../vtk/proxyUtils';
+import { addRepresentationsOf, removeRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
 
 function createVizPipelineFor(data, proxyManager) {
   let transformType = null;
@@ -42,10 +42,17 @@ export default (dependencies) => ({
       sourcePID: NO_PROXY,
       transformFilterPID: NO_PROXY,
     },
+    baseMetadata: {
+      dimensions: [0, 0, 0],
+      spacing: [1, 1, 1],
+      // identity
+      worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    },
     pipelines: {},
     xSlice: 0,
     ySlice: 0,
     zSlice: 0,
+    resizeToFit: true,
   },
 
   mutations: {
@@ -54,10 +61,20 @@ export default (dependencies) => ({
       state.basePipeline.transformFilterPID = transformFilterPID;
     },
 
+    setBaseMetadata(state, { dimensions, spacing, worldToIndex }) {
+      state.baseMetadata.dimensions = [...dimensions];
+      state.baseMetadata.spacing = [...spacing];
+      state.baseMetadata.worldToIndex = [...worldToIndex];
+    },
+
     setSlices(state, [x = 0, y = 0, z = 0]) {
       state.xSlice = x;
       state.ySlice = y;
       state.zSlice = z;
+    },
+
+    setResizeToFit(state, yn) {
+      state.resizeToFit = yn;
     },
   },
 
@@ -88,6 +105,12 @@ export default (dependencies) => ({
         transformFilter.setTransform(image.getWorldToIndex());
         addRepresentationsOf(transformFilter, proxyManager);
 
+        commit('setBaseMetadata', {
+          dimensions: image.getDimensions(),
+          spacing: image.getSpacing(),
+          worldToIndex: [...image.getWorldToIndex()],
+        });
+
         await dispatch('resetViews');
 
         // TODO update all other layers
@@ -108,9 +131,10 @@ export default (dependencies) => ({
 
     async resetViews({ dispatch }) {
       await dispatch('applySlices', [0, 0, 0]);
+      await dispatch('setResizeToFit', true);
     },
 
-    async applySlices({ commit, state }, slices) {
+    applySlices({ commit, state }, slices) {
       commit('setSlices', slices);
 
       const { proxyManager } = dependencies;
@@ -130,6 +154,29 @@ export default (dependencies) => ({
             }
           });
       }
+    },
+
+    async setResizeToFit({ commit, dispatch }, yn) {
+      commit('setResizeToFit', yn);
+      if (yn) {
+        await dispatch('resizeAllCamerasToFit');
+      }
+    },
+
+    resizeAllCamerasToFit({ state }) {
+      const { proxyManager } = dependencies;
+      proxyManager
+        .getViews()
+        .filter((view) => view.isA('vtkView2DProxy'))
+        .forEach((view) => {
+          const { spacing } = state.baseMetadata;
+          const size = state.baseMetadata
+            .dimensions
+            .map((d, i) => d * spacing[i])
+            .filter((_, i) => i !== view.getAxis());
+          resize2DCameraToFit(view, size);
+          view.renderLater();
+        });
     },
   },
 });
