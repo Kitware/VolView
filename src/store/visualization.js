@@ -172,7 +172,7 @@ export default (dependencies) => ({
           const { spacing } = state.baseMetadata;
           const size = state.baseMetadata
             .dimensions
-            .map((d, i) => d * spacing[i])
+            .map((d, i) => (d - 1) * spacing[i])
             .filter((_, i) => i !== view.getAxis());
           resize2DCameraToFit(view, size);
           view.renderLater();

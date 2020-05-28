@@ -58,7 +58,7 @@ export default {
         const { spacing } = this.baseMetadata;
         const size = this.baseMetadata
           .dimensions
-          .map((d, i) => d * spacing[i])
+          .map((d, i) => (d - 1) * spacing[i])
           .filter((_, i) => i !== this.axis);
 
         resize2DCameraToFit(this.view, size);
