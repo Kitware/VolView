@@ -330,6 +330,13 @@ export default {
     },
   },
 
+  proxyManagerHooks: {
+    onProxyModified() {
+      // auto-sync views
+      this.$proxyManager.autoAnimateViews();
+    },
+  },
+
   mounted() {
     const fileEl = document.createElement('input');
     fileEl.setAttribute('type', 'file');
