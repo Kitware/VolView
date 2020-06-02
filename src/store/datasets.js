@@ -176,27 +176,10 @@ export const makeActions = (dependencies) => ({
 
     commit('setBaseImage', baseImageId);
 
-    if (baseImageId !== NO_SELECTION) {
-      let imageData;
+    await dispatch('updateSceneLayers');
+    await dispatch('resetViews');
 
-      if (!(baseImageId in state.data.vtkCache)) {
-        if (state.data.index[baseImageId].type === DataTypes.Dicom) {
-          const { seriesKey } = state.data.index[baseImageId];
-          imageData = await dispatch('dicom/buildSeriesVolume', seriesKey);
-          commit('cacheDicomImage', {
-            seriesKey,
-            image: imageData,
-          });
-        } else {
-          throw new Error('selectBaseImage: no VTK data for selection');
-        }
-      } else {
-        imageData = state.data.vtkCache[baseImageId];
-      }
-
-      await dispatch('renderBaseImage', imageData);
-    } else {
-      await dispatch('renderEmptyBase');
-    }
+    const { proxyManager } = dependencies;
+    proxyManager.renderAllViews();
   },
 });

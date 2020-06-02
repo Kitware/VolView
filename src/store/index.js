@@ -16,6 +16,8 @@ export const initialState = () => ({
     index: {},
     imageIDs: [],
     dicomIDs: [],
+    modelIDs: [],
+    labelmapIDs: [],
     vtkCache: {},
   },
 

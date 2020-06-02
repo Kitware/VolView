@@ -27,7 +27,7 @@ export default {
   computed: {
     ...mapState({
       resizeToFit: (state) => state.visualization.resizeToFit,
-      baseMetadata: (state) => state.visualization.baseMetadata,
+      worldOrientation: (state) => state.visualization.worldOrientation,
     }),
   },
 
@@ -55,8 +55,8 @@ export default {
 
     tryResizingToFit() {
       if (this.view && this.resizeToFit) {
-        const { spacing } = this.baseMetadata;
-        const size = this.baseMetadata
+        const { spacing } = this.worldOrientation;
+        const size = this.worldOrientation
           .dimensions
           .map((d, i) => (d - 1) * spacing[i])
           .filter((_, i) => i !== this.axis);
