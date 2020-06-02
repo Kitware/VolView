@@ -23,6 +23,23 @@ export const mutations = {
   },
 
   /**
+   * Args: { image, name }
+   */
+  addModel(state, { name, model }) {
+    const id = state.data.nextID;
+    state.data.nextID += 1;
+    state.data.vtkCache[id] = model;
+    state.data.modelIDs.push(id);
+    state.data.index = {
+      ...state.data.index,
+      [id]: {
+        type: DataTypes.Model,
+        name,
+      },
+    };
+  },
+
+  /**
    * Args: { patientKey, studyKey, seriesKey }
    */
   addDicom(state, { patientKey, studyKey, seriesKey }) {
@@ -128,6 +145,11 @@ export const makeActions = (dependencies) => ({
               commit('addImage', {
                 name,
                 image: obj,
+              });
+            } else if (obj.isA('vtkPolyData')) {
+              commit('addModel', {
+                name,
+                model: obj,
               });
             }
           } else {

@@ -8,8 +8,10 @@ import vtkSourceProxy from 'vtk.js/Sources/Proxy/Core/SourceProxy';
 
 import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SliceRepresentationProxy';
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
+import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
 import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter/index';
+import vtkPolyDataTransformFilter from '@/src/vtk/PolyDataTransformFilter/index';
 
 function createProxyDefinition(
   classFactory,
@@ -29,6 +31,15 @@ function createDefaultView(classFactory, options, props) {
   return createProxyDefinition(classFactory, [], [], options, props);
 }
 
+function createProxyFilterDefinition(algoFactory, options, ui, links, props) {
+  const defOptions = {
+    algoFactory,
+    autoUpdate: true,
+    ...(options || {}),
+  };
+  return createProxyDefinition(vtkSourceProxy, ui, links, defOptions, props);
+}
+
 // ----------------------------------------------------------------------------
 
 export default {
@@ -41,16 +52,16 @@ export default {
     },
     Sources: {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
-      ImageTransform: {
-        class: vtkSourceProxy,
-        options: {
-          algoFactory: vtkImageTransformFilter,
-          autoUpdate: true,
-          proxyPropertyMapping: {
-            transform: { modelKey: 'algo', property: 'transform' },
-          },
+      PolyDataTransform: createProxyFilterDefinition(vtkPolyDataTransformFilter, {
+        proxyPropertyMapping: {
+          transform: { modelKey: 'algo', property: 'transform' },
         },
-      },
+      }),
+      ImageTransform: createProxyFilterDefinition(vtkImageTransformFilter, {
+        proxyPropertyMapping: {
+          transform: { modelKey: 'algo', property: 'transform' },
+        },
+      }),
     },
     Representations: {
       Volume: createProxyDefinition(
@@ -121,6 +132,10 @@ export default {
           },
         ],
       ),
+      Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
+      GeomSliceX: createProxyDefinition(vtkGeometryRepresentationProxy),
+      GeomSliceY: createProxyDefinition(vtkGeometryRepresentationProxy),
+      GeomSliceZ: createProxyDefinition(vtkGeometryRepresentationProxy),
     },
     Views: {
       View3D: createDefaultView(vtk3DView),
@@ -132,15 +147,19 @@ export default {
   representations: {
     View3D: {
       vtkImageData: { name: 'Volume' },
+      vtkPolyData: { name: 'Geometry' },
     },
     ViewX: {
       vtkImageData: { name: 'SliceX' },
+      vtkPolyData: { name: 'GeomSliceX' },
     },
     ViewY: {
       vtkImageData: { name: 'SliceY' },
+      vtkPolyData: { name: 'GeomSliceY' },
     },
     ViewZ: {
       vtkImageData: { name: 'SliceZ' },
+      vtkPolyData: { name: 'GeomSliceZ' },
     },
   },
 };
