@@ -160,9 +160,10 @@ export default (dependencies) => ({
           const obj = rootState.data.vtkCache[layers[i]];
           bbox.addBox(obj);
         }
+        bbox.inflate(5); // some extra padding
         commit('setWorldOrientation', {
           ...defaultWorldOrientation(),
-          bounds: bbox.getBounds(),
+          bounds: bbox.getLengths(),
         });
       }
 
