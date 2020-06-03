@@ -10,8 +10,9 @@ import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/Sl
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
-import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter/index';
-import vtkPolyDataTransformFilter from '@/src/vtk/PolyDataTransformFilter/index';
+import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
+import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter';
+import vtkPolyDataTransformFilter from '@/src/vtk/PolyDataTransformFilter';
 
 function createProxyDefinition(
   classFactory,
@@ -133,9 +134,42 @@ export default {
         ],
       ),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
-      GeomSliceX: createProxyDefinition(vtkGeometryRepresentationProxy),
-      GeomSliceY: createProxyDefinition(vtkGeometryRepresentationProxy),
-      GeomSliceZ: createProxyDefinition(vtkGeometryRepresentationProxy),
+      GeomSliceX: createProxyDefinition(
+        vtkCutGeometryRepresentationProxy,
+        [/* ui */],
+        [
+          {
+            link: 'SliceX',
+            property: 'slice',
+            updateOnBind: true,
+            type: 'application',
+          },
+        ],
+      ),
+      GeomSliceY: createProxyDefinition(
+        vtkCutGeometryRepresentationProxy,
+        [/* ui */],
+        [
+          {
+            link: 'SliceY',
+            property: 'slice',
+            updateOnBind: true,
+            type: 'application',
+          },
+        ],
+      ),
+      GeomSliceZ: createProxyDefinition(
+        vtkCutGeometryRepresentationProxy,
+        [/* ui */],
+        [
+          {
+            link: 'SliceZ',
+            property: 'slice',
+            updateOnBind: true,
+            type: 'application',
+          },
+        ],
+      ),
     },
     Views: {
       View3D: createDefaultView(vtk3DView),

@@ -38,10 +38,24 @@ function createVizPipelineFor(data, proxyManager) {
     },
   );
 
-  return {
+  const pipeline = {
     dataSource,
     transformFilter,
   };
+
+  if (data.isA('vtkPolyData')) {
+    const cutterFilter = proxyManager.createProxy(
+      'Sources',
+      'PolyDataCutter',
+      {
+        inputProxy: dataSource,
+      },
+    );
+    pipeline.transformFilter.setInputProxy(cutterFilter);
+    pipeline.cutterFilter = cutterFilter;
+  }
+
+  return pipeline;
 }
 
 export default (dependencies) => ({

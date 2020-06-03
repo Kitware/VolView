@@ -78,7 +78,7 @@
           </v-item-group>
         </div>
         <div class="d-flex flex-column flex-grow-1">
-          <template v-if="hasSelectedBaseImage">
+          <template v-if="hasData">
             <layout-grid :layout="layout" />
           </template>
           <template v-else>
@@ -201,7 +201,6 @@
 import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
-import { NO_SELECTION } from '@/src/constants';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -316,9 +315,11 @@ export default {
   }),
 
   computed: {
-    ...mapState(['selectedBaseImage']),
-    hasSelectedBaseImage() {
-      return this.selectedBaseImage !== NO_SELECTION;
+    ...mapState({
+      datasets: 'data',
+    }),
+    hasData() {
+      return Object.keys(this.datasets.index).length > 0;
     },
   },
 
