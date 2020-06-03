@@ -1,8 +1,18 @@
 import { isVtkObject } from 'vtk.js/Sources/macro';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
+import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
 import { addRepresentationsOf, removeRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
 import { DataTypes, NO_PROXY, NO_SELECTION } from '../constants';
+
+function defaultWorldOrientation() {
+  return {
+    bounds: [0, 0, 0],
+    spacing: [1, 1, 1],
+    // identity
+    worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+  };
+}
 
 function createVizPipelineFor(data, proxyManager) {
   let transformType = null;
@@ -42,12 +52,7 @@ export default (dependencies) => ({
       sourcePID: NO_PROXY,
       transformFilterPID: NO_PROXY,
     },
-    worldOrientation: {
-      dimensions: [0, 0, 0],
-      spacing: [1, 1, 1],
-      // identity
-      worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-    },
+    worldOrientation: defaultWorldOrientation(),
     // data ID -> pipeline
     pipelines: {},
     xSlice: 0,
@@ -69,8 +74,8 @@ export default (dependencies) => ({
       };
     },
 
-    setWorldOrientation(state, { dimensions, spacing, worldToIndex }) {
-      state.worldOrientation.dimensions = [...dimensions];
+    setWorldOrientation(state, { bounds, spacing, worldToIndex }) {
+      state.worldOrientation.bounds = [...bounds];
       state.worldOrientation.spacing = [...spacing];
       state.worldOrientation.worldToIndex = [...worldToIndex];
     },
@@ -123,21 +128,38 @@ export default (dependencies) => ({
           const pipeline = createVizPipelineFor(vtkObj, proxyManager);
           commit('setVizPipeline', { dataID, pipeline });
         }
+      });
 
-        if (rootState.selectedBaseImage !== NO_SELECTION) {
-          const image = rootState.data.vtkCache[rootState.selectedBaseImage];
-          commit('setWorldOrientation', {
-            dimensions: image.getDimensions(),
-            spacing: image.getSpacing(),
-            worldToIndex: [...image.getWorldToIndex()],
-          });
+      // Setting world orientation after processing layers ensures
+      // we have a vtk image for our base image
+      if (rootState.selectedBaseImage !== NO_SELECTION) {
+        const image = rootState.data.vtkCache[rootState.selectedBaseImage];
+        commit('setWorldOrientation', {
+          bounds: image.getDimensions(),
+          spacing: image.getSpacing(),
+          worldToIndex: [...image.getWorldToIndex()],
+        });
+      } else {
+        // set dimensions to be the max bounds of all layers
+        const bbox = vtkBoundingBox.newInstance();
+        for (let i = 0; i < layers.length; i += 1) {
+          const obj = rootState.data.vtkCache[layers[i]];
+          bbox.addBox(obj);
         }
+        commit('setWorldOrientation', {
+          ...defaultWorldOrientation(),
+          bounds: bbox.getBounds(),
+        });
+      }
 
-        const { transformFilter } = state.pipelines[dataID];
+      // now add layer representations
+      for (let i = 0; i < layers.length; i += 1) {
+        const layer = layers[i];
+        const { transformFilter } = state.pipelines[layer];
         transformFilter.setTransform(state.worldOrientation.worldToIndex);
 
         addRepresentationsOf(transformFilter, proxyManager);
-      });
+      }
     },
 
     /**
@@ -167,9 +189,8 @@ export default (dependencies) => ({
         addRepresentationsOf(transformFilter, proxyManager);
 
         commit('setBaseMetadata', {
-          dimensions: image.getDimensions(),
-          spacing: image.getSpacing(),
-          worldToIndex: [...image.getWorldToIndex()],
+          ...defaultWorldOrientation(),
+          bounds: image.getDimensions(),
         });
 
         await dispatch('resetViews');
@@ -232,7 +253,7 @@ export default (dependencies) => ({
         .forEach((view) => {
           const { spacing } = state.worldOrientation;
           const size = state.worldOrientation
-            .dimensions
+            .bounds
             .map((d, i) => (d - 1) * spacing[i])
             .filter((_, i) => i !== view.getAxis());
           resize2DCameraToFit(view, size);

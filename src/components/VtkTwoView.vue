@@ -57,7 +57,7 @@ export default {
       if (this.view && this.resizeToFit) {
         const { spacing } = this.worldOrientation;
         const size = this.worldOrientation
-          .dimensions
+          .bounds
           .map((d, i) => (d - 1) * spacing[i])
           .filter((_, i) => i !== this.axis);
 
