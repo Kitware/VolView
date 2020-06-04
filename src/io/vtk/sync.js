@@ -1,6 +1,6 @@
 import vtkXMLImageDataReader from 'vtk.js/Sources/IO/XML/XMLImageDataReader';
 import vtkXMLPolyDataReader from 'vtk.js/Sources/IO/XML/XMLPolyDataReader';
-import vtkTREReader from '@/src/vtk/vtkTREReader';
+import vtkTREReader from '@/src/vtk/TREReader';
 import readFile from './common';
 
 export async function VtkVtiReader(file) {

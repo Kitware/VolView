@@ -7,18 +7,11 @@ import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
 import { VaryRadius } from 'vtk.js/Sources/Filters/General/TubeFilter/Constants';
 import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
 
+import { zipObj } from '@/src/utils/common';
+
 const numRegex = /^[0-9]+?(\.[0-9]+?)?$/;
 const vecRegex = /^([0-9]+?(\.[0-9]+?)?(\s+|$)){2,}$/;
 const boolRegex = /^(true|false)$/i;
-
-function zipObj(keys, values) {
-  const obj = {};
-  const length = Math.min(keys.length, values.length);
-  for (let i = 0; i < length; i += 1) {
-    obj[keys[i]] = values[i];
-  }
-  return obj;
-}
 
 function centerlineToTube(centerline) {
   const pd = vtkPolyData.newInstance();
