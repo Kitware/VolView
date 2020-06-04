@@ -2,7 +2,9 @@ import { isVtkObject } from 'vtk.js/Sources/macro';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
-import { addRepresentationsOf, removeRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
+import {
+  addRepresentationsOf, removeRepresentationsOf, resize2DCameraToFit, removeAllRepresentations,
+} from '../vtk/proxyUtils';
 import { DataTypes, NO_PROXY, NO_SELECTION } from '../constants';
 
 const defaultWorldOrientation = () => ({
@@ -127,6 +129,8 @@ export default (dependencies) => ({
     }) {
       const { proxyManager } = dependencies;
       // TODO use coincident topology instead of rendering order
+      // We don't want to remove widget representations
+      removeAllRepresentations(proxyManager);
 
       const layers = [];
       if (rootState.selectedBaseImage !== NO_SELECTION) {
