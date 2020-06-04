@@ -5,14 +5,19 @@ import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 import { addRepresentationsOf, removeRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
 import { DataTypes, NO_PROXY, NO_SELECTION } from '../constants';
 
-function defaultWorldOrientation() {
-  return {
-    bounds: [0, 0, 0],
-    spacing: [1, 1, 1],
-    // identity
-    worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-  };
-}
+const defaultWorldOrientation = () => ({
+  bounds: [0, 0, 0],
+  spacing: [1, 1, 1],
+  // identity
+  worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+});
+
+const defaultWindowing = () => ({
+  level: 127,
+  window: 255,
+  min: 0,
+  max: 255,
+});
 
 function createVizPipelineFor(data, proxyManager) {
   let transformType = null;
@@ -72,6 +77,7 @@ export default (dependencies) => ({
     xSlice: 0,
     ySlice: 0,
     zSlice: 0,
+    window: defaultWindowing(),
     resizeToFit: true,
   },
 
@@ -98,6 +104,16 @@ export default (dependencies) => ({
       state.xSlice = x;
       state.ySlice = y;
       state.zSlice = z;
+    },
+
+    setWindowing(state, {
+      level, width, min, max,
+    }) {
+      const { window: w } = state;
+      w.level = level ?? w.level;
+      w.width = width ?? w.width;
+      w.min = min ?? w.min;
+      w.max = max ?? w.max;
     },
 
     setResizeToFit(state, yn) {
@@ -274,6 +290,23 @@ export default (dependencies) => ({
           resize2DCameraToFit(view, size);
           view.renderLater();
         });
+    },
+
+    // ===================
+    // ProxyManager events
+    // ===================
+
+    pxmProxyModified: {
+      root: true,
+      handler({ commit }, proxy) {
+        if (proxy.getWindowLevel && proxy.getWindowWidth) {
+          // ProxyManager will handle syncing windowing params to
+          // other proxies, so only record the current value here.
+          const level = proxy.getWindowLevel();
+          const width = proxy.getWindowWidth();
+          commit('setWindowing', { level, width });
+        }
+      },
     },
   },
 });
