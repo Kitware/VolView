@@ -274,7 +274,7 @@ void buildSeriesVolume( const std::string & seriesUID, const std::string & outFi
     SeriesReaderType::Pointer reader = SeriesReaderType::New();
     // this should be ordered from import
     reader->SetFileNames( fileNames );
-    reader->ForceOrthogonalDirectionOff();
+    // reader->ForceOrthogonalDirectionOn();
     // hopefully this makes things faster?
     reader->MetaDataDictionaryArrayUpdateOff();
     reader->UseStreamingOn();
