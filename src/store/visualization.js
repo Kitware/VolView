@@ -136,29 +136,31 @@ export default (dependencies) => ({
       layers.push(...rootState.data.labelmapIDs);
       layers.push(...rootState.data.modelIDs);
 
-      layers.forEach(async (dataID) => {
-        const dataInfo = rootState.data.index[dataID];
-        if (!(dataID in rootState.data.vtkCache)) {
-          switch (dataInfo.type) {
-            case DataTypes.Dicom: {
-              const { seriesKey } = dataInfo;
-              const image = await dispatch('dicom/buildSeriesVolume', seriesKey);
-              commit('cacheDicomImage', { seriesKey, image });
-              break;
+      await Promise.all(
+        layers.map(async (dataID) => {
+          const dataInfo = rootState.data.index[dataID];
+          if (!(dataID in rootState.data.vtkCache)) {
+            switch (dataInfo.type) {
+              case DataTypes.Dicom: {
+                const { seriesKey } = dataInfo;
+                const image = await dispatch('dicom/buildSeriesVolume', seriesKey);
+                commit('cacheDicomImage', { seriesKey, image });
+                break;
+              }
+              default:
+                throw new Error(
+                  `updateSceneLayers: Item ${dataID} has no vtk data`,
+                );
             }
-            default:
-              throw new Error(
-                `updateSceneLayers: Item ${dataID} has no vtk data`,
-              );
           }
-        }
 
-        if (!(dataID in state.pipelines)) {
-          const vtkObj = rootState.data.vtkCache[dataID];
-          const pipeline = createVizPipelineFor(vtkObj, proxyManager);
-          commit('setVizPipeline', { dataID, pipeline });
-        }
-      });
+          if (!(dataID in state.pipelines)) {
+            const vtkObj = rootState.data.vtkCache[dataID];
+            const pipeline = createVizPipelineFor(vtkObj, proxyManager);
+            commit('setVizPipeline', { dataID, pipeline });
+          }
+        }),
+      );
 
       // Setting world orientation after processing layers ensures
       // we have a vtk image for our base image

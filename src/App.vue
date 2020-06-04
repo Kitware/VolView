@@ -259,11 +259,20 @@ export default {
       fileLoading: [],
     },
 
-    // initial four-up layout
     layout: [
-      'H',
+      'V',
+      {
+        comp: VtkTwoView,
+        props: {
+          viewType: 'ViewZ',
+          viewName: 'Z:1',
+          axis: 2,
+          orientation: -1,
+          viewUp: [0, -1, 0],
+        },
+      },
       [
-        'V',
+        'H',
         {
           comp: VtkTwoView,
           props: {
@@ -282,19 +291,6 @@ export default {
             axis: 1,
             orientation: -1,
             viewUp: [0, 0, 1],
-          },
-        },
-      ],
-      [
-        'V',
-        {
-          comp: VtkTwoView,
-          props: {
-            viewType: 'ViewZ',
-            viewName: 'Z:1',
-            axis: 2,
-            orientation: -1,
-            viewUp: [0, -1, 0],
           },
         },
         {
@@ -317,6 +313,8 @@ export default {
   computed: {
     ...mapState({
       datasets: 'data',
+      availableBaseDatasets:
+        ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
     }),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
@@ -365,6 +363,8 @@ export default {
         text: 'Loading...',
       });
 
+      const hadBaseImagesBefore = !!this.availableBaseDatasets.length;
+
       const actions = [
         {
           text: 'details',
@@ -403,6 +403,14 @@ export default {
         // TODO only close if there are no pending files
         this.$notify.close('loading');
       }
+
+      // static analysis will make this look weird,
+      // since availableBaseDatasets is a computed prop
+      if (!hadBaseImagesBefore && !!this.availableBaseDatasets) {
+        // select the first image or dicom
+        const id = this.availableBaseDatasets[0];
+        this.selectBaseImage(id);
+      }
     },
 
     clearAndCloseErrors() {
@@ -411,7 +419,7 @@ export default {
       this.errors.actionErrors = [];
     },
 
-    ...mapActions(['loadFiles']),
+    ...mapActions(['loadFiles', 'selectBaseImage']),
   },
 };
 </script>
