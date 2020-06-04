@@ -244,8 +244,16 @@ export default (dependencies) => ({
       }
     },
 
-    async resetViews({ dispatch }) {
-      await dispatch('applySlices', [0, 0, 0]);
+    async resetViews({ state, rootState, dispatch }) {
+      if (rootState.selectedBaseImage !== NO_SELECTION) {
+        await dispatch('applySlices', [0, 0, 0]);
+      } else {
+        // pick middle of bounds
+        const center = state.worldOrientation
+          .bounds
+          .map((b) => Math.floor(b / 2));
+        await dispatch('applySlices', center);
+      }
       await dispatch('setResizeToFit', true);
     },
 
