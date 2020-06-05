@@ -1,11 +1,10 @@
-import { isVtkObject } from 'vtk.js/Sources/macro';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
 import {
-  addRepresentationsOf, removeRepresentationsOf, resize2DCameraToFit, removeAllRepresentations,
+  addRepresentationsOf, resize2DCameraToFit, removeAllRepresentations,
 } from '../vtk/proxyUtils';
-import { DataTypes, NO_PROXY, NO_SELECTION } from '../constants';
+import { DataTypes, NO_SELECTION } from '../constants';
 
 const defaultWorldOrientation = () => ({
   bounds: [0, 0, 0],
@@ -69,10 +68,6 @@ export default (dependencies) => ({
   namespaced: false,
 
   state: {
-    basePipeline: {
-      sourcePID: NO_PROXY,
-      transformFilterPID: NO_PROXY,
-    },
     worldOrientation: defaultWorldOrientation(),
     // data ID -> pipeline
     pipelines: {},
@@ -84,11 +79,6 @@ export default (dependencies) => ({
   },
 
   mutations: {
-    setBasePipeline(state, { sourcePID, transformFilterPID }) {
-      state.basePipeline.sourcePID = sourcePID;
-      state.basePipeline.transformFilterPID = transformFilterPID;
-    },
-
     setVizPipeline(state, { dataID, pipeline }) {
       state.pipelines = {
         ...state.pipelines,
@@ -125,20 +115,14 @@ export default (dependencies) => ({
 
   actions: {
     async updateSceneLayers({
-      dispatch, commit, state, rootState,
+      dispatch, commit, state, rootState, rootGetters,
     }) {
       const { proxyManager } = dependencies;
       // TODO use coincident topology instead of rendering order
       // We don't want to remove widget representations
       removeAllRepresentations(proxyManager);
 
-      const layers = [];
-      if (rootState.selectedBaseImage !== NO_SELECTION) {
-        layers.push(rootState.selectedBaseImage);
-      }
-
-      layers.push(...rootState.data.labelmapIDs);
-      layers.push(...rootState.data.modelIDs);
+      const layers = rootGetters.layerOrder;
 
       await Promise.all(
         layers.map(async (dataID) => {
@@ -199,55 +183,6 @@ export default (dependencies) => ({
       }
     },
 
-    /**
-     * Updates the rendering pipeline.
-     */
-    async renderBaseImage({ dispatch, state, commit }, image) {
-      const { proxyManager } = dependencies;
-
-      if (isVtkObject(image) && image.isA('vtkImageData')) {
-        if (state.basePipeline.sourcePID === NO_PROXY) {
-          const { dataSource, transformFilter } = createVizPipelineFor(
-            image,
-            proxyManager,
-          );
-          commit('setBasePipeline', {
-            sourcePID: dataSource.getProxyId(),
-            transformFilterPID: transformFilter.getProxyId(),
-          });
-        }
-
-        const { sourcePID, transformFilterPID } = state.basePipeline;
-        const source = proxyManager.getProxyById(sourcePID);
-        const transformFilter = proxyManager.getProxyById(transformFilterPID);
-
-        source.setInputData(image);
-        transformFilter.setTransform(image.getWorldToIndex());
-        addRepresentationsOf(transformFilter, proxyManager);
-
-        commit('setBaseMetadata', {
-          ...defaultWorldOrientation(),
-          bounds: image.getDimensions(),
-        });
-
-        await dispatch('resetViews');
-
-        // TODO update all other layers
-
-        proxyManager.renderAllViews();
-      }
-    },
-
-    renderEmptyBase({ state }) {
-      if (state.basePipeline.sourcePID !== NO_PROXY) {
-        const { proxyManager } = dependencies;
-        // detach representations
-        const { transformFilterPID } = state.basePipeline;
-        const transformFilter = proxyManager.getProxyById(transformFilterPID);
-        removeRepresentationsOf(transformFilter, proxyManager);
-      }
-    },
-
     async resetViews({ state, rootState, dispatch }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
         await dispatch('applySlices', [0, 0, 0]);
@@ -261,25 +196,28 @@ export default (dependencies) => ({
       await dispatch('setResizeToFit', true);
     },
 
-    applySlices({ commit, state }, slices) {
+    applySlices({ commit, state, rootGetters }, slices) {
       commit('setSlices', slices);
 
-      const { proxyManager } = dependencies;
-      const source = proxyManager.getProxyById(
-        state.basePipeline.transformFilterPID,
-      );
-      if (source) {
-        proxyManager
-          .getViews()
-          .filter((view) => view.isA('vtkView2DProxy'))
-          .forEach((view) => {
-            const rep = proxyManager.getRepresentation(source, view);
-            if (rep.isA('vtkSliceRepresentationProxy')) {
-              const mode = rep.getSlicingMode();
-              const slicingIndex = vtkImageMapper.SlicingMode[mode] % 3;
-              rep.setSlice(slices[slicingIndex]);
-            }
-          });
+      // pick one slice representation proxy. It will sync with all other slice proxies.
+      const layers = rootGetters.layerOrder;
+      if (layers.length) {
+        const firstData = layers[0];
+        const { transformFilter } = state.pipelines[firstData];
+        if (transformFilter) {
+          const { proxyManager } = dependencies;
+          proxyManager
+            .getViews()
+            .filter((view) => view.isA('vtkView2DProxy'))
+            .forEach((view) => {
+              const rep = proxyManager.getRepresentation(transformFilter, view);
+              if (rep.getSlicingMode && rep.setSlice) {
+                const mode = rep.getSlicingMode();
+                const slicingIndex = vtkImageMapper.SlicingMode[mode] % 3;
+                rep.setSlice(slices[slicingIndex]);
+              }
+            });
+        }
       }
     },
 

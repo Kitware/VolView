@@ -34,6 +34,17 @@ export default (deps) => new Vuex.Store({
 
   state: initialState(),
 
+  getters: {
+    layerOrder(state) {
+      const { selectedBaseImage, data } = state;
+      const layers = [].concat(data.labelmapIDs, data.modelIDs);
+      if (selectedBaseImage !== NO_SELECTION) {
+        layers.unshift(selectedBaseImage);
+      }
+      return layers;
+    },
+  },
+
   mutations: {
     ...datasets.mutations,
   },
