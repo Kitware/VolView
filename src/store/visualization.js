@@ -15,7 +15,7 @@ const defaultWorldOrientation = () => ({
 
 const defaultWindowing = () => ({
   level: 127,
-  window: 255,
+  width: 255,
   min: 0,
   max: 255,
 });
@@ -154,10 +154,21 @@ export default (dependencies) => ({
       // we have a vtk image for our base image
       if (rootState.selectedBaseImage !== NO_SELECTION) {
         const image = rootState.data.vtkCache[rootState.selectedBaseImage];
+        // vtkImageData scalars define our data. Hope we don't ever
+        // have to deal with vector images here...
+        const dataArray = image.getPointData().getScalars();
+        const [dataMin, dataMax] = dataArray.getRange();
+
         commit('setWorldOrientation', {
           bounds: image.getDimensions(),
           spacing: image.getSpacing(),
           worldToIndex: [...image.getWorldToIndex()],
+        });
+        commit('setWindowing', {
+          min: dataMin,
+          max: dataMax,
+          width: dataMax - dataMin,
+          level: (dataMax + dataMin) / 2,
         });
       } else {
         // set dimensions to be the max bounds of all layers
@@ -199,7 +210,8 @@ export default (dependencies) => ({
     applySlices({ commit, state, rootGetters }, slices) {
       commit('setSlices', slices);
 
-      // pick one slice representation proxy. It will sync with all other slice proxies.
+      // set first slice of each 2D view
+      // proxy manager will propagate slice to all other slices in view
       const layers = rootGetters.layerOrder;
       if (layers.length) {
         const firstData = layers[0];
@@ -225,6 +237,28 @@ export default (dependencies) => ({
       commit('setResizeToFit', yn);
       if (yn) {
         await dispatch('resizeAllCamerasToFit');
+      }
+    },
+
+    setWindowing({ state, commit, rootState }, params) {
+      commit('setWindowing', params);
+
+      // only set windowing on base image
+      if (rootState.selectedBaseImage !== NO_SELECTION) {
+        const { transformFilter } = state.pipelines[rootState.selectedBaseImage];
+        if (transformFilter) {
+          const { proxyManager } = dependencies;
+          const view2D = proxyManager.getViews().find((v) => v.isA('vtkView2DProxy'));
+          if (view2D) {
+            const rep = proxyManager.getRepresentation(transformFilter, view2D);
+            if (rep.setWindowWidth) {
+              rep.setWindowWidth(state.window.width);
+            }
+            if (rep.setWindowLevel) {
+              rep.setWindowLevel(state.window.level);
+            }
+          }
+        }
       }
     },
 

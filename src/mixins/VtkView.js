@@ -53,6 +53,8 @@ export default {
 
   beforeDestroy() {
     this.$eventBus.$off('resize', this.resizeLater);
+    this.view = null;
+    this.remountView();
   },
 
   methods: {

@@ -14,7 +14,9 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapState, mapActions } from 'vuex';
+
+import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
 
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
@@ -28,11 +30,18 @@ export default {
     ...mapState({
       resizeToFit: (state) => state.visualization.resizeToFit,
       worldOrientation: (state) => state.visualization.worldOrientation,
+      windowing: (state) => state.visualization.window,
     }),
   },
 
-  mounted() {
+  created() {
     this.resizeListener = null;
+    this.rangeManipulator = vtkMouseRangeManipulator.newInstance({
+      button: 1,
+      scrollEnabled: true,
+    });
+
+    this.updateRangeManipulator();
   },
 
   beforeDestroy() {
@@ -51,6 +60,7 @@ export default {
 
     afterViewMount() {
       this.resizeListener = this.view.onResize(this.tryResizingToFit);
+      this.setupInteraction();
     },
 
     tryResizingToFit() {
@@ -64,6 +74,46 @@ export default {
         resize2DCameraToFit(this.view, size);
       }
     },
+
+    updateRangeManipulator() {
+      this.rangeManipulator.removeAllListeners();
+
+      // window width
+      this.rangeManipulator.setVerticalListener(
+        0,
+        this.windowing.max - this.windowing.min,
+        1 / 512,
+        () => this.windowing.width,
+        (w) => this.setWindowWidth(w),
+      );
+
+      // window level
+      this.rangeManipulator.setHorizontalListener(
+        this.windowing.min,
+        this.windowing.max,
+        1 / 512,
+        () => this.windowing.level,
+        (l) => this.setWindowLevel(l),
+      );
+    },
+
+    setupInteraction() {
+      const istyle = this.view.getInteractorStyle2D();
+      // create our own set of manipulators
+      istyle.removeAllMouseManipulators();
+      istyle.removeAllKeyboardManipulators();
+      istyle.addMouseManipulator(this.rangeManipulator);
+    },
+
+    setWindowWidth(width) {
+      this.setWindowing({ width });
+    },
+
+    setWindowLevel(level) {
+      this.setWindowing({ level });
+    },
+
+    ...mapActions(['setWindowing']),
   },
 };
 </script>
