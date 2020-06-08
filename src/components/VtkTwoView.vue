@@ -31,7 +31,15 @@ export default {
       resizeToFit: (state) => state.visualization.resizeToFit,
       worldOrientation: (state) => state.visualization.worldOrientation,
       windowing: (state) => state.visualization.window,
+      slices: (state) => state.visualization.slices,
     }),
+  },
+
+  watch: {
+    worldOrientation() {
+      // update slicing whenever world orientation changes
+      this.updateRangeManipulator();
+    },
   },
 
   created() {
@@ -95,6 +103,17 @@ export default {
         () => this.windowing.level,
         (l) => this.setWindowLevel(l),
       );
+
+      // slicing
+      const axialBounds = this.worldOrientation.bounds[this.axis];
+      const axialSpacing = this.worldOrientation.spacing[this.axis];
+      this.rangeManipulator.setScrollListener(
+        0,
+        axialBounds * axialSpacing,
+        axialSpacing,
+        () => this.slices['xyz'[this.axis]],
+        (s) => this.setSlice(s),
+      );
     },
 
     setupInteraction() {
@@ -113,7 +132,13 @@ export default {
       this.setWindowing({ level });
     },
 
-    ...mapActions(['setWindowing']),
+    setSlice(slice) {
+      this.setSlices({
+        ['xyz'[this.axis]]: slice,
+      });
+    },
+
+    ...mapActions(['setWindowing', 'setSlices']),
   },
 };
 </script>

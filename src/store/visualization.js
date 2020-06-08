@@ -20,6 +20,12 @@ const defaultWindowing = () => ({
   max: 255,
 });
 
+const defaultSlicing = () => ({
+  x: 0,
+  y: 0,
+  z: 0,
+});
+
 function createVizPipelineFor(data, proxyManager) {
   let transformType = null;
   if (data.isA('vtkImageData')) {
@@ -71,9 +77,7 @@ export default (dependencies) => ({
     worldOrientation: defaultWorldOrientation(),
     // data ID -> pipeline
     pipelines: {},
-    xSlice: 0,
-    ySlice: 0,
-    zSlice: 0,
+    slices: defaultSlicing(),
     window: defaultWindowing(),
     resizeToFit: true,
   },
@@ -87,15 +91,20 @@ export default (dependencies) => ({
     },
 
     setWorldOrientation(state, { bounds, spacing, worldToIndex }) {
-      state.worldOrientation.bounds = [...bounds];
-      state.worldOrientation.spacing = [...spacing];
-      state.worldOrientation.worldToIndex = [...worldToIndex];
+      state.worldOrientation = {
+        bounds: [...bounds],
+        spacing: [...spacing],
+        worldToIndex: [...worldToIndex],
+      };
     },
 
-    setSlices(state, [x = 0, y = 0, z = 0]) {
-      state.xSlice = x;
-      state.ySlice = y;
-      state.zSlice = z;
+    setSlices(state, { x, y, z }) {
+      const { slices: s } = state;
+      state.slices = {
+        x: x ?? s.x,
+        y: y ?? s.y,
+        z: z ?? s.z,
+      };
     },
 
     setWindowing(state, {
@@ -182,6 +191,7 @@ export default (dependencies) => ({
           ...defaultWorldOrientation(),
           bounds: bbox.getLengths(),
         });
+        commit('setWindowing', defaultWindowing());
       }
 
       // now add layer representations
@@ -196,18 +206,22 @@ export default (dependencies) => ({
 
     async resetViews({ state, rootState, dispatch }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
-        await dispatch('applySlices', [0, 0, 0]);
+        await dispatch('setSlices', defaultSlicing());
       } else {
         // pick middle of bounds
         const center = state.worldOrientation
           .bounds
           .map((b) => Math.floor(b / 2));
-        await dispatch('applySlices', center);
+        await dispatch('setSlices', {
+          x: center[0],
+          y: center[1],
+          z: center[2],
+        });
       }
       await dispatch('setResizeToFit', true);
     },
 
-    applySlices({ commit, state, rootGetters }, slices) {
+    setSlices({ commit, state, rootGetters }, slices) {
       commit('setSlices', slices);
 
       // set first slice of each 2D view
@@ -225,8 +239,8 @@ export default (dependencies) => ({
               const rep = proxyManager.getRepresentation(transformFilter, view);
               if (rep.getSlicingMode && rep.setSlice) {
                 const mode = rep.getSlicingMode();
-                const slicingIndex = vtkImageMapper.SlicingMode[mode] % 3;
-                rep.setSlice(slices[slicingIndex]);
+                const sliceName = 'xyz'[vtkImageMapper.SlicingMode[mode] % 3];
+                rep.setSlice(state.slices[sliceName]);
               }
             });
         }
