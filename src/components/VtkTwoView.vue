@@ -17,6 +17,7 @@
 import { mapState, mapActions } from 'vuex';
 
 import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
+import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
 
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
@@ -118,9 +119,18 @@ export default {
 
     setupInteraction() {
       const istyle = this.view.getInteractorStyle2D();
+
+      // removes all manipulators
+      InteractionPresets.applyDefinitions(
+        [
+          { type: 'pan', options: { shift: true } },
+          { type: 'zoom', options: { control: true } },
+          { type: 'zoom', options: { button: 3 } },
+        ],
+        istyle,
+      );
+
       // create our own set of manipulators
-      istyle.removeAllMouseManipulators();
-      istyle.removeAllKeyboardManipulators();
       istyle.addMouseManipulator(this.rangeManipulator);
     },
 
