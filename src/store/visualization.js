@@ -1,3 +1,4 @@
+import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
@@ -128,8 +129,15 @@ export default (dependencies) => ({
       dispatch, commit, state, rootState, rootGetters,
     }) {
       const { proxyManager } = dependencies;
-      // TODO use coincident topology instead of rendering order
-      // We don't want to remove widget representations
+      // polys and lines in the front
+      vtkMapper.setResolveCoincidentTopologyToPolygonOffset();
+      vtkMapper.setResolveCoincidentTopologyPolygonOffsetParameters(-1, -1);
+      vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-1, -1);
+      // image poly in the back
+      vtkImageMapper.setResolveCoincidentTopologyToPolygonOffset();
+      vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
+
+      // TODO avoid removing widget reps
       removeAllRepresentations(proxyManager);
 
       const layers = rootGetters.layerOrder;
