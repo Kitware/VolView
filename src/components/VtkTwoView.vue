@@ -41,6 +41,9 @@ export default {
       // update slicing whenever world orientation changes
       this.updateRangeManipulator();
     },
+    resizeToFit() {
+      this.resizeCameraToFit();
+    },
   },
 
   created() {
@@ -68,19 +71,14 @@ export default {
     },
 
     afterViewMount() {
-      this.resizeListener = this.view.onResize(this.tryResizingToFit);
+      this.resizeListener = this.view.onResize(() => this.resizeCameraToFit());
       this.setupInteraction();
     },
 
-    tryResizingToFit() {
+    resizeCameraToFit() {
       if (this.view && this.resizeToFit) {
-        const { spacing } = this.worldOrientation;
-        const size = this.worldOrientation
-          .bounds
-          .map((d, i) => (d - 1) * spacing[i])
-          .filter((_, i) => i !== this.axis);
-
-        resize2DCameraToFit(this.view, size);
+        const { bounds } = this.worldOrientation;
+        resize2DCameraToFit(this.view, bounds);
       }
     },
 
@@ -106,12 +104,15 @@ export default {
       );
 
       // slicing
-      const axialBounds = this.worldOrientation.bounds[this.axis];
-      const axialSpacing = this.worldOrientation.spacing[this.axis];
+      const { spacing, bounds } = this.worldOrientation;
+      const [min, max] = [
+        bounds[this.axis * 2],
+        bounds[this.axis * 2 + 1],
+      ];
       this.rangeManipulator.setScrollListener(
-        0,
-        axialBounds * axialSpacing,
-        axialSpacing,
+        min,
+        max,
+        spacing[this.axis],
         () => this.slices['xyz'[this.axis]],
         (s) => this.setSlice(s),
       );

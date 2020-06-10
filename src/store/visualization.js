@@ -7,7 +7,8 @@ import {
 import { DataTypes, NO_SELECTION } from '../constants';
 
 const defaultWorldOrientation = () => ({
-  bounds: [0, 0, 0],
+  // this is real-world bounds, minus rotation
+  bounds: [0, 1, 0, 1, 0, 1],
   spacing: [1, 1, 1],
   // identity
   worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
@@ -168,9 +169,10 @@ export default (dependencies) => ({
         const dataArray = image.getPointData().getScalars();
         const [dataMin, dataMax] = dataArray.getRange();
 
+        const spacing = image.getSpacing();
         commit('setWorldOrientation', {
-          bounds: image.getDimensions(),
-          spacing: image.getSpacing(),
+          bounds: image.getExtent().map((e, i) => e * spacing[i % 2]),
+          spacing,
           worldToIndex: [...image.getWorldToIndex()],
         });
         commit('setWindowing', {
@@ -187,9 +189,10 @@ export default (dependencies) => ({
           bbox.addBox(obj);
         }
         bbox.inflate(5); // some extra padding
+        // Without a base image, we assume a spacing of 1.
         commit('setWorldOrientation', {
           ...defaultWorldOrientation(),
-          bounds: bbox.getLengths(),
+          bounds: bbox.getBounds(),
         });
         commit('setWindowing', defaultWindowing());
       }
@@ -206,18 +209,38 @@ export default (dependencies) => ({
 
     async resetViews({ state, rootState, dispatch }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
-        await dispatch('setSlices', defaultSlicing());
+        const { bounds } = state.worldOrientation;
+        await dispatch('setSlices', {
+          x: bounds[0],
+          y: bounds[1],
+          z: bounds[2],
+        });
       } else {
         // pick middle of bounds
-        const center = state.worldOrientation
-          .bounds
-          .map((b) => Math.floor(b / 2));
+        const { bounds } = state.worldOrientation;
+        const center = [
+          (bounds[0] + bounds[1]) / 2,
+          (bounds[2] + bounds[3]) / 2,
+          (bounds[4] + bounds[5]) / 2,
+        ];
         await dispatch('setSlices', {
           x: center[0],
           y: center[1],
           z: center[2],
         });
       }
+
+      const { proxyManager } = dependencies;
+
+      proxyManager
+        .getViews()
+        .forEach((view) => {
+          const { bounds } = state.worldOrientation;
+          const renderer = view.getRenderer();
+          renderer.computeVisiblePropBounds();
+          renderer.resetCamera(bounds);
+        });
+
       await dispatch('setResizeToFit', true);
     },
 
@@ -282,13 +305,8 @@ export default (dependencies) => ({
         .getViews()
         .filter((view) => view.isA('vtkView2DProxy'))
         .forEach((view) => {
-          const { spacing } = state.worldOrientation;
-          const size = state.worldOrientation
-            .bounds
-            .map((d, i) => (d - 1) * spacing[i])
-            .filter((_, i) => i !== view.getAxis());
-          resize2DCameraToFit(view, size);
-          view.renderLater();
+          const { bounds } = state.worldOrientation;
+          resize2DCameraToFit(view, bounds);
         });
     },
 

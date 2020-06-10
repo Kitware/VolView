@@ -76,13 +76,29 @@ export function renderProxies(proxyManager, proxies) {
 /**
  * Sets parallel scale of 2D view camera to fit a given bounds.
  *
+ * Assumes the camera is reset, i.e. focused correctly.
+ *
  * Bounds is specified as width/height of orthographic view.
  * Renders must be triggered manually.
  */
 export function resize2DCameraToFit(view, bounds) {
   const camera = view.getCamera();
+  const axis = view.getAxis();
+  const lengths = [
+    bounds[1] - bounds[0],
+    bounds[3] - bounds[2],
+    bounds[5] - bounds[4],
+  ];
   const [w, h] = view.getOpenglRenderWindow().getSize();
-  const [bw, bh] = bounds;
+  let bw;
+  let bh;
+  if (axis === 0 || axis === 2) {
+    bw = lengths[(axis + 1) % 3];
+    bh = lengths[(axis + 2) % 3];
+  } else {
+    bw = lengths[(axis + 2) % 3];
+    bh = lengths[(axis + 1) % 3];
+  }
   const viewAspect = w / h;
   const boundsAspect = bw / bh;
 
@@ -93,6 +109,16 @@ export function resize2DCameraToFit(view, bounds) {
     scale = bw / 2 / viewAspect;
   }
 
-  view.resetCamera();
   camera.setParallelScale(scale);
+}
+
+/**
+ * A substitute for proxyManager.renderAllViews()
+ *
+ * This does not reset clipping range.
+ */
+export function renderAllViews(proxyManager) {
+  proxyManager
+    .getViews()
+    .forEach((view) => view.getRenderWindow().render());
 }

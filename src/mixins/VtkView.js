@@ -84,13 +84,12 @@ export default {
         this.view.getRenderer().setBackground(0, 0, 0);
         this.updateCamera();
 
-        this.afterViewMount();
-
         // let vue rendering settle before resizing canvas
         this.$nextTick(() => {
           this.onResize();
           this.resetCamera();
           this.view.renderLater();
+          this.afterViewMount();
         });
       }
     },
@@ -107,7 +106,19 @@ export default {
 
     onResize() {
       if (this.view) {
-        this.view.resize();
+        // re-implemented from ViewProxy, since we don't
+        // want camera reset from view.renderLater()
+        const container = this.view.getContainer();
+        const glrw = this.view.getOpenglRenderWindow();
+        const dims = container.getBoundingClientRect();
+        if (dims.width > 0 && dims.height > 0) {
+          const pixelRatio = window.devicePixelRatio ?? 1;
+          const width = Math.max(10, Math.floor(pixelRatio * dims.width));
+          const height = Math.max(10, Math.floor(pixelRatio * dims.height));
+          glrw.setSize(width, height);
+          this.view.invokeResize({ width, height });
+          this.view.getRenderWindow().render();
+        }
       }
     },
 
