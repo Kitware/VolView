@@ -148,27 +148,7 @@ describe('Datasets module', () => {
 
     it('selectBaseImage selects a valid ID', async () => {
       await actions.selectBaseImage(context, 100);
-
       expect(context.commit).to.have.been.calledWith('setBaseImage', 100);
-      expect(context.commit).to.have.been.calledWith('setBaseMetadata');
-    });
-
-    it('selectBaseImage selects a dicom ID', async () => {
-      const dummyData = vtkImageData.newInstance();
-      context.dispatch = sinon.stub()
-        .withArgs('dicom/buildSeriesVolume', 'series1')
-        .returns(dummyData);
-
-      await actions.selectBaseImage(context, 101);
-
-      expect(context.commit).to.have.been.calledWith('setBaseImage', 101);
-      expect(context.commit).to.have.been.calledWith('cacheDicomImage', {
-        seriesKey: 'series1',
-        image: dummyData,
-      });
-      expect(context.commit).to.have.been.calledWith('setBaseMetadata');
-      expect(context.dispatch)
-        .to.have.been.calledWith('dicom/buildSeriesVolume', 'series1');
     });
 
     it('selectBaseImage rejects invalid IDs', async () => {
