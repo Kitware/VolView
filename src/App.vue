@@ -205,6 +205,7 @@ import { createFourUpViews, renderAllViews } from '@/src/vtk/proxyUtils';
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import VtkTwoView from './components/VtkTwoView.vue';
+import VtkThreeView from './components/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
@@ -294,13 +295,13 @@ export default {
           },
         },
         {
-          comp: VtkTwoView,
+          comp: VtkThreeView,
           props: {
-            viewType: 'ViewY',
-            viewName: 'Y:2',
-            axis: 1,
+            viewType: 'View3D',
+            viewName: '3D:1',
+            axis: 2,
             orientation: -1,
-            viewUp: [0, 0, 1],
+            viewUp: [0, -1, 0],
           },
         },
       ],

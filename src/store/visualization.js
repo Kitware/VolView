@@ -243,10 +243,15 @@ export default (dependencies) => ({
       proxyManager
         .getViews()
         .forEach((view) => {
-          const { bounds } = state.worldOrientation;
-          const renderer = view.getRenderer();
-          renderer.computeVisiblePropBounds();
-          renderer.resetCamera(bounds);
+          if (view.isA('vtkView2DProxy')) {
+            const { bounds } = state.worldOrientation;
+            const renderer = view.getRenderer();
+            renderer.computeVisiblePropBounds();
+            renderer.resetCamera(bounds);
+          } else {
+            // 3D views
+            view.resetCamera();
+          }
         });
 
       await dispatch('setResizeToFit', true);
