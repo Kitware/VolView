@@ -200,7 +200,7 @@
 <script>
 import { mapActions, mapState } from 'vuex';
 
-import { createFourUpViews } from '@/src/vtk/proxyUtils';
+import { createFourUpViews, renderAllViews } from '@/src/vtk/proxyUtils';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -406,11 +406,15 @@ export default {
 
       // static analysis will make this look weird,
       // since availableBaseDatasets is a computed prop
-      if (!hadBaseImagesBefore && !!this.availableBaseDatasets) {
+      if (!hadBaseImagesBefore && this.availableBaseDatasets.length) {
         // select the first image or dicom
         const id = this.availableBaseDatasets[0];
         this.selectBaseImage(id);
       }
+
+      await this.updateSceneLayers();
+      await this.resetViews();
+      renderAllViews(this.$proxyManager);
     },
 
     clearAndCloseErrors() {
@@ -419,7 +423,12 @@ export default {
       this.errors.actionErrors = [];
     },
 
-    ...mapActions(['loadFiles', 'selectBaseImage']),
+    ...mapActions([
+      'loadFiles',
+      'selectBaseImage',
+      'updateSceneLayers',
+      'resetViews',
+    ]),
   },
 };
 </script>

@@ -185,7 +185,7 @@ export const makeActions = (dependencies) => ({
    * If the dataset is not an image or NO_SELECTION,
    * then the selection will be cleared.
    */
-  async selectBaseImage({ state, dispatch, commit }, id) {
+  async selectBaseImage({ state, commit }, id) {
     let baseImageId = NO_SELECTION;
     if (
       id in state.data.index && (
@@ -195,13 +195,6 @@ export const makeActions = (dependencies) => ({
     ) {
       baseImageId = id;
     }
-
     commit('setBaseImage', baseImageId);
-
-    await dispatch('updateSceneLayers');
-    await dispatch('resetViews');
-
-    const { proxyManager } = dependencies;
-    proxyManager.renderAllViews();
   },
 });
