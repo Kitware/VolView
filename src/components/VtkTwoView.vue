@@ -22,7 +22,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapGetters, mapActions } from 'vuex';
 
 import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
 import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
@@ -48,16 +48,17 @@ export default {
       windowing: (state) => state.visualization.window,
       slices: (state) => state.visualization.slices,
     }),
+    ...mapGetters(['worldBounds']),
     slice() {
       return this.slices['xyz'[this.axis]];
     },
     sliceMin() {
-      const { bounds } = this.worldOrientation;
-      return bounds[this.axis * 2];
+      const { spacing, bounds } = this.worldOrientation;
+      return bounds[this.axis * 2] * spacing[this.axis];
     },
     sliceMax() {
-      const { bounds } = this.worldOrientation;
-      return bounds[this.axis * 2 + 1];
+      const { spacing, bounds } = this.worldOrientation;
+      return bounds[this.axis * 2 + 1] * spacing[this.axis];
     },
   },
 
@@ -102,8 +103,7 @@ export default {
 
     resizeCameraToFit() {
       if (this.view && this.resizeToFit) {
-        const { bounds } = this.worldOrientation;
-        resize2DCameraToFit(this.view, bounds);
+        resize2DCameraToFit(this.view, this.worldBounds);
       }
     },
 
@@ -130,10 +130,11 @@ export default {
 
       // slicing
       const { spacing } = this.worldOrientation;
+      const axialSpacing = spacing[this.axis];
       this.rangeManipulator.setScrollListener(
         this.sliceMin,
         this.sliceMax,
-        spacing[this.axis],
+        axialSpacing,
         () => this.slice,
         (s) => this.setSlice(s),
       );

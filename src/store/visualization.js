@@ -8,8 +8,10 @@ import {
 import { DataTypes, NO_SELECTION } from '../constants';
 
 const defaultWorldOrientation = () => ({
-  // this is real-world bounds, minus rotation
+  // ok for images this is actually just extent, since
+  // that's how we process images in this application.
   bounds: [0, 1, 0, 1, 0, 1],
+  // world spacing
   spacing: [1, 1, 1],
   // identity
   worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
@@ -82,6 +84,13 @@ export default (dependencies) => ({
     slices: defaultSlicing(),
     window: defaultWindowing(),
     resizeToFit: true,
+  },
+
+  getters: {
+    worldBounds: (state) => {
+      const { spacing, bounds } = state.worldOrientation;
+      return bounds.map((b, i) => b * spacing[i % 2]);
+    },
   },
 
   mutations: {
@@ -179,7 +188,7 @@ export default (dependencies) => ({
 
         const spacing = image.getSpacing();
         commit('setWorldOrientation', {
-          bounds: image.getExtent().map((e, i) => e * spacing[i % 2]),
+          bounds: image.getExtent(),
           spacing,
           worldToIndex: [...image.getWorldToIndex()],
         });
@@ -215,13 +224,15 @@ export default (dependencies) => ({
       }
     },
 
-    async resetViews({ state, rootState, dispatch }) {
+    async resetViews({
+      state, rootState, getters, dispatch,
+    }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
         const { bounds } = state.worldOrientation;
         await dispatch('setSlices', {
           x: bounds[0],
-          y: bounds[1],
-          z: bounds[2],
+          y: bounds[2],
+          z: bounds[4],
         });
       } else {
         // pick middle of bounds
@@ -244,10 +255,9 @@ export default (dependencies) => ({
         .getViews()
         .forEach((view) => {
           if (view.isA('vtkView2DProxy')) {
-            const { bounds } = state.worldOrientation;
             const renderer = view.getRenderer();
             renderer.computeVisiblePropBounds();
-            renderer.resetCamera(bounds);
+            renderer.resetCamera(getters.worldBounds);
           } else {
             // 3D views
             view.resetCamera();
@@ -312,14 +322,13 @@ export default (dependencies) => ({
       }
     },
 
-    resizeAllCamerasToFit({ state }) {
+    resizeAllCamerasToFit({ getters }) {
       const { proxyManager } = dependencies;
       proxyManager
         .getViews()
         .filter((view) => view.isA('vtkView2DProxy'))
         .forEach((view) => {
-          const { bounds } = state.worldOrientation;
-          resize2DCameraToFit(view, bounds);
+          resize2DCameraToFit(view, getters.worldBounds);
         });
     },
 
