@@ -1,6 +1,15 @@
 <template>
   <div class="vtk-container-wrapper">
-    <div class="vtk-gutter"></div>
+    <div class="vtk-gutter">
+      <slice-slider
+        class="slice-slider"
+        :slice="slice"
+        :min="sliceMin"
+        :max="sliceMax"
+        :handle-height="20"
+        @input="setSlice"
+      />
+    </div>
     <div
       class="vtk-container"
       :class="active ? 'active' : ''"
@@ -22,10 +31,16 @@ import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyle
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 
+import SliceSlider from './SliceSlider.vue';
+
 export default {
   name: 'VtkTwoView',
 
   mixins: [VtkViewMixin],
+
+  components: {
+    SliceSlider,
+  },
 
   computed: {
     ...mapState({
@@ -34,6 +49,17 @@ export default {
       windowing: (state) => state.visualization.window,
       slices: (state) => state.visualization.slices,
     }),
+    slice() {
+      return this.slices['xyz'[this.axis]];
+    },
+    sliceMin() {
+      const { bounds } = this.worldOrientation;
+      return bounds[this.axis * 2];
+    },
+    sliceMax() {
+      const { bounds } = this.worldOrientation;
+      return bounds[this.axis * 2 + 1];
+    },
   },
 
   watch: {
@@ -104,16 +130,12 @@ export default {
       );
 
       // slicing
-      const { spacing, bounds } = this.worldOrientation;
-      const [min, max] = [
-        bounds[this.axis * 2],
-        bounds[this.axis * 2 + 1],
-      ];
+      const { spacing } = this.worldOrientation;
       this.rangeManipulator.setScrollListener(
-        min,
-        max,
+        this.sliceMin,
+        this.sliceMax,
         spacing[this.axis],
-        () => this.slices['xyz'[this.axis]],
+        () => this.slice,
         (s) => this.setSlice(s),
       );
     },
@@ -161,3 +183,15 @@ export default {
 </style>
 
 <style scoped src="@/src/assets/styles/vtk-view.css"></style>
+<style scoped>
+.vtk-gutter {
+  display: flex;
+  flex-flow: column;
+}
+
+.slice-slider {
+  position: relative;
+  flex: 1 1;
+  width: 20px;
+}
+</style>
