@@ -89,7 +89,7 @@ export default (dependencies) => ({
   getters: {
     worldBounds: (state) => {
       const { spacing, bounds } = state.worldOrientation;
-      return bounds.map((b, i) => b * spacing[i % 2]);
+      return bounds.map((b, i) => b * spacing[Math.floor(i / 2)]);
     },
   },
 

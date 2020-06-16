@@ -6,6 +6,7 @@
         :slice="slice"
         :min="sliceMin"
         :max="sliceMax"
+        :step="sliceSpacing"
         :handle-height="20"
         @input="setSlice"
       />
@@ -59,6 +60,10 @@ export default {
     sliceMax() {
       const { spacing, bounds } = this.worldOrientation;
       return bounds[this.axis * 2 + 1] * spacing[this.axis];
+    },
+    sliceSpacing() {
+      const { spacing } = this.worldOrientation;
+      return spacing[this.axis];
     },
   },
 
@@ -129,12 +134,10 @@ export default {
       );
 
       // slicing
-      const { spacing } = this.worldOrientation;
-      const axialSpacing = spacing[this.axis];
       this.rangeManipulator.setScrollListener(
         this.sliceMin,
         this.sliceMax,
-        axialSpacing,
+        this.sliceSpacing,
         () => this.slice,
         (s) => this.setSlice(s),
       );

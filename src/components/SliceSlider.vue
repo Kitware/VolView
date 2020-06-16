@@ -42,6 +42,10 @@ export default {
       type: Number,
       required: true,
     },
+    step: {
+      type: Number,
+      required: true,
+    },
     handleHeight: {
       type: Number,
       default: 20,
@@ -120,7 +124,8 @@ export default {
 
     getNearestSlice() {
       const sliceEstimate = this.handlePosition / this.maxHandlePos;
-      return Math.round(sliceEstimate * (this.max - this.min)) + this.min;
+      const frac = sliceEstimate * (this.max - this.min) + this.min;
+      return Math.round(frac / this.step) * this.step;
     },
   },
 };
