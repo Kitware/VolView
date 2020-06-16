@@ -6,7 +6,9 @@
       class="d-flex flex-grow-1"
     >
       <layout-grid v-if="Array.isArray(item)" :layout="item" />
-      <component v-else-if="item" :is="item.comp" v-bind="item.props" />
+      <div v-else-if="item" class="layout-item">
+        <component :is="item.comp" v-bind="item.props" />
+      </div>
     </div>
   </div>
 </template>
@@ -28,3 +30,11 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.layout-item {
+  display: flex;
+  flex: 1 1;
+  border: 1px solid #222;
+}
+</style>
