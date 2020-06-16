@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <v-app v-resize="() => $eventBus.$emit('resize')">
     <resizable-nav-drawer
       id="left-nav"
       app

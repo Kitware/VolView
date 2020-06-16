@@ -4,7 +4,6 @@
     <div
       class="vtk-container"
       :class="active ? 'active' : ''"
-      v-resize="onResize"
     >
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainer" />
