@@ -88,6 +88,8 @@ export default {
     },
 
     onDragStart(ev) {
+      ev.preventDefault();
+
       this.dragging = true;
       this.initialMousePosY = ev.pageY;
       const handleStyles = window.getComputedStyle(this.$refs.handle);
@@ -99,12 +101,16 @@ export default {
     },
 
     onDragMove(ev) {
+      ev.preventDefault();
+
       this.yOffset = ev.pageY - this.initialMousePosY;
       const slice = this.getNearestSlice();
       this.$emit('input', slice);
     },
 
-    onDragEnd() {
+    onDragEnd(ev) {
+      ev.preventDefault();
+
       this.dragging = false;
       document.removeEventListener('mousemove', this.onDragMove);
       document.removeEventListener('mouseup', this.onDragEnd);
