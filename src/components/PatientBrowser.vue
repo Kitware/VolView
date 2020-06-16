@@ -87,6 +87,8 @@ import { mapState, mapActions } from 'vuex';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 
+import { renderAllViews } from '@/src/vtk/proxyUtils';
+
 const canvas = document.createElement('canvas');
 
 // Assume itkImage type is Uint8Array
@@ -173,8 +175,12 @@ export default {
       return seriesList;
     },
 
-    setSelection(sel) {
+    async setSelection(sel) {
       this.selectBaseImage(sel);
+
+      await this.updateSceneLayers();
+      await this.resetViews();
+      renderAllViews(this.$proxyManager);
     },
 
     async doBackgroundThumbnails(seriesList) {
@@ -197,7 +203,7 @@ export default {
       });
     },
 
-    ...mapActions(['selectBaseImage']),
+    ...mapActions(['selectBaseImage', 'updateSceneLayers', 'resetViews']),
     ...mapActions('dicom', ['getSeriesImage']),
   },
 };
