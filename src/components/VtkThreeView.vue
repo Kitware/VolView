@@ -1,16 +1,15 @@
 <template>
-  <div class="container-wrapper">
-    <v-container
-      fluid
-      fill-height
-      class="container"
+  <div class="vtk-container-wrapper">
+    <div class="vtk-gutter"></div>
+    <div
+      class="vtk-container"
       :class="active ? 'active' : ''"
       v-resize="onResize"
     >
-      <div class="sub-container">
+      <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainer" />
       </div>
-    </v-container>
+    </div>
   </div>
 </template>
 
@@ -30,33 +29,10 @@ export default {
 };
 </script>
 
-<style scoped>
-.container-wrapper {
-  width: 100%;
-  height: 100%;
-}
-
-.container {
-  padding: 0 !important;
-  margin: 0 !important;
-  /* prevent view from overflowing our app during resize */
-  min-height: 0;
-  min-width: 0;
-  max-width: 100%;
-
-  position: relative;
-  overflow: hidden;
-  z-index: 0;
-}
-
-.sub-container {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-
-.vtk-view {
-  width: 100%;
+<style>
+.vtk-view > canvas {
   height: 100%;
 }
 </style>
+
+<style scoped src="@/src/assets/styles/vtk-view.css"></style>
