@@ -73,11 +73,20 @@ export default {
   },
 
   mounted() {
-    this.maxHandlePos = this.$refs.handleContainer.clientHeight
-      - this.handleHeight;
+    this.updateMaxHandlePos();
+    this.$eventBus.$on('resize', this.updateMaxHandlePos);
+  },
+
+  beforeDestroy() {
+    this.$eventBus.$off('resize', this.updateMaxHandlePos);
   },
 
   methods: {
+    updateMaxHandlePos() {
+      this.maxHandlePos = this.$refs.handleContainer.clientHeight
+        - this.handleHeight;
+    },
+
     onDragStart(ev) {
       this.dragging = true;
       this.initialMousePosY = ev.pageY;
