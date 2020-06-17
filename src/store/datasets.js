@@ -18,6 +18,8 @@ export const mutations = {
       [id]: {
         type: DataTypes.Image,
         name,
+        dims: image.getDimensions(),
+        spacing: image.getSpacing(),
       },
     };
   },
