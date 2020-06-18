@@ -23,15 +23,10 @@ export default {
   methods: {
     afterViewMount() {
       this.view.setBackground(0.1, 0.2, 0.3);
+      this.view.setCornerAnnotation('nw', 'ColorMap');
     },
   },
 };
 </script>
 
-<style>
-.vtk-view > canvas {
-  height: 100%;
-}
-</style>
-
-<style scoped src="@/src/assets/styles/vtk-view.css"></style>
+<style src="@/src/assets/styles/vtk-view.css"></style>

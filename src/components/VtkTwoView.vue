@@ -23,6 +23,7 @@
 </template>
 
 <script>
+import { vec3, mat3 } from 'gl-matrix';
 import { mapState, mapGetters, mapActions } from 'vuex';
 
 import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
@@ -30,8 +31,21 @@ import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyle
 
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
+import { zip } from '@/src/utils/common';
 
 import SliceSlider from './SliceSlider.vue';
+
+function lpsDirToLabels(dir) {
+  const [x, y, z] = dir;
+  let label = '';
+  if (x > 0) label += 'L';
+  else if (x < 0) label += 'R';
+  if (y > 0) label += 'P';
+  else if (y < 0) label += 'A';
+  if (z > 0) label += 'H';
+  else if (z < 0) label += 'F';
+  return label;
+}
 
 export default {
   name: 'VtkTwoView',
@@ -71,6 +85,13 @@ export default {
     worldOrientation() {
       // update slicing whenever world orientation changes
       this.updateRangeManipulator();
+      this.updateLowerLeftAnnotations();
+    },
+    windowing() {
+      this.updateLowerLeftAnnotations();
+    },
+    slices() {
+      this.updateLowerLeftAnnotations();
     },
     resizeToFit() {
       this.resizeCameraToFit();
@@ -103,7 +124,13 @@ export default {
 
     afterViewMount() {
       this.resizeListener = this.view.onResize(() => this.resizeCameraToFit());
+      this.cameraListener = this.view.getCamera().onModified(
+        () => this.updateOrientationLabels(),
+      );
+      // disable orientation widget for 2D views
+      this.view.setOrientationAxesVisibility(false);
       this.setupInteraction();
+      this.updateOrientationLabels();
     },
 
     resizeCameraToFit() {
@@ -143,6 +170,46 @@ export default {
       );
     },
 
+    updateOrientationLabels() {
+      const camera = this.view.getCamera();
+      // TODO make modifications only if vup and vdir differ
+      const vup = camera.getViewUp();
+      const vdir = camera.getDirectionOfProjection();
+      const vright = [0, 0, 0];
+      vec3.cross(vright, vdir, vup);
+
+      // assume direction is orthonormal
+      const { direction } = this.worldOrientation;
+
+      // since camera is in "image space", transform into
+      // image's world space.
+      const cameraMat = mat3.fromValues(...vright, ...vup, ...vdir);
+      const imageMat = mat3.fromValues(...direction);
+      mat3.transpose(imageMat, imageMat); // `direction` is row-major
+      const cameraInImWorld = mat3.create();
+      mat3.mul(cameraInImWorld, imageMat, cameraMat);
+
+      // gl-matrix is col-major
+      const left = cameraInImWorld.slice(0, 3).map((c) => -c);
+      const up = cameraInImWorld.slice(3, 6);
+
+      let leftLabels = lpsDirToLabels(left);
+      let upLabels = lpsDirToLabels(up);
+
+      // sort by magnitude
+      leftLabels = zip(left.map(Math.abs), leftLabels)
+        .sort(([a], [b]) => b - a)
+        .map(([, label]) => label)
+        .join('');
+      upLabels = zip(up.map(Math.abs), upLabels)
+        .sort(([a], [b]) => b - a)
+        .map(([, label]) => label)
+        .join('');
+
+      this.view.setCornerAnnotation('n', upLabels);
+      this.view.setCornerAnnotation('w', leftLabels);
+    },
+
     setupInteraction() {
       const istyle = this.view.getInteractorStyle2D();
 
@@ -174,18 +241,26 @@ export default {
       });
     },
 
+    updateLowerLeftAnnotations() {
+      if (this.view) {
+        const { width, level } = this.windowing;
+        const slice = this.slices['xyz'[this.axis]];
+
+        this.view.setCornerAnnotation(
+          'sw',
+          `Slice: ${slice}`
+            + `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`,
+        );
+      }
+    },
+
     ...mapActions(['setWindowing', 'setSlices']),
   },
 };
 </script>
 
-<style>
-.vtk-view > canvas {
-  height: 100%;
-}
-</style>
+<style src="@/src/assets/styles/vtk-view.css"></style>
 
-<style scoped src="@/src/assets/styles/vtk-view.css"></style>
 <style scoped>
 .vtk-gutter {
   display: flex;

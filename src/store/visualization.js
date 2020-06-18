@@ -13,6 +13,7 @@ const defaultWorldOrientation = () => ({
   bounds: [0, 1, 0, 1, 0, 1],
   // world spacing
   spacing: [1, 1, 1],
+  direction: [1, 0, 0, 0, 1, 0, 0, 0, 1],
   // identity
   worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
 });
@@ -101,10 +102,13 @@ export default (dependencies) => ({
       };
     },
 
-    setWorldOrientation(state, { bounds, spacing, worldToIndex }) {
+    setWorldOrientation(state, {
+      bounds, spacing, direction, worldToIndex,
+    }) {
       state.worldOrientation = {
         bounds: [...bounds],
         spacing: [...spacing],
+        direction: [...direction],
         worldToIndex: [...worldToIndex],
       };
     },
@@ -122,10 +126,12 @@ export default (dependencies) => ({
       level, width, min, max,
     }) {
       const { window: w } = state;
-      w.level = level ?? w.level;
-      w.width = width ?? w.width;
-      w.min = min ?? w.min;
-      w.max = max ?? w.max;
+      state.window = {
+        level: level ?? w.level,
+        width: width ?? w.width,
+        min: min ?? w.min,
+        max: max ?? w.max,
+      };
     },
 
     setResizeToFit(state, yn) {
@@ -190,6 +196,7 @@ export default (dependencies) => ({
         commit('setWorldOrientation', {
           bounds: image.getExtent(),
           spacing,
+          direction: image.getDirection(),
           worldToIndex: [...image.getWorldToIndex()],
         });
         commit('setWindowing', {
