@@ -24,6 +24,7 @@ export default {
     afterViewMount() {
       this.view.setBackground(0.1, 0.2, 0.3);
       this.view.setCornerAnnotation('nw', 'ColorMap');
+      this.view.setOrientationAxesType('cube');
     },
   },
 };
