@@ -39,3 +39,16 @@ export function zipObj(keys, values) {
   }
   return obj;
 }
+
+export function zip(...lists) {
+  const out = [];
+  const maxLength = lists.reduce((max, l) => Math.max(max, l.length), 0);
+  for (let i = 0; i < maxLength; i += 1) {
+    const tmp = [];
+    for (let j = 0; j < lists.length; j += 1) {
+      tmp.push(lists[j][i]);
+    }
+    out.push(tmp);
+  }
+  return out;
+}
