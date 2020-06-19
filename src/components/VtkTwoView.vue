@@ -185,7 +185,8 @@ export default {
       // image's world space.
       const cameraMat = mat3.fromValues(...vright, ...vup, ...vdir);
       const imageMat = mat3.fromValues(...direction);
-      mat3.transpose(imageMat, imageMat); // `direction` is row-major
+      // `direction` is row-major, and gl-matrix is col-major
+      mat3.transpose(imageMat, imageMat);
       const cameraInImWorld = mat3.create();
       mat3.mul(cameraInImWorld, imageMat, cameraMat);
 
