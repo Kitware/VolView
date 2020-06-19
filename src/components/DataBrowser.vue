@@ -102,11 +102,13 @@ export default {
 
   methods: {
     async setSelection(sel) {
-      this.selectBaseImage(sel);
+      if (sel !== this.selectedBaseImage) {
+        this.selectBaseImage(sel);
 
-      await this.updateSceneLayers();
-      await this.resetViews();
-      renderAllViews(this.$proxyManager);
+        await this.updateSceneLayers();
+        await this.resetViews();
+        renderAllViews(this.$proxyManager);
+      }
     },
 
     getThumbnail(id) {
