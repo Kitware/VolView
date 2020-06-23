@@ -22,61 +22,106 @@
         :value="selectedBaseImage"
         @change="setSelection"
       >
-        <v-expansion-panels id="patient-data-studies" accordion multiple>
-          <v-expansion-panel
-            v-for="study in studies"
-            :key="study.StudyInstanceUID"
-            class="patient-data-study-panel"
+        <template v-if="patientID === IMAGES">
+          <groupable-item
+            v-for="imgID in imageList"
+            :key="imgID"
+            v-slot="{ active, select }"
+            :value="imgID"
           >
-            <v-expansion-panel-header
-              color="#1976fa0a"
-              class="no-select"
-              :title="study.StudyDate"
+            <v-card
+              outlined
+              ripple
+              :color="active ? 'light-blue lighten-4' : ''"
+              :title="dataIndex[imgID].name"
+              @click="select"
             >
-              <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
-              <div class="study-header">
-                <div class="subtitle-2 study-header-line">
-                  {{ study.StudyDescription || study.StudyDate }}
-                </div>
-                <div v-if="study.StudyDescription" class="caption study-header-line">
-                  {{ study.StudyDate }}
-                </div>
-              </div>
-            </v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <div class="my-2 series-list">
-                <groupable-item
-                  v-for="series in getSeries(study.StudyInstanceUID)"
-                  :key="series.SeriesInstanceUID"
-                  v-slot:default="{ active, select }"
-                  :value="dicomSeriesToID[series.SeriesInstanceUID]"
-                >
-                  <v-card
-                    outlined
-                    ripple
-                    :color="active ? 'light-blue lighten-4' : ''"
-                    class="series-card"
-                    :title="series.SeriesDescription"
-                    @click="select"
-                  >
+              <v-container>
+                <v-row no-gutters>
+                  <v-col cols="4">
                     <v-img
                       contain
                       height="100px"
-                      :src="thumbnails[series.SeriesInstanceUID]"
+                      width="100px"
+                      :src="getImageThumbnail(imgID)"
                     />
-                    <v-card-text class="text--primary caption text-center series-desc mt-n3">
-                      <div>[{{ series.NumberOfSlices }}]</div>
-                      <div class="text-ellipsis">
-                        {{ series.SeriesDescription || '(no description)' }}
+                  </v-col>
+                  <v-col cols="8" class="text-no-wrap">
+                    <div class="ml-2">
+                      <div class="body-2 text-truncate">
+                        {{ dataIndex[imgID].name }}
                       </div>
-                    </v-card-text>
-                  </v-card>
-                </groupable-item>
-              </div>
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-        </v-expansion-panels>
-
+                      <div class="caption">
+                        Dims: ({{ dataIndex[imgID].dims.join(', ') }})
+                      </div>
+                      <div class="caption">
+                        Spacing: ({{
+                          dataIndex[imgID].spacing.map((s) => s.toFixed(2)).join(', ')
+                        }})
+                      </div>
+                    </div>
+                  </v-col>
+                </v-row>
+              </v-container>
+            </v-card>
+          </groupable-item>
+        </template>
+        <template v-else>
+          <v-expansion-panels id="patient-data-studies" accordion multiple>
+            <v-expansion-panel
+              v-for="study in studies"
+              :key="study.StudyInstanceUID"
+              class="patient-data-study-panel"
+            >
+              <v-expansion-panel-header
+                color="#1976fa0a"
+                class="no-select"
+                :title="study.StudyDate"
+              >
+                <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
+                <div class="study-header">
+                  <div class="subtitle-2 study-header-line">
+                    {{ study.StudyDescription || study.StudyDate }}
+                  </div>
+                  <div v-if="study.StudyDescription" class="caption study-header-line">
+                    {{ study.StudyDate }}
+                  </div>
+                </div>
+              </v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <div class="my-2 series-list">
+                  <groupable-item
+                    v-for="series in getSeries(study.StudyInstanceUID)"
+                    :key="series.SeriesInstanceUID"
+                    v-slot:default="{ active, select }"
+                    :value="dicomSeriesToID[series.SeriesInstanceUID]"
+                  >
+                    <v-card
+                      outlined
+                      ripple
+                      :color="active ? 'light-blue lighten-4' : ''"
+                      class="series-card"
+                      :title="series.SeriesDescription"
+                      @click="select"
+                    >
+                      <v-img
+                        contain
+                        height="100px"
+                        :src="dicomThumbnails[series.SeriesInstanceUID]"
+                      />
+                      <v-card-text class="text--primary caption text-center series-desc mt-n3">
+                        <div>[{{ series.NumberOfSlices }}]</div>
+                        <div class="text-ellipsis">
+                          {{ series.SeriesDescription || '(no description)' }}
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </groupable-item>
+                </div>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </template>
       </item-group>
     </div>
   </div>
@@ -87,6 +132,7 @@ import { mapState, mapActions } from 'vuex';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 
+const IMAGES = Symbol('IMAGES');
 const canvas = document.createElement('canvas');
 
 // Assume itkImage type is Uint8Array
@@ -97,6 +143,25 @@ function itkImageToURI(itkImage) {
   const itkBuf = itkImage.data;
   for (let i = 0; i < itkBuf.length; i += 1) {
     const byte = itkBuf[i];
+    // ABGR order
+    // eslint-disable-next-line no-bitwise
+    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.putImageData(im, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
+function scalarImageToURI(values, width, height, scaleMin, scaleMax) {
+  const im = new ImageData(width, height);
+  const arr32 = new Uint32Array(im.data.buffer);
+  // scale to 1 unsigned byte
+  const factor = 255 / (scaleMax - scaleMin);
+  for (let i = 0; i < values.length; i += 1) {
+    const byte = Math.floor((values[i] - scaleMin) * factor);
     // ABGR order
     // eslint-disable-next-line no-bitwise
     arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
@@ -120,13 +185,21 @@ export default {
   data() {
     return {
       patientID: '',
-      thumbnails: {}, // seriesUID -> Image
-      pendingThumbnails: {},
+      imageThumbnails: {}, // dataID -> Image
+      dicomThumbnails: {}, // seriesUID -> Image
+      pendingDicomThumbnails: {},
+      IMAGES,
     };
   },
 
   computed: {
-    ...mapState(['selectedBaseImage', 'dicomSeriesToID']),
+    ...mapState({
+      selectedBaseImage: 'selectedBaseImage',
+      dicomSeriesToID: 'dicomSeriesToID',
+      imageList: (state) => state.data.imageIDs,
+      dataIndex: (state) => state.data.index,
+      vtkCache: (state) => state.data.vtkCache,
+    }),
     ...mapState('dicom', {
       patientStudies: 'patientStudies',
       studySeries: 'studySeries',
@@ -134,10 +207,16 @@ export default {
       patients(state) {
         const patients = Object.values(state.patientIndex);
         patients.sort((a, b) => a.PatientName < b.PatientName);
-        return patients.map((p) => ({
-          id: p.PatientID,
-          label: p.PatientName,
-        }));
+        return [].concat(
+          {
+            id: IMAGES,
+            label: 'Non-DICOM images',
+          },
+          patients.map((p) => ({
+            id: p.PatientID,
+            label: p.PatientName,
+          })),
+        );
       },
       studies(state) {
         const studyKeys = state.patientStudies[this.patientID] ?? [];
@@ -168,7 +247,7 @@ export default {
       );
 
       // trigger a background job fetch thumbnails
-      this.doBackgroundThumbnails(seriesList);
+      this.doBackgroundDicomThumbnails(seriesList);
 
       return seriesList;
     },
@@ -180,11 +259,13 @@ export default {
       }
     },
 
-    async doBackgroundThumbnails(seriesList) {
+    async doBackgroundDicomThumbnails(seriesList) {
       seriesList.forEach(async (series) => {
         const uid = series.SeriesInstanceUID;
-        if (!(uid in this.thumbnails || uid in this.pendingThumbnails)) {
-          this.$set(this.pendingThumbnails, uid, true);
+        if (
+          !(uid in this.dicomThumbnails || uid in this.pendingDicomThumbnails)
+        ) {
+          this.$set(this.pendingDicomThumbnails, uid, true);
           try {
             const middleSlice = Math.round(Number(series.NumberOfSlices) / 2);
             const thumbItkImage = await this.getSeriesImage({
@@ -192,12 +273,32 @@ export default {
               slice: middleSlice,
               asThumbnail: true,
             });
-            this.$set(this.thumbnails, uid, itkImageToURI(thumbItkImage));
+            this.$set(this.dicomThumbnails, uid, itkImageToURI(thumbItkImage));
           } finally {
-            delete this.pendingThumbnails[uid];
+            delete this.pendingDicomThumbnails[uid];
           }
         }
       });
+    },
+
+    getImageThumbnail(id) {
+      if (id in this.imageThumbnails) {
+        return this.imageThumbnails[id];
+      }
+      if (id in this.vtkCache) {
+        const imageData = this.vtkCache[id];
+        const scalars = imageData.getPointData().getScalars();
+        const dims = imageData.getDimensions();
+        const length = dims[0] * dims[1];
+        const sliceOffset = Math.floor(dims[2] / 2) * length;
+        const slice = scalars.getData().subarray(sliceOffset, sliceOffset + length);
+        const dataRange = scalars.getRange();
+
+        const img = scalarImageToURI(slice, dims[0], dims[1], dataRange[0], dataRange[1]);
+        this.$set(this.imageThumbnails, id, img);
+        return img;
+      }
+      return '';
     },
 
     ...mapActions(['selectBaseImage', 'updateScene']),

@@ -212,7 +212,7 @@ import PatientBrowser from './components/PatientBrowser.vue';
 
 export const Modules = [
   {
-    name: 'Patients',
+    name: 'Patients & Images',
     icon: 'account',
     component: PatientBrowser,
   },
