@@ -187,7 +187,7 @@ export const makeActions = (dependencies) => ({
    * If the dataset is not an image or NO_SELECTION,
    * then the selection will be cleared.
    */
-  async selectBaseImage({ state, commit }, id) {
+  async selectBaseImage({ state, commit, dispatch }, id) {
     let baseImageId = NO_SELECTION;
     if (
       id in state.data.index && (
@@ -197,6 +197,26 @@ export const makeActions = (dependencies) => ({
     ) {
       baseImageId = id;
     }
+
+    // special case: load dicom image
+    if (baseImageId !== NO_SELECTION) {
+      const dataInfo = state.data.index[baseImageId];
+      if (!(baseImageId in state.data.vtkCache)) {
+        switch (dataInfo.type) {
+          case DataTypes.Dicom: {
+            const { seriesKey } = dataInfo;
+            const image = await dispatch('dicom/buildSeriesVolume', seriesKey);
+            commit('cacheDicomImage', { seriesKey, image });
+            break;
+          }
+          default:
+            throw new Error(
+              `selectBaseImage: Item ${baseImageId} has no vtk data`,
+            );
+        }
+      }
+    }
+
     commit('setBaseImage', baseImageId);
   },
 });

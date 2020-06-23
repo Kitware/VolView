@@ -1,3 +1,5 @@
+import { mapState, mapGetters } from 'vuex';
+
 export default {
   props: {
     active: Boolean,
@@ -27,6 +29,18 @@ export default {
     },
   },
 
+  computed: {
+    ...mapGetters(['sceneObjectIDs']),
+    ...mapState({
+      vizPipelines: (state) => state.visualization.pipelines,
+    }),
+    sceneSources() {
+      return this.sceneObjectIDs
+        .filter((id) => id in this.vizPipelines)
+        .map((id) => this.vizPipelines[id].transformFilter);
+    },
+  },
+
   watch: {
     viewType() {
       this.remountView();
@@ -43,11 +57,15 @@ export default {
     viewUp() {
       this.updateCamera();
     },
+    sceneSources() {
+      this.updateScene();
+    },
   },
 
   mounted() {
     this.$eventBus.$on('resize', this.resizeLater);
     this.view = null;
+    this.debouncedRender = null;
     this.remountView();
   },
 
@@ -83,12 +101,13 @@ export default {
         this.view.setContainer(container);
         this.view.getRenderer().setBackground(0, 0, 0);
         this.updateCamera();
+        this.updateScene();
 
         // let vue rendering settle before resizing canvas
         this.$nextTick(() => {
           this.onResize();
           this.resetCamera();
-          this.view.renderLater();
+          this.render();
           this.afterViewMount();
         });
       }
@@ -98,6 +117,18 @@ export default {
       if (this.view) {
         this.view.updateOrientation(this.axis, this.orientation, this.viewUp);
       }
+    },
+
+    updateScene() {
+      this.view
+        .getRepresentations()
+        .filter(() => true /* TODO ignore widget reps */)
+        .forEach((rep) => this.view.removeRepresentation(rep));
+
+      this.sceneSources.forEach((source) => {
+        const rep = this.$proxyManager.getRepresentation(source, this.view);
+        this.view.addRepresentation(rep);
+      });
     },
 
     resizeLater() {
@@ -117,7 +148,7 @@ export default {
           const height = Math.max(10, Math.floor(pixelRatio * dims.height));
           glrw.setSize(width, height);
           this.view.invokeResize({ width, height });
-          this.view.getRenderWindow().render();
+          this.render();
         }
       }
     },
@@ -126,6 +157,10 @@ export default {
       if (this.view) {
         this.view.resetCamera();
       }
+    },
+
+    render() {
+      this.view.getRenderWindow().render();
     },
   },
 };

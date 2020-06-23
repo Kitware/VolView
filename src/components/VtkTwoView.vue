@@ -4,8 +4,8 @@
       <slice-slider
         class="slice-slider"
         :slice="slice"
-        :min="sliceMin"
-        :max="sliceMax"
+        :min="sliceRange[0]"
+        :max="sliceRange[1]"
         :step="sliceSpacing"
         :handle-height="20"
         @input="setSlice"
@@ -32,6 +32,7 @@ import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyle
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 import { zip } from '@/src/utils/common';
+import { NO_SELECTION } from '@/src/constants';
 
 import SliceSlider from './SliceSlider.vue';
 
@@ -58,22 +59,22 @@ export default {
 
   computed: {
     ...mapState({
-      resizeToFit: (state) => state.visualization.resizeToFit,
+      baseImageExists: (state) => state.selectedBaseImage !== NO_SELECTION,
       worldOrientation: (state) => state.visualization.worldOrientation,
-      windowing: (state) => state.visualization.window,
+      windowing: (state) => state.visualization.windowing,
+      resizeToFit: (state) => state.visualization.resizeToFit,
       slices: (state) => state.visualization.slices,
     }),
-    ...mapGetters(['worldBounds']),
+    ...mapGetters(['boundsWithSpacing']),
+
     slice() {
       return this.slices['xyz'[this.axis]];
     },
-    sliceMin() {
+    sliceRange() {
       const { spacing, bounds } = this.worldOrientation;
-      return bounds[this.axis * 2] * spacing[this.axis];
-    },
-    sliceMax() {
-      const { spacing, bounds } = this.worldOrientation;
-      return bounds[this.axis * 2 + 1] * spacing[this.axis];
+      return bounds
+        .slice(this.axis * 2, (this.axis + 1) * 2)
+        .map((b) => b * spacing[this.axis]);
     },
     sliceSpacing() {
       const { spacing } = this.worldOrientation;
@@ -88,13 +89,24 @@ export default {
       this.updateLowerLeftAnnotations();
     },
     windowing() {
+      this.updateRepresentations();
+      this.updateRangeManipulator();
       this.updateLowerLeftAnnotations();
     },
-    slices() {
+    slice() {
+      this.updateRepresentations();
       this.updateLowerLeftAnnotations();
     },
     resizeToFit() {
       this.resizeCameraToFit();
+    },
+    boundsWithSpacing() {
+      this.resetCamera();
+    },
+    sceneSources() {
+      this.updateRepresentations();
+      this.resetCamera();
+      this.render();
     },
   },
 
@@ -129,13 +141,24 @@ export default {
       );
       // disable orientation widget for 2D views
       this.view.setOrientationAxesVisibility(false);
+
       this.setupInteraction();
       this.updateOrientationLabels();
+      this.updateRepresentations();
+    },
+
+    resetCamera() {
+      if (this.view) {
+        const renderer = this.view.getRenderer();
+        renderer.computeVisiblePropBounds();
+        renderer.resetCamera(this.boundsWithSpacing);
+      }
+      this.resizeCameraToFit();
     },
 
     resizeCameraToFit() {
       if (this.view && this.resizeToFit) {
-        resize2DCameraToFit(this.view, this.worldBounds);
+        resize2DCameraToFit(this.view, this.boundsWithSpacing);
       }
     },
 
@@ -162,8 +185,8 @@ export default {
 
       // slicing
       this.rangeManipulator.setScrollListener(
-        this.sliceMin,
-        this.sliceMax,
+        this.sliceRange[0],
+        this.sliceRange[1],
         this.sliceSpacing,
         () => this.slice,
         (s) => this.setSlice(s),
@@ -229,17 +252,34 @@ export default {
     },
 
     setWindowWidth(width) {
-      this.setWindowing({ width });
+      if (this.baseImageExists) {
+        this.setWindowing({ width });
+      }
     },
 
     setWindowLevel(level) {
-      this.setWindowing({ level });
+      if (this.baseImageExists) {
+        this.setWindowing({ level });
+      }
     },
 
     setSlice(slice) {
       this.setSlices({
         ['xyz'[this.axis]]: slice,
       });
+    },
+
+    updateRepresentations() {
+      if (this.sceneSources.length) {
+        // slice and windowing is propagated by proxymanager
+        const source = this.sceneSources[0];
+        const rep = this.$proxyManager.getRepresentation(source, this.view);
+        if (rep) {
+          if (rep.setSlice) rep.setSlice(this.slice);
+          if (rep.setWindowWidth) rep.setWindowWidth(this.windowing.width);
+          if (rep.setWindowLevel) rep.setWindowLevel(this.windowing.level);
+        }
+      }
     },
 
     updateLowerLeftAnnotations() {
@@ -249,13 +289,13 @@ export default {
 
         this.view.setCornerAnnotation(
           'sw',
-          `Slice: ${slice}`
+          `Slice: ${slice.toFixed(2)}`
             + `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`,
         );
       }
     },
 
-    ...mapActions(['setWindowing', 'setSlices']),
+    ...mapActions(['setWindowing', 'setSlices', 'createPipelineForData']),
   },
 };
 </script>

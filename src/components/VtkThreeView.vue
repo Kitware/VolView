@@ -13,12 +13,27 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
+
 import VtkViewMixin from '@/src/mixins/VtkView';
 
 export default {
   name: 'VtkThreeView',
 
   mixins: [VtkViewMixin],
+
+  computed: {
+    ...mapGetters(['boundsWithSpacing']),
+  },
+
+  watch: {
+    sceneSources() {
+      this.resetCamera();
+    },
+    boundsWithSpacing() {
+      this.resetCamera();
+    },
+  },
 
   methods: {
     afterViewMount() {

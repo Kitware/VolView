@@ -87,8 +87,6 @@ import { mapState, mapActions } from 'vuex';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 
-import { renderAllViews } from '@/src/vtk/proxyUtils';
-
 const canvas = document.createElement('canvas');
 
 // Assume itkImage type is Uint8Array
@@ -177,11 +175,8 @@ export default {
 
     async setSelection(sel) {
       if (sel !== this.selectedBaseImage) {
-        this.selectBaseImage(sel);
-
-        await this.updateSceneLayers();
-        await this.resetViews();
-        renderAllViews(this.$proxyManager);
+        await this.selectBaseImage(sel);
+        await this.updateScene({ reset: true });
       }
     },
 
@@ -205,7 +200,7 @@ export default {
       });
     },
 
-    ...mapActions(['selectBaseImage', 'updateSceneLayers', 'resetViews']),
+    ...mapActions(['selectBaseImage', 'updateScene']),
     ...mapActions('dicom', ['getSeriesImage']),
   },
 };

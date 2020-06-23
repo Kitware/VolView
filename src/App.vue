@@ -200,7 +200,7 @@
 <script>
 import { mapActions, mapState } from 'vuex';
 
-import { createFourUpViews, renderAllViews } from '@/src/vtk/proxyUtils';
+import { createFourUpViews } from '@/src/vtk/proxyUtils';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -314,8 +314,10 @@ export default {
   computed: {
     ...mapState({
       datasets: 'data',
-      availableBaseDatasets:
+      baseImages:
         ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
+      annotationDatasets:
+        ({ data }) => [].concat(data.labelmapIDs, data.modelIDs),
     }),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
@@ -364,7 +366,6 @@ export default {
         text: 'Loading...',
       });
 
-      const hadBaseImagesBefore = !!this.availableBaseDatasets.length;
 
       const actions = [
         {
@@ -378,6 +379,11 @@ export default {
           onclick: this.clearAndCloseErrors,
         },
       ];
+
+      const beforeState = {
+        hasBaseImages: !!this.baseImages.length,
+        hasAnnotations: !!this.annotationDatasets.length,
+      };
 
       try {
         const errors = await this.loadFiles(Array.from(files));
@@ -405,17 +411,20 @@ export default {
         this.$notify.close('loading');
       }
 
-      // static analysis will make this look weird,
-      // since availableBaseDatasets is a computed prop
-      if (!hadBaseImagesBefore && this.availableBaseDatasets.length) {
-        // select the first image or dicom
-        const id = this.availableBaseDatasets[0];
-        this.selectBaseImage(id);
-      }
+      const afterState = {
+        hasBaseImages: !!this.baseImages.length,
+        hasAnnotations: !!this.annotationDatasets.length,
+      };
 
-      await this.updateSceneLayers();
-      await this.resetViews();
-      renderAllViews(this.$proxyManager);
+      // TODO only execute these blocks if we loaded non-zero datasets
+      if (!beforeState.hasBaseImages && afterState.hasBaseImages) {
+        const id = this.baseImages[0];
+        await this.selectBaseImage(id);
+        await this.updateScene({ reset: true });
+      } else {
+        const reset = !beforeState.hasAnnotations;
+        await this.updateScene({ reset });
+      }
     },
 
     clearAndCloseErrors() {
@@ -427,8 +436,7 @@ export default {
     ...mapActions([
       'loadFiles',
       'selectBaseImage',
-      'updateSceneLayers',
-      'resetViews',
+      'updateScene',
     ]),
   },
 };
