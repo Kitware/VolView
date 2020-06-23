@@ -43,8 +43,8 @@ function lpsDirToLabels(dir) {
   else if (x < 0) label += 'R';
   if (y > 0) label += 'P';
   else if (y < 0) label += 'A';
-  if (z > 0) label += 'H';
-  else if (z < 0) label += 'F';
+  if (z > 0) label += 'S';
+  else if (z < 0) label += 'I';
   return label;
 }
 
