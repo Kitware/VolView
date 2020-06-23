@@ -132,6 +132,8 @@ import { mapState, mapActions } from 'vuex';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 
+import { DataTypes } from '@/src/constants';
+
 const IMAGES = Symbol('IMAGES');
 const canvas = document.createElement('canvas');
 
@@ -188,7 +190,8 @@ export default {
       imageThumbnails: {}, // dataID -> Image
       dicomThumbnails: {}, // seriesUID -> Image
       pendingDicomThumbnails: {},
-      IMAGES,
+
+      IMAGES, // symbol
     };
   },
 
@@ -201,6 +204,7 @@ export default {
       vtkCache: (state) => state.data.vtkCache,
     }),
     ...mapState('dicom', {
+      patientIndex: 'patientIndex',
       patientStudies: 'patientStudies',
       studySeries: 'studySeries',
       seriesIndex: 'seriesIndex',
@@ -228,6 +232,15 @@ export default {
   },
 
   watch: {
+    selectedBaseImage(id) {
+      const dataInfo = this.dataIndex[id];
+      if (dataInfo.type === DataTypes.Image) {
+        this.patientID = IMAGES;
+      } else if (dataInfo.type === DataTypes.Dicom) {
+        const patientInfo = this.patientIndex[dataInfo.patientKey];
+        this.patientID = patientInfo.PatientID;
+      }
+    },
     patients() {
       // if patient index is updated, then try to select first one
       if (!this.patientID) {
