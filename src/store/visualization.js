@@ -2,6 +2,7 @@ import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
 import { addRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
 import { DataTypes, NO_SELECTION } from '../constants';
+import { DEFAULT_PRESET } from '../vtk/ColorMaps';
 
 export const defaultWorldOrientation = () => ({
   // ok for images this is actually just extent, since
@@ -82,6 +83,8 @@ export default (dependencies) => ({
 
     worldOrientation: defaultWorldOrientation(),
     windowing: defaultWindowing(),
+
+    baseImageColorPreset: DEFAULT_PRESET,
   },
 
   mutations: {
@@ -124,6 +127,10 @@ export default (dependencies) => ({
       };
     },
 
+    setBaseImageColorPreset(state, presetName) {
+      state.baseImageColorPreset = presetName;
+    },
+
     setResizeToFit(state, yn) {
       state.resizeToFit = yn;
     },
@@ -134,6 +141,12 @@ export default (dependencies) => ({
       const { spacing, bounds } = state.worldOrientation;
       return bounds.map((b, i) => b * spacing[Math.floor(i / 2)]);
     },
+    baseImagePipeline: (state, getters, rootState) => {
+      const { selectedBaseImage } = rootState;
+      return selectedBaseImage !== NO_SELECTION
+        ? state.pipelines[selectedBaseImage]
+        : null;
+    },
   },
 
   actions: {
@@ -143,6 +156,7 @@ export default (dependencies) => ({
       if (reset) {
         await dispatch('resetWindowing');
         await dispatch('resetSlicing');
+        await dispatch('setBaseImageColorPreset', DEFAULT_PRESET);
         await dispatch('setResizeToFit', true);
       }
     },
@@ -376,6 +390,10 @@ export default (dependencies) => ({
     // TODO asMutation
     setWindowing({ commit }, params) {
       commit('setWindowing', params);
+    },
+
+    setBaseImageColorPreset({ commit }, presetName) {
+      commit('setBaseImageColorPreset', presetName);
     },
 
     resizeAllCamerasToFit({ getters }) {

@@ -21,6 +21,9 @@ module.exports = {
     resolve: {
       alias: {
         '@': __dirname,
+        // Use lite colormap
+        'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps.json':
+          'vtk.js/Sources/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
       },
     },
     module: {
