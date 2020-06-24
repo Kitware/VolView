@@ -44,6 +44,7 @@ export default {
 
   watch: {
     sceneSources() {
+      this.updateOrientation();
       this.resetCamera();
     },
     boundsWithSpacing() {

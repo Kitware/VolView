@@ -49,13 +49,13 @@ export default {
       this.remountView();
     },
     axis() {
-      this.updateCamera();
+      this.updateOrientation();
     },
     orientation() {
-      this.updateCamera();
+      this.updateOrientation();
     },
     viewUp() {
-      this.updateCamera();
+      this.updateOrientation();
     },
     sceneSources() {
       this.updateScene();
@@ -100,7 +100,7 @@ export default {
         const container = this.$refs.vtkContainer;
         this.view.setContainer(container);
         this.view.getRenderer().setBackground(0, 0, 0);
-        this.updateCamera();
+        this.updateOrientation();
         this.updateScene();
 
         // let vue rendering settle before resizing canvas
@@ -113,7 +113,7 @@ export default {
       }
     },
 
-    updateCamera() {
+    updateOrientation() {
       if (this.view) {
         this.view.updateOrientation(this.axis, this.orientation, this.viewUp);
       }
