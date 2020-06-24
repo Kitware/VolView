@@ -100,7 +100,7 @@ export default {
       this.updateLowerLeftAnnotations();
     },
     resizeToFit() {
-      this.resizeCameraToFit();
+      this.resetCamera();
     },
     boundsWithSpacing() {
       this.resetCamera();
@@ -137,7 +137,7 @@ export default {
     },
 
     afterViewMount() {
-      this.resizeListener = this.view.onResize(() => this.resizeCameraToFit());
+      this.resizeListener = this.view.onResize(() => this.resetCamera());
       this.cameraListener = this.view.getCamera().onModified(
         () => this.updateOrientationLabels(),
       );
