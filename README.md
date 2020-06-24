@@ -1,5 +1,7 @@
 # paraview-medical
 
+Demo: https://paraview-medical.netlify.app/
+
 ## Project setup
 ```
 npm install
