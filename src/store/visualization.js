@@ -151,14 +151,14 @@ export default (dependencies) => ({
 
   actions: {
     async updateScene({ dispatch }, { reset = false }) {
-      await dispatch('updateWorldOrientation');
-      await dispatch('createPipelinesForScene');
       if (reset) {
+        await dispatch('updateWorldOrientation');
         await dispatch('resetWindowing');
         await dispatch('resetSlicing');
         await dispatch('setBaseImageColorPreset', DEFAULT_PRESET);
         await dispatch('setResizeToFit', true);
       }
+      await dispatch('createPipelinesForScene');
     },
 
     /**
