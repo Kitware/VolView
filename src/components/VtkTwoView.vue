@@ -36,15 +36,17 @@ import { NO_SELECTION } from '@/src/constants';
 
 import SliceSlider from './SliceSlider.vue';
 
+const TOL = 10e-6;
+
 function lpsDirToLabels(dir) {
   const [x, y, z] = dir;
   let label = '';
-  if (x > 0) label += 'L';
-  else if (x < 0) label += 'R';
-  if (y > 0) label += 'P';
-  else if (y < 0) label += 'A';
-  if (z > 0) label += 'S';
-  else if (z < 0) label += 'I';
+  if (x > TOL) label += 'L';
+  else if (x < -TOL) label += 'R';
+  if (y > TOL) label += 'P';
+  else if (y < -TOL) label += 'A';
+  if (z > TOL) label += 'S';
+  else if (z < -TOL) label += 'I';
   return label;
 }
 
