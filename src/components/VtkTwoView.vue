@@ -287,11 +287,13 @@ export default {
     updateLowerLeftAnnotations() {
       if (this.view) {
         const { width, level } = this.windowing;
-        const slice = this.slices['xyz'[this.axis]];
+        const spacing = this.worldOrientation.spacing[this.axis];
+        // use index slice, not world slice
+        const slice = Math.round(this.slices['xyz'[this.axis]] / spacing);
 
         this.view.setCornerAnnotation(
           'sw',
-          `Slice: ${slice.toFixed(2)}`
+          `Slice: ${slice + 1}`
             + `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`,
         );
       }
