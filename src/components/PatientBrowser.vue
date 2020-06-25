@@ -22,7 +22,13 @@
         :value="selectedBaseImage"
         @change="setSelection"
       >
-        <template v-if="patientID === IMAGES">
+        <template v-if="!patientID">
+          No patient selected
+        </template>
+        <template v-else-if="patientID === IMAGES">
+          <div v-if="imageList.length === 0">
+            No non-dicom images available
+          </div>
           <groupable-item
             v-for="imgID in imageList"
             :key="imgID"
