@@ -35,41 +35,25 @@
             v-slot="{ active, select }"
             :value="imgID"
           >
-            <v-card
-              outlined
-              ripple
-              :color="active ? 'light-blue lighten-4' : ''"
+            <avatar-list-card
+              :active="active"
               :title="dataIndex[imgID].name"
+              :image-url="getImageThumbnail(imgID)"
+              :image-size="100"
               @click="select"
             >
-              <v-container>
-                <v-row no-gutters>
-                  <v-col cols="4">
-                    <v-img
-                      contain
-                      height="100px"
-                      width="100px"
-                      :src="getImageThumbnail(imgID)"
-                    />
-                  </v-col>
-                  <v-col cols="8" class="text-no-wrap">
-                    <div class="ml-2">
-                      <div class="body-2 text-truncate">
-                        {{ dataIndex[imgID].name }}
-                      </div>
-                      <div class="caption">
-                        Dims: ({{ dataIndex[imgID].dims.join(', ') }})
-                      </div>
-                      <div class="caption">
-                        Spacing: ({{
-                          dataIndex[imgID].spacing.map((s) => s.toFixed(2)).join(', ')
-                        }})
-                      </div>
-                    </div>
-                  </v-col>
-                </v-row>
-              </v-container>
-            </v-card>
+              <div class="body-2 text-truncate">
+                {{ dataIndex[imgID].name }}
+              </div>
+              <div class="caption">
+                Dims: ({{ dataIndex[imgID].dims.join(', ') }})
+              </div>
+              <div class="caption">
+                Spacing: ({{
+                  dataIndex[imgID].spacing.map((s) => s.toFixed(2)).join(', ')
+                }})
+              </div>
+            </avatar-list-card>
           </groupable-item>
         </template>
         <template v-else>
@@ -135,8 +119,10 @@
 
 <script>
 import { mapState, mapActions } from 'vuex';
+
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
+import AvatarListCard from '@/src/components/AvatarListCard.vue';
 
 import { DataTypes } from '@/src/constants';
 
@@ -188,6 +174,7 @@ export default {
   components: {
     ItemGroup,
     GroupableItem,
+    AvatarListCard,
   },
 
   data() {
