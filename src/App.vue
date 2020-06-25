@@ -428,7 +428,7 @@ export default {
         await this.selectBaseImage(id);
         await this.updateScene({ reset: true });
       } else {
-        const reset = !beforeState.hasAnnotations;
+        const reset = !beforeState.hasBaseImages && !beforeState.hasAnnotations;
         await this.updateScene({ reset });
       }
     },
