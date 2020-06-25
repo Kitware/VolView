@@ -208,6 +208,7 @@ import VtkTwoView from './components/VtkTwoView.vue';
 import VtkThreeView from './components/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
+import VolumeRendering from './components/VolumeRendering.vue';
 // import MeasurementsModule from './components/MeasurementsModule.vue';
 
 export const Modules = [
@@ -215,6 +216,11 @@ export const Modules = [
     name: 'Patients & Images',
     icon: 'account',
     component: PatientBrowser,
+  },
+  {
+    name: 'Volume Rendering',
+    icon: 'cube',
+    component: VolumeRendering,
   },
   {
     name: 'Measurements',
