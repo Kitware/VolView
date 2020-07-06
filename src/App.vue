@@ -46,8 +46,8 @@
       </div>
     </resizable-nav-drawer>
 
-    <v-content id="content-wrapper">
-      <div class="d-flex flex-row flex-grow-1 grey darken-3">
+    <v-main id="content-wrapper">
+      <div class="height-100 d-flex flex-row flex-grow-1 grey darken-3">
         <div id="tools-strip" class="grey darken-4 d-flex flex-column align-center">
           <tool-button
             size="40"
@@ -110,7 +110,7 @@
           </template>
         </div>
       </div>
-    </v-content>
+    </v-main>
 
     <v-dialog
       v-model="errors.dialog"
@@ -371,7 +371,6 @@ export default {
         duration: -1,
         text: 'Loading...',
       });
-
 
       const actions = [
         {
