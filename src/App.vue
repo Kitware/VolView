@@ -57,11 +57,15 @@
             @click="userPromptFiles"
           />
           <div class="mt-2 mb-1 tool-separator" />
-          <v-item-group v-model="selectedTool">
+          <item-group
+            v-if="hasData"
+            v-model="selectedTool"
+          >
             <template v-for="(tool,i) in Tools">
-              <v-item
-                :key="i"
+              <groupable-item
                 v-slot:default="{ active, toggle }"
+                :key="i"
+                :value="tool.name"
               >
                 <tool-button
                   size="40"
@@ -73,9 +77,9 @@
                   ]"
                   @click="toggle"
                 />
-              </v-item>
+              </groupable-item>
             </template>
-          </v-item-group>
+          </item-group>
         </div>
         <div class="d-flex flex-column flex-grow-1">
           <template v-if="hasData">
@@ -204,6 +208,8 @@ import { createFourUpViews } from '@/src/vtk/proxyUtils';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
+import ItemGroup from './components/ItemGroup.vue';
+import GroupableItem from './components/GroupableItem.vue';
 import VtkTwoView from './components/VtkTwoView.vue';
 import VtkThreeView from './components/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
@@ -255,6 +261,8 @@ export default {
     ResizableNavDrawer,
     ToolButton,
     LayoutGrid,
+    ItemGroup,
+    GroupableItem,
   },
 
   data: () => ({
@@ -490,6 +498,10 @@ export default {
   background: #E54D42;
   border-left-color: #B82E24;
 }
+
+.tool-btn-selected {
+  background-color: rgba(128, 128, 255, 0.7);
+}
 </style>
 
 <style scoped>
@@ -500,6 +512,7 @@ export default {
 }
 
 #tools-strip {
+  margin-left: 1px;
   flex: 0 0 40px;
 }
 
@@ -516,14 +529,6 @@ export default {
   height: 1px;
   border: none;
   border-top: 1px solid rgb(112, 112, 112);
-}
-
-.tool-btn {
-  margin-top: 4px;
-}
-
-.tool-btn-selected {
-  background-color: rgba(128, 128, 255, 0.7);
 }
 
 #left-pane {
