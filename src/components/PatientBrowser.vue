@@ -124,7 +124,7 @@ import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import AvatarListCard from '@/src/components/AvatarListCard.vue';
 
-import { DataTypes } from '@/src/constants';
+import { DataTypes, NO_SELECTION } from '@/src/constants';
 
 const IMAGES = Symbol('IMAGES');
 const canvas = document.createElement('canvas');
@@ -226,12 +226,14 @@ export default {
 
   watch: {
     selectedBaseImage(id) {
-      const dataInfo = this.dataIndex[id];
-      if (dataInfo.type === DataTypes.Image) {
-        this.patientID = IMAGES;
-      } else if (dataInfo.type === DataTypes.Dicom) {
-        const patientInfo = this.patientIndex[dataInfo.patientKey];
-        this.patientID = patientInfo.PatientID;
+      if (id !== NO_SELECTION) {
+        const dataInfo = this.dataIndex[id];
+        if (dataInfo.type === DataTypes.Image) {
+          this.patientID = IMAGES;
+        } else if (dataInfo.type === DataTypes.Dicom) {
+          const patientInfo = this.patientIndex[dataInfo.patientKey];
+          this.patientID = patientInfo.PatientID;
+        }
       }
     },
     patients() {
