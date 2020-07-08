@@ -43,6 +43,25 @@ function createProxyFilterDefinition(algoFactory, options, ui, links, props) {
   return createProxyDefinition(vtkSourceProxy, ui, links, defOptions, props);
 }
 
+function createSyncedSliceRepDefinition(
+  proxyClass,
+  axis,
+  ui = [],
+  links = []
+) {
+  return createProxyDefinition(proxyClass, ui, [
+    { link: 'WW', property: 'windowWidth', updateOnBind: true },
+    { link: 'WL', property: 'windowLevel', updateOnBind: true },
+    {
+      link: `Slice${axis}`,
+      property: 'slice',
+      updateOnBind: true,
+      type: 'application',
+    },
+    ...links,
+  ]);
+}
+
 // ----------------------------------------------------------------------------
 
 export default {
@@ -98,100 +117,16 @@ export default {
           },
         ],
       ),
-      SliceX: createProxyDefinition(
-        vtkSliceRepresentationProxy,
-        [/* ui */],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-          {
-            link: 'SliceX',
-            property: 'slice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ],
-      ),
-      SliceY: createProxyDefinition(
-        vtkSliceRepresentationProxy,
-        [/* ui */],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-          {
-            link: 'SliceY',
-            property: 'slice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ],
-      ),
-      SliceZ: createProxyDefinition(
-        vtkSliceRepresentationProxy,
-        [/* ui */],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-          {
-            link: 'SliceZ',
-            property: 'slice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ],
-      ),
-      LabelMapSliceX: createProxyDefinition(
-        vtkLabelMapSliceRepProxy,
-        [/* ui */],
-        [/* links */],
-      ),
-      LabelMapSliceY: createProxyDefinition(
-        vtkLabelMapSliceRepProxy,
-        [/* ui */],
-        [/* links */],
-      ),
-      LabelMapSliceZ: createProxyDefinition(
-        vtkLabelMapSliceRepProxy,
-        [/* ui */],
-        [/* links */],
-      ),
+      SliceX: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'X'),
+      SliceY: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'Y'),
+      SliceZ: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'Z'),
+      LabelMapSliceX: createSyncedSliceRepDefinition(vtkLabelMapSliceRepProxy, 'X'),
+      LabelMapSliceY: createSyncedSliceRepDefinition(vtkLabelMapSliceRepProxy, 'Y'),
+      LabelMapSliceZ: createSyncedSliceRepDefinition(vtkLabelMapSliceRepProxy, 'Z'),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
-      GeomSliceX: createProxyDefinition(
-        vtkCutGeometryRepresentationProxy,
-        [/* ui */],
-        [
-          {
-            link: 'SliceX',
-            property: 'slice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ],
-      ),
-      GeomSliceY: createProxyDefinition(
-        vtkCutGeometryRepresentationProxy,
-        [/* ui */],
-        [
-          {
-            link: 'SliceY',
-            property: 'slice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ],
-      ),
-      GeomSliceZ: createProxyDefinition(
-        vtkCutGeometryRepresentationProxy,
-        [/* ui */],
-        [
-          {
-            link: 'SliceZ',
-            property: 'slice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ],
-      ),
+      GeomSliceX: createSyncedSliceRepDefinition(vtkCutGeometryRepresentationProxy, 'X'),
+      GeomSliceY: createSyncedSliceRepDefinition(vtkCutGeometryRepresentationProxy, 'Y'),
+      GeomSliceZ: createSyncedSliceRepDefinition(vtkCutGeometryRepresentationProxy, 'Z'),
     },
     Views: {
       View3D: createDefaultView(vtk3DView),
