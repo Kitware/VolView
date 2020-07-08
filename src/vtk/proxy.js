@@ -10,6 +10,7 @@ import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/Sl
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
+import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
 import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter';
 import vtkPolyDataTransformFilter from '@/src/vtk/PolyDataTransformFilter';
@@ -133,6 +134,21 @@ export default {
           },
         ],
       ),
+      LabelMapSliceX: createProxyDefinition(
+        vtkLabelMapSliceRepProxy,
+        [/* ui */],
+        [/* links */],
+      ),
+      LabelMapSliceY: createProxyDefinition(
+        vtkLabelMapSliceRepProxy,
+        [/* ui */],
+        [/* links */],
+      ),
+      LabelMapSliceZ: createProxyDefinition(
+        vtkLabelMapSliceRepProxy,
+        [/* ui */],
+        [/* links */],
+      ),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
       GeomSliceX: createProxyDefinition(
         vtkCutGeometryRepresentationProxy,
@@ -186,14 +202,17 @@ export default {
     ViewX: {
       vtkImageData: { name: 'SliceX' },
       vtkPolyData: { name: 'GeomSliceX' },
+      vtkLabelMap: { name: 'LabelMapSliceX' },
     },
     ViewY: {
       vtkImageData: { name: 'SliceY' },
       vtkPolyData: { name: 'GeomSliceY' },
+      vtkLabelMap: { name: 'LabelMapSliceY' },
     },
     ViewZ: {
       vtkImageData: { name: 'SliceZ' },
       vtkPolyData: { name: 'GeomSliceZ' },
+      vtkLabelMap: { name: 'LabelMapSliceZ' },
     },
   },
 };
