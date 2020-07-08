@@ -14,6 +14,7 @@ import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
 import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter';
 import vtkPolyDataTransformFilter from '@/src/vtk/PolyDataTransformFilter';
+import vtkLabelMapTransformFilter from '@/src/vtk/LabelMapTransformFilter';
 
 function createProxyDefinition(
   classFactory,
@@ -60,6 +61,11 @@ export default {
         },
       }),
       ImageTransform: createProxyFilterDefinition(vtkImageTransformFilter, {
+        proxyPropertyMapping: {
+          transform: { modelKey: 'algo', property: 'transform' },
+        },
+      }),
+      LabelMapTransform: createProxyFilterDefinition(vtkLabelMapTransformFilter, {
         proxyPropertyMapping: {
           transform: { modelKey: 'algo', property: 'transform' },
         },

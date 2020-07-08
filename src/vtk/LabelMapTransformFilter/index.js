@@ -1,51 +1,18 @@
 import macro from 'vtk.js/Sources/macro';
-import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import { mat4 } from 'gl-matrix';
+
+import vtkLabelMap from '@/src/vtk/LabelMap';
+import { transformImage } from '@/src/vtk/ImageTransformFilter';
 
 const { vtkErrorMacro } = macro;
 
-export function transformImage(
-  imageData,
-  transform,
-  options = {
-    imageClass: vtkImageData,
-    propsToCopy: ['extent', 'spacing'],
-  }
-) {
-  const { imageClass, propsToCopy } = options;
-  const clone = imageClass.newInstance(imageData.get(...propsToCopy));
-  clone.getPointData().setScalars(imageData.getPointData().getScalars());
-
-  const transformed = mat4.create();
-  const original = imageData.getIndexToWorld();
-  mat4.multiply(transformed, transform, original);
-
-  clone.setOrigin(transformed[12], transformed[13], transformed[14]);
-  clone.setDirection(
-    // I axis
-    transformed[0],
-    transformed[1],
-    transformed[2],
-    // J axis
-    transformed[4],
-    transformed[5],
-    transformed[6],
-    // K axis
-    transformed[8],
-    transformed[9],
-    transformed[10]
-  );
-
-  return clone;
-}
-
 // ----------------------------------------------------------------------------
-// vtkImageTransformFilter methods
+// vtkLabelMapTransformFilter methods
 // ----------------------------------------------------------------------------
 
-function vtkImageTransformFilter(publicAPI, model) {
+function vtkLabelMapTransformFilter(publicAPI, model) {
   // Set our className
-  model.classHierarchy.push('vtkImageTransformFilter');
+  model.classHierarchy.push('vtkLabelMapTransformFilter');
 
   // --------------------------------------------------------------------------
 
@@ -64,7 +31,12 @@ function vtkImageTransformFilter(publicAPI, model) {
       return;
     }
 
-    outData[0] = transformImage(input, model.transform);
+    const out = transformImage(input, model.transform, {
+      imageClass: vtkLabelMap,
+      propsToCopy: ['extent', 'spacing', 'colorMap'],
+    });
+
+    outData[0] = out;
   };
 }
 
@@ -90,12 +62,12 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.setGetArray(publicAPI, model, ['transform'], 16);
 
   // Object specific methods
-  vtkImageTransformFilter(publicAPI, model);
+  vtkLabelMapTransformFilter(publicAPI, model);
 }
 
 // ----------------------------------------------------------------------------
 
-export const newInstance = macro.newInstance(extend, 'vtkImageTransformFilter');
+export const newInstance = macro.newInstance(extend, 'vtkLabelMapTransformFilter');
 
 // ----------------------------------------------------------------------------
 

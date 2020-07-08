@@ -30,10 +30,12 @@ export const defaultSlicing = () => ({
 
 export function createVizPipelineFor(data, proxyManager) {
   let transformType = null;
-  if (data.isA('vtkImageData')) {
+  if (data.getClassName() === 'vtkImageData') {
     transformType = 'ImageTransform';
-  } else if (data.isA('vtkPolyData')) {
+  } else if (data.getClassName() === 'vtkPolyData') {
     transformType = 'PolyDataTransform';
+  } else if (data.getClassName() === 'vtkLabelMap') {
+    transformType = 'LabelMapTransform';
   } else {
     throw new Error('createVizPipelineFor: data is not image or geometry');
   }
