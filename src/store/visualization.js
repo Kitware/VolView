@@ -417,6 +417,19 @@ export default (dependencies) => ({
 
     removeData({ commit }, dataID) {
       commit('removePipeline', dataID);
+    },
+
+    redrawPipeline({ state }, dataID) {
+      if (dataID in state.pipelines) {
+        const { proxyManager } = dependencies;
+        const { transformFilter: source } = state.pipelines[dataID];
+        proxyManager.getViews().forEach((view) => {
+          const rep = proxyManager.getRepresentation(source, view);
+          if (rep) {
+            rep.getMapper().modified();
+          }
+        })
+      }
     }
   },
 });
