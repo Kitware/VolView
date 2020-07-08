@@ -53,6 +53,13 @@
                   dataIndex[imgID].spacing.map((s) => s.toFixed(2)).join(', ')
                 }})
               </div>
+              <template v-slot:menu>
+                <v-list>
+                  <v-list-item @click.stop="removeData(imgID)">
+                    Delete
+                  </v-list-item>
+                </v-list>
+              </template>
             </avatar-list-card>
           </groupable-item>
         </template>
@@ -309,7 +316,7 @@ export default {
       return '';
     },
 
-    ...mapActions(['selectBaseImage', 'updateScene']),
+    ...mapActions(['selectBaseImage', 'updateScene', 'removeData']),
     ...mapActions('dicom', ['getSeriesImage']),
   },
 };

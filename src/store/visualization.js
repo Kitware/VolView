@@ -1,3 +1,4 @@
+import Vue from 'vue';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
 import { addRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
@@ -95,6 +96,12 @@ export default (dependencies) => ({
         ...state.pipelines,
         [dataID]: { ...pipeline },
       };
+    },
+
+    removePipeline(state, dataID) {
+      if (dataID in state.pipelines) {
+        Vue.delete(state.pipelines, dataID);
+      }
     },
 
     setWorldOrientation(state, {
@@ -407,5 +414,9 @@ export default (dependencies) => ({
           resize2DCameraToFit(view, getters.worldBounds);
         });
     },
+
+    removeData({ commit }, dataID) {
+      commit('removePipeline', dataID);
+    }
   },
 });

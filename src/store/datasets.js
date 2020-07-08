@@ -1,6 +1,8 @@
+import Vue from 'vue';
 import { isVtkObject } from 'vtk.js/Sources/macro';
 
 import { DataTypes, NO_SELECTION } from '@/src/constants';
+import { removeFromArray } from '@/src/utils/common';
 
 import { FileTypes } from '../io/io';
 
@@ -62,6 +64,25 @@ export const mutations = {
         seriesKey,
       },
     };
+  },
+
+  removeData(state, dataID) {
+    if (dataID in state.data.index) {
+      const { type } = state.data.index[dataID];
+      if (type === DataTypes.Image) {
+        removeFromArray(state.data.imageIDs, dataID);
+      } else if (type === DataTypes.Labelmap) {
+        removeFromArray(state.data.labelmapIDs, dataID);
+      } else if (type === DataTypes.Model) {
+        removeFromArray(state.data.modelIDs, dataID);
+      } else if (type === DataTypes.Dicom) {
+        removeFromArray(state.data.dicomIDs, dataID);
+        Vue.delete(state.dicomSeriesToID, dataID);
+      }
+
+      Vue.delete(state.data.index, dataID);
+      Vue.delete(state.data.vtkCache, dataID);
+    }
   },
 
   setBaseImage(state, id) {
@@ -218,5 +239,13 @@ export const makeActions = (dependencies) => ({
     }
 
     commit('setBaseImage', baseImageId);
+  },
+
+  async removeData({ commit, state }, dataID) {
+    console.log('in datasets');
+    if (dataID === state.selectedBaseImage) {
+      commit('setBaseImage', NO_SELECTION);
+    }
+    commit('removeData', dataID);
   },
 });
