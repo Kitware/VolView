@@ -77,7 +77,8 @@ export const mutations = {
         removeFromArray(state.data.modelIDs, dataID);
       } else if (type === DataTypes.Dicom) {
         removeFromArray(state.data.dicomIDs, dataID);
-        Vue.delete(state.dicomSeriesToID, dataID);
+        const { seriesKey } = state.data.index[dataID];
+        Vue.delete(state.dicomSeriesToID, seriesKey);
       }
 
       Vue.delete(state.data.index, dataID);
@@ -241,11 +242,17 @@ export const makeActions = (dependencies) => ({
     commit('setBaseImage', baseImageId);
   },
 
-  async removeData({ commit, state }, dataID) {
-    console.log('in datasets');
+  async removeData({ commit, dispatch, state }, dataID) {
     if (dataID === state.selectedBaseImage) {
       commit('setBaseImage', NO_SELECTION);
     }
+
+    const info = state.data.index[dataID];
+    if (info?.type === DataTypes.Dicom) {
+      const { seriesKey } = info;
+      await dispatch('dicom/removeData', seriesKey);
+    }
+
     commit('removeData', dataID);
   },
 });
