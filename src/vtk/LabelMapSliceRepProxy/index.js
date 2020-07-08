@@ -51,9 +51,12 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
   // override because we manage our own color/opacity functions
   publicAPI.setColorBy = () => {};
 
-  publicAPI.delete = macro.chain(publicAPI.delete, () =>
-    labelMapSub.unsubscribe()
-  );
+  publicAPI.delete = macro.chain(publicAPI.delete, () => {
+    if (labelMapSub) {
+      labelMapSub.unsubscribe()
+      labelMapSub = null;
+    }
+  });
 
   // Keep things updated
   model.sourceDependencies.push({ setInputData });
