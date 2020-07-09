@@ -15,6 +15,7 @@ import { FileIO } from './io/io';
 import DicomIO from './io/dicom';
 import { registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
+import WidgetProvider from './widgets/widgetProvider';
 
 Vue.config.productionTip = false;
 
@@ -45,9 +46,15 @@ const dependencies = {
   dicomIO,
 };
 
+const store = createStore(dependencies);
+const widgetProvider = new WidgetProvider(store);
+
 new Vue({
-  store: createStore(dependencies),
+  store,
   vuetify,
   proxyManager,
+  provide: {
+    widgetProvider,
+  },
   render: (h) => h(App),
 }).$mount('#app');
