@@ -28,11 +28,12 @@ import { mapState, mapGetters, mapActions } from 'vuex';
 
 import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
 import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
+import { WIDGET_PRIORITY } from 'vtk.js/Sources/Widgets/Core/AbstractWidget/Constants';
 
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 import { zip } from '@/src/utils/common';
-import { NO_SELECTION } from '@/src/constants';
+import { NO_SELECTION, NO_WIDGET } from '@/src/constants';
 
 import SliceSlider from './SliceSlider.vue';
 
@@ -59,6 +60,8 @@ export default {
     SliceSlider,
   },
 
+  inject: ['widgetProvider'],
+
   computed: {
     ...mapState({
       baseImageExists: (state) => state.selectedBaseImage !== NO_SELECTION,
@@ -66,6 +69,8 @@ export default {
       windowing: (state) => state.visualization.windowing,
       resizeToFit: (state) => state.visualization.resizeToFit,
       slices: (state) => state.visualization.slices,
+      activeWidgetID: (state) => state.widgets.activeWidgetID,
+      widgetList: (state) => state.widgets.widgetList,
     }),
     ...mapGetters(['boundsWithSpacing']),
 
@@ -98,6 +103,7 @@ export default {
     slice() {
       this.updateRepresentations();
       this.updateLowerLeftAnnotations();
+      this.updateActiveWidget();
     },
     resizeToFit() {
       this.resetCamera();
@@ -110,10 +116,28 @@ export default {
       this.resetCamera();
       this.render();
     },
+    activeWidgetID(widgetID, oldWidgetID) {
+      if (this.view) {
+        const wm = this.view.getReferenceByName('widgetManager');
+
+        if (oldWidgetID !== NO_WIDGET) {
+          wm.releaseFocus();
+        }
+
+        if (widgetID !== NO_WIDGET) {
+          const widget = this.widgetProvider.getById(widgetID);
+          widget.focus(this.view);
+          this.updateActiveWidget();
+        }
+
+        this.render();
+      }
+    },
   },
 
   created() {
     this.resizeListener = null;
+    this.moveListener = null;
     this.rangeManipulator = vtkMouseRangeManipulator.newInstance({
       button: 1,
       scrollEnabled: true,
@@ -123,26 +147,38 @@ export default {
   },
 
   beforeDestroy() {
-    if (this.resizeListener) {
-      this.resizeListener.unsubscribe();
-    }
+    this.cleanupListeners();
   },
 
   methods: {
-    beforeViewUnmount() {
+    cleanupListeners() {
       if (this.resizeListener) {
         this.resizeListener.unsubscribe();
         this.resizeListener = null;
       }
+      if (this.moveListener) {
+        this.moveListener.unsubscribe();
+        this.moveListener = null;
+      }
+    },
+
+    beforeViewUnmount() {
+      this.widgetProvider.detachView(this.view);
+      this.cleanupListeners();
     },
 
     afterViewMount() {
       this.resizeListener = this.view.onResize(() => this.resetCamera());
+      this.moveListener = this.view
+        .getInteractor()
+        .onMouseMove(() => this.onMouseMove(), WIDGET_PRIORITY);
       this.cameraListener = this.view.getCamera().onModified(
         () => this.updateOrientationLabels(),
       );
       // disable orientation widget for 2D views
       this.view.setOrientationAxesVisibility(false);
+
+      this.widgetProvider.addView(this.view);
 
       this.setupInteraction();
       this.updateOrientationLabels();
@@ -296,6 +332,21 @@ export default {
           `Slice: ${slice + 1}`
             + `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`,
         );
+      }
+    },
+
+    onMouseMove() {
+      if (this.activeWidgetID !== NO_WIDGET) {
+        this.updateActiveWidget();
+      }
+    },
+
+    updateActiveWidget() {
+      const widgetID = this.activeWidgetID;
+      if (widgetID !== NO_WIDGET) {
+        const widget = this.widgetProvider.getById(widgetID);
+        widget.updateManipulator(this.view);
+        widget.updateVisibility(this.view);
       }
     },
 
