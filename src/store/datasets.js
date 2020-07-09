@@ -6,24 +6,39 @@ import { removeFromArray } from '@/src/utils/common';
 
 import { FileTypes } from '../io/io';
 
+function addImageOfType(state, { name, image, type }) {
+  const id = state.data.nextID;
+  state.data.vtkCache[id] = image;
+  if (type === DataTypes.Image) {
+    state.data.imageIDs.push(id);
+  } else if (type === DataTypes.Labelmap) {
+    state.data.labelmapIDs.push(id);
+  }
+  state.data.index = {
+    ...state.data.index,
+    [id]: {
+      type,
+      name,
+      dims: image.getDimensions(),
+      spacing: image.getSpacing(),
+    },
+  };
+  state.data.nextID += 1;
+}
+
 export const mutations = {
   /**
    * Args: { image, name }
    */
   addImage(state, { name, image }) {
-    const id = state.data.nextID;
-    state.data.nextID += 1;
-    state.data.vtkCache[id] = image;
-    state.data.imageIDs.push(id);
-    state.data.index = {
-      ...state.data.index,
-      [id]: {
-        type: DataTypes.Image,
-        name,
-        dims: image.getDimensions(),
-        spacing: image.getSpacing(),
-      },
-    };
+    addImageOfType(state, { name, image, type: DataTypes.Image });
+  },
+
+  /**
+   * Args: { image, name }
+   */
+  addLabelmap(state, { name, image }) {
+    addImageOfType(state, { name, image, type: DataTypes.Labelmap });
   },
 
   /**
@@ -31,7 +46,6 @@ export const mutations = {
    */
   addModel(state, { name, model }) {
     const id = state.data.nextID;
-    state.data.nextID += 1;
     state.data.vtkCache[id] = model;
     state.data.modelIDs.push(id);
     state.data.index = {
@@ -41,6 +55,7 @@ export const mutations = {
         name,
       },
     };
+    state.data.nextID += 1;
   },
 
   /**
