@@ -1,6 +1,8 @@
+import PaintWidget from '@/src/widgets/paint';
 import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 
 export const DEFAULT_NAME_MAP = {
+  Paint: PaintWidget,
 };
 
 export default class WidgetProvider {

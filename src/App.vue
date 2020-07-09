@@ -246,6 +246,8 @@ export const Tools = [
   {
     name: 'Paint',
     icon: 'brush',
+    key: 'Paint',
+    focusModule: Annotations,
   },
   {
     name: 'Box',
