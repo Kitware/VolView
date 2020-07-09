@@ -5,6 +5,7 @@ import { NO_SELECTION } from '@/src/constants';
 
 import dicom from './dicom';
 import visualization from './visualization';
+import annotations from './annotations';
 
 import * as datasets from './datasets';
 
@@ -30,6 +31,7 @@ export default (deps) => new Vuex.Store({
   modules: {
     dicom: dicom(deps),
     visualization: visualization(deps),
+    annotations: annotations(deps),
   },
 
   state: initialState(),
