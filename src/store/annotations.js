@@ -5,6 +5,20 @@ import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { DEFAULT_LABELMAP_COLORS, NO_SELECTION } from '@/src/constants';
 
+export function findNextLabelMapName(names) {
+  const seen = [];
+  const re = /^Labelmap (\d+)$/;
+  names.forEach((name) => {
+    const match = re.exec(name);
+    if (match) {
+      seen.push(Number(match[1]));
+    }
+  });
+  seen.sort((a, b) => b - a);
+  const nextNum = seen.length ? seen[0] + 1 : 1;
+  return `Labelmap ${nextNum}`;
+}
+
 export function createLabelmapFromImage(imageData) {
   const labelmap = vtkLabelMap.newInstance(
     imageData.get('spacing', 'origin', 'direction')
@@ -68,10 +82,15 @@ export default () => ({
 
   actions: {
     async createLabelmap({ commit, dispatch, rootState }, baseID) {
-      if (baseID in rootState.data.vtkCache) {
-        const imageData = rootState.data.vtkCache[baseID];
-        const id = rootState.data.nextID;
-        const name = 'Labelmap';
+      const { data } = rootState;
+      if (baseID in data.vtkCache) {
+        const imageData = data.vtkCache[baseID];
+        const id = data.nextID;
+
+        const existingNames = data.labelmapIDs.map(
+          (lid) => data.index[lid].name
+        );
+        const name = findNextLabelMapName(existingNames);
 
         // create labelmap from imageData
         const labelmap = createLabelmapFromImage(imageData);
