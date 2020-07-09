@@ -133,7 +133,7 @@ export default () => ({
     },
 
     removeData({ commit, state }, dataID) {
-      if (dataID === state.selectLabelmap) {
+      if (dataID === state.selectedLabelmap) {
         commit('selectLabelmap', NO_SELECTION);
       }
     },

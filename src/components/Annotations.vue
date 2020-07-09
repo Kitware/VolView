@@ -44,7 +44,12 @@
         <v-tooltip bottom>
           Delete labelmap
           <template v-slot:activator="{ on }">
-            <v-btn :disabled="!hasSelectedLabelmap" text v-on="on">
+            <v-btn
+              :disabled="!hasSelectedLabelmap"
+              text
+              v-on="on"
+              @click="removeSelectedLabelmap"
+            >
               <v-icon>mdi-delete</v-icon>
             </v-btn>
           </template>
@@ -85,6 +90,8 @@ import { NO_SELECTION } from '@/src/constants';
 
 export default {
   name: 'Annotations',
+
+  inject: ['widgetProvider'],
 
   data() {
     return {};
@@ -128,7 +135,21 @@ export default {
       this.createLabelmap(this.selectedBaseImage);
     },
 
-    ...mapActions('annotations', ['selectLabelmap', 'createLabelmap']),
+    removeSelectedLabelmap() {
+      if (this.selectedLabelmap !== NO_SELECTION) {
+        const { id } = this.selectedLabelmap;
+        // must happen before general removeData
+        this.removeLabelmap(id);
+        this.removeData(id);
+      }
+    },
+
+    ...mapActions('annotations', {
+      selectLabelmap: 'selectLabelmap',
+      createLabelmap: 'createLabelmap',
+      removeLabelmap: 'removeData',
+    }),
+    ...mapActions(['removeData']),
   },
 };
 </script>
