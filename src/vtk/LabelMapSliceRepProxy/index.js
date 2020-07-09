@@ -17,6 +17,7 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
   let labelMapSub = null;
 
   model.property.setInterpolationType(InterpolationType.NEAREST);
+  model.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-1, -1);
 
   function updateTransferFunctions(labelmap) {
     const colorMap = labelmap.getColorMap();

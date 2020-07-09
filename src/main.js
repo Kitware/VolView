@@ -34,8 +34,8 @@ dicomIO.initialize();
 // Initialize global mapper topologies
 // polys and lines in the front
 vtkMapper.setResolveCoincidentTopologyToPolygonOffset();
-vtkMapper.setResolveCoincidentTopologyPolygonOffsetParameters(-1, -1);
-vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-1, -1);
+vtkMapper.setResolveCoincidentTopologyPolygonOffsetParameters(-2, -2);
+vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-2, -2);
 // image poly in the back
 vtkImageMapper.setResolveCoincidentTopologyToPolygonOffset();
 vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
