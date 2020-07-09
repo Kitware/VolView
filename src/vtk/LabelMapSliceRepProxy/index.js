@@ -54,7 +54,7 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
 
   publicAPI.delete = macro.chain(publicAPI.delete, () => {
     if (labelMapSub) {
-      labelMapSub.unsubscribe()
+      labelMapSub.unsubscribe();
       labelMapSub = null;
     }
   });

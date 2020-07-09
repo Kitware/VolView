@@ -28,9 +28,7 @@ export function genSynPatientKey(patient) {
   const sex = patient.PatientSex.trim();
   // we only care about making a unique key here. The
   // data doesn't actually matter.
-  return [pid, name, bdate, sex]
-    .map((s) => s.replace('|', '_'))
-    .join('|');
+  return [pid, name, bdate, sex].map((s) => s.replace('|', '_')).join('|');
 }
 
 export default (dependencies) => ({
@@ -84,12 +82,7 @@ export default (dependencies) => ({
       }
     },
 
-    cacheImageSlice(
-      state,
-      {
-        seriesKey, offset, asThumbnail, image,
-      },
-    ) {
+    cacheImageSlice(state, { seriesKey, offset, asThumbnail, image }) {
       const key = imageCacheMultiKey(offset, asThumbnail);
       state.imageCache = {
         ...state.imageCache,
@@ -183,13 +176,16 @@ export default (dependencies) => ({
      * slice: the slice offset to retrieve
      * asThumbnail: whether to cast image to unsigned char. Defaults to false.
      */
-    async getSeriesImage({ commit, state }, { seriesKey, slice, asThumbnail = false }) {
+    async getSeriesImage(
+      { commit, state },
+      { seriesKey, slice, asThumbnail = false }
+    ) {
       const { dicomIO } = dependencies;
 
       const cacheKey = imageCacheMultiKey(slice, asThumbnail);
       if (
-        seriesKey in state.imageCache
-        && cacheKey in state.imageCache[seriesKey]
+        seriesKey in state.imageCache &&
+        cacheKey in state.imageCache[seriesKey]
       ) {
         return state.imageCache[seriesKey][cacheKey];
       }

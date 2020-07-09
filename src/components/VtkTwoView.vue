@@ -11,10 +11,7 @@
         @input="setSlice"
       />
     </div>
-    <div
-      class="vtk-container"
-      :class="active ? 'active' : ''"
-    >
+    <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainer" />
       </div>
@@ -172,9 +169,9 @@ export default {
       this.moveListener = this.view
         .getInteractor()
         .onMouseMove(() => this.onMouseMove(), WIDGET_PRIORITY);
-      this.cameraListener = this.view.getCamera().onModified(
-        () => this.updateOrientationLabels(),
-      );
+      this.cameraListener = this.view
+        .getCamera()
+        .onModified(() => this.updateOrientationLabels());
       // disable orientation widget for 2D views
       this.view.setOrientationAxesVisibility(false);
 
@@ -209,7 +206,7 @@ export default {
         this.windowing.max - this.windowing.min,
         1 / 512,
         () => this.windowing.width,
-        (w) => this.setWindowWidth(w),
+        (w) => this.setWindowWidth(w)
       );
 
       // window level
@@ -218,7 +215,7 @@ export default {
         this.windowing.max,
         1 / 512,
         () => this.windowing.level,
-        (l) => this.setWindowLevel(l),
+        (l) => this.setWindowLevel(l)
       );
 
       // slicing
@@ -227,7 +224,7 @@ export default {
         this.sliceRange[1],
         this.sliceSpacing,
         () => this.slice,
-        (s) => this.setSlice(s),
+        (s) => this.setSlice(s)
       );
     },
 
@@ -282,7 +279,7 @@ export default {
           { type: 'zoom', options: { control: true } },
           { type: 'zoom', options: { button: 3 } },
         ],
-        istyle,
+        istyle
       );
 
       // create our own set of manipulators
@@ -329,8 +326,8 @@ export default {
 
         this.view.setCornerAnnotation(
           'sw',
-          `Slice: ${slice + 1}`
-            + `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`,
+          `Slice: ${slice + 1}` +
+            `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`
         );
       }
     },

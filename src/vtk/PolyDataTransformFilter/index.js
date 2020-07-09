@@ -51,11 +51,7 @@ function vtkPolyDataTransformFilter(publicAPI, model) {
 
     for (let i = 0; i < npts; i += 1) {
       const idx = i * ncomp;
-      const pt = [
-        inValues[idx],
-        inValues[idx + 1],
-        inValues[idx + 2],
-      ];
+      const pt = [inValues[idx], inValues[idx + 1], inValues[idx + 2]];
       vec3.transformMat4(pt, pt, model.transform);
       outValues.set(pt, idx);
     }
@@ -91,7 +87,10 @@ export function extend(publicAPI, model, initialValues = {}) {
 
 // ----------------------------------------------------------------------------
 
-export const newInstance = macro.newInstance(extend, 'vtkPolyDataTransformFilter');
+export const newInstance = macro.newInstance(
+  extend,
+  'vtkPolyDataTransformFilter'
+);
 
 // ----------------------------------------------------------------------------
 

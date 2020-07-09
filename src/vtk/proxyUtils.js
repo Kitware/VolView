@@ -118,7 +118,5 @@ export function resize2DCameraToFit(view, bounds) {
  * This does not reset clipping range.
  */
 export function renderAllViews(proxyManager) {
-  proxyManager
-    .getViews()
-    .forEach((view) => view.getRenderWindow().render());
+  proxyManager.getViews().forEach((view) => view.getRenderWindow().render());
 }

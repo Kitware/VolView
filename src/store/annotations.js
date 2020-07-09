@@ -7,7 +7,7 @@ import { DEFAULT_LABELMAP_COLORS, NO_SELECTION } from '@/src/constants';
 
 export function createLabelmapFromImage(imageData) {
   const labelmap = vtkLabelMap.newInstance(
-    imageData.get('spacing', 'origin', 'direction'),
+    imageData.get('spacing', 'origin', 'direction')
   );
   labelmap.setDimensions(imageData.getDimensions());
 
@@ -136,6 +136,6 @@ export default () => ({
       if (dataID === state.selectLabelmap) {
         commit('selectLabelmap', NO_SELECTION);
       }
-    }
+    },
   },
 });

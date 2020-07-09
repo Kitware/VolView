@@ -18,13 +18,15 @@ class WorkerHandler {
       };
 
       try {
-        Promise.resolve(this.handler(message, setTransferables)).then((result) => {
-          const msg = {
-            id,
-            message: result,
-          };
-          postMessage(msg, transferables);
-        });
+        Promise.resolve(this.handler(message, setTransferables)).then(
+          (result) => {
+            const msg = {
+              id,
+              message: result,
+            };
+            postMessage(msg, transferables);
+          }
+        );
       } catch (error) {
         const msg = {
           id,

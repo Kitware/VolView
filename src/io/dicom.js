@@ -46,16 +46,18 @@ export default class DicomIO {
    */
   async initialize() {
     if (!this.initializeCheck) {
-      this.initializeCheck = new Promise((resolve, reject) => this.addTask('dicom', [], [], [])
-        .then((result) => {
-          if (result.webWorker) {
-            this.webWorker = result.webWorker;
-            resolve();
-          } else {
-            reject(new Error('Could not initialize webworker'));
-          }
-        })
-        .catch(reject));
+      this.initializeCheck = new Promise((resolve, reject) =>
+        this.addTask('dicom', [], [], [])
+          .then((result) => {
+            if (result.webWorker) {
+              this.webWorker = result.webWorker;
+              resolve();
+            } else {
+              reject(new Error('Could not initialize webworker'));
+            }
+          })
+          .catch(reject)
+      );
     }
     return this.initializeCheck;
   }
@@ -69,21 +71,21 @@ export default class DicomIO {
   async importFiles(files) {
     await this.initialize();
 
-    const fileData = await Promise.all(files.map(async (file) => {
-      const buffer = await readFileAsArrayBuffer(file);
-      return {
-        name: file.name,
-        data: buffer,
-      };
-    }));
+    const fileData = await Promise.all(
+      files.map(async (file) => {
+        const buffer = await readFileAsArrayBuffer(file);
+        return {
+          name: file.name,
+          data: buffer,
+        };
+      })
+    );
 
     const result = await this.addTask(
       // module
       'dicom',
       // args
-      [
-        'import', 'output.json', ...fileData.map((fd) => fd.name),
-      ],
+      ['import', 'output.json', ...fileData.map((fd) => fd.name)],
       // outputs
       [{ path: 'output.json', type: IOTypes.Text }],
       // inputs
@@ -91,7 +93,7 @@ export default class DicomIO {
         path: fd.name,
         type: IOTypes.Binary,
         data: new Uint8Array(fd.data),
-      })),
+      }))
     );
 
     return JSON.parse(result.outputs[0].data);
@@ -118,7 +120,7 @@ export default class DicomIO {
         asThumbnail ? '1' : '0',
       ],
       [{ path: 'output.json', type: IOTypes.Image }],
-      [],
+      []
     );
 
     return result.outputs[0].data;
@@ -137,7 +139,7 @@ export default class DicomIO {
       'dicom',
       ['buildSeriesVolume', 'output.json', seriesUID],
       [{ path: 'output.json', type: IOTypes.Image }],
-      [],
+      []
     );
 
     return result.outputs[0].data;

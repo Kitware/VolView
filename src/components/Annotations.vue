@@ -87,8 +87,7 @@ export default {
   name: 'Annotations',
 
   data() {
-    return {
-    };
+    return {};
   },
 
   computed: {
@@ -98,15 +97,14 @@ export default {
         const id = state.annotations.selectedLabelmap;
         return {
           id,
-          name: id !== NO_SELECTION
-            ? state.data.index[id].name
-            : '',
+          name: id !== NO_SELECTION ? state.data.index[id].name : '',
         };
       },
-      labelmaps: (state) => state.data.labelmapIDs.map((id) => ({
-        id,
-        name: state.data.index[id].name,
-      })),
+      labelmaps: (state) =>
+        state.data.labelmapIDs.map((id) => ({
+          id,
+          name: state.data.index[id].name,
+        })),
     }),
     ...mapState('annotations', ['radiusRange']),
     hasSelectedBase() {
@@ -122,7 +120,7 @@ export default {
       set(v) {
         this.$store.dispatch('annotations/setRadius', Number(v));
       },
-    }
+    },
   },
 
   methods: {

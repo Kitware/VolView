@@ -21,7 +21,7 @@ function createProxyDefinition(
   ui = [],
   links = [],
   definitionOptions = {},
-  props = {},
+  props = {}
 ) {
   return {
     class: classFactory,
@@ -43,12 +43,7 @@ function createProxyFilterDefinition(algoFactory, options, ui, links, props) {
   return createProxyDefinition(vtkSourceProxy, ui, links, defOptions, props);
 }
 
-function createSyncedSliceRepDefinition(
-  proxyClass,
-  axis,
-  ui = [],
-  links = []
-) {
+function createSyncedSliceRepDefinition(proxyClass, axis, ui = [], links = []) {
   return createProxyDefinition(proxyClass, ui, [
     { link: 'WW', property: 'windowWidth', updateOnBind: true },
     { link: 'WL', property: 'windowLevel', updateOnBind: true },
@@ -74,21 +69,27 @@ export default {
     },
     Sources: {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
-      PolyDataTransform: createProxyFilterDefinition(vtkPolyDataTransformFilter, {
-        proxyPropertyMapping: {
-          transform: { modelKey: 'algo', property: 'transform' },
-        },
-      }),
+      PolyDataTransform: createProxyFilterDefinition(
+        vtkPolyDataTransformFilter,
+        {
+          proxyPropertyMapping: {
+            transform: { modelKey: 'algo', property: 'transform' },
+          },
+        }
+      ),
       ImageTransform: createProxyFilterDefinition(vtkImageTransformFilter, {
         proxyPropertyMapping: {
           transform: { modelKey: 'algo', property: 'transform' },
         },
       }),
-      LabelMapTransform: createProxyFilterDefinition(vtkLabelMapTransformFilter, {
-        proxyPropertyMapping: {
-          transform: { modelKey: 'algo', property: 'transform' },
-        },
-      }),
+      LabelMapTransform: createProxyFilterDefinition(
+        vtkLabelMapTransformFilter,
+        {
+          proxyPropertyMapping: {
+            transform: { modelKey: 'algo', property: 'transform' },
+          },
+        }
+      ),
     },
     Representations: {
       Volume: createProxyDefinition(
@@ -115,24 +116,60 @@ export default {
             updateOnBind: true,
             type: 'application',
           },
-        ],
+        ]
       ),
       SliceX: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'X'),
       SliceY: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'Y'),
       SliceZ: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'Z'),
-      LabelMapSliceX: createSyncedSliceRepDefinition(vtkLabelMapSliceRepProxy, 'X'),
-      LabelMapSliceY: createSyncedSliceRepDefinition(vtkLabelMapSliceRepProxy, 'Y'),
-      LabelMapSliceZ: createSyncedSliceRepDefinition(vtkLabelMapSliceRepProxy, 'Z'),
+      LabelMapSliceX: createSyncedSliceRepDefinition(
+        vtkLabelMapSliceRepProxy,
+        'X'
+      ),
+      LabelMapSliceY: createSyncedSliceRepDefinition(
+        vtkLabelMapSliceRepProxy,
+        'Y'
+      ),
+      LabelMapSliceZ: createSyncedSliceRepDefinition(
+        vtkLabelMapSliceRepProxy,
+        'Z'
+      ),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
-      GeomSliceX: createSyncedSliceRepDefinition(vtkCutGeometryRepresentationProxy, 'X'),
-      GeomSliceY: createSyncedSliceRepDefinition(vtkCutGeometryRepresentationProxy, 'Y'),
-      GeomSliceZ: createSyncedSliceRepDefinition(vtkCutGeometryRepresentationProxy, 'Z'),
+      GeomSliceX: createSyncedSliceRepDefinition(
+        vtkCutGeometryRepresentationProxy,
+        'X'
+      ),
+      GeomSliceY: createSyncedSliceRepDefinition(
+        vtkCutGeometryRepresentationProxy,
+        'Y'
+      ),
+      GeomSliceZ: createSyncedSliceRepDefinition(
+        vtkCutGeometryRepresentationProxy,
+        'Z'
+      ),
     },
     Views: {
       View3D: createDefaultView(vtk3DView),
-      ViewX: createDefaultView(vtk2DView, [/* ui */], { axis: 0 }),
-      ViewY: createDefaultView(vtk2DView, [/* ui */], { axis: 1 }),
-      ViewZ: createDefaultView(vtk2DView, [/* ui */], { axis: 2 }),
+      ViewX: createDefaultView(
+        vtk2DView,
+        [
+          /* ui */
+        ],
+        { axis: 0 }
+      ),
+      ViewY: createDefaultView(
+        vtk2DView,
+        [
+          /* ui */
+        ],
+        { axis: 1 }
+      ),
+      ViewZ: createDefaultView(
+        vtk2DView,
+        [
+          /* ui */
+        ],
+        { axis: 2 }
+      ),
     },
   },
   representations: {

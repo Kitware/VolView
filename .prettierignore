@@ -1,0 +1,5 @@
+dist
+node_modules
+public
+src/io/itk-dicom
+*.json

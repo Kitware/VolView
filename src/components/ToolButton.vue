@@ -1,8 +1,5 @@
 <template>
-  <v-tooltip
-    right
-    transition="slide-x-transition"
-  >
+  <v-tooltip right transition="slide-x-transition">
     <template v-slot:activator="{ on }">
       <v-btn
         text
@@ -13,7 +10,6 @@
         :min-width="sizeV"
         :max-width="sizeV"
         :class="classV"
-
         v-bind="$attrs"
         v-on="{ ...on, ...$listeners }"
       >
@@ -45,11 +41,12 @@ export default {
       const classSpec = this.buttonClass;
       if (typeof classSpec === 'string') {
         return classSpec;
-      } if (Array.isArray(classSpec)) {
+      }
+      if (Array.isArray(classSpec)) {
         return classSpec.join(' ');
-      } if (classSpec && Object.keys(classSpec).length) {
-        return Object
-          .keys(this.buttonClass)
+      }
+      if (classSpec && Object.keys(classSpec).length) {
+        return Object.keys(this.buttonClass)
           .filter((key) => this.buttonClass[key])
           .join(' ');
       }

@@ -9,6 +9,7 @@ function registerPresets(presets) {
 
 registerPresets(MedicalPresets);
 
+/* prettier-ignore */
 const GroupedPresets = [
   {
     group: 'CT',
@@ -58,7 +59,8 @@ const GroupedPresets = [
   },
 ];
 
-
 export const DEFAULT_PRESET = 'Cool to Warm';
-export const PresetNameList = [].concat(...GroupedPresets.map((g) => g.presets));
+export const PresetNameList = [].concat(
+  ...GroupedPresets.map((g) => g.presets)
+);
 export default GroupedPresets;

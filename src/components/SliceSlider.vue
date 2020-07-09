@@ -1,18 +1,14 @@
 <template>
-  <div
-    class="slice-slider"
-    ref="handleContainer"
-    @mousedown="onDragStart"
-  >
-  <div
-    class="slice-slider-handle"
-    ref="handle"
-    :style="{
-      height: `${handleHeight}px`,
-      transform: `translate3d(0, ${handlePosition}px, 0)`,
-    }"
-  />
-</div>
+  <div class="slice-slider" ref="handleContainer" @mousedown="onDragStart">
+    <div
+      class="slice-slider-handle"
+      ref="handle"
+      :style="{
+        height: `${handleHeight}px`,
+        transform: `translate3d(0, ${handlePosition}px, 0)`,
+      }"
+    />
+  </div>
 </template>
 
 <script>
@@ -64,14 +60,14 @@ export default {
 
   computed: {
     handlePosition() {
-      const pos = this.maxHandlePos
-        * ((this.slice - this.min) / (this.max - this.min));
+      const pos =
+        this.maxHandlePos * ((this.slice - this.min) / (this.max - this.min));
       return this.dragging ? this.draggingHandlePos : pos;
     },
     draggingHandlePos() {
       return Math.min(
         Math.max(0, this.initialHandlePos + this.yOffset),
-        this.maxHandlePos,
+        this.maxHandlePos
       );
     },
   },
@@ -87,8 +83,8 @@ export default {
 
   methods: {
     updateMaxHandlePos() {
-      this.maxHandlePos = this.$refs.handleContainer.clientHeight
-        - this.handleHeight;
+      this.maxHandlePos =
+        this.$refs.handleContainer.clientHeight - this.handleHeight;
     },
 
     onDragStart(ev) {
@@ -105,10 +101,7 @@ export default {
         const { y } = this.$refs.handleContainer.getBoundingClientRect();
         this.initialHandlePos = Math.max(
           0,
-          Math.min(
-            this.maxHandlePos,
-            ev.pageY - y - this.handleHeight / 2,
-          ),
+          Math.min(this.maxHandlePos, ev.pageY - y - this.handleHeight / 2)
         );
         const newSlice = this.getNearestSlice(this.initialHandlePos);
         this.$emit('input', newSlice);

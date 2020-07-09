@@ -58,14 +58,16 @@ export default {
         scopedSlots: this.$scopedSlots,
         ref: 'infoPane',
       },
-      this.$slots.default,
+      this.$slots.default
     );
   },
 
   methods: {
     setResizableStyles() {
       // manual styling
-      const el = this.$refs.infoPane.$el.querySelector('.v-navigation-drawer__border');
+      const el = this.$refs.infoPane.$el.querySelector(
+        '.v-navigation-drawer__border'
+      );
 
       // NOTE: width is not reactive to handle size
       el.style.width = this.handleSizeCSS;
@@ -80,12 +82,16 @@ export default {
     },
 
     setEvents() {
-      const el = this.$refs.infoPane.$el.querySelector('.v-navigation-drawer__border');
+      const el = this.$refs.infoPane.$el.querySelector(
+        '.v-navigation-drawer__border'
+      );
       el.addEventListener('mousedown', this.startResize);
     },
 
     clearEvents() {
-      const el = this.$refs.infoPane.$el.querySelector('.v-navigation-drawer__border');
+      const el = this.$refs.infoPane.$el.querySelector(
+        '.v-navigation-drawer__border'
+      );
       el.removeEventListener('mousedown', this.startResize);
       document.removeEventListener('mouseup', this.stopResize);
     },
@@ -108,9 +114,10 @@ export default {
     },
 
     handleResize(evt) {
-      const width = 'right' in this.$attrs
-        ? document.body.scrollWidth - evt.clientX
-        : evt.clientX;
+      const width =
+        'right' in this.$attrs
+          ? document.body.scrollWidth - evt.clientX
+          : evt.clientX;
 
       const min = this.minWidth || this.handleSize;
       const max = this.maxWidth || Infinity;

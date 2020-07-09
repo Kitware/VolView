@@ -86,11 +86,12 @@ export default {
         this.view.setContainer(null);
       }
 
-      this.view = this
-        .$proxyManager
+      this.view = this.$proxyManager
         .getViews()
-        .find((v) => v.getProxyName() === this.viewType
-          && v.getName() === this.viewName);
+        .find(
+          (v) =>
+            v.getProxyName() === this.viewType && v.getName() === this.viewName
+        );
       if (!this.view) {
         this.view = this.$proxyManager.createProxy('Views', this.viewType, {
           name: this.viewName,

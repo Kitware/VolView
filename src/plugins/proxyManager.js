@@ -21,21 +21,25 @@ export function ProxyManagerVuexPlugin(pxm) {
         const { action, proxyId, proxy } = info;
         if (action === 'register') {
           dispatch('pxmProxyCreated', info);
-          proxySubs[proxyId] = proxy.onModified((p) => dispatch('pxmProxyModified', p));
+          proxySubs[proxyId] = proxy.onModified((p) =>
+            dispatch('pxmProxyModified', p)
+          );
         } else if (proxyId in proxySubs) {
           proxySubs[proxyId].unsubscribe();
           dispatch('pxmProxyDeleted', info);
         }
         dispatch('pxmProxyRegistrationChange', info);
-      }),
+      })
     );
 
     pxmSubs.push(
-      pxm.onActiveSourceChange((source) => dispatch('pxmActiveSourceChange', source)),
+      pxm.onActiveSourceChange((source) =>
+        dispatch('pxmActiveSourceChange', source)
+      )
     );
 
     pxmSubs.push(
-      pxm.onActiveViewChange((view) => dispatch('pxmActiveViewChange', view)),
+      pxm.onActiveViewChange((view) => dispatch('pxmActiveViewChange', view))
     );
   };
 }
@@ -48,7 +52,8 @@ export const ProxyManagerVuePlugin = {
     Vue.mixin({
       beforeCreate() {
         const opts = this.$options;
-        this.$proxyManager = opts.proxyManager || (opts.parent && opts.parent.$proxyManager);
+        this.$proxyManager =
+          opts.proxyManager || (opts.parent && opts.parent.$proxyManager);
       },
       mounted() {
         if (this.$options.proxyManagerHooks) {
@@ -58,10 +63,10 @@ export const ProxyManagerVuePlugin = {
           const hooks = this.$options.proxyManagerHooks;
 
           if (
-            hooks.onProxyCreated
-            || hooks.onProxyModified
-            || hooks.onProxyDeleted
-            || hooks.onProxyRegistrationChange
+            hooks.onProxyCreated ||
+            hooks.onProxyModified ||
+            hooks.onProxyDeleted ||
+            hooks.onProxyRegistrationChange
           ) {
             if (hooks.onProxyModified) {
               // hook into all existing proxies
@@ -71,13 +76,13 @@ export const ProxyManagerVuePlugin = {
               for (let i = 0; i < groups.length; i += 1) {
                 const name = groups[i];
                 proxies = proxies.concat(
-                  this.$proxyManager.getProxyInGroup(name),
+                  this.$proxyManager.getProxyInGroup(name)
                 );
               }
               for (let i = 0; i < proxies.length; i += 1) {
                 const proxy = proxies[i];
-                proxySubs[proxy.getProxyId()] = proxy.onModified(
-                  (p) => hooks.onProxyModified.call(this, p),
+                proxySubs[proxy.getProxyId()] = proxy.onModified((p) =>
+                  hooks.onProxyModified.call(this, p)
                 );
               }
             }
@@ -90,8 +95,8 @@ export const ProxyManagerVuePlugin = {
                     hooks.onProxyCreated.call(this, info);
                   }
                   if (hooks.onProxyModified) {
-                    proxySubs[proxyId] = proxy.onModified(
-                      (p) => hooks.onProxyModified.call(this, p),
+                    proxySubs[proxyId] = proxy.onModified((p) =>
+                      hooks.onProxyModified.call(this, p)
                     );
                   }
                 } else if (action === 'unregister') {
@@ -106,21 +111,23 @@ export const ProxyManagerVuePlugin = {
                 if (hooks.onProxyRegistrationChange) {
                   hooks.onProxyRegistrationChange.call(this, info);
                 }
-              }),
+              })
             );
           }
 
           if (hooks.onActiveSourceChange) {
             pxmSubs.push(
-              this.$proxyManager.onActiveSourceChange(
-                (s) => hooks.onActiveSourceChange.call(this, s),
-              ),
+              this.$proxyManager.onActiveSourceChange((s) =>
+                hooks.onActiveSourceChange.call(this, s)
+              )
             );
           }
 
           if (hooks.onActiveViewChange) {
             pxmSubs.push(
-              this.$proxyManager.onActiveViewChange((v) => hooks.onActiveViewChange.call(this, v)),
+              this.$proxyManager.onActiveViewChange((v) =>
+                hooks.onActiveViewChange.call(this, v)
+              )
             );
           }
 

@@ -1,10 +1,6 @@
 <template>
   <div class="d-flex flex-grow-1" :class="flexFlow">
-    <div
-      v-for="(item, i) in items"
-      :key="i"
-      class="d-flex flex-grow-1"
-    >
+    <div v-for="(item, i) in items" :key="i" class="d-flex flex-grow-1">
       <layout-grid v-if="Array.isArray(item)" :layout="item" />
       <div v-else-if="item" class="layout-item">
         <component :is="item.comp" v-bind="item.props" />

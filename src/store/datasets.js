@@ -170,7 +170,7 @@ export const makeActions = (dependencies) => ({
     const { fileIO } = dependencies;
 
     const loadResults = await Promise.allSettled(
-      files.map((f) => fileIO.readSingleFile(f)),
+      files.map((f) => fileIO.readSingleFile(f))
     );
 
     const errors = [];
@@ -194,7 +194,9 @@ export const makeActions = (dependencies) => ({
           } else {
             errors.push({
               name,
-              error: new Error('loadRegularFiles: Read file is not a VTK object'),
+              error: new Error(
+                'loadRegularFiles: Read file is not a VTK object'
+              ),
             });
           }
           break;
@@ -227,10 +229,9 @@ export const makeActions = (dependencies) => ({
   async selectBaseImage({ state, commit, dispatch }, id) {
     let baseImageId = NO_SELECTION;
     if (
-      id in state.data.index && (
-        state.data.index[id].type === DataTypes.Image
-        || state.data.index[id].type === DataTypes.Dicom
-      )
+      id in state.data.index &&
+      (state.data.index[id].type === DataTypes.Image ||
+        state.data.index[id].type === DataTypes.Dicom)
     ) {
       baseImageId = id;
     }
@@ -248,7 +249,7 @@ export const makeActions = (dependencies) => ({
           }
           default:
             throw new Error(
-              `selectBaseImage: Item ${baseImageId} has no vtk data`,
+              `selectBaseImage: Item ${baseImageId} has no vtk data`
             );
         }
       }

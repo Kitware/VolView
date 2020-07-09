@@ -9,7 +9,7 @@ import { VtkStlReader } from './vtk/async';
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
 
 const itkImageExtensions = Array.from(
-  new Set(Array.from(extensionToImageIO.keys()).map((ext) => ext.toLowerCase())),
+  new Set(Array.from(extensionToImageIO.keys()).map((ext) => ext.toLowerCase()))
 );
 
 export async function itkReader(file) {

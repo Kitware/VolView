@@ -67,7 +67,10 @@ export function extend(publicAPI, model, initialValues = {}) {
 
 // ----------------------------------------------------------------------------
 
-export const newInstance = macro.newInstance(extend, 'vtkLabelMapTransformFilter');
+export const newInstance = macro.newInstance(
+  extend,
+  'vtkLabelMapTransformFilter'
+);
 
 // ----------------------------------------------------------------------------
 

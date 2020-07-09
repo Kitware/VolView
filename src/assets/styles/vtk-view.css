@@ -42,6 +42,7 @@
 .vtk-view .js-nw,
 .vtk-view .js-sw {
   /* simulate text border */
+  /* prettier-ignore */
   text-shadow:  1px  1px black,
                 1px -1px black,
                -1px -1px black,

@@ -18,10 +18,7 @@
       />
     </div>
     <div id="patient-data-list">
-      <item-group
-        :value="selectedBaseImage"
-        @change="setSelection"
-      >
+      <item-group :value="selectedBaseImage" @change="setSelection">
         <template v-if="!patientID">
           No patient selected
         </template>
@@ -80,7 +77,10 @@
                   <div class="subtitle-2 study-header-line">
                     {{ study.StudyDescription || study.StudyDate }}
                   </div>
-                  <div v-if="study.StudyDescription" class="caption study-header-line">
+                  <div
+                    v-if="study.StudyDescription"
+                    class="caption study-header-line"
+                  >
                     {{ study.StudyDate }}
                   </div>
                 </div>
@@ -106,7 +106,9 @@
                         height="100px"
                         :src="dicomThumbnails[series.SeriesInstanceUID]"
                       />
-                      <v-card-text class="text--primary caption text-center series-desc mt-n3">
+                      <v-card-text
+                        class="text--primary caption text-center series-desc mt-n3"
+                      >
                         <div>[{{ series.NumberOfSlices }}]</div>
                         <div class="text-ellipsis">
                           {{ series.SeriesDescription || '(no description)' }}
@@ -219,14 +221,12 @@ export default {
           patients.map((p) => ({
             id: p.PatientID,
             label: p.PatientName,
-          })),
+          }))
         );
       },
       studies(state) {
         const studyKeys = state.patientStudies[this.patientID] ?? [];
-        return studyKeys
-          .map((key) => state.studyIndex[key])
-          .filter(Boolean);
+        return studyKeys.map((key) => state.studyIndex[key]).filter(Boolean);
       },
     }),
   },
@@ -258,7 +258,7 @@ export default {
   methods: {
     getSeries(studyUID) {
       const seriesList = (this.studySeries[studyUID] ?? []).map(
-        (seriesUID) => this.seriesIndex[seriesUID],
+        (seriesUID) => this.seriesIndex[seriesUID]
       );
 
       // trigger a background job fetch thumbnails
@@ -306,10 +306,18 @@ export default {
         const dims = imageData.getDimensions();
         const length = dims[0] * dims[1];
         const sliceOffset = Math.floor(dims[2] / 2) * length;
-        const slice = scalars.getData().subarray(sliceOffset, sliceOffset + length);
+        const slice = scalars
+          .getData()
+          .subarray(sliceOffset, sliceOffset + length);
         const dataRange = scalars.getRange();
 
-        const img = scalarImageToURI(slice, dims[0], dims[1], dataRange[0], dataRange[1]);
+        const img = scalarImageToURI(
+          slice,
+          dims[0],
+          dims[1],
+          dataRange[0],
+          dataRange[1]
+        );
         this.$set(this.imageThumbnails, id, img);
         return img;
       }

@@ -28,32 +28,33 @@ export const initialState = () => ({
   selectedBaseImage: NO_SELECTION,
 });
 
-export default (deps) => new Vuex.Store({
-  modules: {
-    dicom: dicom(deps),
-    visualization: visualization(deps),
-    widgets: widgets(deps),
-    annotations: annotations(deps),
-  },
-
-  state: initialState(),
-
-  getters: {
-    sceneObjectIDs(state) {
-      const { selectedBaseImage, data } = state;
-      const order = [].concat(data.labelmapIDs, data.modelIDs);
-      if (selectedBaseImage !== NO_SELECTION) {
-        order.unshift(selectedBaseImage);
-      }
-      return order;
+export default (deps) =>
+  new Vuex.Store({
+    modules: {
+      dicom: dicom(deps),
+      visualization: visualization(deps),
+      widgets: widgets(deps),
+      annotations: annotations(deps),
     },
-  },
 
-  mutations: {
-    ...datasets.mutations,
-  },
+    state: initialState(),
 
-  actions: {
-    ...datasets.makeActions(deps),
-  },
-});
+    getters: {
+      sceneObjectIDs(state) {
+        const { selectedBaseImage, data } = state;
+        const order = [].concat(data.labelmapIDs, data.modelIDs);
+        if (selectedBaseImage !== NO_SELECTION) {
+          order.unshift(selectedBaseImage);
+        }
+        return order;
+      },
+    },
+
+    mutations: {
+      ...datasets.mutations,
+    },
+
+    actions: {
+      ...datasets.makeActions(deps),
+    },
+  });

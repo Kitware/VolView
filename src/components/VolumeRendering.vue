@@ -103,7 +103,6 @@ export default {
       presetName: (state) => state.visualization.baseImageColorPreset,
     }),
     ...mapGetters(['baseImagePipeline']),
-
   },
 
   watch: {
@@ -149,8 +148,8 @@ export default {
 
     thumbnailHelper(currentImageId, currentIndex, mappingRange) {
       if (
-        this.baseImage === currentImageId
-        && currentIndex < PresetNameList.length
+        this.baseImage === currentImageId &&
+        currentIndex < PresetNameList.length
       ) {
         const presetName = PresetNameList[currentIndex];
         const key = thumbKey(currentImageId, presetName);
@@ -166,10 +165,17 @@ export default {
 
           resetCameraToZ(this.scene.getRenderer());
           this.scene.getRenderWindow().render();
-          this.scene.getRenderWindow().captureImages()[0].then((imageURL) => {
-            this.$set(this.thumbnailCache, key, imageURL);
-            this.thumbnailHelper(currentImageId, currentIndex + 1, mappingRange);
-          });
+          this.scene
+            .getRenderWindow()
+            .captureImages()[0]
+            .then((imageURL) => {
+              this.$set(this.thumbnailCache, key, imageURL);
+              this.thumbnailHelper(
+                currentImageId,
+                currentIndex + 1,
+                mappingRange
+              );
+            });
         }
       }
     },

@@ -41,19 +41,12 @@ export function createVizPipelineFor(data, proxyManager) {
     throw new Error('createVizPipelineFor: data is not image or geometry');
   }
 
-  const dataSource = proxyManager.createProxy(
-    'Sources',
-    'TrivialProducer',
-  );
+  const dataSource = proxyManager.createProxy('Sources', 'TrivialProducer');
   dataSource.setInputData(data);
 
-  const transformFilter = proxyManager.createProxy(
-    'Sources',
-    transformType,
-    {
-      inputProxy: dataSource,
-    },
-  );
+  const transformFilter = proxyManager.createProxy('Sources', transformType, {
+    inputProxy: dataSource,
+  });
 
   const pipeline = {
     dataSource,
@@ -61,13 +54,9 @@ export function createVizPipelineFor(data, proxyManager) {
   };
 
   if (data.isA('vtkPolyData')) {
-    const cutterFilter = proxyManager.createProxy(
-      'Sources',
-      'PolyDataCutter',
-      {
-        inputProxy: dataSource,
-      },
-    );
+    const cutterFilter = proxyManager.createProxy('Sources', 'PolyDataCutter', {
+      inputProxy: dataSource,
+    });
     pipeline.transformFilter.setInputProxy(cutterFilter);
     pipeline.cutterFilter = cutterFilter;
   }
@@ -104,9 +93,7 @@ export default (dependencies) => ({
       }
     },
 
-    setWorldOrientation(state, {
-      bounds, spacing, direction, worldToIndex,
-    }) {
+    setWorldOrientation(state, { bounds, spacing, direction, worldToIndex }) {
       state.worldOrientation = {
         bounds: [...bounds],
         spacing: [...spacing],
@@ -124,9 +111,7 @@ export default (dependencies) => ({
       };
     },
 
-    setWindowing(state, {
-      level, width, min, max,
-    }) {
+    setWindowing(state, { level, width, min, max }) {
       const { windowing: w } = state;
       state.windowing = {
         level: level ?? w.level,
@@ -173,9 +158,7 @@ export default (dependencies) => ({
     /**
      * Should run after updateWorldOrientation
      */
-    createPipelinesForScene({
-      commit, state, rootGetters, rootState,
-    }) {
+    createPipelinesForScene({ commit, state, rootGetters, rootState }) {
       const { proxyManager } = dependencies;
       const { sceneObjectIDs } = rootGetters;
       for (let i = 0; i < sceneObjectIDs.length; i += 1) {
@@ -202,7 +185,7 @@ export default (dependencies) => ({
           worldToIndex: [...image.getWorldToIndex()],
         });
       } else {
-      // set dimensions to be the max bounds of all layers
+        // set dimensions to be the max bounds of all layers
         const layers = [].concat(data.labelmapIDs, data.modelIDs);
         const bbox = vtkBoundingBox.newInstance();
         for (let i = 0; i < layers.length; i += 1) {
@@ -263,7 +246,11 @@ export default (dependencies) => ({
     },
 
     async updateSceneLayers({
-      dispatch, commit, state, rootState, rootGetters,
+      dispatch,
+      commit,
+      state,
+      rootState,
+      rootGetters,
     }) {
       const { proxyManager } = dependencies;
 
@@ -276,13 +263,16 @@ export default (dependencies) => ({
             switch (dataInfo.type) {
               case DataTypes.Dicom: {
                 const { seriesKey } = dataInfo;
-                const image = await dispatch('dicom/buildSeriesVolume', seriesKey);
+                const image = await dispatch(
+                  'dicom/buildSeriesVolume',
+                  seriesKey
+                );
                 commit('cacheDicomImage', { seriesKey, image });
                 break;
               }
               default:
                 throw new Error(
-                  `updateSceneLayers: Item ${dataID} has no vtk data`,
+                  `updateSceneLayers: Item ${dataID} has no vtk data`
                 );
             }
           }
@@ -292,7 +282,7 @@ export default (dependencies) => ({
             const pipeline = createVizPipelineFor(vtkObj, proxyManager);
             commit('setVizPipeline', { dataID, pipeline });
           }
-        }),
+        })
       );
 
       // Setting world orientation after processing layers ensures
@@ -343,9 +333,7 @@ export default (dependencies) => ({
       }
     },
 
-    async resetViews({
-      state, rootState, getters, dispatch,
-    }) {
+    async resetViews({ state, rootState, getters, dispatch }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
         const { bounds } = state.worldOrientation;
         await dispatch('setSlices', {
@@ -370,18 +358,16 @@ export default (dependencies) => ({
 
       const { proxyManager } = dependencies;
 
-      proxyManager
-        .getViews()
-        .forEach((view) => {
-          if (view.isA('vtkView2DProxy')) {
-            const renderer = view.getRenderer();
-            renderer.computeVisiblePropBounds();
-            renderer.resetCamera(getters.worldBounds);
-          } else {
-            // 3D views
-            view.resetCamera();
-          }
-        });
+      proxyManager.getViews().forEach((view) => {
+        if (view.isA('vtkView2DProxy')) {
+          const renderer = view.getRenderer();
+          renderer.computeVisiblePropBounds();
+          renderer.resetCamera(getters.worldBounds);
+        } else {
+          // 3D views
+          view.resetCamera();
+        }
+      });
 
       await dispatch('setResizeToFit', true);
     },
@@ -428,8 +414,8 @@ export default (dependencies) => ({
           if (rep) {
             rep.getMapper().modified();
           }
-        })
+        });
       }
-    }
+    },
   },
 });

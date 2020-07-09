@@ -12,7 +12,6 @@
     >
       <div id="left-pane-outer">
         <div id="left-pane">
-
           <div id="module-switcher" class="mt-1 mb-2">
             <v-select
               v-model="selectedModule"
@@ -26,7 +25,9 @@
               class="no-select"
             >
               <template v-slot:item="{ item }">
-                <v-icon v-if="item.icon" class="mr-1">mdi-{{ item.icon }}</v-icon>
+                <v-icon v-if="item.icon" class="mr-1">
+                  mdi-{{ item.icon }}
+                </v-icon>
                 {{ item.name }}
               </template>
             </v-select>
@@ -48,7 +49,10 @@
 
     <v-main id="content-wrapper">
       <div class="height-100 d-flex flex-row flex-grow-1 grey darken-3">
-        <div id="tools-strip" class="grey darken-4 d-flex flex-column align-center">
+        <div
+          id="tools-strip"
+          class="grey darken-4 d-flex flex-column align-center"
+        >
           <tool-button
             size="40"
             icon="mdi-folder-open"
@@ -57,11 +61,8 @@
             @click="userPromptFiles"
           />
           <div class="mt-2 mb-1 tool-separator" />
-          <item-group
-            v-if="hasData"
-            v-model="selectedTool"
-          >
-            <template v-for="(tool,i) in Tools">
+          <item-group v-if="hasData" v-model="selectedTool">
+            <template v-for="(tool, i) in Tools">
               <groupable-item
                 v-slot:default="{ active, toggle }"
                 :key="i"
@@ -71,10 +72,7 @@
                   size="40"
                   :icon="`mdi-${tool.icon}`"
                   :name="tool.name"
-                  :buttonClass="[
-                    'tool-btn',
-                    active ? 'tool-btn-selected' : '',
-                  ]"
+                  :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
                   @click="toggle"
                 />
               </groupable-item>
@@ -94,7 +92,12 @@
             >
               <v-col>
                 <v-row justify="center">
-                  <v-card flat dark color="transparent" class="text-center headline">
+                  <v-card
+                    flat
+                    dark
+                    color="transparent"
+                    class="text-center headline"
+                  >
                     <div>
                       <v-icon size="64">mdi-folder-open</v-icon>
                     </div>
@@ -116,16 +119,13 @@
       </div>
     </v-main>
 
-    <v-dialog
-      v-model="errors.dialog"
-      width="50%"
-    >
+    <v-dialog v-model="errors.dialog" width="50%">
       <v-card>
         <v-card-title>Application Errors</v-card-title>
         <v-card-text>
           <v-container>
             <v-row
-              v-for="(errorInfo,i) in errors.fileLoading"
+              v-for="(errorInfo, i) in errors.fileLoading"
               :key="i"
               no-gutters
               class="align-center mt-2"
@@ -147,21 +147,14 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn
-            color="primary"
-            @click="clearAndCloseErrors"
-          >
+          <v-btn color="primary" @click="clearAndCloseErrors">
             Clear
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <notifications
-      position="bottom left"
-      :duration="4000"
-      width="350px"
-    >
+    <notifications position="bottom left" :duration="4000" width="350px">
       <template slot="body" slot-scope="{ item, close }">
         <div
           class="vue-notification-template general-notifications"
@@ -173,11 +166,14 @@
             <div class="actions-stack d-flex flex-column align-right">
               <template v-if="item.data && item.data.actions">
                 <v-btn
-                  v-for="(action,i) in item.data.actions"
+                  v-for="(action, i) in item.data.actions"
                   :key="i"
                   text
                   color="white"
-                  @click.stop="close(); action.onclick()"
+                  @click.stop="
+                    close();
+                    action.onclick();
+                  "
                 >
                   {{ action.text }}
                 </v-btn>
@@ -197,7 +193,6 @@
         </div>
       </template>
     </notifications>
-
   </v-app>
 </template>
 
@@ -364,7 +359,6 @@ export default {
           const mod = Modules.find((m) => m.component === focusModule);
           if (mod) {
             this.selectedModule = mod;
-
           }
         }
       } else if (this.activeWidgetID !== NO_WIDGET) {
@@ -509,14 +503,14 @@ export default {
   padding: 10px;
   margin: 0 20px 20px;
   color: #fff;
-  background: #44A4FC;
-  border-left: 5px solid #187FE7;
+  background: #44a4fc;
+  border-left: 5px solid #187fe7;
   user-select: none;
 }
 
 .general-notifications.notify-success {
   background: #4caf50;
-  border-left-color: #42A85F;
+  border-left-color: #42a85f;
 }
 
 .general-notifications.notify-warn {
@@ -525,8 +519,8 @@ export default {
 }
 
 .general-notifications.notify-error {
-  background: #E54D42;
-  border-left-color: #B82E24;
+  background: #e54d42;
+  border-left-color: #b82e24;
 }
 
 .tool-btn-selected {

@@ -1,10 +1,7 @@
 <template>
   <div class="vtk-container-wrapper">
     <div class="vtk-gutter"></div>
-    <div
-      class="vtk-container"
-      :class="active ? 'active' : ''"
-    >
+    <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainer" />
       </div>
@@ -32,7 +29,7 @@ export default {
         const { transformFilter } = this.baseImagePipeline;
         const rep = this.$proxyManager.getRepresentation(
           transformFilter,
-          this.view,
+          this.view
         );
         if (rep) {
           return rep.getColorBy();
