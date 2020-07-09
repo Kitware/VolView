@@ -1,4 +1,5 @@
 import { mapState, mapGetters } from 'vuex';
+import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 
 export default {
   props: {
@@ -100,6 +101,14 @@ export default {
         const container = this.$refs.vtkContainer;
         this.view.setContainer(container);
         this.view.getRenderer().setBackground(0, 0, 0);
+
+        if (!this.view.getReferenceByName('widgetManager')) {
+          const widgetManager = vtkWidgetManager.newInstance();
+          widgetManager.setUseSvgLayer(true);
+          widgetManager.setRenderer(this.view.getRenderer());
+          this.view.set({ widgetManager }, true);
+        }
+
         this.updateOrientation();
         this.updateScene();
 
@@ -122,7 +131,6 @@ export default {
     updateScene() {
       this.view
         .getRepresentations()
-        .filter(() => true /* TODO ignore widget reps */)
         .forEach((rep) => this.view.removeRepresentation(rep));
 
       this.sceneSources.forEach((source) => {
@@ -135,6 +143,7 @@ export default {
       this.$nextTick(() => this.onResize());
     },
 
+    // TODO use REsizeobserer instead of eventBus
     onResize() {
       if (this.view) {
         // re-implemented from ViewProxy, since we don't
