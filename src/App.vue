@@ -205,6 +205,7 @@
 import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
+import { NO_WIDGET } from '@/src/constants';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -271,6 +272,8 @@ export default {
     GroupableItem,
   },
 
+  inject: ['widgetProvider'],
+
   data: () => ({
     selectedTool: null,
     selectedModule: Modules[0],
@@ -334,10 +337,9 @@ export default {
   computed: {
     ...mapState({
       datasets: 'data',
-      baseImages:
-        ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
-      annotationDatasets:
-        ({ data }) => [].concat(data.labelmapIDs, data.modelIDs),
+      baseImages: ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
+      annotationDatasets: ({ data: d }) => [].concat(d.labelmapIDs, d.modelIDs),
+      activeWidgetID: (state) => state.widgets.activeWidgetID,
     }),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
@@ -348,6 +350,23 @@ export default {
     fileErrorDialog(state) {
       if (!state) {
         this.fileLoadErrors = [];
+      }
+    },
+    selectedTool(tool) {
+      if (tool) {
+        const { key, focusModule } = Tools.find((v) => v.name === tool);
+        const id = this.widgetProvider.createWidget(key);
+        this.activateWidget(id);
+
+        if (focusModule) {
+          const mod = Modules.find((m) => m.component === focusModule);
+          if (mod) {
+            this.selectedModule = mod;
+
+          }
+        }
+      } else if (this.activeWidgetID !== NO_WIDGET) {
+        this.widgetProvider.deactivateWidget(this.activeWidgetID);
       }
     },
   },
@@ -456,6 +475,9 @@ export default {
       'loadFiles',
       'selectBaseImage',
       'updateScene',
+      'activateWidget',
+      'deactivateActiveWidget',
+      'removeWidget',
     ]),
   },
 };
