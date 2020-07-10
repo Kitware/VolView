@@ -45,8 +45,6 @@ function createProxyFilterDefinition(algoFactory, options, ui, links, props) {
 
 function createSyncedSliceRepDefinition(proxyClass, axis, ui = [], links = []) {
   return createProxyDefinition(proxyClass, ui, [
-    { link: 'WW', property: 'windowWidth', updateOnBind: true },
-    { link: 'WL', property: 'windowLevel', updateOnBind: true },
     {
       link: `Slice${axis}`,
       property: 'slice',
@@ -118,9 +116,33 @@ export default {
           },
         ]
       ),
-      SliceX: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'X'),
-      SliceY: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'Y'),
-      SliceZ: createSyncedSliceRepDefinition(vtkSliceRepresentationProxy, 'Z'),
+      SliceX: createSyncedSliceRepDefinition(
+        vtkSliceRepresentationProxy,
+        'X',
+        [],
+        [
+          { link: 'WW', property: 'windowWidth', updateOnBind: true },
+          { link: 'WL', property: 'windowLevel', updateOnBind: true },
+        ]
+      ),
+      SliceY: createSyncedSliceRepDefinition(
+        vtkSliceRepresentationProxy,
+        'Y',
+        [],
+        [
+          { link: 'WW', property: 'windowWidth', updateOnBind: true },
+          { link: 'WL', property: 'windowLevel', updateOnBind: true },
+        ]
+      ),
+      SliceZ: createSyncedSliceRepDefinition(
+        vtkSliceRepresentationProxy,
+        'Z',
+        [],
+        [
+          { link: 'WW', property: 'windowWidth', updateOnBind: true },
+          { link: 'WL', property: 'windowLevel', updateOnBind: true },
+        ]
+      ),
       LabelMapSliceX: createSyncedSliceRepDefinition(
         vtkLabelMapSliceRepProxy,
         'X'
