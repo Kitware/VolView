@@ -536,7 +536,7 @@ export default {
 }
 
 #tools-strip {
-  margin-left: 1px;
+  border-left: 1px solid #212121;
   flex: 0 0 40px;
 }
 
