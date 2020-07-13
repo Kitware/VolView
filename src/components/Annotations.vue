@@ -93,8 +93,6 @@ import { NO_SELECTION } from '@/src/constants';
 export default {
   name: 'Annotations',
 
-  inject: ['widgetProvider'],
-
   data() {
     return {};
   },

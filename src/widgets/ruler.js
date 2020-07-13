@@ -3,8 +3,8 @@ import vtkCustomDistanceWidget from './CustomDistanceWidget';
 import Widget, { FOLLOW_VIEW, NEVER_VISIBLE, is2DView } from './widget';
 
 export default class RulerWidget extends Widget {
-  constructor(id, store, provider) {
-    super(id, store, provider);
+  constructor(id, store) {
+    super(id, store);
 
     this.mouse2DViewBehavior = FOLLOW_VIEW;
     this.mouse3DViewBehavior = NEVER_VISIBLE;

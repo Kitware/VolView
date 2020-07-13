@@ -1,5 +1,7 @@
 import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 
+import { NO_WIDGET } from '@/src/constants';
+
 import PaintWidget from '@/src/widgets/paint';
 import RulerWidget from '@/src/widgets/ruler';
 
@@ -16,6 +18,29 @@ export default class WidgetProvider {
     this.nextID = 1;
     this.views = [];
     this.viewTypes = new Map();
+
+    // deactivate
+    this.store.watch(
+      (state) => state.widgets.activeWidgetID,
+      (id, oldID) => {
+        if (id === NO_WIDGET) {
+          this.deactivateWidget(oldID);
+        }
+      }
+    );
+
+    // remove widgets
+    this.store.watch(
+      (state) => state.widgets.widgetList,
+      (widgetList) => {
+        const list = new Set(widgetList);
+        [...this.widgetMap.keys()].forEach((id) => {
+          if (!list.has(id)) {
+            this.removeWidget(id);
+          }
+        })
+      }
+    )
   }
 
   getById(id) {
@@ -26,7 +51,7 @@ export default class WidgetProvider {
     if (name in this.nameMap) {
       const id = this.nextID;
       const WidgetClass = this.nameMap[name];
-      const widget = new WidgetClass(id, this.store, this);
+      const widget = new WidgetClass(id, this.store);
 
       this.widgetMap.set(id, widget);
       this.views.forEach((view) => {
@@ -41,14 +66,9 @@ export default class WidgetProvider {
   }
 
   deactivateWidget(id) {
-    const { activeWidgetID } = this.store.state.widgets;
-    if (activeWidgetID === id) {
-      this.store.dispatch('deactivateActiveWidget');
-
-      const widget = this.getById(id);
-      if (widget?.removeOnDeactivate) {
-        this.removeWidget(id);
-      }
+    const widget = this.getById(id);
+    if (widget?.removeOnDeactivate) {
+      this.removeWidget(id);
     }
   }
 
@@ -60,10 +80,6 @@ export default class WidgetProvider {
       });
       widget.delete();
       this.widgetMap.delete(id);
-
-      this.store.dispatch('removeWidget', id);
-      // delete any associated measurement data
-      this.store.dispatch('measurements/deleteMeasurement', id);
     }
   }
 

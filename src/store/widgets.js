@@ -37,8 +37,16 @@ export default () => ({
       }
     },
 
-    removeWidget({ commit }, id) {
+    deactivateWidget({ state, commit }, id) {
+      if (state.activeWidgetID === id) {
+        commit('deactivateActiveWidget');
+      }
+    },
+
+    async removeWidget({ commit, dispatch }, id) {
       commit('removeWidget', id);
+      // delete any associated measurement data
+      await dispatch('measurements/deleteMeasurement', id);
     },
   },
 });

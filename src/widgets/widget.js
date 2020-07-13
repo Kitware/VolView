@@ -26,10 +26,9 @@ export const NEVER_VISIBLE = 'NEVER_VISIBLE';
  * the view behavior only applies if the widget chooses to render into the matching view type
  */
 export default class Widget {
-  constructor(id, store, provider) {
+  constructor(id, store) {
     this.id = id;
     this.store = store;
-    this.provider = provider;
     this.watchers = [];
     this.widgetInstances = new Map();
     this.currentView = null;
@@ -75,11 +74,11 @@ export default class Widget {
   }
 
   deactivateSelf() {
-    this.provider.deactivateWidget(this.id);
+    this.store.dispatch('deactivateWidget', this.id);
   }
 
   removeSelf() {
-    this.provider.removeWidget(this.id);
+    this.store.dispatch('removeWidget', this.id);
   }
 
   delete() {

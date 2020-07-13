@@ -5,8 +5,8 @@ import { NO_SELECTION, IDENTITY4 } from '@/src/constants';
 import Widget, { FOLLOW_VIEW, ALWAYS_VISIBLE } from './widget';
 
 export default class PaintWidget extends Widget {
-  constructor(id, store, provider) {
-    super(id, store, provider);
+  constructor(id, store) {
+    super(id, store);
 
     this.mouse2DViewBehavior = FOLLOW_VIEW;
     this.mouse3DViewBehavior = ALWAYS_VISIBLE;

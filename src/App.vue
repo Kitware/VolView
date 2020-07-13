@@ -360,7 +360,7 @@ export default {
           }
         }
       } else if (this.activeWidgetID !== NO_WIDGET) {
-        this.widgetProvider.deactivateWidget(this.activeWidgetID);
+        this.deactivateActiveWidget();
       }
     },
   },

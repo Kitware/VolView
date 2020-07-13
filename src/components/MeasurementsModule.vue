@@ -21,12 +21,10 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapState, mapActions } from 'vuex';
 
 export default {
   name: 'MeasurementsModule',
-
-  inject: ['widgetProvider'],
 
   computed: {
     ...mapState('measurements', ['measurementWidgets', 'measurements']),
@@ -39,9 +37,10 @@ export default {
   },
 
   methods: {
-    removeMeasurement(id) {
-      this.widgetProvider.removeWidget(id);
-    },
+    ...mapActions({
+      // measurement IDs and widgetIDs coincide
+      removeMeasurement: 'removeWidget',
+    }),
   },
 };
 </script>
