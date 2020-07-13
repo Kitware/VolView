@@ -7,6 +7,7 @@ import dicom from './dicom';
 import visualization from './visualization';
 import widgets from './widgets';
 import annotations from './annotations';
+import measurements from './measurements';
 
 import * as datasets from './datasets';
 
@@ -35,6 +36,7 @@ export default (deps) =>
       visualization: visualization(deps),
       widgets: widgets(deps),
       annotations: annotations(deps),
+      measurements: measurements(deps),
     },
 
     state: initialState(),
