@@ -18,10 +18,11 @@ export default class RulerWidget extends Widget {
     this.lockedAxis = null;
     this.lockedSlice = null;
 
-    this.store.dispatch('measurements/setMeasurementData', {
+    this.store.dispatch('measurements/addMeasurementData', {
       id: this.id,
       type: 'ruler',
-      data: {
+      parentID: this.parentDataID,
+      initialData: {
         length: 0,
       },
     })
@@ -44,7 +45,6 @@ export default class RulerWidget extends Widget {
     } else {
       this.store.dispatch('measurements/setMeasurementData', {
         id: this.id,
-        type: 'ruler',
         data: {
           length: this.factory.getDistance(),
         },
