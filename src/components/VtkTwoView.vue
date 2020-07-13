@@ -100,7 +100,7 @@ export default {
     slice() {
       this.updateRepresentations();
       this.updateLowerLeftAnnotations();
-      this.updateActiveWidget();
+      this.updateAllWidgets();
     },
     resizeToFit() {
       this.resetCamera();
@@ -338,12 +338,18 @@ export default {
       }
     },
 
+    updateAllWidgets() {
+      this.widgetList.forEach((widgetID) => {
+        const widget = this.widgetProvider.getById(widgetID);
+        widget.setCurrentView(this.view);
+      });
+    },
+
     updateActiveWidget() {
       const widgetID = this.activeWidgetID;
       if (widgetID !== NO_WIDGET) {
         const widget = this.widgetProvider.getById(widgetID);
-        widget.updateManipulator(this.view);
-        widget.updateVisibility(this.view);
+        widget.setCurrentView(this.view);
       }
     },
 
