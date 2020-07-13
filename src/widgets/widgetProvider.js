@@ -1,8 +1,11 @@
-import PaintWidget from '@/src/widgets/paint';
 import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
+
+import PaintWidget from '@/src/widgets/paint';
+import RulerWidget from '@/src/widgets/ruler';
 
 export const DEFAULT_NAME_MAP = {
   Paint: PaintWidget,
+  Ruler: RulerWidget,
 };
 
 export default class WidgetProvider {

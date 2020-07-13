@@ -245,16 +245,9 @@ export const Tools = [
     focusModule: Annotations,
   },
   {
-    name: 'Box',
-    icon: 'selection',
-  },
-  {
-    name: 'Ellipse',
-    icon: 'selection-ellipse',
-  },
-  {
-    name: 'Crop',
-    icon: 'crop',
+    name: 'Ruler',
+    icon: 'ruler',
+    key: 'Ruler',
   },
 ];
 
@@ -347,6 +340,11 @@ export default {
     fileErrorDialog(state) {
       if (!state) {
         this.fileLoadErrors = [];
+      }
+    },
+    activeWidgetID(id) {
+      if (id === NO_WIDGET) {
+        this.selectedTool = null;
       }
     },
     selectedTool(tool) {
