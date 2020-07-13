@@ -212,7 +212,7 @@ import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 import Annotations from './components/Annotations.vue';
 import VolumeRendering from './components/VolumeRendering.vue';
-// import MeasurementsModule from './components/MeasurementsModule.vue';
+import MeasurementsModule from './components/MeasurementsModule.vue';
 
 export const Modules = [
   {
@@ -233,7 +233,7 @@ export const Modules = [
   {
     name: 'Measurements',
     icon: 'pencil-ruler',
-    component: null,
+    component: MeasurementsModule,
   },
 ];
 
