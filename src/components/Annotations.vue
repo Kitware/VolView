@@ -30,6 +30,7 @@
           </template>
         </v-tooltip>
       </v-col>
+      <!--
       <v-col>
         <v-tooltip bottom>
           Export labelmaps
@@ -40,6 +41,7 @@
           </template>
         </v-tooltip>
       </v-col>
+      -->
       <v-col>
         <v-tooltip bottom>
           Delete labelmap
