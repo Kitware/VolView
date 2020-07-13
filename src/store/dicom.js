@@ -102,6 +102,18 @@ export default (dependencies) => ({
       }
     },
 
+    removeSeries(state, seriesKey) {
+      if (seriesKey in state.seriesIndex) {
+        const studyKey = state.seriesParent[seriesKey];
+        const idx = state.studySeries[studyKey].indexOf(seriesKey);
+        if (idx > -1) {
+          state.studySeries[studyKey].splice(idx, 1);
+          Vue.delete(state.seriesParent, seriesKey);
+          Vue.delete(state.seriesIndex, seriesKey);
+        }
+      }
+    },
+
     cacheImageSlice(state, { seriesKey, offset, asThumbnail, image }) {
       const key = imageCacheMultiKey(offset, asThumbnail);
       state.imageCache = {
@@ -262,6 +274,11 @@ export default (dependencies) => ({
       });
 
       return vtkImage;
+    },
+
+    async removeData({ commit }, seriesKey) {
+      commit('deleteSeriesVolume', seriesKey);
+      commit('removeSeries', seriesKey);
     },
   },
 });

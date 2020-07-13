@@ -113,6 +113,19 @@
                         <div class="text-ellipsis">
                           {{ series.SeriesDescription || '(no description)' }}
                         </div>
+                        <div class="actions">
+                          <v-btn
+                            small
+                            icon
+                            @click.stop="
+                              removeData(
+                                dicomSeriesToID[series.SeriesInstanceUID]
+                              )
+                            "
+                          >
+                            <v-icon>mdi-delete</v-icon>
+                          </v-btn>
+                        </div>
                       </v-card-text>
                     </v-card>
                   </groupable-item>
