@@ -62,6 +62,8 @@ export default class WidgetProvider {
       this.widgetMap.delete(id);
 
       this.store.dispatch('removeWidget', id);
+      // delete any associated measurement data
+      this.store.dispatch('measurements/deleteMeasurement', id);
     }
   }
 
