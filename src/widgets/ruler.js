@@ -18,7 +18,13 @@ export default class RulerWidget extends Widget {
     this.lockedAxis = null;
     this.lockedSlice = null;
 
-    // dispatch: add measurement to annotations
+    this.store.dispatch('measurements/setMeasurementData', {
+      id: this.id,
+      type: 'ruler',
+      data: {
+        length: 0,
+      },
+    })
   }
 
   onStateChange() {
@@ -35,6 +41,14 @@ export default class RulerWidget extends Widget {
     if (this.removeOnDeactivate && list.length === 2) {
       this.removeOnDeactivate = false;
       this.deactivateSelf();
+    } else {
+      this.store.dispatch('measurements/setMeasurementData', {
+        id: this.id,
+        type: 'ruler',
+        data: {
+          length: this.factory.getDistance(),
+        },
+      })
     }
   }
 
