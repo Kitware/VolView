@@ -2,9 +2,9 @@
   <div id="patient-module" class="mx-2 height-100">
     <div id="patient-filter-controls">
       <v-select
-        v-model="patientID"
-        :items="patients"
-        item-text="label"
+        v-model="patientName"
+        :items="patientListWithImageEntry"
+        item-text="name"
         item-value="id"
         dense
         filled
@@ -19,10 +19,10 @@
     </div>
     <div id="patient-data-list">
       <item-group :value="selectedBaseImage" @change="setSelection">
-        <template v-if="!patientID">
+        <template v-if="!patientName">
           No patient selected
         </template>
-        <template v-else-if="patientID === IMAGES">
+        <template v-else-if="patientName === IMAGES">
           <div v-if="imageList.length === 0">
             No non-dicom images available
           </div>
@@ -63,7 +63,7 @@
         <template v-else>
           <v-expansion-panels id="patient-data-studies" accordion multiple>
             <v-expansion-panel
-              v-for="study in studies"
+              v-for="study in visibleStudies"
               :key="study.StudyInstanceUID"
               class="patient-data-study-panel"
             >
@@ -188,7 +188,7 @@ export default {
 
   data() {
     return {
-      patientID: '',
+      patientName: '',
       imageThumbnails: {}, // dataID -> Image
       dicomThumbnails: {}, // seriesUID -> Image
       pendingDicomThumbnails: {},
@@ -208,27 +208,57 @@ export default {
     ...mapState('dicom', {
       patientIndex: 'patientIndex',
       patientStudies: 'patientStudies',
+      studyIndex: 'studyIndex',
       studySeries: 'studySeries',
       seriesIndex: 'seriesIndex',
-      patients(state) {
-        const patients = Object.values(state.patientIndex);
-        patients.sort((a, b) => a.PatientName < b.PatientName);
-        return [].concat(
-          {
-            id: IMAGES,
-            label: 'Non-DICOM images',
-          },
-          patients.map((p) => ({
-            id: p.PatientID,
-            label: p.PatientName,
-          }))
-        );
-      },
-      studies(state) {
-        const studyKeys = state.patientStudies[this.patientID] ?? [];
-        return studyKeys.map((key) => state.studyIndex[key]).filter(Boolean);
-      },
     }),
+    patients(state) {
+      const seen = new Set();
+      const patients = [];
+
+      // select key, name from patientIndex group by name
+      Object.entries(state.patientIndex).forEach(([key, p]) => {
+        const name = p.PatientName;
+        if (!seen.has(name)) {
+          seen.add(name);
+          patients.push([key, p]);
+        }
+      });
+
+      patients.sort((a, b) => a[1].PatientName < b[1].PatientName);
+      return patients.map(([key, p]) => ({
+        id: p.PatientName,
+        name: p.PatientName,
+        key, // patient key
+        patient: p,
+      }));
+    },
+    patientListWithImageEntry() {
+      return [].concat(
+        {
+          id: IMAGES,
+          name: 'Non-DICOM images',
+          key: null,
+          patient: null,
+        },
+        this.patients
+      );
+    },
+    visibleStudies() {
+      // select all studies associated with a patient whose name is
+      // the same as this.patientName
+      let studies = [];
+      this.patients
+        .filter(({ patient }) => patient.PatientName === this.patientName)
+        .forEach(({ key }) => {
+          studies = studies.concat(
+            this.patientStudies[key].map(
+              (studyKey) => this.studyIndex[studyKey]
+            )
+          );
+        });
+      return studies;
+    },
   },
 
   watch: {
@@ -236,20 +266,20 @@ export default {
       if (id !== NO_SELECTION) {
         const dataInfo = this.dataIndex[id];
         if (dataInfo.type === DataTypes.Image) {
-          this.patientID = IMAGES;
+          this.patientName = IMAGES;
         } else if (dataInfo.type === DataTypes.Dicom) {
           const patientInfo = this.patientIndex[dataInfo.patientKey];
-          this.patientID = patientInfo.PatientID;
+          this.patientName = patientInfo.PatientName;
         }
       }
     },
     patients() {
       // if patient index is updated, then try to select first one
-      if (!this.patientID) {
+      if (!this.patientName) {
         if (this.patients.length) {
-          this.patientID = this.patients[0].id;
+          this.patientName = this.patients[0].id;
         } else {
-          this.patientID = '';
+          this.patientName = '';
         }
       }
     },

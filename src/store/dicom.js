@@ -13,6 +13,9 @@ export function imageCacheMultiKey(offset, asThumbnail) {
 /**
  * Generate a synthetic multi-key patient key from a Patient object.
  *
+ * This key is used to try to uniquely identify a patient, since the PatientID
+ * is not guaranteed to be unique (especially in the anonymous case).
+ *
  * Required keys in the Patient object:
  * - PatientName
  * - PatientID
@@ -35,12 +38,20 @@ export default (dependencies) => ({
   namespaced: true,
 
   state: {
+    // patientKey is generated from genSynPatientKey
     patientIndex: {}, // patientKey -> Patient
-    patientStudies: {}, // patientID -> [studyKey]; use patientID to combine Anonymous patients
+    patientStudies: {}, // patientKey -> [studyKey]
+
+    // studyKey/studyUID is the StudyInstanceUID
     studyIndex: {}, // studyKey -> Study
     studySeries: {}, // studyUID -> [seriesKey]
+
+    // seriesKey/seriesUID is the SeriesInstanceUID
     seriesIndex: {}, // seriesKey -> Series
-    imageIndex: {},
+
+    // help derive keys of parent objects in the hierarchy
+    seriesParent: {}, // seriesKey -> { studyKey }
+    studyParent: {}, // studyKey -> { patientKey }
 
     // TODO move caches out of state to avoid making entire objects reactive
     // image slice cache
@@ -59,26 +70,35 @@ export default (dependencies) => ({
       }
     },
 
-    addStudy(state, { studyKey, study, patientID }) {
+    addStudy(state, { studyKey, study, patientKey }) {
       if (!(studyKey in state.studyIndex)) {
         state.studyIndex = {
           ...state.studyIndex,
           [studyKey]: study,
         };
+        state.studyParent = {
+          ...state.studyParent,
+          [studyKey]: patientKey,
+        };
         state.studyIndex[studyKey] = study;
-        state.patientStudies[patientID] = state.patientStudies[patientID] ?? [];
-        state.patientStudies[patientID].push(studyKey);
+        state.patientStudies[patientKey] =
+          state.patientStudies[patientKey] ?? [];
+        state.patientStudies[patientKey].push(studyKey);
       }
     },
 
-    addSeries(state, { seriesKey, series, studyUID }) {
+    addSeries(state, { seriesKey, series, studyKey }) {
       if (!(seriesKey in state.seriesIndex)) {
         state.seriesIndex = {
           ...state.seriesIndex,
           [seriesKey]: series,
         };
-        state.studySeries[studyUID] = state.studySeries[studyUID] ?? [];
-        state.studySeries[studyUID].push(seriesKey);
+        state.seriesParent = {
+          ...state.seriesParent,
+          [seriesKey]: studyKey,
+        };
+        state.studySeries[studyKey] = state.studySeries[studyKey] ?? [];
+        state.studySeries[studyKey].push(seriesKey);
       }
     },
 
@@ -127,10 +147,8 @@ export default (dependencies) => ({
           ...pick(info, ['PatientBirthDate', 'PatientSex']),
         };
         const patientKey = genSynPatientKey(patient);
-        const patientID = patient.PatientID;
 
         const studyKey = info.StudyInstanceUID;
-        const studyUID = studyKey;
         const study = pick(info, [
           'StudyID',
           'StudyInstanceUID',
@@ -158,10 +176,10 @@ export default (dependencies) => ({
         });
 
         commit('addPatient', { patientKey, patient });
-        commit('addStudy', { studyKey, study, patientID });
-        commit('addSeries', { seriesKey, series, studyUID });
+        commit('addStudy', { studyKey, study, patientKey });
+        commit('addSeries', { seriesKey, series, studyKey });
 
-        // invalidate volume
+        // invalidate existing volume
         if (seriesKey in state.volumeCache) {
           commit('deleteSeriesVolume', seriesKey);
         }
