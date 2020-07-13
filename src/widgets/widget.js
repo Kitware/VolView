@@ -1,5 +1,7 @@
 import WidgetManagerConstants from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 
+import { NO_SELECTION } from '@/src/constants';
+
 const { ViewTypes } = WidgetManagerConstants;
 
 function withWidgetManager(view, handler) {
@@ -10,7 +12,7 @@ function withWidgetManager(view, handler) {
 }
 
 export function is2DView(view) {
-  return view.getClassName() === 'vtkView2DProxy';
+  return view && view.getClassName() === 'vtkView2DProxy';
 }
 
 export const FOLLOW_VIEW = 'FOLLOW_VIEW';
@@ -33,11 +35,22 @@ export default class Widget {
     this.widgetInstances = new Map();
     this.currentView = null;
 
+    // need to make sure selectedBaseImage isn't NO_SELECTION
+    this.parentDataID = store.state.selectedBaseImage;
+    if (this.parentDataID === NO_SELECTION) {
+      throw new Error('Cannot have a widget without a parent dataset');
+    }
+
     // configurable
     this.mouse2DViewBehavior = ALWAYS_VISIBLE;
     this.mouse3DViewBehavior = ALWAYS_VISIBLE;
     this.removeOnDeactivate = true;
     this.lockToCurrentViewFlag = false; // only applicable to FOLLOW_VIEW
+
+    this.watchStore(
+      (state) => state.selectedBaseImage,
+      () => this.updateVisibility(this.currentView)
+    );
   }
 
   watchStore(...args) {
@@ -99,6 +112,9 @@ export default class Widget {
     if (!this.lockToCurrentViewFlag) {
       this.currentView = view;
     }
+  }
+
+  update() {
     this.updateManipulator(this.currentView);
     this.updateVisibility(this.currentView);
   }
@@ -125,10 +141,7 @@ export default class Widget {
   }
 
   updateVisibility(currentView) {
-    const it = this.widgetInstances.entries();
-    let { value, done } = it.next();
-    while (!done) {
-      const [view, viewWidget] = value;
+    [...this.widgetInstances.keys()].forEach((view) => {
       if (is2DView(view)) {
         let visible = false;
         if (this.mouse2DViewBehavior === FOLLOW_VIEW) {
@@ -136,16 +149,26 @@ export default class Widget {
         } else if (this.mouse2DViewBehavior === ALWAYS_VISIBLE) {
           visible = true;
         }
-        viewWidget.setVisibility(visible);
-        viewWidget.setContextVisibility(visible);
+        this.setWidgetVisibilityForView(view, visible);
       }
       // TODO 3D view
 
       // render
       view.getReferenceByName('widgetManager').renderWidgets();
       view.getRenderWindow().render();
+    });
+  }
 
-      ({ value, done } = it.next());
+  setWidgetVisibilityForView(view, visible) {
+    let v = visible;
+    if (this.store.state.selectedBaseImage !== this.parentDataID) {
+      v = false;
+    }
+
+    const viewWidget = this.widgetInstances.get(view);
+    if (viewWidget) {
+      viewWidget.setVisibility(v);
+      viewWidget.setContextVisibility(v);
     }
   }
 

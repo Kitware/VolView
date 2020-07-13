@@ -54,8 +54,6 @@ export default class RulerWidget extends Widget {
 
   // override
   updateVisibility(view) {
-    super.updateVisibility(view);
-
     if (
       this.currentView === view &&
       is2DView(view) &&
@@ -66,13 +64,13 @@ export default class RulerWidget extends Widget {
       const slice = slices['xyz'[axis]];
       const visible = Math.abs(slice - this.lockedSlice) < 1e-6;
 
-      const viewWidget = this.widgetInstances.get(view);
-      viewWidget.setVisibility(visible);
-      viewWidget.setContextVisibility(visible);
+      this.setWidgetVisibilityForView(view, visible);
 
       // render
       view.getReferenceByName('widgetManager').renderWidgets();
       view.getRenderWindow().render();
+    } else {
+      super.updateVisibility(view);
     }
   }
 

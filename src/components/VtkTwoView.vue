@@ -341,7 +341,7 @@ export default {
     updateAllWidgets() {
       this.widgetList.forEach((widgetID) => {
         const widget = this.widgetProvider.getById(widgetID);
-        widget.setCurrentView(this.view);
+        widget.update();
       });
     },
 
@@ -350,6 +350,7 @@ export default {
       if (widgetID !== NO_WIDGET) {
         const widget = this.widgetProvider.getById(widgetID);
         widget.setCurrentView(this.view);
+        widget.update();
       }
     },
 
