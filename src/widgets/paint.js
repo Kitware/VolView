@@ -18,11 +18,11 @@ export default class PaintWidget extends Widget {
     this.state = this.factory.getWidgetState();
 
     const { selectedLabelmap } = store.state.annotations;
-    this.onLabelmapSelect(selectedLabelmap);
+    this.onLabelmapSelect(selectedLabelmap, NO_SELECTION);
 
     this.watchStore(
       (state) => state.annotations.selectedLabelmap,
-      (labelmapID) => this.onLabelmapSelect(labelmapID)
+      (labelmapID, prev) => this.onLabelmapSelect(labelmapID, prev)
     );
     this.watchStore(
       (state) => state.annotations.currentLabelFor,
@@ -49,7 +49,16 @@ export default class PaintWidget extends Widget {
     manipulator.setOrigin(origin);
   }
 
-  async onLabelmapSelect(labelmapID) {
+  async onLabelmapSelect(labelmapID, previous) {
+    // deactivate paint if we select no labelmap from previously
+    // having a labelmap.
+    // special case: if labelmapID and previous are NO_SELECTION,
+    // then create the labelmap.
+    if (labelmapID === NO_SELECTION && previous !== NO_SELECTION) {
+      this.deactivateSelf();
+      return;
+    }
+
     const { selectedBaseImage } = this.store.state;
     let id = NO_SELECTION;
     if (selectedBaseImage !== NO_SELECTION) {
