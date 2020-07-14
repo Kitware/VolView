@@ -27,9 +27,15 @@ export default {
   name: 'MeasurementsModule',
 
   computed: {
-    ...mapState('measurements', ['measurementWidgets', 'measurements']),
+    ...mapState(['selectedBaseImage']),
+    ...mapState('measurements', [
+      'measurementWidgets',
+      'measurements',
+      'parents',
+    ]),
     listOfMeasurements() {
-      return this.measurementWidgets.map((id) => ({
+      const widgets = this.parents[this.selectedBaseImage] ?? [];
+      return widgets.map((id) => ({
         id,
         ...this.measurements[id],
       }));
