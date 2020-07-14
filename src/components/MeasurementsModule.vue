@@ -1,5 +1,5 @@
 <template>
-  <v-list>
+  <v-list v-if="listOfMeasurements.length">
     <template v-for="mm in listOfMeasurements">
       <v-list-item two-line :key="mm.id">
         <v-list-item-content>
@@ -18,6 +18,9 @@
       </v-list-item>
     </template>
   </v-list>
+  <div v-else>
+    No measurements yet
+  </div>
 </template>
 
 <script>
