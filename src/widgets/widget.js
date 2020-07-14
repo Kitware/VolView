@@ -34,6 +34,10 @@ export default class Widget {
     this.watchers = [];
     this.widgetInstances = new Map();
     this.currentView = null;
+    this.lockToCurrentViewFlag = false; // only applicable to FOLLOW_VIEW
+
+    // private properties; accessible through getters/setters
+    this.$removeOnDeactivate = true;
 
     // need to make sure selectedBaseImage isn't NO_SELECTION
     this.parentDataID = store.state.selectedBaseImage;
@@ -45,7 +49,6 @@ export default class Widget {
     this.mouse2DViewBehavior = ALWAYS_VISIBLE;
     this.mouse3DViewBehavior = ALWAYS_VISIBLE;
     this.removeOnDeactivate = true;
-    this.lockToCurrentViewFlag = false; // only applicable to FOLLOW_VIEW
 
     this.watchStore(
       (state) => state.selectedBaseImage,
@@ -55,6 +58,18 @@ export default class Widget {
 
   watchStore(...args) {
     this.watchers.push(this.store.watch(...args));
+  }
+
+  get removeOnDeactivate() {
+    return this.$removeOnDeactivate;
+  }
+
+  set removeOnDeactivate(yn) {
+    this.$removeOnDeactivate = yn;
+    this.store.dispatch('setRemoveWidgetOnDeactivate', {
+      widgetID: this.id,
+      remove: yn,
+    });
   }
 
   addToView(view, type = ViewTypes.DEFAULT, initialValues = {}) {
