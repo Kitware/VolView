@@ -51,6 +51,7 @@ export default () => ({
   },
 
   actions: {
+    addMeasurementData: asMutation('addMeasurementData'),
     setMeasurementData: asMutation('setMeasurementData'),
     deleteMeasurement: asMutation('deleteMeasurement'),
 
