@@ -1,26 +1,38 @@
 <template>
-  <div id="volume-rendering-module" class="mx-2 height-100">
-    <div id="preset-list">
-      <item-group :value="presetName" @change="selectPreset">
-        <groupable-item
-          v-for="name in PresetNames"
-          :key="name"
-          v-slot="{ active, select }"
-          :value="name"
-        >
-          <avatar-list-card
-            :active="active"
-            :image-size="size"
-            :image-url="thumbnailCache[thumbKey(baseImage, name)]"
-            :title="name"
-            @click="select"
+  <div>
+    <div
+      v-show="hasBaseImage"
+      id="volume-rendering-module"
+      class="mx-2 height-100"
+    >
+      <div id="volume-transfer-func-editor" ref="editorContainer">
+        <div ref="pwfEditor" />
+      </div>
+      <div id="preset-list">
+        <item-group :value="presetName" @change="selectPreset">
+          <groupable-item
+            v-for="name in PresetNames"
+            :key="name"
+            v-slot="{ active, select }"
+            :value="name"
           >
-            <div class="text-truncate">
-              {{ name }}
-            </div>
-          </avatar-list-card>
-        </groupable-item>
-      </item-group>
+            <avatar-list-card
+              :active="active"
+              :image-size="size"
+              :image-url="thumbnailCache[thumbKey(baseImage, name)]"
+              :title="name"
+              @click="select"
+            >
+              <div class="text-truncate">
+                {{ name }}
+              </div>
+            </avatar-list-card>
+          </groupable-item>
+        </item-group>
+      </div>
+    </div>
+    <div v-show="!hasBaseImage">
+      No image selected
     </div>
   </div>
 </template>
@@ -33,11 +45,16 @@ import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
 import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
+import vtkPiecewiseGaussianWidget from 'vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget';
 
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import AvatarListCard from '@/src/components/AvatarListCard.vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
+import { NO_SELECTION } from '@/src/constants';
+import { unsubscribeVtkList } from '@/src/utils/common';
+
+const WIDGET_HEIGHT = 150;
 
 export function createThumbnailPipeline() {
   const actor = vtkVolume.newInstance();
@@ -101,11 +118,26 @@ export default {
     ...mapState({
       baseImage: 'selectedBaseImage',
       presetName: (state) => state.visualization.baseImageColorPreset,
+      colorBy: (state) => state.visualization.colorBy,
     }),
     ...mapGetters(['baseImagePipeline']),
+    hasBaseImage() {
+      return this.baseImage !== NO_SELECTION;
+    },
+    pwfProxy() {
+      const { name } = this.colorBy;
+      if (name) {
+        return this.$proxyManager.getPiecewiseFunction(name);
+      }
+      return null;
+    },
   },
 
   watch: {
+    baseImage() {
+      this.updatePwfWidget();
+    },
+
     baseImagePipeline(pipeline) {
       if (pipeline) {
         const { transformFilter } = pipeline;
@@ -118,6 +150,10 @@ export default {
         const { actor } = this.volumePipeline;
         this.scene.getRenderer().removeVolume(actor);
       }
+    },
+
+    colorBy() {
+      this.updatePwfWidget();
     },
   },
 
@@ -132,6 +168,60 @@ export default {
     this.scene.setContainer(this.container);
 
     this.volumePipeline = createThumbnailPipeline();
+
+    this.pwfWidget = vtkPiecewiseGaussianWidget.newInstance({
+      numberOfBins: 256,
+      size: [250, WIDGET_HEIGHT],
+    });
+    this.pwfWidget.updateStyle({
+      backgroundColor: 'rgba(255, 255, 255, 0.6)',
+      histogramColor: 'rgba(100, 100, 100, 0.5)',
+      strokeColor: 'rgb(0, 0, 0)',
+      activeColor: 'rgb(255, 255, 255)',
+      handleColor: 'rgb(50, 150, 50)',
+      buttonDisableFillColor: 'rgba(255, 255, 255, 0.5)',
+      buttonDisableStrokeColor: 'rgba(0, 0, 0, 0.5)',
+      buttonStrokeColor: 'rgba(0, 0, 0, 1)',
+      buttonFillColor: 'rgba(255, 255, 255, 1)',
+      strokeWidth: 2,
+      activeStrokeWidth: 3,
+      buttonStrokeWidth: 1.5,
+      handleWidth: 3,
+      iconSize: 0,
+      padding: 10,
+    });
+
+    this.lifeSubscriptions = [];
+    this.pwfSubscriptions = [];
+
+    this.recurseGuard = false;
+  },
+
+  mounted() {
+    this.resizeObserver = new ResizeObserver((entries) => {
+      if (entries.length === 1) {
+        const { width } = entries[0].contentRect;
+        this.setPwfWidgetWidth(width);
+      }
+    });
+    this.resizeObserver.observe(this.$refs.editorContainer);
+
+    this.lifeSubscriptions.push(
+      this.pwfWidget.onOpacityChange(() => this.onOpacityChange())
+    );
+
+    this.pwfWidget.setContainer(this.$refs.pwfEditor);
+    this.pwfWidget.bindMouseListeners();
+
+    this.updatePwfWidget();
+  },
+
+  beforeDestroy() {
+    this.resizeObserver.unobserve(this.$refs.editorContainer);
+    unsubscribeVtkList(this.lifeSubscriptions);
+    unsubscribeVtkList(this.pwfSubscriptions);
+    this.pwfWidget.unbindMouseListeners();
+    this.pwfWidget.setContainer(null);
   },
 
   methods: {
@@ -177,6 +267,75 @@ export default {
               );
             });
         }
+      }
+    },
+
+    updatePwfWidget() {
+      unsubscribeVtkList(this.pwfSubscriptions);
+
+      if (this.hasBaseImage && this.pwfProxy) {
+        const pwf = this.pwfProxy.getPiecewiseFunction();
+        const lut = this.pwfProxy.getLookupTableProxy().getLookupTable();
+        this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
+        this.pwfWidget.setColorTransferFunction(lut);
+
+        const { data, selectedBaseImage } = this.$store.state;
+        const image = data.vtkCache[selectedBaseImage];
+
+        this.pwfWidget.setDataArray(
+          image.getPointData().getScalars().getData()
+        );
+
+        this.pwfSubscriptions.push(
+          pwf.onModified(() => {
+            if (this.pwfProxy) {
+              if (this.recurseGuard) {
+                return;
+              }
+              this.recurseGuard = true;
+
+              this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
+              this.pwfWidget.render();
+
+              this.recurseGuard = false;
+            }
+          })
+        );
+
+        this.pwfSubscriptions.push(
+          lut.onModified(() => {
+            if (this.pwfProxy) {
+              if (this.recurseGuard) {
+                return;
+              }
+              this.recurseGuard = true;
+
+              const newColorRange = this.pwfWidget.getOpacityRange();
+              this.pwfProxy
+                .getLookupTableProxy()
+                .setDataRange(...newColorRange);
+              this.pwfWidget.render();
+
+              this.recurseGuard = false;
+            }
+          })
+        );
+
+        this.pwfWidget.render();
+      }
+    },
+
+    setPwfWidgetWidth(width) {
+      this.pwfWidget.setSize(width, WIDGET_HEIGHT);
+    },
+
+    onOpacityChange() {
+      if (this.pwfProxy) {
+        this.pwfProxy.setGaussians(
+          this.pwfWidget.getReferenceByName('gaussians')
+        );
+        const newColorRange = this.pwfWidget.getOpacityRange();
+        this.pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
       }
     },
 
