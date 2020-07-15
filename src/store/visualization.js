@@ -75,6 +75,10 @@ export default (dependencies) => ({
 
     worldOrientation: defaultWorldOrientation(),
     windowing: defaultWindowing(),
+    colorBy: {
+      name: '',
+      location: '',
+    },
 
     baseImageColorPreset: DEFAULT_PRESET,
   },
@@ -125,6 +129,10 @@ export default (dependencies) => ({
       state.baseImageColorPreset = presetName;
     },
 
+    setColorBy(state, { name = '', location = '' }) {
+      state.colorBy = { name, location };
+    },
+
     setResizeToFit(state, yn) {
       state.resizeToFit = yn;
     },
@@ -149,10 +157,16 @@ export default (dependencies) => ({
         await dispatch('updateWorldOrientation');
         await dispatch('resetWindowing');
         await dispatch('resetSlicing');
-        await dispatch('setBaseImageColorPreset', DEFAULT_PRESET);
+        await dispatch('updateColorBy');
         await dispatch('setResizeToFit', true);
       }
+
       await dispatch('createPipelinesForScene');
+
+      // these actions depend on pipelines
+      if (reset) {
+        await dispatch('setBaseImageColorPreset', DEFAULT_PRESET);
+      }
     },
 
     /**
@@ -241,6 +255,23 @@ export default (dependencies) => ({
           x: center[0],
           y: center[1],
           z: center[2],
+        });
+      }
+    },
+
+    updateColorBy({ commit, rootState }) {
+      const { selectedBaseImage, data } = rootState;
+      if (selectedBaseImage !== NO_SELECTION) {
+        const image = data.vtkCache[selectedBaseImage];
+        const scalars = image.getPointData().getScalars();
+        commit('setColorBy', {
+          name: scalars.getName(),
+          location: 'pointData',
+        });
+      } else {
+        commit('setColorBy', {
+          name: '',
+          location: '',
         });
       }
     },
@@ -387,8 +418,15 @@ export default (dependencies) => ({
       commit('setWindowing', params);
     },
 
-    setBaseImageColorPreset({ commit }, presetName) {
+    setBaseImageColorPreset({ commit, state }, presetName) {
       commit('setBaseImageColorPreset', presetName);
+
+      const { colorBy } = state;
+      if (colorBy.name) {
+        const { proxyManager } = dependencies;
+        const lut = proxyManager.getLookupTable(state.colorBy.name);
+        lut.setPresetName(presetName);
+      }
     },
 
     resizeAllCamerasToFit({ getters }) {
