@@ -7,7 +7,7 @@
   >
     <v-container>
       <v-row no-gutters>
-        <v-col cols="4">
+        <v-col cols="4" class="flex-grow-0" :style="{ width: `${imageSize}px` }">
           <v-img
             contain
             :height="`${imageSize}px`"
@@ -15,12 +15,12 @@
             :src="imageUrl"
           />
         </v-col>
-        <v-col cols="7" class="text-no-wrap">
+        <v-col :cols="showMenu ? 7 : 8" class="text-no-wrap">
           <div class="ml-2">
             <slot></slot>
           </div>
         </v-col>
-        <v-col cols="1">
+        <v-col v-if="$slots.menu" cols="1">
           <v-menu>
             <template v-slot:activator="{ on, attrs }">
               <v-btn
@@ -35,13 +35,7 @@
                 <v-icon>mdi-dots-vertical</v-icon>
               </v-btn>
             </template>
-            <slot name="menu">
-              <v-list>
-                <v-list-item disabled>
-                  No actions defined
-                </v-list-item>
-              </v-list>
-            </slot>
+            <slot name="menu" />
           </v-menu>
         </v-col>
       </v-row>
@@ -61,6 +55,12 @@ export default {
     },
     imageUrl: {
       type: String,
+    },
+  },
+
+  computed: {
+    showMenu() {
+      return !!this.$slots.menu;
     },
   },
 };
