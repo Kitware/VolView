@@ -10,7 +10,7 @@
 </template>
 
 <script>
-import { mapGetters } from 'vuex';
+import { mapGetters, mapState } from 'vuex';
 
 import VtkViewMixin from '@/src/mixins/VtkView';
 
@@ -20,6 +20,9 @@ export default {
   mixins: [VtkViewMixin],
 
   computed: {
+    ...mapState({
+      colorPreset: (state) => state.visualization.baseImageColorPreset,
+    }),
     ...mapGetters(['boundsWithSpacing']),
   },
 
@@ -31,13 +34,21 @@ export default {
     boundsWithSpacing() {
       this.resetCamera();
     },
+    colorPreset(preset) {
+      this.setColorPresetAnnotation(preset);
+    },
   },
 
   methods: {
     afterViewMount() {
       this.view.setBackground(0.1, 0.2, 0.3);
-      this.view.setCornerAnnotation('nw', 'ColorMap');
       this.view.setOrientationAxesType('cube');
+      this.setColorPresetAnnotation(this.colorPreset);
+    },
+    setColorPresetAnnotation(preset) {
+      if (this.view) {
+        this.view.setCornerAnnotation('nw', preset);
+      }
     },
   },
 };
