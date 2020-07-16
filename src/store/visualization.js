@@ -1,8 +1,7 @@
 import Vue from 'vue';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
-import { addRepresentationsOf, resize2DCameraToFit } from '../vtk/proxyUtils';
-import { DataTypes, NO_SELECTION } from '../constants';
+import { NO_SELECTION } from '../constants';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';
 
 export const defaultWorldOrientation = () => ({
@@ -276,133 +275,6 @@ export default (dependencies) => ({
       }
     },
 
-    async updateSceneLayers({
-      dispatch,
-      commit,
-      state,
-      rootState,
-      rootGetters,
-    }) {
-      const { proxyManager } = dependencies;
-
-      const layers = rootGetters.layerOrder;
-
-      await Promise.all(
-        layers.map(async (dataID) => {
-          const dataInfo = rootState.data.index[dataID];
-          if (!(dataID in rootState.data.vtkCache)) {
-            switch (dataInfo.type) {
-              case DataTypes.Dicom: {
-                const { seriesKey } = dataInfo;
-                const image = await dispatch(
-                  'dicom/buildSeriesVolume',
-                  seriesKey
-                );
-                commit('cacheDicomImage', { seriesKey, image });
-                break;
-              }
-              default:
-                throw new Error(
-                  `updateSceneLayers: Item ${dataID} has no vtk data`
-                );
-            }
-          }
-
-          if (!(dataID in state.pipelines)) {
-            const vtkObj = rootState.data.vtkCache[dataID];
-            const pipeline = createVizPipelineFor(vtkObj, proxyManager);
-            commit('setVizPipeline', { dataID, pipeline });
-          }
-        })
-      );
-
-      // Setting world orientation after processing layers ensures
-      // we have a vtk image for our base image
-      if (rootState.selectedBaseImage !== NO_SELECTION) {
-        const image = rootState.data.vtkCache[rootState.selectedBaseImage];
-        // vtkImageData scalars define our data. Hope we don't ever
-        // have to deal with vector images here...
-        const dataArray = image.getPointData().getScalars();
-        const [dataMin, dataMax] = dataArray.getRange();
-
-        const spacing = image.getSpacing();
-        commit('setWorldOrientation', {
-          bounds: image.getExtent(),
-          spacing,
-          direction: image.getDirection(),
-          worldToIndex: [...image.getWorldToIndex()],
-        });
-        commit('setWindowing', {
-          min: dataMin,
-          max: dataMax,
-          width: dataMax - dataMin,
-          level: (dataMax + dataMin) / 2,
-        });
-      } else {
-        // set dimensions to be the max bounds of all layers
-        const bbox = vtkBoundingBox.newInstance();
-        for (let i = 0; i < layers.length; i += 1) {
-          const obj = rootState.data.vtkCache[layers[i]];
-          bbox.addBox(obj);
-        }
-        bbox.inflate(5); // some extra padding
-        // Without a base image, we assume a spacing of 1.
-        commit('setWorldOrientation', {
-          ...defaultWorldOrientation(),
-          bounds: bbox.getBounds(),
-        });
-        commit('setWindowing', defaultWindowing());
-      }
-
-      // now add layer representations
-      for (let i = 0; i < layers.length; i += 1) {
-        const layer = layers[i];
-        const { transformFilter } = state.pipelines[layer];
-        transformFilter.setTransform(state.worldOrientation.worldToIndex);
-
-        addRepresentationsOf(transformFilter, proxyManager);
-      }
-    },
-
-    async resetViews({ state, rootState, getters, dispatch }) {
-      if (rootState.selectedBaseImage !== NO_SELECTION) {
-        const { bounds } = state.worldOrientation;
-        await dispatch('setSlices', {
-          x: bounds[0],
-          y: bounds[2],
-          z: bounds[4],
-        });
-      } else {
-        // pick middle of bounds
-        const { bounds } = state.worldOrientation;
-        const center = [
-          (bounds[0] + bounds[1]) / 2,
-          (bounds[2] + bounds[3]) / 2,
-          (bounds[4] + bounds[5]) / 2,
-        ];
-        await dispatch('setSlices', {
-          x: center[0],
-          y: center[1],
-          z: center[2],
-        });
-      }
-
-      const { proxyManager } = dependencies;
-
-      proxyManager.getViews().forEach((view) => {
-        if (view.isA('vtkView2DProxy')) {
-          const renderer = view.getRenderer();
-          renderer.computeVisiblePropBounds();
-          renderer.resetCamera(getters.worldBounds);
-        } else {
-          // 3D views
-          view.resetCamera();
-        }
-      });
-
-      await dispatch('setResizeToFit', true);
-    },
-
     // TODO asMutation
     setSlices({ commit }, slices) {
       commit('setSlices', slices);
@@ -427,16 +299,6 @@ export default (dependencies) => ({
         const lut = proxyManager.getLookupTable(state.colorBy.name);
         lut.setPresetName(presetName);
       }
-    },
-
-    resizeAllCamerasToFit({ getters }) {
-      const { proxyManager } = dependencies;
-      proxyManager
-        .getViews()
-        .filter((view) => view.isA('vtkView2DProxy'))
-        .forEach((view) => {
-          resize2DCameraToFit(view, getters.worldBounds);
-        });
     },
 
     removeData({ commit }, dataID) {
