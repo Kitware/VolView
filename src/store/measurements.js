@@ -9,7 +9,7 @@ export default () => ({
     measurements: {}, // widget ID -> opaque measurement obj
     // widget/measurement parent is the base image association
     parents: {}, // data ID -> [widget ID]
-    widgetParent: {} // widget ID -> data ID
+    widgetParent: {}, // widget ID -> data ID
   },
 
   mutations: {
@@ -47,7 +47,7 @@ export default () => ({
         state.parents[parent].splice(idx, 1);
         Vue.delete(state.widgetParent, id);
       }
-    }
+    },
   },
 
   actions: {
@@ -66,7 +66,7 @@ export default () => ({
           }
           Vue.delete(state.parents, dataID);
         }
-      }
-    }
-  }
+      },
+    },
+  },
 });

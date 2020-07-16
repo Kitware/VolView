@@ -71,14 +71,12 @@ export default (dependencies) => ({
     pipelines: {},
     slices: defaultSlicing(),
     resizeToFit: true,
-
     worldOrientation: defaultWorldOrientation(),
     windowing: defaultWindowing(),
     colorBy: {
       name: '',
       location: '',
     },
-
     baseImageColorPreset: DEFAULT_PRESET,
   },
 

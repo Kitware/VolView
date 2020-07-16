@@ -7,6 +7,7 @@
     "build": "vue-cli-service build",
     "test:unit": "vue-cli-service test:unit",
     "lint": "vue-cli-service lint",
+    "prettify": "prettier --write src",
     "build:dicom": "itk-js build src/io/itk-dicom/",
     "build:all": "npm run build:dicom && npm run build"
   },

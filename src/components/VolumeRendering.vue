@@ -138,7 +138,7 @@ export default {
         return this.pwfProxy.getLookupTableProxy();
       }
       return null;
-    }
+    },
   },
 
   watch: {

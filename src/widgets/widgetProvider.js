@@ -38,9 +38,9 @@ export default class WidgetProvider {
           if (!list.has(id)) {
             this.removeWidget(id);
           }
-        })
+        });
       }
-    )
+    );
   }
 
   getById(id) {

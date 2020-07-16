@@ -25,7 +25,7 @@ export default class RulerWidget extends Widget {
       initialData: {
         length: 0,
       },
-    })
+    });
   }
 
   onStateChange() {
@@ -48,7 +48,7 @@ export default class RulerWidget extends Widget {
         data: {
           length: this.factory.getDistance(),
         },
-      })
+      });
     }
   }
 
