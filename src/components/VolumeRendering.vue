@@ -46,6 +46,7 @@ import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransfe
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
 import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseGaussianWidget from 'vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget';
+import PwfProxyConstants from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy/Constants';
 
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
@@ -54,6 +55,7 @@ import { PresetNameList } from '@/src/vtk/ColorMaps';
 import { NO_SELECTION } from '@/src/constants';
 import { unsubscribeVtkList } from '@/src/utils/common';
 
+const { Defaults } = PwfProxyConstants;
 const WIDGET_HEIGHT = 150;
 
 export function createThumbnailPipeline() {
@@ -131,11 +133,20 @@ export default {
       }
       return null;
     },
+    lutProxy() {
+      if (this.pwfProxy) {
+        return this.pwfProxy.getLookupTableProxy();
+      }
+      return null;
+    }
   },
 
   watch: {
     baseImage() {
-      this.updatePwfWidget();
+      if (this.hasBaseImage) {
+        this.resetPwfWidget();
+        this.onOpacityChange();
+      }
     },
 
     baseImagePipeline(pipeline) {
@@ -153,7 +164,8 @@ export default {
     },
 
     colorBy() {
-      this.updatePwfWidget();
+      this.resetPwfWidget();
+      this.onOpacityChange();
     },
   },
 
@@ -202,6 +214,7 @@ export default {
       if (entries.length === 1) {
         const { width } = entries[0].contentRect;
         this.setPwfWidgetWidth(width);
+        this.onOpacityChange();
       }
     });
     this.resizeObserver.observe(this.$refs.editorContainer);
@@ -213,7 +226,8 @@ export default {
     this.pwfWidget.setContainer(this.$refs.pwfEditor);
     this.pwfWidget.bindMouseListeners();
 
-    this.updatePwfWidget();
+    this.resetPwfWidget();
+    this.onOpacityChange();
   },
 
   beforeDestroy() {
@@ -227,8 +241,11 @@ export default {
   methods: {
     thumbKey,
 
-    selectPreset(name) {
-      this.setBaseImageColorPreset(name);
+    async selectPreset(name) {
+      await this.setBaseImageColorPreset(name);
+
+      const lut = this.lutProxy.getLookupTable();
+      this.pwfWidget.setColorTransferFunction(lut);
     },
 
     doThumbnailing(volume) {
@@ -270,21 +287,26 @@ export default {
       }
     },
 
-    updatePwfWidget() {
+    resetPwfWidget() {
       unsubscribeVtkList(this.pwfSubscriptions);
 
       if (this.hasBaseImage && this.pwfProxy) {
         const pwf = this.pwfProxy.getPiecewiseFunction();
-        const lut = this.pwfProxy.getLookupTableProxy().getLookupTable();
-        this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
-        this.pwfWidget.setColorTransferFunction(lut);
+        const lut = this.lutProxy.getLookupTable();
 
         const { data, selectedBaseImage } = this.$store.state;
         const image = data.vtkCache[selectedBaseImage];
+        const scalars = image.getPointData().getScalars();
 
-        this.pwfWidget.setDataArray(
-          image.getPointData().getScalars().getData()
-        );
+        // reset pwf proxy and lut proxy ranges
+        this.pwfProxy.setDataRange(...scalars.getRange());
+        this.lutProxy.setDataRange(...scalars.getRange());
+
+        this.pwfProxy.setGaussians(Defaults.Gaussians);
+        this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
+
+        this.pwfWidget.setColorTransferFunction(lut);
+        this.pwfWidget.setDataArray(scalars.getData());
 
         this.pwfSubscriptions.push(
           pwf.onModified(() => {
@@ -295,7 +317,6 @@ export default {
               this.recurseGuard = true;
 
               this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
-              this.pwfWidget.render();
 
               this.recurseGuard = false;
             }
@@ -326,16 +347,26 @@ export default {
     },
 
     setPwfWidgetWidth(width) {
-      this.pwfWidget.setSize(width, WIDGET_HEIGHT);
+      if (width > 0) {
+        this.pwfWidget.setSize(width, WIDGET_HEIGHT);
+      }
     },
 
     onOpacityChange() {
       if (this.pwfProxy) {
+        if (this.recurseGuard) {
+          return;
+        }
+        this.recurseGuard = true;
+
         this.pwfProxy.setGaussians(
           this.pwfWidget.getReferenceByName('gaussians')
         );
         const newColorRange = this.pwfWidget.getOpacityRange();
         this.pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
+        this.pwfWidget.render();
+
+        this.recurseGuard = false;
       }
     },
 

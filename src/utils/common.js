@@ -59,3 +59,9 @@ export function removeFromArray(arr, el) {
     arr.splice(idx, 1);
   }
 }
+
+export function unsubscribeVtkList(subs) {
+  while (subs.length) {
+    subs.pop().unsubscribe();
+  }
+}
