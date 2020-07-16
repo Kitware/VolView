@@ -112,6 +112,7 @@ export default {
     return {
       size: 80,
       thumbnailCache: {}, // TODO how to remove entries from cache
+      mapOpacityRangeToLutRange: false,
       PresetNames: PresetNameList,
     };
   },
@@ -331,11 +332,13 @@ export default {
               }
               this.recurseGuard = true;
 
-              const newColorRange = this.pwfWidget.getOpacityRange();
-              this.pwfProxy
-                .getLookupTableProxy()
-                .setDataRange(...newColorRange);
-              this.pwfWidget.render();
+              if (this.mapOpacityRangeToLutRange) {
+                const newColorRange = this.pwfWidget.getOpacityRange();
+                this.pwfProxy
+                  .getLookupTableProxy()
+                  .setDataRange(...newColorRange);
+                this.pwfWidget.render();
+              }
 
               this.recurseGuard = false;
             }
@@ -362,8 +365,10 @@ export default {
         this.pwfProxy.setGaussians(
           this.pwfWidget.getReferenceByName('gaussians')
         );
-        const newColorRange = this.pwfWidget.getOpacityRange();
-        this.pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
+        if (this.mapOpacityRangeToLutRange) {
+          const newColorRange = this.pwfWidget.getOpacityRange();
+          this.pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
+        }
         this.pwfWidget.render();
 
         this.recurseGuard = false;
