@@ -12,6 +12,12 @@ registerPresets(MedicalPresets);
 /* prettier-ignore */
 const GroupedPresets = [
   {
+    group: 'Other',
+    presets: [
+      'Cool to Warm',
+    ],
+  },
+  {
     group: 'CT',
     presets: [
       'CT-AAA',
@@ -49,12 +55,6 @@ const GroupedPresets = [
     group: 'DTI',
     presets: [
       'DTI-FA-Brain',
-    ],
-  },
-  {
-    group: 'Other',
-    presets: [
-      'Cool to Warm',
     ],
   },
 ];
