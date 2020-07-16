@@ -45,9 +45,9 @@ import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
 import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
-import vtkPiecewiseGaussianWidget from 'vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget';
 import PwfProxyConstants from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy/Constants';
 
+import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import AvatarListCard from '@/src/components/AvatarListCard.vue';
@@ -55,7 +55,7 @@ import { PresetNameList } from '@/src/vtk/ColorMaps';
 import { NO_SELECTION } from '@/src/constants';
 import { unsubscribeVtkList } from '@/src/utils/common';
 
-const { Defaults } = PwfProxyConstants;
+const { Defaults, Mode } = PwfProxyConstants;
 const WIDGET_HEIGHT = 150;
 
 export function createThumbnailPipeline() {
@@ -164,6 +164,11 @@ export default {
       }
     },
 
+    presetName() {
+      this.resetPwfWidget();
+      this.onOpacityChange();
+    },
+
     colorBy() {
       this.resetPwfWidget();
       this.onOpacityChange();
@@ -182,7 +187,7 @@ export default {
 
     this.volumePipeline = createThumbnailPipeline();
 
-    this.pwfWidget = vtkPiecewiseGaussianWidget.newInstance({
+    this.pwfWidget = vtkPiecewiseWidget.newInstance({
       numberOfBins: 256,
       size: [250, WIDGET_HEIGHT],
     });
@@ -298,13 +303,43 @@ export default {
         const { data, selectedBaseImage } = this.$store.state;
         const image = data.vtkCache[selectedBaseImage];
         const scalars = image.getPointData().getScalars();
+        const dataRange = scalars.getRange();
 
         // reset pwf proxy and lut proxy ranges
-        this.pwfProxy.setDataRange(...scalars.getRange());
-        this.lutProxy.setDataRange(...scalars.getRange());
+        this.pwfProxy.setDataRange(...dataRange);
+        this.lutProxy.setDataRange(...dataRange);
 
-        this.pwfProxy.setGaussians(Defaults.Gaussians);
-        this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
+        const preset = vtkColorMaps.getPresetByName(this.presetName);
+        if (preset.OpacityPoints) {
+          const { OpacityPoints } = preset;
+          const points = [];
+          let xmin = Infinity;
+          let xmax = -Infinity;
+          for (let i = 0; i < OpacityPoints.length; i += 2) {
+            xmin = Math.min(xmin, OpacityPoints[i]);
+            xmax = Math.max(xmax, OpacityPoints[i]);
+            points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
+          }
+
+          const width = xmax - xmin;
+          const pointsNormalized = points.map(([x, y]) => [
+            (x - xmin) / width,
+            y,
+          ]);
+
+          this.pwfProxy.setMode(Mode.Points);
+          this.pwfProxy.setPoints(pointsNormalized);
+          this.pwfProxy.setDataRange(xmin, xmax);
+
+          this.pwfWidget.setPointsMode();
+          this.pwfWidget.setOpacityPoints(pointsNormalized);
+        } else {
+          this.pwfProxy.setMode(Mode.Gaussians);
+          this.pwfProxy.setGaussians(Defaults.Gaussians);
+
+          this.pwfWidget.setGaussiansMode();
+          this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
+        }
 
         this.pwfWidget.setColorTransferFunction(lut);
         this.pwfWidget.setDataArray(scalars.getData());
@@ -362,9 +397,13 @@ export default {
         }
         this.recurseGuard = true;
 
-        this.pwfProxy.setGaussians(
-          this.pwfWidget.getReferenceByName('gaussians')
-        );
+        if (this.pwfProxy.getMode() === Mode.Gaussians) {
+          this.pwfProxy.setGaussians(
+            this.pwfWidget.getReferenceByName('gaussians')
+          );
+        } else if (this.pwfProxy.getMode() === Mode.Points) {
+          this.pwfProxy.setPoints(this.pwfWidget.getEffectiveOpacityPoints());
+        }
         if (this.mapOpacityRangeToLutRange) {
           const newColorRange = this.pwfWidget.getOpacityRange();
           this.pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
