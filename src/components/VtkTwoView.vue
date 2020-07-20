@@ -354,7 +354,7 @@ export default {
       }
     },
 
-    ...mapActions(['setWindowing', 'setSlices', 'createPipelineForData']),
+    ...mapActions(['setWindowing', 'setSlices']),
   },
 };
 </script>

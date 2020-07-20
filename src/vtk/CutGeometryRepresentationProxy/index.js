@@ -2,11 +2,11 @@ import macro from 'vtk.js/Sources/macro';
 
 import vtkSlicedGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SlicedGeometryRepresentationProxy';
 
-function vtkCutGeometryRepresentationProxy(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkCutGeometryRepresentationProxy');
+import vtkPolyDataTransformFilter from '../PolyDataTransformFilter';
+import vtkRepresentationProxyTransformMixin from '../transformMixin';
 
-  // TODO add contour loop filling
+function vtkCutGeometryRepresentationProxy(publicAPI, model) {
+  model.classHierarchy.push('vtkCutGeometryRepresentationProxy');
 }
 
 // ----------------------------------------------------------------------------
@@ -22,6 +22,11 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   // Object methods
   vtkSlicedGeometryRepresentationProxy.extend(publicAPI, model);
+
+  vtkRepresentationProxyTransformMixin(vtkPolyDataTransformFilter)(
+    publicAPI,
+    model
+  );
 
   // Object specific methods
   vtkCutGeometryRepresentationProxy(publicAPI, model);

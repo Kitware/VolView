@@ -28,38 +28,34 @@ export const defaultSlicing = () => ({
   z: 0,
 });
 
-export function createVizPipelineFor(data, proxyManager) {
-  let transformType = null;
-  if (data.getClassName() === 'vtkImageData') {
-    transformType = 'ImageTransform';
-  } else if (data.getClassName() === 'vtkPolyData') {
-    transformType = 'PolyDataTransform';
-  } else if (data.getClassName() === 'vtkLabelMap') {
-    transformType = 'LabelMapTransform';
-  } else {
-    throw new Error('createVizPipelineFor: data is not image or geometry');
-  }
+/**
+ * First step must be a dataset. Intermediate steps must be filters.
+ */
+export function createVizPipeline(steps, proxyManager) {
+  const pipeline = {};
 
-  const dataSource = proxyManager.createProxy('Sources', 'TrivialProducer');
-  dataSource.setInputData(data);
+  steps.forEach((step, i) => {
+    if (i === 0 && step.type === 'dataset') {
+      const source = proxyManager.createProxy('Sources', 'TrivialProducer');
+      source.setInputData(step.dataset);
 
-  const transformFilter = proxyManager.createProxy('Sources', transformType, {
-    inputProxy: dataSource,
+      pipeline[i] = source;
+      pipeline.source = source;
+    } else if (i > 0 && step.type === 'filter') {
+      const { id, proxyGroup, proxyName } = step;
+      const filter = proxyManager.createProxy(proxyGroup, proxyName, {
+        inputProxy: pipeline[i - 1],
+      });
+
+      pipeline[i] = filter;
+      pipeline[id] = filter;
+    }
   });
 
-  const pipeline = {
-    dataSource,
-    transformFilter,
-  };
-
-  if (data.isA('vtkPolyData')) {
-    const cutterFilter = proxyManager.createProxy('Sources', 'PolyDataCutter', {
-      inputProxy: dataSource,
-    });
-    pipeline.transformFilter.setInputProxy(cutterFilter);
-    pipeline.cutterFilter = cutterFilter;
-  }
-
+  pipeline.length = steps.length;
+  // eslint-disable-next-line prefer-destructuring
+  pipeline.first = pipeline[0];
+  pipeline.last = pipeline[pipeline.length - 1];
   return pipeline;
 }
 
@@ -176,11 +172,12 @@ export default (dependencies) => ({
         const dataID = sceneObjectIDs[i];
         if (!(dataID in state.pipelines)) {
           const vtkObj = rootState.data.vtkCache[dataID];
-          const pipeline = createVizPipelineFor(vtkObj, proxyManager);
+          const pipeline = createVizPipeline(
+            [{ type: 'dataset', dataset: vtkObj }],
+            proxyManager
+          );
           commit('setVizPipeline', { dataID, pipeline });
         }
-        const { transformFilter } = state.pipelines[dataID];
-        transformFilter.setTransform(state.worldOrientation.worldToIndex);
       }
     },
 
@@ -306,10 +303,13 @@ export default (dependencies) => ({
     redrawPipeline({ state }, dataID) {
       if (dataID in state.pipelines) {
         const { proxyManager } = dependencies;
-        const { transformFilter: source } = state.pipelines[dataID];
+        const { last: source } = state.pipelines[dataID];
         proxyManager.getViews().forEach((view) => {
           const rep = proxyManager.getRepresentation(source, view);
           if (rep) {
+            if (rep.setTransform) {
+              rep.setTransform(...state.worldOrientation.worldToIndex);
+            }
             rep.getMapper().modified();
           }
         });

@@ -152,8 +152,8 @@ export default {
 
     baseImagePipeline(pipeline) {
       if (pipeline) {
-        const { transformFilter } = pipeline;
-        const volume = transformFilter.getDataset();
+        const { source } = pipeline;
+        const volume = source.getDataset();
         const { actor, mapper } = this.volumePipeline;
         mapper.setInputData(volume);
         this.scene.getRenderer().addVolume(actor);

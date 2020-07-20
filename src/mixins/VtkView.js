@@ -34,11 +34,12 @@ export default {
     ...mapGetters(['sceneObjectIDs']),
     ...mapState({
       vizPipelines: (state) => state.visualization.pipelines,
+      worldOrientation: (state) => state.visualization.worldOrientation,
     }),
     sceneSources() {
       return this.sceneObjectIDs
         .filter((id) => id in this.vizPipelines)
-        .map((id) => this.vizPipelines[id].transformFilter);
+        .map((id) => this.vizPipelines[id].last);
     },
   },
 
@@ -136,6 +137,9 @@ export default {
 
       this.sceneSources.forEach((source) => {
         const rep = this.$proxyManager.getRepresentation(source, this.view);
+        if (rep.setTransform) {
+          rep.setTransform(...this.worldOrientation.worldToIndex);
+        }
         this.view.addRepresentation(rep);
       });
     },
@@ -144,7 +148,6 @@ export default {
       this.$nextTick(() => this.onResize());
     },
 
-    // TODO use REsizeobserer instead of eventBus
     onResize() {
       if (this.view) {
         // re-implemented from ViewProxy, since we don't

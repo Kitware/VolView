@@ -6,15 +6,12 @@ import vtkPiecewiseFunctionProxy from 'vtk.js/Sources/Proxy/Core/PiecewiseFuncti
 
 import vtkSourceProxy from 'vtk.js/Sources/Proxy/Core/SourceProxy';
 
-import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SliceRepresentationProxy';
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
+import vtkTransformedSliceRepresentationProxy from '@/src/vtk/TransformedSliceRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
-import vtkImageTransformFilter from '@/src/vtk/ImageTransformFilter';
-import vtkPolyDataTransformFilter from '@/src/vtk/PolyDataTransformFilter';
-import vtkLabelMapTransformFilter from '@/src/vtk/LabelMapTransformFilter';
 
 function createProxyDefinition(
   classFactory,
@@ -32,15 +29,6 @@ function createProxyDefinition(
 
 function createDefaultView(classFactory, options, props) {
   return createProxyDefinition(classFactory, [], [], options, props);
-}
-
-function createProxyFilterDefinition(algoFactory, options, ui, links, props) {
-  const defOptions = {
-    algoFactory,
-    autoUpdate: true,
-    ...(options || {}),
-  };
-  return createProxyDefinition(vtkSourceProxy, ui, links, defOptions, props);
 }
 
 function createSyncedSliceRepDefinition(proxyClass, axis, ui = [], links = []) {
@@ -67,27 +55,6 @@ export default {
     },
     Sources: {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
-      PolyDataTransform: createProxyFilterDefinition(
-        vtkPolyDataTransformFilter,
-        {
-          proxyPropertyMapping: {
-            transform: { modelKey: 'algo', property: 'transform' },
-          },
-        }
-      ),
-      ImageTransform: createProxyFilterDefinition(vtkImageTransformFilter, {
-        proxyPropertyMapping: {
-          transform: { modelKey: 'algo', property: 'transform' },
-        },
-      }),
-      LabelMapTransform: createProxyFilterDefinition(
-        vtkLabelMapTransformFilter,
-        {
-          proxyPropertyMapping: {
-            transform: { modelKey: 'algo', property: 'transform' },
-          },
-        }
-      ),
     },
     Representations: {
       Volume: createProxyDefinition(
@@ -117,7 +84,7 @@ export default {
         ]
       ),
       SliceX: createSyncedSliceRepDefinition(
-        vtkSliceRepresentationProxy,
+        vtkTransformedSliceRepresentationProxy,
         'X',
         [],
         [
@@ -126,7 +93,7 @@ export default {
         ]
       ),
       SliceY: createSyncedSliceRepDefinition(
-        vtkSliceRepresentationProxy,
+        vtkTransformedSliceRepresentationProxy,
         'Y',
         [],
         [
@@ -135,7 +102,7 @@ export default {
         ]
       ),
       SliceZ: createSyncedSliceRepDefinition(
-        vtkSliceRepresentationProxy,
+        vtkTransformedSliceRepresentationProxy,
         'Z',
         [],
         [
