@@ -137,10 +137,12 @@ export default {
 
       this.sceneSources.forEach((source) => {
         const rep = this.$proxyManager.getRepresentation(source, this.view);
-        if (rep.setTransform) {
-          rep.setTransform(...this.worldOrientation.worldToIndex);
+        if (rep) {
+          if (rep.setTransform) {
+            rep.setTransform(...this.worldOrientation.worldToIndex);
+          }
+          this.view.addRepresentation(rep);
         }
-        this.view.addRepresentation(rep);
       });
     },
 
