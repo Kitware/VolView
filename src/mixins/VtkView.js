@@ -62,6 +62,9 @@ export default {
     sceneSources() {
       this.updateScene();
     },
+    worldOrientation() {
+      this.updateScene();
+    },
   },
 
   mounted() {
