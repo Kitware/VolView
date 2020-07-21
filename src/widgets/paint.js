@@ -1,7 +1,8 @@
+import { mat4, vec3 } from 'gl-matrix';
 import vtkPaintWidget from 'vtk.js/Sources/Widgets/Widgets3D/PaintWidget';
 import vtkPaintFilter from 'vtk.js/Sources/Filters/General/PaintFilter';
 
-import { NO_SELECTION, IDENTITY4 } from '@/src/constants';
+import { NO_SELECTION } from '@/src/constants';
 import Widget, { FOLLOW_VIEW, ALWAYS_VISIBLE } from './widget';
 
 export default class PaintWidget extends Widget {
@@ -16,6 +17,11 @@ export default class PaintWidget extends Widget {
     this.filter = null;
     this.factory = vtkPaintWidget.newInstance();
     this.state = this.factory.getWidgetState();
+
+    // bug/edge case: default radius is 1, so if we initialize
+    // our paint widget with a radius of 1, then the widget paintbrush
+    // cursor doesn't properly resize to a radius of 1.
+    this.factory.setRadius(0);
 
     const { selectedLabelmap } = store.state.annotations;
     this.onLabelmapSelect(selectedLabelmap, NO_SELECTION);
@@ -75,15 +81,15 @@ export default class PaintWidget extends Widget {
 
     if (id !== NO_SELECTION) {
       const { vtkCache } = this.store.state.data;
+      const { worldOrientation } = this.store.state.visualization;
       const { radius, currentLabelFor } = this.store.state.annotations;
 
       this.filter = vtkPaintFilter.newInstance();
       this.filter.setBackgroundImage(vtkCache[selectedBaseImage]);
       this.filter.setLabelMap(vtkCache[id]);
-      this.filter.setMaskWorldToIndex(IDENTITY4);
+      this.filter.setMaskWorldToIndex(worldOrientation.worldToIndex);
       this.filter.setLabel(currentLabelFor[id]);
-      this.filter.setRadius(radius);
-      this.factory.setRadius(radius);
+      this.onRadiusChange(radius);
     } else {
       this.deactivateSelf();
     }
@@ -101,6 +107,23 @@ export default class PaintWidget extends Widget {
     this.factory.setRadius(radius);
   }
 
+  toWorldPosition(point) {
+    // the view has identity origin and direction, but not spacing
+    const {
+      spacing,
+      worldToIndex,
+    } = this.store.state.visualization.worldOrientation;
+    const inv = mat4.create();
+    const pt = vec3.create();
+    mat4.invert(inv, worldToIndex);
+    vec3.transformMat4(
+      pt,
+      point.map((p, i) => p / spacing[i]), // undo spacing
+      inv
+    );
+    return pt;
+  }
+
   // override
   addToView(view, ...rest) {
     super.addToView(view, ...rest);
@@ -108,15 +131,17 @@ export default class PaintWidget extends Widget {
     const subs = [
       viewWidget.onStartInteractionEvent(() => {
         this.filter.startStroke();
-        this.filter.addPoint(this.state.getTrueOrigin());
+        this.filter.addPoint(this.toWorldPosition(this.state.getTrueOrigin()));
       }),
       viewWidget.onInteractionEvent(() => {
         if (viewWidget.getPainting()) {
-          this.filter.addPoint(this.state.getTrueOrigin());
+          this.filter.addPoint(
+            this.toWorldPosition(this.state.getTrueOrigin())
+          );
         }
       }),
       viewWidget.onEndInteractionEvent(() => {
-        this.filter.addPoint(this.state.getTrueOrigin());
+        this.filter.addPoint(this.toWorldPosition(this.state.getTrueOrigin()));
         this.filter.endStroke();
 
         const { selectedLabelmap } = this.store.state.annotations;

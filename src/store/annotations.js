@@ -43,7 +43,7 @@ export default () => ({
     selectedLabelmap: NO_SELECTION,
     currentLabelFor: {}, // labelmap ID -> currently selected label
     labels: {}, // labelmapID -> label -> color
-    radius: 1,
+    radius: 0,
     radiusRange: [1, 100],
   },
 
@@ -118,12 +118,15 @@ export default () => ({
       if (rootState.data.labelmapIDs.includes(labelmapID)) {
         const labelmap = rootState.data.vtkCache[labelmapID];
         const dims = labelmap.getDimensions();
-        const diag = Math.sqrt(dims.reduce((sum, d) => sum + d * d, 0));
+        const spacing = labelmap.getSpacing();
+        const avgDim = dims
+          .map((d, i) => d * spacing[i])
+          .reduce((avg, d) => avg + d / 3, 0);
         commit('setRadiusRange', {
           min: 1,
-          max: Math.round(diag / 2),
+          max: Math.round(avgDim / 2),
         });
-        commit('setRadius', Math.max(2, Math.round(Math.sqrt(diag / 2))));
+        commit('setRadius', Math.max(1, Math.round(avgDim / (5 * 2))));
         commit('selectLabelmap', labelmapID);
       }
     },
