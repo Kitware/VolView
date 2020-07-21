@@ -27,6 +27,13 @@ export const initialState = () => ({
   // track the mapping from seriesUID to data ID
   dicomSeriesToID: {},
   selectedBaseImage: NO_SELECTION,
+
+  // data-data associations, in parent-of or child-of relationships.
+  // is used for cascaded deletes
+  dataAssoc: {
+    childrenOf: {},
+    parentOf: {},
+  },
 });
 
 export default (deps) =>
@@ -42,9 +49,14 @@ export default (deps) =>
     state: initialState(),
 
     getters: {
-      sceneObjectIDs(state) {
+      visibleLabelmaps(state) {
+        return state.data.labelmapIDs.filter(
+          (id) => state.dataAssoc.parentOf[id] === state.selectedBaseImage
+        );
+      },
+      sceneObjectIDs(state, getters) {
         const { selectedBaseImage, data } = state;
-        const order = [].concat(data.labelmapIDs, data.modelIDs);
+        const order = [].concat(getters.visibleLabelmaps, data.modelIDs);
         if (selectedBaseImage !== NO_SELECTION) {
           order.unshift(selectedBaseImage);
         }

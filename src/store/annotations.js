@@ -87,6 +87,15 @@ export default () => ({
         const imageData = data.vtkCache[baseID];
         const id = data.nextID;
 
+        commit(
+          'associateData',
+          {
+            parentID: baseID,
+            childID: id,
+          },
+          { root: true }
+        );
+
         const existingNames = data.labelmapIDs.map(
           (lid) => data.index[lid].name
         );

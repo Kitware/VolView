@@ -5,7 +5,7 @@
         <v-select
           label="Labelmap"
           placeholder="Select a labelmap..."
-          no-data-text="No labelmaps"
+          no-data-text="No labelmaps for current image"
           :items="labelmaps"
           item-text="name"
           item-value="id"
@@ -86,7 +86,7 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapGetters } from 'vuex';
 
 import { NO_SELECTION } from '@/src/constants';
 
@@ -107,13 +107,16 @@ export default {
           name: id !== NO_SELECTION ? state.data.index[id].name : '',
         };
       },
-      labelmaps: (state) =>
-        state.data.labelmapIDs.map((id) => ({
-          id,
-          name: state.data.index[id].name,
-        })),
+      dataIndex: (state) => state.data.index,
     }),
+    ...mapGetters(['visibleLabelmaps']),
     ...mapState('annotations', ['radiusRange']),
+    labelmaps() {
+      return this.visibleLabelmaps.map((id) => ({
+        id,
+        name: this.dataIndex[id].name,
+      }));
+    },
     hasSelectedBase() {
       return this.selectedBaseImage !== NO_SELECTION;
     },

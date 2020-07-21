@@ -155,7 +155,9 @@ export default class PaintWidget extends Widget {
   removeFromView(view) {
     super.removeFromView(view);
     const subs = this.viewWidgetListeners.get(view);
-    subs.forEach((sub) => sub.unsubscribe());
+    if (subs) {
+      subs.forEach((sub) => sub.unsubscribe());
+    }
     this.viewWidgetListeners.delete(view);
   }
 

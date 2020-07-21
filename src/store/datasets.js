@@ -81,23 +81,45 @@ export const mutations = {
     };
   },
 
+  associateData(state, { parentID, childID }) {
+    const { parentOf, childrenOf } = state.dataAssoc;
+    if (!(parentID in childrenOf)) {
+      Vue.set(childrenOf, parentID, []);
+    }
+    childrenOf[parentID].push(childID);
+    Vue.set(parentOf, childID, parentID);
+  },
+
   removeData(state, dataID) {
     if (dataID in state.data.index) {
-      const { type } = state.data.index[dataID];
+      const { data, dataAssoc } = state;
+      const { parentOf, childrenOf } = dataAssoc;
+
+      if (dataID in parentOf) {
+        // child association
+        const parentID = parentOf[dataID];
+        const idx = childrenOf[parentID].indexOf(dataID);
+        childrenOf[parentID].splice(idx, 1);
+      } else if (dataID in childrenOf) {
+        // parent association
+        Vue.delete(childrenOf, dataID);
+      }
+
+      const { type } = data.index[dataID];
       if (type === DataTypes.Image) {
-        removeFromArray(state.data.imageIDs, dataID);
+        removeFromArray(data.imageIDs, dataID);
       } else if (type === DataTypes.Labelmap) {
-        removeFromArray(state.data.labelmapIDs, dataID);
+        removeFromArray(data.labelmapIDs, dataID);
       } else if (type === DataTypes.Model) {
-        removeFromArray(state.data.modelIDs, dataID);
+        removeFromArray(data.modelIDs, dataID);
       } else if (type === DataTypes.Dicom) {
-        removeFromArray(state.data.dicomIDs, dataID);
+        removeFromArray(data.dicomIDs, dataID);
         const { seriesKey } = state.data.index[dataID];
         Vue.delete(state.dicomSeriesToID, seriesKey);
       }
 
-      Vue.delete(state.data.index, dataID);
-      Vue.delete(state.data.vtkCache, dataID);
+      Vue.delete(data.index, dataID);
+      Vue.delete(data.vtkCache, dataID);
     }
   },
 
@@ -269,6 +291,15 @@ export const makeActions = (dependencies) => ({
     if (info?.type === DataTypes.Dicom) {
       const { seriesKey } = info;
       await dispatch('dicom/removeData', seriesKey);
+    }
+
+    await dispatch('annotations/removeData', dataID);
+
+    // parent association condition
+    const { childrenOf } = state.dataAssoc;
+    if (dataID in childrenOf) {
+      const children = childrenOf[dataID];
+      await Promise.all(children.map((id) => dispatch('removeData', id)));
     }
 
     commit('removeData', dataID);
