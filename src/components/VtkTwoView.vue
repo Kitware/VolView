@@ -386,12 +386,7 @@ export default {
         origin[this.axis] = this.slice;
         const intInfo = vtkPlane.intersectWithLine(near, far, origin, dop);
         if (intInfo.intersection) {
-          const point = intInfo.x.map((c) =>
-            // this is a hack to work around the first slice sometimes being
-            // very close to zero, but not quite, resulting in being unable to
-            // see pixel values for 0th slice.
-            Math.abs(c) < 1e-8 ? Math.round(c) : c
-          );
+          const point = intInfo.x;
           // get image data
           const rep = this.$proxyManager.getRepresentation(
             this.sceneSources[0],
@@ -399,7 +394,12 @@ export default {
           );
           if (rep) {
             const imageData = rep.getMapper().getInputData();
-            const [i, j, k] = imageData.worldToIndex(point);
+            const [i, j, k] = imageData.worldToIndex(point).map((c) =>
+              // this is a hack to work around the first slice sometimes being
+              // very close to zero, but not quite, resulting in being unable to
+              // see pixel values for 0th slice.
+              Math.abs(c) < 1e-8 ? Math.round(c) : c
+            );
             const extent = imageData.getExtent();
             if (
               i >= extent[0] &&
