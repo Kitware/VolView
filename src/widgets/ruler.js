@@ -1,4 +1,4 @@
-import vtkCustomDistanceWidget from './CustomDistanceWidget';
+import vtkCustomDistanceWidget from '@/src/vtk/CustomDistanceWidget';
 
 import Widget, { FOLLOW_VIEW, NEVER_VISIBLE, is2DView } from './widget';
 
