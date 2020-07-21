@@ -59,5 +59,11 @@ export default () => ({
       // delete any associated measurement data
       await dispatch('measurements/deleteMeasurement', id);
     },
+
+    async removeData({ state, dispatch }, dataID) {
+      if (state.selectedBaseImage === dataID) {
+        await dispatch('deactivateActiveWidget');
+      }
+    },
   },
 });
