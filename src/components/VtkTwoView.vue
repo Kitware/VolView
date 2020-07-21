@@ -23,6 +23,7 @@
 import { vec3, mat3 } from 'gl-matrix';
 import { mapState, mapGetters, mapActions } from 'vuex';
 
+import vtkPlane from 'vtk.js/Sources/Common/DataModel/Plane';
 import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
 import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
 import { WIDGET_PRIORITY } from 'vtk.js/Sources/Widgets/Core/AbstractWidget/Constants';
@@ -58,6 +59,13 @@ export default {
   },
 
   inject: ['widgetProvider'],
+
+  data() {
+    return {
+      pixelCoord: [],
+      pixel: [],
+    };
+  },
 
   computed: {
     ...mapState({
@@ -168,7 +176,7 @@ export default {
       this.resizeListener = this.view.onResize(() => this.resetCamera());
       this.moveListener = this.view
         .getInteractor()
-        .onMouseMove(() => this.onMouseMove(), WIDGET_PRIORITY);
+        .onMouseMove((ev) => this.onMouseMove(ev), WIDGET_PRIORITY);
       this.cameraListener = this.view
         .getCamera()
         .onModified(() => this.updateOrientationLabels());
@@ -322,20 +330,30 @@ export default {
         const { width, level } = this.windowing;
         const spacing = this.worldOrientation.spacing[this.axis];
         // use index slice, not world slice
-        const slice = Math.round(this.slices['xyz'[this.axis]] / spacing);
+        const slice = Math.round(this.slice / spacing);
+
+        let pixelInfo = 'NONE';
+        if (this.pixelCoord.length && this.pixel.length) {
+          pixelInfo =
+            `(${this.pixelCoord.map((c) => Math.round(c)).join(', ')}) = ` +
+            `${this.pixel.map((p) => p.toFixed(1)).join(', ')}`;
+        }
 
         this.view.setCornerAnnotation(
           'sw',
           `Slice: ${slice + 1}` +
-            `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}`
+            `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}` +
+            `<br>Pixel: ${pixelInfo}`
         );
       }
     },
 
-    onMouseMove() {
+    onMouseMove(ev) {
       if (this.activeWidgetID !== NO_WIDGET) {
         this.updateActiveWidget();
       }
+      this.findPixelUnderCursor(ev);
+      this.updateLowerLeftAnnotations();
     },
 
     updateAllWidgets() {
@@ -351,6 +369,62 @@ export default {
         const widget = this.widgetProvider.getById(widgetID);
         widget.setCurrentView(this.view);
         widget.update();
+      }
+    },
+
+    findPixelUnderCursor(ev) {
+      if (
+        this.baseImageExists &&
+        ev.pokedRenderer === this.view.getRenderer()
+      ) {
+        const { x, y } = ev.position;
+        const gl = this.view.getOpenglRenderWindow();
+        const near = gl.displayToWorld(x, y, 0, ev.pokedRenderer);
+        const far = gl.displayToWorld(x, y, 1, ev.pokedRenderer);
+        const dop = this.view.getCamera().getDirectionOfProjection();
+        const origin = [0, 0, 0];
+        origin[this.axis] = this.slice;
+        const intInfo = vtkPlane.intersectWithLine(near, far, origin, dop);
+        if (intInfo.intersection) {
+          const point = intInfo.x.map((c) =>
+            // this is a hack to work around the first slice sometimes being
+            // very close to zero, but not quite, resulting in being unable to
+            // see pixel values for 0th slice.
+            Math.abs(c) < 1e-8 ? Math.round(c) : c
+          );
+          // get image data
+          const rep = this.$proxyManager.getRepresentation(
+            this.sceneSources[0],
+            this.view
+          );
+          if (rep) {
+            const imageData = rep.getMapper().getInputData();
+            const [i, j, k] = imageData.worldToIndex(point);
+            const extent = imageData.getExtent();
+            if (
+              i >= extent[0] &&
+              i <= extent[1] &&
+              j >= extent[2] &&
+              j <= extent[3] &&
+              k >= extent[4] &&
+              k <= extent[5]
+            ) {
+              const offsetIndex = imageData.computeOffsetIndex([i, j, k]);
+              const pixel = imageData
+                .getPointData()
+                .getScalars()
+                .getTuple(offsetIndex);
+
+              this.pixelCoord = [i, j, k];
+              this.pixel = pixel;
+
+              this.updateLowerLeftAnnotations();
+              return;
+            }
+          }
+        }
+        this.pixelCoord = [];
+        this.pixel = [];
       }
     },
 
