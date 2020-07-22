@@ -4,8 +4,12 @@ import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representation
 import vtkPolyLineRepresentation from 'vtk.js/Sources/Widgets/Representations/PolyLineRepresentation';
 import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 
+import stateGenerator from './state';
+
 function vtkCustomDistanceWidget(publicAPI, model) {
   model.classHierarchy.push('vtkCustomDistanceWidget');
+
+  model.widgetState = stateGenerator();
 
   // override
   // eslint-disable-next-line no-param-reassign
@@ -20,12 +24,12 @@ function vtkCustomDistanceWidget(publicAPI, model) {
           {
             builder: vtkSphereHandleRepresentation,
             labels: ['handles'],
-            initialValues: { scaleByDisplay: true },
+            initialValues: { scaleInPixels: true },
           },
           {
             builder: vtkSphereHandleRepresentation,
             labels: ['moveHandle'],
-            initialValues: { scaleByDisplay: true },
+            initialValues: { scaleInPixels: true },
           },
           {
             builder: vtkPolyLineRepresentation,
