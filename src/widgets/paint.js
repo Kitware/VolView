@@ -42,8 +42,6 @@ export default class PaintWidget extends Widget {
   }
 
   updateManipulator(view) {
-    super.updateManipulator(view);
-
     if (view) {
       const axis = view.getAxis();
       const { slices } = this.store.state.visualization;
