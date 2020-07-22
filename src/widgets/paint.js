@@ -42,17 +42,21 @@ export default class PaintWidget extends Widget {
   }
 
   updateManipulator(view) {
-    const axis = view.getAxis();
-    const { slices } = this.store.state.visualization;
-    const normal = [0, 0, 0];
-    normal[axis] = 1;
-    const origin = [0, 0, 0];
-    origin[axis] = slices['xyz'[axis]];
+    super.updateManipulator(view);
 
-    // plane manipulator
-    const manipulator = this.factory.getManipulator();
-    manipulator.setNormal(normal);
-    manipulator.setOrigin(origin);
+    if (view) {
+      const axis = view.getAxis();
+      const { slices } = this.store.state.visualization;
+      const normal = [0, 0, 0];
+      normal[axis] = 1;
+      const origin = [0, 0, 0];
+      origin[axis] = slices['xyz'[axis]];
+
+      // plane manipulator
+      const manipulator = this.factory.getManipulator();
+      manipulator.setNormal(normal);
+      manipulator.setOrigin(origin);
+    }
   }
 
   async onLabelmapSelect(labelmapID, previous) {

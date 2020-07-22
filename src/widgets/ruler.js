@@ -78,7 +78,7 @@ export default class RulerWidget extends Widget {
   updateManipulator(view) {
     super.updateManipulator(view);
 
-    if (this.lockedSlice === null) {
+    if (view && this.lockedSlice === null) {
       const axis = view.getAxis();
       const { slices } = this.store.state.visualization;
       const normal = [0, 0, 0];
