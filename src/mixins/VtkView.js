@@ -108,11 +108,15 @@ export default {
         this.view.getRenderer().setBackground(0, 0, 0);
 
         if (!this.view.getReferenceByName('widgetManager')) {
-          const widgetManager = vtkWidgetManager.newInstance();
-          widgetManager.setUseSvgLayer(true);
-          widgetManager.setRenderer(this.view.getRenderer());
-          this.view.set({ widgetManager }, true);
+          this.view.set(
+            { widgetManager: vtkWidgetManager.newInstance() },
+            true
+          );
         }
+
+        const widgetManager = this.view.getReferenceByName('widgetManager');
+        widgetManager.setUseSvgLayer(true);
+        widgetManager.setRenderer(this.view.getRenderer());
 
         this.updateOrientation();
         this.updateScene();
