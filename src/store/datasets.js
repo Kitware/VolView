@@ -284,6 +284,7 @@ export const makeActions = (dependencies) => ({
 
   async removeData({ commit, dispatch, state }, dataID) {
     if (dataID === state.selectedBaseImage) {
+      await dispatch('deactivateActiveWidget');
       commit('setBaseImage', NO_SELECTION);
     }
 
