@@ -249,6 +249,11 @@ export const Tools = [
     icon: 'ruler',
     key: 'Ruler',
   },
+  {
+    name: 'Crosshairs',
+    icon: 'crosshairs',
+    key: 'Crosshairs',
+  },
 ];
 
 export default {

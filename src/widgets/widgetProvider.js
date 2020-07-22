@@ -4,10 +4,12 @@ import { NO_WIDGET } from '@/src/constants';
 
 import PaintWidget from '@/src/widgets/paint';
 import RulerWidget from '@/src/widgets/ruler';
+import CrosshairsWidget from '@/src/widgets/slicingCrosshairs';
 
 export const DEFAULT_NAME_MAP = {
   Paint: PaintWidget,
   Ruler: RulerWidget,
+  Crosshairs: CrosshairsWidget,
 };
 
 export default class WidgetProvider {
