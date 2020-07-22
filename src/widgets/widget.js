@@ -75,6 +75,7 @@ export default class Widget {
   addToView(view, type = ViewTypes.DEFAULT, initialValues = {}) {
     withWidgetManager(view, (wm) => {
       const widget = wm.addWidget(this.factory, type, initialValues);
+      this.setupViewWidget(widget);
       this.widgetInstances.set(view, widget);
     });
   }
@@ -189,4 +190,7 @@ export default class Widget {
 
   // eslint-disable-next-line class-methods-use-this
   updateManipulator() {}
+
+  // eslint-disable-next-line class-methods-use-this
+  setupViewWidget() {}
 }
