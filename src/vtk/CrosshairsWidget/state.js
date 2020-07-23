@@ -3,6 +3,10 @@ import vtkStateBuilder from 'vtk.js/Sources/Widgets/Core/StateBuilder';
 export default function generateState() {
   return vtkStateBuilder
     .createBuilder()
+    .addField({
+      name: 'placed',
+      initialValue: false,
+    })
     .addStateFromMixin({
       labels: ['handle'],
       mixins: ['origin', 'color', 'scale1', 'visible', 'bounds'],

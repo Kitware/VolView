@@ -8,7 +8,7 @@ function clampPointToBounds(bounds, point) {
 
 export default function widgetBehavior(publicAPI, model) {
   model.classHierarchy.push('vtkCrosshairsWidgetProp');
-  let isDragging = null;
+  let isDragging = false;
 
   // --------------------------------------------------------------------------
   // Display 2D
@@ -34,6 +34,7 @@ export default function widgetBehavior(publicAPI, model) {
       return macro.VOID;
     }
 
+    model.widgetState.setPlaced(true);
     isDragging = true;
     model.interactor.requestAnimation(publicAPI);
     model.openGLRenderWindow.setCursor('crosshairs');
@@ -48,7 +49,7 @@ export default function widgetBehavior(publicAPI, model) {
 
   publicAPI.handleMouseMove = (callData) => {
     if (
-      isDragging &&
+      (!model.widgetState.getPlaced() || isDragging) &&
       model.pickable &&
       model.manipulator &&
       !ignoreKey(callData)
