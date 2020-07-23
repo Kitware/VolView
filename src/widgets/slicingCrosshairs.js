@@ -31,10 +31,11 @@ export default class RulerWidget extends Widget {
     }
 
     const origin = this.state.getHandle().getOrigin();
+    const { spacing } = this.store.state.visualization.worldOrientation;
     this.store.dispatch('setSlices', {
-      x: origin[0],
-      y: origin[1],
-      z: origin[2],
+      x: origin[0] / spacing[0],
+      y: origin[1] / spacing[1],
+      z: origin[2] / spacing[2],
     });
   }
 
@@ -53,11 +54,12 @@ export default class RulerWidget extends Widget {
   updateManipulator(view) {
     if (view) {
       const axis = view.getAxis();
-      const { slices } = this.store.state.visualization;
+      const { slices, worldOrientation } = this.store.state.visualization;
+      const { spacing } = worldOrientation;
       const normal = [0, 0, 0];
       normal[axis] = 1;
       const origin = [0, 0, 0];
-      origin[axis] = slices['xyz'[axis]];
+      origin[axis] = slices['xyz'[axis]] * spacing[axis];
 
       // plane manipulator
       const manipulator = this.factory.getManipulator();

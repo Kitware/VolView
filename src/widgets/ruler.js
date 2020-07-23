@@ -77,11 +77,12 @@ export default class RulerWidget extends Widget {
   updateManipulator(view) {
     if (view && this.lockedSlice === null) {
       const axis = view.getAxis();
-      const { slices } = this.store.state.visualization;
+      const { slices, worldOrientation } = this.store.state.visualization;
+      const { spacing } = worldOrientation;
       const normal = [0, 0, 0];
       normal[axis] = 1;
       const origin = [0, 0, 0];
-      origin[axis] = slices['xyz'[axis]];
+      origin[axis] = slices['xyz'[axis]] * spacing[axis];
 
       // plane manipulator
       const manipulator = this.factory.getManipulator();

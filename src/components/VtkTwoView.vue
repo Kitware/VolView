@@ -6,7 +6,7 @@
         :slice="slice"
         :min="sliceRange[0]"
         :max="sliceRange[1]"
-        :step="sliceSpacing"
+        :step="1"
         :handle-height="20"
         @input="setSlice"
       />
@@ -86,10 +86,8 @@ export default {
       return this.slices['xyz'[this.axis]];
     },
     sliceRange() {
-      const { spacing, bounds } = this.worldOrientation;
-      return bounds
-        .slice(this.axis * 2, (this.axis + 1) * 2)
-        .map((b) => b * spacing[this.axis]);
+      const { bounds } = this.worldOrientation;
+      return bounds.slice(this.axis * 2, (this.axis + 1) * 2);
     },
     sliceSpacing() {
       const { spacing } = this.worldOrientation;
@@ -246,7 +244,7 @@ export default {
       this.rangeManipulator.setScrollListener(
         this.sliceRange[0],
         this.sliceRange[1],
-        this.sliceSpacing,
+        1,
         () => this.slice,
         (s) => this.setSlice(s)
       );
@@ -334,7 +332,7 @@ export default {
         const source = this.sceneSources[0];
         const rep = this.$proxyManager.getRepresentation(source, this.view);
         if (rep) {
-          if (rep.setSlice) rep.setSlice(this.slice);
+          if (rep.setSlice) rep.setSlice(this.slice * this.sliceSpacing);
           if (rep.setWindowWidth) rep.setWindowWidth(this.windowing.width);
           if (rep.setWindowLevel) rep.setWindowLevel(this.windowing.level);
         }
@@ -370,9 +368,6 @@ export default {
     updateLowerLeftAnnotations() {
       if (this.view) {
         const { width, level } = this.windowing;
-        const spacing = this.worldOrientation.spacing[this.axis];
-        // use index slice, not world slice
-        const slice = Math.round(this.slice / spacing);
 
         let pixelInfo = 'NONE';
         if (this.pixelCoord.length && this.pixel.length) {
@@ -383,7 +378,7 @@ export default {
 
         this.view.setCornerAnnotation(
           'sw',
-          `Slice: ${slice + 1}` +
+          `Slice: ${this.slice + 1}` +
             `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}` +
             `<br>Pixel: ${pixelInfo}`
         );
@@ -425,7 +420,7 @@ export default {
         const far = gl.displayToWorld(x, y, 1, ev.pokedRenderer);
         const dop = this.view.getCamera().getDirectionOfProjection();
         const origin = [0, 0, 0];
-        origin[this.axis] = this.slice;
+        origin[this.axis] = this.slice * this.sliceSpacing;
         const intInfo = vtkPlane.intersectWithLine(near, far, origin, dop);
         if (intInfo.intersection) {
           const point = intInfo.x;

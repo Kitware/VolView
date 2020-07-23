@@ -4,6 +4,14 @@ import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 import { NO_SELECTION } from '../constants';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';
 
+export function asInteger(value, defaultValue) {
+  const rv = Math.round(value);
+  if (Number.isInteger(rv)) {
+    return rv;
+  }
+  return defaultValue;
+}
+
 export const defaultWorldOrientation = () => ({
   // ok for images this is actually just extent, since
   // that's how we process images in this application.
@@ -22,6 +30,7 @@ export const defaultWindowing = () => ({
   max: 255,
 });
 
+// slicing is done in index space
 export const defaultSlicing = () => ({
   x: 0,
   y: 0,
@@ -102,9 +111,9 @@ export default (dependencies) => ({
     setSlices(state, { x, y, z }) {
       const { slices: s } = state;
       state.slices = {
-        x: x ?? s.x,
-        y: y ?? s.y,
-        z: z ?? s.z,
+        x: asInteger(x, s.x),
+        y: asInteger(y, s.y),
+        z: asInteger(z, s.z),
       };
     },
 
