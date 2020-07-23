@@ -31,7 +31,7 @@ import { WIDGET_PRIORITY } from 'vtk.js/Sources/Widgets/Core/AbstractWidget/Cons
 import VtkViewMixin from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 import { zip } from '@/src/utils/common';
-import { NO_SELECTION, NO_WIDGET } from '@/src/constants';
+import { NO_SELECTION, NO_WIDGET, DataTypes } from '@/src/constants';
 
 import SliceSlider from './SliceSlider.vue';
 
@@ -69,6 +69,7 @@ export default {
 
   computed: {
     ...mapState({
+      baseImage: 'selectedBaseImage',
       baseImageExists: (state) => state.selectedBaseImage !== NO_SELECTION,
       worldOrientation: (state) => state.visualization.worldOrientation,
       windowing: (state) => state.visualization.windowing,
@@ -76,7 +77,9 @@ export default {
       slices: (state) => state.visualization.slices,
       activeWidgetID: (state) => state.widgets.activeWidgetID,
       widgetList: (state) => state.widgets.widgetList,
+      dataIndex: (state) => state.data.index,
     }),
+    ...mapState('dicom', ['patientIndex', 'studyIndex', 'seriesIndex']),
     ...mapGetters(['boundsWithSpacing']),
 
     slice() {
@@ -95,6 +98,9 @@ export default {
   },
 
   watch: {
+    baseImage() {
+      this.updateDicomAnnotations();
+    },
     worldOrientation() {
       // update slicing whenever world orientation changes
       this.updateRangeManipulator();
@@ -188,6 +194,8 @@ export default {
       this.setupInteraction();
       this.updateOrientationLabels();
       this.updateRepresentations();
+      this.updateLowerLeftAnnotations();
+      this.updateDicomAnnotations();
     },
 
     resetCamera() {
@@ -322,6 +330,32 @@ export default {
           if (rep.setWindowWidth) rep.setWindowWidth(this.windowing.width);
           if (rep.setWindowLevel) rep.setWindowLevel(this.windowing.level);
         }
+      }
+    },
+
+    updateDicomAnnotations() {
+      if (this.view && this.baseImage !== NO_SELECTION) {
+        const dataInfo = this.dataIndex[this.baseImage];
+        let upperLeftAnnot = '';
+        let upperRightAnnot = '';
+        if (dataInfo.type === DataTypes.Dicom) {
+          const { patientKey, studyKey, seriesKey } = dataInfo;
+          const patient = this.patientIndex[patientKey];
+          const study = this.studyIndex[studyKey];
+          const series = this.seriesIndex[seriesKey];
+          upperLeftAnnot = [
+            patient.PatientName,
+            `ID: ${patient.PatientID}`,
+          ].join('<br>');
+          upperRightAnnot = [
+            `Study ID: ${study.StudyID}`,
+            study.StudyDescription,
+            `Series #: ${series.SeriesNumber}`,
+            series.SeriesDescription,
+          ].join('<br>');
+        }
+        this.view.setCornerAnnotation('nw', upperLeftAnnot);
+        this.view.setCornerAnnotation('ne', upperRightAnnot);
       }
     },
 

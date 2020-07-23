@@ -167,7 +167,7 @@ export default (dependencies) => ({
           'StudyDate',
           'StudyTime',
           'AccessionNumber',
-          'Description',
+          'StudyDescription',
         ]);
 
         const seriesKey = info.SeriesInstanceUID;
