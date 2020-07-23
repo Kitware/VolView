@@ -14,12 +14,14 @@ export default class RulerWidget extends Widget {
     this.factory = vtkCrosshairsWidget.newInstance();
     this.state = this.factory.getWidgetState();
 
-    this.sub = this.state.onModified(() => this.onStateChange());
-
     const { bounds, spacing } = this.store.state.visualization.worldOrientation;
     this.state
       .getHandle()
       .setBounds(...bounds.map((b, i) => b * spacing[Math.floor(i / 2)]));
+
+    // register after setting handle bounds, so our slices don't get
+    // reset to 0,0,0
+    this.sub = this.state.onModified(() => this.onStateChange());
   }
 
   onStateChange() {
