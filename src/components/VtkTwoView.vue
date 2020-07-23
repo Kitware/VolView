@@ -28,7 +28,7 @@ import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/Mo
 import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
 import { WIDGET_PRIORITY } from 'vtk.js/Sources/Widgets/Core/AbstractWidget/Constants';
 
-import VtkViewMixin from '@/src/mixins/VtkView';
+import VtkViewMixin, { attachResizeObserver } from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 import { zip } from '@/src/utils/common';
 import { NO_SELECTION, NO_WIDGET, DataTypes } from '@/src/constants';
@@ -157,7 +157,15 @@ export default {
     this.updateRangeManipulator();
   },
 
+  mounted() {
+    this.resizeObserver = attachResizeObserver(
+      this.$refs.vtkContainer,
+      this.resizeLater
+    );
+  },
+
   beforeDestroy() {
+    this.resizeObserver.unobserve(this.$refs.vtkContainer);
     this.cleanupListeners();
   },
 

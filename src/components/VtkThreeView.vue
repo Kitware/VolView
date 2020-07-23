@@ -12,7 +12,7 @@
 <script>
 import { mapGetters, mapState } from 'vuex';
 
-import VtkViewMixin from '@/src/mixins/VtkView';
+import VtkViewMixin, { attachResizeObserver } from '@/src/mixins/VtkView';
 
 export default {
   name: 'VtkThreeView',
@@ -37,6 +37,18 @@ export default {
     colorPreset(preset) {
       this.setColorPresetAnnotation(preset);
     },
+  },
+
+  mounted() {
+    console.log(this.$refs.vtkContainer);
+    this.resizeObserver = attachResizeObserver(
+      this.$refs.vtkContainer,
+      this.resizeLater
+    );
+  },
+
+  beforeDestroy() {
+    this.resizeObserver.unobserve(this.$refs.vtkContainer);
   },
 
   methods: {

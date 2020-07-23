@@ -8,7 +8,6 @@
       :max-width="450"
       :width="350"
       :handle-size="4"
-      @resize="$eventBus.$emit('resize')"
     >
       <div id="left-pane-outer">
         <div id="left-pane">

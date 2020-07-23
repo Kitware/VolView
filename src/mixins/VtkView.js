@@ -1,6 +1,16 @@
 import { mapState, mapGetters } from 'vuex';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 
+export function attachResizeObserver(container, cb) {
+  const observer = new ResizeObserver((entries) => {
+    if (entries.length === 1) {
+      cb();
+    }
+  });
+  observer.observe(container);
+  return observer;
+}
+
 export default {
   props: {
     active: Boolean,
@@ -68,14 +78,12 @@ export default {
   },
 
   mounted() {
-    this.$eventBus.$on('resize', this.resizeLater);
     this.view = null;
     this.debouncedRender = null;
     this.remountView();
   },
 
   beforeDestroy() {
-    this.$eventBus.$off('resize', this.resizeLater);
     this.view = null;
     this.remountView();
   },
