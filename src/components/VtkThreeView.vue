@@ -40,7 +40,6 @@ export default {
   },
 
   mounted() {
-    console.log(this.$refs.vtkContainer);
     this.resizeObserver = attachResizeObserver(
       this.$refs.vtkContainer,
       this.resizeLater
