@@ -100,6 +100,7 @@ export const mutations = {
         const parentID = parentOf[dataID];
         const idx = childrenOf[parentID].indexOf(dataID);
         childrenOf[parentID].splice(idx, 1);
+        Vue.delete(parentOf, dataID);
       } else if (dataID in childrenOf) {
         // parent association
         Vue.delete(childrenOf, dataID);

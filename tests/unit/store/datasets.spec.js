@@ -6,7 +6,7 @@ import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 
 import { mutations, makeActions } from '@/src/store/datasets';
 import { initialState } from '@/src/store';
-import { NO_SELECTION } from '@/src/constants';
+import { NO_SELECTION, DataTypes } from '@/src/constants';
 import { FileIO } from '@/src/io/io';
 import { makeEmptyFile, makeDicomFile } from '@/tests/testUtils';
 
@@ -87,18 +87,18 @@ describe('Datasets module', () => {
     });
 
     it('loadRegularFiles should handle dicom', async () => {
-      context.dispatch = sinon.stub()
+      context.dispatch = sinon
+        .stub()
         .withArgs('dicom/importFiles')
-        .returns([{
-          patientKey: 'patient1',
-          studyKey: 'study1',
-          seriesKey: 'series1',
-        }]);
+        .returns([
+          {
+            patientKey: 'patient1',
+            studyKey: 'study1',
+            seriesKey: 'series1',
+          },
+        ]);
 
-      const files = [
-        makeDicomFile('file1.dcm'),
-        makeDicomFile('file2.dcm'),
-      ];
+      const files = [makeDicomFile('file1.dcm'), makeDicomFile('file2.dcm')];
 
       const errors = await actions.loadDicomFiles(context, files);
 
@@ -123,14 +123,18 @@ describe('Datasets module', () => {
 
       await actions.loadFiles(context, files);
 
-      expect(context.dispatch)
-        .to.have.been.calledWith('loadDicomFiles', dicomFiles);
-      expect(context.dispatch)
-        .to.have.been.calledWith('loadRegularFiles', regularFiles);
+      expect(context.dispatch).to.have.been.calledWith(
+        'loadDicomFiles',
+        dicomFiles
+      );
+      expect(context.dispatch).to.have.been.calledWith(
+        'loadRegularFiles',
+        regularFiles
+      );
     });
   });
 
-  describe('Base image selection', () => {
+  describe('selectBaseImage', () => {
     beforeEach(() => {
       context.state.data.nextID = 100;
       // ID: 100
@@ -146,15 +150,153 @@ describe('Datasets module', () => {
       });
     });
 
-    it('selectBaseImage selects a valid ID', async () => {
+    it('selects a valid ID', async () => {
       await actions.selectBaseImage(context, 100);
       expect(context.commit).to.have.been.calledWith('setBaseImage', 100);
     });
 
-    it('selectBaseImage rejects invalid IDs', async () => {
+    it('rejects invalid IDs', async () => {
       await actions.selectBaseImage(context, 999);
 
-      expect(context.commit).to.have.been.calledWith('setBaseImage', NO_SELECTION);
+      expect(context.commit).to.have.been.calledWith(
+        'setBaseImage',
+        NO_SELECTION
+      );
+    });
+  });
+
+  describe('removeData', () => {
+    it('action unselects the base image and deactivate widget', async () => {
+      context.state.selectedBaseImage = 3;
+
+      await actions.removeData(context, 3);
+
+      expect(context.dispatch).to.have.been.calledWith(
+        'deactivateActiveWidget'
+      );
+      expect(context.commit).to.have.been.calledWith(
+        'setBaseImage',
+        NO_SELECTION
+      );
+    });
+
+    it('action removes annotation data', async () => {
+      await actions.removeData(context, 1);
+
+      const annotSpy = context.dispatch.withArgs('annotations/removeData', 1);
+      const removeSpy = context.commit.withArgs('removeData', 1);
+      expect(annotSpy).to.have.been.calledOnce;
+      expect(removeSpy).to.have.been.calledOnce;
+      expect(annotSpy).to.have.been.calledBefore(removeSpy);
+    });
+
+    it('action removes dicom data', async () => {
+      context.state.data.index[1] = {
+        type: DataTypes.Dicom,
+        patientKey: 'abc',
+        studyKey: 'abc',
+        seriesKey: 'abc',
+      };
+
+      await actions.removeData(context, 1);
+
+      expect(context.dispatch).to.have.been.calledWith(
+        'dicom/removeData',
+        'abc'
+      );
+    });
+
+    it('action removes child associations before removing parent', async () => {
+      // children of id=1: [id=2, id=3]
+      context.state.dataAssoc.parentOf[2] = 1;
+      context.state.dataAssoc.parentOf[3] = 1;
+      context.state.dataAssoc.childrenOf[1] = [2, 3];
+
+      await actions.removeData(context, 1);
+
+      const del2Spy = context.dispatch.withArgs('removeData', 2);
+      const del3Spy = context.dispatch.withArgs('removeData', 3);
+      expect(del2Spy).to.have.been.calledOnce;
+      expect(del3Spy).to.have.been.calledOnce;
+
+      const removeSpy = context.commit.withArgs('removeData', 1);
+      expect(removeSpy).to.have.been.calledAfter(del2Spy);
+      expect(removeSpy).to.have.been.calledAfter(del3Spy);
+    });
+
+    describe('mutations.removeData', () => {
+      const seriesKey = 'abc';
+      let state;
+
+      beforeEach(() => {
+        state = context.state;
+        state.data.index = {
+          1: { type: DataTypes.Image },
+          2: { type: DataTypes.Labelmap },
+          3: { type: DataTypes.Model },
+          4: {
+            type: DataTypes.Dicom,
+            seriesKey,
+          },
+        };
+        state.data.vtkCache = {
+          1: {},
+          2: {},
+          3: {},
+          4: {},
+        };
+        state.data.imageIDs = [1];
+        state.data.labelmapIDs = [2];
+        state.data.modelIDs = [3];
+        state.data.dicomIDs = [4];
+        state.dicomSeriesToID[seriesKey] = 4;
+        state.dataAssoc.parentOf[2] = 1;
+        state.dataAssoc.parentOf[3] = 1;
+        state.dataAssoc.childrenOf[1] = [2, 3];
+      });
+
+      [
+        ['images', 'imageIDs', 1],
+        ['labelmaps', 'labelmapIDs', 2],
+        ['models', 'modelIDs', 3],
+        ['dicom', 'dicomIDs', 4],
+      ].forEach(([name, idList, id]) => {
+        it(`removes ${name}`, () => {
+          mutations.removeData(state, id);
+          expect(state.data.index).to.not.have.property(id);
+          expect(state.data.vtkCache).to.not.have.property(id);
+          expect(state.data[idList]).to.not.contain(id);
+        });
+      });
+
+      it('removes parent associations', () => {
+        mutations.removeData(state, 2);
+        expect(state.dataAssoc.parentOf).to.not.have.property(2);
+        expect(state.dataAssoc.childrenOf[1])
+          .to.have.length(1)
+          .and.to.contain(3);
+      });
+
+      it('removes child associations', () => {
+        mutations.removeData(state, 1);
+        expect(state.dataAssoc.childrenOf).to.not.have.property(1);
+      });
+    });
+  });
+
+  describe('Data associations', () => {
+    it('associateData associates a child with a parent', () => {
+      const { state } = context;
+
+      mutations.associateData(state, {
+        parentID: 1,
+        childID: 2,
+      });
+
+      const { parentOf, childrenOf } = state.dataAssoc;
+      expect(parentOf[2]).to.equal(1);
+      expect(childrenOf[1]).to.have.length(1);
+      expect(childrenOf[1][0]).to.equal(2);
     });
   });
 });
