@@ -78,7 +78,10 @@ std::string unpackMetaAsString( const itk::MetaDataObjectBase::Pointer & metaVal
   using MetaDataStringType = itk::MetaDataObject< std::string >;
   MetaDataStringType::Pointer value =
     dynamic_cast< MetaDataStringType * >( metaValue.GetPointer() );
-  return value->GetMetaDataObjectValue();
+  if (value != nullptr) {
+    return value->GetMetaDataObjectValue();
+  }
+  return "";
 }
 
 // convenience method for making world-writable dirs
@@ -98,7 +101,8 @@ void movefile( const std::string & src, const std::string & dst )
 {
   if( 0 != std::rename( src.c_str(), dst.c_str() ) )
   {
-    throw std::runtime_error( "Failed to move file: " + src + std::strerror( errno ) );
+    throw std::runtime_error( "Failed to move file: " + src + " to " + dst +
+                              ": " + std::strerror( errno ) );
   }
 }
 
