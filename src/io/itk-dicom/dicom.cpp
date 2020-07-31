@@ -12,7 +12,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#ifdef WEB_BUILD
 #include <emscripten.h>
+#endif
 
 #include "itkCommonEnums.h"
 #include "itkImageIOBase.h"
@@ -47,11 +49,13 @@ static int rc = 0;
 static ImageIndex imageIndex;
 static SeriesIndex seriesIndex;
 
+#ifdef WEB_BUILD
 extern "C" const char * EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr)
 {
     auto error = reinterpret_cast<std::runtime_error *>(ptr);
     return error->what();
 }
+#endif
 
 void list_dir( const char *path )
 {

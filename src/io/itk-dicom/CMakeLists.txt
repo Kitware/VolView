@@ -22,6 +22,8 @@ include(${ITK_USE_FILE})
 set(dicom_SRCS dicom.cpp)
 if(EMSCRIPTEN)
   include(ITKBridgeJavaScript)
+
+  add_definitions(-DWEB_BUILD)
   web_add_executable(dicom ${dicom_SRCS})
 
 else()
