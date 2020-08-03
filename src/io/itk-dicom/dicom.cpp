@@ -178,13 +178,15 @@ const json import(const FileNamesContainer &files) {
         // TODO PatientName can be split into components
         seriesInfo["PatientName"] =
             conv.convertCharStringToUTF8(unpackMetaAsString(tags["0010|0010"]));
-        seriesInfo["PatientID"] = unpackMetaAsString(tags["0010|0020"]);
+        seriesInfo["PatientID"] =
+            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0010|0020"]));
         seriesInfo["PatientBirthDate"] = unpackMetaAsString(tags["0010|0030"]);
         seriesInfo["PatientSex"] = unpackMetaAsString(tags["0010|0040"]);
         seriesInfo["StudyInstanceUID"] = unpackMetaAsString(tags["0020|000d"]);
         seriesInfo["StudyDate"] = unpackMetaAsString(tags["0008|0020"]);
         seriesInfo["StudyTime"] = unpackMetaAsString(tags["0008|0030"]);
-        seriesInfo["StudyID"] = unpackMetaAsString(tags["0020|0010"]);
+        seriesInfo["StudyID"] =
+            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0020|0010"]));
         seriesInfo["AccessionNumber"] = unpackMetaAsString(tags["0008|0050"]);
         seriesInfo["StudyDescription"] =
             conv.convertCharStringToUTF8(unpackMetaAsString(tags["0008|1030"]));
