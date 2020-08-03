@@ -13,6 +13,7 @@
 #include "charset.hpp"
 
 const std::string DEFAULT_ENCODING("ISO_IR 6");
+const std::string DEFAULT_ISO_2022_ENCODING("ISO 2022 IR 6");
 const char *ASCII = "ASCII";
 
 // If not found, then pos == len
@@ -21,6 +22,26 @@ size_t findEsc(const char *str, size_t len, size_t pos = 0) {
     ++pos;
   }
   return pos;
+}
+
+std::string trimWhitespace(const std::string &term) {
+  auto start = term.begin();
+  auto end = term.end();
+
+  while (start != end && std::isspace(*start)) {
+    ++start;
+  }
+
+  // need to --end once before checking isspace
+  do {
+    --end;
+  } while (end != start && std::isspace(*end));
+
+  return std::string(start, end + 1);
+}
+
+std::string normalizeTerm(const std::string &term) {
+  return trimWhitespace(term);
 }
 
 const char *definedTermToIconvCharset(const std::string &defTerm) {
@@ -147,15 +168,6 @@ const char *iso2022EscSelectCharset(const char *seq) {
   return "";
 }
 
-// seq should point after the ESC char. Returned length will
-// not include ESC char.
-size_t iso2022EscSeqLength(const char *seq) {
-  if (seq[0] == '$' && seq[1] >= '(' && seq[1] <= '/') {
-    return 3;
-  }
-  return 2;
-}
-
 CharStringToUTF8Converter::CharStringToUTF8Converter(
     const std::string &spcharsets) {
   this->setSpecificCharacterSet(spcharsets.c_str());
@@ -175,9 +187,16 @@ void CharStringToUTF8Converter::setSpecificCharacterSet(
 
   int count = 0;
   while (std::getline(tokStream, token, '\\')) {
+    token = normalizeTerm(token);
+
     // case: first element is empty. Use default ISO-IR 6 encoding.
     if (token.size() == 0 && count == 0) {
       m_charsets.push_back(DEFAULT_ENCODING);
+      // "Hack" to handle case where ISO-646 (dicom default encoding) is
+      // implicitly first in the list. Since we check for charset existence when
+      // switching charsets as per ISO 2022, we put both regular and ISO 2022
+      // names for the default encoding.
+      m_charsets.push_back(DEFAULT_ISO_2022_ENCODING);
       // case: no duplicates
     } else if (m_charsets.end() ==
                std::find(m_charsets.begin(), m_charsets.end(), token)) {
@@ -246,7 +265,7 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
 
     while (fragmentStart < len) {
       // fragmentEnd will always be end of current fragment (exclusive end)
-      fragmentEnd = findEsc(str, len, fragmentStart);
+      fragmentEnd = findEsc(str, len, fragmentStart + 1);
       inbuf = copiedStr + fragmentStart;
       inbytesleft = fragmentEnd - fragmentStart;
 
@@ -263,18 +282,20 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
         if (nextCharset == nullptr ||
             m_charsets.end() ==
                 std::find(m_charsets.begin(), m_charsets.end(), nextTerm)) {
+          std::cerr << "WARN: bailing because invalid charset: " << nextTerm
+                    << std::endl;
           break; // bail out
         }
 
         if (0 != iconv_close(cd)) {
+          std::cerr << "WARN: bailing because iconv_close" << std::endl;
           break; // bail out
         }
         cd = iconv_open("UTF-8", nextCharset);
         if (cd == (iconv_t)-1) {
+          std::cerr << "WARN: bailing because iconv_open" << std::endl;
           break; // bail out
         }
-
-        fragmentStart += iso2022EscSeqLength(escSeq) + 1;
       }
     }
   }
