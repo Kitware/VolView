@@ -197,6 +197,10 @@ void CharStringToUTF8Converter::setSpecificCharacterSet(
     // use default encoding
     m_charsets.push_back(DEFAULT_ENCODING);
   }
+
+  if (m_charsets.size() == 0) {
+    std::cerr << "WARN: Found no suitable charsets!" << std::endl;
+  }
 }
 
 std::string
@@ -220,11 +224,11 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
 
   int utf8len = len * 4;
   std::unique_ptr<char[]> result(
-      new char[utf8len]); // UTF8 will have max length of utf8len
+      new char[utf8len + 1]()); // UTF8 will have max length of utf8len
 
   // make a copy because iconv requires a char *
-  char *copiedStr = (char *)malloc(len + 1); // include null terminator
-  strncpy(copiedStr, str, len + 1);
+  char *copiedStr = (char *)malloc(len + 1);
+  strncpy(copiedStr, str, len);
 
   char *inbuf = copiedStr;
   char *outbuf = result.get();
