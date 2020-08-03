@@ -209,12 +209,18 @@ void CharStringToUTF8Converter::setSpecificCharacterSet(
       // switching charsets as per ISO 2022, we put both regular and ISO 2022
       // names for the default encoding.
       m_charsets.push_back(DEFAULT_ISO_2022_ENCODING);
-      // case: no duplicates
     } else if (m_charsets.end() ==
                std::find(m_charsets.begin(), m_charsets.end(), token)) {
+      // case: no duplicates
       const char *chname = definedTermToIconvCharset(token);
-      // ISO_IR 6 isn't a formally recognized defined term.
-      if (chname != nullptr && chname != ASCII) {
+      // handle charsets that do not allow code extensions
+      if (count > 0 &&
+          (token == "GB18030" || token == "GBK" || token == "ISO_IR 192")) {
+        std::cerr << "WARN: charset " << token
+                  << " does not support code extensions; ignoring" << std::endl;
+      } else if (chname != nullptr && chname != ASCII) {
+        // ISO_IR 6 isn't a formally recognized defined term, so use ASCII
+        // above.
         m_charsets.push_back(token);
       }
     } else {
