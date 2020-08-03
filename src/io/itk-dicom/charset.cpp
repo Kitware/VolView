@@ -165,7 +165,19 @@ const char *iso2022EscSelectCharset(const char *seq) {
   if (seq[0] == '$' && seq[1] == ')' && seq[2] == 'A') {
     return "ISO 2022 IR 58";
   }
+  if ((seq[0] == ')' && seq[1] == 'I') || (seq[0] == '(' && seq[1] == 'J')) {
+    return "ISO 2022 IR 13";
+  }
   return "";
+}
+
+// seq should point after the ESC char. Returned length will
+// not include ESC char.
+size_t iso2022EscSeqLength(const char *seq) {
+  if (seq[0] == '$' && seq[1] >= '(' && seq[1] <= '/') {
+    return 3;
+  }
+  return 2;
 }
 
 CharStringToUTF8Converter::CharStringToUTF8Converter(
@@ -295,6 +307,15 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
         if (cd == (iconv_t)-1) {
           std::cerr << "WARN: bailing because iconv_open" << std::endl;
           break; // bail out
+        }
+
+        // ISO-2022-JP is a variant on ISO 2022 for japanese, and so
+        // it defines its own escape sequences. As such, do not skip the
+        // escape sequences for ISO-2022-JP, so iconv can properly interpret
+        // them.
+        if (0 != strcmp("ISO-2022-JP", nextCharset) &&
+            0 != strcmp("ISO-2022-JP-1", nextCharset)) {
+          fragmentStart += iso2022EscSeqLength(escSeq) + 1;
         }
       }
     }
