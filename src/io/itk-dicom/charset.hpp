@@ -17,6 +17,11 @@ public:
   std::string convertCharStringToUTF8(const std::string &str);
   std::string convertCharStringToUTF8(const char *str, size_t len);
 
+  bool getHandlePatientName() { return this->handlePatientName; }
+
+  void setHandlePatientName(bool yn) { this->handlePatientName = yn; }
+
 private:
   std::vector<std::string> m_charsets;
+  bool handlePatientName;
 };

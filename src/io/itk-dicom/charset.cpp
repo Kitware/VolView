@@ -14,11 +14,22 @@
 
 const std::string DEFAULT_ENCODING("ISO_IR 6");
 const std::string DEFAULT_ISO_2022_ENCODING("ISO 2022 IR 6");
-const char *ASCII = "ASCII";
+constexpr const char *ASCII = "ASCII";
+
+// delimiters: CR, LF, FF, ESC, TAB (see
+//  http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.1.3,
+//  table 6.1-1)
+// Also includes 05/12 (BACKSLASH in IR 13 or YEN SIGN in IR 14), since that
+//  separates Data Element Values and it resets to initial charset.
+//  See: dicom part 5, sect 6.1.2.5.3
+constexpr const char *DEFAULT_DELIMS = "\x1b\x09\x0a\x0c\x0d\x5c";
+// DEFAULT_DELIMS + "^" and "="
+constexpr const char *PATIENT_NAME_DELIMS = "\x1b\x09\x0a\x0c\x0d\x5c^=";
 
 // If not found, then pos == len
-size_t findEsc(const char *str, size_t len, size_t pos = 0) {
-  while (pos < len && str[pos] != 0x1b) {
+size_t findDelim(const char *str, size_t len, size_t pos = 0,
+                 const char *delims = DEFAULT_DELIMS) {
+  while (pos < len && strchr(delims, str[pos]) == nullptr) {
     ++pos;
   }
   return pos;
@@ -181,11 +192,11 @@ size_t iso2022EscSeqLength(const char *seq) {
 }
 
 CharStringToUTF8Converter::CharStringToUTF8Converter(
-    const std::string &spcharsets) {
-  this->setSpecificCharacterSet(spcharsets.c_str());
-}
+    const std::string &spcharsets)
+    : CharStringToUTF8Converter(spcharsets.c_str()) {}
 
-CharStringToUTF8Converter::CharStringToUTF8Converter(const char *spcharsets) {
+CharStringToUTF8Converter::CharStringToUTF8Converter(const char *spcharsets)
+    : handlePatientName(false) {
   this->setSpecificCharacterSet(spcharsets);
 }
 
@@ -282,27 +293,47 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
     size_t fragmentEnd = 0;
 
     while (fragmentStart < len) {
+      const char *delims =
+          this->handlePatientName ? PATIENT_NAME_DELIMS : DEFAULT_DELIMS;
       // fragmentEnd will always be end of current fragment (exclusive end)
-      fragmentEnd = findEsc(str, len, fragmentStart + 1);
+      fragmentEnd = findDelim(str, len, fragmentStart + 1, delims);
       inbuf = copiedStr + fragmentStart;
       inbytesleft = fragmentEnd - fragmentStart;
 
       iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
 
       fragmentStart = fragmentEnd;
-      // case: ISO 2022 escape encountered
-      if (fragmentStart < len) {
-        const char *escSeq = copiedStr + fragmentStart + 1;
+      bool isEsc = str[fragmentEnd] == 0x1b;
 
-        const char *nextTerm = iso2022EscSelectCharset(escSeq);
-        const char *nextCharset =
-            definedTermToIconvCharset(std::string(nextTerm));
-        if (nextCharset == nullptr ||
-            m_charsets.end() ==
-                std::find(m_charsets.begin(), m_charsets.end(), nextTerm)) {
-          std::cerr << "WARN: bailing because invalid charset: " << nextTerm
-                    << std::endl;
-          break; // bail out
+      if (fragmentStart < len) {
+        const char *nextCharset;
+        int seek = 0;
+
+        if (isEsc) { // case: ISO 2022 escape encountered
+          const char *escSeq = copiedStr + fragmentStart + 1;
+
+          const char *nextTerm = iso2022EscSelectCharset(escSeq);
+          nextCharset = definedTermToIconvCharset(std::string(nextTerm));
+          if (nextCharset == nullptr ||
+              m_charsets.end() ==
+                  std::find(m_charsets.begin(), m_charsets.end(), nextTerm)) {
+            std::cerr << "WARN: bailing because invalid charset: " << nextTerm
+                      << std::endl;
+            break; // bail out
+          }
+
+          // ISO-2022-JP is a variant on ISO 2022 for japanese, and so
+          // it defines its own escape sequences. As such, do not skip the
+          // escape sequences for ISO-2022-JP, so iconv can properly interpret
+          // them.
+          if (0 != strcmp("ISO-2022-JP", nextCharset) &&
+              0 != strcmp("ISO-2022-JP-1", nextCharset)) {
+            seek = iso2022EscSeqLength(escSeq) + 1;
+          }
+
+        } else { // case: hit a CR, LF, or FF
+          // reset to initial charset
+          nextCharset = initialCharset;
         }
 
         if (0 != iconv_close(cd)) {
@@ -315,14 +346,7 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
           break; // bail out
         }
 
-        // ISO-2022-JP is a variant on ISO 2022 for japanese, and so
-        // it defines its own escape sequences. As such, do not skip the
-        // escape sequences for ISO-2022-JP, so iconv can properly interpret
-        // them.
-        if (0 != strcmp("ISO-2022-JP", nextCharset) &&
-            0 != strcmp("ISO-2022-JP-1", nextCharset)) {
-          fragmentStart += iso2022EscSeqLength(escSeq) + 1;
-        }
+        fragmentStart += seek;
       }
     }
   }
