@@ -30,6 +30,8 @@
 
 #include "thirdparty/json.hpp"
 
+#include "charset.hpp"
+
 using json = nlohmann::json;
 using VectorImageType = itk::VectorImage<float, 3>;
 using ImageType = itk::Image<float, 3>;
@@ -80,7 +82,7 @@ unpackMetaAsString(const itk::MetaDataObjectBase::Pointer &metaValue) {
   if (value != nullptr) {
     return value->GetMetaDataObjectValue();
   }
-  return "";
+  return {};
 }
 
 // convenience method for making world-writable dirs
@@ -168,7 +170,14 @@ const json import(const FileNamesContainer &files) {
       // construct series info
       if (first) {
         first = false;
-        seriesInfo["PatientName"] = unpackMetaAsString(tags["0010|0010"]);
+
+        std::string specificCharacterSet =
+            unpackMetaAsString(tags["0008|0005"]);
+        CharStringToUTF8Converter conv(specificCharacterSet);
+
+        // TODO PatientName can be split into components
+        seriesInfo["PatientName"] =
+            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0010|0010"]));
         seriesInfo["PatientID"] = unpackMetaAsString(tags["0010|0020"]);
         seriesInfo["PatientBirthDate"] = unpackMetaAsString(tags["0010|0030"]);
         seriesInfo["PatientSex"] = unpackMetaAsString(tags["0010|0040"]);
@@ -177,11 +186,13 @@ const json import(const FileNamesContainer &files) {
         seriesInfo["StudyTime"] = unpackMetaAsString(tags["0008|0030"]);
         seriesInfo["StudyID"] = unpackMetaAsString(tags["0020|0010"]);
         seriesInfo["AccessionNumber"] = unpackMetaAsString(tags["0008|0050"]);
-        seriesInfo["StudyDescription"] = unpackMetaAsString(tags["0008|1030"]);
+        seriesInfo["StudyDescription"] =
+            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0008|1030"]));
         seriesInfo["Modality"] = unpackMetaAsString(tags["0008|0060"]);
         seriesInfo["SeriesInstanceUID"] = unpackMetaAsString(tags["0020|000e"]);
         seriesInfo["SeriesNumber"] = unpackMetaAsString(tags["0020|0011"]);
-        seriesInfo["SeriesDescription"] = unpackMetaAsString(tags["0008|103e"]);
+        seriesInfo["SeriesDescription"] =
+            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0008|103e"]));
         // Custom keys
         seriesInfo["ITKGDCMSeriesUID"] = seriesUID;
       }
