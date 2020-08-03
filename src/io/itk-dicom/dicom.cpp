@@ -28,7 +28,7 @@
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
 
-#include "thirdparty/json.hpp"
+#include "json.hpp"
 
 #include "charset.hpp"
 
