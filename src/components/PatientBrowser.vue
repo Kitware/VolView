@@ -75,7 +75,11 @@
                 <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
                 <div class="study-header">
                   <div class="subtitle-2 study-header-line">
-                    {{ study.StudyDescription || study.StudyDate }}
+                    {{
+                      study.StudyDescription ||
+                      study.StudyDate ||
+                      study.StudyInstanceUID
+                    }}
                   </div>
                   <div
                     v-if="study.StudyDescription"
