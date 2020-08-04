@@ -7,7 +7,11 @@
   >
     <v-container>
       <v-row no-gutters>
-        <v-col cols="4" class="flex-grow-0" :style="{ width: `${imageSize}px` }">
+        <v-col
+          cols="4"
+          class="flex-grow-0"
+          :style="{ width: `${imageSize}px` }"
+        >
           <v-img
             contain
             :height="`${imageSize}px`"
