@@ -54,6 +54,9 @@
   /* increase kerning to compensate for border */
   letter-spacing: 1px;
   font-size: 14px;
+}
+
+.vtk-view .js-sw {
   /* no wrapping */
   white-space: nowrap;
 }
