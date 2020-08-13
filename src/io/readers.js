@@ -2,6 +2,7 @@ import vtkITKImageReader from 'vtk.js/Sources/IO/Misc/ITKImageReader';
 import extensionToImageIO from 'itk/extensionToImageIO';
 import readImageArrayBuffer from 'itk/readImageArrayBuffer';
 
+import convertJsonToTre from '@/src/vtk/TreJsonConverter';
 import { readFileAsArrayBuffer } from './io';
 import { VtkVtiReader, VtkVtpReader } from './vtk/sync';
 import { VtkStlReader } from './vtk/async';
@@ -25,6 +26,13 @@ export async function itkReader(file) {
   }
 
   return reader.getOutputData();
+}
+
+export function createTREReader(dicomIO) {
+  return async function TREReader(file) {
+    const treData = await dicomIO.readTRE(file);
+    return convertJsonToTre(treData);
+  };
 }
 
 export function registerAllReaders(io) {

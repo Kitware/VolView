@@ -13,7 +13,7 @@ import { ProxyManagerVuePlugin } from './plugins/proxyManager';
 import EventBusPlugin from './plugins/events';
 import { FileIO } from './io/io';
 import DicomIO from './io/dicom';
-import { registerAllReaders } from './io/readers';
+import { createTREReader, registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
 
@@ -30,6 +30,10 @@ registerAllReaders(fileIO);
 
 const dicomIO = new DicomIO();
 dicomIO.initialize();
+
+// Right now, TRE reader depends on the DicomIO module since
+// that's where the TRE read logic resides.
+fileIO.addSingleReader('tre', createTREReader(dicomIO));
 
 // Initialize global mapper topologies
 // polys and lines in the front
