@@ -1,2 +1,5 @@
-/web-build/**
-!/web-build/dicom*
+*
+!*.cpp
+!*.hpp
+!web-build/
+!web-build/dicom*
