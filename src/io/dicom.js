@@ -144,4 +144,36 @@ export default class DicomIO {
 
     return result.outputs[0].data;
   }
+
+  /**
+   * Reads a TRE file.
+   * @returns JSON
+   */
+  async readTRE(file) {
+    await this.initialize();
+
+    const fileData = {
+      name: file.name,
+      data: await readFileAsArrayBuffer(file),
+    };
+
+    const result = await this.addTask(
+      // module
+      'dicom',
+      // args
+      ['readTRE', 'output.json', file.name],
+      // outputs
+      [{ path: 'output.json', type: IOTypes.Text }],
+      // inputs
+      [
+        {
+          path: fileData.name,
+          type: IOTypes.Binary,
+          data: new Uint8Array(fileData.data),
+        },
+      ]
+    );
+
+    return JSON.parse(result.outputs[0].data);
+  }
 }

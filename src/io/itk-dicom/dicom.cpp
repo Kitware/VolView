@@ -31,6 +31,7 @@
 #include "json.hpp"
 
 #include "charset.hpp"
+#include "readTRE.hpp"
 
 using json = nlohmann::json;
 using VectorImageType = itk::VectorImage<float, 3>;
@@ -303,7 +304,7 @@ int main(int argc, char *argv[]) {
   std::cerr << "Action: " << action << ", runcount: " << ++rc
             << ", argc: " << argc << std::endl;
 
-  if (0 == action.compare("import") && argc > 2) {
+  if (action == "import" && argc > 2) {
     // dicom import output.json <FILES>
     std::string outFileName = argv[2];
     std::vector<std::string> rest(argv + 3, argv + argc);
@@ -321,7 +322,7 @@ int main(int argc, char *argv[]) {
     outfile.open(outFileName);
     outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
-  } else if (0 == action.compare("getSliceImage") && argc == 6) {
+  } else if (action == "getSliceImage" && argc == 6) {
     // dicom getSliceImage outputImage.json SERIES_UID SLICENUM
     std::string outFileName = argv[2];
     std::string seriesUID = argv[3];
@@ -335,7 +336,7 @@ int main(int argc, char *argv[]) {
     } catch (const std::runtime_error &e) {
       std::cerr << "Runtime error: " << e.what() << std::endl;
     }
-  } else if (0 == action.compare("buildSeriesVolume") && argc == 4) {
+  } else if (action == "buildSeriesVolume" && argc == 4) {
     // dicom buildSeriesVolume outputImage.json SERIES_UID
     std::string outFileName = argv[2];
     std::string seriesUID = argv[3];
@@ -345,6 +346,16 @@ int main(int argc, char *argv[]) {
     } catch (const std::runtime_error &e) {
       std::cerr << e.what() << std::endl;
     }
+  } else if (action == "readTRE" && argc == 4) {
+    // dicom readTRE points.json TRE_FILE
+    std::string outFilename = argv[2];
+    std::string filename = argv[3];
+    json tre = readTRE(filename);
+
+    std::ofstream outfile;
+    outfile.open(outFilename);
+    outfile << tre.dump();
+    outfile.close();
   }
 
   return 0;

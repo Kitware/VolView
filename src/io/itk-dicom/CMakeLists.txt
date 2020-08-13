@@ -7,7 +7,7 @@ include(ExternalProject)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(dicom_SRCS dicom.cpp charset.cpp)
+set(dicom_SRCS dicom.cpp charset.cpp readTRE.cpp)
 
 set(io_components ITKImageIO)
 if(EMSCRIPTEN)
@@ -20,6 +20,10 @@ find_package(ITK REQUIRED
     ITKImageIntensity
     # for GDCMSeriesFileNames.h
     ITKIOGDCM
+    # spatial objects
+    ITKMesh
+    ITKSpatialObjects
+    ITKIOSpatialObjects
   )
 include(${ITK_USE_FILE})
 
