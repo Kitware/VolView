@@ -72,6 +72,7 @@
                   :icon="`mdi-${tool.icon}`"
                   :name="tool.name"
                   :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+                  :disabled="!hasBaseImage"
                   @click="toggle"
                 />
               </groupable-item>
@@ -199,7 +200,7 @@
 import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
-import { NO_WIDGET } from '@/src/constants';
+import { NO_WIDGET, NO_SELECTION } from '@/src/constants';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
@@ -331,12 +332,16 @@ export default {
   computed: {
     ...mapState({
       datasets: 'data',
+      selectedBaseImage: 'selectedBaseImage',
       baseImages: ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
       annotationDatasets: ({ data: d }) => [].concat(d.labelmapIDs, d.modelIDs),
       activeWidgetID: (state) => state.widgets.activeWidgetID,
     }),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
+    },
+    hasBaseImage() {
+      return this.selectedBaseImage !== NO_SELECTION;
     },
   },
 
