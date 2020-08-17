@@ -125,7 +125,7 @@
         <v-card-text>
           <v-container>
             <v-row
-              v-for="(errorInfo, i) in errors.fileLoading"
+              v-for="(errorInfo, i) in allErrors"
               :key="i"
               no-gutters
               class="align-center mt-2"
@@ -135,7 +135,7 @@
                 class="text-ellipsis subtitle-1 black--text"
                 :title="errorInfo.name"
               >
-                Load error: {{ errorInfo.name }}
+                Error: {{ errorInfo.name }}
               </v-col>
               <v-col>
                 <span class="ml-2">
@@ -276,6 +276,7 @@ export default {
     errors: {
       dialog: false,
       fileLoading: [],
+      actionErrors: [],
     },
 
     layout: [
@@ -342,6 +343,9 @@ export default {
     },
     hasBaseImage() {
       return this.selectedBaseImage !== NO_SELECTION;
+    },
+    allErrors() {
+      return [].concat(this.errors.fileLoading, this.errors.actionErrors);
     },
   },
 
@@ -440,7 +444,10 @@ export default {
           this.$notify({ type: 'success', text: 'Files loaded' });
         }
       } catch (error) {
-        this.errors.actionErrors.push(error);
+        this.errors.actionErrors.push({
+          name: 'Unknown error',
+          error,
+        });
         this.$notify({
           type: 'error',
           duration: -1,
