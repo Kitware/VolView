@@ -1,8 +1,11 @@
 import Vue from 'vue';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
+import LUTConstants from 'vtk.js/Sources/Proxy/Core/LookupTableProxy/Constants';
 
 import { NO_SELECTION } from '../constants';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';
+
+const { Mode } = LUTConstants;
 
 export function asInteger(value, defaultValue) {
   const rv = Math.round(value);
@@ -137,7 +140,11 @@ export default (dependencies) => ({
 
     setColorBy(state, { id, array = '', location = '' }) {
       if (id !== NO_SELECTION) {
-        Vue.set(state.colorBy, id, { array, location });
+        // Modify entire obj so that VtkView colorBy watcher triggers
+        state.colorBy = {
+          ...state.colorBy,
+          [id]: { array, location },
+        };
       }
     },
 
@@ -320,12 +327,46 @@ export default (dependencies) => ({
 
     setBaseImageColorPreset({ commit, state, rootState }, presetName) {
       const { selectedBaseImage } = rootState;
-      const { array } = state.colorBy[selectedBaseImage] || {};
-      if (array) {
-        const { proxyManager } = dependencies;
-        const lut = proxyManager.getLookupTable(array);
-        lut.setPresetName(presetName);
-        commit('setArrayColorPreset', { array, presetName });
+      if (selectedBaseImage !== NO_SELECTION) {
+        const { array } = state.colorBy[selectedBaseImage] || {};
+        if (array) {
+          const { proxyManager } = dependencies;
+          const lut = proxyManager.getLookupTable(array);
+          lut.setMode(Mode.Preset);
+          lut.setPresetName(presetName);
+          commit('setArrayColorPreset', { array, presetName });
+        }
+      }
+    },
+
+    setModelColorBy(
+      { dispatch, commit, state },
+      { id, colorBy: { array, location } }
+    ) {
+      if (id !== NO_SELECTION) {
+        commit('setColorBy', { id, array, location });
+        dispatch('setModelColorPreset', {
+          id,
+          presetName: state.arrayLutPresets[array] || DEFAULT_PRESET,
+        });
+      }
+    },
+
+    setModelColorPreset({ commit, state, rootState }, { id, presetName }) {
+      if (id !== NO_SELECTION && presetName) {
+        const { data } = rootState;
+        const { array, location } = state.colorBy[id] || {};
+        if (array && location) {
+          const { proxyManager } = dependencies;
+          const attrs = data.vtkCache[id].getReferenceByName(location);
+          if (attrs && attrs.hasArray(array)) {
+            const lut = proxyManager.getLookupTable(array);
+            lut.setMode(Mode.Preset);
+            lut.setPresetName(presetName);
+            lut.setDataRange(...attrs.getArray(array).getRange());
+            commit('setArrayColorPreset', { array, presetName });
+          }
+        }
       }
     },
 
