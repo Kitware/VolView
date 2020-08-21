@@ -6,6 +6,32 @@ import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
 import { VaryRadius } from 'vtk.js/Sources/Filters/General/TubeFilter/Constants';
 import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
 
+function concatPointData(pointDataList, arrayName) {
+  const length = pointDataList.reduce(
+    (len, pd) => len + pd[arrayName].getData().length,
+    0
+  );
+
+  // use first array to initialize our copy
+  const first = pointDataList[0][arrayName];
+
+  const outData = new (first.getData().constructor)(length);
+  const da = vtkDataArray.newInstance({
+    name: arrayName,
+    numberOfComponents: first.getNumberOfComponents(),
+    values: outData,
+  });
+
+  for (let i = 0, offset = 0; i < pointDataList.length; i += 1) {
+    const array = pointDataList[i][arrayName];
+    const data = array.getData();
+    outData.set(data, offset);
+    offset += data.length;
+  }
+
+  return da;
+}
+
 function centerlineToTube(centerline) {
   const pd = vtkPolyData.newInstance();
   const pts = vtkPoints.newInstance({
@@ -60,9 +86,15 @@ function convertCenterlinesToTubes(centerlines) {
   // convert each centerline to polydata,
   // and prepare to concatenate them
   const cellCounts = Array(centerlines.length);
+  const pointData = [];
   for (let i = 0; i < centerlines.length; i += 1) {
     const cline = centerlines[i];
     const tubePd = centerlineToTube(cline);
+    const data = tubePd.getPointData();
+    pointData.push({
+      Radius: data.getArray('Radius'),
+      TubeNormals: data.getArray('TubeNormals'),
+    });
     appendPolyData.addInputData(tubePd);
 
     cellCounts[i] = tubePd.getNumberOfCells();
@@ -70,6 +102,10 @@ function convertCenterlinesToTubes(centerlines) {
   }
 
   const polyData = appendPolyData.getOutputData();
+
+  // copy over point data
+  polyData.getPointData().addArray(concatPointData(pointData, 'Radius'));
+  polyData.getPointData().addArray(concatPointData(pointData, 'TubeNormals'));
 
   // add colors
   const colorData = new Uint8Array(4 * numberOfCells);
