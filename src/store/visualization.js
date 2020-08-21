@@ -78,11 +78,9 @@ export default (dependencies) => ({
     resizeToFit: true,
     worldOrientation: defaultWorldOrientation(),
     windowing: defaultWindowing(),
-    colorBy: {
-      name: '',
-      location: '',
-    },
-    baseImageColorPreset: DEFAULT_PRESET,
+    colorBy: {}, // id -> { array, location }
+    arrayLutPresets: {}, // arrayName -> LUT preset
+    solidColors: {}, // id -> rgb array
   },
 
   mutations: {
@@ -91,12 +89,6 @@ export default (dependencies) => ({
         ...state.pipelines,
         [dataID]: { ...pipeline },
       };
-    },
-
-    removePipeline(state, dataID) {
-      if (dataID in state.pipelines) {
-        Vue.delete(state.pipelines, dataID);
-      }
     },
 
     setWorldOrientation(state, { bounds, spacing, direction, worldToIndex }) {
@@ -131,25 +123,55 @@ export default (dependencies) => ({
       state.baseImageColorPreset = presetName;
     },
 
-    setColorBy(state, { name = '', location = '' }) {
-      state.colorBy = { name, location };
+    setArrayColorPreset(state, { array, presetName }) {
+      if (array && presetName) {
+        Vue.set(state.arrayLutPresets, array, presetName);
+      }
+    },
+
+    setSolidColor(state, { dataID, rgb }) {
+      if (dataID !== NO_SELECTION && Array.isArray(rgb) && rgb.length === 3) {
+        Vue.set(state.solidColors, dataID, rgb);
+      }
+    },
+
+    setColorBy(state, { id, array = '', location = '' }) {
+      if (id !== NO_SELECTION) {
+        Vue.set(state.colorBy, id, { array, location });
+      }
     },
 
     setResizeToFit(state, yn) {
       state.resizeToFit = yn;
     },
+
+    removeModel(state, dataID) {
+      Vue.delete(state.models.colorBy, dataID);
+    },
+
+    removeData(state, dataID) {
+      Vue.delete(state.pipelines, dataID);
+      Vue.delete(state.colorBy, dataID);
+      Vue.delete(state.solidColors, dataID);
+    },
   },
 
   getters: {
-    boundsWithSpacing: (state) => {
+    boundsWithSpacing(state) {
       const { spacing, bounds } = state.worldOrientation;
       return bounds.map((b, i) => b * spacing[Math.floor(i / 2)]);
     },
-    baseImagePipeline: (state, getters, rootState) => {
+    baseImagePipeline(state, getters, rootState) {
       const { selectedBaseImage } = rootState;
       return selectedBaseImage !== NO_SELECTION
         ? state.pipelines[selectedBaseImage]
         : null;
+    },
+    baseImageColorPreset(state, getters, rootState) {
+      const { colorBy } = state;
+      const { selectedBaseImage } = rootState;
+      const { array } = colorBy[selectedBaseImage] || {};
+      return state.arrayLutPresets[array] || DEFAULT_PRESET;
     },
   },
 
@@ -165,7 +187,7 @@ export default (dependencies) => ({
 
       await dispatch('createPipelinesForScene');
 
-      // these actions depend on pipelines
+      // these actions depend on pipelines and colorby info
       if (reset) {
         await dispatch('setBaseImageColorPreset', DEFAULT_PRESET);
       }
@@ -268,12 +290,14 @@ export default (dependencies) => ({
         const image = data.vtkCache[selectedBaseImage];
         const scalars = image.getPointData().getScalars();
         commit('setColorBy', {
-          name: scalars.getName(),
+          id: selectedBaseImage,
+          array: scalars.getName(),
           location: 'pointData',
         });
       } else {
         commit('setColorBy', {
-          name: '',
+          id: selectedBaseImage,
+          array: '',
           location: '',
         });
       }
@@ -294,19 +318,19 @@ export default (dependencies) => ({
       commit('setWindowing', params);
     },
 
-    setBaseImageColorPreset({ commit, state }, presetName) {
-      commit('setBaseImageColorPreset', presetName);
-
-      const { colorBy } = state;
-      if (colorBy.name) {
+    setBaseImageColorPreset({ commit, state, rootState }, presetName) {
+      const { selectedBaseImage } = rootState;
+      const { array } = state.colorBy[selectedBaseImage] || {};
+      if (array) {
         const { proxyManager } = dependencies;
-        const lut = proxyManager.getLookupTable(state.colorBy.name);
+        const lut = proxyManager.getLookupTable(array);
         lut.setPresetName(presetName);
+        commit('setArrayColorPreset', { array, presetName });
       }
     },
 
     removeData({ commit }, dataID) {
-      commit('removePipeline', dataID);
+      commit('removeData', dataID);
     },
 
     redrawPipeline({ state }, dataID) {

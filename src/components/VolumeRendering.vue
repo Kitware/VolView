@@ -9,7 +9,7 @@
         <div ref="pwfEditor" />
       </div>
       <div id="preset-list">
-        <item-group :value="presetName" @change="selectPreset">
+        <item-group :value="baseImageColorPreset" @change="selectPreset">
           <groupable-item
             v-for="name in PresetNames"
             :key="name"
@@ -120,17 +120,19 @@ export default {
   computed: {
     ...mapState({
       baseImage: 'selectedBaseImage',
-      presetName: (state) => state.visualization.baseImageColorPreset,
       colorBy: (state) => state.visualization.colorBy,
     }),
-    ...mapGetters(['baseImagePipeline']),
+    ...mapGetters(['baseImagePipeline', 'baseImageColorPreset']),
+    baseColorBy() {
+      return this.colorBy[this.baseImage] || {};
+    },
     hasBaseImage() {
       return this.baseImage !== NO_SELECTION;
     },
     pwfProxy() {
-      const { name } = this.colorBy;
-      if (name) {
-        return this.$proxyManager.getPiecewiseFunction(name);
+      const { array } = this.baseColorBy;
+      if (array) {
+        return this.$proxyManager.getPiecewiseFunction(array);
       }
       return null;
     },
@@ -164,12 +166,12 @@ export default {
       }
     },
 
-    presetName() {
+    baseImageColorPreset() {
       this.resetPwfWidget();
       this.onOpacityChange();
     },
 
-    colorBy() {
+    baseColorBy() {
       this.resetPwfWidget();
       this.onOpacityChange();
     },
@@ -309,7 +311,7 @@ export default {
         this.pwfProxy.setDataRange(...dataRange);
         this.lutProxy.setDataRange(...dataRange);
 
-        const preset = vtkColorMaps.getPresetByName(this.presetName);
+        const preset = vtkColorMaps.getPresetByName(this.baseImageColorPreset);
         if (preset.OpacityPoints) {
           const { OpacityPoints } = preset;
           const points = [];
