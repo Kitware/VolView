@@ -45,6 +45,7 @@ export default {
     ...mapState({
       vizPipelines: (state) => state.visualization.pipelines,
       worldOrientation: (state) => state.visualization.worldOrientation,
+      colorBy: (state) => state.visualization.colorBy,
     }),
     sceneSources() {
       return this.sceneObjectIDs
@@ -74,6 +75,9 @@ export default {
     },
     worldOrientation() {
       this.updateScene();
+    },
+    colorBy() {
+      this.updateColorBy();
     },
   },
 
@@ -157,6 +161,18 @@ export default {
             rep.setTransform(...this.worldOrientation.worldToIndex);
           }
           this.view.addRepresentation(rep);
+        }
+      });
+    },
+
+    updateColorBy() {
+      const colorInfo = this.sceneObjectIDs.map((id) => this.colorBy[id]);
+      this.sceneSources.forEach((source, idx) => {
+        const srcColorBy = colorInfo[idx];
+        const rep = this.$proxyManager.getRepresentation(source, this.view);
+        if (rep && srcColorBy) {
+          const { array, location } = srcColorBy;
+          rep.setColorBy(array, location);
         }
       });
     },
