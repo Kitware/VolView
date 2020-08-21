@@ -213,6 +213,7 @@ import PatientBrowser from './components/PatientBrowser.vue';
 import Annotations from './components/Annotations.vue';
 import VolumeRendering from './components/VolumeRendering.vue';
 import MeasurementsModule from './components/MeasurementsModule.vue';
+import ModelBrowser from './components/ModelBrowser.vue';
 
 export const Modules = [
   {
@@ -224,6 +225,11 @@ export const Modules = [
     name: 'Annotations',
     icon: 'pencil',
     component: Annotations,
+  },
+  {
+    name: 'Models',
+    icon: 'hexagon-multiple',
+    component: ModelBrowser,
   },
   {
     name: 'Volume Rendering',
