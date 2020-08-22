@@ -1,6 +1,7 @@
 import { mat4, vec3 } from 'gl-matrix';
 import vtkPaintWidget from 'vtk.js/Sources/Widgets/Widgets3D/PaintWidget';
 import vtkPaintFilter from 'vtk.js/Sources/Filters/General/PaintFilter';
+import { SlicingMode } from 'vtk.js/Sources/Rendering/Core/ImageMapper/Constants';
 
 import { NO_SELECTION } from '@/src/constants';
 import Widget, { FOLLOW_VIEW, ALWAYS_VISIBLE } from './widget';
@@ -133,6 +134,7 @@ export default class PaintWidget extends Widget {
     const viewWidget = this.widgetInstances.get(view);
     const subs = [
       viewWidget.onStartInteractionEvent(() => {
+        this.filter.setSlicingMode(SlicingMode['XYZ'[view.getAxis()]]);
         this.filter.startStroke();
         this.filter.addPoint(this.toWorldPosition(this.state.getTrueOrigin()));
       }),
