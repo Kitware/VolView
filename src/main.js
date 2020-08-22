@@ -38,8 +38,8 @@ fileIO.addSingleReader('tre', createTREReader(dicomIO));
 // Initialize global mapper topologies
 // polys and lines in the front
 vtkMapper.setResolveCoincidentTopologyToPolygonOffset();
-vtkMapper.setResolveCoincidentTopologyPolygonOffsetParameters(-2, -2);
-vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-2, -2);
+vtkMapper.setResolveCoincidentTopologyPolygonOffsetParameters(-3, -3);
+vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-3, -3);
 // image poly in the back
 vtkImageMapper.setResolveCoincidentTopologyToPolygonOffset();
 vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
