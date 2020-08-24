@@ -283,8 +283,6 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
   size_t inbytesleft = len;
   size_t outbytesleft = utf8len;
 
-  char test[len];
-
   // special case: only one charset, so assume string is just that charset.
   if (m_charsets.size() == 1) {
     iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
