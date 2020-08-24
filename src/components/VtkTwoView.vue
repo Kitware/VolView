@@ -169,13 +169,13 @@ export default {
 
   methods: {
     cleanupListeners() {
-      if (this.resizeListener) {
-        this.resizeListener.unsubscribe();
-        this.resizeListener = null;
-      }
-      if (this.moveListener) {
-        this.moveListener.unsubscribe();
-        this.moveListener = null;
+      const listeners = ['resizeListener', 'moveListener', 'cameraListener'];
+      while (listeners.length) {
+        const name = listeners.pop();
+        if (this[name]) {
+          this[name].unsubscribe();
+          this[name] = null;
+        }
       }
     },
 

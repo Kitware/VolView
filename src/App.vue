@@ -56,9 +56,33 @@
             size="40"
             icon="mdi-folder-open"
             name="Open files"
-            buttonClass="tool-btn"
             @click="userPromptFiles"
           />
+          <v-menu offset-x>
+            <template v-slot:activator="{ on, attrs }">
+              <!-- hack to get menu to show up -->
+              &nbsp;
+              <tool-button
+                size="40"
+                icon="mdi-view-dashboard"
+                name="Layouts"
+                v-bind="attrs"
+                v-on="on"
+              />
+            </template>
+            <v-list>
+              <v-list-item @click="relayoutAxial">
+                <v-list-item-title>
+                  Axial Primary
+                </v-list-item-title>
+              </v-list-item>
+              <v-list-item @click="relayoutQuad">
+                <v-list-item-title>
+                  Quad View
+                </v-list-item-title>
+              </v-list-item>
+            </v-list>
+          </v-menu>
           <div class="mt-2 mb-1 tool-separator" />
           <item-group v-if="hasData" v-model="selectedTool">
             <template v-for="(tool, i) in Tools">
@@ -262,6 +286,58 @@ export const Tools = [
   },
 ];
 
+export const Views = {
+  Z: {
+    comp: VtkTwoView,
+    props: {
+      key: 'ViewZ',
+      viewType: 'ViewZ',
+      viewName: 'Z:1',
+      axis: 2,
+      orientation: -1,
+      viewUp: [0, -1, 0],
+    },
+  },
+  X: {
+    comp: VtkTwoView,
+    props: {
+      key: 'ViewX',
+      viewType: 'ViewX',
+      viewName: 'X:1',
+      axis: 0,
+      orientation: 1,
+      viewUp: [0, 0, 1],
+    },
+  },
+  Y: {
+    comp: VtkTwoView,
+    props: {
+      key: 'ViewY',
+      viewType: 'ViewY',
+      viewName: 'Y:1',
+      axis: 1,
+      orientation: -1,
+      viewUp: [0, 0, 1],
+    },
+  },
+  Three: {
+    comp: VtkThreeView,
+    props: {
+      key: 'View3D',
+      viewType: 'View3D',
+      viewName: '3D:1',
+      axis: 2,
+      orientation: -1,
+      viewUp: [0, -1, 0],
+    },
+  },
+};
+
+export const Layouts = {
+  AxialPrimary: ['V', Views.Z, ['H', Views.X, Views.Y, Views.Three]],
+  QuadView: ['H', ['V', Views.X, Views.Three], ['V', Views.Y, Views.Z]],
+};
+
 export default {
   name: 'App',
 
@@ -284,54 +360,7 @@ export default {
       fileLoading: [],
       actionErrors: [],
     },
-
-    layout: [
-      'V',
-      {
-        comp: VtkTwoView,
-        props: {
-          viewType: 'ViewZ',
-          viewName: 'Z:1',
-          axis: 2,
-          orientation: -1,
-          viewUp: [0, -1, 0],
-        },
-      },
-      [
-        'H',
-        {
-          comp: VtkTwoView,
-          props: {
-            viewType: 'ViewX',
-            viewName: 'X:1',
-            axis: 0,
-            orientation: 1,
-            viewUp: [0, 0, 1],
-          },
-        },
-        {
-          comp: VtkTwoView,
-          props: {
-            viewType: 'ViewY',
-            viewName: 'Y:1',
-            axis: 1,
-            orientation: -1,
-            viewUp: [0, 0, 1],
-          },
-        },
-        {
-          comp: VtkThreeView,
-          props: {
-            viewType: 'View3D',
-            viewName: '3D:1',
-            axis: 2,
-            orientation: -1,
-            viewUp: [0, -1, 0],
-          },
-        },
-      ],
-    ],
-
+    layout: Layouts.AxialPrimary,
     Tools,
     Modules,
   }),
@@ -485,6 +514,14 @@ export default {
       this.errors.dialog = false;
       this.errors.fileLoading = [];
       this.errors.actionErrors = [];
+    },
+
+    relayoutAxial() {
+      this.layout = Layouts.AxialPrimary;
+    },
+
+    relayoutQuad() {
+      this.layout = Layouts.QuadView;
     },
 
     ...mapActions([

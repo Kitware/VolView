@@ -102,7 +102,7 @@ export default class WidgetProvider {
       this.views.splice(idx, 1);
       const it = this.widgetMap.values();
       let { value: widget, done } = it.next();
-      while (done) {
+      while (!done) {
         widget.removeFromView(view);
         ({ value: widget, done } = it.next());
       }

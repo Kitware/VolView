@@ -88,19 +88,25 @@ export default {
   },
 
   beforeDestroy() {
-    this.view = null;
-    this.remountView();
+    this.unmountView();
   },
 
   methods: {
     beforeViewUnmount() {},
     afterViewMount() {},
 
-    remountView() {
+    unmountView() {
       if (this.view) {
         this.beforeViewUnmount();
-        this.view.setContainer(null);
+        if (this.view.getContainer() === this.$refs.vtkContainer) {
+          this.view.setContainer(null);
+        }
+        this.view = null;
       }
+    },
+
+    remountView() {
+      this.unmountView();
 
       this.view = this.$proxyManager
         .getViews()
@@ -135,10 +141,12 @@ export default {
 
         // let vue rendering settle before resizing canvas
         this.$nextTick(() => {
-          this.onResize();
-          this.resetCamera();
-          this.render();
-          this.afterViewMount();
+          if (this.view) {
+            this.onResize();
+            this.resetCamera();
+            this.render();
+            this.afterViewMount();
+          }
         });
       }
     },
@@ -182,7 +190,7 @@ export default {
     },
 
     onResize() {
-      if (this.view) {
+      if (this.view && this.view.getContainer()) {
         // re-implemented from ViewProxy, since we don't
         // want camera reset from view.renderLater()
         const container = this.view.getContainer();
