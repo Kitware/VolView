@@ -86,6 +86,9 @@ export default class WidgetProvider {
   }
 
   addView(view, viewType = ViewTypes.DEFAULT) {
+    if (this.views.includes(view)) {
+      return;
+    }
     this.views.push(view);
     this.viewTypes.set(view, viewType);
     const it = this.widgetMap.values();
