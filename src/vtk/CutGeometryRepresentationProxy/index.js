@@ -4,9 +4,18 @@ import vtkSlicedGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Represent
 
 import vtkPolyDataTransformFilter from '../PolyDataTransformFilter';
 import vtkRepresentationProxyTransformMixin from '../transformMixin';
+import vtkCachedCutter from '../CachedCutter';
 
 function vtkCutGeometryRepresentationProxy(publicAPI, model) {
   model.classHierarchy.push('vtkCutGeometryRepresentationProxy');
+
+  const oldCutter = model.cutter;
+  model.cutter = vtkCachedCutter.newInstance();
+  model.cutter.setCutFunction(oldCutter.getCutFunction());
+  model.mapper.setInputConnection(model.cutter.getOutputPort());
+  const idx = model.sourceDependencies.indexOf(oldCutter);
+  model.sourceDependencies.splice(idx, 1);
+  model.sourceDependencies.push(model.cutter);
 }
 
 // ----------------------------------------------------------------------------
