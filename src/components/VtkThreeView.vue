@@ -2,9 +2,7 @@
   <div class="vtk-container-wrapper">
     <div class="vtk-gutter"></div>
     <div class="vtk-container" :class="active ? 'active' : ''">
-      <div class="vtk-sub-container">
-        <div class="vtk-view" ref="vtkContainer" />
-      </div>
+      <div class="vtk-sub-container" ref="containerParent"></div>
     </div>
   </div>
 </template>
@@ -38,13 +36,13 @@ export default {
 
   mounted() {
     this.resizeObserver = attachResizeObserver(
-      this.$refs.vtkContainer,
+      this.$refs.containerParent,
       this.resizeLater
     );
   },
 
   beforeDestroy() {
-    this.resizeObserver.unobserve(this.$refs.vtkContainer);
+    this.resizeObserver.unobserve(this.$refs.containerParent);
   },
 
   methods: {

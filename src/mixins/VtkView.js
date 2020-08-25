@@ -11,6 +11,14 @@ export function attachResizeObserver(container, cb) {
   return observer;
 }
 
+export const VtkContainerMap = new WeakMap();
+
+function createContainer() {
+  const container = document.createElement('div');
+  container.className = 'vtk-view';
+  return container;
+}
+
 export default {
   props: {
     active: Boolean,
@@ -98,8 +106,9 @@ export default {
     unmountView() {
       if (this.view) {
         this.beforeViewUnmount();
-        if (this.view.getContainer() === this.$refs.vtkContainer) {
-          this.view.setContainer(null);
+        const container = VtkContainerMap.get(this.view);
+        if (this.$refs.containerParent === container.parentElement) {
+          this.$refs.containerParent.removeChild(container);
         }
         this.view = null;
       }
@@ -121,8 +130,19 @@ export default {
       }
 
       if (this.view) {
-        const container = this.$refs.vtkContainer;
-        this.view.setContainer(container);
+        if (!VtkContainerMap.has(this.view)) {
+          const container = createContainer();
+          VtkContainerMap.set(this.view, container);
+          this.view.setContainer(container);
+        }
+
+        // remove from prev parent, if any
+        const container = VtkContainerMap.get(this.view);
+        if (container.parentElement) {
+          container.parentElement.removeChild(container);
+        }
+        this.$refs.containerParent.appendChild(container);
+
         this.view.getRenderer().setBackground(0, 0, 0);
 
         if (!this.view.getReferenceByName('widgetManager')) {
@@ -133,8 +153,8 @@ export default {
         }
 
         const widgetManager = this.view.getReferenceByName('widgetManager');
-        widgetManager.setUseSvgLayer(true);
         widgetManager.setRenderer(this.view.getRenderer());
+        widgetManager.setUseSvgLayer(true);
 
         this.updateOrientation();
         this.updateScene();
