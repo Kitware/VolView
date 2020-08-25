@@ -70,18 +70,14 @@
                 v-on="on"
               />
             </template>
-            <v-list>
-              <v-list-item @click="relayoutAxial">
-                <v-list-item-title>
-                  Axial Primary
-                </v-list-item-title>
-              </v-list-item>
-              <v-list-item @click="relayoutQuad">
-                <v-list-item-title>
-                  Quad View
-                </v-list-item-title>
-              </v-list-item>
-            </v-list>
+            <v-card>
+              <v-card-text>
+                <v-radio-group v-model="layoutName" class="mt-0" hide-details>
+                  <v-radio label="Axial Primary" value="AxialPrimary" />
+                  <v-radio label="Quad View" value="QuadView" />
+                </v-radio-group>
+              </v-card-text>
+            </v-card>
           </v-menu>
           <div class="mt-2 mb-1 tool-separator" />
           <item-group v-if="hasData" v-model="selectedTool">
@@ -360,7 +356,7 @@ export default {
       fileLoading: [],
       actionErrors: [],
     },
-    layout: Layouts.AxialPrimary,
+    layoutName: 'AxialPrimary',
     Tools,
     Modules,
   }),
@@ -381,6 +377,9 @@ export default {
     },
     allErrors() {
       return [].concat(this.errors.fileLoading, this.errors.actionErrors);
+    },
+    layout() {
+      return Layouts[this.layoutName] || [];
     },
   },
 
