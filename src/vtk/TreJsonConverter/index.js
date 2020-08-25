@@ -68,7 +68,7 @@ function centerlineToTube(centerline) {
     capping: true,
     radius: 1, // scaling factor
     varyRadius: VaryRadius.VARY_RADIUS_BY_ABSOLUTE_SCALAR,
-    numberOfSides: 20,
+    numberOfSides: 5,
   });
 
   filter.setInputArrayToProcess(0, 'Radius', 'PointData', 'Scalars');
@@ -104,8 +104,8 @@ function convertCenterlinesToTubes(centerlines) {
   const polyData = appendPolyData.getOutputData();
 
   // copy over point data
-  polyData.getPointData().addArray(concatPointData(pointData, 'Radius'));
-  polyData.getPointData().addArray(concatPointData(pointData, 'TubeNormals'));
+  polyData.getPointData().setScalars(concatPointData(pointData, 'Radius'));
+  polyData.getPointData().setNormals(concatPointData(pointData, 'TubeNormals'));
 
   // add colors
   const colorData = new Uint8Array(4 * numberOfCells);
