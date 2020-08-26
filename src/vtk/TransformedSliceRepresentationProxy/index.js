@@ -19,6 +19,9 @@ function vtkTransformedSliceRepresentationProxy(publicAPI, model) {
     publicAPI.setSlicingMode(mode === 'I' ? 'J' : 'I');
     publicAPI.setSlicingMode(mode);
   };
+
+  // don't set colors on slices
+  publicAPI.setColorBy = () => {};
 }
 
 // ----------------------------------------------------------------------------
