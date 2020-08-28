@@ -16,6 +16,8 @@
 #include <emscripten.h>
 #endif
 
+#include <nlohmann/json.hpp>
+
 #include "itkCastImageFilter.h"
 #include "itkCommonEnums.h"
 #include "itkGDCMImageIO.h"
@@ -27,8 +29,6 @@
 #include "itkImageSeriesReader.h"
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
-
-#include "json.hpp"
 
 #include "charset.hpp"
 #include "readTRE.hpp"

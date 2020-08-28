@@ -328,7 +328,6 @@ std::string CharStringToUTF8Converter::convertCharStringToUTF8(const char *str,
               0 != strcmp("ISO-2022-JP-1", nextCharset)) {
             seek = iso2022EscSeqLength(escSeq) + 1;
           }
-
         } else { // case: hit a CR, LF, or FF
           // reset to initial charset
           nextCharset = initialCharset;

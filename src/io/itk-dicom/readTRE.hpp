@@ -1,7 +1,7 @@
+#include <nlohmann/json.hpp>
+
 #include "itkSpatialObjectReader.h"
 #include "itkTubeSpatialObject.h"
-
-#include "json.hpp"
 
 using json = nlohmann::json;
 

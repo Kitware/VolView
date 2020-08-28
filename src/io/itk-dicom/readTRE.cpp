@@ -1,7 +1,5 @@
 #include <iostream>
 
-#include "json.hpp"
-
 #include "readTRE.hpp"
 
 using ReaderType = itk::SpatialObjectReader<3, float>;

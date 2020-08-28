@@ -3,11 +3,20 @@ cmake_minimum_required(VERSION 3.10)
 project(dicom)
 
 include(ExternalProject)
+include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(dicom_SRCS dicom.cpp charset.cpp readTRE.cpp)
+
+if(EMSCRIPTEN)
+  add_definitions(-DWEB_BUILD)
+endif()
+
+############################################
+# setup ITK
+############################################
 
 set(io_components ITKImageIO)
 if(EMSCRIPTEN)
@@ -25,53 +34,76 @@ find_package(ITK REQUIRED
     ITKSpatialObjects
     ITKIOSpatialObjects
   )
+
 include(${ITK_USE_FILE})
+
+if(EMSCRIPTEN)
+  include(ITKBridgeJavaScript)
+endif()
+
+############################################
+# setup third party directory
+############################################
 
 set(THIRDPARTY_DIR ${CMAKE_BINARY_DIR}/thirdparty)
 file(MAKE_DIRECTORY ${THIRDPARTY_DIR})
 
+############################################
 # download json.hpp
+############################################
+
 set(JSON_DIR ${THIRDPARTY_DIR}/json)
-file(MAKE_DIRECTORY ${JSON_DIR})
-set(JSON_URL "https://raw.githubusercontent.com/nlohmann/json/e110667d210698b5df3341244bfb4c454ac392f1/single_include/nlohmann/json.hpp")
-file(DOWNLOAD ${JSON_URL} ${JSON_DIR}/json.hpp
-  # ver 3.9.0
-  EXPECTED_HASH SHA256=d8089d52d285ef2c5368eb39ae665b39ea464206b1ca674a88a915c0245ff4f0
-)
+FetchContent_Declare(json
+  PREFIX ${JSON_DIR}
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.9.0
+  GIT_SHALLOW ON)
 
-include_directories(${JSON_DIR})
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+  FetchContent_Populate(json)
+  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
-# setup libiconv
+############################################
+# download libiconv
+############################################
+
+set(ICONV libiconv)
+set(ICONV_DIR ${THIRDPARTY_DIR}/libiconv)
+file(MAKE_DIRECTORY ${ICONV_DIR})
+
 if(EMSCRIPTEN)
-  set(ICONV_DIR ${THIRDPARTY_DIR}/libiconv-web)
-  set(ICONV_BIN ${CMAKE_CURRENT_BINARY_DIR}/libiconv-web)
-  set(ICONV_CONFIGURE_COMMAND emconfigure ${ICONV_DIR}/configure --srcdir=${ICONV_DIR} --prefix=${ICONV_BIN})
+  set(ICONV_CONFIGURE_COMMAND emconfigure ${ICONV_DIR}/src/${ICONV}/configure --srcdir=${ICONV_DIR}/src/${ICONV} --prefix=${ICONV_DIR} --enable-static)
   set(ICONV_BUILD_COMMAND emmake make)
 else()
-  set(ICONV_DIR ${THIRDPARTY_DIR}/libiconv)
-  set(ICONV_BIN ${CMAKE_CURRENT_BINARY_DIR}/libiconv)
-  set(ICONV_CONFIGURE_COMMAND ${ICONV_DIR}/configure --srcdir=${ICONV_DIR} --prefix=${ICONV_BIN})
+  set(ICONV_CONFIGURE_COMMAND ${ICONV_DIR}/src/${ICONV}/configure --srcdir=${ICONV_DIR}/src/${ICONV} --prefix=${ICONV_DIR} --enable-static)
   set(ICONV_BUILD_COMMAND make)
 endif()
 
-ExternalProject_Add(libiconv
-  SOURCE_DIR ${ICONV_DIR}
+ExternalProject_Add(${ICONV}
+  PREFIX ${ICONV_DIR}
   URL "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.16.tar.gz"
   URL_HASH SHA256=e6a1b1b589654277ee790cce3734f07876ac4ccfaecbee8afa0b649cf529cc04
   CONFIGURE_COMMAND ${ICONV_CONFIGURE_COMMAND}
   BUILD_COMMAND ${ICONV_BUILD_COMMAND}
+  # needed for ninja generator
+  BUILD_BYPRODUCTS ${ICONV_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}iconv${CMAKE_STATIC_LIBRARY_SUFFIX}
 )
 
-include_directories(${ICONV_BIN}/include)
-link_directories(${ICONV_BIN}/lib)
+file(MAKE_DIRECTORY ${ICONV_DIR}/include)
 
-if(EMSCRIPTEN)
-  include(ITKBridgeJavaScript)
-  add_definitions(-DWEB_BUILD)
-  web_add_executable(dicom ${dicom_SRCS})
-else()
-  add_executable(dicom ${dicom_SRCS})
-endif()
+add_library(iconv STATIC IMPORTED)
+set_target_properties(iconv PROPERTIES
+  IMPORTED_LOCATION ${ICONV_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}iconv${CMAKE_STATIC_LIBRARY_SUFFIX}
+  INTERFACE_INCLUDE_DIRECTORIES ${ICONV_DIR}/include)
 
-add_dependencies(dicom libiconv)
-target_link_libraries(dicom ${ITK_LIBRARIES} iconv)
+add_dependencies(iconv ${ICONV})
+
+############################################
+# parent project
+############################################
+
+add_executable(dicom ${dicom_SRCS})
+target_include_directories(dicom PRIVATE ${ICONV_DIR}/include)
+target_link_libraries(dicom PRIVATE ${ITK_LIBRARIES} iconv nlohmann_json::nlohmann_json)
