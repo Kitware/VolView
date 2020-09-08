@@ -370,7 +370,14 @@ export default (dependencies) => ({
       }
     },
 
-    removeData({ commit }, dataID) {
+    removeData({ commit, state }, dataID) {
+      const pipeline = state.pipelines[dataID];
+      if (pipeline) {
+        const { proxyManager } = dependencies;
+        for (let i = pipeline.length - 1; i >= 0; i -= 1) {
+          proxyManager.deleteProxy(pipeline[i]);
+        }
+      }
       commit('removeData', dataID);
     },
 
