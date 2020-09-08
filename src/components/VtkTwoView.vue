@@ -62,6 +62,7 @@ export default {
     return {
       pixelCoord: [],
       pixel: [],
+      lastPosition: [null, null],
     };
   },
 
@@ -109,6 +110,7 @@ export default {
     },
     slice() {
       this.updateRepresentations();
+      this.updatePixelProbe();
       this.updateLowerLeftAnnotations();
       this.updateAllWidgets();
     },
@@ -412,54 +414,67 @@ export default {
         ev.pokedRenderer === this.view.getRenderer()
       ) {
         const { x, y } = ev.position;
-        const gl = this.view.getOpenglRenderWindow();
-        const near = gl.displayToWorld(x, y, 0, ev.pokedRenderer);
-        const far = gl.displayToWorld(x, y, 1, ev.pokedRenderer);
-        const dop = this.view.getCamera().getDirectionOfProjection();
-        const origin = [0, 0, 0];
-        origin[this.axis] = this.slice * this.sliceSpacing;
-        const intInfo = vtkPlane.intersectWithLine(near, far, origin, dop);
-        if (intInfo.intersection) {
-          const point = intInfo.x;
-          // get image data
-          const rep = this.$proxyManager.getRepresentation(
-            this.sceneSources[0],
-            this.view
+        this.findPixelAtPosition(x, y);
+        this.lastPosition = [x, y];
+      }
+    },
+
+    updatePixelProbe() {
+      const [x, y] = this.lastPosition;
+      if (x !== null && y !== null) {
+        this.findPixelAtPosition(x, y);
+      }
+    },
+
+    findPixelAtPosition(x, y) {
+      const renderer = this.view.getRenderer();
+      const gl = this.view.getOpenglRenderWindow();
+      const near = gl.displayToWorld(x, y, 0, renderer);
+      const far = gl.displayToWorld(x, y, 1, renderer);
+      const dop = this.view.getCamera().getDirectionOfProjection();
+      const origin = [0, 0, 0];
+      origin[this.axis] = this.slice * this.sliceSpacing;
+      const intInfo = vtkPlane.intersectWithLine(near, far, origin, dop);
+      if (intInfo.intersection) {
+        const point = intInfo.x;
+        // get image data
+        const rep = this.$proxyManager.getRepresentation(
+          this.sceneSources[0],
+          this.view
+        );
+        if (rep) {
+          const imageData = rep.getMapper().getInputData();
+          const [i, j, k] = imageData.worldToIndex(point).map((c) =>
+            // this is a hack to work around the first slice sometimes being
+            // very close to zero, but not quite, resulting in being unable to
+            // see pixel values for 0th slice.
+            Math.abs(c) < 1e-8 ? Math.round(c) : c
           );
-          if (rep) {
-            const imageData = rep.getMapper().getInputData();
-            const [i, j, k] = imageData.worldToIndex(point).map((c) =>
-              // this is a hack to work around the first slice sometimes being
-              // very close to zero, but not quite, resulting in being unable to
-              // see pixel values for 0th slice.
-              Math.abs(c) < 1e-8 ? Math.round(c) : c
-            );
-            const extent = imageData.getExtent();
-            if (
-              i >= extent[0] &&
-              i <= extent[1] &&
-              j >= extent[2] &&
-              j <= extent[3] &&
-              k >= extent[4] &&
-              k <= extent[5]
-            ) {
-              const offsetIndex = imageData.computeOffsetIndex([i, j, k]);
-              const pixel = imageData
-                .getPointData()
-                .getScalars()
-                .getTuple(offsetIndex);
+          const extent = imageData.getExtent();
+          if (
+            i >= extent[0] &&
+            i <= extent[1] &&
+            j >= extent[2] &&
+            j <= extent[3] &&
+            k >= extent[4] &&
+            k <= extent[5]
+          ) {
+            const offsetIndex = imageData.computeOffsetIndex([i, j, k]);
+            const pixel = imageData
+              .getPointData()
+              .getScalars()
+              .getTuple(offsetIndex);
 
-              this.pixelCoord = [i, j, k];
-              this.pixel = pixel;
+            this.pixelCoord = [i, j, k];
+            this.pixel = pixel;
 
-              this.updateLowerLeftAnnotations();
-              return;
-            }
+            this.updateLowerLeftAnnotations();
+            return;
           }
         }
-        this.pixelCoord = [];
-        this.pixel = [];
       }
+      this.pixelCoord = [];
+      this.pixel = [];
     },
 
     ...mapActions(['setWindowing', 'setSlices']),
