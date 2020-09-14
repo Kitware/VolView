@@ -380,7 +380,7 @@ export default {
       fileLoading: [],
       actionErrors: [],
     },
-    layoutName: 'AxialPrimary',
+    layoutName: 'QuadView',
     Tools,
     Modules,
   }),
