@@ -8,6 +8,7 @@ import visualization from './visualization';
 import widgets from './widgets';
 import annotations from './annotations';
 import measurements from './measurements';
+import jobs from './jobs';
 
 import * as datasets from './datasets';
 
@@ -44,6 +45,7 @@ export default (deps) =>
       widgets: widgets(deps),
       annotations: annotations(deps),
       measurements: measurements(deps),
+      jobs: jobs(deps),
     },
 
     state: initialState(),
