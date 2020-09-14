@@ -7,15 +7,30 @@ function vtkCachedCutter(publicAPI, model) {
   const superClass = { ...publicAPI };
   const cache = new Map();
 
-  publicAPI.requestData = (inData, outData) => {
-    const tag = JSON.stringify(model.cutFunction.getState());
+  function computeTag(polydata) {
+    const cutFuncState = JSON.stringify(model.cutFunction.getState());
+    const mtime = polydata.getMTime();
+    return `${mtime}::${cutFuncState}`;
+  }
+
+  publicAPI.clearCache = () => {
+    cache.clear();
+  };
+
+  publicAPI.computeSlice = (polyData) => {
+    const tag = computeTag(polyData);
     if (cache.has(tag)) {
-      outData[0] = cache.get(tag);
-      outData[0].modified();
-    } else {
-      superClass.requestData(inData, outData);
-      cache.set(tag, outData[0]);
+      return cache.get(tag);
     }
+    const outData = [];
+    superClass.requestData([polyData], outData);
+    cache.set(tag, outData[0]);
+    return outData[0];
+  };
+
+  publicAPI.requestData = (inData, outData) => {
+    outData[0] = publicAPI.computeSlice(inData[0]);
+    outData[0].modified();
   };
 }
 

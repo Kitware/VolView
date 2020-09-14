@@ -16,6 +16,25 @@ function vtkCutGeometryRepresentationProxy(publicAPI, model) {
   const idx = model.sourceDependencies.indexOf(oldCutter);
   model.sourceDependencies.splice(idx, 1);
   model.sourceDependencies.push(model.cutter);
+
+  publicAPI.clearSliceCache = () => model.cutter.clearCache();
+
+  publicAPI.cacheSlice = (normal, pos) => {
+    // cut function should be a vtkPlane
+    const cutFunction = model.cutter.getCutFunction();
+    const oNormal = cutFunction.getNormal();
+    const oOrigin = cutFunction.getOrigin();
+
+    cutFunction.setNormal(normal);
+    cutFunction.setOrigin(pos);
+
+    const pd = publicAPI.getInputDataSet();
+    model.cutter.computeSlice(pd);
+
+    // restore original cutter params
+    cutFunction.setNormal(oNormal);
+    cutFunction.setOrigin(oOrigin);
+  };
 }
 
 // ----------------------------------------------------------------------------
