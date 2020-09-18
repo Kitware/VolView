@@ -104,6 +104,52 @@ export default class DicomIO {
   }
 
   /**
+   * Builds the series slice order.
+   *
+   * This should be done prior to readSeriesTags or buildVolume.
+   * @param {String} gdcmSeriesUID
+   */
+  async buildSeriesOrder(gdcmSeriesUID) {
+    const result = await this.addTask(
+      'dicom',
+      ['buildSeries', 'output.json', gdcmSeriesUID],
+      [{ path: 'output.json', type: IOTypes.Text }],
+      []
+    );
+    return JSON.parse(result.outputs[0].data);
+  }
+
+  /**
+   * Reads a list of tags out from a given series UID.
+   *
+   * @param {String} seriesUID
+   * @param {[]Tag} tags
+   * @param {Integer} slice Defaults to 0 (first slice)
+   */
+  async readSeriesTags(seriesUID, tags, slice = 0) {
+    const tagsArgs = tags.map((t) => {
+      const { strconv, tag } = t;
+      return `${strconv ? '@' : ''}${tag}`;
+    });
+
+    const results = await this.addTask(
+      'dicom',
+      ['readTags', 'output.json', seriesUID, String(slice), ...tagsArgs],
+      [{ path: 'output.json', type: IOTypes.Text }],
+      []
+    );
+
+    const json = JSON.parse(results.outputs[0].data) ?? {};
+    return tags.reduce((info, t) => {
+      const { tag, name } = t;
+      if (tag in json) {
+        return { ...info, [name]: json[tag] };
+      }
+      return info;
+    }, {});
+  }
+
+  /**
    * Retrieves a slice of a series.
    * @async
    * @param {String} seriesUID the ITK-GDCM series UID

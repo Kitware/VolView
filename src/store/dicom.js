@@ -145,57 +145,85 @@ export default (dependencies) => ({
         return [];
       }
 
-      const updatedSeriesInfo = await dicomIO.importFiles(files);
-      const seriesUIDs = Object.keys(updatedSeriesInfo);
+      const updatedSeries = await dicomIO.importFiles(files);
       const updatedSeriesKeys = []; // to be returned to caller
-      for (let i = 0; i < seriesUIDs.length; i += 1) {
-        const seriesUID = seriesUIDs[i];
-        const info = updatedSeriesInfo[seriesUID];
 
-        // TODO parse the raw string values
-        const patient = {
-          PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
-          PatientName: info.PatientName || ANONYMOUS_PATIENT,
-          ...pick(info, ['PatientBirthDate', 'PatientSex']),
-        };
-        const patientKey = genSynPatientKey(patient);
+      await Promise.all(
+        updatedSeries.map(async (gdcmSeriesUID) => {
+          const numberOfSlices = await dicomIO.buildSeriesOrder(gdcmSeriesUID);
+          let seriesKey;
 
-        const studyKey = info.StudyInstanceUID;
-        const study = pick(info, [
-          'StudyID',
-          'StudyInstanceUID',
-          'StudyDate',
-          'StudyTime',
-          'AccessionNumber',
-          'StudyDescription',
-        ]);
+          if (gdcmSeriesUID in state.seriesIndex) {
+            seriesKey = state.seriesIndex[gdcmSeriesUID].SeriesInstanceUID;
+          } else {
+            const info = await dicomIO.readSeriesTags(gdcmSeriesUID, [
+              { name: 'PatientName', tag: '0010|0010', strconv: true },
+              { name: 'PatientID', tag: '0010|0020', strconv: true },
+              { name: 'PatientBirthDate', tag: '0010|0030' },
+              { name: 'PatientSex', tag: '0010|0040' },
+              { name: 'StudyInstanceUID', tag: '0020|000d' },
+              { name: 'StudyDate', tag: '0008|0020' },
+              { name: 'StudyTime', tag: '0008|0030' },
+              { name: 'StudyID', tag: '0020|0010', strconv: true },
+              { name: 'AccessionNumber', tag: '0008|0050' },
+              { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+              { name: 'Modality', tag: '0008|0060' },
+              { name: 'SeriesInstanceUID', tag: '0020|000e' },
+              { name: 'SeriesNumber', tag: '0020|0011' },
+              { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+            ]);
 
-        const seriesKey = info.SeriesInstanceUID;
-        const series = pick(info, [
-          'Modality',
-          'SeriesInstanceUID',
-          'SeriesNumber',
-          'SeriesDescription',
-          // not standard dicom
-          'NumberOfSlices',
-          'ITKGDCMSeriesUID',
-        ]);
+            Object.assign(info, {
+              NumberOfSlices: numberOfSlices,
+              ITKGDCMSeriesUID: gdcmSeriesUID,
+            });
 
-        updatedSeriesKeys.push({
-          patientKey,
-          studyKey,
-          seriesKey,
-        });
+            // TODO parse the raw string values
+            const patient = {
+              PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
+              PatientName: info.PatientName || ANONYMOUS_PATIENT,
+              ...pick(info, ['PatientBirthDate', 'PatientSex']),
+            };
+            const patientKey = genSynPatientKey(patient);
 
-        commit('addPatient', { patientKey, patient });
-        commit('addStudy', { studyKey, study, patientKey });
-        commit('addSeries', { seriesKey, series, studyKey });
+            const studyKey = info.StudyInstanceUID;
+            const study = pick(info, [
+              'StudyID',
+              'StudyInstanceUID',
+              'StudyDate',
+              'StudyTime',
+              'AccessionNumber',
+              'StudyDescription',
+            ]);
 
-        // invalidate existing volume
-        if (seriesKey in state.volumeCache) {
-          commit('deleteSeriesVolume', seriesKey);
-        }
-      }
+            seriesKey = info.SeriesInstanceUID;
+            const series = pick(info, [
+              'Modality',
+              'SeriesInstanceUID',
+              'SeriesNumber',
+              'SeriesDescription',
+              // not dicom tags
+              'NumberOfSlices',
+              'ITKGDCMSeriesUID',
+            ]);
+
+            updatedSeriesKeys.push({
+              patientKey,
+              studyKey,
+              seriesKey,
+            });
+
+            commit('addPatient', { patientKey, patient });
+            commit('addStudy', { studyKey, study, patientKey });
+            commit('addSeries', { seriesKey, series, studyKey });
+          }
+
+          // invalidate existing volume
+          if (seriesKey in state.volumeCache) {
+            commit('deleteSeriesVolume', seriesKey);
+          }
+        })
+      );
       return updatedSeriesKeys;
     },
 
