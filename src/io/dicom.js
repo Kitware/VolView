@@ -2,20 +2,24 @@ import runPipelineBrowser from 'itk/runPipelineBrowser';
 import { readFileAsArrayBuffer } from '@/src/io/io';
 import IOTypes from 'itk/IOTypes';
 import { defer } from '../utils/common';
+import PriorityQueue from '../utils/priorityqueue';
 
 export default class DicomIO {
   constructor() {
     this.webWorker = null;
-    this.queue = [];
+    this.queue = new PriorityQueue();
     this.initializeCheck = null;
   }
 
-  async addTask(...runArgs) {
+  async addTask(module, args, inputs, outputs, priority = 0) {
     const deferred = defer();
-    this.queue.push({
-      deferred,
-      runArgs,
-    });
+    this.queue.push(
+      {
+        deferred,
+        runArgs: [module, args, inputs, outputs],
+      },
+      priority
+    );
     this.runTasks();
     return deferred.promise;
   }
@@ -26,8 +30,8 @@ export default class DicomIO {
     }
     this.tasksRunning = true;
 
-    while (this.queue.length) {
-      const { deferred, runArgs } = this.queue.shift();
+    while (this.queue.size()) {
+      const { deferred, runArgs } = this.queue.pop();
       // we don't want parallelization. This is to work around
       // an issue in itk.js.
       // eslint-disable-next-line no-await-in-loop
@@ -66,7 +70,7 @@ export default class DicomIO {
    * Imports files
    * @async
    * @param {File[]} files
-   * @returns SeriesUIDs and series information
+   * @returns SeriesUIDs
    */
   async importFiles(files) {
     await this.initialize();
@@ -120,7 +124,8 @@ export default class DicomIO {
         asThumbnail ? '1' : '0',
       ],
       [{ path: 'output.json', type: IOTypes.Image }],
-      []
+      [],
+      -10 // computing thumbnails is a low priority task
     );
 
     return result.outputs[0].data;
@@ -139,7 +144,8 @@ export default class DicomIO {
       'dicom',
       ['buildSeriesVolume', 'output.json', seriesUID],
       [{ path: 'output.json', type: IOTypes.Image }],
-      []
+      [],
+      10 // building volumes is high priority
     );
 
     return result.outputs[0].data;
