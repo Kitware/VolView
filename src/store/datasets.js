@@ -278,14 +278,14 @@ export const makeActions = (dependencies) => ({
       }
     }
 
-    await dispatch('deactivateActiveWidget');
+    await dispatch('widgets/deactivateActiveWidget');
 
     commit('setBaseImage', baseImageId);
   },
 
   async removeData({ commit, dispatch, state }, dataID) {
     if (dataID === state.selectedBaseImage) {
-      await dispatch('deactivateActiveWidget');
+      await dispatch('widgets/deactivateActiveWidget');
       commit('setBaseImage', NO_SELECTION);
     }
 

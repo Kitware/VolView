@@ -66,7 +66,7 @@ export default class Widget {
 
   set removeOnDeactivate(yn) {
     this.$removeOnDeactivate = yn;
-    this.store.dispatch('setRemoveWidgetOnDeactivate', {
+    this.store.dispatch('widgets/setRemoveWidgetOnDeactivate', {
       widgetID: this.id,
       remove: yn,
     });
@@ -103,11 +103,11 @@ export default class Widget {
   }
 
   deactivateSelf() {
-    this.store.dispatch('deactivateWidget', this.id);
+    this.store.dispatch('widgets/deactivateWidget', this.id);
   }
 
   removeSelf() {
-    this.store.dispatch('removeWidget', this.id);
+    this.store.dispatch('widgets/removeWidget', this.id);
   }
 
   delete() {
