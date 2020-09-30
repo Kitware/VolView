@@ -406,6 +406,8 @@ int main(int argc, char *argv[]) {
 
     try {
       buildSeriesVolume(seriesUID, outFileName);
+    } catch (const itk::ExceptionObject &e) {
+      std::cerr << "ITK error: " << e.what() << '\n';
     } catch (const std::runtime_error &e) {
       std::cerr << e.what() << std::endl;
     }
