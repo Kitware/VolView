@@ -1,6 +1,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <dirent.h>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -316,6 +317,10 @@ void buildSeriesVolume(const std::string &seriesUID,
   }
 }
 
+void deleteSeries(const std::string &seriesUID) {
+  std::filesystem::remove_all(seriesUID);
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     std::cerr << "Usage: " << argv[0] << " [import|clear|remove]" << std::endl;
@@ -408,6 +413,15 @@ int main(int argc, char *argv[]) {
       buildSeriesVolume(seriesUID, outFileName);
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << '\n';
+    } catch (const std::runtime_error &e) {
+      std::cerr << e.what() << std::endl;
+    }
+  } else if (action == "deleteSeries" && argc == 3) {
+    // dicom deleteSeries SERIES_UID
+    std::string seriesUID(argv[3]);
+
+    try {
+      deleteSeries(seriesUID);
     } catch (const std::runtime_error &e) {
       std::cerr << e.what() << std::endl;
     }
