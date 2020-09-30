@@ -391,8 +391,8 @@ export default {
       selectedBaseImage: 'selectedBaseImage',
       baseImages: ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
       annotationDatasets: ({ data: d }) => [].concat(d.labelmapIDs, d.modelIDs),
-      activeWidgetID: (state) => state.widgets.activeWidgetID,
     }),
+    ...mapState('widgets', ['activeWidgetID']),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
     },
@@ -549,10 +549,8 @@ export default {
       this.layout = Layouts.QuadView;
     },
 
-    ...mapActions([
-      'loadFiles',
-      'selectBaseImage',
-      'updateScene',
+    ...mapActions(['loadFiles', 'selectBaseImage', 'updateScene']),
+    ...mapActions('widgets', [
       'activateWidget',
       'deactivateActiveWidget',
       'removeWidget',

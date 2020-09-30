@@ -74,10 +74,9 @@ export default {
       windowing: (state) => state.visualization.windowing,
       resizeToFit: (state) => state.visualization.resizeToFit,
       slices: (state) => state.visualization.slices,
-      activeWidgetID: (state) => state.widgets.activeWidgetID,
-      widgetList: (state) => state.widgets.widgetList,
       dataIndex: (state) => state.data.index,
     }),
+    ...mapState('widgets', ['activeWidgetID', 'widgetList']),
     ...mapState('dicom', ['patientIndex', 'studyIndex', 'seriesIndex']),
     ...mapGetters(['boundsWithSpacing']),
 

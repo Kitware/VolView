@@ -4,6 +4,8 @@ import { asMutation } from '@/src/utils/common';
 import { NO_WIDGET } from '@/src/constants';
 
 export default () => ({
+  namespaced: true,
+
   state: {
     activeWidgetID: NO_WIDGET,
     widgetList: [],
