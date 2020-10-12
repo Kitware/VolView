@@ -198,6 +198,16 @@ export default class DicomIO {
   }
 
   /**
+   * Deletes all files associated with a series.
+   * @async
+   * @param {String} seriesUID the series UID
+   */
+  async deleteSeries(seriesUID) {
+    await this.initialize();
+    await this.addTask('dicom', ['deleteSeries', seriesUID], [], []);
+  }
+
+  /**
    * Reads a TRE file.
    * @returns JSON
    */

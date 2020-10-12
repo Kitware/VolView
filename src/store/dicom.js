@@ -305,6 +305,8 @@ export default (dependencies) => ({
     },
 
     async removeData({ commit }, seriesKey) {
+      const { dicomIO } = dependencies;
+      await dicomIO.deleteSeries(seriesKey);
       commit('deleteSeriesVolume', seriesKey);
       commit('removeSeries', seriesKey);
     },
