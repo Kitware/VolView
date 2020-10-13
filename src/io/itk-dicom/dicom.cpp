@@ -1,6 +1,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <dirent.h>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -47,13 +48,15 @@ using DicomIO = itk::GDCMImageIO;
 using MetaDataStringType = itk::MetaDataObject<std::string>;
 // can only index on SOPInstanceUID, since filename isn't full path
 using ImageIndex = std::unordered_set<SOPInstanceUID>;
-using SeriesIndex =
+using SeriesIndexType =
     std::unordered_map<std::string,
                        std::vector<std::string>>; // seriesUID -> []filenames
+using TagList = std::vector<std::string>;
 
 static int rc = 0;
 static ImageIndex imageIndex;
-static SeriesIndex seriesIndex;
+static std::unordered_set<SOPInstanceUID> SOPUIDIndex;
+static SeriesIndexType SeriesIndex;
 
 #ifdef WEB_BUILD
 extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
@@ -73,6 +76,11 @@ void list_dir(const char *path) {
     std::cerr << entry->d_name << std::endl;
   }
   closedir(dir);
+}
+
+bool dirExists(std::string path) {
+  struct stat buf;
+  return 0 == stat(path.c_str(), &buf);
 }
 
 std::string
@@ -104,17 +112,18 @@ void movefile(const std::string &src, const std::string &dst) {
   }
 }
 
-const json import(const FileNamesContainer &files) {
+const json import(FileNamesContainer &files) {
   // make tmp dir
   std::string tmpdir("tmp");
   makedir(tmpdir);
 
-  // move file to tmp dir
-  for (const auto file : files) {
+  // move all files to tmp
+  for (auto file : files) {
     auto dst = tmpdir + "/" + file;
     movefile(file, dst);
   }
 
+  // parse out series
   typedef itk::GDCMSeriesFileNames SeriesFileNames;
   SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
   // files are all default dumped to cwd
@@ -127,94 +136,112 @@ const json import(const FileNamesContainer &files) {
   seriesFileNames->SetLoadPrivateTags(false);
 
   using SeriesIdContainer = std::vector<std::string>;
-  const SeriesIdContainer &seriesUIDs = seriesFileNames->GetSeriesUIDs();
+  const SeriesIdContainer &gdcmSeriesUIDs = seriesFileNames->GetSeriesUIDs();
 
-  json output;
-
-  for (auto seriesUID : seriesUIDs) {
+  for (auto gdcmSeriesUID : gdcmSeriesUIDs) {
     FileNamesContainer fileNames =
-        seriesFileNames->GetFileNames(seriesUID.c_str());
+        seriesFileNames->GetFileNames(gdcmSeriesUID.c_str());
 
-    json seriesInfo;
-
-    makedir(seriesUID);
-
-    std::vector<std::string> &seriesFileList = seriesIndex[seriesUID];
-
-    bool first = true;
+    // move files to series dir
+    // assume there will be no filename conflicts within a series
+    makedir(gdcmSeriesUID);
     for (auto filename : fileNames) {
+      auto dst = gdcmSeriesUID + "/" + filename.substr(tmpdir.size() + 1);
+      movefile(filename, dst);
+    }
+  }
+  return json(gdcmSeriesUIDs);
+}
+
+int buildSeries(const std::string &gdcmSeriesUID) {
+  if (dirExists(gdcmSeriesUID)) {
+    typedef itk::GDCMSeriesFileNames SeriesFileNames;
+    SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
+    seriesFileNames->SetDirectory(gdcmSeriesUID);
+    seriesFileNames->SetUseSeriesDetails(true);
+    seriesFileNames->SetGlobalWarningDisplay(false);
+    seriesFileNames->AddSeriesRestriction("0008|0021");
+    seriesFileNames->SetRecursive(false);
+    seriesFileNames->SetLoadPrivateTags(false);
+
+    using SeriesIdContainer = std::vector<std::string>;
+    SeriesIdContainer uids = seriesFileNames->GetSeriesUIDs();
+
+    if (uids.size() != 1) {
+      throw std::runtime_error("why are there more than 1 series in this dir");
+    }
+    // TODO need to figure out why uids[0] sometimes is not equal to
+    // gdcmSeriesUID.
+    if (uids[0] != gdcmSeriesUID) {
+      std::cerr << "Found UID " << uids[0] << " instead of " << gdcmSeriesUID
+                << std::endl;
+    }
+
+    SeriesIndex[gdcmSeriesUID] = seriesFileNames->GetFileNames(uids[0].c_str());
+    auto &index = SeriesIndex[gdcmSeriesUID];
+    for (auto &filename : index) {
+      // trim off dir + "/"
+      filename = filename.substr(gdcmSeriesUID.size() + 1);
+    }
+    return index.size();
+  }
+  std::cerr << "Could not build series " << gdcmSeriesUID << std::endl;
+  return 0;
+}
+
+const json readTags(const std::string &gdcmSeriesUID, unsigned long slice,
+                    const TagList &tags) {
+  json tagJson;
+
+  if (SeriesIndex.find(gdcmSeriesUID) != SeriesIndex.end()) {
+    FileNamesContainer seriesFileList = SeriesIndex.at(gdcmSeriesUID);
+
+    if (slice >= 0 && slice < seriesFileList.size()) {
+      auto filename = seriesFileList.at(slice);
+
       typename DicomIO::Pointer dicomIO = DicomIO::New();
       dicomIO->LoadPrivateTagsOff();
       typename ReaderType::Pointer reader = ReaderType::New();
       reader->UseStreamingOn();
       reader->SetImageIO(dicomIO);
 
-      // get SOPInstanceUID of dicom object in filename
-      // http://qtdcm.gforge.inria.fr/html/QtDcmConvert_8cpp_source.html
-      dicomIO->SetFileName(filename);
-      // dicomIO->ReadImageInformation();
-      reader->SetFileName(filename);
+      auto fullFilename = gdcmSeriesUID + "/" + filename;
+      dicomIO->SetFileName(fullFilename);
+      reader->SetFileName(fullFilename);
       reader->UpdateOutputInformation();
 
-      DictionaryType tags = reader->GetMetaDataDictionary();
+      DictionaryType tagsDict = reader->GetMetaDataDictionary();
 
-      std::string sopInstanceUID = unpackMetaAsString(tags["0008|0018"]);
-      ImageIndex::const_iterator found = imageIndex.find(sopInstanceUID);
-      if (found == imageIndex.end()) {
-        imageIndex.insert(sopInstanceUID);
-        std::string newName = std::to_string(seriesFileList.size());
-        std::string fullNewName = seriesUID + "/" + newName;
-        seriesFileList.push_back(newName);
-        movefile(filename, fullNewName);
-      }
+      std::string specificCharacterSet =
+          unpackMetaAsString(tagsDict["0008|0005"]);
+      CharStringToUTF8Converter conv(specificCharacterSet);
 
-      // construct series info
-      if (first) {
-        first = false;
+      for (auto it = tags.begin(); it != tags.end(); ++it) {
+        auto tag = *it;
+        bool doConvert = false;
+        if (tag[0] == '@') {
+          doConvert = true;
+          tag = tag.substr(1);
+        }
 
-        std::string specificCharacterSet =
-            unpackMetaAsString(tags["0008|0005"]);
-        CharStringToUTF8Converter conv(specificCharacterSet);
+        auto value = unpackMetaAsString(tagsDict[tag]);
+        if (doConvert) {
+          value = conv.convertCharStringToUTF8(value);
+        }
 
-        // TODO PatientName can be split into components
-        seriesInfo["PatientName"] =
-            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0010|0010"]));
-        seriesInfo["PatientID"] =
-            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0010|0020"]));
-        seriesInfo["PatientBirthDate"] = unpackMetaAsString(tags["0010|0030"]);
-        seriesInfo["PatientSex"] = unpackMetaAsString(tags["0010|0040"]);
-        seriesInfo["StudyInstanceUID"] = unpackMetaAsString(tags["0020|000d"]);
-        seriesInfo["StudyDate"] = unpackMetaAsString(tags["0008|0020"]);
-        seriesInfo["StudyTime"] = unpackMetaAsString(tags["0008|0030"]);
-        seriesInfo["StudyID"] =
-            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0020|0010"]));
-        seriesInfo["AccessionNumber"] = unpackMetaAsString(tags["0008|0050"]);
-        seriesInfo["StudyDescription"] =
-            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0008|1030"]));
-        seriesInfo["Modality"] = unpackMetaAsString(tags["0008|0060"]);
-        seriesInfo["SeriesInstanceUID"] = unpackMetaAsString(tags["0020|000e"]);
-        seriesInfo["SeriesNumber"] = unpackMetaAsString(tags["0020|0011"]);
-        seriesInfo["SeriesDescription"] =
-            conv.convertCharStringToUTF8(unpackMetaAsString(tags["0008|103e"]));
-        // Custom keys
-        seriesInfo["ITKGDCMSeriesUID"] = seriesUID;
+        tagJson[tag] = value;
       }
     }
-
-    // Custom keys
-    seriesInfo["NumberOfSlices"] = std::to_string(seriesFileList.size());
-
-    output[seriesUID] = seriesInfo;
   }
 
-  return output;
+  return tagJson;
 }
 
 void getSliceImage(const std::string &seriesUID, unsigned long slice,
                    const std::string &outFileName, bool asThumbnail) {
-  SeriesIndex::const_iterator found = seriesIndex.find(seriesUID);
-  if (found != seriesIndex.end()) {
-    FileNamesContainer seriesFileList = seriesIndex.at(seriesUID);
+  SeriesIndexType::const_iterator found = SeriesIndex.find(seriesUID);
+  if (found != SeriesIndex.end()) {
+    FileNamesContainer seriesFileList = SeriesIndex.at(seriesUID);
     std::string filename = seriesUID + "/" + seriesFileList.at(slice - 1);
 
     typename DicomIO::Pointer dicomIO = DicomIO::New();
@@ -262,9 +289,9 @@ void getSliceImage(const std::string &seriesUID, unsigned long slice,
 
 void buildSeriesVolume(const std::string &seriesUID,
                        const std::string &outFileName) {
-  SeriesIndex::const_iterator found = seriesIndex.find(seriesUID);
-  if (found != seriesIndex.end()) {
-    FileNamesContainer seriesFileList = seriesIndex.at(seriesUID);
+  SeriesIndexType::const_iterator found = SeriesIndex.find(seriesUID);
+  if (found != SeriesIndex.end()) {
+    FileNamesContainer seriesFileList = SeriesIndex.at(seriesUID);
     FileNamesContainer fileNames(seriesFileList);
 
     for (FileNamesContainer::iterator it = fileNames.begin();
@@ -288,6 +315,10 @@ void buildSeriesVolume(const std::string &seriesUID,
     writer->SetFileName(outFileName);
     writer->Update();
   }
+}
+
+void deleteSeries(const std::string &seriesUID) {
+  std::filesystem::remove_all(seriesUID);
 }
 
 int main(int argc, char *argv[]) {
@@ -322,6 +353,43 @@ int main(int argc, char *argv[]) {
     outfile.open(outFileName);
     outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
+  } else if (action == "buildSeries") {
+    // dicom buildSeries output.json gdcmSeriesUID
+    std::string outFileName(argv[2]);
+    std::string gdcmSeriesUID(argv[3]);
+    json numSlices;
+    try {
+      numSlices = buildSeries(gdcmSeriesUID);
+    } catch (const itk::ExceptionObject &e) {
+      std::cerr << "ITK error: " << e.what() << std::endl;
+    } catch (const std::runtime_error &e) {
+      std::cerr << "Runtime error: " << e.what() << std::endl;
+    }
+
+    std::ofstream outfile;
+    outfile.open(outFileName);
+    outfile << numSlices.dump(-1, true, ' ', json::error_handler_t::ignore);
+    outfile.close();
+  } else if (action == "readTags" && argc > 4) {
+    // dicom readTags output.json seriesUID, slicenum [...tags]
+    std::string outputFilename(argv[2]);
+    std::string seriesUID(argv[3]);
+    unsigned long sliceNum = std::stoul(argv[4]);
+    std::vector<std::string> rest(argv + 5, argv + argc);
+
+    json tags;
+    try {
+      tags = readTags(seriesUID, sliceNum, rest);
+    } catch (const itk::ExceptionObject &e) {
+      std::cerr << "ITK error: " << e.what() << std::endl;
+    } catch (const std::runtime_error &e) {
+      std::cerr << "Runtime error: " << e.what() << std::endl;
+    }
+
+    std::ofstream outfile;
+    outfile.open(outputFilename);
+    outfile << tags.dump(-1, true, ' ', json::error_handler_t::ignore);
+    outfile.close();
   } else if (action == "getSliceImage" && argc == 6) {
     // dicom getSliceImage outputImage.json SERIES_UID SLICENUM
     std::string outFileName = argv[2];
@@ -343,6 +411,17 @@ int main(int argc, char *argv[]) {
 
     try {
       buildSeriesVolume(seriesUID, outFileName);
+    } catch (const itk::ExceptionObject &e) {
+      std::cerr << "ITK error: " << e.what() << '\n';
+    } catch (const std::runtime_error &e) {
+      std::cerr << e.what() << std::endl;
+    }
+  } else if (action == "deleteSeries" && argc == 3) {
+    // dicom deleteSeries SERIES_UID
+    std::string seriesUID(argv[3]);
+
+    try {
+      deleteSeries(seriesUID);
     } catch (const std::runtime_error &e) {
       std::cerr << e.what() << std::endl;
     }

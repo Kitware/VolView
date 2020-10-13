@@ -5,7 +5,7 @@ project(dicom)
 include(ExternalProject)
 include(FetchContent)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(dicom_SRCS dicom.cpp charset.cpp readTRE.cpp)
