@@ -70,13 +70,14 @@ export default {
     ...mapState({
       baseImage: 'selectedBaseImage',
       baseImageExists: (state) => state.selectedBaseImage !== NO_SELECTION,
-      worldOrientation: (state) => state.visualization.worldOrientation,
-      windowing: (state) => state.visualization.windowing,
-      resizeToFit: (state) => state.visualization.resizeToFit,
-      slices: (state) => state.visualization.slices,
-      dataIndex: (state) => state.data.index,
     }),
     ...mapState('widgets', ['activeWidgetID', 'widgetList']),
+    ...mapState('visualization', [
+      'resizeToFit',
+      'slices',
+      'worldOrientation',
+      'windowing'
+    ]),
     ...mapState('dicom', ['patientIndex', 'studyIndex', 'seriesIndex']),
     ...mapGetters(['boundsWithSpacing']),
 
@@ -476,7 +477,7 @@ export default {
       this.pixel = [];
     },
 
-    ...mapActions(['setWindowing', 'setSlices']),
+    ...mapActions('visualization', ['setWindowing', 'setSlices']),
   },
 };
 </script>

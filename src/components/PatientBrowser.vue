@@ -371,7 +371,7 @@ export default {
       return '';
     },
 
-    ...mapActions(['selectBaseImage', 'updateScene', 'removeData']),
+    ...mapActions('visualization', ['selectBaseImage', 'updateScene', 'removeData']),
     ...mapActions('dicom', ['getSeriesImage']),
   },
 };

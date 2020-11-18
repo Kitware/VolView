@@ -150,7 +150,7 @@ export default class PaintWidget extends Widget {
         this.filter.endStroke();
 
         const { selectedLabelmap } = this.store.state.annotations;
-        this.store.dispatch('redrawPipeline', selectedLabelmap);
+        this.store.dispatch('visualization/redrawPipeline', selectedLabelmap);
       }),
     ];
     this.viewWidgetListeners.set(view, subs);

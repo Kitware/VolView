@@ -38,8 +38,8 @@ export default {
       vtkCache: (state) => state.data.vtkCache,
       dataIndex: (state) => state.data.index,
       modelIDs: (state) => state.data.modelIDs,
-      colorBy: (state) => state.visualization.colorBy,
     }),
+    ...mapState('visualization', ['colorBy']),
 
     models() {
       return this.modelIDs.map((id) => ({
@@ -77,7 +77,7 @@ export default {
         colorBy: { array, location },
       });
     },
-    ...mapActions(['removeData', 'setModelColorBy']),
+    ...mapActions('visualization', ['removeData', 'setModelColorBy']),
   },
 };
 </script>
