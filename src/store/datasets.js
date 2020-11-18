@@ -295,6 +295,7 @@ export const makeActions = (dependencies) => ({
       await dispatch('dicom/removeData', seriesKey);
     }
 
+    await dispatch('visualization/removeData', dataID);
     await dispatch('annotations/removeData', dataID);
 
     // parent association condition
