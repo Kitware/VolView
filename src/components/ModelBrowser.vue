@@ -77,7 +77,7 @@ export default {
         colorBy: { array, location },
       });
     },
-    ...mapActions('visualization', ['removeData', 'setModelColorBy']),
+    ...mapActions('visualization', ['setModelColorBy']),
   },
 };
 </script>
