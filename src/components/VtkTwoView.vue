@@ -70,6 +70,7 @@ export default {
     ...mapState({
       baseImage: 'selectedBaseImage',
       baseImageExists: (state) => state.selectedBaseImage !== NO_SELECTION,
+      dataIndex: (state) => state.data.index,
     }),
     ...mapState('widgets', ['activeWidgetID', 'widgetList']),
     ...mapState('visualization', [
