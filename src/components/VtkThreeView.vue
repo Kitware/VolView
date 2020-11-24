@@ -18,7 +18,7 @@ export default {
   mixins: [VtkViewMixin],
 
   computed: {
-    ...mapGetters(['boundsWithSpacing', 'baseImageColorPreset']),
+    ...mapGetters('visualization', ['boundsWithSpacing', 'baseImageColorPreset']),
   },
 
   watch: {

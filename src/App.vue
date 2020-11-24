@@ -549,12 +549,13 @@ export default {
       this.layout = Layouts.QuadView;
     },
 
-    ...mapActions(['loadFiles', 'selectBaseImage', 'updateScene']),
+    ...mapActions(['loadFiles', 'selectBaseImage']),
     ...mapActions('widgets', [
       'activateWidget',
       'deactivateActiveWidget',
       'removeWidget',
     ]),
+    ...mapActions('visualization', ['updateScene']),
   },
 };
 </script>

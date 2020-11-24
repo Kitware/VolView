@@ -80,7 +80,7 @@ export default {
       'windowing'
     ]),
     ...mapState('dicom', ['patientIndex', 'studyIndex', 'seriesIndex']),
-    ...mapGetters(['boundsWithSpacing']),
+    ...mapGetters('visualization', ['boundsWithSpacing']),
 
     slice() {
       return this.slices['xyz'[this.axis]];
