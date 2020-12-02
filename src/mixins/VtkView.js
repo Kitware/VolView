@@ -50,15 +50,11 @@ export default {
 
   computed: {
     ...mapGetters(['sceneObjectIDs']),
-    ...mapState({
-      vizPipelines: (state) => state.visualization.pipelines,
-      worldOrientation: (state) => state.visualization.worldOrientation,
-      colorBy: (state) => state.visualization.colorBy,
-    }),
+    ...mapState('visualization', ['pipelines', 'worldOrientation', 'colorBy']),
     sceneSources() {
       return this.sceneObjectIDs
-        .filter((id) => id in this.vizPipelines)
-        .map((id) => this.vizPipelines[id].last);
+        .filter((id) => id in this.pipelines)
+        .map((id) => this.pipelines[id].last);
     },
   },
 

@@ -32,7 +32,7 @@ export default class RulerWidget extends Widget {
 
     const origin = this.state.getHandle().getOrigin();
     const { spacing } = this.store.state.visualization.worldOrientation;
-    this.store.dispatch('setSlices', {
+    this.store.dispatch('visualization/setSlices', {
       x: origin[0] / spacing[0],
       y: origin[1] / spacing[1],
       z: origin[2] / spacing[2],

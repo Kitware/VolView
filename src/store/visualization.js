@@ -72,7 +72,7 @@ export function createVizPipeline(steps, proxyManager) {
 }
 
 export default (dependencies) => ({
-  namespaced: false,
+  namespaced: true,
 
   state: {
     // data ID -> pipeline

@@ -380,7 +380,7 @@ export default {
       fileLoading: [],
       actionErrors: [],
     },
-    layoutName: 'AxialPrimary',
+    layoutName: 'QuadView',
     Tools,
     Modules,
   }),
@@ -549,12 +549,13 @@ export default {
       this.layout = Layouts.QuadView;
     },
 
-    ...mapActions(['loadFiles', 'selectBaseImage', 'updateScene']),
+    ...mapActions(['loadFiles', 'selectBaseImage']),
     ...mapActions('widgets', [
       'activateWidget',
       'deactivateActiveWidget',
       'removeWidget',
     ]),
+    ...mapActions('visualization', ['updateScene']),
   },
 };
 </script>
