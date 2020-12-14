@@ -46,7 +46,7 @@ export default {
   },
 
   methods: {
-    ...mapActions({
+    ...mapActions('widgets', {
       // measurement IDs and widgetIDs coincide
       removeMeasurement: 'removeWidget',
     }),

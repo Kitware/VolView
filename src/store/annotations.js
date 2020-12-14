@@ -119,7 +119,10 @@ export default () => ({
         });
 
         await dispatch('selectLabelmap', id);
-        await dispatch({ type: 'updateScene', reset: false }, { root: true });
+        await dispatch(
+          { type: 'visualization/updateScene', reset: false },
+          { root: true }
+        );
       }
     },
 

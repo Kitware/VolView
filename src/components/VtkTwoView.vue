@@ -77,7 +77,7 @@ export default {
       'resizeToFit',
       'slices',
       'worldOrientation',
-      'windowing'
+      'windowing',
     ]),
     ...mapState('dicom', ['patientIndex', 'studyIndex', 'seriesIndex']),
     ...mapGetters('visualization', ['boundsWithSpacing']),

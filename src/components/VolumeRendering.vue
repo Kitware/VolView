@@ -120,7 +120,10 @@ export default {
   computed: {
     ...mapState({ baseImage: 'selectedBaseImage' }),
     ...mapState('visualization', ['colorBy']),
-    ...mapGetters('visualization', ['baseImagePipeline', 'baseImageColorPreset']),
+    ...mapGetters('visualization', [
+      'baseImagePipeline',
+      'baseImageColorPreset',
+    ]),
     baseColorBy() {
       return this.colorBy[this.baseImage] || {};
     },
