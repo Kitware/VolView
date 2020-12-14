@@ -1,8 +1,27 @@
 # paraview-medical
 
-Demo: https://paraview-medical.netlify.app/
+![A screenshot of a sample ParaView Medical session](./public/pvm-sample.png)
 
-## Project setup
+ParaView Medical is a medical image viewer for the web!
+Built on [vtk.js](https://github.com/Kitware/vtk-js) and [itk.js](https://github.com/InsightSoftwareConsortium/itk-js/), it is a self-contained single-page web application with the following features:
+
+- DICOM loading: load your studies and series directly into the app! No PACS needed
+- DICOM browsing: browse your DICOM data in a a quick patient-study-series view
+- Annotations (WIP): support for 2D paint and measurements
+- Volume rendering: Support for changing of colormaps and opacities
+- Models: Load in geometry and view them in 2D or 3D
+- ...and more to come!
+
+This project is still a work in progress, so suggestions and contributions are welcome in the issue tracker!
+
+You can also play with the online demo: https://paraview-medical.netlify.app/
+
+## Development
+
+Below lists a few commands for building and running a local copy of paraview-medical.
+
+To prepare your environment after cloning the repo, run:
+
 ```
 npm install
 ```
@@ -26,6 +45,3 @@ npm run lint
 ```
 npm run test:unit
 ```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
