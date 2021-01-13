@@ -60,6 +60,21 @@
                 name="Open files"
                 @click="userPromptFiles"
               />
+
+              <tool-button
+                size="40"
+                icon="mdi-arrow-up"
+                name="Upload files"
+                @click="uploadFiles"
+              />
+
+              <tool-button
+                size="40"
+                icon="mdi-nuke"
+                name="Process"
+                @click="process"
+              />
+
               <v-menu offset-x>
                 <template v-slot:activator="{ on, attrs }">
                   <!-- hack to get menu to show up -->
@@ -258,6 +273,8 @@ import MeasurementsModule from './components/MeasurementsModule.vue';
 import ModelBrowser from './components/ModelBrowser.vue';
 import DragAndDrop from './components/DragAndDrop.vue';
 
+import GirderClient from './store/GirderClient.vue';
+
 export const Modules = [
   {
     name: 'Patients & Images',
@@ -451,6 +468,14 @@ export default {
     fileEl.addEventListener('change', this.onFileSelect);
     this.fileEl = fileEl;
 
+    const config = {
+      ip: 'localhost',
+      port: 8080,
+      timeout: 300000,
+      version: 'v1',
+    };
+    this.girder = new GirderClient(config);
+
     createFourUpViews(this.$proxyManager);
   },
 
@@ -501,6 +526,7 @@ export default {
             data: { actions },
           });
         } else {
+          this.files = files;
           this.$notify({ type: 'success', text: 'Files loaded' });
         }
       } catch (error) {
@@ -533,6 +559,17 @@ export default {
         const reset = !beforeState.hasBaseImages && !beforeState.hasAnnotations;
         await this.updateScene({ reset });
       }
+    },
+
+    async uploadFiles() {
+      // TODO: figure out which of these async/awaits are actually necessary
+      await this.girder.login('admin', 'admin1');
+      await this.girder.createCase();
+      await this.girder.upload(Array.from(this.files));
+    },
+
+    process() {
+      this.girder.process();
     },
 
     clearAndCloseErrors() {
