@@ -1,5 +1,4 @@
 import vtk2DView from 'vtk.js/Sources/Proxy/Core/View2DProxy';
-import vtk3DView from 'vtk.js/Sources/Proxy/Core/ViewProxy';
 
 import vtkLookupTableProxy from 'vtk.js/Sources/Proxy/Core/LookupTableProxy';
 import vtkPiecewiseFunctionProxy from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy';
@@ -9,6 +8,7 @@ import vtkSourceProxy from 'vtk.js/Sources/Proxy/Core/SourceProxy';
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
+import vtk3DView from '@/src/vtk/View3DProxy';
 import vtkTransformedSliceRepresentationProxy from '@/src/vtk/TransformedSliceRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';

@@ -249,7 +249,7 @@ import ToolButton from './components/ToolButton.vue';
 import ItemGroup from './components/ItemGroup.vue';
 import GroupableItem from './components/GroupableItem.vue';
 import VtkTwoView from './components/VtkTwoView.vue';
-import VtkThreeView from './components/VtkThreeView.vue';
+import VtkThreeView from './components/v3/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
 import Annotations from './components/Annotations.vue';
