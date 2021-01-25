@@ -12,6 +12,7 @@
     "build:all": "npm run build:dicom && npm run build"
   },
   "dependencies": {
+    "@vue/composition-api": "^1.0.0-rc.1",
     "core-js": "^3.6.5",
     "daikon": "^1.2.42",
     "gl-matrix": "^3.3.0",
