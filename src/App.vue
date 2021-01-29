@@ -130,15 +130,11 @@
                         <div>
                           <v-icon size="64">mdi-folder-open</v-icon>
                         </div>
-                        <div>
-                          Click anywhere here to open files
-                        </div>
+                        <div>Click anywhere here to open files</div>
                         <div class="mt-8">
                           <v-icon size="64">mdi-arrow-down-bold</v-icon>
                         </div>
-                        <div>
-                          Drop your files anywhere here to open
-                        </div>
+                        <div>Drop your files anywhere here to open</div>
                       </v-card>
                     </v-row>
                   </v-col>
@@ -248,7 +244,7 @@ import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import ItemGroup from './components/ItemGroup.vue';
 import GroupableItem from './components/GroupableItem.vue';
-import VtkTwoView from './components/VtkTwoView.vue';
+import VtkTwoView from './components/v3/VtkTwoView.vue';
 import VtkThreeView from './components/v3/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';

@@ -1,12 +1,15 @@
 import {
   computed,
   onBeforeUnmount,
+  ref,
   unref,
+  watch,
   watchEffect,
 } from '@vue/composition-api';
 
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import { useProxyManager } from '@/src/composables/proxyManager';
+import { useSubscription } from '@/src/composables/vtk';
 
 function setupView(view) {
   // setup view
@@ -143,4 +146,31 @@ export function giveViewAnnotations(viewRef, labels, defaults = {}) {
       });
     }
   });
+}
+
+/**
+ * Extracts the view container.
+ *
+ * Useful when you don't have reactive access to the container element.
+ *
+ * @param {Ref<vtkViewProxy>} viewRef
+ */
+export function useViewContainer(viewRef) {
+  const container = ref(null);
+
+  useSubscription(viewRef, (view) =>
+    view.onModified(() => {
+      container.value = view.getContainer();
+    })
+  );
+
+  watch(
+    viewRef,
+    (view) => {
+      container.value = view?.getContainer?.() ?? null;
+    },
+    { immediate: true }
+  );
+
+  return { container };
 }

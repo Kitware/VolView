@@ -1,5 +1,3 @@
-import vtk2DView from 'vtk.js/Sources/Proxy/Core/View2DProxy';
-
 import vtkLookupTableProxy from 'vtk.js/Sources/Proxy/Core/LookupTableProxy';
 import vtkPiecewiseFunctionProxy from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy';
 
@@ -9,6 +7,7 @@ import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/V
 import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
 import vtk3DView from '@/src/vtk/View3DProxy';
+import vtk2DView from '@/src/vtk/View2DProxy';
 import vtkTransformedSliceRepresentationProxy from '@/src/vtk/TransformedSliceRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
@@ -36,7 +35,7 @@ function createSyncedSliceRepDefinition(proxyClass, axis, ui = [], links = []) {
     {
       link: `Slice${axis}`,
       property: 'slice',
-      updateOnBind: true,
+      updateOnBind: false,
       type: 'application',
     },
     ...links,
