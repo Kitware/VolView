@@ -244,7 +244,7 @@ import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
 import ItemGroup from './components/ItemGroup.vue';
 import GroupableItem from './components/GroupableItem.vue';
-import VtkTwoView from './components/v3/VtkTwoView.vue';
+import VtkTwoView from './components/VtkTwoView.vue';
 import VtkThreeView from './components/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
 import PatientBrowser from './components/PatientBrowser.vue';
