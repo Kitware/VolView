@@ -56,32 +56,7 @@ export default {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
     },
     Representations: {
-      Volume: createProxyDefinition(
-        vtkVolumeRepresentationProxy,
-        [],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-          {
-            link: 'SliceX',
-            property: 'xSlice',
-            updateOnBind: true,
-            type: 'application',
-          },
-          {
-            link: 'SliceY',
-            property: 'ySlice',
-            updateOnBind: true,
-            type: 'application',
-          },
-          {
-            link: 'SliceZ',
-            property: 'zSlice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ]
-      ),
+      Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
       SliceX: createSyncedSliceRepDefinition(
         vtkTransformedSliceRepresentationProxy,
         'X',
