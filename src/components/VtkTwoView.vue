@@ -25,7 +25,6 @@ import {
   toRefs,
   watch,
   unref,
-  nextTick,
   computed,
   reactive,
   watchEffect,
@@ -154,7 +153,7 @@ export default {
     useResizeObserver(vtkContainer, () => {
       const view = unref(viewRef);
       if (view) {
-        nextTick(() => view.resize());
+        view.resize();
       }
     });
 
