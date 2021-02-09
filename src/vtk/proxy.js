@@ -1,6 +1,3 @@
-import vtk2DView from 'vtk.js/Sources/Proxy/Core/View2DProxy';
-import vtk3DView from 'vtk.js/Sources/Proxy/Core/ViewProxy';
-
 import vtkLookupTableProxy from 'vtk.js/Sources/Proxy/Core/LookupTableProxy';
 import vtkPiecewiseFunctionProxy from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy';
 
@@ -9,6 +6,8 @@ import vtkSourceProxy from 'vtk.js/Sources/Proxy/Core/SourceProxy';
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/GeometryRepresentationProxy';
 
+import vtk3DView from '@/src/vtk/View3DProxy';
+import vtk2DView from '@/src/vtk/View2DProxy';
 import vtkTransformedSliceRepresentationProxy from '@/src/vtk/TransformedSliceRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
@@ -36,7 +35,7 @@ function createSyncedSliceRepDefinition(proxyClass, axis, ui = [], links = []) {
     {
       link: `Slice${axis}`,
       property: 'slice',
-      updateOnBind: true,
+      updateOnBind: false,
       type: 'application',
     },
     ...links,
@@ -57,32 +56,7 @@ export default {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
     },
     Representations: {
-      Volume: createProxyDefinition(
-        vtkVolumeRepresentationProxy,
-        [],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-          {
-            link: 'SliceX',
-            property: 'xSlice',
-            updateOnBind: true,
-            type: 'application',
-          },
-          {
-            link: 'SliceY',
-            property: 'ySlice',
-            updateOnBind: true,
-            type: 'application',
-          },
-          {
-            link: 'SliceZ',
-            property: 'zSlice',
-            updateOnBind: true,
-            type: 'application',
-          },
-        ]
-      ),
+      Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
       SliceX: createSyncedSliceRepDefinition(
         vtkTransformedSliceRepresentationProxy,
         'X',

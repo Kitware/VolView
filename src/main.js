@@ -1,6 +1,7 @@
 import '@/public/global.css';
 
 import Vue from 'vue';
+import VueCompositionAPI from '@vue/composition-api';
 import VueNotifications from 'vue-notification';
 import vtkProxyManager from 'vtk.js/Sources/Proxy/Core/ProxyManager';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
@@ -19,6 +20,7 @@ import WidgetProvider from './widgets/widgetProvider';
 
 Vue.config.productionTip = false;
 
+Vue.use(VueCompositionAPI);
 Vue.use(VueNotifications);
 Vue.use(ProxyManagerVuePlugin);
 Vue.use(EventBusPlugin);
@@ -59,6 +61,8 @@ new Vue({
   proxyManager,
   provide: {
     widgetProvider,
+    ProxyManager: proxyManager,
+    Store: store,
   },
   render: (h) => h(App),
 }).$mount('#app');

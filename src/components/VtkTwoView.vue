@@ -12,473 +12,305 @@
       />
     </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
-      <div class="vtk-sub-container" ref="containerParent"></div>
+      <div class="vtk-sub-container">
+        <div class="vtk-view" ref="vtkContainer" />
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { vec3, mat3 } from 'gl-matrix';
-import { mapState, mapGetters, mapActions } from 'vuex';
+import {
+  ref,
+  toRefs,
+  watch,
+  unref,
+  computed,
+  reactive,
+  watchEffect,
+} from '@vue/composition-api';
 
-import vtkPlane from 'vtk.js/Sources/Common/DataModel/Plane';
-import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
-import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
-import { WIDGET_PRIORITY } from 'vtk.js/Sources/Widgets/Core/AbstractWidget/Constants';
+import {
+  CommonViewProps,
+  useVtkView,
+  useVtkViewCameraOrientation,
+  giveViewAnnotations,
+} from '@/src/composables/view/common';
+import {
+  useOrientationLabels,
+  use2DMouseControls,
+  usePixelProbe,
+} from '@/src/composables/view/view2D';
+import { useResizeObserver } from '@/src/composables/resizeObserver';
+import { watchScene, watchColorBy } from '@/src/composables/scene';
+import { useStore, useComputedState } from '@/src/composables/store';
+import { useSubscription } from '@/src/composables/vtk';
+import { useWidgetProvider } from '@/src/composables/widgetProvider';
+import { useProxyManager } from '@/src/composables/proxyManager';
 
-import VtkViewMixin, { attachResizeObserver } from '@/src/mixins/VtkView';
 import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
-import { zip } from '@/src/utils/common';
-import { NO_SELECTION, NO_WIDGET, DataTypes } from '@/src/constants';
+import { DataTypes } from '@/src/constants';
 
-import SliceSlider from './SliceSlider.vue';
+import SliceSlider from '@/src/components/SliceSlider.vue';
 
-const TOL = 10e-6;
+/**
+ * This differs from view.resetCamera() in that we reset the view
+ * to the specified bounds.
+ */
+function resetCamera(viewRef, boundsWithSpacing, resizeToFit) {
+  const view = unref(viewRef);
+  if (view) {
+    const renderer = view.getRenderer();
+    renderer.computeVisiblePropBounds();
+    renderer.resetCamera(unref(boundsWithSpacing));
 
-function lpsDirToLabels(dir) {
-  const [x, y, z] = dir;
-  let label = '';
-  if (x > TOL) label += 'L';
-  else if (x < -TOL) label += 'R';
-  if (y > TOL) label += 'P';
-  else if (y < -TOL) label += 'A';
-  if (z > TOL) label += 'S';
-  else if (z < -TOL) label += 'I';
-  return label;
+    if (unref(resizeToFit)) {
+      resize2DCameraToFit(view, unref(boundsWithSpacing));
+    }
+  }
 }
 
 export default {
   name: 'VtkTwoView',
 
-  mixins: [VtkViewMixin],
+  props: CommonViewProps,
 
   components: {
     SliceSlider,
   },
 
-  inject: ['widgetProvider'],
+  setup(props) {
+    const { viewName, viewType, viewUp, axis, orientation } = toRefs(props);
+    const vtkContainer = ref(null);
+    const resizeToFit = ref(true);
+    const axisLabel = computed(() => 'xyz'[axis.value]);
 
-  data() {
-    return {
-      pixelCoord: [],
-      pixel: [],
-      lastPosition: [null, null],
-    };
-  },
+    const store = useStore();
+    const widgetProvider = useWidgetProvider();
+    const pxm = useProxyManager();
 
-  computed: {
-    ...mapState({
-      baseImage: 'selectedBaseImage',
-      baseImageExists: (state) => state.selectedBaseImage !== NO_SELECTION,
-      dataIndex: (state) => state.data.index,
-    }),
-    ...mapState('widgets', ['activeWidgetID', 'widgetList']),
-    ...mapState('visualization', [
-      'resizeToFit',
-      'slices',
-      'worldOrientation',
-      'windowing',
-    ]),
-    ...mapState('dicom', ['patientIndex', 'studyIndex', 'seriesIndex']),
-    ...mapGetters('visualization', ['boundsWithSpacing']),
-
-    slice() {
-      return this.slices['xyz'[this.axis]];
-    },
-    sliceRange() {
-      const { bounds } = this.worldOrientation;
-      return bounds.slice(this.axis * 2, (this.axis + 1) * 2);
-    },
-    sliceSpacing() {
-      const { spacing } = this.worldOrientation;
-      return spacing[this.axis];
-    },
-  },
-
-  watch: {
-    baseImage() {
-      this.updateDicomAnnotations();
-    },
-    worldOrientation() {
-      // update slicing whenever world orientation changes
-      this.updateRangeManipulator();
-      this.updateLowerLeftAnnotations();
-    },
-    windowing() {
-      this.updateRepresentations();
-      this.updateRangeManipulator();
-      this.updateLowerLeftAnnotations();
-    },
-    slice() {
-      this.updateRepresentations();
-      this.updatePixelProbe();
-      this.updateLowerLeftAnnotations();
-      this.updateAllWidgets();
-    },
-    resizeToFit() {
-      this.resetCamera();
-    },
-    boundsWithSpacing() {
-      this.resetCamera();
-    },
-    sceneSources() {
-      this.updateRepresentations();
-      this.resetCamera();
-      this.render();
-    },
-    activeWidgetID(widgetID, oldWidgetID) {
-      if (this.view) {
-        const wm = this.view.getReferenceByName('widgetManager');
-
-        if (oldWidgetID !== NO_WIDGET) {
-          wm.releaseFocus();
+    const {
+      sceneSources,
+      worldOrientation,
+      colorBy,
+      boundsWithSpacing,
+      baseImage,
+      currentSlice,
+      windowing,
+      dicomInfo,
+    } = useComputedState({
+      sceneSources(state, getters) {
+        const { pipelines } = state.visualization;
+        return getters.sceneObjectIDs
+          .filter((id) => id in pipelines)
+          .map((id) => pipelines[id].last);
+      },
+      worldOrientation: (state) => state.visualization.worldOrientation,
+      colorBy: (state, getters) =>
+        getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
+      boundsWithSpacing: (_, getters) =>
+        getters['visualization/boundsWithSpacing'],
+      baseImage(state) {
+        const { pipelines } = state.visualization;
+        const { selectedBaseImage } = state;
+        if (selectedBaseImage in pipelines) {
+          return pipelines[selectedBaseImage].last;
         }
-
-        if (widgetID !== NO_WIDGET) {
-          const widget = this.widgetProvider.getById(widgetID);
-          widget.focus(this.view);
-          this.updateActiveWidget();
-        }
-
-        this.render();
-      }
-    },
-  },
-
-  created() {
-    this.resizeListener = null;
-    this.moveListener = null;
-    this.rangeManipulator = vtkMouseRangeManipulator.newInstance({
-      button: 1,
-      scrollEnabled: true,
-    });
-
-    this.updateRangeManipulator();
-  },
-
-  mounted() {
-    this.resizeObserver = attachResizeObserver(
-      this.$refs.containerParent,
-      this.resizeLater
-    );
-  },
-
-  beforeDestroy() {
-    this.resizeObserver.unobserve(this.$refs.containerParent);
-    this.cleanupListeners();
-  },
-
-  methods: {
-    cleanupListeners() {
-      const listeners = ['resizeListener', 'moveListener', 'cameraListener'];
-      while (listeners.length) {
-        const name = listeners.pop();
-        if (this[name]) {
-          this[name].unsubscribe();
-          this[name] = null;
-        }
-      }
-    },
-
-    beforeViewUnmount() {
-      this.cleanupListeners();
-    },
-
-    afterViewMount() {
-      this.resizeListener = this.view.onResize(() => this.resetCamera());
-      this.moveListener = this.view
-        .getInteractor()
-        .onMouseMove((ev) => this.onMouseMove(ev), WIDGET_PRIORITY);
-      this.cameraListener = this.view
-        .getCamera()
-        .onModified(() => this.updateOrientationLabels());
-      // disable orientation widget for 2D views
-      this.view.setOrientationAxesVisibility(false);
-
-      this.widgetProvider.addView(this.view);
-
-      this.setupInteraction();
-      this.updateOrientationLabels();
-      this.updateRepresentations();
-      this.updateLowerLeftAnnotations();
-      this.updateDicomAnnotations();
-    },
-
-    resetCamera() {
-      if (this.view) {
-        const renderer = this.view.getRenderer();
-        renderer.computeVisiblePropBounds();
-        renderer.resetCamera(this.boundsWithSpacing);
-      }
-      this.resizeCameraToFit();
-    },
-
-    resizeCameraToFit() {
-      if (this.view && this.resizeToFit) {
-        resize2DCameraToFit(this.view, this.boundsWithSpacing);
-      }
-    },
-
-    updateRangeManipulator() {
-      this.rangeManipulator.removeAllListeners();
-
-      // window width
-      this.rangeManipulator.setVerticalListener(
-        0,
-        this.windowing.max - this.windowing.min,
-        1 / 512,
-        () => this.windowing.width,
-        (w) => this.setWindowWidth(w)
-      );
-
-      // window level
-      this.rangeManipulator.setHorizontalListener(
-        this.windowing.min,
-        this.windowing.max,
-        1 / 512,
-        () => this.windowing.level,
-        (l) => this.setWindowLevel(l)
-      );
-
-      // slicing
-      this.rangeManipulator.setScrollListener(
-        this.sliceRange[0],
-        this.sliceRange[1],
-        1,
-        () => this.slice,
-        (s) => this.setSlice(s)
-      );
-    },
-
-    updateOrientationLabels() {
-      const camera = this.view.getCamera();
-      // TODO make modifications only if vup and vdir differ
-      const vup = camera.getViewUp();
-      const vdir = camera.getDirectionOfProjection();
-      const vright = [0, 0, 0];
-      vec3.cross(vright, vdir, vup);
-
-      // assume direction is orthonormal
-      const { direction } = this.worldOrientation;
-
-      // since camera is in "image space", transform into
-      // image's world space.
-      const cameraMat = mat3.fromValues(...vright, ...vup, ...vdir);
-      const imageMat = mat3.fromValues(...direction);
-      // `direction` is row-major, and gl-matrix is col-major
-      mat3.transpose(imageMat, imageMat);
-      const cameraInImWorld = mat3.create();
-      mat3.mul(cameraInImWorld, imageMat, cameraMat);
-
-      // gl-matrix is col-major
-      const left = cameraInImWorld.slice(0, 3).map((c) => -c);
-      const up = cameraInImWorld.slice(3, 6);
-
-      let leftLabels = lpsDirToLabels(left);
-      let upLabels = lpsDirToLabels(up);
-
-      // sort by magnitude
-      leftLabels = zip(left.map(Math.abs), leftLabels)
-        .sort(([a], [b]) => b - a)
-        .map(([, label]) => label)
-        .join('');
-      upLabels = zip(up.map(Math.abs), upLabels)
-        .sort(([a], [b]) => b - a)
-        .map(([, label]) => label)
-        .join('');
-
-      this.view.setCornerAnnotation('n', upLabels);
-      this.view.setCornerAnnotation('w', leftLabels);
-    },
-
-    setupInteraction() {
-      const istyle = this.view.getInteractorStyle2D();
-
-      // removes all manipulators
-      InteractionPresets.applyDefinitions(
-        [
-          { type: 'pan', options: { shift: true } },
-          { type: 'zoom', options: { control: true } },
-          { type: 'zoom', options: { button: 3 } },
-        ],
-        istyle
-      );
-
-      // create our own set of manipulators
-      istyle.addMouseManipulator(this.rangeManipulator);
-    },
-
-    setWindowWidth(width) {
-      if (this.baseImageExists) {
-        this.setWindowing({ width });
-      }
-    },
-
-    setWindowLevel(level) {
-      if (this.baseImageExists) {
-        this.setWindowing({ level });
-      }
-    },
-
-    setSlice(slice) {
-      this.setSlices({
-        ['xyz'[this.axis]]: slice,
-      });
-    },
-
-    updateRepresentations() {
-      if (this.sceneSources.length) {
-        // slice and windowing is propagated by proxymanager
-        const source = this.sceneSources[0];
-        const rep = this.$proxyManager.getRepresentation(source, this.view);
-        if (rep) {
-          if (rep.setSlice) rep.setSlice(this.slice * this.sliceSpacing);
-          if (rep.setWindowWidth) rep.setWindowWidth(this.windowing.width);
-          if (rep.setWindowLevel) rep.setWindowLevel(this.windowing.level);
-        }
-      }
-    },
-
-    updateDicomAnnotations() {
-      if (this.view && this.baseImage !== NO_SELECTION) {
-        const dataInfo = this.dataIndex[this.baseImage];
-        let upperLeftAnnot = '';
-        let upperRightAnnot = '';
-        if (dataInfo.type === DataTypes.Dicom) {
-          const { patientKey, studyKey, seriesKey } = dataInfo;
-          const patient = this.patientIndex[patientKey];
-          const study = this.studyIndex[studyKey];
-          const series = this.seriesIndex[seriesKey];
-          upperLeftAnnot = [
-            patient.PatientName,
-            `ID: ${patient.PatientID}`,
-          ].join('<br>');
-          upperRightAnnot = [
-            `Study ID: ${study.StudyID}`,
-            study.StudyDescription,
-            `Series #: ${series.SeriesNumber}`,
-            series.SeriesDescription,
-          ].join('<br>');
-        }
-        this.view.setCornerAnnotation('nw', upperLeftAnnot);
-        this.view.setCornerAnnotation('ne', upperRightAnnot);
-      }
-    },
-
-    updateLowerLeftAnnotations() {
-      if (this.view) {
-        const { width, level } = this.windowing;
-
-        let pixelInfo = 'NONE';
-        if (this.pixelCoord.length && this.pixel.length) {
-          pixelInfo =
-            `(${this.pixelCoord.map((c) => Math.round(c)).join(', ')}) = ` +
-            `${this.pixel.map((p) => p.toFixed(1)).join(', ')}`;
-        }
-
-        this.view.setCornerAnnotation(
-          'sw',
-          `Slice: ${this.slice + 1}` +
-            `<br>W/L: ${width.toFixed(1)}, ${level.toFixed(1)}` +
-            `<br>Pixel: ${pixelInfo}`
-        );
-      }
-    },
-
-    onMouseMove(ev) {
-      if (this.activeWidgetID !== NO_WIDGET) {
-        this.updateActiveWidget();
-      }
-      this.findPixelUnderCursor(ev);
-      this.updateLowerLeftAnnotations();
-    },
-
-    updateAllWidgets() {
-      this.widgetList.forEach((widgetID) => {
-        const widget = this.widgetProvider.getById(widgetID);
-        widget.update();
-      });
-    },
-
-    updateActiveWidget() {
-      const widgetID = this.activeWidgetID;
-      if (widgetID !== NO_WIDGET) {
-        const widget = this.widgetProvider.getById(widgetID);
-        widget.setCurrentView(this.view);
-        widget.update();
-      }
-    },
-
-    findPixelUnderCursor(ev) {
-      if (
-        this.baseImageExists &&
-        ev.pokedRenderer === this.view.getRenderer()
-      ) {
-        const { x, y } = ev.position;
-        this.findPixelAtPosition(x, y);
-        this.lastPosition = [x, y];
-      }
-    },
-
-    updatePixelProbe() {
-      const [x, y] = this.lastPosition;
-      if (x !== null && y !== null) {
-        this.findPixelAtPosition(x, y);
-      }
-    },
-
-    findPixelAtPosition(x, y) {
-      const renderer = this.view.getRenderer();
-      const gl = this.view.getOpenglRenderWindow();
-      const near = gl.displayToWorld(x, y, 0, renderer);
-      const far = gl.displayToWorld(x, y, 1, renderer);
-      const dop = this.view.getCamera().getDirectionOfProjection();
-      const origin = [0, 0, 0];
-      origin[this.axis] = this.slice * this.sliceSpacing;
-      const intInfo = vtkPlane.intersectWithLine(near, far, origin, dop);
-      if (intInfo.intersection) {
-        const point = intInfo.x;
-        // get image data
-        const rep = this.$proxyManager.getRepresentation(
-          this.sceneSources[0],
-          this.view
-        );
-        if (rep) {
-          const imageData = rep.getMapper().getInputData();
-          const [i, j, k] = imageData.worldToIndex(point).map((c) =>
-            // this is a hack to work around the first slice sometimes being
-            // very close to zero, but not quite, resulting in being unable to
-            // see pixel values for 0th slice.
-            Math.abs(c) < 1e-8 ? Math.round(c) : c
-          );
-          const extent = imageData.getExtent();
-          if (
-            i >= extent[0] &&
-            i <= extent[1] &&
-            j >= extent[2] &&
-            j <= extent[3] &&
-            k >= extent[4] &&
-            k <= extent[5]
-          ) {
-            const offsetIndex = imageData.computeOffsetIndex([i, j, k]);
-            const pixel = imageData
-              .getPointData()
-              .getScalars()
-              .getTuple(offsetIndex);
-
-            this.pixelCoord = [i, j, k];
-            this.pixel = pixel;
-
-            this.updateLowerLeftAnnotations();
-            return;
+        return null;
+      },
+      currentSlice: (state) => state.visualization.slices[axisLabel.value],
+      windowing: (state) => state.visualization.windowing,
+      dicomInfo(state) {
+        const { selectedBaseImage } = state;
+        if (selectedBaseImage in state.data.index) {
+          const dataInfo = state.data.index[selectedBaseImage];
+          if (dataInfo.type === DataTypes.Dicom) {
+            const { patientKey, studyKey, seriesKey } = dataInfo;
+            return {
+              patient: state.dicom.patientIndex[patientKey],
+              study: state.dicom.studyIndex[studyKey],
+              series: state.dicom.seriesIndex[seriesKey],
+            };
           }
         }
-      }
-      this.pixelCoord = [];
-      this.pixel = [];
-    },
+        return null;
+      },
+    });
 
-    ...mapActions('visualization', ['setWindowing', 'setSlices']),
+    const currentSliceSpacing = computed(
+      () => worldOrientation.value.spacing[axis.value]
+    );
+
+    const viewRef = useVtkView({
+      containerRef: vtkContainer,
+      viewName,
+      viewType,
+    });
+
+    // configure camera orientation
+    useVtkViewCameraOrientation(viewRef, viewUp, axis, orientation);
+
+    useResizeObserver(vtkContainer, () => {
+      const view = unref(viewRef);
+      if (view) {
+        view.resize();
+      }
+    });
+
+    watchScene(sceneSources, worldOrientation, viewRef);
+    watchColorBy(colorBy, sceneSources, viewRef);
+
+    // reset camera conditions
+    watch(
+      [baseImage, boundsWithSpacing],
+      () => resetCamera(viewRef, boundsWithSpacing, resizeToFit),
+      { immediate: true }
+    );
+    useSubscription(viewRef, (view) =>
+      view.onResize(() => resetCamera(viewRef, boundsWithSpacing, resizeToFit))
+    );
+
+    // setup view
+    watchEffect(() => {
+      const view = unref(viewRef);
+      if (view) {
+        view.setOrientationAxesVisibility(false);
+        widgetProvider.addView(view);
+      }
+    });
+
+    // setup ranges for mouse controls
+    const wwRange = computed(() => ({
+      min: 0,
+      max: windowing.value.max - windowing.value.min,
+      step: 1 / 512,
+      default: windowing.value.width,
+    }));
+    const wlRange = computed(() => ({
+      min: windowing.value.min,
+      max: windowing.value.max,
+      step: 1 / 512,
+      default: windowing.value.level,
+    }));
+    const sliceRange = computed(() => {
+      const { bounds } = unref(worldOrientation);
+      return {
+        min: bounds[axis.value * 2],
+        max: bounds[axis.value * 2 + 1],
+        step: 1,
+        default: currentSlice.value,
+      };
+    });
+
+    const mouseValues = use2DMouseControls(
+      viewRef,
+      wwRange,
+      wlRange,
+      sliceRange,
+      [
+        { type: 'pan', options: { shift: true } },
+        { type: 'zoom', options: { control: true } },
+        { type: 'zoom', options: { button: 3 } },
+      ]
+    );
+
+    // bind mouse outputs to ww, wl, and slice
+    const setWindowWidth = (width) =>
+      store.dispatch('visualization/setWindowing', { width });
+    const setWindowLevel = (level) =>
+      store.dispatch('visualization/setWindowing', { level });
+    const setSlice = (s) =>
+      store.dispatch('visualization/setSlices', { [axisLabel.value]: s });
+
+    watch(mouseValues.vertVal, (ww) => setWindowWidth(ww));
+    watch(mouseValues.horizVal, (wl) => setWindowLevel(wl));
+    watch(mouseValues.scrollVal, (s) => setSlice(s));
+
+    // sync windowing and slicing to reps
+    watchEffect(() => {
+      if (viewRef.value && baseImage.value) {
+        const rep = pxm.getRepresentation(baseImage.value, viewRef.value);
+        if (rep) {
+          if (rep.setSlice)
+            rep.setSlice(currentSlice.value * currentSliceSpacing.value);
+          if (rep.setWindowWidth) rep.setWindowWidth(windowing.value.width);
+          if (rep.setWindowLevel) rep.setWindowLevel(windowing.value.level);
+        }
+      }
+    });
+
+    // obtain pixel of base image under mouse cursor
+    const { pixelProbe } = usePixelProbe(viewRef, baseImage);
+
+    // orientation labels
+    const { leftLabel, upLabel } = useOrientationLabels(
+      viewRef,
+      worldOrientation
+    );
+
+    // pixel probe annotation
+    const pixelAnnotation = computed(() => {
+      if (pixelProbe.value) {
+        const { location, value } = pixelProbe.value;
+        const coord = location.map((c) => Math.round(c));
+        const pixel = value.map((p) => p.toFixed(1));
+        return `(${coord.join(', ')}) = ${pixel.join(', ')}`;
+      }
+      return 'NONE';
+    });
+
+    // w/l annotation
+    const windowAnnotations = computed(() => ({
+      width: windowing.value.width.toFixed(1),
+      level: windowing.value.level.toFixed(1),
+    }));
+
+    // dicom annotations
+    const patientAnnotation = computed(() =>
+      dicomInfo.value
+        ? [
+            dicomInfo.value.patient.patientName,
+            `ID: ${dicomInfo.value.patient.PatientID}`,
+          ].join('<br>')
+        : ''
+    );
+    const studyAnnotation = computed(() =>
+      dicomInfo.value
+        ? [
+            `StudyID: ${dicomInfo.value.study.StudyID}`,
+            dicomInfo.value.study.StudyDescription,
+            `Series #: ${dicomInfo.value.series.SeriesNumber}`,
+            dicomInfo.value.series.SeriesDescription,
+          ].join('<br>')
+        : ''
+    );
+
+    giveViewAnnotations(
+      viewRef,
+      reactive({
+        n: upLabel,
+        w: leftLabel,
+        nw: patientAnnotation,
+        ne: studyAnnotation,
+        sw: computed(() =>
+          [
+            `Slice: ${currentSlice.value + 1}`,
+            `W/L: ${windowAnnotations.value.width}, ${windowAnnotations.value.level}`,
+            `Pixel: ${pixelAnnotation.value}`,
+          ].join('<br>')
+        ),
+      })
+    );
+
+    return {
+      vtkContainer, // dom ref
+      active: true,
+      slice: currentSlice,
+      sliceRange: computed(() => [sliceRange.value.min, sliceRange.value.max]),
+
+      // methods
+      setSlice,
+    };
   },
 };
 </script>

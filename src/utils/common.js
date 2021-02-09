@@ -1,3 +1,5 @@
+import { mat4, quat, vec3 } from 'gl-matrix';
+
 export function defer() {
   let resolve;
   let reject;
@@ -64,4 +66,19 @@ export function unsubscribeVtkList(subs) {
   while (subs.length) {
     subs.pop().unsubscribe();
   }
+}
+
+/**
+ * Rotates vector from image world to index.
+ * @param {vtkImageData} imageData
+ * @param {vec3} vec
+ */
+export function worldToIndexRotation(imageData, vec) {
+  const w2iMat = imageData.getWorldToIndex();
+  const rotation = quat.create();
+  mat4.getRotation(rotation, w2iMat);
+
+  const out = vec3.create();
+  vec3.transformQuat(out, vec, rotation);
+  return out;
 }
