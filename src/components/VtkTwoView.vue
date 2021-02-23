@@ -57,15 +57,15 @@ import SliceSlider from '@/src/components/SliceSlider.vue';
  * This differs from view.resetCamera() in that we reset the view
  * to the specified bounds.
  */
-function resetCamera(viewRef, boundsWithSpacing, resizeToFit) {
+function resetCamera(viewRef, extentWithSpacing, resizeToFit) {
   const view = unref(viewRef);
   if (view) {
     const renderer = view.getRenderer();
     renderer.computeVisiblePropBounds();
-    renderer.resetCamera(unref(boundsWithSpacing));
+    renderer.resetCamera(unref(extentWithSpacing));
 
     if (unref(resizeToFit)) {
-      resize2DCameraToFit(view, unref(boundsWithSpacing));
+      resize2DCameraToFit(view, unref(extentWithSpacing));
     }
   }
 }
@@ -91,9 +91,9 @@ export default {
 
     const {
       sceneSources,
-      worldOrientation,
+      imageConfig,
       colorBy,
-      boundsWithSpacing,
+      extentWithSpacing,
       baseImage,
       currentSlice,
       windowing,
@@ -105,11 +105,11 @@ export default {
           .filter((id) => id in pipelines)
           .map((id) => pipelines[id].last);
       },
-      worldOrientation: (state) => state.visualization.worldOrientation,
+      imageConfig: (state) => state.visualization.imageConfig,
       colorBy: (state, getters) =>
         getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
-      boundsWithSpacing: (_, getters) =>
-        getters['visualization/boundsWithSpacing'],
+      extentWithSpacing: (_, getters) =>
+        getters['visualization/extentWithSpacing'],
       baseImage(state) {
         const { pipelines } = state.visualization;
         const { selectedBaseImage } = state;
@@ -138,7 +138,7 @@ export default {
     });
 
     const currentSliceSpacing = computed(
-      () => worldOrientation.value.spacing[axis.value]
+      () => imageConfig.value.spacing[axis.value]
     );
 
     const viewRef = useVtkView({
@@ -157,17 +157,17 @@ export default {
       }
     });
 
-    watchScene(sceneSources, worldOrientation, viewRef);
+    watchScene(sceneSources, imageConfig, viewRef);
     watchColorBy(colorBy, sceneSources, viewRef);
 
     // reset camera conditions
     watch(
-      [baseImage, boundsWithSpacing],
-      () => resetCamera(viewRef, boundsWithSpacing, resizeToFit),
+      [baseImage, extentWithSpacing],
+      () => resetCamera(viewRef, extentWithSpacing, resizeToFit),
       { immediate: true }
     );
     useSubscription(viewRef, (view) =>
-      view.onResize(() => resetCamera(viewRef, boundsWithSpacing, resizeToFit))
+      view.onResize(() => resetCamera(viewRef, extentWithSpacing, resizeToFit))
     );
 
     // setup view
@@ -193,7 +193,7 @@ export default {
       default: windowing.value.level,
     }));
     const sliceRange = computed(() => {
-      const { bounds } = unref(worldOrientation);
+      const { bounds } = unref(imageConfig);
       return {
         min: bounds[axis.value * 2],
         max: bounds[axis.value * 2 + 1],
@@ -243,10 +243,7 @@ export default {
     const { pixelProbe } = usePixelProbe(viewRef, baseImage);
 
     // orientation labels
-    const { leftLabel, upLabel } = useOrientationLabels(
-      viewRef,
-      worldOrientation
-    );
+    const { leftLabel, upLabel } = useOrientationLabels(viewRef, imageConfig);
 
     // pixel probe annotation
     const pixelAnnotation = computed(() => {

@@ -32,9 +32,9 @@ function lpsDirToLabels(dir) {
 /**
  * Writes out left and up orientation labels.
  * @param {Ref<vtkViewProxy>} viewRef
- * @param {Ref<WorldOrientation>} worldOrientation
+ * @param {Ref<ImageConfig>} imageConfig
  */
-export function useOrientationLabels(viewRef, worldOrientation) {
+export function useOrientationLabels(viewRef, imageConfig) {
   const leftLabel = ref('');
   const upLabel = ref('');
 
@@ -49,7 +49,7 @@ export function useOrientationLabels(viewRef, worldOrientation) {
       vec3.cross(vright, vdir, vup);
 
       // assume direction is orthonormal
-      const { direction } = unref(worldOrientation);
+      const { direction } = unref(imageConfig);
 
       // since camera is in "image space", transform into
       // image's world space.
