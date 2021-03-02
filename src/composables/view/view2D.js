@@ -305,18 +305,6 @@ export function usePixelProbe(viewRef, baseImage) {
   };
 }
 
-export const ViewTypeAxis = {
-  ViewX: [1, 0, 0],
-  ViewY: [0, -1, 0],
-  ViewZ: [0, 0, -1],
-};
-
-export const ViewAxisUp = {
-  0: [0, 0, 1],
-  1: [0, 0, 1],
-  2: [0, -1, 0],
-};
-
 // mat3x3 is taken to be column-major
 function findClosestFrameVec(mat3x3, axis) {
   let closestIndex = 0;
@@ -347,6 +335,12 @@ function findClosestFrameVec(mat3x3, axis) {
     vector,
   };
 }
+
+const ViewTypeAxis = {
+  ViewX: [1, 0, 0],
+  ViewY: [0, -1, 0],
+  ViewZ: [0, 0, -1],
+};
 
 export function useIJKAxisCamera(viewType) {
   const { direction } = useComputedState({
