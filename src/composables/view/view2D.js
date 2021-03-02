@@ -386,6 +386,7 @@ export function useIJKAxisCamera(viewType) {
       axis, // 1=I, 2=J, 3=K
       orientation,
       viewUp,
+      viewUpAxis: vupIndex,
     };
   });
 }

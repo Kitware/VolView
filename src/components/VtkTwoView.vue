@@ -49,16 +49,67 @@ import { useSubscription } from '@/src/composables/vtk';
 import { useWidgetProvider } from '@/src/composables/widgetProvider';
 import { useProxyManager } from '@/src/composables/proxyManager';
 
-import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 import { DataTypes } from '@/src/constants';
 
 import SliceSlider from '@/src/components/SliceSlider.vue';
 
 /**
+ * Sets parallel scale of 2D view camera to fit a given bounds.
+ *
+ * Assumes the camera is reset, i.e. focused correctly.
+ *
+ * Bounds is specified as width/height of orthographic view.
+ * Renders must be triggered manually.
+ */
+function resize2DCameraToFit(view, lookAxis, viewUpAxis, bounds) {
+  const camera = view.getCamera();
+  const lengths = [
+    bounds[1] - bounds[0],
+    bounds[3] - bounds[2],
+    bounds[5] - bounds[4],
+  ];
+  const [w, h] = view.getOpenglRenderWindow().getSize();
+  let bw;
+  let bh;
+  /* eslint-disable prefer-destructuring */
+  if (lookAxis === 0 && viewUpAxis === 1) {
+    bw = lengths[2];
+    bh = lengths[1];
+  } else if (lookAxis === 0 && viewUpAxis === 2) {
+    bw = lengths[1];
+    bh = lengths[2];
+  } else if (lookAxis === 1 && viewUpAxis === 0) {
+    bw = lengths[2];
+    bh = lengths[0];
+  } else if (lookAxis === 1 && viewUpAxis === 2) {
+    bw = lengths[0];
+    bh = lengths[2];
+  } else if (lookAxis === 2 && viewUpAxis === 0) {
+    bw = lengths[1];
+    bh = lengths[0];
+  } else if (lookAxis === 2 && viewUpAxis === 1) {
+    bw = lengths[0];
+    bh = lengths[1];
+  }
+  /* eslint-enable prefer-destructuring */
+  const viewAspect = w / h;
+  const boundsAspect = bw / bh;
+
+  let scale = 0;
+  if (viewAspect >= boundsAspect) {
+    scale = bh / 2;
+  } else {
+    scale = bw / 2 / viewAspect;
+  }
+
+  camera.setParallelScale(scale);
+}
+
+/**
  * This differs from view.resetCamera() in that we reset the view
  * to the specified bounds.
  */
-function resetCamera(viewRef, axis, imageConfig, resizeToFit) {
+function resetCamera(viewRef, lookAxis, viewUpAxis, imageConfig, resizeToFit) {
   const view = unref(viewRef);
   if (view) {
     const renderer = view.getRenderer();
@@ -70,7 +121,12 @@ function resetCamera(viewRef, axis, imageConfig, resizeToFit) {
       const extentWithSpacing = extent.map(
         (e, i) => e * spacing[Math.floor(i / 2)]
       );
-      resize2DCameraToFit(view, unref(axis), unref(extentWithSpacing));
+      resize2DCameraToFit(
+        view,
+        unref(lookAxis),
+        unref(viewUpAxis),
+        unref(extentWithSpacing)
+      );
     }
   }
 }
@@ -89,7 +145,9 @@ export default {
     const vtkContainer = ref(null);
     const resizeToFit = ref(true);
 
-    const { axis, orientation, viewUp } = useIJKAxisCamera(viewType);
+    const { axis, orientation, viewUp, viewUpAxis } = useIJKAxisCamera(
+      viewType
+    );
     const axisLabel = computed(() => 'xyz'[axis.value]);
 
     const store = useStore();
@@ -175,11 +233,13 @@ export default {
     // reset camera conditions
     watch(
       [baseImage, extentWithSpacing],
-      () => resetCamera(viewRef, axis, imageConfig, resizeToFit),
+      () => resetCamera(viewRef, axis, viewUpAxis, imageConfig, resizeToFit),
       { immediate: true }
     );
     useSubscription(viewRef, (view) =>
-      view.onResize(() => resetCamera(viewRef, axis, imageConfig, resizeToFit))
+      view.onResize(() =>
+        resetCamera(viewRef, axis, viewUpAxis, imageConfig, resizeToFit)
+      )
     );
 
     // setup view
