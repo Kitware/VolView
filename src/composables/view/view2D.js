@@ -317,6 +317,37 @@ export const ViewAxisUp = {
   2: [0, -1, 0],
 };
 
+// mat3x3 is taken to be column-major
+function findClosestFrameVec(mat3x3, axis) {
+  let closestIndex = 0;
+  let closestSign = 1;
+  let closest = -Infinity;
+  let vector = [];
+  for (let idx = 0; idx < 3; idx += 1) {
+    const indexDir = vec3.fromValues(
+      mat3x3[idx * 3 + 0],
+      mat3x3[idx * 3 + 1],
+      mat3x3[idx * 3 + 2]
+    );
+    const cosine = vec3.dot(indexDir, axis);
+    const sign = Math.sign(cosine);
+    const howClose = Math.abs(cosine);
+    if (howClose > closest) {
+      closest = howClose;
+      closestIndex = idx;
+      closestSign = sign;
+      vector = indexDir;
+    }
+  }
+
+  return {
+    howClose: closest,
+    vectorIndex: closestIndex,
+    sign: closestSign,
+    vector,
+  };
+}
+
 export function useIJKAxisCamera(viewType) {
   const { direction } = useComputedState({
     direction: (state) => state.visualization.imageConfig.direction,
@@ -324,29 +355,37 @@ export function useIJKAxisCamera(viewType) {
 
   return multiComputed(() => {
     const viewDir = ViewTypeAxis[viewType.value];
-    let closestIJK = 0;
-    let closestSign = 1;
-    let closest = -Infinity;
-    for (let idx = 0; idx < 3; idx += 1) {
-      // dir matrix is column major
-      const indexDir = vec3.fromValues(
-        direction.value[idx * 3 + 0],
-        direction.value[idx * 3 + 1],
-        direction.value[idx * 3 + 2]
-      );
-      const cosine = vec3.dot(indexDir, viewDir);
-      const sign = Math.sign(cosine);
-      const howClose = Math.abs(cosine);
-      if (howClose > closest) {
-        closest = howClose;
-        closestIJK = idx;
-        closestSign = sign;
+    const { vectorIndex: axis, sign: orientation } = findClosestFrameVec(
+      direction.value,
+      viewDir
+    );
+
+    let lpsViewUp = [];
+    switch (viewType.value) {
+      case 'ViewX':
+      case 'ViewY': {
+        lpsViewUp = [0, 0, 1]; // superior
+        break;
       }
+      case 'ViewZ': {
+        lpsViewUp = [0, -1, 0]; // anterior
+        break;
+      }
+      default:
+      // noop;
     }
+
+    const { vectorIndex: vupIndex, sign: vupSign } = findClosestFrameVec(
+      direction.value,
+      lpsViewUp
+    );
+    const viewUp = [0, 0, 0];
+    viewUp[vupIndex] = vupSign;
+
     return {
-      axis: closestIJK, // 1=I, 2=J, 3=K
-      orientation: closestSign,
-      viewUp: ViewAxisUp[closestIJK],
+      axis, // 1=I, 2=J, 3=K
+      orientation,
+      viewUp,
     };
   });
 }
