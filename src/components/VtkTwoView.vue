@@ -34,7 +34,7 @@ import {
   CommonViewProps,
   useVtkView,
   useVtkViewCameraOrientation,
-  giveViewAnnotations,
+  applyViewAnnotations,
 } from '@/src/composables/view/common';
 import {
   useOrientationLabels,
@@ -282,7 +282,7 @@ export default {
         : ''
     );
 
-    giveViewAnnotations(
+    applyViewAnnotations(
       viewRef,
       reactive({
         n: upLabel,

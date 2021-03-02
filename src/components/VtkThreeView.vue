@@ -24,7 +24,7 @@ import {
   CommonViewProps,
   useVtkView,
   useVtkViewCameraOrientation,
-  giveViewAnnotations,
+  applyViewAnnotations,
 } from '@/src/composables/view/common';
 import { useResizeObserver } from '@/src/composables/resizeObserver';
 import { watchScene, watchColorBy } from '@/src/composables/scene';
@@ -128,7 +128,7 @@ export default {
       }
     });
 
-    giveViewAnnotations(
+    applyViewAnnotations(
       viewRef,
       reactive({
         nw: baseImageColorPreset,
