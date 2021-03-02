@@ -33,13 +33,14 @@ import {
 import {
   CommonViewProps,
   useVtkView,
-  useVtkViewCameraOrientation,
   applyViewAnnotations,
 } from '@/src/composables/view/common';
 import {
   useOrientationLabels,
   use2DMouseControls,
   usePixelProbe,
+  apply2DCameraPlacement,
+  useIJKAxisCamera,
 } from '@/src/composables/view/view2D';
 import { useResizeObserver } from '@/src/composables/resizeObserver';
 import { watchScene, watchColorBy } from '@/src/composables/scene';
@@ -57,15 +58,19 @@ import SliceSlider from '@/src/components/SliceSlider.vue';
  * This differs from view.resetCamera() in that we reset the view
  * to the specified bounds.
  */
-function resetCamera(viewRef, extentWithSpacing, resizeToFit) {
+function resetCamera(viewRef, axis, imageConfig, resizeToFit) {
   const view = unref(viewRef);
   if (view) {
     const renderer = view.getRenderer();
     renderer.computeVisiblePropBounds();
-    renderer.resetCamera(unref(extentWithSpacing));
+    renderer.resetCamera(imageConfig.value.bounds);
 
     if (unref(resizeToFit)) {
-      resize2DCameraToFit(view, unref(extentWithSpacing));
+      const { extent, spacing } = imageConfig.value;
+      const extentWithSpacing = extent.map(
+        (e, i) => e * spacing[Math.floor(i / 2)]
+      );
+      resize2DCameraToFit(view, unref(axis), unref(extentWithSpacing));
     }
   }
 }
@@ -80,15 +85,19 @@ export default {
   },
 
   setup(props) {
-    const { viewName, viewType, viewUp, axis, orientation } = toRefs(props);
+    const { viewName, viewType } = toRefs(props);
     const vtkContainer = ref(null);
     const resizeToFit = ref(true);
+
+    const { axis, orientation, viewUp } = useIJKAxisCamera(viewType);
     const axisLabel = computed(() => 'xyz'[axis.value]);
 
     const store = useStore();
     const widgetProvider = useWidgetProvider();
     const pxm = useProxyManager();
 
+    // currentSlice: VtkTwoView concerns itself only with IJK coords, so
+    //               currentSlice is expected to be in image coords.
     const {
       sceneSources,
       imageConfig,
@@ -137,10 +146,6 @@ export default {
       },
     });
 
-    const currentSliceSpacing = computed(
-      () => imageConfig.value.spacing[axis.value]
-    );
-
     const viewRef = useVtkView({
       containerRef: vtkContainer,
       viewName,
@@ -148,7 +153,14 @@ export default {
     });
 
     // configure camera orientation
-    useVtkViewCameraOrientation(viewRef, viewUp, axis, orientation);
+    apply2DCameraPlacement(
+      viewRef,
+      imageConfig,
+      viewUp,
+      orientation,
+      axis,
+      'image'
+    );
 
     useResizeObserver(vtkContainer, () => {
       const view = unref(viewRef);
@@ -157,17 +169,17 @@ export default {
       }
     });
 
-    watchScene(sceneSources, imageConfig, viewRef);
+    watchScene(sceneSources, viewRef);
     watchColorBy(colorBy, sceneSources, viewRef);
 
     // reset camera conditions
     watch(
       [baseImage, extentWithSpacing],
-      () => resetCamera(viewRef, extentWithSpacing, resizeToFit),
+      () => resetCamera(viewRef, axis, imageConfig, resizeToFit),
       { immediate: true }
     );
     useSubscription(viewRef, (view) =>
-      view.onResize(() => resetCamera(viewRef, extentWithSpacing, resizeToFit))
+      view.onResize(() => resetCamera(viewRef, axis, imageConfig, resizeToFit))
     );
 
     // setup view
@@ -193,10 +205,10 @@ export default {
       default: windowing.value.level,
     }));
     const sliceRange = computed(() => {
-      const { bounds } = unref(imageConfig);
+      const { extent } = unref(imageConfig);
       return {
-        min: bounds[axis.value * 2],
-        max: bounds[axis.value * 2 + 1],
+        min: extent[axis.value * 2],
+        max: extent[axis.value * 2 + 1],
         step: 1,
         default: currentSlice.value,
       };
@@ -231,8 +243,7 @@ export default {
       if (viewRef.value && baseImage.value) {
         const rep = pxm.getRepresentation(baseImage.value, viewRef.value);
         if (rep) {
-          if (rep.setSlice)
-            rep.setSlice(currentSlice.value * currentSliceSpacing.value);
+          if (rep.setSlice) rep.setSlice(currentSlice.value);
           if (rep.setWindowWidth) rep.setWindowWidth(windowing.value.width);
           if (rep.setWindowLevel) rep.setWindowLevel(windowing.value.level);
         }
@@ -243,7 +254,7 @@ export default {
     const { pixelProbe } = usePixelProbe(viewRef, baseImage);
 
     // orientation labels
-    const { leftLabel, upLabel } = useOrientationLabels(viewRef, imageConfig);
+    const { left: leftLabel, top: upLabel } = useOrientationLabels(viewRef);
 
     // pixel probe annotation
     const pixelAnnotation = computed(() => {

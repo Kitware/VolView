@@ -1,3 +1,4 @@
+import { computed } from '@vue/composition-api';
 import { mat4, quat, vec3 } from 'gl-matrix';
 
 export function defer() {
@@ -69,16 +70,32 @@ export function unsubscribeVtkList(subs) {
 }
 
 /**
- * Rotates vector from image world to index.
+ * Rotates vector from image index space to world dir.
  * @param {vtkImageData} imageData
  * @param {vec3} vec
  */
-export function worldToIndexRotation(imageData, vec) {
-  const w2iMat = imageData.getWorldToIndex();
+export function indexToWorldRotation(imageData, vec) {
+  const i2wMat = imageData.getIndexToWorld();
   const rotation = quat.create();
-  mat4.getRotation(rotation, w2iMat);
+  mat4.getRotation(rotation, i2wMat);
 
   const out = vec3.create();
   vec3.transformQuat(out, vec, rotation);
   return out;
+}
+
+/**
+ * Unpacks an object returned by vue's computed, and makes each
+ * individual key a separate ref.
+ */
+export function multiComputed(fn) {
+  const obj = computed(fn);
+  const a = Object.keys(obj.value).reduce(
+    (acc, key) => ({
+      ...acc,
+      [key]: computed(() => obj.value[key]),
+    }),
+    {}
+  );
+  return a;
 }

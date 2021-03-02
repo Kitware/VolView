@@ -5,16 +5,14 @@ import { useProxyManager } from '@/src/composables/proxyManager';
 /**
  * Updates the scene.
  * @param {Ref<vtkSourceProxy[]>} sourcesRef
- * @param {Ref<ImageConfig>} imageConfigRef
  * @param {Ref<vtkViewProxy>} viewRef
  */
-export function watchScene(sourcesRef, imageConfigRef, viewRef) {
+export function watchScene(sourcesRef, viewRef) {
   const pxm = useProxyManager();
 
   function repopulateScene() {
     const view = unref(viewRef);
     const sources = unref(sourcesRef);
-    const imageConfig = unref(imageConfigRef);
     if (view) {
       view
         .getRepresentations()
@@ -23,9 +21,6 @@ export function watchScene(sourcesRef, imageConfigRef, viewRef) {
       sources.forEach((source) => {
         const rep = pxm.getRepresentation(source, view);
         if (rep) {
-          if (rep.setTransform) {
-            rep.setTransform(imageConfig.worldToIndex);
-          }
           view.addRepresentation(rep);
         }
       });

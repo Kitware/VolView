@@ -7,6 +7,11 @@ import { DEFAULT_PRESET } from '../vtk/ColorMaps';
 
 const { Mode } = LUTConstants;
 
+export const CoordinateSystem = {
+  Image: 'image',
+  World: 'world',
+};
+
 export function asInteger(value, defaultValue) {
   const rv = Math.round(value);
   if (Number.isInteger(rv)) {
@@ -33,8 +38,10 @@ export const defaultWindowing = () => ({
   max: 255,
 });
 
-// slicing is done in index space
+// For image, XYZ corresponds to image IJK
+// For world, XYZ corresponds to LPS in vtk.js
 export const defaultSlicing = () => ({
+  system: CoordinateSystem.Image,
   x: 0,
   y: 0,
   z: 0,
@@ -116,6 +123,7 @@ export default (dependencies) => ({
     setSlices(state, { x, y, z }) {
       const { slices: s } = state;
       state.slices = {
+        system: s.system,
         x: asInteger(x, s.x),
         y: asInteger(y, s.y),
         z: asInteger(z, s.z),
@@ -400,9 +408,6 @@ export default (dependencies) => ({
         proxyManager.getViews().forEach((view) => {
           const rep = proxyManager.getRepresentation(source, view);
           if (rep) {
-            if (rep.setTransform) {
-              rep.setTransform(...state.imageConfig.worldToIndex);
-            }
             rep.getMapper().modified();
           }
         });

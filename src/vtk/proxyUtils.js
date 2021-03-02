@@ -23,9 +23,8 @@ export function createFourUpViews(proxyManager) {
  * Bounds is specified as width/height of orthographic view.
  * Renders must be triggered manually.
  */
-export function resize2DCameraToFit(view, bounds) {
+export function resize2DCameraToFit(view, axis, bounds) {
   const camera = view.getCamera();
-  const axis = view.getAxis();
   const lengths = [
     bounds[1] - bounds[0],
     bounds[3] - bounds[2],

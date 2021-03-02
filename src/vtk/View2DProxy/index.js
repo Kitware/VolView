@@ -9,6 +9,18 @@ function vtkView2DProxy(publicAPI, model) {
 
   // we will set the manipulator ourselves
   publicAPI.bindRepresentationToManipulator = () => {};
+
+  // allow setting the axis
+  publicAPI.setAxis = (axis) => {
+    if (axis !== model.axis) {
+      model.axis = axis;
+      model.representations
+        .filter((rep) => !!rep.setSlicingMode)
+        .forEach((rep) => rep.setSlicingMode('XYZ'[axis]));
+      return true;
+    }
+    return false;
+  };
 }
 
 export function extend(publicAPI, model, initialValues = {}) {

@@ -94,7 +94,7 @@ export default {
     });
 
     // update scene sources and their colors
-    watchScene(sceneSources, imageConfig, viewRef);
+    watchScene(sceneSources, viewRef);
     watchColorBy(colorBy, sceneSources, viewRef);
 
     // prepare view
