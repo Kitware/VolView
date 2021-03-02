@@ -20,8 +20,10 @@ export const defaultImageConfig = () => ({
   extent: [0, 1, 0, 1, 0, 1],
   dimensions: [1, 1, 1],
   spacing: [1, 1, 1],
+  // all matrices are column-major
   direction: [1, 0, 0, 0, 1, 0, 0, 0, 1],
   worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+  indexToWorld: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
 });
 
 export const defaultWindowing = () => ({
@@ -94,7 +96,7 @@ export default (dependencies) => ({
 
     setImageConfig(
       state,
-      { bounds, extent, spacing, direction, worldToIndex }
+      { bounds, extent, spacing, direction, worldToIndex, indexToWorld }
     ) {
       state.imageConfig = {
         bounds: [...bounds],
@@ -107,6 +109,7 @@ export default (dependencies) => ({
         spacing: [...spacing],
         direction: [...direction],
         worldToIndex: [...worldToIndex],
+        indexToWorld: [...indexToWorld],
       };
     },
 
@@ -236,6 +239,7 @@ export default (dependencies) => ({
           spacing: image.getSpacing(),
           direction: image.getDirection(),
           worldToIndex: [...image.getWorldToIndex()],
+          indexToWorld: [...image.getIndexToWorld()],
         });
       } else {
         // set dimensions to be the max bounds of all layers
