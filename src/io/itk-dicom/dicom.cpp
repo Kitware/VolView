@@ -1,7 +1,6 @@
 #include <cerrno>
 #include <cstdio>
 #include <dirent.h>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -12,6 +11,17 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#ifdef WEB_BUILD
+// Building with the itk.js docker container has a more recent gcc version
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+// Building locally with gcc 7.5.0 means I need -lstdc++fs and
+// experimental/filesystem
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
 
 #ifdef WEB_BUILD
 #include <emscripten.h>
@@ -431,9 +441,7 @@ void buildSeriesVolume(const std::string &seriesUID,
   }
 }
 
-void deleteSeries(const std::string &seriesUID) {
-  std::filesystem::remove_all(seriesUID);
-}
+void deleteSeries(const std::string &seriesUID) { fs::remove_all(seriesUID); }
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
