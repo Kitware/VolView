@@ -9,6 +9,7 @@
     "lint": "vue-cli-service lint",
     "prettify": "prettier --write src",
     "build:dicom": "itk-js build src/io/itk-dicom/",
+    "build:dicom:debug": "itk-js build src/io/itk-dicom/ -- -DCMAKE_BUILD_TYPE=Debug",
     "build:all": "npm run build:dicom && npm run build"
   },
   "dependencies": {
