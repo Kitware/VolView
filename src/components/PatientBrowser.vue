@@ -19,13 +19,9 @@
     </div>
     <div id="patient-data-list">
       <item-group :value="selectedBaseImage" @change="setSelection">
-        <template v-if="!patientName">
-          No patient selected
-        </template>
+        <template v-if="!patientName"> No patient selected </template>
         <template v-else-if="patientName === IMAGES">
-          <div v-if="imageList.length === 0">
-            No non-dicom images available
-          </div>
+          <div v-if="imageList.length === 0">No non-dicom images available</div>
           <groupable-item
             v-for="imgID in imageList"
             :key="imgID"
@@ -93,9 +89,9 @@
                 <div class="my-2 series-list">
                   <groupable-item
                     v-for="series in getSeries(study.StudyInstanceUID)"
-                    :key="series.SeriesInstanceUID"
+                    :key="series.ITKGDCMSeriesUID"
                     v-slot:default="{ active, select }"
-                    :value="dicomSeriesToID[series.SeriesInstanceUID]"
+                    :value="dicomSeriesToID[series.ITKGDCMSeriesUID]"
                   >
                     <v-card
                       outlined
@@ -108,7 +104,7 @@
                       <v-img
                         contain
                         height="100px"
-                        :src="dicomThumbnails[series.SeriesInstanceUID]"
+                        :src="dicomThumbnails[series.ITKGDCMSeriesUID]"
                       />
                       <v-card-text
                         class="text--primary caption text-center series-desc mt-n3"
@@ -123,7 +119,7 @@
                             icon
                             @click.stop="
                               removeData(
-                                dicomSeriesToID[series.SeriesInstanceUID]
+                                dicomSeriesToID[series.ITKGDCMSeriesUID]
                               )
                             "
                           >
@@ -323,7 +319,7 @@ export default {
 
     async doBackgroundDicomThumbnails(seriesList) {
       seriesList.forEach(async (series) => {
-        const uid = series.SeriesInstanceUID;
+        const uid = series.ITKGDCMSeriesUID;
         if (
           !(uid in this.dicomThumbnails || uid in this.pendingDicomThumbnails)
         ) {

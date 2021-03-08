@@ -29,6 +29,7 @@ find_package(ITK REQUIRED
     ITKImageIntensity
     # for GDCMSeriesFileNames.h
     ITKIOGDCM
+    ITKGDCM
     # spatial objects
     ITKMesh
     ITKSpatialObjects

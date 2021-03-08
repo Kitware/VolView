@@ -149,14 +149,11 @@ export default (dependencies) => ({
       const updatedSeriesKeys = []; // to be returned to caller
 
       await Promise.all(
-        updatedSeries.map(async (gdcmSeriesUID) => {
-          const numberOfSlices = await dicomIO.buildSeriesOrder(gdcmSeriesUID);
-          let seriesKey;
+        updatedSeries.map(async (seriesKey) => {
+          const numberOfSlices = await dicomIO.buildSeriesOrder(seriesKey);
 
-          if (gdcmSeriesUID in state.seriesIndex) {
-            seriesKey = state.seriesIndex[gdcmSeriesUID].SeriesInstanceUID;
-          } else {
-            const info = await dicomIO.readSeriesTags(gdcmSeriesUID, [
+          if (!(seriesKey in state.seriesIndex)) {
+            const info = await dicomIO.readSeriesTags(seriesKey, [
               { name: 'PatientName', tag: '0010|0010', strconv: true },
               { name: 'PatientID', tag: '0010|0020', strconv: true },
               { name: 'PatientBirthDate', tag: '0010|0030' },
@@ -173,16 +170,12 @@ export default (dependencies) => ({
               { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
             ]);
 
-            Object.assign(info, {
-              NumberOfSlices: numberOfSlices,
-              ITKGDCMSeriesUID: gdcmSeriesUID,
-            });
-
             // TODO parse the raw string values
             const patient = {
               PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
               PatientName: info.PatientName || ANONYMOUS_PATIENT,
-              ...pick(info, ['PatientBirthDate', 'PatientSex']),
+              PatientBirthDate: info.PatientBirthDate || '',
+              PatientSex: info.PatientSex || '',
             };
             const patientKey = genSynPatientKey(patient);
 
@@ -196,16 +189,16 @@ export default (dependencies) => ({
               'StudyDescription',
             ]);
 
-            seriesKey = info.SeriesInstanceUID;
-            const series = pick(info, [
-              'Modality',
-              'SeriesInstanceUID',
-              'SeriesNumber',
-              'SeriesDescription',
-              // not dicom tags
-              'NumberOfSlices',
-              'ITKGDCMSeriesUID',
-            ]);
+            const series = {
+              ...pick(info, [
+                'Modality',
+                'SeriesInstanceUID',
+                'SeriesNumber',
+                'SeriesDescription',
+              ]),
+              NumberOfSlices: numberOfSlices,
+              ITKGDCMSeriesUID: seriesKey,
+            };
 
             updatedSeriesKeys.push({
               patientKey,

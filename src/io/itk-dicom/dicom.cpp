@@ -31,6 +31,10 @@
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
 
+#include "gdcmImageHelper.h"
+#include "gdcmReader.h"
+
+#include "base64.hpp"
 #include "charset.hpp"
 #include "readTRE.hpp"
 
@@ -52,6 +56,7 @@ using SeriesIndexType =
     std::unordered_map<std::string,
                        std::vector<std::string>>; // seriesUID -> []filenames
 using TagList = std::vector<std::string>;
+using SeriesIdContainer = std::vector<std::string>;
 
 static int rc = 0;
 static ImageIndex imageIndex;
@@ -112,6 +117,87 @@ void movefile(const std::string &src, const std::string &dst) {
   }
 }
 
+// doesn't actually do any length checks, or overflow checks, or anything
+// really.
+template <int N>
+double dotProduct(const std::vector<double> &vec1,
+                  const std::vector<double> &vec2) {
+  double result = 0;
+  for (int i = 0; i < N; i++) {
+    result += vec1.at(i) * vec2.at(i);
+  }
+  return result;
+}
+
+std::string encodeCosinesAsIDPart(const std::vector<double> &cosines) {
+  std::string concatenated;
+  for (auto it = cosines.begin(); it != cosines.end(); ++it) {
+    concatenated += std::to_string(*it);
+    if (it != cosines.end() - 1) {
+      concatenated += '\\';
+    }
+  }
+
+  std::vector<unsigned char> asBytes(concatenated.begin(), concatenated.end());
+  return base64Encode(asBytes);
+}
+
+std::vector<double> ReadImageOrientationValue(const std::string &filename) {
+  gdcm::Reader reader;
+  reader.SetFileName(filename.c_str());
+  if (!reader.Read()) {
+    throw std::runtime_error("gdcm: failed to read file");
+  }
+  const gdcm::File &file = reader.GetFile();
+  // This helper method asserts that the vector has length 6.
+  return gdcm::ImageHelper::GetDirectionCosinesValue(file);
+}
+
+bool areCosinesAlmostEqual(std::vector<double> cosines1,
+                           std::vector<double> cosines2) {
+  for (int i = 0; i <= 1; i++) {
+    std::vector<double> vec1{cosines1.at(i), cosines1.at(i + 1),
+                             cosines1.at(i + 2)};
+    std::vector<double> vec2{cosines2.at(i), cosines2.at(i + 1),
+                             cosines2.at(i + 2)};
+    double dot = dotProduct<3>(vec1, vec2);
+    if (dot < (1 - 10e-5)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+SeriesIndexType RestrictOnImageOrientation(const SeriesIndexType &index) {
+  SeriesIndexType newIndex;
+  // Vector< Pair< cosines, seriesUID >>
+  std::vector<std::pair<std::vector<double>, std::string>> cosinesToUID;
+
+  for (const auto &[seriesUID, names] : index) {
+    for (const auto &filename : names) {
+      std::vector<double> curCosines = ReadImageOrientationValue(filename);
+
+      bool inserted = false;
+      for (const auto &entry : cosinesToUID) {
+        if (areCosinesAlmostEqual(curCosines, entry.first)) {
+          newIndex[entry.second].push_back(filename);
+          inserted = true;
+          break;
+        }
+      }
+
+      if (!inserted) {
+        const auto encodedIDPart = encodeCosinesAsIDPart(curCosines);
+        auto newUID = seriesUID + '.' + encodedIDPart;
+        newIndex[newUID].push_back(filename);
+        cosinesToUID.push_back(std::make_pair(curCosines, newUID));
+      }
+    }
+  }
+
+  return newIndex;
+}
+
 const json import(FileNamesContainer &files) {
   // make tmp dir
   std::string tmpdir("tmp");
@@ -135,24 +221,43 @@ const json import(FileNamesContainer &files) {
   // Does this affect series organization?
   seriesFileNames->SetLoadPrivateTags(false);
 
-  using SeriesIdContainer = std::vector<std::string>;
+  // These are not necessarily the DICOM SeriesUIDs due to possible mangling.
+  // Use only as internal keys.
   const SeriesIdContainer &gdcmSeriesUIDs = seriesFileNames->GetSeriesUIDs();
 
-  for (auto gdcmSeriesUID : gdcmSeriesUIDs) {
-    FileNamesContainer fileNames =
-        seriesFileNames->GetFileNames(gdcmSeriesUID.c_str());
+  SeriesIndexType curSeriesIndex;
+  for (auto seriesUID : gdcmSeriesUIDs) {
+    curSeriesIndex[seriesUID] =
+        seriesFileNames->GetFileNames(seriesUID.c_str());
+  }
+
+  // further restrict on orientation
+  curSeriesIndex = RestrictOnImageOrientation(curSeriesIndex);
+
+  SeriesIdContainer allSeriesUIDs;
+  for (const auto &entry : curSeriesIndex) {
+    const std::string &seriesUID = entry.first;
+    const FileNamesContainer &fileNames = entry.second;
 
     // move files to series dir
     // assume there will be no filename conflicts within a series
-    makedir(gdcmSeriesUID);
+    makedir(seriesUID);
     for (auto filename : fileNames) {
-      auto dst = gdcmSeriesUID + "/" + filename.substr(tmpdir.size() + 1);
+      auto dst = seriesUID + "/" + filename.substr(tmpdir.size() + 1);
       movefile(filename, dst);
     }
+
+    allSeriesUIDs.push_back(seriesUID);
   }
-  return json(gdcmSeriesUIDs);
+  return json(allSeriesUIDs);
 }
 
+/**
+ * buildSeries exists to support multiple import() calls prior to building a
+ * series.
+ *
+ * This solves the issues
+ */
 int buildSeries(const std::string &gdcmSeriesUID) {
   if (dirExists(gdcmSeriesUID)) {
     typedef itk::GDCMSeriesFileNames SeriesFileNames;
@@ -164,17 +269,10 @@ int buildSeries(const std::string &gdcmSeriesUID) {
     seriesFileNames->SetRecursive(false);
     seriesFileNames->SetLoadPrivateTags(false);
 
-    using SeriesIdContainer = std::vector<std::string>;
     SeriesIdContainer uids = seriesFileNames->GetSeriesUIDs();
 
     if (uids.size() != 1) {
       throw std::runtime_error("why are there more than 1 series in this dir");
-    }
-    // TODO need to figure out why uids[0] sometimes is not equal to
-    // gdcmSeriesUID.
-    if (uids[0] != gdcmSeriesUID) {
-      std::cerr << "Found UID " << uids[0] << " instead of " << gdcmSeriesUID
-                << std::endl;
     }
 
     SeriesIndex[gdcmSeriesUID] = seriesFileNames->GetFileNames(uids[0].c_str());
