@@ -109,15 +109,15 @@ function resize2DCameraToFit(view, lookAxis, viewUpAxis, bounds) {
  * This differs from view.resetCamera() in that we reset the view
  * to the specified bounds.
  */
-function resetCamera(viewRef, lookAxis, viewUpAxis, imageConfig, resizeToFit) {
+function resetCamera(viewRef, lookAxis, viewUpAxis, imageParams, resizeToFit) {
   const view = unref(viewRef);
   if (view) {
     const renderer = view.getRenderer();
     renderer.computeVisiblePropBounds();
-    renderer.resetCamera(imageConfig.value.bounds);
+    renderer.resetCamera(imageParams.value.bounds);
 
     if (unref(resizeToFit)) {
-      const { extent, spacing } = imageConfig.value;
+      const { extent, spacing } = imageParams.value;
       const extentWithSpacing = extent.map(
         (e, i) => e * spacing[Math.floor(i / 2)]
       );
@@ -158,7 +158,7 @@ export default {
     //               currentSlice is expected to be in image coords.
     const {
       sceneSources,
-      imageConfig,
+      imageParams,
       colorBy,
       extentWithSpacing,
       baseImage,
@@ -172,7 +172,7 @@ export default {
           .filter((id) => id in pipelines)
           .map((id) => pipelines[id].last);
       },
-      imageConfig: (state) => state.visualization.imageConfig,
+      imageParams: (state) => state.visualization.imageParams,
       colorBy: (state, getters) =>
         getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
       extentWithSpacing: (_, getters) =>
@@ -213,7 +213,7 @@ export default {
     // configure camera orientation
     apply2DCameraPlacement(
       viewRef,
-      imageConfig,
+      imageParams,
       viewUp,
       orientation,
       axis,
@@ -233,12 +233,12 @@ export default {
     // reset camera conditions
     watch(
       [baseImage, extentWithSpacing],
-      () => resetCamera(viewRef, axis, viewUpAxis, imageConfig, resizeToFit),
+      () => resetCamera(viewRef, axis, viewUpAxis, imageParams, resizeToFit),
       { immediate: true }
     );
     useSubscription(viewRef, (view) =>
       view.onResize(() =>
-        resetCamera(viewRef, axis, viewUpAxis, imageConfig, resizeToFit)
+        resetCamera(viewRef, axis, viewUpAxis, imageParams, resizeToFit)
       )
     );
 
@@ -265,7 +265,7 @@ export default {
       default: windowing.value.level,
     }));
     const sliceRange = computed(() => {
-      const { extent } = unref(imageConfig);
+      const { extent } = unref(imageParams);
       return {
         min: extent[axis.value * 2],
         max: extent[axis.value * 2 + 1],

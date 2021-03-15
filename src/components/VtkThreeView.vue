@@ -42,7 +42,7 @@ export default {
 
     const {
       sceneSources,
-      imageConfig,
+      imageParams,
       colorBy,
       extentWithSpacing,
       baseImageColorPreset,
@@ -56,7 +56,7 @@ export default {
           .filter((id) => id in pipelines)
           .map((id) => pipelines[id].last);
       },
-      imageConfig: (state) => state.visualization.imageConfig,
+      imageParams: (state) => state.visualization.imageParams,
       colorBy: (state, getters) =>
         getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
       extentWithSpacing: (_, getters) =>
@@ -75,7 +75,7 @@ export default {
       windowing: (state) => state.visualization.windowing,
     });
 
-    const spacing = computed(() => imageConfig.value.spacing);
+    const spacing = computed(() => imageParams.value.spacing);
 
     const viewRef = useVtkView({
       containerRef: vtkContainer,

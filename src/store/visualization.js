@@ -20,7 +20,7 @@ export function asInteger(value, defaultValue) {
   return defaultValue;
 }
 
-export const defaultImageConfig = () => ({
+export const defaultImageParams = () => ({
   bounds: [0, 1, 0, 1, 0, 1],
   extent: [0, 1, 0, 1, 0, 1],
   dimensions: [1, 1, 1],
@@ -86,7 +86,7 @@ export default (dependencies) => ({
     pipelines: {},
     slices: defaultSlicing(),
     resizeToFit: true,
-    imageConfig: defaultImageConfig(),
+    imageParams: defaultImageParams(),
     windowing: defaultWindowing(),
     colorBy: {}, // id -> { array, location }
     arrayLutPresets: {}, // arrayName -> LUT preset
@@ -101,11 +101,11 @@ export default (dependencies) => ({
       };
     },
 
-    setImageConfig(
+    setImageParams(
       state,
       { bounds, extent, spacing, direction, worldToIndex, indexToWorld }
     ) {
-      state.imageConfig = {
+      state.imageParams = {
         bounds: [...bounds],
         extent: [...extent],
         dimensions: [
@@ -183,7 +183,7 @@ export default (dependencies) => ({
 
   getters: {
     extentWithSpacing(state) {
-      const { spacing, extent } = state.imageConfig;
+      const { spacing, extent } = state.imageParams;
       return extent.map((b, i) => b * spacing[Math.floor(i / 2)]);
     },
     baseImagePipeline(state, getters, rootState) {
@@ -203,7 +203,7 @@ export default (dependencies) => ({
   actions: {
     async updateScene({ dispatch }, { reset = false }) {
       if (reset) {
-        await dispatch('updateImageConfig');
+        await dispatch('updateImageParams');
         await dispatch('resetWindowing');
         await dispatch('resetSlicing');
         await dispatch('updateColorBy');
@@ -219,7 +219,7 @@ export default (dependencies) => ({
     },
 
     /**
-     * Should run after updateImageConfig
+     * Should run after updateImageParams
      */
     createPipelinesForScene({ commit, state, rootGetters, rootState }) {
       const { proxyManager } = dependencies;
@@ -237,11 +237,11 @@ export default (dependencies) => ({
       }
     },
 
-    async updateImageConfig({ commit, rootState }) {
+    async updateImageParams({ commit, rootState }) {
       const { selectedBaseImage, data } = rootState;
       if (selectedBaseImage !== NO_SELECTION) {
         const image = data.vtkCache[selectedBaseImage];
-        commit('setImageConfig', {
+        commit('setImageParams', {
           bounds: image.getBounds(),
           extent: image.getExtent(),
           spacing: image.getSpacing(),
@@ -259,8 +259,8 @@ export default (dependencies) => ({
         }
         bbox.inflate(5); // some extra padding
         // Without a base image, we assume a spacing of 1.
-        commit('setImageConfig', {
-          ...defaultImageConfig(),
+        commit('setImageParams', {
+          ...defaultImageParams(),
           bounds: bbox.getBounds(),
           extent: bbox.getBounds(),
         });
@@ -285,11 +285,11 @@ export default (dependencies) => ({
     },
 
     /**
-     * updateImageConfig should be invoked prior to this action.
+     * updateImageParams should be invoked prior to this action.
      */
     async resetSlicing({ commit, state, rootState }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
-        const { extent } = state.imageConfig;
+        const { extent } = state.imageParams;
         await commit('setSlices', {
           x: extent[0],
           y: extent[2],
@@ -297,7 +297,7 @@ export default (dependencies) => ({
         });
       } else {
         // pick middle of extent
-        const { extent } = state.imageConfig;
+        const { extent } = state.imageParams;
         const center = [
           (extent[0] + extent[1]) / 2,
           (extent[2] + extent[3]) / 2,

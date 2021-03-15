@@ -344,7 +344,7 @@ const ViewTypeAxis = {
 
 export function useIJKAxisCamera(viewType) {
   const { direction } = useComputedState({
-    direction: (state) => state.visualization.imageConfig.direction,
+    direction: (state) => state.visualization.imageParams.direction,
   });
 
   return multiComputed(() => {
@@ -388,7 +388,7 @@ export function useIJKAxisCamera(viewType) {
 /**
  * Sets the camera based on camera configuration parameters.
  * @param {Ref<vtkViewProxy>} view
- * @param {Ref<ImageConfig>} imageConfig
+ * @param {Ref<ImageParams>} imageParams
  * @param {Ref<number[3]>} viewUp
  * @param {Ref<-1|1>} orientation
  * @param {Ref<0|1|2>} axis
@@ -396,7 +396,7 @@ export function useIJKAxisCamera(viewType) {
  */
 export function apply2DCameraPlacement(
   view,
-  imageConfig,
+  imageParams,
   viewUp,
   orientation,
   axis,
@@ -404,7 +404,7 @@ export function apply2DCameraPlacement(
 ) {
   function updateCamera() {
     // get world bounds center
-    const { bounds } = imageConfig.value;
+    const { bounds } = imageParams.value;
     const center = [
       (bounds[0] + bounds[1]) / 2,
       (bounds[2] + bounds[3]) / 2,
@@ -420,7 +420,7 @@ export function apply2DCameraPlacement(
     const vup = [...viewUp.value];
 
     if (unref(frame) === 'image') {
-      const { direction } = imageConfig.value;
+      const { direction } = imageParams.value;
       vec3.transformMat3(dop, dop, direction);
       vec3.transformMat3(vup, vup, direction);
     }
@@ -435,7 +435,7 @@ export function apply2DCameraPlacement(
     view.value.set({ axis: axis.value }, true); // set the corresponding axis
   }
 
-  watch([imageConfig, viewUp, orientation, axis], updateCamera, {
+  watch([imageParams, viewUp, orientation, axis], updateCamera, {
     immediate: true,
   });
 }
