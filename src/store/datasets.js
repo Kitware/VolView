@@ -59,15 +59,15 @@ export const mutations = {
   },
 
   /**
-   * Args: { patientKey, studyKey, seriesKey }
+   * Args: { patientKey, studyKey, volumeKey }
    */
-  addDicom(state, { patientKey, studyKey, seriesKey }) {
+  addDicom(state, { patientKey, studyKey, volumeKey }) {
     const id = state.data.nextID;
     state.data.nextID += 1;
-    // save seriesKey -> id mapping
-    state.dicomSeriesToID = {
-      ...state.dicomSeriesToID,
-      [seriesKey]: id,
+    // save volumeKey -> id mapping
+    state.dicomVolumeToDataID = {
+      ...state.dicomVolumeToDataID,
+      [volumeKey]: id,
     };
     state.data.dicomIDs.push(id);
     state.data.index = {
@@ -76,7 +76,7 @@ export const mutations = {
         type: DataTypes.Dicom,
         patientKey,
         studyKey,
-        seriesKey,
+        volumeKey,
       },
     };
   },
@@ -115,8 +115,8 @@ export const mutations = {
         removeFromArray(data.modelIDs, dataID);
       } else if (type === DataTypes.Dicom) {
         removeFromArray(data.dicomIDs, dataID);
-        const { seriesKey } = state.data.index[dataID];
-        Vue.delete(state.dicomSeriesToID, seriesKey);
+        const { volumeKey } = state.data.index[dataID];
+        Vue.delete(state.dicomVolumeToDataID, volumeKey);
       }
 
       Vue.delete(data.index, dataID);
@@ -128,8 +128,8 @@ export const mutations = {
     state.selectedBaseImage = id;
   },
 
-  cacheDicomImage(state, { seriesKey, image }) {
-    const id = state.dicomSeriesToID[seriesKey];
+  cacheDicomImage(state, { volumeKey, image }) {
+    const id = state.dicomVolumeToDataID[volumeKey];
     state.data.vtkCache[id] = image;
   },
 };
@@ -170,13 +170,13 @@ export const makeActions = (dependencies) => ({
   async loadDicomFiles({ state, commit, dispatch }, files) {
     const errors = [];
     try {
-      const updatedSeriesKeys = await dispatch('dicom/importFiles', files);
-      updatedSeriesKeys.forEach((keys) => {
-        if (!(keys.seriesKey in state.dicomSeriesToID)) {
+      const updatedVolumeKeys = await dispatch('dicom/importFiles', files);
+      updatedVolumeKeys.forEach((keys) => {
+        if (!(keys.volumeKey in state.dicomVolumeToDataID)) {
           commit('addDicom', {
             patientKey: keys.patientKey,
             studyKey: keys.studyKey,
-            seriesKey: keys.seriesKey,
+            volumeKey: keys.volumeKey,
           });
         }
       });
@@ -265,9 +265,9 @@ export const makeActions = (dependencies) => ({
       if (!(baseImageId in state.data.vtkCache)) {
         switch (dataInfo.type) {
           case DataTypes.Dicom: {
-            const { seriesKey } = dataInfo;
-            const image = await dispatch('dicom/buildSeriesVolume', seriesKey);
-            commit('cacheDicomImage', { seriesKey, image });
+            const { volumeKey } = dataInfo;
+            const image = await dispatch('dicom/buildVolume', volumeKey);
+            commit('cacheDicomImage', { volumeKey, image });
             break;
           }
           default:
@@ -291,8 +291,8 @@ export const makeActions = (dependencies) => ({
 
     const info = state.data.index[dataID];
     if (info?.type === DataTypes.Dicom) {
-      const { seriesKey } = info;
-      await dispatch('dicom/removeData', seriesKey);
+      const { volumeKey } = info;
+      await dispatch('dicom/removeData', volumeKey);
     }
 
     await dispatch('visualization/removeData', dataID);
