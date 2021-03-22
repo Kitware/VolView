@@ -132,7 +132,7 @@ export function useVtkViewCameraOrientation(
  * @param {Reactive<{ [label: string]: Ref<string> }} labels
  * @param {Reactive<{ [label: string]: string }} defaults
  */
-export function giveViewAnnotations(viewRef, labels, defaults = {}) {
+export function applyViewAnnotations(viewRef, labels, defaults = {}) {
   const places = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
 
   watchEffect(() => {

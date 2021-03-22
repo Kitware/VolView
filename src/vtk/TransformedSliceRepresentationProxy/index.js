@@ -2,9 +2,6 @@ import macro from 'vtk.js/Sources/macro';
 
 import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SliceRepresentationProxy';
 
-import vtkImageTransformFilter from '../ImageTransformFilter';
-import vtkRepresentationProxyTransformMixin from '../transformMixin';
-
 function vtkTransformedSliceRepresentationProxy(publicAPI, model) {
   model.classHierarchy.push('vtkTransformedSliceRepresentationProxy');
 
@@ -19,6 +16,10 @@ function vtkTransformedSliceRepresentationProxy(publicAPI, model) {
     publicAPI.setSlicingMode(mode === 'I' ? 'J' : 'I');
     publicAPI.setSlicingMode(mode);
   };
+
+  // restrict to IJK slicing
+  publicAPI.setSlicingMode = (mode) =>
+    superClass.setSlicingMode('IJK'['XYZIJK'.indexOf(mode) % 3]);
 
   // don't set colors on slices
   publicAPI.setColorBy = () => {};
@@ -37,11 +38,6 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   // Object methods
   vtkSliceRepresentationProxy.extend(publicAPI, model);
-
-  vtkRepresentationProxyTransformMixin(vtkImageTransformFilter)(
-    publicAPI,
-    model
-  );
 
   // Object specific methods
   vtkTransformedSliceRepresentationProxy(publicAPI, model);

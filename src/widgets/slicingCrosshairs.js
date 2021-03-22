@@ -14,10 +14,10 @@ export default class RulerWidget extends Widget {
     this.factory = vtkCrosshairsWidget.newInstance();
     this.state = this.factory.getWidgetState();
 
-    const { bounds, spacing } = this.store.state.visualization.worldOrientation;
+    const { extent, spacing } = this.store.state.visualization.imageParams;
     this.state
       .getHandle()
-      .setBounds(...bounds.map((b, i) => b * spacing[Math.floor(i / 2)]));
+      .setBounds(...extent.map((b, i) => b * spacing[Math.floor(i / 2)]));
 
     // register after setting handle bounds, so our slices don't get
     // reset to 0,0,0
@@ -31,7 +31,7 @@ export default class RulerWidget extends Widget {
     }
 
     const origin = this.state.getHandle().getOrigin();
-    const { spacing } = this.store.state.visualization.worldOrientation;
+    const { spacing } = this.store.state.visualization.imageParams;
     this.store.dispatch('visualization/setSlices', {
       x: origin[0] / spacing[0],
       y: origin[1] / spacing[1],
@@ -54,8 +54,8 @@ export default class RulerWidget extends Widget {
   updateManipulator(view) {
     if (view) {
       const axis = view.getAxis();
-      const { slices, worldOrientation } = this.store.state.visualization;
-      const { spacing } = worldOrientation;
+      const { slices, imageParams } = this.store.state.visualization;
+      const { spacing } = imageParams;
       const normal = [0, 0, 0];
       normal[axis] = 1;
       const origin = [0, 0, 0];

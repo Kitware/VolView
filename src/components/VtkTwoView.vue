@@ -33,13 +33,14 @@ import {
 import {
   CommonViewProps,
   useVtkView,
-  useVtkViewCameraOrientation,
-  giveViewAnnotations,
+  applyViewAnnotations,
 } from '@/src/composables/view/common';
 import {
   useOrientationLabels,
   use2DMouseControls,
   usePixelProbe,
+  apply2DCameraPlacement,
+  useIJKAxisCamera,
 } from '@/src/composables/view/view2D';
 import { useResizeObserver } from '@/src/composables/resizeObserver';
 import { watchScene, watchColorBy } from '@/src/composables/scene';
@@ -48,24 +49,84 @@ import { useSubscription } from '@/src/composables/vtk';
 import { useWidgetProvider } from '@/src/composables/widgetProvider';
 import { useProxyManager } from '@/src/composables/proxyManager';
 
-import { resize2DCameraToFit } from '@/src/vtk/proxyUtils';
 import { DataTypes } from '@/src/constants';
 
 import SliceSlider from '@/src/components/SliceSlider.vue';
 
 /**
+ * Sets parallel scale of 2D view camera to fit a given bounds.
+ *
+ * Assumes the camera is reset, i.e. focused correctly.
+ *
+ * Bounds is specified as width/height of orthographic view.
+ * Renders must be triggered manually.
+ */
+function resize2DCameraToFit(view, lookAxis, viewUpAxis, bounds) {
+  const camera = view.getCamera();
+  const lengths = [
+    bounds[1] - bounds[0],
+    bounds[3] - bounds[2],
+    bounds[5] - bounds[4],
+  ];
+  const [w, h] = view.getOpenglRenderWindow().getSize();
+  let bw;
+  let bh;
+  /* eslint-disable prefer-destructuring */
+  if (lookAxis === 0 && viewUpAxis === 1) {
+    bw = lengths[2];
+    bh = lengths[1];
+  } else if (lookAxis === 0 && viewUpAxis === 2) {
+    bw = lengths[1];
+    bh = lengths[2];
+  } else if (lookAxis === 1 && viewUpAxis === 0) {
+    bw = lengths[2];
+    bh = lengths[0];
+  } else if (lookAxis === 1 && viewUpAxis === 2) {
+    bw = lengths[0];
+    bh = lengths[2];
+  } else if (lookAxis === 2 && viewUpAxis === 0) {
+    bw = lengths[1];
+    bh = lengths[0];
+  } else if (lookAxis === 2 && viewUpAxis === 1) {
+    bw = lengths[0];
+    bh = lengths[1];
+  }
+  /* eslint-enable prefer-destructuring */
+  const viewAspect = w / h;
+  const boundsAspect = bw / bh;
+
+  let scale = 0;
+  if (viewAspect >= boundsAspect) {
+    scale = bh / 2;
+  } else {
+    scale = bw / 2 / viewAspect;
+  }
+
+  camera.setParallelScale(scale);
+}
+
+/**
  * This differs from view.resetCamera() in that we reset the view
  * to the specified bounds.
  */
-function resetCamera(viewRef, boundsWithSpacing, resizeToFit) {
+function resetCamera(viewRef, lookAxis, viewUpAxis, imageParams, resizeToFit) {
   const view = unref(viewRef);
   if (view) {
     const renderer = view.getRenderer();
     renderer.computeVisiblePropBounds();
-    renderer.resetCamera(unref(boundsWithSpacing));
+    renderer.resetCamera(imageParams.value.bounds);
 
     if (unref(resizeToFit)) {
-      resize2DCameraToFit(view, unref(boundsWithSpacing));
+      const { extent, spacing } = imageParams.value;
+      const extentWithSpacing = extent.map(
+        (e, i) => e * spacing[Math.floor(i / 2)]
+      );
+      resize2DCameraToFit(
+        view,
+        unref(lookAxis),
+        unref(viewUpAxis),
+        unref(extentWithSpacing)
+      );
     }
   }
 }
@@ -80,20 +141,26 @@ export default {
   },
 
   setup(props) {
-    const { viewName, viewType, viewUp, axis, orientation } = toRefs(props);
+    const { viewName, viewType } = toRefs(props);
     const vtkContainer = ref(null);
     const resizeToFit = ref(true);
+
+    const { axis, orientation, viewUp, viewUpAxis } = useIJKAxisCamera(
+      viewType
+    );
     const axisLabel = computed(() => 'xyz'[axis.value]);
 
     const store = useStore();
     const widgetProvider = useWidgetProvider();
     const pxm = useProxyManager();
 
+    // currentSlice: VtkTwoView concerns itself only with IJK coords, so
+    //               currentSlice is expected to be in image coords.
     const {
       sceneSources,
-      worldOrientation,
+      imageParams,
       colorBy,
-      boundsWithSpacing,
+      extentWithSpacing,
       baseImage,
       currentSlice,
       windowing,
@@ -105,11 +172,11 @@ export default {
           .filter((id) => id in pipelines)
           .map((id) => pipelines[id].last);
       },
-      worldOrientation: (state) => state.visualization.worldOrientation,
+      imageParams: (state) => state.visualization.imageParams,
       colorBy: (state, getters) =>
         getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
-      boundsWithSpacing: (_, getters) =>
-        getters['visualization/boundsWithSpacing'],
+      extentWithSpacing: (_, getters) =>
+        getters['visualization/extentWithSpacing'],
       baseImage(state) {
         const { pipelines } = state.visualization;
         const { selectedBaseImage } = state;
@@ -137,10 +204,6 @@ export default {
       },
     });
 
-    const currentSliceSpacing = computed(
-      () => worldOrientation.value.spacing[axis.value]
-    );
-
     const viewRef = useVtkView({
       containerRef: vtkContainer,
       viewName,
@@ -148,7 +211,14 @@ export default {
     });
 
     // configure camera orientation
-    useVtkViewCameraOrientation(viewRef, viewUp, axis, orientation);
+    apply2DCameraPlacement(
+      viewRef,
+      imageParams,
+      viewUp,
+      orientation,
+      axis,
+      'image'
+    );
 
     useResizeObserver(vtkContainer, () => {
       const view = unref(viewRef);
@@ -157,17 +227,19 @@ export default {
       }
     });
 
-    watchScene(sceneSources, worldOrientation, viewRef);
+    watchScene(sceneSources, viewRef);
     watchColorBy(colorBy, sceneSources, viewRef);
 
     // reset camera conditions
     watch(
-      [baseImage, boundsWithSpacing],
-      () => resetCamera(viewRef, boundsWithSpacing, resizeToFit),
+      [baseImage, extentWithSpacing],
+      () => resetCamera(viewRef, axis, viewUpAxis, imageParams, resizeToFit),
       { immediate: true }
     );
     useSubscription(viewRef, (view) =>
-      view.onResize(() => resetCamera(viewRef, boundsWithSpacing, resizeToFit))
+      view.onResize(() =>
+        resetCamera(viewRef, axis, viewUpAxis, imageParams, resizeToFit)
+      )
     );
 
     // setup view
@@ -193,10 +265,10 @@ export default {
       default: windowing.value.level,
     }));
     const sliceRange = computed(() => {
-      const { bounds } = unref(worldOrientation);
+      const { extent } = unref(imageParams);
       return {
-        min: bounds[axis.value * 2],
-        max: bounds[axis.value * 2 + 1],
+        min: extent[axis.value * 2],
+        max: extent[axis.value * 2 + 1],
         step: 1,
         default: currentSlice.value,
       };
@@ -231,8 +303,7 @@ export default {
       if (viewRef.value && baseImage.value) {
         const rep = pxm.getRepresentation(baseImage.value, viewRef.value);
         if (rep) {
-          if (rep.setSlice)
-            rep.setSlice(currentSlice.value * currentSliceSpacing.value);
+          if (rep.setSlice) rep.setSlice(currentSlice.value);
           if (rep.setWindowWidth) rep.setWindowWidth(windowing.value.width);
           if (rep.setWindowLevel) rep.setWindowLevel(windowing.value.level);
         }
@@ -243,10 +314,7 @@ export default {
     const { pixelProbe } = usePixelProbe(viewRef, baseImage);
 
     // orientation labels
-    const { leftLabel, upLabel } = useOrientationLabels(
-      viewRef,
-      worldOrientation
-    );
+    const { left: leftLabel, top: upLabel } = useOrientationLabels(viewRef);
 
     // pixel probe annotation
     const pixelAnnotation = computed(() => {
@@ -285,7 +353,7 @@ export default {
         : ''
     );
 
-    giveViewAnnotations(
+    applyViewAnnotations(
       viewRef,
       reactive({
         n: upLabel,

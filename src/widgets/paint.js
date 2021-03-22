@@ -45,8 +45,8 @@ export default class PaintWidget extends Widget {
   updateManipulator(view) {
     if (view) {
       const axis = view.getAxis();
-      const { slices, worldOrientation } = this.store.state.visualization;
-      const { spacing } = worldOrientation;
+      const { slices, imageParams } = this.store.state.visualization;
+      const { spacing } = imageParams;
       const normal = [0, 0, 0];
       normal[axis] = 1;
       const origin = [0, 0, 0];
@@ -85,13 +85,13 @@ export default class PaintWidget extends Widget {
 
     if (id !== NO_SELECTION) {
       const { vtkCache } = this.store.state.data;
-      const { worldOrientation } = this.store.state.visualization;
+      const { imageParams } = this.store.state.visualization;
       const { radius, currentLabelFor } = this.store.state.annotations;
 
       this.filter = vtkPaintFilter.newInstance();
       this.filter.setBackgroundImage(vtkCache[selectedBaseImage]);
       this.filter.setLabelMap(vtkCache[id]);
-      this.filter.setMaskWorldToIndex(worldOrientation.worldToIndex);
+      this.filter.setMaskWorldToIndex(imageParams.worldToIndex);
       this.filter.setLabel(currentLabelFor[id]);
       this.onRadiusChange(radius);
     } else {
@@ -116,7 +116,7 @@ export default class PaintWidget extends Widget {
     const {
       spacing,
       worldToIndex,
-    } = this.store.state.visualization.worldOrientation;
+    } = this.store.state.visualization.imageParams;
     const inv = mat4.create();
     const pt = vec3.create();
     mat4.invert(inv, worldToIndex);

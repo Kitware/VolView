@@ -1,3 +1,4 @@
+import { mat3 } from 'gl-matrix';
 import runPipelineBrowser from 'itk/runPipelineBrowser';
 import { readFileAsArrayBuffer } from '@/src/io/io';
 import IOTypes from 'itk/IOTypes';
@@ -194,7 +195,11 @@ export default class DicomIO {
       10 // building volumes is high priority
     );
 
-    return result.outputs[0].data;
+    // TEMPORARY tranpose until itk.js consistently outputs col-major
+    // and ITKHelper is updated.
+    const image = result.outputs[0].data;
+    mat3.transpose(image.direction.data, image.direction.data);
+    return image;
   }
 
   /**

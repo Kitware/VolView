@@ -1,4 +1,4 @@
-import { mat3, vec3 } from 'gl-matrix';
+import { vec3 } from 'gl-matrix';
 import { computed, ref, unref, watch, watchEffect } from '@vue/composition-api';
 
 import vtkPlane from 'vtk.js/Sources/Common/DataModel/Plane';
@@ -10,82 +10,81 @@ import { useSubscription } from '@/src/composables/vtk';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import { useElementListener } from '@/src/composables/domEvents';
 import { useViewContainer } from '@/src/composables/view/common';
-import { zip, worldToIndexRotation } from '@/src/utils/common';
+import { useComputedState } from '@/src/composables/store';
+import { indexToWorldRotation, multiComputed } from '@/src/utils/common';
 
 const EPS = 10e-6;
 
 // priority of the pixel mouse probe
 export const PROBE_PRIORITY = WIDGET_PRIORITY + 10;
 
-function lpsDirToLabels(dir) {
-  const [x, y, z] = dir;
-  let label = '';
-  if (x > EPS) label += 'L';
-  else if (x < -EPS) label += 'R';
-  if (y > EPS) label += 'P';
-  else if (y < -EPS) label += 'A';
-  if (z > EPS) label += 'S';
-  else if (z < -EPS) label += 'I';
-  return label;
+// a signed axis has domain [+-1, +-2, +-3].
+// Adding 3, we shift the domain to [0, 1, 2, 4, 5, 6],
+// so the the 3rd index is not used.
+const LABELS = 'IAR_LPS';
+
+function signedAxesToLabels(axes) {
+  return axes.map((sa) => LABELS[sa + 3]).join('');
+}
+
+function sortAndOrientAxes(vec) {
+  return (
+    vec
+      // track each component's signed axis,
+      // and shift axes to be 1-indexed so we can differentiate between 0 and -0
+      .map((component, axis) => [component, Math.sign(component) * (axis + 1)])
+      // remove components close to zero
+      .filter(([component]) => Math.abs(component) > EPS)
+      // sort components in decreasing order
+      .sort(([c1], [c2]) => c2 - c1)
+      // pick out the axes, now sorted by decreasing magnitude
+      .map(([, signedAxis]) => signedAxis)
+  );
 }
 
 /**
- * Writes out left and up orientation labels.
+ * Computes orientation labels for a given view.
+ *
+ * Labels are with respect to the current camera orientation.
+ *
+ * vtk.js world axis is implied to be LPS, so orientation labels
+ * are determined solely from the camera' direction and view-up.
+ *
  * @param {Ref<vtkViewProxy>} viewRef
- * @param {Ref<WorldOrientation>} worldOrientation
  */
-export function useOrientationLabels(viewRef, worldOrientation) {
-  const leftLabel = ref('');
-  const upLabel = ref('');
+export function useOrientationLabels(viewRef) {
+  const rightAxes = ref([]);
+  const upAxes = ref([]);
 
-  function updateLabels() {
+  const top = computed(() => signedAxesToLabels(upAxes.value));
+  const right = computed(() => signedAxesToLabels(rightAxes.value));
+  const bottom = computed(() =>
+    signedAxesToLabels(upAxes.value.map((a) => -a))
+  );
+  const left = computed(() =>
+    signedAxesToLabels(rightAxes.value.map((a) => -a))
+  );
+
+  function updateAxes() {
     const view = unref(viewRef);
     if (view) {
       const camera = view.getCamera();
-      // TODO make modifications only if vup and vdir differ
       const vup = camera.getViewUp();
       const vdir = camera.getDirectionOfProjection();
       const vright = [0, 0, 0];
+      // assumption: vright and vdir are not equal
+      // (which should be the case for the camera)
       vec3.cross(vright, vdir, vup);
 
-      // assume direction is orthonormal
-      const { direction } = unref(worldOrientation);
-
-      // since camera is in "image space", transform into
-      // image's world space.
-      const cameraMat = mat3.fromValues(...vright, ...vup, ...vdir);
-      const imageMat = mat3.fromValues(...direction);
-      // `direction` is row-major, and gl-matrix is col-major
-      mat3.transpose(imageMat, imageMat);
-      const cameraInImWorld = mat3.create();
-      mat3.mul(cameraInImWorld, imageMat, cameraMat);
-
-      // gl-matrix is col-major
-      const left = cameraInImWorld.slice(0, 3).map((c) => -c);
-      const up = cameraInImWorld.slice(3, 6);
-
-      const leftLabels = lpsDirToLabels(left);
-      const upLabels = lpsDirToLabels(up);
-
-      // sort by magnitude
-      leftLabel.value = zip(left.map(Math.abs), leftLabels)
-        .sort(([a], [b]) => b - a)
-        .map(([, label]) => label)
-        .join('');
-      upLabel.value = zip(up.map(Math.abs), upLabels)
-        .sort(([a], [b]) => b - a)
-        .map(([, label]) => label)
-        .join('');
+      rightAxes.value = sortAndOrientAxes(vright);
+      upAxes.value = sortAndOrientAxes(vup);
     }
   }
 
-  useSubscription(viewRef, (view) => view.getCamera().onModified(updateLabels));
-  updateLabels();
+  useSubscription(viewRef, (view) => view.getCamera().onModified(updateAxes));
+  updateAxes();
 
-  return {
-    leftLabel,
-    upLabel,
-  };
+  return { top, right, bottom, left };
 }
 
 export function use2DMouseControls(
@@ -176,7 +175,7 @@ export function computePixelAt(plane, probeVec, imageData) {
       // this is a hack to work around the first slice sometimes being
       // very close to zero, but not quite, resulting in being unable to
       // see pixel values for 0th slice.
-      Math.abs(c) < 1e-8 ? Math.round(c) : c
+      Math.abs(c) < 1e-4 ? Math.round(c) : c
     );
     const extent = imageData.getExtent();
     if (
@@ -261,8 +260,8 @@ export function usePixelProbe(viewRef, baseImage) {
 
         // transform from index to world if required
         if (axis >= 3) {
-          origin = image.value.indexToWorld(normal);
-          normal = worldToIndexRotation(image.value, normal);
+          origin = image.value.indexToWorld(origin);
+          normal = indexToWorldRotation(image.value, normal);
         }
 
         if (
@@ -304,4 +303,139 @@ export function usePixelProbe(viewRef, baseImage) {
     probeVec,
     pixelProbe,
   };
+}
+
+// mat3x3 is taken to be column-major
+function findClosestFrameVec(mat3x3, axis) {
+  let closestIndex = 0;
+  let closestSign = 1;
+  let closest = -Infinity;
+  let vector = [];
+  for (let idx = 0; idx < 3; idx += 1) {
+    const indexDir = vec3.fromValues(
+      mat3x3[idx * 3 + 0],
+      mat3x3[idx * 3 + 1],
+      mat3x3[idx * 3 + 2]
+    );
+    const cosine = vec3.dot(indexDir, axis);
+    const sign = Math.sign(cosine);
+    const howClose = Math.abs(cosine);
+    if (howClose > closest) {
+      closest = howClose;
+      closestIndex = idx;
+      closestSign = sign;
+      vector = indexDir;
+    }
+  }
+
+  return {
+    howClose: closest,
+    vectorIndex: closestIndex,
+    sign: closestSign,
+    vector,
+  };
+}
+
+const ViewTypeAxis = {
+  ViewX: [1, 0, 0],
+  ViewY: [0, -1, 0],
+  ViewZ: [0, 0, -1],
+};
+
+export function useIJKAxisCamera(viewType) {
+  const { direction } = useComputedState({
+    direction: (state) => state.visualization.imageParams.direction,
+  });
+
+  return multiComputed(() => {
+    const viewDir = ViewTypeAxis[viewType.value];
+    const { vectorIndex: axis, sign: orientation } = findClosestFrameVec(
+      direction.value,
+      viewDir
+    );
+
+    let lpsViewUp = [];
+    switch (viewType.value) {
+      case 'ViewX':
+      case 'ViewY': {
+        lpsViewUp = [0, 0, 1]; // superior
+        break;
+      }
+      case 'ViewZ': {
+        lpsViewUp = [0, -1, 0]; // anterior
+        break;
+      }
+      default:
+      // noop;
+    }
+
+    const { vectorIndex: vupIndex, sign: vupSign } = findClosestFrameVec(
+      direction.value,
+      lpsViewUp
+    );
+    const viewUp = [0, 0, 0];
+    viewUp[vupIndex] = vupSign;
+
+    return {
+      axis, // 1=I, 2=J, 3=K
+      orientation,
+      viewUp,
+      viewUpAxis: vupIndex,
+    };
+  });
+}
+
+/**
+ * Sets the camera based on camera configuration parameters.
+ * @param {Ref<vtkViewProxy>} view
+ * @param {Ref<ImageParams>} imageParams
+ * @param {Ref<number[3]>} viewUp
+ * @param {Ref<-1|1>} orientation
+ * @param {Ref<0|1|2>} axis
+ * @param {'image'|'world'} frame
+ */
+export function apply2DCameraPlacement(
+  view,
+  imageParams,
+  viewUp,
+  orientation,
+  axis,
+  frame
+) {
+  function updateCamera() {
+    // get world bounds center
+    const { bounds } = imageParams.value;
+    const center = [
+      (bounds[0] + bounds[1]) / 2,
+      (bounds[2] + bounds[3]) / 2,
+      (bounds[4] + bounds[5]) / 2,
+    ];
+
+    const position = [...center];
+    position[axis.value] += orientation.value;
+
+    const dop = [0, 0, 0];
+    dop[axis.value] = -orientation.value;
+
+    const vup = [...viewUp.value];
+
+    if (unref(frame) === 'image') {
+      const { direction } = imageParams.value;
+      vec3.transformMat3(dop, dop, direction);
+      vec3.transformMat3(vup, vup, direction);
+    }
+
+    const camera = view.value.getCamera();
+    camera.setFocalPoint(...center);
+    camera.setPosition(...position);
+    camera.setDirectionOfProjection(...dop);
+    camera.setViewUp(...vup);
+
+    view.value.getRenderer().resetCamera();
+    view.value.set({ axis: axis.value }, true); // set the corresponding axis
+  }
+
+  watch([imageParams, viewUp, orientation, axis], updateCamera, {
+    immediate: true,
+  });
 }

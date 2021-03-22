@@ -7,6 +7,11 @@ import { DEFAULT_PRESET } from '../vtk/ColorMaps';
 
 const { Mode } = LUTConstants;
 
+export const CoordinateSystem = {
+  Image: 'image',
+  World: 'world',
+};
+
 export function asInteger(value, defaultValue) {
   const rv = Math.round(value);
   if (Number.isInteger(rv)) {
@@ -15,15 +20,15 @@ export function asInteger(value, defaultValue) {
   return defaultValue;
 }
 
-export const defaultWorldOrientation = () => ({
-  // ok for images this is actually just extent, since
-  // that's how we process images in this application.
+export const defaultImageParams = () => ({
   bounds: [0, 1, 0, 1, 0, 1],
-  // world spacing
+  extent: [0, 1, 0, 1, 0, 1],
+  dimensions: [1, 1, 1],
   spacing: [1, 1, 1],
+  // all matrices are column-major
   direction: [1, 0, 0, 0, 1, 0, 0, 0, 1],
-  // identity
   worldToIndex: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+  indexToWorld: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
 });
 
 export const defaultWindowing = () => ({
@@ -33,8 +38,10 @@ export const defaultWindowing = () => ({
   max: 255,
 });
 
-// slicing is done in index space
+// For image, XYZ corresponds to image IJK
+// For world, XYZ corresponds to LPS in vtk.js
 export const defaultSlicing = () => ({
+  system: CoordinateSystem.Image,
   x: 0,
   y: 0,
   z: 0,
@@ -79,7 +86,7 @@ export default (dependencies) => ({
     pipelines: {},
     slices: defaultSlicing(),
     resizeToFit: true,
-    worldOrientation: defaultWorldOrientation(),
+    imageParams: defaultImageParams(),
     windowing: defaultWindowing(),
     colorBy: {}, // id -> { array, location }
     arrayLutPresets: {}, // arrayName -> LUT preset
@@ -94,18 +101,29 @@ export default (dependencies) => ({
       };
     },
 
-    setWorldOrientation(state, { bounds, spacing, direction, worldToIndex }) {
-      state.worldOrientation = {
+    setImageParams(
+      state,
+      { bounds, extent, spacing, direction, worldToIndex, indexToWorld }
+    ) {
+      state.imageParams = {
         bounds: [...bounds],
+        extent: [...extent],
+        dimensions: [
+          extent[1] - extent[0] + 1,
+          extent[3] - extent[2] + 1,
+          extent[5] - extent[4] + 1,
+        ],
         spacing: [...spacing],
         direction: [...direction],
         worldToIndex: [...worldToIndex],
+        indexToWorld: [...indexToWorld],
       };
     },
 
     setSlices(state, { x, y, z }) {
       const { slices: s } = state;
       state.slices = {
+        system: s.system,
         x: asInteger(x, s.x),
         y: asInteger(y, s.y),
         z: asInteger(z, s.z),
@@ -164,9 +182,9 @@ export default (dependencies) => ({
   },
 
   getters: {
-    boundsWithSpacing(state) {
-      const { spacing, bounds } = state.worldOrientation;
-      return bounds.map((b, i) => b * spacing[Math.floor(i / 2)]);
+    extentWithSpacing(state) {
+      const { spacing, extent } = state.imageParams;
+      return extent.map((b, i) => b * spacing[Math.floor(i / 2)]);
     },
     baseImagePipeline(state, getters, rootState) {
       const { selectedBaseImage } = rootState;
@@ -185,7 +203,7 @@ export default (dependencies) => ({
   actions: {
     async updateScene({ dispatch }, { reset = false }) {
       if (reset) {
-        await dispatch('updateWorldOrientation');
+        await dispatch('updateImageParams');
         await dispatch('resetWindowing');
         await dispatch('resetSlicing');
         await dispatch('updateColorBy');
@@ -201,7 +219,7 @@ export default (dependencies) => ({
     },
 
     /**
-     * Should run after updateWorldOrientation
+     * Should run after updateImageParams
      */
     createPipelinesForScene({ commit, state, rootGetters, rootState }) {
       const { proxyManager } = dependencies;
@@ -219,16 +237,17 @@ export default (dependencies) => ({
       }
     },
 
-    async updateWorldOrientation({ commit, rootState }) {
+    async updateImageParams({ commit, rootState }) {
       const { selectedBaseImage, data } = rootState;
       if (selectedBaseImage !== NO_SELECTION) {
         const image = data.vtkCache[selectedBaseImage];
-        const spacing = image.getSpacing();
-        commit('setWorldOrientation', {
-          bounds: image.getExtent(),
-          spacing,
+        commit('setImageParams', {
+          bounds: image.getBounds(),
+          extent: image.getExtent(),
+          spacing: image.getSpacing(),
           direction: image.getDirection(),
           worldToIndex: [...image.getWorldToIndex()],
+          indexToWorld: [...image.getIndexToWorld()],
         });
       } else {
         // set dimensions to be the max bounds of all layers
@@ -240,9 +259,10 @@ export default (dependencies) => ({
         }
         bbox.inflate(5); // some extra padding
         // Without a base image, we assume a spacing of 1.
-        commit('setWorldOrientation', {
-          ...defaultWorldOrientation(),
+        commit('setImageParams', {
+          ...defaultImageParams(),
           bounds: bbox.getBounds(),
+          extent: bbox.getBounds(),
         });
       }
     },
@@ -265,23 +285,23 @@ export default (dependencies) => ({
     },
 
     /**
-     * updateWorldOrientation should be invoked prior to this action.
+     * updateImageParams should be invoked prior to this action.
      */
     async resetSlicing({ commit, state, rootState }) {
       if (rootState.selectedBaseImage !== NO_SELECTION) {
-        const { bounds } = state.worldOrientation;
+        const { extent } = state.imageParams;
         await commit('setSlices', {
-          x: bounds[0],
-          y: bounds[2],
-          z: bounds[4],
+          x: extent[0],
+          y: extent[2],
+          z: extent[4],
         });
       } else {
-        // pick middle of bounds
-        const { bounds } = state.worldOrientation;
+        // pick middle of extent
+        const { extent } = state.imageParams;
         const center = [
-          (bounds[0] + bounds[1]) / 2,
-          (bounds[2] + bounds[3]) / 2,
-          (bounds[4] + bounds[5]) / 2,
+          (extent[0] + extent[1]) / 2,
+          (extent[2] + extent[3]) / 2,
+          (extent[4] + extent[5]) / 2,
         ];
         await commit('setSlices', {
           x: center[0],
@@ -388,9 +408,6 @@ export default (dependencies) => ({
         proxyManager.getViews().forEach((view) => {
           const rep = proxyManager.getRepresentation(source, view);
           if (rep) {
-            if (rep.setTransform) {
-              rep.setTransform(...state.worldOrientation.worldToIndex);
-            }
             rep.getMapper().modified();
           }
         });

@@ -24,7 +24,7 @@ import {
   CommonViewProps,
   useVtkView,
   useVtkViewCameraOrientation,
-  giveViewAnnotations,
+  applyViewAnnotations,
 } from '@/src/composables/view/common';
 import { useResizeObserver } from '@/src/composables/resizeObserver';
 import { watchScene, watchColorBy } from '@/src/composables/scene';
@@ -42,9 +42,9 @@ export default {
 
     const {
       sceneSources,
-      worldOrientation,
+      imageParams,
       colorBy,
-      boundsWithSpacing,
+      extentWithSpacing,
       baseImageColorPreset,
       baseImage,
       slices,
@@ -56,11 +56,11 @@ export default {
           .filter((id) => id in pipelines)
           .map((id) => pipelines[id].last);
       },
-      worldOrientation: (state) => state.visualization.worldOrientation,
+      imageParams: (state) => state.visualization.imageParams,
       colorBy: (state, getters) =>
         getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
-      boundsWithSpacing: (_, getters) =>
-        getters['visualization/boundsWithSpacing'],
+      extentWithSpacing: (_, getters) =>
+        getters['visualization/extentWithSpacing'],
       baseImageColorPreset: (_, getters) =>
         getters['visualization/baseImageColorPreset'],
       baseImage(state) {
@@ -75,7 +75,7 @@ export default {
       windowing: (state) => state.visualization.windowing,
     });
 
-    const spacing = computed(() => worldOrientation.value.spacing);
+    const spacing = computed(() => imageParams.value.spacing);
 
     const viewRef = useVtkView({
       containerRef: vtkContainer,
@@ -94,7 +94,7 @@ export default {
     });
 
     // update scene sources and their colors
-    watchScene(sceneSources, worldOrientation, viewRef);
+    watchScene(sceneSources, viewRef);
     watchColorBy(colorBy, sceneSources, viewRef);
 
     // prepare view
@@ -121,14 +121,14 @@ export default {
     });
 
     // reset camera whenever bounds changes
-    watch(boundsWithSpacing, () => {
+    watch(extentWithSpacing, () => {
       const view = unref(viewRef);
       if (view) {
         view.resetCamera();
       }
     });
 
-    giveViewAnnotations(
+    applyViewAnnotations(
       viewRef,
       reactive({
         nw: baseImageColorPreset,
