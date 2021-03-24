@@ -151,7 +151,7 @@ export default class DicomIO {
   }
 
   /**
-   * Retrieves a slice of a series.
+   * Retrieves a slice of a volume.
    * @async
    * @param {String} volumeID the volume ID
    * @param {Number} slice the slice to retrieve
@@ -179,7 +179,7 @@ export default class DicomIO {
   }
 
   /**
-   * Builds a volume for a given series.
+   * Builds a volume for a given volume ID.
    * @async
    * @param {String} volumeID the volume ID
    * @returns ItkImage
@@ -203,7 +203,7 @@ export default class DicomIO {
   }
 
   /**
-   * Deletes all files associated with a series.
+   * Deletes all files associated with a volume.
    * @async
    * @param {String} volumeID the volume ID
    */
