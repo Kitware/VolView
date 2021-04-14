@@ -13,6 +13,10 @@ module.exports = {
 
   ignorePatterns: ['src/io/itk-dicom/web-build/**'],
 
+  globals: {
+    globalThis: false, // not writeable
+  },
+
   rules: {
     'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'off',
     'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',

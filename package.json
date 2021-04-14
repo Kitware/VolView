@@ -23,7 +23,8 @@
     "vue": "2.6.12",
     "vue-notification": "1.3.20",
     "vuetify": "2.4.3",
-    "vuex": "3.6.2"
+    "vuex": "3.6.2",
+    "wslink": "0.1.15"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "4.5.11",
