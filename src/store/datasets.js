@@ -243,6 +243,19 @@ export const makeActions = (dependencies) => ({
     return errors;
   },
 
+  importLabelMap({ state, commit, dispatch }, { labelMap, name, parent }) {
+    const id = state.data.nextID;
+    commit('addLabelmap', { name, image: labelMap });
+    commit('associateData', {
+      parentID: parent,
+      childID: id,
+    });
+    return dispatch({
+      type: 'visualization/updateScene',
+      reset: false,
+    });
+  },
+
   /**
    * Selects a base image.
    *

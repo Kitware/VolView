@@ -273,6 +273,7 @@ import MeasurementsModule from './components/MeasurementsModule.vue';
 import ModelBrowser from './components/ModelBrowser.vue';
 import DragAndDrop from './components/DragAndDrop.vue';
 import AboutBox from './components/AboutBox.vue';
+import SpleenModule from './components/SpleenModule.vue';
 
 export const Modules = [
   {
@@ -299,6 +300,11 @@ export const Modules = [
     name: 'Measurements',
     icon: 'pencil-ruler',
     component: MeasurementsModule,
+  },
+  {
+    name: 'Spleen Segmentation',
+    icon: 'box-cutter',
+    component: SpleenModule,
   },
 ];
 
