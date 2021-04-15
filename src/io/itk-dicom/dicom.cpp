@@ -1,7 +1,6 @@
 #include <cerrno>
 #include <cstdio>
 #include <dirent.h>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -12,6 +11,17 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#ifdef WEB_BUILD
+// Building with the itk.js docker container has a more recent gcc version
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+// Building locally with gcc 7.5.0 means I need -lstdc++fs and
+// experimental/filesystem
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
 
 #ifdef WEB_BUILD
 #include <emscripten.h>
@@ -31,32 +41,29 @@
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
 
+#include "gdcmImageHelper.h"
+#include "gdcmReader.h"
+
 #include "charset.hpp"
 #include "readTRE.hpp"
 
 using json = nlohmann::json;
-using VectorImageType = itk::VectorImage<float, 3>;
 using ImageType = itk::Image<float, 3>;
 using ReaderType = itk::ImageFileReader<ImageType>;
 using SeriesReaderType = itk::ImageSeriesReader<ImageType>;
 using FileNamesContainer = std::vector<std::string>;
 using DictionaryType = itk::MetaDataDictionary;
-using SOPInstanceUID = std::string;
-using ImageInfo =
-    std::pair<SOPInstanceUID, std::string>; // (SOPInstanceUID, filename)
 using DicomIO = itk::GDCMImageIO;
 using MetaDataStringType = itk::MetaDataObject<std::string>;
-// can only index on SOPInstanceUID, since filename isn't full path
-using ImageIndex = std::unordered_set<SOPInstanceUID>;
-using SeriesIndexType =
-    std::unordered_map<std::string,
-                       std::vector<std::string>>; // seriesUID -> []filenames
 using TagList = std::vector<std::string>;
+// volumeID -> filenames[]
+using VolumeMapType = std::unordered_map<std::string, std::vector<std::string>>;
+// VolumeID[]
+using VolumeIDList = std::vector<std::string>;
 
 static int rc = 0;
-static ImageIndex imageIndex;
-static std::unordered_set<SOPInstanceUID> SOPUIDIndex;
-static SeriesIndexType SeriesIndex;
+static const double EPSILON = 10e-5;
+static VolumeMapType VolumeMap;
 
 #ifdef WEB_BUILD
 extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
@@ -81,6 +88,14 @@ void list_dir(const char *path) {
 bool dirExists(std::string path) {
   struct stat buf;
   return 0 == stat(path.c_str(), &buf);
+}
+
+void replaceChars(std::string &str, char search, char replaceChar) {
+  int pos;
+  std::string replace(1, replaceChar);
+  while ((pos = str.find(search)) != std::string::npos) {
+    str.replace(pos, 1, replace);
+  }
 }
 
 std::string
@@ -112,6 +127,96 @@ void movefile(const std::string &src, const std::string &dst) {
   }
 }
 
+// doesn't actually do any length checks, or overflow checks, or anything
+// really.
+template <int N>
+double dotProduct(const std::vector<double> &vec1,
+                  const std::vector<double> &vec2) {
+  double result = 0;
+  for (int i = 0; i < N; i++) {
+    result += vec1.at(i) * vec2.at(i);
+  }
+  return result;
+}
+
+std::vector<double> ReadImageOrientationValue(const std::string &filename) {
+  gdcm::Reader reader;
+  reader.SetFileName(filename.c_str());
+  if (!reader.Read()) {
+    throw std::runtime_error("gdcm: failed to read file");
+  }
+  const gdcm::File &file = reader.GetFile();
+  // This helper method asserts that the vector has length 6.
+  return gdcm::ImageHelper::GetDirectionCosinesValue(file);
+}
+
+bool areCosinesAlmostEqual(std::vector<double> cosines1,
+                           std::vector<double> cosines2,
+                           double epsilon = EPSILON) {
+  for (int i = 0; i <= 1; i++) {
+    std::vector<double> vec1{cosines1.at(i), cosines1.at(i + 1),
+                             cosines1.at(i + 2)};
+    std::vector<double> vec2{cosines2.at(i), cosines2.at(i + 1),
+                             cosines2.at(i + 2)};
+    double dot = dotProduct<3>(vec1, vec2);
+    if (dot < (1 - EPSILON)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
+  VolumeMapType newVolumeMap;
+  // Vector< Pair< cosines, volumeID >>
+  std::vector<std::pair<std::vector<double>, std::string>> cosinesToID;
+
+  // append unique ID part to the volume ID, based on cosines
+  // The format replaces non-alphanumeric chars to be semi-consistent with DICOM UID spec,
+  //   and to make debugging easier when looking at the full volume IDs.
+  // Format: COSINE || "S" || COSINE || "S" || ...
+  //   COSINE: A decimal number -DD.DDDD gets reformatted into NDDSDDDD
+  auto encodeCosinesAsIDPart = [](const std::vector<double> &cosines) {
+    std::string concatenated;
+    for (auto it = cosines.begin(); it != cosines.end(); ++it) {
+      concatenated += std::to_string(*it);
+      if (it != cosines.end() - 1) {
+        concatenated += 'S';
+      }
+    }
+
+    replaceChars(concatenated, '-', 'N');
+    replaceChars(concatenated, '.', 'D');
+
+    return concatenated;
+  };
+
+
+  for (const auto &[volumeID, names] : volumeMap) {
+    for (const auto &filename : names) {
+      std::vector<double> curCosines = ReadImageOrientationValue(filename);
+
+      bool inserted = false;
+      for (const auto &entry : cosinesToID) {
+        if (areCosinesAlmostEqual(curCosines, entry.first)) {
+          newVolumeMap[entry.second].push_back(filename);
+          inserted = true;
+          break;
+        }
+      }
+
+      if (!inserted) {
+        const auto encodedIDPart = encodeCosinesAsIDPart(curCosines);
+        auto newID = volumeID + '.' + encodedIDPart;
+        newVolumeMap[newID].push_back(filename);
+        cosinesToID.push_back(std::make_pair(curCosines, newID));
+      }
+    }
+  }
+
+  return newVolumeMap;
+}
+
 const json import(FileNamesContainer &files) {
   // make tmp dir
   std::string tmpdir("tmp");
@@ -135,69 +240,81 @@ const json import(FileNamesContainer &files) {
   // Does this affect series organization?
   seriesFileNames->SetLoadPrivateTags(false);
 
-  using SeriesIdContainer = std::vector<std::string>;
-  const SeriesIdContainer &gdcmSeriesUIDs = seriesFileNames->GetSeriesUIDs();
+  // Obtain the initial separation of imported files into distinct volumes.
+  auto &gdcmSeriesUIDs = seriesFileNames->GetSeriesUIDs();
 
-  for (auto gdcmSeriesUID : gdcmSeriesUIDs) {
-    FileNamesContainer fileNames =
-        seriesFileNames->GetFileNames(gdcmSeriesUID.c_str());
+  // The initial series UIDs are used as the basis for our volume IDs.
+  VolumeMapType curVolumeMap;
+  for (auto seriesUID : gdcmSeriesUIDs) {
+    curVolumeMap[seriesUID] =
+        seriesFileNames->GetFileNames(seriesUID.c_str());
+  }
 
-    // move files to series dir
-    // assume there will be no filename conflicts within a series
-    makedir(gdcmSeriesUID);
+  // further restrict on orientation
+  curVolumeMap = SeparateOnImageOrientation(curVolumeMap);
+
+  VolumeIDList allVolumeIDs;
+  for (const auto &entry : curVolumeMap) {
+    const std::string &volumeID = entry.first;
+    const FileNamesContainer &fileNames = entry.second;
+
+    // move files to volume dir
+    // assume there will be no filename conflicts within a volume
+    makedir(volumeID);
     for (auto filename : fileNames) {
-      auto dst = gdcmSeriesUID + "/" + filename.substr(tmpdir.size() + 1);
+      auto dst = volumeID + "/" + filename.substr(tmpdir.size() + 1);
       movefile(filename, dst);
     }
+
+    allVolumeIDs.push_back(volumeID);
   }
-  return json(gdcmSeriesUIDs);
+  return json(allVolumeIDs);
 }
 
-int buildSeries(const std::string &gdcmSeriesUID) {
-  if (dirExists(gdcmSeriesUID)) {
+/**
+ * buildVolumeList exists to support multiple import() calls prior to building a
+ * volume.
+ *
+ * This solves the issues
+ */
+int buildVolumeList(const std::string &volumeID) {
+  if (dirExists(volumeID)) {
     typedef itk::GDCMSeriesFileNames SeriesFileNames;
     SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
-    seriesFileNames->SetDirectory(gdcmSeriesUID);
+    seriesFileNames->SetDirectory(volumeID);
     seriesFileNames->SetUseSeriesDetails(true);
     seriesFileNames->SetGlobalWarningDisplay(false);
     seriesFileNames->AddSeriesRestriction("0008|0021");
     seriesFileNames->SetRecursive(false);
     seriesFileNames->SetLoadPrivateTags(false);
 
-    using SeriesIdContainer = std::vector<std::string>;
-    SeriesIdContainer uids = seriesFileNames->GetSeriesUIDs();
+    VolumeIDList uids = seriesFileNames->GetSeriesUIDs();
 
     if (uids.size() != 1) {
-      throw std::runtime_error("why are there more than 1 series in this dir");
-    }
-    // TODO need to figure out why uids[0] sometimes is not equal to
-    // gdcmSeriesUID.
-    if (uids[0] != gdcmSeriesUID) {
-      std::cerr << "Found UID " << uids[0] << " instead of " << gdcmSeriesUID
-                << std::endl;
+      throw std::runtime_error("why are there more than 1 series/volume in this dir");
     }
 
-    SeriesIndex[gdcmSeriesUID] = seriesFileNames->GetFileNames(uids[0].c_str());
-    auto &index = SeriesIndex[gdcmSeriesUID];
-    for (auto &filename : index) {
+    VolumeMap[volumeID] = seriesFileNames->GetFileNames(uids[0].c_str());
+    auto &map = VolumeMap[volumeID];
+    for (auto &filename : map) {
       // trim off dir + "/"
-      filename = filename.substr(gdcmSeriesUID.size() + 1);
+      filename = filename.substr(volumeID.size() + 1);
     }
-    return index.size();
+    return map.size();
   }
-  std::cerr << "Could not build series " << gdcmSeriesUID << std::endl;
+  std::cerr << "Could not build volume " << volumeID << std::endl;
   return 0;
 }
 
-const json readTags(const std::string &gdcmSeriesUID, unsigned long slice,
+const json readTags(const std::string &volumeID, unsigned long slice,
                     const TagList &tags) {
   json tagJson;
 
-  if (SeriesIndex.find(gdcmSeriesUID) != SeriesIndex.end()) {
-    FileNamesContainer seriesFileList = SeriesIndex.at(gdcmSeriesUID);
+  if (VolumeMap.find(volumeID) != VolumeMap.end()) {
+    FileNamesContainer fileList = VolumeMap.at(volumeID);
 
-    if (slice >= 0 && slice < seriesFileList.size()) {
-      auto filename = seriesFileList.at(slice);
+    if (slice >= 0 && slice < fileList.size()) {
+      auto filename = fileList.at(slice);
 
       typename DicomIO::Pointer dicomIO = DicomIO::New();
       dicomIO->LoadPrivateTagsOff();
@@ -205,7 +322,7 @@ const json readTags(const std::string &gdcmSeriesUID, unsigned long slice,
       reader->UseStreamingOn();
       reader->SetImageIO(dicomIO);
 
-      auto fullFilename = gdcmSeriesUID + "/" + filename;
+      auto fullFilename = volumeID + "/" + filename;
       dicomIO->SetFileName(fullFilename);
       reader->SetFileName(fullFilename);
       reader->UpdateOutputInformation();
@@ -237,12 +354,12 @@ const json readTags(const std::string &gdcmSeriesUID, unsigned long slice,
   return tagJson;
 }
 
-void getSliceImage(const std::string &seriesUID, unsigned long slice,
+void getSliceImage(const std::string &volumeID, unsigned long slice,
                    const std::string &outFileName, bool asThumbnail) {
-  SeriesIndexType::const_iterator found = SeriesIndex.find(seriesUID);
-  if (found != SeriesIndex.end()) {
-    FileNamesContainer seriesFileList = SeriesIndex.at(seriesUID);
-    std::string filename = seriesUID + "/" + seriesFileList.at(slice - 1);
+  VolumeMapType::const_iterator found = VolumeMap.find(volumeID);
+  if (found != VolumeMap.end()) {
+    FileNamesContainer fileList = VolumeMap.at(volumeID);
+    std::string filename = volumeID + "/" + fileList.at(slice - 1);
 
     typename DicomIO::Pointer dicomIO = DicomIO::New();
     dicomIO->LoadPrivateTagsOff();
@@ -282,21 +399,21 @@ void getSliceImage(const std::string &seriesUID, unsigned long slice,
       writer->Update();
     }
   } else {
-    throw std::runtime_error("No thumbnail for series UID: " + seriesUID);
+    throw std::runtime_error("No thumbnail for volume ID: " + volumeID);
     std::ofstream empty(outFileName);
   }
 }
 
-void buildSeriesVolume(const std::string &seriesUID,
-                       const std::string &outFileName) {
-  SeriesIndexType::const_iterator found = SeriesIndex.find(seriesUID);
-  if (found != SeriesIndex.end()) {
-    FileNamesContainer seriesFileList = SeriesIndex.at(seriesUID);
-    FileNamesContainer fileNames(seriesFileList);
+void buildVolume(const std::string &volumeID,
+                 const std::string &outFileName) {
+  VolumeMapType::const_iterator found = VolumeMap.find(volumeID);
+  if (found != VolumeMap.end()) {
+    FileNamesContainer fileList = VolumeMap.at(volumeID);
+    FileNamesContainer fileNames(fileList);
 
     for (FileNamesContainer::iterator it = fileNames.begin();
          it != fileNames.end(); ++it) {
-      *it = seriesUID + "/" + *it;
+      *it = volumeID + "/" + *it;
     }
 
     DicomIO::Pointer dicomIO = DicomIO::New();
@@ -317,9 +434,7 @@ void buildSeriesVolume(const std::string &seriesUID,
   }
 }
 
-void deleteSeries(const std::string &seriesUID) {
-  std::filesystem::remove_all(seriesUID);
-}
+void deleteVolume(const std::string &volumeID) { fs::remove_all(volumeID); }
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -353,13 +468,13 @@ int main(int argc, char *argv[]) {
     outfile.open(outFileName);
     outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
-  } else if (action == "buildSeries") {
-    // dicom buildSeries output.json gdcmSeriesUID
+  } else if (action == "buildVolumeList") {
+    // dicom buildVolumeList output.json volumeID
     std::string outFileName(argv[2]);
-    std::string gdcmSeriesUID(argv[3]);
+    std::string volumeID(argv[3]);
     json numSlices;
     try {
-      numSlices = buildSeries(gdcmSeriesUID);
+      numSlices = buildVolumeList(volumeID);
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << std::endl;
     } catch (const std::runtime_error &e) {
@@ -371,15 +486,15 @@ int main(int argc, char *argv[]) {
     outfile << numSlices.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
   } else if (action == "readTags" && argc > 4) {
-    // dicom readTags output.json seriesUID, slicenum [...tags]
+    // dicom readTags output.json volumeID, slicenum [...tags]
     std::string outputFilename(argv[2]);
-    std::string seriesUID(argv[3]);
+    std::string volumeID(argv[3]);
     unsigned long sliceNum = std::stoul(argv[4]);
     std::vector<std::string> rest(argv + 5, argv + argc);
 
     json tags;
     try {
-      tags = readTags(seriesUID, sliceNum, rest);
+      tags = readTags(volumeID, sliceNum, rest);
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << std::endl;
     } catch (const std::runtime_error &e) {
@@ -391,37 +506,37 @@ int main(int argc, char *argv[]) {
     outfile << tags.dump(-1, true, ' ', json::error_handler_t::ignore);
     outfile.close();
   } else if (action == "getSliceImage" && argc == 6) {
-    // dicom getSliceImage outputImage.json SERIES_UID SLICENUM
+    // dicom getSliceImage outputImage.json volumeID SLICENUM
     std::string outFileName = argv[2];
-    std::string seriesUID = argv[3];
+    std::string volumeID = argv[3];
     unsigned long sliceNum = std::stoul(argv[4]);
     bool asThumbnail = std::string(argv[5]) == "1";
 
     try {
-      getSliceImage(seriesUID, sliceNum, outFileName, asThumbnail);
+      getSliceImage(volumeID, sliceNum, outFileName, asThumbnail);
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << '\n';
     } catch (const std::runtime_error &e) {
       std::cerr << "Runtime error: " << e.what() << std::endl;
     }
-  } else if (action == "buildSeriesVolume" && argc == 4) {
-    // dicom buildSeriesVolume outputImage.json SERIES_UID
+  } else if (action == "buildVolume" && argc == 4) {
+    // dicom buildVolume outputImage.json volumeID
     std::string outFileName = argv[2];
-    std::string seriesUID = argv[3];
+    std::string volumeID = argv[3];
 
     try {
-      buildSeriesVolume(seriesUID, outFileName);
+      buildVolume(volumeID, outFileName);
     } catch (const itk::ExceptionObject &e) {
       std::cerr << "ITK error: " << e.what() << '\n';
     } catch (const std::runtime_error &e) {
       std::cerr << e.what() << std::endl;
     }
-  } else if (action == "deleteSeries" && argc == 3) {
-    // dicom deleteSeries SERIES_UID
-    std::string seriesUID(argv[3]);
+  } else if (action == "deleteVolume" && argc == 3) {
+    // dicom deleteVolume volumeID
+    std::string volumeID(argv[3]);
 
     try {
-      deleteSeries(seriesUID);
+      deleteVolume(volumeID);
     } catch (const std::runtime_error &e) {
       std::cerr << e.what() << std::endl;
     }

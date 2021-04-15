@@ -192,11 +192,11 @@ export default {
         if (selectedBaseImage in state.data.index) {
           const dataInfo = state.data.index[selectedBaseImage];
           if (dataInfo.type === DataTypes.Dicom) {
-            const { patientKey, studyKey, seriesKey } = dataInfo;
+            const { patientKey, studyKey, volumeKey } = dataInfo;
             return {
               patient: state.dicom.patientIndex[patientKey],
               study: state.dicom.studyIndex[studyKey],
-              series: state.dicom.seriesIndex[seriesKey],
+              volume: state.dicom.volumeIndex[volumeKey],
             };
           }
         }
@@ -347,8 +347,8 @@ export default {
         ? [
             `StudyID: ${dicomInfo.value.study.StudyID}`,
             dicomInfo.value.study.StudyDescription,
-            `Series #: ${dicomInfo.value.series.SeriesNumber}`,
-            dicomInfo.value.series.SeriesDescription,
+            `Series #: ${dicomInfo.value.volume.SeriesNumber}`,
+            dicomInfo.value.volume.SeriesDescription,
           ].join('<br>')
         : ''
     );

@@ -71,7 +71,7 @@ export default class DicomIO {
    * Imports files
    * @async
    * @param {File[]} files
-   * @returns SeriesUIDs
+   * @returns VolumeID[] a list of volumes parsed from the files
    */
   async importFiles(files) {
     await this.initialize();
@@ -105,15 +105,15 @@ export default class DicomIO {
   }
 
   /**
-   * Builds the series slice order.
+   * Builds the volume slice order.
    *
-   * This should be done prior to readSeriesTags or buildVolume.
-   * @param {String} gdcmSeriesUID
+   * This should be done prior to readTags or buildVolume.
+   * @param {String} volumeID
    */
-  async buildSeriesOrder(gdcmSeriesUID) {
+  async buildVolumeList(volumeID) {
     const result = await this.addTask(
       'dicom',
-      ['buildSeries', 'output.json', gdcmSeriesUID],
+      ['buildVolumeList', 'output.json', volumeID],
       [{ path: 'output.json', type: IOTypes.Text }],
       []
     );
@@ -121,13 +121,13 @@ export default class DicomIO {
   }
 
   /**
-   * Reads a list of tags out from a given series UID.
+   * Reads a list of tags out from a given volume ID.
    *
-   * @param {String} seriesUID
+   * @param {String} volumeID
    * @param {[]Tag} tags
    * @param {Integer} slice Defaults to 0 (first slice)
    */
-  async readSeriesTags(seriesUID, tags, slice = 0) {
+  async readTags(volumeID, tags, slice = 0) {
     const tagsArgs = tags.map((t) => {
       const { strconv, tag } = t;
       return `${strconv ? '@' : ''}${tag}`;
@@ -135,7 +135,7 @@ export default class DicomIO {
 
     const results = await this.addTask(
       'dicom',
-      ['readTags', 'output.json', seriesUID, String(slice), ...tagsArgs],
+      ['readTags', 'output.json', volumeID, String(slice), ...tagsArgs],
       [{ path: 'output.json', type: IOTypes.Text }],
       []
     );
@@ -151,14 +151,14 @@ export default class DicomIO {
   }
 
   /**
-   * Retrieves a slice of a series.
+   * Retrieves a slice of a volume.
    * @async
-   * @param {String} seriesUID the ITK-GDCM series UID
+   * @param {String} volumeID the volume ID
    * @param {Number} slice the slice to retrieve
    * @param {Boolean} asThumbnail cast image to unsigned char. Defaults to false.
    * @returns ItkImage
    */
-  async getSeriesImage(seriesUID, slice, asThumbnail = false) {
+  async getVolumeSlice(volumeID, slice, asThumbnail = false) {
     await this.initialize();
 
     const result = await this.addTask(
@@ -166,7 +166,7 @@ export default class DicomIO {
       [
         'getSliceImage',
         'output.json',
-        seriesUID,
+        volumeID,
         String(slice),
         asThumbnail ? '1' : '0',
       ],
@@ -179,23 +179,23 @@ export default class DicomIO {
   }
 
   /**
-   * Builds a volume for a given series.
+   * Builds a volume for a given volume ID.
    * @async
-   * @param {String} seriesUID the ITK-GDCM series UID
+   * @param {String} volumeID the volume ID
    * @returns ItkImage
    */
-  async buildSeriesVolume(seriesUID) {
+  async buildVolume(volumeID) {
     await this.initialize();
 
     const result = await this.addTask(
       'dicom',
-      ['buildSeriesVolume', 'output.json', seriesUID],
+      ['buildVolume', 'output.json', volumeID],
       [{ path: 'output.json', type: IOTypes.Image }],
       [],
       10 // building volumes is high priority
     );
 
-    // TEMPORARY tranpose until itk.js consistently outputs col-major
+    // FIXME tranpose until itk.js consistently outputs col-major
     // and ITKHelper is updated.
     const image = result.outputs[0].data;
     mat3.transpose(image.direction.data, image.direction.data);
@@ -203,13 +203,13 @@ export default class DicomIO {
   }
 
   /**
-   * Deletes all files associated with a series.
+   * Deletes all files associated with a volume.
    * @async
-   * @param {String} seriesUID the series UID
+   * @param {String} volumeID the volume ID
    */
-  async deleteSeries(seriesUID) {
+  async deleteVolume(volumeID) {
     await this.initialize();
-    await this.addTask('dicom', ['deleteSeries', seriesUID], [], []);
+    await this.addTask('dicom', ['deleteVolume', volumeID], [], []);
   }
 
   /**

@@ -19,13 +19,9 @@
     </div>
     <div id="patient-data-list">
       <item-group :value="selectedBaseImage" @change="setSelection">
-        <template v-if="!patientName">
-          No patient selected
-        </template>
+        <template v-if="!patientName"> No patient selected </template>
         <template v-else-if="patientName === IMAGES">
-          <div v-if="imageList.length === 0">
-            No non-dicom images available
-          </div>
+          <div v-if="imageList.length === 0">No non-dicom images available</div>
           <groupable-item
             v-for="imgID in imageList"
             :key="imgID"
@@ -90,41 +86,41 @@
                 </div>
               </v-expansion-panel-header>
               <v-expansion-panel-content>
-                <div class="my-2 series-list">
+                <div class="my-2 volume-list">
                   <groupable-item
-                    v-for="series in getSeries(study.StudyInstanceUID)"
-                    :key="series.SeriesInstanceUID"
+                    v-for="volInfo in getVolumesForStudy(
+                      study.StudyInstanceUID
+                    )"
+                    :key="volInfo.VolumeID"
                     v-slot:default="{ active, select }"
-                    :value="dicomSeriesToID[series.SeriesInstanceUID]"
+                    :value="dicomVolumeToDataID[volInfo.VolumeID]"
                   >
                     <v-card
                       outlined
                       ripple
                       :color="active ? 'light-blue lighten-4' : ''"
-                      class="series-card"
-                      :title="series.SeriesDescription"
+                      class="volume-card"
+                      :title="volInfo.SeriesDescription"
                       @click="select"
                     >
                       <v-img
                         contain
                         height="100px"
-                        :src="dicomThumbnails[series.SeriesInstanceUID]"
+                        :src="dicomThumbnails[volInfo.VolumeID]"
                       />
                       <v-card-text
                         class="text--primary caption text-center series-desc mt-n3"
                       >
-                        <div>[{{ series.NumberOfSlices }}]</div>
+                        <div>[{{ volInfo.NumberOfSlices }}]</div>
                         <div class="text-ellipsis">
-                          {{ series.SeriesDescription || '(no description)' }}
+                          {{ volInfo.SeriesDescription || '(no description)' }}
                         </div>
                         <div class="actions">
                           <v-btn
                             small
                             icon
                             @click.stop="
-                              removeData(
-                                dicomSeriesToID[series.SeriesInstanceUID]
-                              )
+                              removeData(dicomVolumeToDataID[volInfo.VolumeID])
                             "
                           >
                             <v-icon>mdi-delete</v-icon>
@@ -207,7 +203,7 @@ export default {
     return {
       patientName: '',
       imageThumbnails: {}, // dataID -> Image
-      dicomThumbnails: {}, // seriesUID -> Image
+      dicomThumbnails: {}, // volumeID -> Image
       pendingDicomThumbnails: {},
 
       IMAGES, // symbol
@@ -217,7 +213,7 @@ export default {
   computed: {
     ...mapState({
       selectedBaseImage: 'selectedBaseImage',
-      dicomSeriesToID: 'dicomSeriesToID',
+      dicomVolumeToDataID: 'dicomVolumeToDataID',
       imageList: (state) => state.data.imageIDs,
       dataIndex: (state) => state.data.index,
       vtkCache: (state) => state.data.vtkCache,
@@ -226,8 +222,8 @@ export default {
       patientIndex: 'patientIndex',
       patientStudies: 'patientStudies',
       studyIndex: 'studyIndex',
-      studySeries: 'studySeries',
-      seriesIndex: 'seriesIndex',
+      studyVolumes: 'studyVolumes',
+      volumeIndex: 'volumeIndex',
     }),
     patients(state) {
       const seen = new Set();
@@ -303,15 +299,15 @@ export default {
   },
 
   methods: {
-    getSeries(studyUID) {
-      const seriesList = (this.studySeries[studyUID] ?? []).map(
-        (seriesUID) => this.seriesIndex[seriesUID]
+    getVolumesForStudy(studyUID) {
+      const volumeList = (this.studyVolumes[studyUID] ?? []).map(
+        (volID) => this.volumeIndex[volID]
       );
 
       // trigger a background job fetch thumbnails
-      this.doBackgroundDicomThumbnails(seriesList);
+      this.doBackgroundDicomThumbnails(volumeList);
 
-      return seriesList;
+      return volumeList;
     },
 
     async setSelection(sel) {
@@ -321,23 +317,23 @@ export default {
       }
     },
 
-    async doBackgroundDicomThumbnails(seriesList) {
-      seriesList.forEach(async (series) => {
-        const uid = series.SeriesInstanceUID;
+    async doBackgroundDicomThumbnails(volumeList) {
+      volumeList.forEach(async (volInfo) => {
+        const id = volInfo.VolumeID;
         if (
-          !(uid in this.dicomThumbnails || uid in this.pendingDicomThumbnails)
+          !(id in this.dicomThumbnails || id in this.pendingDicomThumbnails)
         ) {
-          this.$set(this.pendingDicomThumbnails, uid, true);
+          this.$set(this.pendingDicomThumbnails, id, true);
           try {
-            const middleSlice = Math.round(Number(series.NumberOfSlices) / 2);
-            const thumbItkImage = await this.getSeriesImage({
-              seriesKey: uid,
+            const middleSlice = Math.round(Number(volInfo.NumberOfSlices) / 2);
+            const thumbItkImage = await this.getVolumeSlice({
+              volumeID: id,
               slice: middleSlice,
               asThumbnail: true,
             });
-            this.$set(this.dicomThumbnails, uid, itkImageToURI(thumbItkImage));
+            this.$set(this.dicomThumbnails, id, itkImageToURI(thumbItkImage));
           } finally {
-            delete this.pendingDicomThumbnails[uid];
+            delete this.pendingDicomThumbnails[id];
           }
         }
       });
@@ -373,7 +369,7 @@ export default {
 
     ...mapActions(['selectBaseImage', 'removeData']),
     ...mapActions('visualization', ['updateScene']),
-    ...mapActions('dicom', ['getSeriesImage']),
+    ...mapActions('dicom', ['getVolumeSlice']),
   },
 };
 </script>
@@ -413,14 +409,14 @@ export default {
   border: 1px solid #ddd;
 }
 
-.series-list {
+.volume-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   grid-template-rows: 180px;
   justify-content: center;
 }
 
-.series-card {
+.volume-card {
   padding: 8px;
   cursor: pointer;
 }

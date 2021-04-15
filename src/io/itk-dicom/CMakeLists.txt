@@ -29,6 +29,7 @@ find_package(ITK REQUIRED
     ITKImageIntensity
     # for GDCMSeriesFileNames.h
     ITKIOGDCM
+    ITKGDCM
     # spatial objects
     ITKMesh
     ITKSpatialObjects
@@ -107,3 +108,7 @@ add_dependencies(iconv ${ICONV})
 add_executable(dicom ${dicom_SRCS})
 target_include_directories(dicom PRIVATE ${ICONV_DIR}/include)
 target_link_libraries(dicom PRIVATE ${ITK_LIBRARIES} iconv nlohmann_json::nlohmann_json)
+
+if(NOT EMSCRIPTEN)
+  target_link_libraries(dicom PRIVATE stdc++fs)
+endif()

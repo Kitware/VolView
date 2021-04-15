@@ -24,8 +24,8 @@ export const initialState = () => ({
     vtkCache: {},
   },
 
-  // track the mapping from seriesUID to data ID
-  dicomSeriesToID: {},
+  // track the mapping from volumeID to data ID
+  dicomVolumeToDataID: {},
   selectedBaseImage: NO_SELECTION,
 
   // data-data associations, in parent-of or child-of relationships.
