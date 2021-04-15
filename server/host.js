@@ -2,7 +2,7 @@
 import WebsocketConnection from 'wslink/src/WebsocketConnection';
 import { defer } from '../src/utils/common';
 
-import { serialize } from './serialize';
+import { deserialize, serialize } from './serialize';
 
 /**
  * Matches a response against valid type names
@@ -90,7 +90,7 @@ export default class HostConnection {
     return this.handleRpcResponse(response);
   }
 
-  handleRpcResponse(response) {
+  async handleRpcResponse(response) {
     if (
       !isValidResponse(response, ['rpc.result', 'rpc.error', 'rpc.deferred'])
     ) {
@@ -107,10 +107,11 @@ export default class HostConnection {
       throw new RpcError(response.error);
     }
 
-    return response.result;
+    const result = await deserialize(response.result);
+    return result;
   }
 
-  handleDeferredResponse(response) {
+  async handleDeferredResponse(response) {
     if (!isValidResponse(response, ['deferred.result'])) {
       throw new Error('Invalid deferred response');
     }
@@ -124,7 +125,7 @@ export default class HostConnection {
     this.deferredResponses.delete(id);
 
     try {
-      const result = this.handleRpcResponse(response.rpcResponse);
+      const result = await this.handleRpcResponse(response.rpcResponse);
       deferred.resolve(result);
     } catch (e) {
       deferred.reject(e);

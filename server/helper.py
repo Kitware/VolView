@@ -1,4 +1,6 @@
+import traceback
 import wslink
+from serialize import RpcDecoder, RpcEncoder, DEFAULT_DECODERS, DEFAULT_ENCODERS
 from wslink.websocket import LinkProtocol
 
 
@@ -85,39 +87,29 @@ def make_error_response(exc):
     }
 
 
-def make_deferred_result_response(future):
-    if not future.done():
-        raise Exception('Future result is not done')
-
-    if future.has_exception():
-        return {
-            'type': DEFERRED_RESPONSE_TYPE,
-            'id': future.id(),
-            'rpcResponse': make_error_response(future.exception())
-        }
-    return {
-        'type': DEFERRED_RESPONSE_TYPE,
-        'id': future.id(),
-        'rpcResponse': make_result_response(future.result())
-    }
+def deserialize(args, kwargs):
+    decoder = RpcDecoder(hooks=DEFAULT_DECODERS)
+    new_args = [decoder.decode(arg) for arg in args]
+    return new_args, kwargs
 
 
 def rpc(name):
     def wrapper(fn):
         def handler(self, *args, **kwargs):
-            # deserialize args, kwargs
 
             try:
+                args, kwargs = deserialize(args, kwargs)
                 result = fn(self, *args, **kwargs)
-
+            except Exception as e:
+                traceback.print_exc()
+                return make_error_response(e)
+            else:
                 if type(result) is FutureResult:
                     self._futures.append(result)
                     result.set_done_callback(self._handle_future_result)
                     return make_deferred_response(result.id())
 
-                return make_result_response(result)
-            except Exception as e:
-                return make_error_response(e)
+                return make_result_response(self.serialize(result))
 
         return wslink.register(name)(handler)
     return wrapper
@@ -131,4 +123,25 @@ class RpcApi(LinkProtocol):
     def _handle_future_result(self, future):
         self._futures.remove(future)
         self.publish('deferred.responses',
-                     make_deferred_result_response(future))
+                     self._make_deferred_result_response(future))
+
+    def _make_deferred_result_response(self, future):
+        if future.has_exception():
+            return {
+                'type': DEFERRED_RESPONSE_TYPE,
+                'id': future.id(),
+                'rpcResponse': make_error_response(future.exception())
+            }
+        return {
+            'type': DEFERRED_RESPONSE_TYPE,
+            'id': future.id(),
+            'rpcResponse': make_result_response(self.serialize(future.result()))
+        }
+
+    def serialize(self, obj):
+        try:
+            encoder = RpcEncoder(encoders=DEFAULT_ENCODERS,
+                                 extra_args=(self.addAttachment,))
+            return encoder.encode(obj)
+        except:
+            traceback.print_exc()
