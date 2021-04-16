@@ -14,6 +14,7 @@
 import { computed, defineComponent, ref, unref } from '@vue/composition-api';
 
 import { useStore, useComputedState } from '@/src/composables/store';
+import { useWidgetProvider } from '@/src/composables/widgetProvider';
 import HostConnection from '@/server/host';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { DEFAULT_LABELMAP_COLORS } from '@/src/constants';
@@ -36,6 +37,7 @@ export default defineComponent({
     const loading = ref(false);
 
     const store = useStore();
+    const widgetProvider = useWidgetProvider();
 
     const { currentImageId, currentImage } = useComputedState({
       currentImageId(state) {
@@ -59,13 +61,30 @@ export default defineComponent({
 
         const result = await connection.call('run', currentImage.value, 44);
         console.log('got result:', result);
-        const { segmentation } = result;
+        const { segmentation, measurements } = result;
 
         const segMap = copyImageToLabelMap(segmentation);
         await store.dispatch('importLabelMap', {
           name: 'whodis',
           labelMap: segMap,
           parent: curImageId,
+        });
+
+        measurements.measurements.map((mm) => {
+          const rulerState = {
+            version: '1.0',
+            type: 'ruler',
+            name: mm.name,
+            axis: 'IJK'[mm.axis.find((v) => v === 1)],
+            slice: mm.slice,
+            system: mm.coordinate_system,
+            point1: mm.point1,
+            point2: mm.point2,
+          };
+
+          return widgetProvider.createWidget('Ruler', {
+            initialState: rulerState,
+          });
         });
 
         loading.value = false;
