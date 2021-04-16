@@ -227,7 +227,17 @@ export default {
       }
     });
 
-    watchScene(sceneSources, viewRef);
+    watchScene(sceneSources, viewRef, () => {
+      const view = unref(viewRef);
+      if (view) {
+        view
+          .getRepresentations()
+          .filter((rep) => rep.setSlice instanceof Function)
+          .forEach((rep) => {
+            rep.setSlice(currentSlice.value);
+          });
+      }
+    });
     watchColorBy(colorBy, sceneSources, viewRef);
 
     // reset camera conditions

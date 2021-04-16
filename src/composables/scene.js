@@ -7,7 +7,7 @@ import { useProxyManager } from '@/src/composables/proxyManager';
  * @param {Ref<vtkSourceProxy[]>} sourcesRef
  * @param {Ref<vtkViewProxy>} viewRef
  */
-export function watchScene(sourcesRef, viewRef) {
+export function watchScene(sourcesRef, viewRef, postFn) {
   const pxm = useProxyManager();
 
   function repopulateScene() {
@@ -24,6 +24,10 @@ export function watchScene(sourcesRef, viewRef) {
           view.addRepresentation(rep);
         }
       });
+
+      if (postFn instanceof Function) {
+        postFn();
+      }
     }
   }
 
