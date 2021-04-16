@@ -75,7 +75,7 @@ export default defineComponent({
             version: '1.0',
             type: 'ruler',
             name: mm.name,
-            axis: 'IJK'[mm.axis.find((v) => v === 1)],
+            axis: 'IJK'[mm.axis.findIndex((v) => v === 1)],
             slice: mm.slice,
             system: mm.coordinate_system,
             point1: mm.point1,
