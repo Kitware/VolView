@@ -295,6 +295,7 @@ export const makeActions = (dependencies) => ({
 
     await dispatch('visualization/removeData', dataID);
     await dispatch('annotations/removeData', dataID);
+    await dispatch('measurements/removeByParent', dataID);
 
     // parent association condition
     const { childrenOf } = state.dataAssoc;
