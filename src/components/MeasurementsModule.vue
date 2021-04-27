@@ -4,54 +4,55 @@
       <v-list-item two-line :key="mm.id">
         <v-list-item-content>
           <template v-if="mm.type === 'ruler'">
-            <v-list-item-title>Ruler</v-list-item-title>
+            <v-list-item-title>Ruler: {{ mm.data.name }}</v-list-item-title>
             <v-list-item-subtitle>
               Length: {{ mm.data.length.toFixed(2) }}mm
             </v-list-item-subtitle>
           </template>
         </v-list-item-content>
         <v-list-item-action>
-          <v-btn icon @click="removeMeasurement(mm.id)">
+          <v-btn icon @click="remove(mm.id)">
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </v-list-item-action>
       </v-list-item>
     </template>
   </v-list>
-  <div v-else>
-    No measurements yet
-  </div>
+  <div v-else>No measurements yet</div>
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
+import { computed, defineComponent } from '@vue/composition-api';
+import { useStore, useComputedState } from '@/src/composables/store';
+import { useWidgetProvider } from '@/src/composables/widgetProvider';
 
-export default {
+export default defineComponent({
   name: 'MeasurementsModule',
+  setup() {
+    const store = useStore();
+    const widgetProvider = useWidgetProvider();
 
-  computed: {
-    ...mapState(['selectedBaseImage']),
-    ...mapState('measurements', [
-      'measurementWidgets',
-      'measurements',
-      'parents',
-    ]),
-    listOfMeasurements() {
-      const widgets = this.parents[this.selectedBaseImage] ?? [];
+    const { baseImage, measurements, parents } = useComputedState({
+      baseImage: (state) => state.selectedBaseImage,
+      measurements: (state) => state.measurements.measurements,
+      parents: (state) => state.measurements.parents,
+    });
+
+    const listOfMeasurements = computed(() => {
+      const widgets = parents.value[baseImage.value] ?? [];
       return widgets.map((id) => ({
         id,
-        ...this.measurements[id],
+        ...measurements.value[id],
       }));
-    },
-  },
+    });
 
-  methods: {
-    ...mapActions('widgets', {
-      // measurement IDs and widgetIDs coincide
-      removeMeasurement: 'removeWidget',
-    }),
+    return {
+      listOfMeasurements,
+      async remove(id) {
+        widgetProvider.deleteWidget(id);
+        store.dispatch('measurements/removeById', id);
+      },
+    };
   },
-};
+});
 </script>
-
-<style></style>
