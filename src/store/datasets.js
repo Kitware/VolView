@@ -278,8 +278,6 @@ export const makeActions = (dependencies) => ({
       }
     }
 
-    await dispatch('widgets/deactivateActiveWidget');
-
     commit('setBaseImage', baseImageId);
   },
 
