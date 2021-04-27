@@ -1,99 +1,168 @@
-import vtkCustomDistanceWidget from '@/src/vtk/CustomDistanceWidget';
+import vtkRulerWidget from '@/src/vtk/RulerWidget';
+import { vec3 } from 'gl-matrix';
+import { onAddedToView, onWidgetStateChanged } from './context';
+import { observe, ref } from './reactivity';
+import { useSliceFollower } from './widgetHooks';
 
-import Widget, { FOLLOW_VIEW, NEVER_VISIBLE, is2DView } from './widget';
+const START = 1;
+const PARTIAL = 2;
+const COMPLETE = 3;
 
-export default class RulerWidget extends Widget {
-  constructor(id, store) {
-    super(id, store);
+export function parseV1State(state, imageParams) {
+  const { name, system, axis, slice } = state;
+  const point1 = [...state.point1];
+  const point2 = [...state.point2];
 
-    this.mouse2DViewBehavior = FOLLOW_VIEW;
-    this.mouse3DViewBehavior = NEVER_VISIBLE;
-    // this will be changed to false when the widget is finalized
-    this.removeOnDeactivate = true;
-
-    this.factory = vtkCustomDistanceWidget.newInstance();
-    this.state = this.factory.getWidgetState();
-
-    this.stateSub = this.state.onModified(() => this.onStateChange());
-    this.lockedAxis = null;
-    this.lockedSlice = null;
-
-    this.store.dispatch('measurements/addMeasurementData', {
-      id: this.id,
-      type: 'ruler',
-      parentID: this.parentDataID,
-      initialData: {
-        length: 0,
-      },
-    });
+  if (system === 'Image') {
+    vec3.transformMat4(point1, point1, imageParams.indexToWorld);
+    vec3.transformMat4(point2, point2, imageParams.indexToWorld);
   }
 
-  onStateChange() {
-    const list = this.state.getHandleList();
+  return {
+    name,
+    point1,
+    point2,
+    axis: 'IJK'.indexOf(axis),
+    slice,
+  };
+}
 
-    if (!this.lockToCurrentViewFlag && list.length > 0) {
-      this.lockPickingToCurrentView(true);
-      const axis = this.currentView.getAxis();
-      const { slices } = this.store.state.visualization;
-      this.lockedAxis = axis;
-      this.lockedSlice = slices['xyz'[axis]];
+export default {
+  setup({
+    id,
+    datasetId,
+    initialState,
+    store,
+    widgetInstances,
+    viewTypeMap,
+    unfocusSelf,
+  }) {
+    const factory = vtkRulerWidget.newInstance();
+    const widgetState = factory.getWidgetState();
+
+    const name = ref('Ruler');
+    const placeState = ref(START);
+    const lockAxis = ref(null);
+    const lockSlice = ref(null);
+
+    function updateViewWidgetUI(viewWidget) {
+      viewWidget.setTextStateIndex(0);
+      viewWidget.setText(`${factory.getDistance().toFixed(2)}mm`);
     }
 
-    if (this.removeOnDeactivate && list.length === 2) {
-      this.removeOnDeactivate = false;
-      this.deactivateSelf();
-    } else {
-      this.store.dispatch('measurements/setMeasurementData', {
-        id: this.id,
+    function reset() {
+      lockAxis.value = null;
+      lockSlice.value = null;
+      // reset widget state
+      widgetState.clearHandleList();
+    }
+
+    // follow the active view/slice.
+    // when the provided axis/slice is not null,
+    // then only show widget when a view is on that axis/slice
+    const { axis: curAxis, slice: curSlice } = useSliceFollower(
+      store,
+      lockAxis,
+      lockSlice,
+      factory,
+      viewTypeMap,
+      widgetInstances
+    );
+
+    function handleWidgetStateChanged() {
+      const list = widgetState.getHandleList();
+
+      if (list.length === 1) {
+        // placed the first point.
+        // If the slice changes or the mouse leaves the view,
+        // reset the widget.
+        placeState.value = PARTIAL;
+        lockAxis.value = curAxis.value;
+        lockSlice.value = curSlice.value;
+      }
+
+      if (list.length === 2) {
+        placeState.value = COMPLETE;
+      }
+
+      store.dispatch('measurements/setData', {
+        id,
+        type: 'ruler',
+        parentID: datasetId,
         data: {
-          length: this.factory.getDistance(),
+          name: name.value,
+          length: factory.getDistance(),
         },
       });
+
+      // update ruler text
+      [...widgetInstances.values()].forEach((viewWidget) => {
+        updateViewWidgetUI(viewWidget);
+      });
     }
-  }
 
-  // override
-  updateVisibility(view) {
-    if (
-      this.currentView === view &&
-      is2DView(view) &&
-      view.getAxis() === this.lockedAxis
-    ) {
-      const axis = view.getAxis();
-      const { slices } = this.store.state.visualization;
-      const slice = slices['xyz'[axis]];
-      const visible = Math.abs(slice - this.lockedSlice) < 1e-6;
+    function restoreState(fromState) {
+      if (fromState.type !== 'ruler') {
+        throw new Error('Given state is not from a ruler');
+      }
 
-      this.setWidgetVisibilityForView(view, visible);
+      let parsedState;
+      if (fromState.version === '1.0') {
+        const { imageParams } = store.state.visualization;
+        parsedState = parseV1State(fromState, imageParams);
+      } else {
+        throw new Error(`Invalid state version ${fromState.version}`);
+      }
 
-      // render
-      view.getReferenceByName('widgetManager').renderWidgets();
-      view.getRenderWindow().render();
-    } else {
-      super.updateVisibility(view);
+      factory.addPoint(parsedState.point1);
+      factory.addPoint(parsedState.point2);
+      lockAxis.value = parsedState.axis;
+      lockSlice.value = parsedState.slice;
+      name.value = parsedState.name;
+
+      handleWidgetStateChanged();
     }
-  }
 
-  updateManipulator(view) {
-    if (view && this.lockedSlice === null) {
-      const axis = view.getAxis();
-      const { slices, imageParams } = this.store.state.visualization;
-      const { spacing } = imageParams;
-      const normal = [0, 0, 0];
-      normal[axis] = 1;
-      const origin = [0, 0, 0];
-      origin[axis] = slices['xyz'[axis]] * spacing[axis];
-
-      // plane manipulator
-      const manipulator = this.factory.getManipulator();
-      manipulator.setNormal(normal);
-      manipulator.setOrigin(origin);
+    if (initialState) {
+      restoreState(initialState);
     }
-  }
 
-  // override
-  delete() {
-    super.delete();
-    this.stateSub.unsubscribe();
-  }
-}
+    observe([curAxis, curSlice], ([axis, slice]) => {
+      if (
+        placeState.value === PARTIAL &&
+        (slice !== lockSlice.value || axis !== lockAxis.value)
+      ) {
+        reset();
+      }
+    });
+
+    observe(placeState, (state) => {
+      if (state === COMPLETE) {
+        unfocusSelf();
+      }
+    });
+
+    onWidgetStateChanged(handleWidgetStateChanged);
+
+    onAddedToView(({ viewWidget }) => {
+      updateViewWidgetUI(viewWidget);
+    });
+
+    return {
+      factory,
+      // TODO update serialize for v1
+      serialize() {
+        return {
+          version: '1.0',
+          type: 'Ruler',
+          name: 'W',
+          data: {
+            system: 'World',
+            point1: [],
+            point2: [],
+          },
+        };
+      },
+    };
+  },
+};
