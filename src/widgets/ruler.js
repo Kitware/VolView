@@ -40,6 +40,9 @@ export default {
     const factory = vtkRulerWidget.newInstance();
     const widgetState = factory.getWidgetState();
 
+    // cache image params, assuming it doesn't change for the underlying dataset
+    const imageParams = { ...store.state.visualization.imageParams };
+
     const name = ref('Ruler');
     const placeState = ref(START);
     const lockAxis = ref(null);
@@ -108,7 +111,6 @@ export default {
 
       let parsedState;
       if (fromState.version === '1.0') {
-        const { imageParams } = store.state.visualization;
         parsedState = parseV1State(fromState, imageParams);
       } else {
         throw new Error(`Invalid state version ${fromState.version}`);
@@ -150,17 +152,29 @@ export default {
 
     return {
       factory,
-      // TODO update serialize for v1
-      serialize() {
+      serialize({ system = 'Image' }) {
+        if (placeState.value !== COMPLETE) {
+          return null;
+        }
+
+        const list = widgetState.getHandleList();
+        const point1 = [...list[0].getOrigin()];
+        const point2 = [...list[1].getOrigin()];
+
+        if (system === 'Image') {
+          vec3.transformMat4(point1, point1, imageParams.worldToIndex);
+          vec3.transformMat4(point2, point2, imageParams.worldToIndex);
+        }
+
         return {
           version: '1.0',
           type: 'Ruler',
           name: 'W',
-          data: {
-            system: 'World',
-            point1: [],
-            point2: [],
-          },
+          system: 'Image',
+          axis: lockAxis.value,
+          slice: lockSlice.value,
+          point1,
+          point2,
         };
       },
     };
