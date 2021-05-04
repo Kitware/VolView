@@ -1,39 +1,35 @@
 <template>
-  <div>
+  <div id="volume-rendering-module" class="mx-2 height-100">
     <div
       v-show="hasBaseImage"
-      id="volume-rendering-module"
-      class="mx-2 height-100"
+      id="volume-transfer-func-editor"
+      ref="editorContainer"
     >
-      <div id="volume-transfer-func-editor" ref="editorContainer">
-        <div ref="pwfEditor" />
-      </div>
-      <div id="preset-list">
-        <item-group :value="baseImageColorPreset" @change="selectPreset">
-          <groupable-item
-            v-for="name in PresetNames"
-            :key="name"
-            v-slot="{ active, select }"
-            :value="name"
+      <div ref="pwfEditor" />
+    </div>
+    <div v-show="hasBaseImage" id="preset-list">
+      <item-group :value="baseImageColorPreset" @change="selectPreset">
+        <groupable-item
+          v-for="name in PresetNames"
+          :key="name"
+          v-slot="{ active, select }"
+          :value="name"
+        >
+          <avatar-list-card
+            :active="active"
+            :image-size="size"
+            :image-url="thumbnailCache[thumbKey(baseImage, name)]"
+            :title="name"
+            @click="select"
           >
-            <avatar-list-card
-              :active="active"
-              :image-size="size"
-              :image-url="thumbnailCache[thumbKey(baseImage, name)]"
-              :title="name"
-              @click="select"
-            >
-              <div class="text-truncate">
-                {{ name }}
-              </div>
-            </avatar-list-card>
-          </groupable-item>
-        </item-group>
-      </div>
+            <div class="text-truncate">
+              {{ name }}
+            </div>
+          </avatar-list-card>
+        </groupable-item>
+      </item-group>
     </div>
-    <div v-show="!hasBaseImage">
-      No image selected
-    </div>
+    <div v-show="!hasBaseImage">No image selected</div>
   </div>
 </template>
 
@@ -426,5 +422,10 @@ export default {
 #volume-rendering-module {
   display: flex;
   flex-flow: column;
+}
+
+#preset-list {
+  flex: 2;
+  overflow-y: scroll;
 }
 </style>
