@@ -98,9 +98,9 @@ export function use2DMouseControls(
     button: 1,
     scrollEnabled: true,
   });
-  const vertVal = ref(verticalRange.value.default);
-  const horizVal = ref(horiontalRange.value.default);
-  const scrollVal = ref(scrollRange.value.default);
+  const vertVal = ref(0);
+  const horizVal = ref(0);
+  const scrollVal = ref(0);
 
   function updateManipulator() {
     rangeManipulator.removeAllListeners();
@@ -150,6 +150,17 @@ export function use2DMouseControls(
       istyle.addMouseManipulator(rangeManipulator);
     }
   });
+
+  // reset vals when the ranges reset
+  watch(
+    [verticalRange, horiontalRange, scrollRange],
+    ([vRange, hRange, scRange]) => {
+      vertVal.value = vRange.default;
+      horizVal.value = hRange.default;
+      scrollVal.value = scRange.default;
+    },
+    { immediate: true }
+  );
 
   watch([verticalRange, horiontalRange, scrollRange], updateManipulator);
 
