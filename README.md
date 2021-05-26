@@ -1,5 +1,7 @@
 # paraview-medical
 
+[![DOI](https://zenodo.org/badge/248073292.svg)](https://zenodo.org/badge/latestdoi/248073292)
+
 ![A screenshot of a sample ParaView Medical session](./public/pvm-sample.png)
 
 ParaView Medical is a medical image viewer for the web!
