@@ -2,52 +2,67 @@
   <drag-and-drop enabled @drop="openFiles">
     <template v-slot="{ dragHover }">
       <v-app>
+        <v-app-bar app dense clipped-left>
+          <v-toolbar-title>ParaView Medical</v-toolbar-title>
+          <v-spacer />
+          <v-btn
+            text
+            tile
+            class="toolbar-button"
+            @click="aboutBoxDialog = !aboutBoxDialog"
+          >
+            <v-icon left size="32">$kitwareMark</v-icon>
+            About
+          </v-btn>
+        </v-app-bar>
         <resizable-nav-drawer
           id="left-nav"
           app
           permanent
+          clipped
           :min-width="250"
           :max-width="450"
           :width="350"
           :handle-size="4"
         >
-          <div id="left-pane-outer">
-            <div id="left-pane">
-              <div id="module-switcher" class="mt-1 mb-2">
-                <v-select
-                  v-model="selectedModule"
-                  outlined
-                  single-line
-                  hide-details
-                  :prepend-inner-icon="`mdi-${selectedModule.icon}`"
-                  :items="Modules"
-                  item-text="name"
-                  return-object
-                  class="no-select"
-                >
-                  <template v-slot:item="{ item }">
-                    <v-icon v-if="item.icon" class="mr-1">
-                      mdi-{{ item.icon }}
-                    </v-icon>
-                    {{ item.name }}
-                  </template>
-                </v-select>
-              </div>
+          <div class="height-100 d-flex flex-column">
+            <div id="left-pane-outer">
+              <div id="left-pane">
+                <div id="module-switcher" class="mt-1 mb-2">
+                  <v-select
+                    v-model="selectedModule"
+                    outlined
+                    single-line
+                    hide-details
+                    :prepend-inner-icon="`mdi-${selectedModule.icon}`"
+                    :items="Modules"
+                    item-text="name"
+                    return-object
+                    class="no-select"
+                  >
+                    <template v-slot:item="{ item }">
+                      <v-icon v-if="item.icon" class="mr-1">
+                        mdi-{{ item.icon }}
+                      </v-icon>
+                      {{ item.name }}
+                    </template>
+                  </v-select>
+                </div>
 
-              <!-- Preserve component state of modules when switching between modules -->
-              <div id="module-container">
-                <template v-for="mod in Modules">
-                  <component
-                    :key="mod.name"
-                    v-show="selectedModule === mod"
-                    :is="mod.component"
-                  />
-                </template>
+                <!-- Preserve component state of modules when switching between modules -->
+                <div id="module-container">
+                  <template v-for="mod in Modules">
+                    <component
+                      :key="mod.name"
+                      v-show="selectedModule === mod"
+                      :is="mod.component"
+                    />
+                  </template>
+                </div>
               </div>
             </div>
           </div>
         </resizable-nav-drawer>
-
         <v-main id="content-wrapper">
           <div class="height-100 d-flex flex-row flex-grow-1 grey darken-3">
             <div
@@ -179,6 +194,10 @@
           </v-card>
         </v-dialog>
 
+        <v-dialog v-model="aboutBoxDialog" width="50%">
+          <about-box />
+        </v-dialog>
+
         <notifications position="bottom left" :duration="4000" width="350px">
           <template slot="body" slot-scope="{ item, close }">
             <div
@@ -253,6 +272,7 @@ import VolumeRendering from './components/VolumeRendering.vue';
 import MeasurementsModule from './components/MeasurementsModule.vue';
 import ModelBrowser from './components/ModelBrowser.vue';
 import DragAndDrop from './components/DragAndDrop.vue';
+import AboutBox from './components/AboutBox.vue';
 
 export const Modules = [
   {
@@ -363,6 +383,7 @@ export default {
     ItemGroup,
     GroupableItem,
     DragAndDrop,
+    AboutBox,
   },
 
   inject: ['widgetProvider'],
@@ -370,7 +391,7 @@ export default {
   data: () => ({
     selectedTool: null,
     selectedModule: Modules[0],
-
+    aboutBoxDialog: false,
     errors: {
       dialog: false,
       fileLoading: [],
@@ -602,9 +623,8 @@ export default {
 
 <style scoped>
 #left-nav {
-  padding: 2px;
-  /* left-nav handle size is 4px */
-  padding-right: 4px;
+  display: flex;
+  flex-flow: column;
 }
 
 #tools-strip {
@@ -632,13 +652,17 @@ export default {
   flex-flow: column;
   min-width: 225px;
   flex: 1;
+  overflow: auto;
 }
 
 #left-pane-outer {
   display: flex;
   overflow: auto;
-  height: 100%;
+  flex: 2;
   width: 100%;
+  flex-flow: column;
+  /* left-nav handle size is 4px */
+  padding: 0 4px 2px 2px;
 }
 
 #module-switcher {
@@ -649,5 +673,9 @@ export default {
   position: relative;
   flex: 2;
   overflow: auto;
+}
+
+.toolbar-button {
+  min-height: 100%; /* fill toolbar height */
 }
 </style>
