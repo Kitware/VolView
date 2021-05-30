@@ -11,7 +11,6 @@ import App from './App.vue';
 import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
-import EventBusPlugin from './plugins/events';
 import { FileIO } from './io/io';
 import DicomIO from './io/dicom';
 import { createTREReader, registerAllReaders } from './io/readers';
@@ -23,7 +22,6 @@ Vue.config.productionTip = false;
 Vue.use(VueCompositionAPI);
 Vue.use(VueNotifications);
 Vue.use(ProxyManagerVuePlugin);
-Vue.use(EventBusPlugin);
 
 const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
 
