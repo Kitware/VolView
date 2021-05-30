@@ -273,7 +273,7 @@ import MeasurementsModule from './components/MeasurementsModule.vue';
 import ModelBrowser from './components/ModelBrowser.vue';
 import DragAndDrop from './components/DragAndDrop.vue';
 import AboutBox from './components/AboutBox.vue';
-import SpleenModule from './components/SpleenModule.vue';
+import AiModule from './components/AiModule.vue';
 
 export const Modules = [
   {
@@ -302,9 +302,9 @@ export const Modules = [
     component: MeasurementsModule,
   },
   {
-    name: 'Spleen Segmentation',
-    icon: 'box-cutter',
-    component: SpleenModule,
+    name: 'AI',
+    icon: 'robot-outline',
+    component: AiModule,
   },
 ];
 
