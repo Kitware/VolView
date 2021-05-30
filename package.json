@@ -16,7 +16,6 @@
     "@vue/composition-api": "1.0.0-rc.1",
     "@vue/reactivity": "^3.0.5",
     "core-js": "3.8.3",
-    "daikon": "1.2.42",
     "gl-matrix": "3.3.0",
     "itk": "13.3.1",
     "vtk.js": "16.1.7",
