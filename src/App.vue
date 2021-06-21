@@ -101,27 +101,9 @@
                 </v-card>
               </v-menu>
               <div class="mt-2 mb-1 tool-separator" />
-              <item-group v-if="hasData" v-model="selectedTool">
-                <template v-for="(tool, i) in Tools">
-                  <groupable-item
-                    v-slot:default="{ active, toggle }"
-                    :key="i"
-                    :value="tool.name"
-                  >
-                    <tool-button
-                      size="40"
-                      :icon="`mdi-${tool.icon}`"
-                      :name="tool.name"
-                      :buttonClass="[
-                        'tool-btn',
-                        active ? 'tool-btn-selected' : '',
-                      ]"
-                      :disabled="!hasBaseImage"
-                      @click="toggle"
-                    />
-                  </groupable-item>
-                </template>
-              </item-group>
+              <template v-if="hasData">
+                <tool-strip @focus-module="focusModule" />
+              </template>
             </div>
             <div class="d-flex flex-column flex-grow-1">
               <template v-if="hasData">
@@ -257,12 +239,9 @@
 import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
-import { NO_WIDGET, NO_SELECTION } from '@/src/constants';
 
 import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
 import ToolButton from './components/ToolButton.vue';
-import ItemGroup from './components/ItemGroup.vue';
-import GroupableItem from './components/GroupableItem.vue';
 import VtkTwoView from './components/VtkTwoView.vue';
 import VtkThreeView from './components/VtkThreeView.vue';
 import LayoutGrid from './components/LayoutGrid.vue';
@@ -274,6 +253,7 @@ import ModelBrowser from './components/ModelBrowser.vue';
 import DragAndDrop from './components/DragAndDrop.vue';
 import AboutBox from './components/AboutBox.vue';
 import AiModule from './components/AiModule.vue';
+import ToolStrip from './components/ToolStrip.vue';
 
 export const Modules = [
   {
@@ -305,25 +285,6 @@ export const Modules = [
     name: 'AI',
     icon: 'robot-outline',
     component: AiModule,
-  },
-];
-
-export const Tools = [
-  {
-    name: 'Paint',
-    icon: 'brush',
-    key: 'Paint',
-    focusModule: Annotations,
-  },
-  {
-    name: 'Ruler',
-    icon: 'ruler',
-    key: 'Ruler',
-  },
-  {
-    name: 'Crosshairs',
-    icon: 'crosshairs',
-    key: 'Crosshairs',
   },
 ];
 
@@ -386,16 +347,14 @@ export default {
     ResizableNavDrawer,
     ToolButton,
     LayoutGrid,
-    ItemGroup,
-    GroupableItem,
     DragAndDrop,
     AboutBox,
+    ToolStrip,
   },
 
   inject: ['widgetProvider'],
 
   data: () => ({
-    selectedTool: null,
     selectedModule: Modules[0],
     aboutBoxDialog: false,
     errors: {
@@ -404,7 +363,6 @@ export default {
       actionErrors: [],
     },
     layoutName: 'QuadView',
-    Tools,
     Modules,
   }),
 
@@ -415,12 +373,8 @@ export default {
       baseImages: ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
       annotationDatasets: ({ data: d }) => [].concat(d.labelmapIDs, d.modelIDs),
     }),
-    ...mapState('widgets', ['focusedWidget']),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
-    },
-    hasBaseImage() {
-      return this.selectedBaseImage !== NO_SELECTION;
     },
     allErrors() {
       return [].concat(this.errors.fileLoading, this.errors.actionErrors);
@@ -434,27 +388,6 @@ export default {
     fileErrorDialog(state) {
       if (!state) {
         this.fileLoadErrors = [];
-      }
-    },
-    focusedWidget(id) {
-      if (id === NO_WIDGET) {
-        this.selectedTool = null;
-      }
-    },
-    selectedTool(tool) {
-      if (tool) {
-        const { key, focusModule } = Tools.find((v) => v.name === tool);
-        const widget = this.widgetProvider.createWidget(key);
-        this.widgetProvider.focusWidget(widget.id);
-
-        if (focusModule) {
-          const mod = Modules.find((m) => m.component === focusModule);
-          if (mod) {
-            this.selectedModule = mod;
-          }
-        }
-      } else {
-        this.widgetProvider.unfocus();
       }
     },
   },
@@ -572,6 +505,13 @@ export default {
       this.layout = Layouts.QuadView;
     },
 
+    focusModule(modName) {
+      const mod = Modules.find((m) => m.name === modName);
+      if (mod) {
+        this.selectedModule = mod;
+      }
+    },
+
     ...mapActions(['loadFiles', 'selectBaseImage']),
     ...mapActions('visualization', ['updateScene']),
   },
@@ -620,10 +560,6 @@ export default {
 .general-notifications.notify-error {
   background: #e54d42;
   border-left-color: #b82e24;
-}
-
-.tool-btn-selected {
-  background-color: rgba(128, 128, 255, 0.7);
 }
 </style>
 
