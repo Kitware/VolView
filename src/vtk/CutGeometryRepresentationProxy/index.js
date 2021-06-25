@@ -1,9 +1,6 @@
 import macro from 'vtk.js/Sources/macro';
-
 import vtkSlicedGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SlicedGeometryRepresentationProxy';
 
-import vtkPolyDataTransformFilter from '../PolyDataTransformFilter';
-import vtkRepresentationProxyTransformMixin from '../transformMixin';
 import vtkCachedCutter from '../CachedCutter';
 
 function vtkCutGeometryRepresentationProxy(publicAPI, model) {
@@ -31,11 +28,6 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   // Object methods
   vtkSlicedGeometryRepresentationProxy.extend(publicAPI, model);
-
-  vtkRepresentationProxyTransformMixin(vtkPolyDataTransformFilter)(
-    publicAPI,
-    model
-  );
 
   // Object specific methods
   vtkCutGeometryRepresentationProxy(publicAPI, model);

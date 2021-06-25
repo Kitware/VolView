@@ -300,8 +300,9 @@ export default {
 
     // sync windowing and slicing to reps
     watchEffect(() => {
-      if (viewRef.value && baseImage.value) {
-        const rep = pxm.getRepresentation(baseImage.value, viewRef.value);
+      if (viewRef.value && sceneSources.value.length) {
+        const first = sceneSources.value[0];
+        const rep = pxm.getRepresentation(first, viewRef.value);
         if (rep) {
           if (rep.setSlice) rep.setSlice(currentSlice.value);
           if (rep.setWindowWidth) rep.setWindowWidth(windowing.value.width);
