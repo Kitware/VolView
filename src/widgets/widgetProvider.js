@@ -1,12 +1,12 @@
 // import PaintWidget from '@/src/widgets/paint';
 import RulerWidget from '@/src/widgets/ruler';
-// import CrosshairsWidget from '@/src/widgets/slicingCrosshairs';
+import CrosshairsWidget from '@/src/widgets/crosshairs';
 import { createContext, openContext, closeCurrentContext } from './context';
 
 export const DEFAULT_NAME_LOOKUP = {
   // Paint: PaintWidget,
   Ruler: RulerWidget,
-  // Crosshairs: CrosshairsWidget,
+  Crosshairs: CrosshairsWidget,
 };
 
 function generateHookArgs(widget, view = null, viewTypeMap = null) {
