@@ -58,11 +58,6 @@ export default function widgetBehavior(publicAPI, model) {
         callData,
         model.openGLRenderWindow
       );
-      if (!worldCoords.length) {
-        // Wrong view
-        // FIXME Is focus a better way to check this?
-        return macro.EVENT_ABORT;
-      }
 
       const handle = model.widgetState.getHandle();
       const bounds = handle.getBounds();
