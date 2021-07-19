@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import JSZip from 'jszip';
 import { isVtkObject } from 'vtk.js/Sources/macro';
 
 import { DataTypes, NO_SELECTION } from '@/src/constants';
@@ -24,6 +25,33 @@ function addImageOfType(state, { name, image, type }) {
     },
   };
   state.data.nextID += 1;
+}
+
+function getExtension(filename) {
+  const i = filename.lastIndexOf('.');
+  if (i > -1) {
+    return filename.substr(i + 1).toLowerCase();
+  }
+  return '';
+}
+
+function zipGetSupportedFiles(zip, path, supportedExts) {
+  const promises = [];
+  zip.folder(path).forEach((relPath, file) => {
+    if (file.dir) {
+      promises.push(zipGetSupportedFiles(zip, relPath, supportedExts));
+    } else if (supportedExts.indexOf(getExtension(file.name)) > -1) {
+      const splitPath = file.name.split('/');
+      const baseName = splitPath[splitPath.length - 1];
+      promises.push(
+        zip
+          .file(file.name)
+          .async('blob')
+          .then((blob) => new File([blob], baseName))
+      );
+    }
+  });
+  return promises;
 }
 
 export const mutations = {
@@ -142,7 +170,23 @@ export const makeActions = (dependencies) => ({
    * @param {File[]} files
    */
   async loadFiles({ dispatch }, files) {
+    // Recurse to load any compressed files
+    const zips = files.filter((f) => getExtension(f.name) === 'zip');
     const { fileIO } = dependencies;
+    const supportedExts = ['zip']
+      .concat(Object.keys(fileIO.fileReaders))
+      .concat(Object.keys(fileIO.typeAliases));
+    if (zips.length) {
+      const nonzips = files.filter((f) => getExtension(f.name) !== 'zip');
+      const p = zips.map((file) =>
+        JSZip.loadAsync(file).then((zip) =>
+          Promise.all(zipGetSupportedFiles(zip, null, supportedExts))
+        )
+      );
+      return Promise.all(p)
+        .then((results) => [].concat.apply(nonzips, results))
+        .then((newFileList) => dispatch('loadFiles', newFileList));
+    }
 
     const dicomFiles = [];
     const regularFiles = [];
