@@ -1,11 +1,15 @@
+import { vec3 } from 'gl-matrix';
 import vtkCrosshairsWidget from '@/src/vtk/CrosshairsWidget';
-import { onAddedToView, onWidgetStateChanged } from './context';
+import {
+  onViewMouseEvent,
+  onAddedToView,
+  onWidgetStateChanged,
+} from './context';
 
 export default {
   setup({ store }) {
     const factory = vtkCrosshairsWidget.newInstance();
     const widgetState = factory.getWidgetState();
-
     const { extent, spacing } = store.state.visualization.imageParams;
     widgetState
       .getHandle()
@@ -38,6 +42,32 @@ export default {
         normal[axis] = 1;
         const origin = [0, 0, 0];
         origin[axis] = slices['xyz'[axis]] * spacing[axis];
+
+        // plane manipulator
+        const manipulator = factory.getManipulator();
+        manipulator.setNormal(normal);
+        manipulator.setOrigin(origin);
+      }
+    });
+
+    onViewMouseEvent(({ view }) => {
+      function is2DView(v) {
+        return !!v?.getAxis;
+      }
+
+      if (is2DView(view)) {
+        const { imageParams, slices } = store.state.visualization;
+
+        const vaxis = view.getAxis();
+        const vslice = slices['xyz'[vaxis]];
+
+        const normal = [0, 0, 0];
+        const origin = [0, 0, 0];
+        normal[vaxis] = 1;
+        origin[vaxis] = vslice;
+
+        vec3.transformMat3(normal, normal, imageParams.direction);
+        vec3.transformMat4(origin, origin, imageParams.indexToWorld);
 
         // plane manipulator
         const manipulator = factory.getManipulator();
