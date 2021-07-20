@@ -39,7 +39,7 @@ function zipGetSupportedFiles(zip, path, supportedExts) {
   const promises = [];
   zip.folder(path).forEach((relPath, file) => {
     if (file.dir) {
-      promises.push(zipGetSupportedFiles(zip, relPath, supportedExts));
+      zipGetSupportedFiles(zip, relPath, supportedExts);
     } else if (supportedExts.indexOf(getExtension(file.name)) > -1) {
       const splitPath = file.name.split('/');
       const baseName = splitPath[splitPath.length - 1];
