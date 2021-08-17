@@ -388,7 +388,7 @@ export default {
       baseImages: ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
       annotationDatasets: ({ data: d }) => [].concat(d.labelmapIDs, d.modelIDs),
     }),
-    ...mapState('widgets', ['activeWidgetID']),
+    ...mapState('widgets', ['focusedWidget']),
     hasData() {
       return Object.keys(this.datasets.index).length > 0;
     },
@@ -409,7 +409,7 @@ export default {
         this.fileLoadErrors = [];
       }
     },
-    activeWidgetID(id) {
+    focusedWidget(id) {
       if (id === NO_WIDGET) {
         this.selectedTool = null;
       }
@@ -417,8 +417,8 @@ export default {
     selectedTool(tool) {
       if (tool) {
         const { key, focusModule } = Tools.find((v) => v.name === tool);
-        const id = this.widgetProvider.createWidget(key);
-        this.activateWidget(id);
+        const widget = this.widgetProvider.createWidget(key);
+        this.widgetProvider.focusWidget(widget.id);
 
         if (focusModule) {
           const mod = Modules.find((m) => m.component === focusModule);
@@ -426,8 +426,8 @@ export default {
             this.selectedModule = mod;
           }
         }
-      } else if (this.activeWidgetID !== NO_WIDGET) {
-        this.deactivateActiveWidget();
+      } else {
+        this.widgetProvider.unfocus();
       }
     },
   },
@@ -546,11 +546,6 @@ export default {
     },
 
     ...mapActions(['loadFiles', 'selectBaseImage']),
-    ...mapActions('widgets', [
-      'activateWidget',
-      'deactivateActiveWidget',
-      'removeWidget',
-    ]),
     ...mapActions('visualization', ['updateScene']),
   },
 };
