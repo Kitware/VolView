@@ -25,7 +25,7 @@ export default {
     }
 
     onWidgetStateChanged(handleWidgetStateChanged);
-    onAddedToView(({ view, viewWidget }) => {
+    onAddedToView(({ viewWidget }) => {
       viewWidget.setHorizontalLineProps({
         stroke: '#ffd154',
         'stroke-width': 2,
@@ -34,20 +34,6 @@ export default {
         stroke: '#ffd154',
         'stroke-width': 2,
       });
-
-      if (view) {
-        const axis = view.getAxis();
-        const { slices } = store.state.visualization;
-        const normal = [0, 0, 0];
-        normal[axis] = 1;
-        const origin = [0, 0, 0];
-        origin[axis] = slices['xyz'[axis]] * spacing[axis];
-
-        // plane manipulator
-        const manipulator = factory.getManipulator();
-        manipulator.setNormal(normal);
-        manipulator.setOrigin(origin);
-      }
     });
 
     onViewMouseEvent(({ view }) => {
