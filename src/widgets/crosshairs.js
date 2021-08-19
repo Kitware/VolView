@@ -4,10 +4,11 @@ import {
   onViewMouseEvent,
   onAddedToView,
   onWidgetStateChanged,
+  onBeforeDelete,
 } from './context';
 
 export default {
-  setup({ store }) {
+  setup({ store, widgetInstances }) {
     const factory = vtkCrosshairsWidget.newInstance();
     const widgetState = factory.getWidgetState();
     const { extent, spacing } = store.state.visualization.imageParams;
@@ -61,6 +62,29 @@ export default {
         manipulator.setOrigin(origin);
       }
     });
+
+    // Only show when slice contains crosshair origin
+    const updateCrosshairVisibility = ({ x, y, z }) => {
+      const {
+        0: { 1: xWidget },
+        1: { 1: yWidget },
+        2: { 1: zWidget },
+      } = Array.from(widgetInstances);
+      const origin = widgetState.getHandle().getOrigin();
+      const crossX = origin[0] / spacing[0];
+      xWidget.setVisibility(crossX === x);
+      const crossY = origin[1] / spacing[1];
+      yWidget.setVisibility(crossY === y);
+      const crossZ = origin[2] / spacing[2];
+      zWidget.setVisibility(crossZ === z);
+    };
+
+    const unsubscribe = store.watch(
+      (state) => state.visualization.slices,
+      updateCrosshairVisibility
+    );
+
+    onBeforeDelete(unsubscribe);
 
     return {
       factory,
