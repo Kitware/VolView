@@ -71,11 +71,11 @@ export default {
         2: { 1: zWidget },
       } = Array.from(widgetInstances);
       const origin = widgetState.getHandle().getOrigin();
-      const crossX = origin[0] / spacing[0];
+      const crossX = Math.round(origin[0] / spacing[0]);
       xWidget.setVisibility(crossX === x);
-      const crossY = origin[1] / spacing[1];
+      const crossY = Math.round(origin[1] / spacing[1]);
       yWidget.setVisibility(crossY === y);
-      const crossZ = origin[2] / spacing[2];
+      const crossZ = Math.round(origin[2] / spacing[2]);
       zWidget.setVisibility(crossZ === z);
     };
 
