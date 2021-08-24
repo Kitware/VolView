@@ -64,19 +64,21 @@ export default {
     });
 
     // Only show when slice contains crosshair origin
-    const updateCrosshairVisibility = ({ x, y, z }) => {
-      const {
-        0: { 1: xWidget },
-        1: { 1: yWidget },
-        2: { 1: zWidget },
-      } = Array.from(widgetInstances);
-      const origin = widgetState.getHandle().getOrigin();
-      const crossX = Math.round(origin[0] / spacing[0]);
-      xWidget.setVisibility(crossX === x);
-      const crossY = Math.round(origin[1] / spacing[1]);
-      yWidget.setVisibility(crossY === y);
-      const crossZ = Math.round(origin[2] / spacing[2]);
-      zWidget.setVisibility(crossZ === z);
+    const updateCrosshairVisibility = (slices) => {
+      const space = store.state.visualization.imageParams.spacing;
+      const views = Array.from(widgetInstances.keys());
+      views.forEach((view) => {
+        const widget = widgetInstances.get(view);
+        if (widget && view.getAxis) {
+          const axis = view.getAxis();
+          const origin = widgetState.getHandle().getOrigin();
+          const cross = Math.round(origin[axis] / space[axis]);
+          const axisLetter = 'xyz'[axis];
+          widget.setVisibility(cross === slices[axisLetter]);
+        }
+        view.getReferenceByName('widgetManager').renderWidgets();
+        view.getRenderWindow().render();
+      });
     };
 
     const unsubscribe = store.watch(
