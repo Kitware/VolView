@@ -10,7 +10,6 @@ import { useSubscription } from '@/src/composables/vtk';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import { useElementListener } from '@/src/composables/domEvents';
 import { useViewContainer } from '@/src/composables/view/common';
-import { useComputedState } from '@/src/composables/store';
 import { indexToWorldRotation, multiComputed } from '@/src/utils/common';
 
 const EPS = 10e-6;
@@ -353,11 +352,7 @@ const ViewTypeAxis = {
   ViewZ: [0, 0, -1],
 };
 
-export function useIJKAxisCamera(viewType) {
-  const { direction } = useComputedState({
-    direction: (state) => state.visualization.imageParams.direction,
-  });
-
+export function useIJKAxisCamera(viewType, direction) {
   return multiComputed(() => {
     const viewDir = ViewTypeAxis[viewType.value];
     const { vectorIndex: axis, sign: orientation } = findClosestFrameVec(
