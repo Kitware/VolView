@@ -365,33 +365,29 @@ export function useIJKAxisCamera(viewType) {
       viewDir
     );
 
-    let lpsViewUp = [];
-    switch (viewType.value) {
-      case 'ViewX':
-      case 'ViewY': {
-        lpsViewUp = [0, 0, 1]; // superior
+    let viewUp = [1, 0, 0];
+    let viewUpAxis = 0;
+    switch (axis) {
+      case 0:
+      case 1: {
+        viewUp = [0, 0, 1]; // superior
+        viewUpAxis = 2;
         break;
       }
-      case 'ViewZ': {
-        lpsViewUp = [0, -1, 0]; // anterior
+      case 2: {
+        viewUp = [0, -1, 0]; // anterior
+        viewUpAxis = 1;
         break;
       }
       default:
       // noop;
     }
 
-    const { vectorIndex: vupIndex, sign: vupSign } = findClosestFrameVec(
-      direction.value,
-      lpsViewUp
-    );
-    const viewUp = [0, 0, 0];
-    viewUp[vupIndex] = vupSign;
-
     return {
       axis, // 1=I, 2=J, 3=K
       orientation,
       viewUp,
-      viewUpAxis: vupIndex,
+      viewUpAxis,
     };
   });
 }
