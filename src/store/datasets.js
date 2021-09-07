@@ -27,20 +27,12 @@ function addImageOfType(state, { name, image, type }) {
   state.data.nextID += 1;
 }
 
-function getExtension(filename) {
-  const i = filename.lastIndexOf('.');
-  if (i > -1) {
-    return filename.substr(i + 1).toLowerCase();
-  }
-  return '';
-}
-
-function zipGetSupportedFiles(zip, path, supportedExts) {
+function extractFromZip(zip, path) {
   const promises = [];
   zip.folder(path).forEach((relPath, file) => {
     if (file.dir) {
-      zipGetSupportedFiles(zip, relPath, supportedExts);
-    } else if (supportedExts.indexOf(getExtension(file.name)) > -1) {
+      promises.push(...extractFromZip(zip, relPath));
+    } else {
       const splitPath = file.name.split('/');
       const baseName = splitPath[splitPath.length - 1];
       promises.push(
@@ -52,6 +44,16 @@ function zipGetSupportedFiles(zip, path, supportedExts) {
     }
   });
   return promises;
+}
+
+async function extractAllFilesFromZips(zips) {
+  const topLevelPath = null;
+  const allFilePromises = zips.map(async (zip) => {
+    const loadedZip = await JSZip.loadAsync(zip);
+    return Promise.all(extractFromZip(loadedZip, topLevelPath));
+  });
+  const allFiles = await Promise.all(allFilePromises);
+  return allFiles.flat();
 }
 
 export const mutations = {
@@ -170,31 +172,27 @@ export const makeActions = (dependencies) => ({
    * @param {File[]} files
    */
   async loadFiles({ dispatch }, files) {
-    // Recurse to load any compressed files
-    const zips = files.filter((f) => getExtension(f.name) === 'zip');
-    const { fileIO } = dependencies;
-    const supportedExts = ['zip']
-      .concat(Object.keys(fileIO.fileReaders))
-      .concat(Object.keys(fileIO.typeAliases));
-    if (zips.length) {
-      const nonzips = files.filter((f) => getExtension(f.name) !== 'zip');
-      const p = zips.map((file) =>
-        JSZip.loadAsync(file).then((zip) =>
-          Promise.all(zipGetSupportedFiles(zip, null, supportedExts))
-        )
-      );
-      return Promise.all(p)
-        .then((results) => [].concat.apply(nonzips, results))
-        .then((newFileList) => dispatch('loadFiles', newFileList));
-    }
+    // Load all files from zip compressed uploads
+    const zips = [];
+    const rest = [];
+    files.forEach((file) => {
+      if (file.name.endsWith('zip')) {
+        zips.push(file);
+      } else {
+        rest.push(file);
+      }
+    });
+    const extractedFiles = await extractAllFilesFromZips(zips);
+    const allFiles = [...rest, ...extractedFiles];
 
+    const { fileIO } = dependencies;
     const dicomFiles = [];
     const regularFiles = [];
 
-    const fileTypesP = files.map(async (file) => fileIO.getFileType(file));
+    const fileTypesP = allFiles.map(async (file) => fileIO.getFileType(file));
     const fileTypes = await Promise.all(fileTypesP);
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
+    for (let i = 0; i < allFiles.length; i += 1) {
+      const file = allFiles[i];
       const type = fileTypes[i];
       if (type === FileTypes.DICOM) {
         dicomFiles.push(file);
