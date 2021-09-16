@@ -11,10 +11,16 @@ export default {
   setup({ store, widgetInstances }) {
     const factory = vtkCrosshairsWidget.newInstance();
     const widgetState = factory.getWidgetState();
-    const { extent, spacing } = store.state.visualization.imageParams;
-    widgetState
-      .getHandle()
-      .setBounds(...extent.map((b, i) => b * spacing[Math.floor(i / 2)]));
+    const {
+      extent,
+      spacing,
+      worldToIndex,
+      indexToWorld,
+    } = store.state.visualization.imageParams;
+    widgetState.getHandle().setBounds(...extent);
+
+    widgetState.setWorldToIndexTransform(worldToIndex);
+    widgetState.setIndexToWorldTransform(indexToWorld);
 
     function handleWidgetStateChanged() {
       const origin = widgetState.getHandle().getOrigin();
