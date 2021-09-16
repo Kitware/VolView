@@ -145,8 +145,13 @@ export default {
     const vtkContainer = ref(null);
     const resizeToFit = ref(true);
 
+    const { direction } = useComputedState({
+      direction: (state) => state.visualization.imageParams.direction,
+    });
+
     const { axis, orientation, viewUp, viewUpAxis } = useIJKAxisCamera(
-      viewType
+      viewType,
+      direction
     );
     const axisLabel = computed(() => 'xyz'[axis.value]);
 

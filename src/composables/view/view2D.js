@@ -10,7 +10,6 @@ import { useSubscription } from '@/src/composables/vtk';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import { useElementListener } from '@/src/composables/domEvents';
 import { useViewContainer } from '@/src/composables/view/common';
-import { useComputedState } from '@/src/composables/store';
 import { indexToWorldRotation, multiComputed } from '@/src/utils/common';
 
 const EPS = 10e-6;
@@ -353,11 +352,7 @@ const ViewTypeAxis = {
   ViewZ: [0, 0, -1],
 };
 
-export function useIJKAxisCamera(viewType) {
-  const { direction } = useComputedState({
-    direction: (state) => state.visualization.imageParams.direction,
-  });
-
+export function useIJKAxisCamera(viewType, direction) {
   return multiComputed(() => {
     const viewDir = ViewTypeAxis[viewType.value];
     const { vectorIndex: axis, sign: orientation } = findClosestFrameVec(
@@ -365,33 +360,29 @@ export function useIJKAxisCamera(viewType) {
       viewDir
     );
 
-    let lpsViewUp = [];
-    switch (viewType.value) {
-      case 'ViewX':
-      case 'ViewY': {
-        lpsViewUp = [0, 0, 1]; // superior
+    let viewUp = [1, 0, 0];
+    let viewUpAxis = 0;
+    switch (axis) {
+      case 0:
+      case 1: {
+        viewUp = [0, 0, 1]; // superior
+        viewUpAxis = 2;
         break;
       }
-      case 'ViewZ': {
-        lpsViewUp = [0, -1, 0]; // anterior
+      case 2: {
+        viewUp = [0, -1, 0]; // anterior
+        viewUpAxis = 1;
         break;
       }
       default:
       // noop;
     }
 
-    const { vectorIndex: vupIndex, sign: vupSign } = findClosestFrameVec(
-      direction.value,
-      lpsViewUp
-    );
-    const viewUp = [0, 0, 0];
-    viewUp[vupIndex] = vupSign;
-
     return {
       axis, // 1=I, 2=J, 3=K
       orientation,
       viewUp,
-      viewUpAxis: vupIndex,
+      viewUpAxis,
     };
   });
 }

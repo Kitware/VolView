@@ -13,7 +13,16 @@ export default {
       },
     };
   },
-  props: ['value'],
+  props: {
+    value: {
+      type: null,
+      required: false,
+    },
+    mandatory: {
+      type: Boolean,
+      default: false,
+    },
+  },
   model: {
     prop: 'value',
     event: 'change',
@@ -36,8 +45,10 @@ export default {
   },
   methods: {
     selectItem(itemValue) {
-      this.internalValue = itemValue;
-      this.$emit('change', this.internalValue);
+      if (!(this.mandatory && !itemValue)) {
+        this.internalValue = itemValue;
+        this.$emit('change', this.internalValue);
+      }
     },
     isSelected(valueToTest) {
       if (this.internalValue === null || this.internalValue === undefined) {
