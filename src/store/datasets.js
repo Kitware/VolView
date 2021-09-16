@@ -30,9 +30,7 @@ function addImageOfType(state, { name, image, type }) {
 function extractFromZip(zip, path) {
   const promises = [];
   zip.folder(path).forEach((relPath, file) => {
-    if (file.dir) {
-      promises.push(...extractFromZip(zip, relPath));
-    } else {
+    if (!file.dir) {
       const splitPath = file.name.split('/');
       const baseName = splitPath[splitPath.length - 1];
       promises.push(
