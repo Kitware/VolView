@@ -1,11 +1,9 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
-import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SliceRepresentationProxy';
 import ImagePropertyConstants from 'vtk.js/Sources/Rendering/Core/ImageProperty/Constants';
 
-import vtkLabelMapTransformFilter from '../LabelMapTransformFilter';
-import vtkRepresentationProxyTransformMixin from '../transformMixin';
+import vtkTransformedSliceRepresentationProxy from '../TransformedSliceRepresentationProxy';
 
 const { InterpolationType } = ImagePropertyConstants;
 
@@ -64,12 +62,6 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
 
   // Keep things updated
   model.sourceDependencies.push({ setInputData });
-
-  // apply mixin after we modify source dependencies
-  vtkRepresentationProxyTransformMixin(vtkLabelMapTransformFilter)(
-    publicAPI,
-    model
-  );
 }
 
 // ----------------------------------------------------------------------------
@@ -84,7 +76,7 @@ export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
   // Object methods
-  vtkSliceRepresentationProxy.extend(publicAPI, model);
+  vtkTransformedSliceRepresentationProxy.extend(publicAPI, model);
 
   // Object specific methods
   vtkLabelMapSliceRepProxy(publicAPI, model);

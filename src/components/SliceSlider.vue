@@ -74,11 +74,16 @@ export default {
 
   mounted() {
     this.updateMaxHandlePos();
-    this.$eventBus.$on('resize', this.updateMaxHandlePos);
+    this.resizeObserver = new ResizeObserver((entries) => {
+      if (entries.length === 1) {
+        this.updateMaxHandlePos();
+      }
+    });
+    this.resizeObserver.observe(this.$refs.handleContainer);
   },
 
   beforeDestroy() {
-    this.$eventBus.$off('resize', this.updateMaxHandlePos);
+    this.resizeObserver.disconnect();
   },
 
   methods: {

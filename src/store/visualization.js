@@ -287,28 +287,19 @@ export default (dependencies) => ({
     /**
      * updateImageParams should be invoked prior to this action.
      */
-    async resetSlicing({ commit, state, rootState }) {
-      if (rootState.selectedBaseImage !== NO_SELECTION) {
-        const { extent } = state.imageParams;
-        await commit('setSlices', {
-          x: extent[0],
-          y: extent[2],
-          z: extent[4],
-        });
-      } else {
-        // pick middle of extent
-        const { extent } = state.imageParams;
-        const center = [
-          (extent[0] + extent[1]) / 2,
-          (extent[2] + extent[3]) / 2,
-          (extent[4] + extent[5]) / 2,
-        ];
-        await commit('setSlices', {
-          x: center[0],
-          y: center[1],
-          z: center[2],
-        });
-      }
+    async resetSlicing({ commit, state }) {
+      // pick middle of extent
+      const { extent } = state.imageParams;
+      const center = [
+        Math.round((extent[0] + extent[1]) / 2),
+        Math.round((extent[2] + extent[3]) / 2),
+        Math.round((extent[4] + extent[5]) / 2),
+      ];
+      await commit('setSlices', {
+        x: center[0],
+        y: center[1],
+        z: center[2],
+      });
     },
 
     updateColorBy({ commit, rootState }) {

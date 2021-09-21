@@ -1,4 +1,5 @@
 import macro from 'vtk.js/Sources/macro';
+import { vec3 } from 'gl-matrix';
 
 function clampPointToBounds(bounds, point) {
   return point.map((p, i) =>
@@ -54,17 +55,31 @@ export default function widgetBehavior(publicAPI, model) {
       model.manipulator &&
       !ignoreKey(callData)
     ) {
-      const worldCoords = model.manipulator.handleEvent(
+      const worldCoordsOfPointer = model.manipulator.handleEvent(
         callData,
         model.openGLRenderWindow
       );
 
       const handle = model.widgetState.getHandle();
-      const bounds = handle.getBounds();
-      handle.setOrigin(clampPointToBounds(bounds, worldCoords));
+      const worldToIndex = model.widgetState.getWorldToIndexTransform();
+      const indexToWorld = model.widgetState.getIndexToWorldTransform();
+      if (worldToIndex.length && indexToWorld.length) {
+        const indexCoordsOfPointer = [];
+        const worldOrigin = [];
+        const bounds = handle.getBounds();
 
-      publicAPI.invokeInteractionEvent();
-      return macro.EVENT_ABORT;
+        vec3.transformMat4(
+          indexCoordsOfPointer,
+          worldCoordsOfPointer,
+          worldToIndex
+        );
+        const indexOrigin = clampPointToBounds(bounds, indexCoordsOfPointer);
+        vec3.transformMat4(worldOrigin, indexOrigin, indexToWorld);
+
+        handle.setOrigin(worldOrigin);
+        publicAPI.invokeInteractionEvent();
+        return macro.EVENT_ABORT;
+      }
     }
 
     return macro.VOID;

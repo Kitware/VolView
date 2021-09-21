@@ -1,4 +1,5 @@
 import Vue from 'vue';
+import JSZip from 'jszip';
 import { isVtkObject } from 'vtk.js/Sources/macro';
 
 import { DataTypes, NO_SELECTION } from '@/src/constants';
@@ -24,6 +25,33 @@ function addImageOfType(state, { name, image, type }) {
     },
   };
   state.data.nextID += 1;
+}
+
+function extractFromZip(zip, path) {
+  const promises = [];
+  zip.folder(path).forEach((relPath, file) => {
+    if (!file.dir) {
+      const splitPath = file.name.split('/');
+      const baseName = splitPath[splitPath.length - 1];
+      promises.push(
+        zip
+          .file(file.name)
+          .async('blob')
+          .then((blob) => new File([blob], baseName))
+      );
+    }
+  });
+  return promises;
+}
+
+async function extractAllFilesFromZips(zips) {
+  const topLevelPath = null;
+  const allFilePromises = zips.map(async (zip) => {
+    const loadedZip = await JSZip.loadAsync(zip);
+    return Promise.all(extractFromZip(loadedZip, topLevelPath));
+  });
+  const allFiles = await Promise.all(allFilePromises);
+  return allFiles.flat();
 }
 
 export const mutations = {
@@ -142,15 +170,27 @@ export const makeActions = (dependencies) => ({
    * @param {File[]} files
    */
   async loadFiles({ dispatch }, files) {
-    const { fileIO } = dependencies;
+    // Load all files from zip compressed uploads
+    const zips = [];
+    const rest = [];
+    files.forEach((file) => {
+      if (file.name.endsWith('zip')) {
+        zips.push(file);
+      } else {
+        rest.push(file);
+      }
+    });
+    const extractedFiles = await extractAllFilesFromZips(zips);
+    const allFiles = [...rest, ...extractedFiles];
 
+    const { fileIO } = dependencies;
     const dicomFiles = [];
     const regularFiles = [];
 
-    const fileTypesP = files.map(async (file) => fileIO.getFileType(file));
+    const fileTypesP = allFiles.map(async (file) => fileIO.getFileType(file));
     const fileTypes = await Promise.all(fileTypesP);
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
+    for (let i = 0; i < allFiles.length; i += 1) {
+      const file = allFiles[i];
       const type = fileTypes[i];
       if (type === FileTypes.DICOM) {
         dicomFiles.push(file);
@@ -241,6 +281,19 @@ export const makeActions = (dependencies) => ({
     });
 
     return errors;
+  },
+
+  importLabelMap({ state, commit, dispatch }, { labelMap, name, parent }) {
+    const id = state.data.nextID;
+    commit('addLabelmap', { name, image: labelMap });
+    commit('associateData', {
+      parentID: parent,
+      childID: id,
+    });
+    return dispatch({
+      type: 'visualization/updateScene',
+      reset: false,
+    });
   },
 
   /**

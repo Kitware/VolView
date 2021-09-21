@@ -45,29 +45,34 @@ export function useSliceFollower(
 ) {
   const { currentView } = useCurrentView();
 
-  const slice = ref(INVALID);
-  const axis = computed(() => {
+  const slices = ref(store.state.visualization.slices);
+  const currentAxis = computed(() => {
     if (is2DView(currentView.value)) {
       return currentView.value.getAxis();
     }
     return INVALID;
   });
-
-  function updateSlice() {
-    if (axis.value !== INVALID) {
-      const { slices } = store.state.visualization;
-      slice.value = slices['xyz'[axis.value]];
-    } else {
-      slice.value = INVALID;
+  const currentSlice = computed(() => {
+    if (currentAxis.value !== INVALID) {
+      return slices.value['xyz'[currentAxis.value]];
     }
-  }
+    return INVALID;
+  });
+
+  watchStore(
+    store,
+    (state) => state.visualization.slices,
+    (newSlices) => {
+      slices.value = newSlices;
+    }
+  );
 
   function updateManipulator() {
     if (is2DView(currentView.value)) {
-      const { slices, imageParams } = store.state.visualization;
+      const { imageParams } = store.state.visualization;
 
       const vaxis = lockAxis.value ?? currentView.value.getAxis();
-      const vslice = lockSlice.value ?? slices['xyz'[vaxis]];
+      const vslice = lockSlice.value ?? slices.value['xyz'[vaxis]];
 
       const normal = [0, 0, 0];
       const origin = [0, 0, 0];
@@ -111,11 +116,10 @@ export function useSliceFollower(
         // case: locked to a slice/axis
         if (lockAxis.value !== null && lockSlice.value !== null) {
           if (is2DView(otherView)) {
-            const { slices } = store.state.visualization;
             const otherAxis = otherView.getAxis();
             visible =
               otherAxis === lockAxis.value &&
-              Math.abs(slices['xyz'[otherAxis]] - lockSlice.value) < 1e-6;
+              Math.abs(slices.value['xyz'[otherAxis]] - lockSlice.value) < 1e-6;
           } else {
             visible = false;
           }
@@ -134,12 +138,9 @@ export function useSliceFollower(
 
   onAddedToView(() => updateVisibility());
 
-  observe(axis, updateSlice);
-  watchStore(store, (state) => state.visualization.slices, updateSlice);
+  observe([currentAxis, currentSlice], updateManipulator);
 
-  observe([axis, slice], updateManipulator);
-
-  observe([currentView, slice], updateVisibility);
+  observe([currentView, slices], updateVisibility);
 
   observe([lockAxis, lockSlice], ([laxis, lslice]) => {
     if (laxis === null && lslice === null) {
@@ -147,5 +148,5 @@ export function useSliceFollower(
     }
   });
 
-  return { axis, slice };
+  return { axis: currentAxis, slice: currentSlice };
 }
