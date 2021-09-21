@@ -7,6 +7,14 @@ export default function generateState() {
       name: 'placed',
       initialValue: false,
     })
+    .addField({
+      name: 'indexToWorldTransform',
+      initialValue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    })
+    .addField({
+      name: 'worldToIndexTransform',
+      initialValue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    })
     .addStateFromMixin({
       labels: ['handle'],
       mixins: ['origin', 'color', 'scale1', 'visible', 'bounds'],
