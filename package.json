@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@kitware/vtk.js": "^22.4.0",
-    "@vue/composition-api": "1.0.0-rc.1",
+    "@vue/composition-api": "1.4.5",
     "@vue/reactivity": "^3.0.5",
     "core-js": "3.8.3",
     "gl-matrix": "3.3.0",
