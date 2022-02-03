@@ -240,20 +240,20 @@ import { mapActions, mapState } from 'vuex';
 
 import { createFourUpViews } from '@/src/vtk/proxyUtils';
 
-import ResizableNavDrawer from './components/ResizableNavDrawer.vue';
-import ToolButton from './components/ToolButton.vue';
-import VtkTwoView from './components/VtkTwoView.vue';
-import VtkThreeView from './components/VtkThreeView.vue';
-import LayoutGrid from './components/LayoutGrid.vue';
-import PatientBrowser from './components/PatientBrowser.vue';
-import Annotations from './components/Annotations.vue';
-import VolumeRendering from './components/VolumeRendering.vue';
-import MeasurementsModule from './components/MeasurementsModule.vue';
-import ModelBrowser from './components/ModelBrowser.vue';
-import DragAndDrop from './components/DragAndDrop.vue';
-import AboutBox from './components/AboutBox.vue';
-import AiModule from './components/AiModule.vue';
-import ToolStrip from './components/ToolStrip.vue';
+import ResizableNavDrawer from './ResizableNavDrawer.vue';
+import ToolButton from './ToolButton.vue';
+import VtkTwoView from './VtkTwoView.vue';
+import VtkThreeView from './VtkThreeView.vue';
+import LayoutGrid from './LayoutGrid.vue';
+import PatientBrowser from './PatientBrowser.vue';
+import Annotations from './Annotations.vue';
+import VolumeRendering from './VolumeRendering.vue';
+import MeasurementsModule from './MeasurementsModule.vue';
+import ModelBrowser from './ModelBrowser.vue';
+import DragAndDrop from './DragAndDrop.vue';
+import AboutBox from './AboutBox.vue';
+import AiModule from './AiModule.vue';
+import ToolStrip from './ToolStrip.vue';
 
 export const Modules = [
   {

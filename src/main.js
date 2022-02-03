@@ -8,7 +8,7 @@ import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 
-import App from './App.vue';
+import App from './components/App.vue';
 import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
