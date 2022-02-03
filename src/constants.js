@@ -4,7 +4,7 @@ export const NO_WIDGET = -1;
 
 // instances
 export const FileIOInst = Symbol('FileIO');
-export const DicomIOInst = Symbol('DicomIO');
+export const DICOMIOInst = Symbol('DICOMIO');
 export const ProxyManagerInst = Symbol('ProxyManager');
 
 export const DataTypes = {

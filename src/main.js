@@ -13,12 +13,12 @@ import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
 import { FileIO } from './io/io';
-import { DicomIO } from './io/dicom';
+import { DICOMIO } from './io/dicom';
 import { setCurrent } from './instances';
 import { createTREReader, registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
-import { FileIOInst, DicomIOInst, ProxyManagerInst } from './constants';
+import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
 
 Vue.config.productionTip = false;
 
@@ -33,9 +33,9 @@ const fileIO = new FileIO();
 registerAllReaders(fileIO);
 setCurrent(FileIOInst, fileIO);
 
-const dicomIO = new DicomIO();
+const dicomIO = new DICOMIO();
 dicomIO.initialize();
-setCurrent(DicomIOInst, dicomIO);
+setCurrent(DICOMIOInst, dicomIO);
 
 // Right now, TRE reader depends on the DicomIO module since
 // that's where the TRE read logic resides.
