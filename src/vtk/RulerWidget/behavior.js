@@ -1,4 +1,4 @@
-import macro from 'vtk.js/Sources/macro';
+import macro from '@kitware/vtk.js/macro';
 import { InteractionState, computeInteractionState } from './state';
 
 export default function widgetBehavior(publicAPI, model) {

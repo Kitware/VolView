@@ -1,5 +1,5 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkPiecewiseGaussianWidget from 'vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget';
+import macro from '@kitware/vtk.js/macro';
+import vtkPiecewiseGaussianWidget from '@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget';
 
 export const Mode = {
   Gaussians: 1,
@@ -156,12 +156,10 @@ function vtkPiecewiseWidget(publicAPI, model) {
     }
   };
 
-  publicAPI.getEffectiveOpacityPoints = () => {
-    return model.opacityPoints.map((p) => [
+  publicAPI.getEffectiveOpacityPoints = () => model.opacityPoints.map((p) => [
       p[0] + model.opacityPointShift,
       p[1],
     ]);
-  };
 
   publicAPI.render = () => {
     if (publicAPI.isModePoints()) {

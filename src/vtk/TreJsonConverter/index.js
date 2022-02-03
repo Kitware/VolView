@@ -1,10 +1,10 @@
-import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
-import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
-import vtkAppendPolyData from 'vtk.js/Sources/Filters/General/AppendPolyData';
-import vtkPoints from 'vtk.js/Sources/Common/Core/Points';
-import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
-import { VaryRadius } from 'vtk.js/Sources/Filters/General/TubeFilter/Constants';
-import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
+import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkAppendPolyData from '@kitware/vtk.js/Filters/General/AppendPolyData';
+import vtkPoints from '@kitware/vtk.js/Common/Core/Points';
+import vtkTubeFilter from '@kitware/vtk.js/Filters/General/TubeFilter';
+import { VaryRadius } from '@kitware/vtk.js/Filters/General/TubeFilter/Constants';
+import { VtkDataTypes } from '@kitware/vtk.js/Common/Core/DataArray/Constants';
 
 function concatPointData(pointDataList, arrayName) {
   const length = pointDataList.reduce(

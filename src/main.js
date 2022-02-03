@@ -1,11 +1,12 @@
 import '@/public/global.css';
+import '@kitware/vtk.js/Rendering/Profiles/All';
 
 import Vue from 'vue';
 import VueCompositionAPI from '@vue/composition-api';
 import VueNotifications from 'vue-notification';
-import vtkProxyManager from 'vtk.js/Sources/Proxy/Core/ProxyManager';
-import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
-import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
+import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
+import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
+import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 
 import App from './App.vue';
 import createStore from './store';

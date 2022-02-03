@@ -1,4 +1,4 @@
-import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
+import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import MedicalPresets from '@/src/vtk/MedicalColorPresets.json';
 
 function registerPresets(presets) {

@@ -35,13 +35,13 @@
 
 <script>
 import { mapState, mapGetters, mapActions } from 'vuex';
-import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderWindow';
-import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
-import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
-import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
-import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
-import vtkColorMaps from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps';
-import PwfProxyConstants from 'vtk.js/Sources/Proxy/Core/PiecewiseFunctionProxy/Constants';
+import vtkGenericRenderWindow from '@kitware/vtk.js/Rendering/Misc/GenericRenderWindow';
+import vtkVolume from '@kitware/vtk.js/Rendering/Core/Volume';
+import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
+import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
+import PwfProxyConstants from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy/Constants';
 
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import ItemGroup from '@/src/components/ItemGroup.vue';

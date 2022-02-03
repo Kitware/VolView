@@ -1,5 +1,5 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkViewProxy from 'vtk.js/Sources/Proxy/Core/ViewProxy';
+import macro from '@kitware/vtk.js/macro';
+import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 
 export function commonViewCustomizations(publicAPI, model) {
   const delayedRender = macro.debounce(model.renderWindow.render, 5);

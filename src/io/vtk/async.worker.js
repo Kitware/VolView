@@ -1,4 +1,4 @@
-import vtkSTLReader from 'vtk.js/Sources/IO/Geometry/STLReader';
+import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
 
 import workerHandler from '@/src/utils/workerHandler';
 import readFile from './common';

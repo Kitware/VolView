@@ -1,7 +1,7 @@
 import { mat4, vec3 } from 'gl-matrix';
-import macro from 'vtk.js/Sources/macro';
-import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
-import vtkPoints from 'vtk.js/Sources/Common/Core/Points';
+import macro from '@kitware/vtk.js/macro';
+import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
+import vtkPoints from '@kitware/vtk.js/Common/Core/Points';
 
 const { vtkErrorMacro } = macro;
 

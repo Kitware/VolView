@@ -1,5 +1,5 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkSlicedGeometryRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SlicedGeometryRepresentationProxy';
+import macro from '@kitware/vtk.js/macro';
+import vtkSlicedGeometryRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/SlicedGeometryRepresentationProxy';
 
 import vtkCachedCutter from '../CachedCutter';
 

@@ -1,8 +1,8 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkDistanceWidget from 'vtk.js/Sources/Widgets/Widgets3D/DistanceWidget';
-import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
-import vtkPolyLineRepresentation from 'vtk.js/Sources/Widgets/Representations/PolyLineRepresentation';
-import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
+import macro from '@kitware/vtk.js/macro';
+import vtkDistanceWidget from '@kitware/vtk.js/Widgets/Widgets3D/DistanceWidget';
+import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
+import vtkPolyLineRepresentation from '@kitware/vtk.js/Widgets/Representations/PolyLineRepresentation';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 
 import stateGenerator from './state';
 

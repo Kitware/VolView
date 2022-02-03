@@ -1,6 +1,6 @@
 import Vue from 'vue';
 
-import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { DEFAULT_LABELMAP_COLORS, NO_SELECTION } from '@/src/constants';

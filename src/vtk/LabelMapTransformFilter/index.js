@@ -1,4 +1,4 @@
-import macro from 'vtk.js/Sources/macro';
+import macro from '@kitware/vtk.js/macro';
 import { mat4 } from 'gl-matrix';
 
 import vtkLabelMap from '@/src/vtk/LabelMap';

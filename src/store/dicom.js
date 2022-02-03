@@ -1,5 +1,5 @@
 import Vue from 'vue';
-import vtkITKHelper from 'vtk.js/Sources/Common/DataModel/ITKHelper';
+import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 
 import { pick } from '@/src/utils/common';
 

@@ -1,6 +1,6 @@
 import Vue from 'vue';
-import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
-import LUTConstants from 'vtk.js/Sources/Proxy/Core/LookupTableProxy/Constants';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import LUTConstants from '@kitware/vtk.js/Proxy/Core/LookupTableProxy/Constants';
 
 import { NO_SELECTION } from '../constants';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';

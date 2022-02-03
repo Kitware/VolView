@@ -1,5 +1,5 @@
-import vtkXMLImageDataReader from 'vtk.js/Sources/IO/XML/XMLImageDataReader';
-import vtkXMLPolyDataReader from 'vtk.js/Sources/IO/XML/XMLPolyDataReader';
+import vtkXMLImageDataReader from '@kitware/vtk.js/IO/XML/XMLImageDataReader';
+import vtkXMLPolyDataReader from '@kitware/vtk.js/IO/XML/XMLPolyDataReader';
 import readFile from './common';
 
 export async function VtkVtiReader(file) {

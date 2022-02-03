@@ -1,6 +1,6 @@
 import Vue from 'vue';
 import JSZip from 'jszip';
-import { isVtkObject } from 'vtk.js/Sources/macro';
+import { isVtkObject } from '@kitware/vtk.js/macro';
 
 import { DataTypes, NO_SELECTION } from '@/src/constants';
 import { removeFromArray } from '@/src/utils/common';

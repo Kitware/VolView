@@ -1,8 +1,8 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkAbstractWidgetFactory from 'vtk.js/Sources/Widgets/Core/AbstractWidgetFactory';
-import vtkPlanePointManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
-import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
-import { distance2BetweenPoints } from 'vtk.js/Sources/Common/Core/Math';
+import macro from '@kitware/vtk.js/macro';
+import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
+import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
+import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
+import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
 import vtkSVGLineRepresentation from '@/src/vtk/SVGLineRepresentation';
 import vtkSVGLabelRepresentation from '@/src/vtk/SVGLabelRepresentation';

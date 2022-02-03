@@ -3,7 +3,7 @@ import sinon from 'sinon';
 import chaiAsPromised from 'chai-as-promised';
 import sinonChai from 'sinon-chai';
 
-import vtkITKHelper from 'vtk.js/Sources/Common/DataModel/ITKHelper';
+import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 
 import dicom, { imageCacheMultiKey } from '@/src/store/dicom';
 import DicomIO from '@/src/io/dicom';
@@ -77,7 +77,7 @@ describe('DICOM module', () => {
     it('should import a list of dicom objects', async () => {
       const data = SAMPLE_DATA.reduce(
         (obj, sample) => ({ ...obj, [sample.uid]: sample.info }),
-        {},
+        {}
       );
       sinon.stub(deps.dicomIO, 'importFiles').returns(data);
 
@@ -248,7 +248,10 @@ describe('DICOM module', () => {
         });
 
         await mod.actions.importFiles(context, [1]);
-        expect(context.commit).to.have.been.calledWith('deleteSeriesVolume', seriesKey);
+        expect(context.commit).to.have.been.calledWith(
+          'deleteSeriesVolume',
+          seriesKey
+        );
       });
 
       it('deleteSeriesVolume should remove a volume', () => {

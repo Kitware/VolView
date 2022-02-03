@@ -1,4 +1,4 @@
-import vtk from 'vtk.js/Sources/vtk';
+import vtk from '@kitware/vtk.js/vtk';
 
 import PromiseWorker from '@/src/utils/promiseWorker';
 import AsyncReaderWorker from './async.worker';

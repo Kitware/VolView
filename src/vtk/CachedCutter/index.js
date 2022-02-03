@@ -1,5 +1,5 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkCutter from 'vtk.js/Sources/Filters/Core/Cutter';
+import macro from '@kitware/vtk.js/macro';
+import vtkCutter from '@kitware/vtk.js/Filters/Core/Cutter';
 
 function vtkCachedCutter(publicAPI, model) {
   model.classHierarchy.push('vtkCachedCutter');

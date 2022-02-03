@@ -1,4 +1,4 @@
-import WidgetManagerConstants from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
+import WidgetManagerConstants from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 
 import { NO_SELECTION } from '@/src/constants';
 

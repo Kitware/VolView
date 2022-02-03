@@ -1,4 +1,4 @@
-import vtkITKImageReader from 'vtk.js/Sources/IO/Misc/ITKImageReader';
+import vtkITKImageReader from '@kitware/vtk.js/IO/Misc/ITKImageReader';
 import extensionToImageIO from 'itk/extensionToImageIO';
 import readImageArrayBuffer from 'itk/readImageArrayBuffer';
 

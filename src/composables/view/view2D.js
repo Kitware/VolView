@@ -1,10 +1,10 @@
 import { vec3 } from 'gl-matrix';
 import { computed, ref, unref, watch, watchEffect } from '@vue/composition-api';
 
-import vtkPlane from 'vtk.js/Sources/Common/DataModel/Plane';
-import InteractionPresets from 'vtk.js/Sources/Interaction/Style/InteractorStyleManipulator/Presets';
-import vtkMouseRangeManipulator from 'vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator';
-import { WIDGET_PRIORITY } from 'vtk.js/Sources/Widgets/Core/AbstractWidget/Constants';
+import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
+import InteractionPresets from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Presets';
+import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
+import { WIDGET_PRIORITY } from '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants';
 
 import { useSubscription } from '@/src/composables/vtk';
 import { useProxyManager } from '@/src/composables/proxyManager';

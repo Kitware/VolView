@@ -1,5 +1,5 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import macro from '@kitware/vtk.js/macro';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 const { vtkWarningMacro } = macro;
 

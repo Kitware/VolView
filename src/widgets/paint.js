@@ -1,7 +1,7 @@
 import { mat4, vec3 } from 'gl-matrix';
-import vtkPaintWidget from 'vtk.js/Sources/Widgets/Widgets3D/PaintWidget';
-import vtkPaintFilter from 'vtk.js/Sources/Filters/General/PaintFilter';
-import { SlicingMode } from 'vtk.js/Sources/Rendering/Core/ImageMapper/Constants';
+import vtkPaintWidget from '@kitware/vtk.js/Widgets/Widgets3D/PaintWidget';
+import vtkPaintFilter from '@kitware/vtk.js/Filters/General/PaintFilter';
+import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 
 import { NO_SELECTION } from '@/src/constants';
 import Widget, { FOLLOW_VIEW, ALWAYS_VISIBLE } from './widget';

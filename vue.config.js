@@ -4,15 +4,10 @@ const webpack = require('webpack');
 /* eslint-disable-next-line import/no-extraneous-dependencies */
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-const vtkChainWebpack = require('vtk.js/Utilities/config/chainWebpack');
-
 module.exports = {
   lintOnSave: false,
-  transpileDependencies: [
-    'vuetify',
-  ],
+  transpileDependencies: ['vuetify'],
   chainWebpack: (config) => {
-    vtkChainWebpack(config);
     // do not cache worker files
     // https://github.com/webpack-contrib/worker-loader/issues/195
     config.module.rule('js').exclude.add(/\.worker\.js$/);
@@ -22,8 +17,8 @@ module.exports = {
       alias: {
         '@': __dirname,
         // Use lite colormap
-        'vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps.json':
-          'vtk.js/Sources/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
+        '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.json':
+          '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
       },
     },
     module: {
@@ -44,10 +39,13 @@ module.exports = {
     },
     plugins: [
       // disable webvr
-      new webpack.NormalModuleReplacementPlugin(/^webvr-polyfill$/, ((resource) => {
-        /* eslint-disable-next-line no-param-reassign */
-        resource.request = '@/src/vtk/webvr-empty.js';
-      })),
+      new webpack.NormalModuleReplacementPlugin(
+        /^webvr-polyfill$/,
+        (resource) => {
+          /* eslint-disable-next-line no-param-reassign */
+          resource.request = '@/src/vtk/webvr-empty.js';
+        }
+      ),
       new CopyWebpackPlugin([
         {
           from: path.join(__dirname, 'node_modules', 'itk', 'WebWorkers'),
@@ -58,7 +56,14 @@ module.exports = {
           to: path.join(__dirname, 'dist', 'itk', 'ImageIOs'),
         },
         {
-          from: path.join(__dirname, 'src', 'io', 'itk-dicom', 'web-build', 'dicom*'),
+          from: path.join(
+            __dirname,
+            'src',
+            'io',
+            'itk-dicom',
+            'web-build',
+            'dicom*'
+          ),
           to: path.join(__dirname, 'dist', 'itk', 'Pipelines'),
           flatten: true,
         },

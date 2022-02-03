@@ -2,7 +2,7 @@ import chai, { expect } from 'chai';
 import sinon from 'sinon';
 import sinonChai from 'sinon-chai';
 
-import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { mutations, makeActions } from '@/src/store/datasets';
 import { initialState } from '@/src/store';

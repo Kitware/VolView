@@ -1,4 +1,4 @@
-import vtk from 'vtk.js/Sources/vtk';
+import vtk from '@kitware/vtk.js/vtk';
 
 export const BREAK = Symbol('Break');
 

@@ -1,5 +1,5 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkBaseView2DProxy from 'vtk.js/Sources/Proxy/Core/View2DProxy';
+import macro from '@kitware/vtk.js/macro';
+import vtkBaseView2DProxy from '@kitware/vtk.js/Proxy/Core/View2DProxy';
 
 import { commonViewCustomizations } from '@/src/vtk/View3DProxy';
 

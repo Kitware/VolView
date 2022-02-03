@@ -7,7 +7,7 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 
-import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import { useSubscription } from '@/src/composables/vtk';
 

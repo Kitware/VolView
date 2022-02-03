@@ -1,6 +1,6 @@
-import macro from 'vtk.js/Sources/macro';
+import macro from '@kitware/vtk.js/macro';
 
-import vtkSliceRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/SliceRepresentationProxy';
+import vtkSliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/SliceRepresentationProxy';
 
 function vtkTransformedSliceRepresentationProxy(publicAPI, model) {
   model.classHierarchy.push('vtkTransformedSliceRepresentationProxy');

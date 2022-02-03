@@ -1,9 +1,9 @@
-import macro from 'vtk.js/Sources/macro';
-import vtkAbstractWidgetFactory from 'vtk.js/Sources/Widgets/Core/AbstractWidgetFactory';
-import vtkPlanePointManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
-import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
+import macro from '@kitware/vtk.js/macro';
+import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
+import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
+import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 
-import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 
 import vtkSVGCrosshairsRepresentation from '@/src/vtk/SVGCrosshairsRepresentation';
 
