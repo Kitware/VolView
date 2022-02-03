@@ -5,7 +5,7 @@ import IOTypes from 'itk/IOTypes';
 import { defer } from '../utils/common';
 import PriorityQueue from '../utils/priorityqueue';
 
-export default class DicomIO {
+export class DicomIO {
   constructor() {
     this.webWorker = null;
     this.queue = new PriorityQueue();
