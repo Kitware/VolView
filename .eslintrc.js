@@ -5,10 +5,8 @@ module.exports = {
     node: true,
   },
 
-  extends: ['plugin:vue/essential', '@vue/airbnb', 'prettier', 'prettier/vue'],
-
   parserOptions: {
-    parser: 'babel-eslint',
+    parser: '@typescript-eslint/parser',
   },
 
   ignorePatterns: ['src/io/itk-dicom/web-build/**'],
@@ -23,6 +21,16 @@ module.exports = {
     'import/no-named-as-default-member': 'off',
     'import/prefer-default-export': 'off',
     'no-plusplus': 'off',
+    'import/extensions': [
+      'error',
+      'ignorePackages',
+      {
+        js: 'never',
+        jsx: 'never',
+        ts: 'never',
+        tsx: 'never',
+      },
+    ],
   },
 
   overrides: [
@@ -56,5 +64,13 @@ module.exports = {
         ],
       },
     },
+  ],
+
+  extends: [
+    'plugin:vue/essential',
+    '@vue/airbnb',
+    'prettier',
+    'prettier/vue',
+    '@vue/typescript',
   ],
 };
