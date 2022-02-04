@@ -1,10 +1,10 @@
 const instanceMap = new Map();
 
-export function setCurrent(name, instance) {
+export function setCurrentInstance(name, instance) {
   instanceMap.set(name, instance);
   return instance;
 }
 
-export function getCurrent(name) {
+export function getCurrentInstance(name) {
   return instanceMap.get(name);
 }
