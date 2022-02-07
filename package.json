@@ -10,7 +10,7 @@
     "build:all": "npm run build:dicom && npm run build",
     "build:dicom": "itk-js build src/io/itk-dicom/",
     "build:dicom:debug": "itk-js build src/io/itk-dicom/ -- -DCMAKE_BUILD_TYPE=Debug",
-    "prettify": "prettier --write src"
+    "prettify": "prettier --write src tests"
   },
   "dependencies": {
     "@kitware/vtk.js": "^22.4.0",
@@ -47,6 +47,7 @@
     "chai-as-promised": "7.1.1",
     "eslint": "6.8.0",
     "eslint-config-prettier": "6.15.0",
+    "eslint-import-resolver-typescript": "^2.5.0",
     "eslint-plugin-import": "2.22.1",
     "eslint-plugin-vue": "6.2.2",
     "lint-staged": "10.5.3",
@@ -67,7 +68,7 @@
     "pre-commit": "lint-staged"
   },
   "lint-staged": {
-    "*.{js,jsx,vue}": [
+    "*.{js,jsx,ts,tsx,vue}": [
       "vue-cli-service lint",
       "git add"
     ]

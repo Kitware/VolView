@@ -5,9 +5,17 @@ module.exports = {
     node: true,
   },
 
+  settings: {
+    'import/resolver': {
+      typescript: {},
+    },
+  },
+
   parserOptions: {
     parser: '@typescript-eslint/parser',
   },
+
+  plugins: ['@typescript-eslint', 'import'],
 
   ignorePatterns: ['src/io/itk-dicom/web-build/**'],
 
@@ -31,6 +39,9 @@ module.exports = {
         tsx: 'never',
       },
     ],
+    // use typescript no-shadow
+    'no-shadow': 'off',
+    '@typescript-eslint/no-shadow': 'error',
   },
 
   overrides: [
@@ -48,7 +59,7 @@ module.exports = {
       },
     },
     {
-      files: ['src/vtk/**/*.js'],
+      files: ['src/vtk/**/*.{j,t}s'],
       rules: {
         'no-param-reassign': [
           'error',
