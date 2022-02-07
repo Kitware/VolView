@@ -16,6 +16,7 @@ module.exports = {
     resolve: {
       alias: {
         '@': __dirname,
+        '@src': path.join(__dirname, 'src'),
         // Use lite colormap
         '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.json':
           '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
