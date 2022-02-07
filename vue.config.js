@@ -10,7 +10,22 @@ module.exports = {
   chainWebpack: (config) => {
     // do not cache worker files
     // https://github.com/webpack-contrib/worker-loader/issues/195
-    config.module.rule('js').exclude.add(/\.worker\.js$/);
+    config.module.rule('js').exclude.add(/\.worker\.[jt]s$/);
+    // add worker-loader /before/ ts-loader so that worker-loader can
+    // properly handle exports.
+    // https://v4.webpack.js.org/loaders/worker-loader/#integrating-with-typescript
+    config.module
+      .rule('web-worker')
+      .before('ts')
+      .test(/\.worker\.[jt]s$/)
+      .exclude.add(/node_modules/)
+      .end()
+      .use('worker-loader')
+      .loader('worker-loader')
+      .options({
+        inline: 'no-fallback',
+      })
+      .end();
   },
   configureWebpack: {
     resolve: {
@@ -21,22 +36,6 @@ module.exports = {
         '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.json':
           '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
       },
-    },
-    module: {
-      rules: [
-        {
-          test: /\.worker\.js$/,
-          exclude: /node_modules/,
-          use: [
-            {
-              loader: 'worker-loader',
-              options: {
-                inline: 'no-fallback',
-              },
-            },
-          ],
-        },
-      ],
     },
     plugins: [
       // disable webvr

@@ -1,21 +1,31 @@
 import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
+import vtkXMLImageDataReader from '@kitware/vtk.js/IO/XML/XMLImageDataReader';
+import vtkXMLPolyDataReader from '@kitware/vtk.js/IO/XML/XMLPolyDataReader';
 
 import workerHandler from '@/src/utils/workerHandler';
 import readFile from './common';
-
-// window shim
-if (typeof window === 'undefined') {
-  global.window = global;
-}
 
 const Readers = {
   stl: {
     readerClass: vtkSTLReader,
     asBinary: true,
   },
+  vti: {
+    readerClass: vtkXMLImageDataReader,
+    asBinary: true,
+  },
+  vtp: {
+    readerClass: vtkXMLPolyDataReader,
+    asBinary: true,
+  },
 };
 
-workerHandler.registerHandler(async (data) => {
+export interface WorkerInput {
+  file: File;
+  readerName: keyof typeof Readers;
+}
+
+workerHandler.registerHandler(async (data: WorkerInput) => {
   const { file, readerName } = data;
   if (!file) {
     throw new Error('No file provided');

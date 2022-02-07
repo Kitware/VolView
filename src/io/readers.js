@@ -4,8 +4,7 @@ import readImageArrayBuffer from 'itk/readImageArrayBuffer';
 
 import convertJsonToTre from '@/src/vtk/TreJsonConverter';
 import { readFileAsArrayBuffer } from './io';
-import { VtkVtiReader, VtkVtpReader } from './vtk/sync';
-import { VtkStlReader } from './vtk/async';
+import { stlReader, vtiReader, vtpReader } from './vtk/async';
 
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
 
@@ -37,7 +36,7 @@ export function createTREReader(dicomIO) {
 
 export function registerAllReaders(io) {
   itkImageExtensions.forEach((ext) => io.addSingleReader(ext, itkReader));
-  io.addSingleReader('vti', VtkVtiReader);
-  io.addSingleReader('vtp', VtkVtpReader);
-  io.addSingleReader('stl', VtkStlReader);
+  io.addSingleReader('vti', vtiReader);
+  io.addSingleReader('vtp', vtpReader);
+  io.addSingleReader('stl', stlReader);
 }

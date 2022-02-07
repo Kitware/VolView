@@ -41,7 +41,7 @@ function prefixEquals(target, prefix) {
 export async function getFileMagic(file) {
   return new Promise((resolve) => {
     const head = file.slice(0, HEAD_CHUNK);
-    const reader = new window.FileReader();
+    const reader = new globalThis.FileReader();
     reader.onload = () => {
       const chunk = new Uint8Array(reader.result);
       for (let i = 0; i < FILE_MAGIC_DB.length; i += 1) {
@@ -59,7 +59,7 @@ export async function getFileMagic(file) {
 
 async function readFileAs(file, type) {
   return new Promise((resolve) => {
-    const fio = new window.FileReader();
+    const fio = new globalThis.FileReader();
     fio.onload = () => resolve(fio.result);
     const method = `readAs${type}`;
     if (!fio[method]) {
