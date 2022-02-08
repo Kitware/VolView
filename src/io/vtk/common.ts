@@ -1,7 +1,12 @@
+import { vtkReader, vtkClass } from '@/src/types/vtk-types';
 import { readFileAsArrayBuffer, readFileAsUTF8Text } from '../io';
 
-export default async function readFile(file, vtkReaderClass, asBinary = true) {
-  const reader = vtkReaderClass.newInstance();
+export default async function readFile(
+  file: File,
+  vtkReaderClass: vtkClass,
+  asBinary = true
+) {
+  const reader: vtkReader = vtkReaderClass.newInstance() as vtkReader;
   if (asBinary) {
     const buffer = await readFileAsArrayBuffer(file);
     reader.parseAsArrayBuffer(buffer);

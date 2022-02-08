@@ -1,5 +1,11 @@
+import { vtkObject } from '@kitware/vtk.js/interfaces';
+
 // How much data to read when extracting file magic
 const HEAD_CHUNK = 512;
+
+export type ReadAsType = 'ArrayBuffer' | 'Text';
+
+export type ReaderFunction = (file: File) => vtkObject;
 
 /**
  * special file types that we handle specifically
@@ -20,7 +26,7 @@ export const FILE_MAGIC_DB = [
   },
 ];
 
-function prefixEquals(target, prefix) {
+function prefixEquals(target: Uint8Array, prefix: number[]) {
   if (prefix.length > target.length) {
     return false;
   }
@@ -38,12 +44,12 @@ function prefixEquals(target, prefix) {
  * @param {File} file
  * @returns {string|null}
  */
-export async function getFileMagic(file) {
+export async function getFileMagic(file: File): Promise<string | null> {
   return new Promise((resolve) => {
     const head = file.slice(0, HEAD_CHUNK);
     const reader = new globalThis.FileReader();
     reader.onload = () => {
-      const chunk = new Uint8Array(reader.result);
+      const chunk = new Uint8Array(reader.result! as ArrayBuffer);
       for (let i = 0; i < FILE_MAGIC_DB.length; i += 1) {
         const { type, header, skip = 0 } = FILE_MAGIC_DB[i];
         if (prefixEquals(chunk.slice(skip), header)) {
@@ -57,15 +63,20 @@ export async function getFileMagic(file) {
   });
 }
 
-async function readFileAs(file, type) {
+async function readFileAs<T extends ArrayBuffer | string>(
+  file: File,
+  type: ReadAsType
+): Promise<T> {
   return new Promise((resolve) => {
     const fio = new globalThis.FileReader();
-    fio.onload = () => resolve(fio.result);
-    const method = `readAs${type}`;
-    if (!fio[method]) {
+    fio.onload = () => resolve(fio.result as T);
+    if (type === 'ArrayBuffer') {
+      fio.readAsArrayBuffer(file);
+    } else if (type === 'Text') {
+      fio.readAsText(file);
+    } else {
       throw new TypeError(`readAs${type} is not a function`);
     }
-    fio[method](file);
   });
 }
 
@@ -74,8 +85,8 @@ async function readFileAs(file, type) {
  * @async
  * @param {File} file
  */
-export async function readFileAsArrayBuffer(file) {
-  return readFileAs(file, 'ArrayBuffer');
+export async function readFileAsArrayBuffer(file: File) {
+  return readFileAs<ArrayBuffer>(file, 'ArrayBuffer');
 }
 
 /**
@@ -83,11 +94,17 @@ export async function readFileAsArrayBuffer(file) {
  * @async
  * @param {File} file
  */
-export async function readFileAsUTF8Text(file) {
-  return readFileAs(file, 'Text');
+export async function readFileAsUTF8Text(file: File) {
+  return readFileAs<string>(file, 'Text');
 }
 
 export class FileIO {
+  fileReaders: Record<string, ReaderFunction>;
+
+  typeAliases: Record<string, string>;
+
+  typeCache: WeakMap<File, string>;
+
   constructor() {
     this.fileReaders = Object.create(null);
     this.typeAliases = Object.create(null);
@@ -108,7 +125,7 @@ export class FileIO {
    * @param {String} fileType
    * @param {readerFunc} readerFunc
    */
-  addSingleReader(fileType, readerFunc) {
+  addSingleReader(fileType: string, readerFunc: ReaderFunction) {
     this.fileReaders[fileType.toLowerCase()] = readerFunc;
   }
 
@@ -122,7 +139,7 @@ export class FileIO {
    * @param {String} baseType
    * @param {String[]} aliases
    */
-  addFileTypeAliases(baseType, aliases) {
+  addFileTypeAliases(baseType: string, aliases: string[]) {
     if (baseType.toLowerCase() in this.fileReaders) {
       aliases.forEach((alias) => {
         this.typeAliases[alias.toLowerCase()] = baseType;
@@ -137,9 +154,9 @@ export class FileIO {
    * @param {File} file
    * @returns {String|null}
    */
-  async getFileType(file) {
+  async getFileType(file: File): Promise<string | null> {
     if (this.typeCache.has(file)) {
-      return this.typeCache.get(file);
+      return this.typeCache.get(file) ?? null;
     }
 
     let type = null;
@@ -172,7 +189,9 @@ export class FileIO {
       }
     }
 
-    this.typeCache.set(file, type);
+    if (type) {
+      this.typeCache.set(file, type);
+    }
     return type;
   }
 
@@ -183,9 +202,9 @@ export class FileIO {
    * @param {File} file
    * @returns {Boolean}
    */
-  async canReadFile(file) {
+  async canReadFile(file: File) {
     const type = await this.getFileType(file);
-    return !!this.fileReaders[type];
+    return type ? !!this.fileReaders[type] : false;
   }
 
   /**
@@ -196,7 +215,7 @@ export class FileIO {
    * @returns {any}
    * @throws {Error}
    */
-  async readSingleFile(file) {
+  async readSingleFile(file: File) {
     const type = await this.getFileType(file);
     if (!type) {
       throw new Error(`No type info found for ${file.name}`);
