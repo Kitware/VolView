@@ -1,9 +1,16 @@
-export default class PriorityQueue {
+interface HeapItem<T> {
+  item: T;
+  priority: number;
+}
+
+export default class PriorityQueue<T> {
+  heap: HeapItem<T>[];
+
   constructor() {
     this.heap = [];
   }
 
-  push(item, priority = 0) {
+  push(item: T, priority = 0) {
     this.heap.push({ item, priority });
     this.rebalanceUp();
   }
@@ -12,7 +19,7 @@ export default class PriorityQueue {
     if (this.heap.length) {
       const last = this.heap.length - 1;
       [this.heap[0], this.heap[last]] = [this.heap[last], this.heap[0]];
-      const result = this.heap.pop().item;
+      const result = this.heap.pop()!.item;
       this.rebalanceDown();
       return result;
     }
@@ -41,7 +48,7 @@ export default class PriorityQueue {
     }
   }
 
-  selectLargerChild(parent) {
+  selectLargerChild(parent: number) {
     const lefti = parent * 2;
     const righti = parent + 1;
 

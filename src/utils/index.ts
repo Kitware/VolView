@@ -40,3 +40,30 @@ export async function fetchFileWithProgress(
 
   return new File([bytes], name);
 }
+
+type PromiseResolveFunction<T> = (value: T) => void;
+type PromiseRejectFunction = (reason?: Error) => void;
+export interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: PromiseResolveFunction<T>;
+  reject: PromiseRejectFunction;
+}
+
+export function defer<T>(): Deferred<T> {
+  let innerResolve: PromiseResolveFunction<T> | null = null;
+  let innerReject: PromiseRejectFunction | null = null;
+
+  const resolve = (value: T) => {
+    if (innerResolve) innerResolve(value);
+  };
+  const reject = (reason?: Error) => {
+    if (innerReject) innerReject(reason);
+  };
+
+  const promise = new Promise<T>((res, rej) => {
+    innerResolve = res;
+    innerReject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
