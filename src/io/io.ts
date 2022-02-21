@@ -47,7 +47,7 @@ function prefixEquals(target: Uint8Array, prefix: number[]) {
 export async function getFileMagic(file: File): Promise<string | null> {
   return new Promise((resolve) => {
     const head = file.slice(0, HEAD_CHUNK);
-    const reader = new globalThis.FileReader();
+    const reader = new FileReader();
     reader.onload = () => {
       const chunk = new Uint8Array(reader.result! as ArrayBuffer);
       for (let i = 0; i < FILE_MAGIC_DB.length; i += 1) {
