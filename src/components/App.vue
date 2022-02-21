@@ -254,8 +254,14 @@ import DragAndDrop from './DragAndDrop.vue';
 import AboutBox from './AboutBox.vue';
 import AiModule from './AiModule.vue';
 import ToolStrip from './ToolStrip.vue';
+import SampleData from './SampleData.vue';
 
 export const Modules = [
+  {
+    name: 'Sample Data',
+    icon: 'database',
+    component: SampleData,
+  },
   {
     name: 'Patients & Images',
     icon: 'account',

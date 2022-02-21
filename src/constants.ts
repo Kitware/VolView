@@ -18,3 +18,24 @@ export const DEFAULT_LABELMAP_COLORS = {
   0: [0, 0, 0, 0], // eraser
   1: [255, 0, 0, 255],
 };
+
+export const SAMPLE_DATA = [
+  {
+    name: 'HEAD-MRA',
+    filename: 'HEAD-MRA.mha',
+    description: '',
+    url:
+      'https://data.kitware.com/api/v1/item/620db46f4acac99f42e753f9/download',
+    image: '',
+  },
+  {
+    name: 'LIVER-CT',
+    filename: 'LIVER-CT.mha',
+    description: '',
+    url:
+      'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
+    image: '',
+  },
+];
+
+export type Sample = typeof SAMPLE_DATA[0];
