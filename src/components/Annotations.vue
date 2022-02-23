@@ -76,7 +76,7 @@
               single-line
               type="number"
               class="mt-0 pt-0"
-              style="width: 40px;"
+              style="width: 40px"
             />
           </template>
         </v-slider>

@@ -3,7 +3,9 @@ import Vuetify from 'vuetify';
 import { expect } from 'chai';
 import { createLocalVue, mount } from '@vue/test-utils';
 
-import ResizableNavDrawer, { RESIZE_CURSOR } from '@/src/components/ResizableNavDrawer.vue';
+import ResizableNavDrawer, {
+  RESIZE_CURSOR,
+} from '@/src/components/ResizableNavDrawer.vue';
 
 Vue.use(Vuetify);
 

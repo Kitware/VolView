@@ -21,8 +21,8 @@ describe('ToolButton.vue', () => {
   });
 
   it('computes the button class spec correctly', () => {
-    let props; let
-      wrapper;
+    let props;
+    let wrapper;
 
     props = { ...propsData, buttonClass: 'c1 c2 c3' };
     wrapper = shallowMount(ToolButton, { propsData: props });

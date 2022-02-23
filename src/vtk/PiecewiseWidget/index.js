@@ -156,10 +156,8 @@ function vtkPiecewiseWidget(publicAPI, model) {
     }
   };
 
-  publicAPI.getEffectiveOpacityPoints = () => model.opacityPoints.map((p) => [
-      p[0] + model.opacityPointShift,
-      p[1],
-    ]);
+  publicAPI.getEffectiveOpacityPoints = () =>
+    model.opacityPoints.map((p) => [p[0] + model.opacityPointShift, p[1]]);
 
   publicAPI.render = () => {
     if (publicAPI.isModePoints()) {
