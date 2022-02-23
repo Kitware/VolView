@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { isVtkObject } from '@kitware/vtk.js/macro';
 
 import { DataTypes, NO_SELECTION } from '@/src/constants';
-import { removeFromArray } from '@/src/utils/common';
+import { removeFromArray } from '@/src/utils';
 
 import { FileTypes } from '../io/io';
 
