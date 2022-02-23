@@ -1,10 +1,10 @@
 import macro from '@kitware/vtk.js/macro';
-import vtkBaseView2DProxy from '@kitware/vtk.js/Proxy/Core/View2DProxy';
+import vtkView2DProxy from '@kitware/vtk.js/Proxy/Core/View2DProxy';
 
 import { commonViewCustomizations } from '@/src/vtk/View3DProxy';
 
-function vtkView2DProxy(publicAPI, model) {
-  model.classHierarchy.push('vtkMedicalView2DProxy');
+function vtkCustomView2DProxy(publicAPI, model) {
+  model.classHierarchy.push('vtkCustomView2DProxy');
   commonViewCustomizations(publicAPI, model);
 
   // we will set the manipulator ourselves
@@ -26,11 +26,11 @@ function vtkView2DProxy(publicAPI, model) {
 export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, initialValues);
 
-  vtkBaseView2DProxy.extend(publicAPI, model, initialValues);
+  vtkView2DProxy.extend(publicAPI, model, initialValues);
 
-  vtkView2DProxy(publicAPI, model);
+  vtkCustomView2DProxy(publicAPI, model);
 }
 
-export const newInstance = macro.newInstance(extend, 'vtkMedicalView2DProxy');
+export const newInstance = macro.newInstance(extend, 'vtkCustomView2DProxy');
 
 export default { newInstance, extend };

@@ -29,10 +29,16 @@ export function commonViewCustomizations(publicAPI, model) {
       delayedRender();
     }
   };
+
+  // add helper function
+  publicAPI.removeAllRepresentations = () => {
+    model.representations.forEach((rep) => model.renderer.removeViewProp(rep));
+    model.representations.length = 0;
+  };
 }
 
-function vtkView3DProxy(publicAPI, model) {
-  model.classHierarchy.push('vtkMedicalView3DProxy');
+function vtkCustomView3DProxy(publicAPI, model) {
+  model.classHierarchy.push('vtkCustomView3DProxy');
   commonViewCustomizations(publicAPI, model);
 }
 
@@ -41,9 +47,9 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   vtkViewProxy.extend(publicAPI, model, initialValues);
 
-  vtkView3DProxy(publicAPI, model);
+  vtkCustomView3DProxy(publicAPI, model);
 }
 
-export const newInstance = macro.newInstance(extend, 'vtkMedicalView3DProxy');
+export const newInstance = macro.newInstance(extend, 'vtkCustomView3DProxy');
 
 export default { newInstance, extend };
