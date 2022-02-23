@@ -6,11 +6,16 @@ import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/GeometryRepresentationProxy';
 
-import vtk3DView from '@/src/vtk/View3DProxy';
-import vtk2DView from '@/src/vtk/View2DProxy';
-import vtkTransformedSliceRepresentationProxy from '@/src/vtk/TransformedSliceRepresentationProxy';
+import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
+import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
+import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
+
+const WindowLevelLinks = [
+  { link: 'WW', property: 'windowWidth', updateOnBind: true },
+  { link: 'WL', property: 'windowLevel', updateOnBind: true },
+];
 
 function createProxyDefinition(
   classFactory,
@@ -26,7 +31,7 @@ function createProxyDefinition(
   };
 }
 
-function createDefaultView(classFactory, options, props) {
+function createDefaultView(classFactory, options = [], props = {}) {
   return createProxyDefinition(classFactory, [], [], options, props);
 }
 
@@ -58,31 +63,22 @@ export default {
     Representations: {
       Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
       SliceX: createSyncedSliceRepDefinition(
-        vtkTransformedSliceRepresentationProxy,
+        vtkIJKSliceRepresentationProxy,
         'X',
-        [],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-        ]
+        null,
+        WindowLevelLinks
       ),
       SliceY: createSyncedSliceRepDefinition(
-        vtkTransformedSliceRepresentationProxy,
+        vtkIJKSliceRepresentationProxy,
         'Y',
-        [],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-        ]
+        null,
+        WindowLevelLinks
       ),
       SliceZ: createSyncedSliceRepDefinition(
-        vtkTransformedSliceRepresentationProxy,
+        vtkIJKSliceRepresentationProxy,
         'Z',
-        [],
-        [
-          { link: 'WW', property: 'windowWidth', updateOnBind: true },
-          { link: 'WL', property: 'windowLevel', updateOnBind: true },
-        ]
+        null,
+        WindowLevelLinks
       ),
       LabelMapSliceX: createSyncedSliceRepDefinition(
         vtkLabelMapSliceRepProxy,
@@ -111,28 +107,10 @@ export default {
       ),
     },
     Views: {
-      View3D: createDefaultView(vtk3DView),
-      ViewX: createDefaultView(
-        vtk2DView,
-        [
-          /* ui */
-        ],
-        { axis: 0 }
-      ),
-      ViewY: createDefaultView(
-        vtk2DView,
-        [
-          /* ui */
-        ],
-        { axis: 1 }
-      ),
-      ViewZ: createDefaultView(
-        vtk2DView,
-        [
-          /* ui */
-        ],
-        { axis: 2 }
-      ),
+      View3D: createDefaultView(vtkLPSView3DProxy),
+      ViewX: createDefaultView(vtkLPSView2DProxy, null, { axis: 0 }),
+      ViewY: createDefaultView(vtkLPSView2DProxy, null, { axis: 1 }),
+      ViewZ: createDefaultView(vtkLPSView2DProxy, null, { axis: 2 }),
     },
   },
   representations: {

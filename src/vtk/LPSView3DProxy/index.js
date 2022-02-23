@@ -37,8 +37,8 @@ export function commonViewCustomizations(publicAPI, model) {
   };
 }
 
-function vtkCustomView3DProxy(publicAPI, model) {
-  model.classHierarchy.push('vtkCustomView3DProxy');
+function vtkLPSView3DProxy(publicAPI, model) {
+  model.classHierarchy.push('vtkLPSView3DProxy');
   commonViewCustomizations(publicAPI, model);
 }
 
@@ -47,9 +47,9 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   vtkViewProxy.extend(publicAPI, model, initialValues);
 
-  vtkCustomView3DProxy(publicAPI, model);
+  vtkLPSView3DProxy(publicAPI, model);
 }
 
-export const newInstance = macro.newInstance(extend, 'vtkCustomView3DProxy');
+export const newInstance = macro.newInstance(extend, 'vtkLPSView3DProxy');
 
 export default { newInstance, extend };

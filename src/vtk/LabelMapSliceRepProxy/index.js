@@ -3,7 +3,7 @@ import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import ImagePropertyConstants from '@kitware/vtk.js/Rendering/Core/ImageProperty/Constants';
 
-import vtkTransformedSliceRepresentationProxy from '../TransformedSliceRepresentationProxy';
+import vtkIJKSliceRepresentationProxy from '../IJKSliceRepresentationProxy';
 
 const { InterpolationType } = ImagePropertyConstants;
 
@@ -76,7 +76,7 @@ export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
   // Object methods
-  vtkTransformedSliceRepresentationProxy.extend(publicAPI, model);
+  vtkIJKSliceRepresentationProxy.extend(publicAPI, model);
 
   // Object specific methods
   vtkLabelMapSliceRepProxy(publicAPI, model);

@@ -1,0 +1,99 @@
+import macro from '@kitware/vtk.js/macro';
+import vtkView2DProxy from '@kitware/vtk.js/Proxy/Core/View2DProxy';
+
+import { commonViewCustomizations } from '@/src/vtk/LPSView3DProxy';
+import { vec3 } from 'gl-matrix';
+
+function vtkLPSView2DProxy(publicAPI, model) {
+  model.classHierarchy.push('vtkLPSView2DProxy');
+  const superClass = { ...publicAPI };
+
+  commonViewCustomizations(publicAPI, model);
+
+  // override; we will set the manipulator ourselves
+  publicAPI.bindRepresentationToManipulator = () => {};
+
+  publicAPI.updateCamera = (directionOfProjection, viewUp, focalPoint) => {
+    const position = vec3.clone(focalPoint);
+    vec3.sub(position, position, directionOfProjection);
+    model.camera.setFocalPoint(...focalPoint);
+    model.camera.setPosition(...position);
+    model.camera.setDirectionOfProjection(...directionOfProjection);
+    model.camera.setViewUp(...viewUp);
+  };
+
+  // override reset camera to /just/ reset the camera
+  publicAPI.resetCamera = () => {
+    model.renderer.resetCamera();
+  };
+
+  // override addRepresentation
+  publicAPI.addRepresentation = (rep) => {
+    superClass.addRepresentation(rep);
+    if (rep.setSlicingMode && model.slicingMode) {
+      rep.setSlicingMode(model.slicingMode);
+    }
+  };
+
+  // this basically ignores model.axis
+  publicAPI.setSlicingMode = (mode) => {
+    if (superClass.setSlicingMode(mode) && mode) {
+      let count = model.representations.length;
+      while (count--) {
+        const rep = model.representations[count];
+        if (rep.setSlicingMode) {
+          rep.setSlicingMode(mode);
+        }
+      }
+    }
+  };
+
+  publicAPI.resizeToFit = (lookAxis, viewUpAxis, worldDims) => {
+    const [w, h] = model.openglRenderWindow.getSize();
+    let bw;
+    let bh;
+    if (lookAxis === 0 && viewUpAxis === 1) {
+      [, bh, bw] = worldDims;
+    } else if (lookAxis === 0 && viewUpAxis === 2) {
+      [, bw, bh] = worldDims;
+    } else if (lookAxis === 1 && viewUpAxis === 0) {
+      [bh, , bw] = worldDims;
+    } else if (lookAxis === 1 && viewUpAxis === 2) {
+      [bw, , bh] = worldDims;
+    } else if (lookAxis === 2 && viewUpAxis === 0) {
+      [bh, bw] = worldDims;
+    } else if (lookAxis === 2 && viewUpAxis === 1) {
+      [bw, bh] = worldDims;
+    }
+
+    const viewAspect = w / h;
+    const boundsAspect = bw / bh;
+    let scale = 0;
+    if (viewAspect >= boundsAspect) {
+      scale = bh / 2;
+    } else {
+      scale = bw / 2 / viewAspect;
+    }
+
+    model.camera.setParallelScale(scale);
+  };
+}
+
+const DEFAULT_VALUES = {
+  slicingMode: null, // XYZIJK. Null means fallback to model.axis.
+};
+
+export function extend(publicAPI, model, initialValues = {}) {
+  Object.assign(model, initialValues, DEFAULT_VALUES);
+
+  // slicing mode overrides axis
+  macro.setGet(publicAPI, model, ['slicingMode']);
+
+  vtkView2DProxy.extend(publicAPI, model, initialValues);
+
+  vtkLPSView2DProxy(publicAPI, model);
+}
+
+export const newInstance = macro.newInstance(extend, 'vtkLPSView2DProxy');
+
+export default { newInstance, extend };
