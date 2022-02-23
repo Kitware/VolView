@@ -7,7 +7,7 @@ export function useResizeObserver(
   targetElRef: Ref<HTMLElement>,
   callback: Function
 ) {
-  const observer = new window.ResizeObserver((entries) => {
+  const observer = new ResizeObserver((entries) => {
     if (entries.length === 1) {
       callback();
     }
