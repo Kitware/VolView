@@ -74,3 +74,7 @@ export function removeFromArray<T>(arr: Array<T>, el: T) {
     arr.splice(idx, 1);
   }
 }
+
+export function clampValue(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
