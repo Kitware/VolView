@@ -42,7 +42,7 @@ import {
   apply2DCameraPlacement,
   useIJKAxisCamera,
 } from '@/src/composables/view/view2D';
-import { useResizeObserver } from '@/src/composables/resizeObserver';
+import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { watchScene, watchColorBy } from '@/src/composables/scene';
 import { useStore, useComputedState } from '@/src/composables/store';
 import { useSubscription } from '@/src/composables/vtk';

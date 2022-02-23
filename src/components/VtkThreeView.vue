@@ -26,7 +26,7 @@ import {
   useVtkViewCameraOrientation,
   applyViewAnnotations,
 } from '@/src/composables/view/common';
-import { useResizeObserver } from '@/src/composables/resizeObserver';
+import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { watchScene, watchColorBy } from '@/src/composables/scene';
 import { useComputedState } from '@/src/composables/store';
 import { useProxyManager } from '@/src/composables/proxyManager';
