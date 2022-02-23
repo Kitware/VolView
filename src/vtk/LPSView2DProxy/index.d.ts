@@ -12,3 +12,7 @@ export interface vtkLPSView2DProxy
    */
   setSlicingMode(mode: string);
 }
+
+// TODO extend, newInstance...
+export declare const vtkLPSView2DProxy: {};
+export default vtkLPSView2DProxy;
