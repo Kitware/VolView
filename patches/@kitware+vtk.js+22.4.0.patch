@@ -1,0 +1,13 @@
+diff --git a/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts b/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
+index ad508a0..933999c 100644
+--- a/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
++++ b/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
+@@ -54,7 +54,7 @@ export interface vtkDataArray extends vtkObject {
+ 	 *
+ 	 * @param {Number} componentIndex (default: -1)
+ 	 */
+-	getRange(componentIndex?: number): vtkRange;
++	getRange(componentIndex?: number): [number, number];
+ 
+ 	/**
+ 	 * 
