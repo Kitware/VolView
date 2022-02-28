@@ -147,10 +147,46 @@ declare module '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy' {
   export interface vtkAbstractRepresentationProxy extends vtkProxyObject {
     setInput(source: vtkSourceProxy): void;
     getInputDataSet(): vtkObject | null;
+    setColorBy(
+      arrayName: string | null,
+      arrayLocation: string,
+      componentIndex: number = -1
+    );
   }
 
   export default vtkAbstractRepresentationProxy;
 }
+
+declare module '@kitware/vtk.js/Proxy/Core/SliceRepresentationProxy' {
+  import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
+
+  export interface vtkSliceRepresentationProxy
+    extends vtkAbstractRepresentationProxy {
+    /**
+     * @param mode XYZIJK
+     */
+    setSlicingMode(mode: string): boolean;
+    getSlicingMode(): string;
+    getSliceIndex(): number;
+    getAnnotations(): any;
+
+    // proxy property mappings
+
+    setVisibility(visible: boolean): boolean;
+    getVisibility(): boolean;
+    setWindowWidth(width: number): boolean;
+    getWindowWidth(): number;
+    setWindowLevel(level: number): boolean;
+    getWindowLevel(): number;
+    setInterpolationType(type: number): boolean;
+    getInterpolationType(): number;
+    setSlice(type: number): boolean;
+    getSlice(): number;
+  }
+
+  export default vtkSliceRepresentationProxy;
+}
+
 declare module '@kitware/vtk.js/Proxy/Core/ProxyManager' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
   import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
