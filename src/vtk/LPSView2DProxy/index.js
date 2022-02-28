@@ -23,8 +23,8 @@ function vtkLPSView2DProxy(publicAPI, model) {
   };
 
   // override reset camera to /just/ reset the camera
-  publicAPI.resetCamera = () => {
-    model.renderer.resetCamera();
+  publicAPI.resetCamera = (boundsToUse = null) => {
+    model.renderer.resetCamera(boundsToUse);
   };
 
   // override addRepresentation
@@ -48,22 +48,22 @@ function vtkLPSView2DProxy(publicAPI, model) {
     }
   };
 
-  publicAPI.resizeToFit = (lookAxis, viewUpAxis, worldDims) => {
+  publicAPI.resizeToFit = (lookAxis, viewUpAxis, dims) => {
     const [w, h] = model.openglRenderWindow.getSize();
     let bw;
     let bh;
     if (lookAxis === 0 && viewUpAxis === 1) {
-      [, bh, bw] = worldDims;
+      [, bh, bw] = dims;
     } else if (lookAxis === 0 && viewUpAxis === 2) {
-      [, bw, bh] = worldDims;
+      [, bw, bh] = dims;
     } else if (lookAxis === 1 && viewUpAxis === 0) {
-      [bh, , bw] = worldDims;
+      [bh, , bw] = dims;
     } else if (lookAxis === 1 && viewUpAxis === 2) {
-      [bw, , bh] = worldDims;
+      [bw, , bh] = dims;
     } else if (lookAxis === 2 && viewUpAxis === 0) {
-      [bh, bw] = worldDims;
+      [bh, bw] = dims;
     } else if (lookAxis === 2 && viewUpAxis === 1) {
-      [bw, bh] = worldDims;
+      [bw, bh] = dims;
     }
 
     const viewAspect = w / h;
