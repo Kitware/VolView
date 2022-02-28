@@ -43,6 +43,6 @@ describe('View 2D store', () => {
     addTestData();
 
     view2DStore.updateSliceDomain('1', [0, 20]);
-    expect(view2DStore.sliceConfigs['2'].max).to.equal(20);
+    expect(view2DStore.sliceConfigs['1'].max).to.equal(20);
   });
 });
