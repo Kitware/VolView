@@ -54,11 +54,9 @@ import {
   useImageStore,
 } from '@src/storex/datasets-images';
 import { useView2DStore } from '@src/storex/views-2D';
-import { useViewStore, ViewDirection, LPSAxis } from '@src/storex/views';
+import { useViewStore } from '@src/storex/views';
 import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
-import { useLPSDirections } from '@src/composables/useLPSDirections';
-import { useCameraOrientation } from '@src/composables/useCameraOrientation';
 import { use2DMouseControls } from '@src/composables/use2DMouseControls';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
@@ -68,6 +66,7 @@ import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
+import { getLPSAxisFromDir, getLPSDirections, LPSAxisDir } from '../utils/lps';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -75,12 +74,12 @@ function computeStep(min: number, max: number) {
 
 export default defineComponent({
   props: {
-    viewAxis: {
-      type: String as PropType<LPSAxis>,
+    viewDirection: {
+      type: String as PropType<LPSAxisDir>,
       required: true,
     },
     viewUp: {
-      type: Object as PropType<ViewDirection>,
+      type: String as PropType<LPSAxisDir>,
       required: true,
     },
   },
@@ -96,10 +95,12 @@ export default defineComponent({
     const proxyStore = useVTKProxyStore();
     const proxyManager = useProxyManager()!;
 
-    const { viewAxis, viewUp } = toRefs(props);
+    const { viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
     const currentImageRepRef = ref<vtkIJKSliceRepresentationProxy>();
+
+    const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     // --- view store --- //
 
@@ -153,7 +154,7 @@ export default defineComponent({
 
     // updates slicing mode based on the IJK index
     watchEffect(() => {
-      const ijkIndex = curImageMetadata.value.lpsColumns[viewAxis.value];
+      const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
       viewProxy.setSlicingMode('IJK'[ijkIndex]);
     });
 
@@ -163,7 +164,7 @@ export default defineComponent({
 
     watch(
       () => {
-        const ijkIndex = curImageMetadata.value.lpsColumns[viewAxis.value];
+        const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
         return curImageMetadata.value.dimensions[ijkIndex];
       },
       (dimMax) => {
@@ -238,14 +239,13 @@ export default defineComponent({
     const orientationMatrix = computed(
       () => curImageMetadata.value.orientation as mat3
     );
-    const { lpsDirections, lpsAssignments } = useLPSDirections(
-      orientationMatrix
+    const lpsDirections = computed(() =>
+      getLPSDirections(orientationMatrix.value)
     );
-    const { direction: cameraDirection, up: cameraUp } = useCameraOrientation(
-      viewAxis,
-      viewUp,
-      lpsDirections
+    const cameraDirVec = computed(
+      () => lpsDirections.value[viewDirection.value]
     );
+    const cameraUpVec = computed(() => lpsDirections.value[viewUp.value]);
     const {
       resizeToFit,
       ignoreResizeToFitTracking,
@@ -255,8 +255,14 @@ export default defineComponent({
     const resizeToFitScene = () =>
       ignoreResizeToFitTracking(() => {
         // resize to fit
-        const lookAxis = lpsAssignments.value[viewAxis.value];
-        const upAxis = lpsAssignments.value[viewUp.value.axis];
+        const lookAxis =
+          curImageMetadata.value.lpsOrientation[
+            getLPSAxisFromDir(viewDirection.value)
+          ];
+        const upAxis =
+          curImageMetadata.value.lpsOrientation[
+            getLPSAxisFromDir(viewUp.value)
+          ];
         const dimsWithSpacing = curImageMetadata.value.dimensions.map(
           (d, i) => d * curImageMetadata.value.spacing[i]
         );
@@ -274,7 +280,7 @@ export default defineComponent({
 
       // do not track resizeToFit state
       ignoreResizeToFitTracking(() => {
-        viewProxy.updateCamera(cameraDirection.value, cameraUp.value, center);
+        viewProxy.updateCamera(cameraDirVec.value, cameraUpVec.value, center);
         viewProxy.resetCamera(bounds);
       });
 
@@ -299,7 +305,7 @@ export default defineComponent({
     });
 
     watch(
-      [curImageMetadata, cameraDirection, cameraUp, lpsAssignments],
+      [curImageMetadata, cameraDirVec, cameraUpVec, lpsDirections],
       () => {
         if (resizeToFit.value) {
           resetCamera();

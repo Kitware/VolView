@@ -1,25 +1,19 @@
 import { defineStore } from 'pinia';
+import { LPSAxisDir } from '../utils/lps';
 import { useImageStore } from './datasets-images';
 
 export type ViewType = '2D' | '3D';
 
-export type LPSAxis = 'Axial' | 'Sagittal' | 'Coronal';
-
-export type ViewDirection = {
-  axis: LPSAxis;
-  dir: 'Positive' | 'Negative';
-};
-
 export interface View2DConfig {
   objType: 'View2D';
-  viewDirection: ViewDirection;
-  viewUp: ViewDirection;
+  viewDirection: LPSAxisDir;
+  viewUp: LPSAxisDir;
 }
 
 export interface View3DConfig {
   objType: 'View3D';
-  viewDirection: ViewDirection;
-  viewUp: ViewDirection;
+  viewDirection: LPSAxisDir;
+  viewUp: LPSAxisDir;
 }
 
 export type ViewConfig = View2DConfig | View3DConfig;

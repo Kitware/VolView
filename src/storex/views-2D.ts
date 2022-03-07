@@ -2,7 +2,7 @@ import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 
 import { clampValue } from '@src/utils';
-import { LPSAxis } from './views';
+import { LPSAxis } from '@src/utils/lps';
 
 export interface SliceConfig {
   slice: number;

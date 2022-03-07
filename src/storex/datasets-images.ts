@@ -2,17 +2,18 @@ import { set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
-import {
-  LPSAxesToColumns,
-  assignColsToLPS,
-} from '@src/composables/useLPSDirections';
 
 import { useIDStore } from './id';
+import {
+  defaultLPSDirections,
+  getLPSDirections,
+  LPSDirections,
+} from '../utils/lps';
 
 export interface ImageMetadata {
   name: string;
   orientation: mat3;
-  lpsColumns: LPSAxesToColumns;
+  lpsOrientation: LPSDirections;
   spacing: vec3;
   origin: vec3;
   dimensions: vec3;
@@ -24,11 +25,7 @@ export interface ImageMetadata {
 export const defaultImageMetadata = () => ({
   name: '(none)',
   orientation: mat3.create(),
-  lpsColumns: {
-    Coronal: 0,
-    Sagittal: 1,
-    Axial: 2,
-  },
+  lpsOrientation: defaultLPSDirections(),
   spacing: vec3.fromValues(1, 1, 1),
   origin: vec3.create(),
   dimensions: vec3.fromValues(1, 1, 1),
@@ -63,7 +60,7 @@ export const useImageStore = defineStore('images', {
         spacing: imageData.getSpacing() as vec3,
         origin: imageData.getOrigin() as vec3,
         orientation: imageData.getDirection(),
-        lpsColumns: assignColsToLPS(imageData.getDirection()),
+        lpsOrientation: getLPSDirections(imageData.getDirection()),
         worldBounds: imageData.getBounds(),
         worldToIndex: imageData.getWorldToIndex(),
         indexToWorld: imageData.getIndexToWorld(),
