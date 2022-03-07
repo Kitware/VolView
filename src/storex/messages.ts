@@ -85,7 +85,10 @@ export const useMessageStore = defineStore('messages', {
       this.byID = {};
       this.msgList = [];
     },
-    async runTaskWithMessage(contents: string, taskFn: TaskFunction) {
+    async runTaskWithMessage<T extends (...args: any) => any>(
+      contents: string,
+      taskFn: T
+    ): Promise<ReturnType<T>> {
       const id = this.addPending(contents);
       const updateProgress = (progress: number) =>
         this.updatePendingProgress(id, progress);

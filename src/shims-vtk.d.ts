@@ -375,3 +375,5 @@ declare module '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator' 
 declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Presets' {
   export default any;
 }
+
+declare module '@kitware/vtk.js/Common/DataModel/ITKHelper';

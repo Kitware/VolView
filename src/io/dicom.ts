@@ -98,7 +98,7 @@ export class DICOMIO {
    * @param {File[]} files
    * @returns VolumeID[] a list of volumes parsed from the files
    */
-  async importFiles(files: File[]) {
+  async importFiles(files: File[]): Promise<string[]> {
     await this.initialize();
 
     const fileData = await Promise.all(
@@ -135,7 +135,7 @@ export class DICOMIO {
    * This should be done prior to readTags or buildVolume.
    * @param {String} volumeID
    */
-  async buildVolumeList(volumeID: string) {
+  async buildVolumeList(volumeID: string): Promise<number> {
     const result = await this.addTask(
       'dicom',
       ['buildVolumeList', 'output.json', volumeID],
@@ -152,7 +152,11 @@ export class DICOMIO {
    * @param {[]Tag} tags
    * @param {Integer} slice Defaults to 0 (first slice)
    */
-  async readTags(volumeID: string, tags: TagSpec[], slice = 0) {
+  async readTags<T extends TagSpec[]>(
+    volumeID: string,
+    tags: T,
+    slice = 0
+  ): Promise<Record<T[number]['name'], string>> {
     const tagsArgs = tags.map((t) => {
       const { strconv, tag } = t;
       return `${strconv ? '@' : ''}${tag}`;
@@ -172,7 +176,7 @@ export class DICOMIO {
         return { ...info, [name]: json[tag] };
       }
       return info;
-    }, {});
+    }, {} as Record<T[number]['name'], string>);
   }
 
   /**

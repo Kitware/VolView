@@ -1,4 +1,4 @@
-import { set } from '@vue/composition-api';
+import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -9,6 +9,7 @@ import {
   getLPSDirections,
   LPSDirections,
 } from '../utils/lps';
+import { removeFromArray } from '../utils';
 
 export interface ImageMetadata {
   name: string;
@@ -54,20 +55,34 @@ export const useImageStore = defineStore('images', {
       this.idList.push(id);
       set(this.dataIndex, id, imageData);
 
-      const metadata: ImageMetadata = {
-        name,
-        dimensions: imageData.getDimensions() as vec3,
-        spacing: imageData.getSpacing() as vec3,
-        origin: imageData.getOrigin() as vec3,
-        orientation: imageData.getDirection(),
-        lpsOrientation: getLPSDirections(imageData.getDirection()),
-        worldBounds: imageData.getBounds(),
-        worldToIndex: imageData.getWorldToIndex(),
-        indexToWorld: imageData.getIndexToWorld(),
-      };
-
-      set(this.metadata, id, metadata);
+      this.updateData(id, imageData);
       return id;
+    },
+
+    updateData(id: string, imageData: vtkImageData) {
+      if (id in this.metadata) {
+        const metadata: ImageMetadata = {
+          name: this.metadata[id].name,
+          dimensions: imageData.getDimensions() as vec3,
+          spacing: imageData.getSpacing() as vec3,
+          origin: imageData.getOrigin() as vec3,
+          orientation: imageData.getDirection(),
+          lpsOrientation: getLPSDirections(imageData.getDirection()),
+          worldBounds: imageData.getBounds(),
+          worldToIndex: imageData.getWorldToIndex(),
+          indexToWorld: imageData.getIndexToWorld(),
+        };
+
+        set(this.metadata, id, metadata);
+      }
+    },
+
+    deleteData(id: string) {
+      if (id in this.dataIndex) {
+        del(this.dataIndex, id);
+        del(this.metadata, id);
+        removeFromArray(this.idList, id);
+      }
     },
   },
 });

@@ -1,4 +1,6 @@
 import { isVtkObject } from '@kitware/vtk.js/macros';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import JSZip from 'jszip';
 import { defineStore } from 'pinia';
 
@@ -173,10 +175,10 @@ export const useDatasetStore = defineStore('datasets', {
           );
           if (isVtkObject(obj)) {
             if (obj.isA('vtkImageData')) {
-              return imageStore.addVTKImageData(file.name, obj);
+              return imageStore.addVTKImageData(file.name, obj as vtkImageData);
             }
             if (obj.isA('vtkPolyData')) {
-              return modelStore.addVTKPolyData(file.name, obj);
+              return modelStore.addVTKPolyData(file.name, obj as vtkPolyData);
             }
           }
           return null;
