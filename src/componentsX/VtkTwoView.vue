@@ -17,6 +17,16 @@
       </div>
       <div class="overlay">
         <view-overlay-grid>
+          <template v-slot:top-middle>
+            <div class="overlay-cell">
+              <span>{{ topLabel }}</span>
+            </div>
+          </template>
+          <template v-slot:middle-left>
+            <div class="overlay-cell">
+              <span>{{ leftLabel }}</span>
+            </div>
+          </template>
           <template v-slot:bottom-left>
             <div class="overlay-cell">
               <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
@@ -66,6 +76,7 @@ import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
+import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir, getLPSDirections, LPSAxisDir } from '../utils/lps';
 
 function computeStep(min: number, max: number) {
@@ -317,6 +328,10 @@ export default defineComponent({
       { immediate: true }
     );
 
+    // --- viewport orientation/camera labels --- //
+
+    const { top: topLabel, left: leftLabel } = useOrientationLabels(viewProxy);
+
     // --- apply windowing and slice configs --- //
 
     watchEffect(() => {
@@ -381,6 +396,8 @@ export default defineComponent({
       sliceMax,
       windowWidth,
       windowLevel,
+      topLabel,
+      leftLabel,
       setSlice: (slice: number) => view2DStore.setSlice(viewID, slice),
     };
   },
