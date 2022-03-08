@@ -34,6 +34,10 @@ interface State {
   viewAxis: Record<string, LPSAxis>;
   sliceConfigs: Record<string, SliceConfig>;
   wlConfigs: Record<string, WindowLevelConfig>;
+  // removes the necessity to have links in proxy.js
+  // syncs across all views sharing the same image ID
+  syncSlices: boolean;
+  syncWindowing: boolean;
 }
 
 export const useView2DStore = defineStore('views-2D', {
@@ -41,6 +45,8 @@ export const useView2DStore = defineStore('views-2D', {
     viewAxis: {},
     sliceConfigs: {},
     wlConfigs: {},
+    syncSlices: true,
+    syncWindowing: true,
   }),
   actions: {
     addView(
@@ -85,8 +91,21 @@ export const useView2DStore = defineStore('views-2D', {
     },
     setSlice(id: string, slice: number) {
       if (id in this.sliceConfigs) {
-        const { min, max } = this.sliceConfigs[id];
-        this.sliceConfigs[id].slice = clampValue(slice, min, max);
+        const viewsToUpdate = this.syncSlices
+          ? Object.keys(this.sliceConfigs)
+          : [id];
+
+        const axis = this.viewAxis[id];
+
+        // sync slices across all views that share the same dataset and axis.
+        // Right now, all views share the same dataset by way of currentImageID.
+        viewsToUpdate.forEach((viewID) => {
+          if (this.viewAxis[viewID] === axis) {
+            const config = this.sliceConfigs[viewID];
+            const { min, max } = config;
+            config.slice = clampValue(slice, min, max);
+          }
+        });
       }
     },
     updateSliceDomain(id: string, sliceDomain: [number, number]) {
@@ -103,19 +122,27 @@ export const useView2DStore = defineStore('views-2D', {
     resetSlice(id: string) {
       if (id in this.sliceConfigs) {
         const config = this.sliceConfigs[id];
-        config.slice = Math.floor((config.min + config.max) / 2);
+        this.setSlice(id, Math.floor((config.min + config.max) / 2));
       }
     },
     setWindowLevel(id: string, wl: { width?: number; level?: number }) {
       if (id in this.wlConfigs) {
-        const config = this.wlConfigs[id];
-        // don't constrain w/l to min/max
-        if ('width' in wl) {
-          config.width = wl.width!;
-        }
-        if ('level' in wl) {
-          config.level = wl.level!;
-        }
+        const viewsToUpdate = this.syncWindowing
+          ? Object.keys(this.wlConfigs)
+          : [id];
+
+        // sync windowing across all views that share the same dataset.
+        // Right now, all views share the same dataset by way of currentImageID.
+        viewsToUpdate.forEach((viewID) => {
+          const config = this.wlConfigs[viewID];
+          // don't constrain w/l to min/max
+          if ('width' in wl) {
+            config.width = wl.width!;
+          }
+          if ('level' in wl) {
+            config.level = wl.level!;
+          }
+        });
       }
     },
     updateWLDomain(id: string, wlDomain: [number, number]) {
@@ -129,8 +156,9 @@ export const useView2DStore = defineStore('views-2D', {
     resetWindowLevel(id: string) {
       if (id in this.wlConfigs) {
         const config = this.wlConfigs[id];
-        config.width = config.max - config.min;
-        config.level = (config.max + config.min) / 2;
+        const width = config.max - config.min;
+        const level = (config.max + config.min) / 2;
+        this.setWindowLevel(id, { width, level });
       }
     },
   },
