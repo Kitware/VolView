@@ -60,8 +60,8 @@ export default {
 
   computed: {
     handlePosition() {
-      const pos =
-        this.maxHandlePos * ((this.slice - this.min) / (this.max - this.min));
+      const range = this.max - this.min <= 0 ? 1 : this.max - this.min;
+      const pos = this.maxHandlePos * ((this.slice - this.min) / range);
       return this.dragging ? this.draggingHandlePos : pos;
     },
     draggingHandlePos() {
