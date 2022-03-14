@@ -21,3 +21,11 @@ declare module 'itk/runPipelineBrowser' {
 
   export = runPipelineBrowser;
 }
+
+declare module 'itk/extensionToImageIO' {
+  export default {} as Map<string, string>;
+}
+
+declare module 'itk/readImageArrayBuffer' {
+  export default () => any;
+}

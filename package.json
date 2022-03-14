@@ -29,10 +29,13 @@
     "wslink": "^1.3.3"
   },
   "devDependencies": {
+    "@pinia/testing": "^0.0.9",
     "@types/chai": "^4.2.11",
     "@types/chai-almost": "^1.0.1",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^5.2.4",
+    "@types/sinon": "^10.0.11",
+    "@types/sinon-chai": "^3.2.8",
     "@typescript-eslint/eslint-plugin": "^4.18.0",
     "@typescript-eslint/parser": "^4.18.0",
     "@vue/cli-plugin-babel": "4.5.15",
