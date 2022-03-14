@@ -7,7 +7,10 @@ import { stlReader, vtiReader, vtpReader } from './vtk/async';
 
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
 
-export async function itkReader(file: File) {
+export type ReaderType = (file: File) => vtkObject | Promise<vtkObject>;
+export type FileReaderMap = Map<string, ReaderType>;
+
+async function itkReader(file: File) {
   const fileBuffer = await readFileAsArrayBuffer(file);
 
   const reader = vtkITKImageReader.newInstance();
@@ -29,19 +32,24 @@ export async function itkReader(file: File) {
 //   };
 // }
 
-type ReaderType = (file: File) => vtkObject | Promise<vtkObject>;
+/**
+ * A map of the currently registered file readers.
+ */
+export const fileReaders: FileReaderMap = new Map();
 
-function getFileReaders(): Record<string, ReaderType> {
-  const readers: Record<string, ReaderType> = {
-    vti: vtiReader,
-    vtp: vtpReader,
-    stl: stlReader,
-  };
+/**
+ * Resets the file reader map to the default values.
+ */
+export function resetToDefaultReaders() {
+  fileReaders.clear();
+  fileReaders.set('vti', vtiReader);
+  fileReaders.set('vtp', vtpReader);
+  fileReaders.set('stl', stlReader);
 
   ITK_IMAGE_EXTENSIONS.forEach((ext) => {
-    readers[ext] = itkReader;
+    fileReaders.set(ext, itkReader);
   });
-  return readers;
 }
 
-export const FILE_READERS = getFileReaders();
+// initialize the file readers
+resetToDefaultReaders();
