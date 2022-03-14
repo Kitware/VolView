@@ -80,7 +80,26 @@ const makeDICOMFailureStatus = (error: Error): DICOMLoadFailure => ({
   error,
 });
 
+export type DICOMSelection = {
+  type: 'dicom';
+  volumeKey: string;
+};
+
+export type ImageSelection = {
+  type: 'image';
+  dataID: string;
+};
+
+export type DataSelection = DICOMSelection | ImageSelection;
+
+interface State {
+  primarySelection: DataSelection | null;
+}
+
 export const useDatasetStore = defineStore('datasets', {
+  state: (): State => ({
+    primarySelection: null,
+  }),
   getters: {
     allDataIDs(): string[] {
       const imageStore = useImageStore();
@@ -89,6 +108,10 @@ export const useDatasetStore = defineStore('datasets', {
     },
   },
   actions: {
+    setPrimarySelection(sel: DataSelection) {
+      // TODO validate selection
+      this.primarySelection = sel;
+    },
     async loadFiles(files: File[]): Promise<LoadResult[]> {
       const imageStore = useImageStore();
       const modelStore = useModelStore();

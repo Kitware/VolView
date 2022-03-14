@@ -43,7 +43,6 @@ import {
   useImageStore,
 } from '@src/storex/datasets-images';
 import { useView3DStore } from '@src/storex/views-3D';
-import { useViewStore } from '@src/storex/views';
 import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
@@ -52,6 +51,7 @@ import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSDirections, LPSAxisDir } from '../utils/lps';
+import { useDatasetStore } from '../storex/datasets';
 
 export default defineComponent({
   props: {
@@ -70,7 +70,7 @@ export default defineComponent({
   },
   setup(props) {
     const idStore = useIDStore();
-    const viewStore = useViewStore();
+    const dataStore = useDatasetStore();
     const view3DStore = useView3DStore();
     const imageStore = useImageStore();
     const proxyStore = useVTKProxyStore();
@@ -92,10 +92,20 @@ export default defineComponent({
 
     // --- computed vars --- //
 
+    const curImageID = computed(() => {
+      const { primarySelection } = dataStore;
+      if (primarySelection?.type === 'image') {
+        return primarySelection.dataID;
+      }
+      if (primarySelection?.type === 'dicom') {
+        // TODO
+      }
+      return null;
+    });
     const curImageMetadata = computed(() => {
       const { metadata } = imageStore;
-      if (viewStore.currentImageID) {
-        return metadata[viewStore.currentImageID];
+      if (curImageID.value) {
+        return metadata[curImageID.value];
       }
       return defaultImageMetadata();
     });
@@ -132,14 +142,13 @@ export default defineComponent({
     // --- scene setup --- //
 
     watchEffect(() => {
-      const curImageID = viewStore.currentImageID;
       const { dataToProxyID } = proxyStore;
 
       viewProxy.removeAllRepresentations();
 
       // update the current image
-      if (curImageID && curImageID in dataToProxyID) {
-        const proxyID = dataToProxyID[curImageID];
+      if (curImageID.value && curImageID.value in dataToProxyID) {
+        const proxyID = dataToProxyID[curImageID.value];
         const sourceProxy = proxyManager.getProxyById<
           vtkSourceProxy<vtkImageData>
         >(proxyID);

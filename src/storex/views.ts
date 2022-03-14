@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import { LPSAxisDir } from '../utils/lps';
-import { useImageStore } from './datasets-images';
 
 export type ViewType = '2D' | '3D';
 
@@ -28,12 +27,10 @@ export type Layout =
 
 interface State {
   layout: Layout;
-  currentImageID: string | null;
 }
 
 export const useViewStore = defineStore('views', {
   state: (): State => ({
-    currentImageID: null,
     layout: {
       objType: 'Layout',
       direction: 'V',
@@ -43,23 +40,6 @@ export const useViewStore = defineStore('views', {
   actions: {
     setLayout(layout: Layout) {
       this.layout = layout;
-    },
-
-    /**
-     * Sets the current visible image.
-     *
-     * If imageID not present, then the current image
-     * is set to null.
-     *
-     * @param imageID The selected image ID
-     */
-    setCurrentImage(imageID: string | null) {
-      const imageStore = useImageStore();
-      if (imageID && imageID in imageStore.dataIndex) {
-        this.currentImageID = imageID;
-      } else {
-        this.currentImageID = null;
-      }
     },
   },
 });

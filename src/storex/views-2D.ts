@@ -98,7 +98,7 @@ export const useView2DStore = defineStore('views-2D', {
         const axis = this.viewAxis[id];
 
         // sync slices across all views that share the same dataset and axis.
-        // Right now, all views share the same dataset by way of currentImageID.
+        // Right now, all views share the same dataset by way of primarySelection.
         viewsToUpdate.forEach((viewID) => {
           if (this.viewAxis[viewID] === axis) {
             const config = this.sliceConfigs[viewID];
@@ -132,7 +132,7 @@ export const useView2DStore = defineStore('views-2D', {
           : [id];
 
         // sync windowing across all views that share the same dataset.
-        // Right now, all views share the same dataset by way of currentImageID.
+        // Right now, all views share the same dataset by way of primarySelection.
         viewsToUpdate.forEach((viewID) => {
           const config = this.wlConfigs[viewID];
           // don't constrain w/l to min/max
