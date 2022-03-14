@@ -187,12 +187,61 @@ declare module '@kitware/vtk.js/Proxy/Core/SliceRepresentationProxy' {
   export default vtkSliceRepresentationProxy;
 }
 
+declare module '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy' {
+  import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
+  import vtkImageCropFilter from '@kitware/vtk.js/Filters/General/ImageCropFilter';
+
+  export interface vtkVolumeRepresentationProxy
+    extends vtkAbstractRepresentationProxy {
+    setIs2DVolume(is2D: boolean): void;
+    getIs2DVolume(): boolean;
+    isVisible(): boolean;
+    setVisibility(visible: boolean): void;
+    getVisibility(): boolean;
+    setSliceVisibility(isVisible: boolean): void;
+    getSliceVisibility(): boolean;
+    setSampleDistance(samp: number): void;
+    getSampleDistance(): number;
+    setEdgeGradient(grad: number): void;
+    getEdgeGradient(): number;
+    getCropFilter(): vtkImageCropFilter;
+
+    // proxy property mappings
+    getXSlice(): number;
+    setXSlice(slice: number): boolean;
+    getYSlice(): number;
+    setYSlice(slice: number): boolean;
+    getZSlice(): number;
+    setZSlice(slice: number): boolean;
+    getVolumeVisibility(): boolean;
+    setVolumeVisibility(visible: boolean): boolean;
+    getXSliceVisibility(): boolean;
+    setXSliceVisibility(visible: boolean): boolean;
+    getYSliceVisibility(): boolean;
+    setYSliceVisibility(visible: boolean): boolean;
+    getZSliceVisibility(): boolean;
+    setZSliceVisibility(visible: boolean): boolean;
+    getWindowWidth(): number;
+    setWindowWidth(width: number): boolean;
+    getWindowLevel(): number;
+    setWindowLevel(level: number): boolean;
+    getUseShadow(): boolean;
+    setUseShadow(useShadow: boolean): boolean;
+    getCroppingPlanes(): number[];
+    setCroppingPlanes(planes: number[]): boolean;
+  }
+
+  export default vtkVolumeRepresentationProxy;
+}
+
 declare module '@kitware/vtk.js/Proxy/Core/ProxyManager' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
   import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
   import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
   import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
   import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
+  import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+  import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
   export type ProxyConfiguration = Object;
 
@@ -251,10 +300,98 @@ declare module '@kitware/vtk.js/Proxy/Core/ProxyManager' {
     resetCamera(view?: vtkViewProxy): void;
     createRepresentationInAllViews(source: vtkSourceProxy<any>): void;
     resetCameraInAllViews(): void;
+
+    // properties //
+
+    // these are specific to the proxy configuration...
+    getLookupTable(arrayName: string, options?: any): vtkLookupTableProxy;
+    getPiecewiseFunction(
+      arrayName: string,
+      options?: any
+    ): vtkPiecewiseFunctionProxy;
+    rescaleTransferFunctionToDataRange(
+      arrayName: string,
+      dataRange: [number, number]
+    ): void;
   }
 
   export default vtkProxyManager;
 }
+
+declare module '@kitware/vtk.js/Proxy/Core/LookupTableProxy' {
+  import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
+  // [x, r/h, g/s, b/v, m=0.5, s=0.0]
+  export type RGBHSVPoint = [number, number, number, number, number?, number?];
+
+  export interface vtkLookupTableProxyMode {
+    Preset: number = 0;
+    RGBPoints: number = 1;
+    HSVPoints: number = 2;
+    Nodes: number = 3;
+  }
+
+  export interface vtkLookupTableProxy extends vtkProxyObject {
+    setPresetName(name: string): void;
+    getPresetName(name): string;
+    setRGBPoints(points: RGBHSVPoint[]): void;
+    getRGBPoints(): RGBHSVPoint[];
+    setHSVPoints(points: RGBHSVPoint[]): void;
+    getHSVPoints(): RGBHSVPoint[];
+    // Node: { x, y, midpoint, sharpness }
+    setNodes(nodes: number[][]): void;
+    getNodes(nodes): number[][];
+    setMode(mode: number): void;
+    getMode(): number;
+    applyMode(): void;
+    setDataRange(min: number, max: number): void;
+    getDataRange(): [number, number];
+  }
+
+  export declare const vtkLookupTableProxy: {
+    Mode: vtkLookupTableProxyMode;
+  };
+
+  export default vtkLookupTableProxy;
+}
+
+declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
+  import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
+  import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+  // [x, r/h, g/s, b/v, m=0.5, s=0.0]
+  export interface PiecewiseGaussian {
+    position: number;
+    height: number;
+    width: number;
+    xBias: number;
+    yBias: number;
+  }
+
+  export interface PiecewiseNode {
+    x: number;
+    y: number;
+    midpoint: number;
+    sharpness: number;
+  }
+
+  export interface vtkPiecewiseFunctionProxy extends vtkProxyObject {
+    setGaussians(gaussians: PiecewiseGaussian[]): void;
+    getGaussians(): PiecewiseGaussian[];
+    setPoints(points: [number, number][]): void;
+    getPoints(): [number, number][];
+    setNodes(nodes: PiecewiseNode[]): void;
+    getNodes(): PiecewiseNode[];
+    setMode(mode: number): void;
+    getMode(): number;
+    applyMode(): void;
+    getLookupTableProxy(): vtkLookupTableProxy;
+    setDataRange(min: number, max: number): void;
+    getDataRange(): [number, number];
+  }
+
+  export default vtkPiecewiseFunctionProxy;
+}
+
+declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {}
 
 declare module '@kitware/vtk.js/Interaction/Manipulators/CompositeMouseManipulator' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';

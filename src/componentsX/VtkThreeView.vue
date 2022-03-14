@@ -9,7 +9,7 @@
         <view-overlay-grid>
           <template v-slot:top-left>
             <div class="overlay-cell">
-              <span>Hi</span>
+              <span>{{ topLeftLabel }}</span>
             </div>
           </template>
         </view-overlay-grid>
@@ -33,7 +33,9 @@ import {
 import { mat3, vec3 } from 'gl-matrix';
 
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
+import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 
 import { useIDStore } from '@src/storex/id';
 import {
@@ -45,7 +47,6 @@ import { useViewStore } from '@src/storex/views';
 import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
-import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
 
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
@@ -78,7 +79,7 @@ export default defineComponent({
     const { viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
-    const currentImageRepRef = ref<vtkIJKSliceRepresentationProxy>();
+    const currentRepRef = ref<vtkVolumeRepresentationProxy>();
 
     // --- view store --- //
 
@@ -103,11 +104,6 @@ export default defineComponent({
     const colorTransferFuncName = computed(
       () => coloringConfig.value.transferFunction
     );
-
-    watchEffect(() => {
-      console.log('colorBy', colorBy.value);
-      console.log('colorTF', colorTransferFuncName.value);
-    });
 
     // --- view proxy setup --- //
 
@@ -148,12 +144,12 @@ export default defineComponent({
           vtkSourceProxy<vtkImageData>
         >(proxyID);
         if (sourceProxy) {
-          const rep = proxyManager.getRepresentation<vtkIJKSliceRepresentationProxy>(
+          const rep = proxyManager.getRepresentation<vtkVolumeRepresentationProxy>(
             sourceProxy,
             viewProxy
           );
           if (rep) {
-            currentImageRepRef.value = rep;
+            currentRepRef.value = rep;
             viewProxy.addRepresentation(rep);
           }
         }
@@ -199,11 +195,26 @@ export default defineComponent({
       { immediate: true }
     );
 
+    // --- coloring --- //
+
+    watchEffect(() => {
+      const rep = currentRepRef.value;
+      const { arrayName, location } = colorBy.value;
+
+      const lut = proxyManager.getLookupTable(arrayName);
+      lut.setMode(vtkLookupTableProxy.Mode.Preset);
+      lut.setPresetName(colorTransferFuncName.value);
+      if (rep) {
+        rep.setColorBy(arrayName, location);
+      }
+    });
+
     // --- template vars --- //
 
     return {
       vtkContainerRef,
       active: false,
+      topLeftLabel: colorTransferFuncName,
     };
   },
 });
