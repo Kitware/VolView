@@ -2,7 +2,6 @@ import macro from '@kitware/vtk.js/macro';
 import vtkView2DProxy from '@kitware/vtk.js/Proxy/Core/View2DProxy';
 
 import { commonViewCustomizations } from '@/src/vtk/LPSView3DProxy';
-import { vec3 } from 'gl-matrix';
 
 function vtkLPSView2DProxy(publicAPI, model) {
   model.classHierarchy.push('vtkLPSView2DProxy');
@@ -12,15 +11,6 @@ function vtkLPSView2DProxy(publicAPI, model) {
 
   // override; we will set the manipulator ourselves
   publicAPI.bindRepresentationToManipulator = () => {};
-
-  publicAPI.updateCamera = (directionOfProjection, viewUp, focalPoint) => {
-    const position = vec3.clone(focalPoint);
-    vec3.sub(position, position, directionOfProjection);
-    model.camera.setFocalPoint(...focalPoint);
-    model.camera.setPosition(...position);
-    model.camera.setDirectionOfProjection(...directionOfProjection);
-    model.camera.setViewUp(...viewUp);
-  };
 
   // override reset camera to /just/ reset the camera
   publicAPI.resetCamera = (boundsToUse = null) => {

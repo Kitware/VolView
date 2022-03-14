@@ -1,3 +1,4 @@
+import { vec3 } from 'gl-matrix';
 import macro from '@kitware/vtk.js/macro';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 
@@ -34,6 +35,15 @@ export function commonViewCustomizations(publicAPI, model) {
   publicAPI.removeAllRepresentations = () => {
     model.representations.forEach((rep) => model.renderer.removeViewProp(rep));
     model.representations.length = 0;
+  };
+
+  publicAPI.updateCamera = (directionOfProjection, viewUp, focalPoint) => {
+    const position = vec3.clone(focalPoint);
+    vec3.sub(position, position, directionOfProjection);
+    model.camera.setFocalPoint(...focalPoint);
+    model.camera.setPosition(...position);
+    model.camera.setDirectionOfProjection(...directionOfProjection);
+    model.camera.setViewUp(...viewUp);
   };
 }
 

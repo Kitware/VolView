@@ -5,7 +5,6 @@ import { ViewProxyCustomizations } from '@src/vtk/LPSView3DProxy';
 export interface vtkLPSView2DProxy
   extends vtkView2DProxy,
     ViewProxyCustomizations {
-  updateCamera(directionOfProjection: vec3, viewUp: vec3, focalPoint: vec3);
   resizeToFit(lookAxis: Vector3, viewUpAxis: Vector3, worldDims: Vector3);
   resetCamera(boundsToUse?: number[]);
   /**
