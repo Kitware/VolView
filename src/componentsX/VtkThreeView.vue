@@ -184,8 +184,7 @@ export default defineComponent({
       ] as vec3;
 
       viewProxy.updateCamera(cameraDirVec.value, cameraUpVec.value, center);
-      viewProxy.resetCamera(bounds);
-
+      viewProxy.resetCamera();
       viewProxy.render();
     };
 
@@ -201,6 +200,7 @@ export default defineComponent({
       const rep = currentRepRef.value;
       const { arrayName, location } = colorBy.value;
 
+      // TODO move lut stuff to proxymanager sync code
       const lut = proxyManager.getLookupTable(arrayName);
       lut.setMode(vtkLookupTableProxy.Mode.Preset);
       lut.setPresetName(colorTransferFuncName.value);
