@@ -111,6 +111,22 @@ export const useDatasetStore = defineStore('datasets', {
     primarySelection: null,
   }),
   getters: {
+    primaryDataset(state): vtkImageData | null {
+      const imageStore = useImageStore();
+      const dicomStore = useDICOMStore();
+      const sel = state.primarySelection;
+      const { dataIndex } = imageStore;
+      const { volumeToImageID } = dicomStore;
+
+      if (sel?.type === 'dicom') {
+        const id = volumeToImageID[sel.volumeKey];
+        return dataIndex[id] || null;
+      }
+      if (sel?.type === 'image') {
+        return dataIndex[sel.dataID] || null;
+      }
+      return null;
+    },
     allDataIDs(): string[] {
       const imageStore = useImageStore();
       const modelStore = useModelStore();
