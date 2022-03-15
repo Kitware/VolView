@@ -22,6 +22,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    testFunction: {
+      type: Function,
+      required: false,
+    },
   },
   model: {
     prop: 'value',
@@ -53,6 +57,9 @@ export default {
     isSelected(valueToTest) {
       if (this.internalValue === null || this.internalValue === undefined) {
         return false;
+      }
+      if (this.testFunction) {
+        return this.testFunction(valueToTest, this.internalValue);
       }
       return valueToTest === this.internalValue;
     },
