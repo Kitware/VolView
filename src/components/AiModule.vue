@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-column mx-2 height-100">
+  <div id="ai-module" class="mx-2 height-100">
     <div id="submodule-select">
       <v-select
         v-model="currentSubModule"
@@ -42,6 +42,11 @@ export default defineComponent({
 </script>
 
 <style scoped>
+#ai-module {
+  display: flex;
+  flex-flow: column;
+}
+
 #submodule-select {
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   padding-bottom: 12px;
