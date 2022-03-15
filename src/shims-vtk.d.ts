@@ -320,10 +320,12 @@ declare module '@kitware/vtk.js/Proxy/Core/ProxyManager' {
 
 declare module '@kitware/vtk.js/Proxy/Core/LookupTableProxy' {
   import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
+  import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+
   // [x, r/h, g/s, b/v, m=0.5, s=0.0]
   export type RGBHSVPoint = [number, number, number, number, number?, number?];
 
-  export interface vtkLookupTableProxyMode {
+  export interface ILookupTableProxyMode {
     Preset: number = 0;
     RGBPoints: number = 1;
     HSVPoints: number = 2;
@@ -345,10 +347,20 @@ declare module '@kitware/vtk.js/Proxy/Core/LookupTableProxy' {
     applyMode(): void;
     setDataRange(min: number, max: number): void;
     getDataRange(): [number, number];
+    getLookupTable(): vtkColorTransferFunction;
   }
 
+  export interface ILookupTableProxyInitialValues {
+    lookupTable: vtkColorTransferFunction;
+  }
+
+  export function newInstance(
+    initialValues?: ILookupTableProxyInitialValues
+  ): vtkLookupTableProxy;
+
   export declare const vtkLookupTableProxy: {
-    Mode: vtkLookupTableProxyMode;
+    newInstance: typeof newInstance;
+    Mode: ILookupTableProxyMode;
   };
 
   export default vtkLookupTableProxy;
@@ -357,6 +369,8 @@ declare module '@kitware/vtk.js/Proxy/Core/LookupTableProxy' {
 declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
   import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
   import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+  import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
+
   // [x, r/h, g/s, b/v, m=0.5, s=0.0]
   export interface PiecewiseGaussian {
     position: number;
@@ -373,11 +387,23 @@ declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
     sharpness: number;
   }
 
+  export interface IPiecewiseFunctionProxyMode {
+    Gaussians: number = 0;
+    Points: number = 1;
+    Nodes: number = 2;
+  }
+
+  export interface IPiecewiseFunctionProxyDefaults {
+    Gaussians: PiecewiseGaussian[];
+    Points: number[][];
+    Nodes: PiecewiseNode[];
+  }
+
   export interface vtkPiecewiseFunctionProxy extends vtkProxyObject {
     setGaussians(gaussians: PiecewiseGaussian[]): void;
     getGaussians(): PiecewiseGaussian[];
-    setPoints(points: [number, number][]): void;
-    getPoints(): [number, number][];
+    setPoints(points: number[][]): void;
+    getPoints(): number[][];
     setNodes(nodes: PiecewiseNode[]): void;
     getNodes(): PiecewiseNode[];
     setMode(mode: number): void;
@@ -386,8 +412,22 @@ declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
     getLookupTableProxy(): vtkLookupTableProxy;
     setDataRange(min: number, max: number): void;
     getDataRange(): [number, number];
+    getPiecewiseFunction(): vtkPiecewiseFunction;
   }
 
+  export interface IPiecewiseFunctionProxyInitialValues {
+    piecewiseFunction: vtkPiecewiseFunction;
+  }
+
+  export function newInstance(
+    initialValues?: IPiecewiseFunctionProxyInitialValues
+  ): vtkPiecewiseFunctionProxy;
+
+  export declare const vtkPiecewiseFunctionProxy: {
+    newInstance: typeof newInstance;
+    Mode: IPiecewiseFunctionProxyMode;
+    Defaults: IPiecewiseFunctionProxyDefaults;
+  };
   export default vtkPiecewiseFunctionProxy;
 }
 
@@ -514,3 +554,13 @@ declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Pre
 }
 
 declare module '@kitware/vtk.js/Common/DataModel/ITKHelper';
+
+declare module '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps' {
+  export declare const vtkColorMaps: {
+    addPreset(preset: any): void;
+    removePresetByName(name: string): void;
+    getPresetByName(name: string): any;
+    rgbPresetNames: string[];
+  };
+  export default vtkColorMaps;
+}

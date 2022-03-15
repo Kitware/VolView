@@ -12,9 +12,18 @@ index 280c758..b455791 100644
  	/**
  	 *
 diff --git a/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts b/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
-index 3f8576e..982affa 100644
+index 3f8576e..e32e464 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
 +++ b/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
+@@ -53,7 +53,7 @@ export interface vtkRenderWindow extends vtkObject {
+ 	 * @param {String} format 
+ 	 * @param {*} opts 
+ 	 */
+-	captureImages(format?: string, opts?: any): void;
++	captureImages(format?: string, opts?: any): Promise<string>[];
+ 
+ 	/**
+ 	 * 
 @@ -123,7 +123,7 @@ export interface vtkRenderWindow extends vtkObject {
  	 * @param name 
  	 * @param initialValues 
@@ -24,6 +33,22 @@ index 3f8576e..982affa 100644
  
  	/**
  	 * Remove renderer
+diff --git a/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts b/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
+index a0cd6f3..8f7a7cf 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
++++ b/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
+@@ -263,9 +263,9 @@ export interface vtkVolumeProperty extends vtkObject {
+ 	/**
+ 	 *
+ 	 * @param {Number} index 
+-	 * @param {Number} value
++	 * @param {Boolean} value
+ 	 */
+-	setUseGradientOpacity(index: number, value: number): boolean;
++	setUseGradientOpacity(index: number, value: boolean): boolean;
+ 
+ 	/**
+ 	 *
 diff --git a/node_modules/@kitware/vtk.js/interfaces.d.ts b/node_modules/@kitware/vtk.js/interfaces.d.ts
 index daec60e..4a45518 100644
 --- a/node_modules/@kitware/vtk.js/interfaces.d.ts
