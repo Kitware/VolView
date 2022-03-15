@@ -30,7 +30,7 @@ import {
   watch,
   watchEffect,
 } from '@vue/composition-api';
-import { mat3, vec3 } from 'gl-matrix';
+import { vec3 } from 'gl-matrix';
 
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
@@ -46,8 +46,9 @@ import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { getLPSDirections, LPSAxisDir } from '../utils/lps';
+import { LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
+import { useCameraOrientation } from '../composables/useCameraOrientation';
 
 export default defineComponent({
   props: {
@@ -150,16 +151,11 @@ export default defineComponent({
 
     // --- camera setup --- //
 
-    const orientationMatrix = computed(
-      () => curImageMetadata.value.orientation as mat3
+    const { cameraUpVec, cameraDirVec } = useCameraOrientation(
+      viewDirection,
+      viewUp,
+      curImageMetadata
     );
-    const lpsDirections = computed(() =>
-      getLPSDirections(orientationMatrix.value)
-    );
-    const cameraDirVec = computed(
-      () => lpsDirections.value[viewDirection.value]
-    );
-    const cameraUpVec = computed(() => lpsDirections.value[viewUp.value]);
 
     const resetCamera = () => {
       const bounds = curImageMetadata.value.worldBounds;
@@ -174,11 +170,9 @@ export default defineComponent({
       viewProxy.render();
     };
 
-    watch(
-      [curImageMetadata, cameraDirVec, cameraUpVec, lpsDirections],
-      () => resetCamera(),
-      { immediate: true }
-    );
+    watch([curImageMetadata, cameraDirVec, cameraUpVec], () => resetCamera(), {
+      immediate: true,
+    });
 
     // --- coloring --- //
 

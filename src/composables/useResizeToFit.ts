@@ -20,7 +20,6 @@ export function useResizeToFit(
       if (trackResizeToFit && resizeToFit.value) {
         const position = camera.getPosition();
         const parallelScale = camera.getParallelScale();
-        console.log(position, parallelScale);
         if (
           !vec3.equals(position, cachedCameraInfo.position) ||
           parallelScale !== cachedCameraInfo.parallelScale
