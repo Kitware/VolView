@@ -52,6 +52,7 @@ import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSDirections, LPSAxisDir } from '../utils/lps';
 import { useDatasetStore } from '../storex/datasets';
+import { useDICOMStore } from '../storex/datasets-dicom';
 
 export default defineComponent({
   props: {
@@ -71,6 +72,7 @@ export default defineComponent({
   setup(props) {
     const idStore = useIDStore();
     const dataStore = useDatasetStore();
+    const dicomStore = useDICOMStore();
     const view3DStore = useView3DStore();
     const imageStore = useImageStore();
     const proxyStore = useVTKProxyStore();
@@ -89,11 +91,12 @@ export default defineComponent({
 
     const curImageID = computed(() => {
       const { primarySelection } = dataStore;
+      const { volumeToImageID } = dicomStore;
       if (primarySelection?.type === 'image') {
         return primarySelection.dataID;
       }
       if (primarySelection?.type === 'dicom') {
-        // TODO
+        return volumeToImageID[primarySelection.volumeKey] || null;
       }
       return null;
     });

@@ -5,6 +5,7 @@ import { defineStore } from 'pinia';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
+import { useView3DStore } from './views-3D';
 import { extractArchivesRecursively, retypeFile } from '../io/newIO';
 import { fileReaders } from '../io/newReaders';
 
@@ -134,9 +135,27 @@ export const useDatasetStore = defineStore('datasets', {
     },
   },
   actions: {
-    setPrimarySelection(sel: DataSelection) {
-      // TODO validate selection
+    async setPrimarySelection(sel: DataSelection) {
       this.primarySelection = sel;
+
+      let imageID: string = '';
+
+      // if selection is dicom, call buildVolume
+      if (sel.type === 'image') {
+        imageID = sel.dataID;
+      } else if (sel.type === 'dicom') {
+        // trigger dicom dataset building
+        const dicomStore = useDICOMStore();
+        await dicomStore.buildVolume(sel.volumeKey);
+        imageID = dicomStore.volumeToImageID[sel.volumeKey];
+      }
+
+      // set 3D view's colorBy
+      if (imageID) {
+        const view3DStore = useView3DStore();
+        const imageStore = useImageStore();
+        view3DStore.setDefaultColorByFromImage(imageStore.dataIndex[imageID]);
+      }
     },
     async loadFiles(files: File[]): Promise<LoadResult[]> {
       const imageStore = useImageStore();

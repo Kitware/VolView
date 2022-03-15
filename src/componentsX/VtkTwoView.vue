@@ -78,6 +78,7 @@ import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir, getLPSDirections, LPSAxisDir } from '../utils/lps';
 import { useDatasetStore } from '../storex/datasets';
+import { useDICOMStore } from '../storex/datasets-dicom';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -100,6 +101,7 @@ export default defineComponent({
   },
   setup(props) {
     const idStore = useIDStore();
+    const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
     const view2DStore = useView2DStore();
     const imageStore = useImageStore();
@@ -126,11 +128,12 @@ export default defineComponent({
 
     const curImageID = computed(() => {
       const { primarySelection } = dataStore;
+      const { volumeToImageID } = dicomStore;
       if (primarySelection?.type === 'image') {
         return primarySelection.dataID;
       }
       if (primarySelection?.type === 'dicom') {
-        //
+        return volumeToImageID[primarySelection.volumeKey] || null;
       }
       return null;
     });
