@@ -4,6 +4,7 @@ import '@kitware/vtk.js/Rendering/Profiles/All';
 import Vue from 'vue';
 import VueCompositionAPI from '@vue/composition-api';
 import VueNotifications from 'vue-notification';
+import { createPinia, PiniaVuePlugin } from 'pinia';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
@@ -25,6 +26,7 @@ Vue.config.productionTip = false;
 Vue.use(VueCompositionAPI);
 Vue.use(VueNotifications);
 Vue.use(ProxyManagerVuePlugin);
+Vue.use(PiniaVuePlugin);
 
 const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
 setCurrentInstance(ProxyManagerInst, proxyManager);
@@ -59,10 +61,13 @@ const dependencies = {
 const store = createStore(dependencies);
 const widgetProvider = new WidgetProvider(store);
 
+const pinia = createPinia();
+
 new Vue({
   store,
   vuetify,
   proxyManager,
+  pinia,
   provide: {
     widgetProvider,
     ProxyManager: proxyManager,

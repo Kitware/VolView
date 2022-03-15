@@ -236,25 +236,26 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex';
-
-import { createFourUpViews } from '@/src/vtk/proxyUtils';
+import { mapStores } from 'pinia';
 
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
-import VtkTwoView from './VtkTwoView.vue';
-import VtkThreeView from './VtkThreeView.vue';
 import LayoutGrid from './LayoutGrid.vue';
-import PatientBrowser from './PatientBrowser.vue';
-import Annotations from './Annotations.vue';
-import VolumeRendering from './VolumeRendering.vue';
-import MeasurementsModule from './MeasurementsModule.vue';
-import ModelBrowser from './ModelBrowser.vue';
+import PatientBrowser from '../componentsX/PatientBrowser.vue';
+// import Annotations from './Annotations.vue';
+import VolumeRendering from '../componentsX/VolumeRendering.vue';
+// import MeasurementsModule from './MeasurementsModule.vue';
+// import ModelBrowser from './ModelBrowser.vue';
 import DragAndDrop from './DragAndDrop.vue';
 import AboutBox from './AboutBox.vue';
-import AiModule from './AiModule.vue';
+// import AiModule from './AiModule.vue';
 import ToolStrip from './ToolStrip.vue';
 import SampleData from './SampleData.vue';
+import VtkTwoView from '../componentsX/VtkTwoView.vue';
+import VtkThreeView from '../componentsX/VtkThreeView.vue';
+import { syncProxyManagerWithStores } from '../vtk/proxyStoreSync';
+import { useDatasetStore } from '../storex/datasets';
+import { useImageStore } from '../storex/datasets-images';
 
 export const Modules = [
   {
@@ -267,6 +268,7 @@ export const Modules = [
     icon: 'account',
     component: PatientBrowser,
   },
+  /*
   {
     name: 'Annotations',
     icon: 'pencil',
@@ -277,11 +279,13 @@ export const Modules = [
     icon: 'hexagon-multiple',
     component: ModelBrowser,
   },
+  */
   {
     name: 'Volume Rendering',
     icon: 'cube',
     component: VolumeRendering,
   },
+  /*
   {
     name: 'Measurements',
     icon: 'pencil-ruler',
@@ -292,58 +296,55 @@ export const Modules = [
     icon: 'robot-outline',
     component: AiModule,
   },
+  */
 ];
 
 export const Views = {
-  Z: {
+  Coronal: {
     comp: VtkTwoView,
     props: {
-      key: 'ViewZ',
-      viewType: 'ViewZ',
-      viewName: 'Z:1',
-      axis: 2,
-      orientation: -1,
-      viewUp: [0, -1, 0],
+      key: 'CoronalView',
+      viewDirection: 'Left',
+      viewUp: 'Superior',
     },
   },
-  X: {
+  Sagittal: {
     comp: VtkTwoView,
     props: {
-      key: 'ViewX',
-      viewType: 'ViewX',
-      viewName: 'X:1',
-      axis: 0,
-      orientation: 1,
-      viewUp: [0, 0, 1],
+      key: 'SagittalView',
+      viewDirection: 'Anterior',
+      viewUp: 'Superior',
     },
   },
-  Y: {
+  Axial: {
     comp: VtkTwoView,
     props: {
-      key: 'ViewY',
-      viewType: 'ViewY',
-      viewName: 'Y:1',
-      axis: 1,
-      orientation: -1,
-      viewUp: [0, 0, 1],
+      key: 'AxialView',
+      viewDirection: 'Inferior',
+      viewUp: 'Anterior',
     },
   },
   Three: {
     comp: VtkThreeView,
     props: {
-      key: 'View3D',
-      viewType: 'View3D',
-      viewName: '3D:1',
-      axis: 2,
-      orientation: -1,
-      viewUp: [0, -1, 0],
+      key: '3DView',
+      viewDirection: 'Inferior',
+      viewUp: 'Anterior',
     },
   },
 };
 
 export const Layouts = {
-  AxialPrimary: ['V', Views.Z, ['H', Views.X, Views.Y, Views.Three]],
-  QuadView: ['H', ['V', Views.X, Views.Three], ['V', Views.Y, Views.Z]],
+  AxialPrimary: [
+    'V',
+    Views.Axial,
+    ['H', Views.Coronal, Views.Sagittal, Views.Three],
+  ],
+  QuadView: [
+    'H',
+    ['V', Views.Coronal, Views.Three],
+    ['V', Views.Sagittal, Views.Axial],
+  ],
 };
 
 export default {
@@ -373,14 +374,9 @@ export default {
   }),
 
   computed: {
-    ...mapState({
-      datasets: 'data',
-      selectedBaseImage: 'selectedBaseImage',
-      baseImages: ({ data }) => [].concat(data.imageIDs, data.dicomIDs),
-      annotationDatasets: ({ data: d }) => [].concat(d.labelmapIDs, d.modelIDs),
-    }),
+    ...mapStores(useDatasetStore, useImageStore),
     hasData() {
-      return Object.keys(this.datasets.index).length > 0;
+      return this.imagesStore.idList.length > 0;
     },
     allErrors() {
       return [].concat(this.errors.fileLoading, this.errors.actionErrors);
@@ -405,6 +401,10 @@ export default {
     },
   },
 
+  created() {
+    syncProxyManagerWithStores(this.$proxyManager);
+  },
+
   mounted() {
     const fileEl = document.createElement('input');
     fileEl.setAttribute('type', 'file');
@@ -412,8 +412,6 @@ export default {
     fileEl.setAttribute('accept', '*');
     fileEl.addEventListener('change', this.onFileSelect);
     this.fileEl = fileEl;
-
-    createFourUpViews(this.$proxyManager);
   },
 
   methods: {
@@ -447,15 +445,33 @@ export default {
         },
       ];
 
-      const beforeState = {
-        hasBaseImages: !!this.baseImages.length,
-        hasAnnotations: !!this.annotationDatasets.length,
-      };
+      const loadFirstDataset = !this.datasetsStore.primarySelection;
 
       try {
-        const errors = await this.loadFiles(Array.from(files));
-        if (errors.length) {
-          this.errors.fileLoading = errors;
+        const statuses = await this.datasetsStore.loadFiles(Array.from(files));
+
+        if (loadFirstDataset) {
+          const dataStatus = statuses.find((s) => s.loaded);
+          if (dataStatus) {
+            const { dataType, dataID } = dataStatus;
+            if (dataType === 'image') {
+              this.datasetsStore.setPrimarySelection({
+                type: 'image',
+                dataID,
+              });
+            } else if (dataType === 'dicom') {
+              this.datasetsStore.setPrimarySelection({
+                type: 'dicom',
+                volumeKey: dataID,
+              });
+            }
+          }
+        }
+
+        const errored = statuses.filter((s) => !s.loaded);
+
+        if (errored.length) {
+          this.errors.fileLoading = errored;
           this.$notify({
             type: 'error',
             duration: -1,
@@ -480,21 +496,6 @@ export default {
         // TODO only close if there are no pending files
         this.$notify.close('loading');
       }
-
-      const afterState = {
-        hasBaseImages: !!this.baseImages.length,
-        hasAnnotations: !!this.annotationDatasets.length,
-      };
-
-      // TODO only execute these blocks if we loaded non-zero datasets
-      if (!beforeState.hasBaseImages && afterState.hasBaseImages) {
-        const id = this.baseImages[0];
-        await this.selectBaseImage(id);
-        await this.updateScene({ reset: true });
-      } else {
-        const reset = !beforeState.hasBaseImages && !beforeState.hasAnnotations;
-        await this.updateScene({ reset });
-      }
     },
 
     clearAndCloseErrors() {
@@ -517,9 +518,6 @@ export default {
         this.selectedModule = mod;
       }
     },
-
-    ...mapActions(['loadFiles', 'selectBaseImage']),
-    ...mapActions('visualization', ['updateScene']),
   },
 };
 </script>

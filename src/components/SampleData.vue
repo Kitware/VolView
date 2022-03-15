@@ -27,7 +27,7 @@ import { defineComponent, del, reactive, set } from '@vue/composition-api';
 
 import { Sample, SAMPLE_DATA } from '@src/constants';
 import { fetchFileWithProgress } from '@src/utils';
-import { useStore } from '../composables/store';
+import { useDatasetStore } from '@src/storex/datasets';
 
 enum ProgressState {
   Pending,
@@ -44,16 +44,8 @@ interface InProgress {
 
 export default defineComponent({
   setup() {
-    const store = useStore();
+    const datasetStore = useDatasetStore();
     const inProgress = reactive({} as InProgress);
-
-    function getBaseImages() {
-      const { data } = store.state;
-      return {
-        images: [...data.imageIDs],
-        dicom: [...data.dicomIDs],
-      };
-    }
 
     async function downloadSample(sample: Sample) {
       const progress = (percent: number) => {
@@ -75,21 +67,21 @@ export default defineComponent({
         );
         inProgress[sample.name].state = ProgressState.Done;
 
-        const baseImages = getBaseImages();
-        await store.dispatch('loadFiles', [sampleFile]);
-
-        const after = getBaseImages();
-        let arr = null;
-        if (baseImages.images.length < after.images.length) {
-          arr = after.images;
-        } else if (baseImages.dicom.length < after.dicom.length) {
-          arr = after.dicom;
-        }
-
-        if (arr) {
-          const last = arr[arr.length - 1];
-          store.dispatch('selectBaseImage', last);
-          store.dispatch('visualization/updateScene', { reset: true });
+        if (sampleFile) {
+          const [loadResult] = await datasetStore.loadFiles([sampleFile]);
+          if (loadResult.loaded) {
+            if (loadResult.type === 'file') {
+              datasetStore.setPrimarySelection({
+                type: 'image',
+                dataID: loadResult.dataID,
+              });
+            } else if (loadResult.type === 'dicom') {
+              datasetStore.setPrimarySelection({
+                type: 'dicom',
+                volumeKey: loadResult.dataID,
+              });
+            }
+          }
         }
       } catch (error) {
         inProgress[sample.name].state = ProgressState.Error;

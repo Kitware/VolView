@@ -10,12 +10,6 @@ import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
-import vtkCutGeometryRepresentationProxy from '@/src/vtk/CutGeometryRepresentationProxy';
-
-const WindowLevelLinks = [
-  { link: 'WW', property: 'windowWidth', updateOnBind: true },
-  { link: 'WL', property: 'windowLevel', updateOnBind: true },
-];
 
 function createProxyDefinition(
   classFactory,
@@ -61,25 +55,20 @@ export default {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
     },
     Representations: {
+      CoronalSlice: createSyncedSliceRepDefinition(
+        vtkIJKSliceRepresentationProxy,
+        'X'
+      ),
+      SagittalSlice: createSyncedSliceRepDefinition(
+        vtkIJKSliceRepresentationProxy,
+        'Y'
+      ),
+      AxialSlice: createSyncedSliceRepDefinition(
+        vtkIJKSliceRepresentationProxy,
+        'Z'
+      ),
+
       Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
-      SliceX: createSyncedSliceRepDefinition(
-        vtkIJKSliceRepresentationProxy,
-        'X',
-        null,
-        WindowLevelLinks
-      ),
-      SliceY: createSyncedSliceRepDefinition(
-        vtkIJKSliceRepresentationProxy,
-        'Y',
-        null,
-        WindowLevelLinks
-      ),
-      SliceZ: createSyncedSliceRepDefinition(
-        vtkIJKSliceRepresentationProxy,
-        'Z',
-        null,
-        WindowLevelLinks
-      ),
       LabelMapSliceX: createSyncedSliceRepDefinition(
         vtkLabelMapSliceRepProxy,
         'X'
@@ -93,24 +82,12 @@ export default {
         'Z'
       ),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
-      GeomSliceX: createSyncedSliceRepDefinition(
-        vtkCutGeometryRepresentationProxy,
-        'X'
-      ),
-      GeomSliceY: createSyncedSliceRepDefinition(
-        vtkCutGeometryRepresentationProxy,
-        'Y'
-      ),
-      GeomSliceZ: createSyncedSliceRepDefinition(
-        vtkCutGeometryRepresentationProxy,
-        'Z'
-      ),
     },
     Views: {
       View3D: createDefaultView(vtkLPSView3DProxy),
-      ViewX: createDefaultView(vtkLPSView2DProxy, null, { axis: 0 }),
-      ViewY: createDefaultView(vtkLPSView2DProxy, null, { axis: 1 }),
-      ViewZ: createDefaultView(vtkLPSView2DProxy, null, { axis: 2 }),
+      CoronalView: createDefaultView(vtkLPSView2DProxy, null, { axis: 0 }),
+      SagittalView: createDefaultView(vtkLPSView2DProxy, null, { axis: 1 }),
+      AxialView: createDefaultView(vtkLPSView2DProxy, null, { axis: 2 }),
     },
   },
   representations: {
@@ -118,19 +95,16 @@ export default {
       vtkImageData: { name: 'Volume' },
       vtkPolyData: { name: 'Geometry' },
     },
-    ViewX: {
-      vtkImageData: { name: 'SliceX' },
-      vtkPolyData: { name: 'GeomSliceX' },
+    CoronalView: {
+      vtkImageData: { name: 'CoronalSlice' },
       vtkLabelMap: { name: 'LabelMapSliceX' },
     },
-    ViewY: {
-      vtkImageData: { name: 'SliceY' },
-      vtkPolyData: { name: 'GeomSliceY' },
+    SagittalView: {
+      vtkImageData: { name: 'SagittalSlice' },
       vtkLabelMap: { name: 'LabelMapSliceY' },
     },
-    ViewZ: {
-      vtkImageData: { name: 'SliceZ' },
-      vtkPolyData: { name: 'GeomSliceZ' },
+    AxialView: {
+      vtkImageData: { name: 'AxialSlice' },
       vtkLabelMap: { name: 'LabelMapSliceZ' },
     },
   },
