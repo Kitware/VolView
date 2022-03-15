@@ -1,7 +1,7 @@
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import MedicalPresets from '@/src/vtk/MedicalColorPresets.json';
 
-function registerPresets(presets) {
+function registerPresets(presets: typeof MedicalPresets) {
   for (let i = 0; i < presets.length; i += 1) {
     vtkColorMaps.addPreset(presets[i]);
   }
@@ -60,7 +60,5 @@ const GroupedPresets = [
 ];
 
 export const DEFAULT_PRESET = 'Cool to Warm';
-export const PresetNameList = [].concat(
-  ...GroupedPresets.map((g) => g.presets)
-);
+export const PresetNameList = GroupedPresets.flatMap((group) => group.presets);
 export default GroupedPresets;
