@@ -29,3 +29,39 @@ declare module 'itk/extensionToImageIO' {
 declare module 'itk/readImageArrayBuffer' {
   export default () => any;
 }
+
+declare module 'itk/ImageType' {
+  export interface ImageType {
+    dimension: number;
+    componentType: string;
+    pixelType: string;
+    components: number;
+  }
+
+  export default ImageType;
+}
+
+declare module 'itk/Image' {
+  import ImageType from 'itk/ImageType';
+  type TypedArray =
+    | Uint8Array
+    | Uint8ClampedArray
+    | Int8Array
+    | Uint16Array
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | Float32Array
+    | Float64Array;
+
+  export interface Image {
+    imageType: ImageType;
+    origin: number[];
+    spacing: number[];
+    direction: number[];
+    size: number[];
+    data: TypedArray | null;
+  }
+
+  export default Image;
+}

@@ -92,6 +92,16 @@ export type ImageSelection = {
 
 export type DataSelection = DICOMSelection | ImageSelection;
 
+export function selectionEquals(s1: DataSelection, s2: DataSelection) {
+  if (s1.type === 'dicom' && s2.type === 'dicom') {
+    return s1.volumeKey === s2.volumeKey;
+  }
+  if (s1.type === 'image' && s2.type === 'image') {
+    return s1.dataID === s2.dataID;
+  }
+  return false;
+}
+
 interface State {
   primarySelection: DataSelection | null;
 }
