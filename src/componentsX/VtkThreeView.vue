@@ -85,11 +85,6 @@ export default defineComponent({
 
     const viewID = idStore.getNextID();
 
-    view3DStore.addView(viewID);
-    onBeforeUnmount(() => {
-      view3DStore.removeView(viewID);
-    });
-
     // --- computed vars --- //
 
     const curImageID = computed(() => {
@@ -109,7 +104,7 @@ export default defineComponent({
       }
       return defaultImageMetadata();
     });
-    const coloringConfig = computed(() => view3DStore.coloringConfigs[viewID]);
+    const coloringConfig = computed(() => view3DStore.coloringConfig);
     const colorBy = computed(() => coloringConfig.value.colorBy);
     const colorTransferFuncName = computed(
       () => coloringConfig.value.transferFunction

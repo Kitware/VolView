@@ -1,4 +1,4 @@
-import { del, set } from '@vue/composition-api';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';
 
@@ -12,28 +12,37 @@ export interface ColoringConfig {
 }
 
 interface State {
-  coloringConfigs: Record<string, ColoringConfig>;
+  coloringConfig: ColoringConfig;
 }
 
 export const useView3DStore = defineStore('views-3D', {
   state: () =>
     ({
-      coloringConfigs: {},
+      coloringConfig: {
+        colorBy: {
+          arrayName: '',
+          location: '',
+        },
+        transferFunction: DEFAULT_PRESET,
+      },
     } as State),
   actions: {
-    addView(id: string) {
-      if (!(id in this.coloringConfigs)) {
-        set<ColoringConfig>(this.coloringConfigs, id, {
-          colorBy: {
-            arrayName: '',
-            location: '',
-          },
-          transferFunction: DEFAULT_PRESET,
-        });
-      }
+    setColorBy(arrayName: string, location: string) {
+      this.coloringConfig.colorBy = {
+        arrayName,
+        location,
+      };
     },
-    removeView(id: string) {
-      del(this.coloringConfigs, id);
+    /**
+     * Sets the colorBy to be the default point scalars.
+     * @param image
+     */
+    setDefaultColorByFromImage(image: vtkImageData) {
+      const scalars = image.getPointData().getScalars();
+      this.setColorBy(scalars.getName(), 'pointData');
+    },
+    setColorTransferFunction(name: string) {
+      this.coloringConfig.transferFunction = name;
     },
   },
 });
