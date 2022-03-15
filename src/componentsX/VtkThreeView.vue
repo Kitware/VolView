@@ -38,10 +38,6 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 
 import { useIDStore } from '@src/storex/id';
-import {
-  defaultImageMetadata,
-  useImageStore,
-} from '@src/storex/datasets-images';
 import { useView3DStore } from '@src/storex/views-3D';
 import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
@@ -51,8 +47,7 @@ import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSDirections, LPSAxisDir } from '../utils/lps';
-import { useDatasetStore } from '../storex/datasets';
-import { useDICOMStore } from '../storex/datasets-dicom';
+import { useCurrentImage } from '../composables/useCurrentImage';
 
 export default defineComponent({
   props: {
@@ -71,10 +66,7 @@ export default defineComponent({
   },
   setup(props) {
     const idStore = useIDStore();
-    const dataStore = useDatasetStore();
-    const dicomStore = useDICOMStore();
     const view3DStore = useView3DStore();
-    const imageStore = useImageStore();
     const proxyStore = useVTKProxyStore();
     const proxyManager = useProxyManager()!;
 
@@ -89,24 +81,11 @@ export default defineComponent({
 
     // --- computed vars --- //
 
-    const curImageID = computed(() => {
-      const { primarySelection } = dataStore;
-      const { volumeToImageID } = dicomStore;
-      if (primarySelection?.type === 'image') {
-        return primarySelection.dataID;
-      }
-      if (primarySelection?.type === 'dicom') {
-        return volumeToImageID[primarySelection.volumeKey] || null;
-      }
-      return null;
-    });
-    const curImageMetadata = computed(() => {
-      const { metadata } = imageStore;
-      if (curImageID.value) {
-        return metadata[curImageID.value];
-      }
-      return defaultImageMetadata();
-    });
+    const {
+      currentImageID: curImageID,
+      currentImageMetadata: curImageMetadata,
+    } = useCurrentImage();
+
     const coloringConfig = computed(() => view3DStore.coloringConfig);
     const colorBy = computed(() => coloringConfig.value.colorBy);
     const colorTransferFuncName = computed(

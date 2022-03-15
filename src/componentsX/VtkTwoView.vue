@@ -59,10 +59,6 @@ import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useIDStore } from '@src/storex/id';
-import {
-  defaultImageMetadata,
-  useImageStore,
-} from '@src/storex/datasets-images';
 import { useView2DStore } from '@src/storex/views-2D';
 import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
@@ -77,8 +73,7 @@ import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir, getLPSDirections, LPSAxisDir } from '../utils/lps';
-import { useDatasetStore } from '../storex/datasets';
-import { useDICOMStore } from '../storex/datasets-dicom';
+import { useCurrentImage } from '../composables/useCurrentImage';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -101,10 +96,7 @@ export default defineComponent({
   },
   setup(props) {
     const idStore = useIDStore();
-    const dicomStore = useDICOMStore();
-    const dataStore = useDatasetStore();
     const view2DStore = useView2DStore();
-    const imageStore = useImageStore();
     const proxyStore = useVTKProxyStore();
     const proxyManager = useProxyManager()!;
 
@@ -126,24 +118,11 @@ export default defineComponent({
 
     // --- computed vars --- //
 
-    const curImageID = computed(() => {
-      const { primarySelection } = dataStore;
-      const { volumeToImageID } = dicomStore;
-      if (primarySelection?.type === 'image') {
-        return primarySelection.dataID;
-      }
-      if (primarySelection?.type === 'dicom') {
-        return volumeToImageID[primarySelection.volumeKey] || null;
-      }
-      return null;
-    });
-    const curImageMetadata = computed(() => {
-      const { metadata } = imageStore;
-      if (curImageID.value) {
-        return metadata[curImageID.value];
-      }
-      return defaultImageMetadata();
-    });
+    const {
+      currentImageData: curImageData,
+      currentImageID: curImageID,
+      currentImageMetadata: curImageMetadata,
+    } = useCurrentImage();
 
     const sliceConfig = computed(() => view2DStore.sliceConfigs[viewID]);
     const currentSlice = computed(() => sliceConfig.value.slice);
@@ -210,10 +189,9 @@ export default defineComponent({
     // --- window/level setup --- //
 
     watch(
-      curImageID,
-      (imageID) => {
-        if (imageID) {
-          const imageData = imageStore.dataIndex[imageID] as vtkImageData;
+      curImageData,
+      (imageData) => {
+        if (imageData) {
           // TODO listen to changes in point data
           const range = imageData.getPointData().getScalars().getRange();
           view2DStore.updateWLDomain(viewID, range);
@@ -397,17 +375,6 @@ export default defineComponent({
     watch(mouseValues.scrollVal, (slice) =>
       view2DStore.setSlice(viewID, slice)
     );
-
-    watchEffect(() => {
-      if (viewAxis.value === 'Coronal') {
-        const meta = curImageMetadata.value;
-        console.log('origin', meta.origin);
-        console.log('dims', meta.dimensions);
-        console.log('orientation', meta.orientation);
-        console.log('lps orientation', { ...meta.lpsOrientation });
-        console.log('slicing mode', viewProxy.get('slicingMode'));
-      }
-    });
 
     // --- template vars --- //
 
