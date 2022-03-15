@@ -31,7 +31,7 @@ export interface FileLoadFailure {
 export interface DICOMLoadSuccess {
   type: 'dicom';
   loaded: true;
-  dataID: string;
+  dataID: string; // aka volumeKey
   dataType: 'dicom';
 }
 
@@ -128,7 +128,7 @@ export const useDatasetStore = defineStore('datasets', {
       const dicomStatus = dicomStore
         .importFiles(dicoms)
         .then((volumeKeys) =>
-          volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.patientKey))
+          volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
         )
         .catch((err) => [makeDICOMFailureStatus(err)]);
 

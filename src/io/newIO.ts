@@ -9,7 +9,7 @@ export const ITK_IMAGE_EXTENSIONS = Array.from(
 
 // remove duplicates
 export const FILE_TYPES = Array.from(
-  new Set(['vti', 'vtp', 'stl', 'dcm', ...ITK_IMAGE_EXTENSIONS])
+  new Set(['vti', 'vtp', 'stl', 'dcm', 'zip', ...ITK_IMAGE_EXTENSIONS])
 );
 
 /**

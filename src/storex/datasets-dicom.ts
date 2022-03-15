@@ -224,7 +224,7 @@ export const useDICOMStore = defineStore('dicom', {
         set(this.volumeInfo, volumeKey, volume);
         set(this.volumeStudy, volumeKey, studyKey);
         set(this.sliceData, volumeKey, {});
-        this.studyVolumes[volumeKey].push(volumeKey);
+        this.studyVolumes[studyKey].push(volumeKey);
       }
     },
 
