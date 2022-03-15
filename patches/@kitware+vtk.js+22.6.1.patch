@@ -1,0 +1,58 @@
+diff --git a/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts b/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
+index 280c758..b455791 100644
+--- a/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
++++ b/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
+@@ -54,7 +54,7 @@ export interface vtkDataArray extends vtkObject {
+ 	 *
+ 	 * @param {Number} componentIndex (default: -1)
+ 	 */
+-	getRange(componentIndex?: number): vtkRange;
++	getRange(componentIndex?: number): [number, number];
+ 
+ 	/**
+ 	 *
+diff --git a/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts b/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
+index 3f8576e..982affa 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
++++ b/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
+@@ -123,7 +123,7 @@ export interface vtkRenderWindow extends vtkObject {
+ 	 * @param name 
+ 	 * @param initialValues 
+ 	 */
+-	newAPISpecificView(name: string, initialValues: object): any;
++	newAPISpecificView(name?: string, initialValues?: object): any;
+ 
+ 	/**
+ 	 * Remove renderer
+diff --git a/node_modules/@kitware/vtk.js/interfaces.d.ts b/node_modules/@kitware/vtk.js/interfaces.d.ts
+index daec60e..4a45518 100644
+--- a/node_modules/@kitware/vtk.js/interfaces.d.ts
++++ b/node_modules/@kitware/vtk.js/interfaces.d.ts
+@@ -37,15 +37,15 @@ export interface vtkAlgorithm {
+ 
+ 	/**
+ 	 * Assign a data object as input.
+-	 * @param {vtkPolyData} dataset 
++	 * @param {vtkObject} dataset 
+ 	 * @param {Number} [port] The port number (default 0).
+ 	 */
+-	setInputData(dataset: vtkPolyData, port?: number): void;
++	setInputData(dataset: vtkObject, port?: number): void;
+ 
+ 	/**
+ 	 * @param {Number} [port] The port number (default 0).
+ 	 */
+-	getInputData(port?: number): any;
++	getInputData(port?: number): vtkObject | null;
+ 
+ 	/**
+ 	 * @param outputPort
+@@ -75,7 +75,7 @@ export interface vtkAlgorithm {
+ 	 * port.
+ 	 * @param {Number} [port] The port number (default 0).
+ 	 */
+-	getOutputData(port?: number): vtkImageData | vtkPolyData;
++	getOutputData(port?: number): vtkObject;
+ 
+ 	/**
+ 	 * 
