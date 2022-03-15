@@ -5,11 +5,11 @@ import { onBeforeUnmount, Ref, unref, watch } from '@vue/composition-api';
  */
 export function useResizeObserver(
   targetElRef: Ref<HTMLElement | null | undefined>,
-  callback: Function
+  callback: (entry: ResizeObserverEntry) => void
 ) {
   const observer = new ResizeObserver((entries) => {
     if (entries.length === 1) {
-      callback();
+      callback(entries[0]);
     }
   });
 
