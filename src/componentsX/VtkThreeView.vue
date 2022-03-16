@@ -31,7 +31,6 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
-import deepEqual from 'deep-equal';
 
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
@@ -179,11 +178,9 @@ export default defineComponent({
     };
 
     watch(
-      [curImageMetadata, cameraDirVec, cameraUpVec],
-      ([metadata, oldMetadata]) => {
-        if (!deepEqual(metadata, oldMetadata)) {
-          resetCamera();
-        }
+      [curImageID, cameraDirVec, cameraUpVec],
+      () => {
+        resetCamera();
       },
       {
         immediate: true,
