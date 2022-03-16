@@ -17,17 +17,17 @@
       </div>
       <view-overlay-grid class="overlay view-annotations">
         <template v-slot:top-middle>
-          <div class="overlay-cell">
+          <div class="annotation-cell">
             <span>{{ topLabel }}</span>
           </div>
         </template>
         <template v-slot:middle-left>
-          <div class="overlay-cell">
+          <div class="annotation-cell">
             <span>{{ leftLabel }}</span>
           </div>
         </template>
         <template v-slot:bottom-left>
-          <div class="overlay-cell">
+          <div class="annotation-cell">
             <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
             <div>
               W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
