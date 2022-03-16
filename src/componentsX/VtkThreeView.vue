@@ -75,7 +75,7 @@ export default defineComponent({
     const { viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
-    const currentRepRef = ref<vtkVolumeRepresentationProxy>();
+    const currentRepRef = ref<vtkVolumeRepresentationProxy | null>();
 
     // --- view store --- //
 
@@ -124,6 +124,13 @@ export default defineComponent({
       const { dataToProxyID } = proxyStore;
 
       viewProxy.removeAllRepresentations();
+      // Nullify image representation ref.
+      // Helps re-trigger setting of the rendering properties by
+      // forcing a trigger of the corresponding watchEffect below.
+      // addRepresentation(rep) triggers the representation proxy to
+      // reset properties to its own defaults, and we need to override
+      // that to use our own values.
+      currentRepRef.value = null;
 
       // update the current image
       if (curImageID.value && curImageID.value in dataToProxyID) {

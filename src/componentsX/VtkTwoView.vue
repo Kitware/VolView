@@ -105,7 +105,7 @@ export default defineComponent({
     const { viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
-    const currentImageRepRef = ref<vtkIJKSliceRepresentationProxy>();
+    const currentImageRepRef = ref<vtkIJKSliceRepresentationProxy | null>();
 
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
@@ -217,6 +217,13 @@ export default defineComponent({
       const { dataToProxyID } = proxyStore;
 
       viewProxy.removeAllRepresentations();
+      // Nullify image representation ref.
+      // Helps re-trigger setting of the slice and W/L properties by
+      // forcing a trigger of the corresponding watchEffect below.
+      // addRepresentation(rep) triggers the SliceRepresentationProxy to
+      // reset slicing and W/L to its own defaults, and we need to override
+      // that to use our own values.
+      currentImageRepRef.value = null;
 
       // update the current image
       if (curImageID.value && curImageID.value in dataToProxyID) {
