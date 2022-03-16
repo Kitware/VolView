@@ -164,27 +164,30 @@ export default defineComponent({
 
     useResizeObserver(vtkContainerRef, () => viewProxy.resize());
 
-    // --- slice setup --- //
+    // --- resetting slice properties --- //
 
     watch(
-      () => {
-        const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
-        return curImageMetadata.value.dimensions[ijkIndex];
+      curImageData,
+      (imageData) => {
+        if (imageData) {
+          const { lpsOrientation, dimensions } = curImageMetadata.value;
+          const ijkIndex = lpsOrientation[viewAxis.value];
+          const dimMax = dimensions[ijkIndex];
+
+          // update dimensions
+          // dimMax is upper bound of slices, exclusive.
+          view2DStore.updateSliceDomain(viewID, [0, dimMax - 1]);
+          // move slice to center when image metadata changes.
+          // TODO what if new slices are added to the same image?
+          //      do we still reset the slicing?
+          view2DStore.setSlice(viewID, Math.floor((dimMax - 1) / 2));
+        }
       },
-      (dimMax) => {
-        // dimMax is upper bound of slices, exclusive.
-        view2DStore.updateSliceDomain(viewID, [0, dimMax - 1]);
-        // move slice to center when image metadata changes.
-        // TODO what if new slices are added to the same image?
-        //      do we still reset the slicing?
-        view2DStore.setSlice(viewID, Math.floor((dimMax - 1) / 2));
-      },
-      {
-        // we don't use watchEffect, since I think
-        // accessing the actions on view2DStore cause it
-        // to trigger when any view2DStore state is modified.
-        immediate: true,
-      }
+
+      // we don't use watchEffect, since I think
+      // accessing the actions on view2DStore cause it
+      // to trigger when any view2DStore state is modified.
+      { immediate: true }
     );
 
     // --- window/level setup --- //
