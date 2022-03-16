@@ -89,3 +89,21 @@
   color: white;
   font-size: 1.4rem;
 }
+
+.loading-enter,
+.loading-leave,
+/* vue 3 */
+.loading-enter-from,
+.loading-leave-to {
+  opacity: 0;
+}
+
+.loading-enter-active,
+.loading-leave-active {
+  transition: opacity 0.2s;
+  transition-delay: 0.1s;
+}
+
+.loading-enter-to {
+  opacity: 1;
+}

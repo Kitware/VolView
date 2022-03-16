@@ -35,12 +35,14 @@
           </div>
         </template>
       </view-overlay-grid>
-      <div v-if="isImageLoading" class="overlay loading">
-        <div>Loading the image</div>
-        <div>
-          <v-progress-circular indeterminate color="blue" />
+      <transition name="loading">
+        <div v-if="isImageLoading" class="overlay loading">
+          <div>Loading the image</div>
+          <div>
+            <v-progress-circular indeterminate color="blue" />
+          </div>
         </div>
-      </div>
+      </transition>
     </div>
   </div>
 </template>
