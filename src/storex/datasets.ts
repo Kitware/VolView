@@ -14,82 +14,69 @@ export const DataType = {
   Model: 'Model',
 };
 
-export interface FileLoadSuccess {
-  type: 'file';
-  filename: string;
-  loaded: true;
-  dataID: string;
-  dataType: 'model' | 'image';
-}
+const makeFileSuccessStatus = (
+  file: File,
+  type: 'model' | 'image',
+  dataID: string
+) =>
+  ({
+    type: 'file',
+    loaded: true,
+    filename: file.name,
+    dataID,
+    dataType: type,
+  } as const);
 
-export interface FileLoadFailure {
-  type: 'file';
-  filename: string;
-  loaded: false;
-  error: Error;
-}
+export type FileLoadSuccess = ReturnType<typeof makeFileSuccessStatus>;
 
-export interface DICOMLoadSuccess {
-  type: 'dicom';
-  loaded: true;
-  dataID: string; // aka volumeKey
-  dataType: 'dicom';
-}
+const makeFileFailureStatus = (file: File, reason: string) =>
+  ({
+    type: 'file',
+    loaded: false,
+    filename: file.name,
+    error: new Error(reason),
+  } as const);
 
-export interface DICOMLoadFailure {
-  type: 'dicom';
-  loaded: false;
-  error: Error;
-}
+export type FileLoadFailure = ReturnType<typeof makeFileFailureStatus>;
+
+const makeDICOMSuccessStatus = (volumeKey: string) =>
+  ({
+    type: 'dicom',
+    loaded: true,
+    dataID: volumeKey,
+    dataType: 'dicom',
+  } as const);
+
+export type DICOMLoadSuccess = ReturnType<typeof makeDICOMSuccessStatus>;
+
+const makeDICOMFailureStatus = (error: Error) =>
+  ({
+    type: 'dicom',
+    loaded: false,
+    error,
+  } as const);
+
+export type DICOMLoadFailure = ReturnType<typeof makeDICOMFailureStatus>;
 
 export type FileLoadResult = FileLoadSuccess | FileLoadFailure;
 export type DICOMLoadResult = DICOMLoadSuccess | DICOMLoadFailure;
 export type LoadResult = FileLoadResult | DICOMLoadResult;
 
-const makeFileSuccessStatus = (
-  file: File,
-  type: 'model' | 'image',
-  dataID: string
-): FileLoadSuccess => ({
-  type: 'file',
-  loaded: true,
-  filename: file.name,
-  dataID,
-  dataType: type,
-});
+export const makeDICOMSelection = (volumeKey: string) =>
+  ({
+    type: 'dicom',
+    volumeKey,
+  } as const);
 
-const makeFileFailureStatus = (
-  file: File,
-  reason: string
-): FileLoadFailure => ({
-  type: 'file',
-  loaded: false,
-  filename: file.name,
-  error: new Error(reason),
-});
+export type DICOMSelection = ReturnType<typeof makeDICOMSelection>;
 
-const makeDICOMSuccessStatus = (volumeKey: string): DICOMLoadSuccess => ({
-  type: 'dicom',
-  loaded: true,
-  dataID: volumeKey,
-  dataType: 'dicom',
-});
+export const makeImageSelection = (imageID: string) =>
+  ({
+    type: 'image',
+    dataID: imageID,
+  } as const);
 
-const makeDICOMFailureStatus = (error: Error): DICOMLoadFailure => ({
-  type: 'dicom',
-  loaded: false,
-  error,
-});
-
-export type DICOMSelection = {
-  type: 'dicom';
-  volumeKey: string;
-};
-
-export type ImageSelection = {
-  type: 'image';
-  dataID: string;
-};
+export type ImageSelection = ReturnType<typeof makeImageSelection>;
 
 export type DataSelection = DICOMSelection | ImageSelection;
 

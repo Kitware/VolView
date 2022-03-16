@@ -27,7 +27,11 @@ import { defineComponent, del, reactive, set } from '@vue/composition-api';
 
 import { Sample, SAMPLE_DATA } from '@src/constants';
 import { fetchFileWithProgress } from '@src/utils';
-import { useDatasetStore } from '@src/storex/datasets';
+import {
+  makeDICOMSelection,
+  makeImageSelection,
+  useDatasetStore,
+} from '@src/storex/datasets';
 
 enum ProgressState {
   Pending,
@@ -71,15 +75,13 @@ export default defineComponent({
           const [loadResult] = await datasetStore.loadFiles([sampleFile]);
           if (loadResult.loaded) {
             if (loadResult.type === 'file') {
-              datasetStore.setPrimarySelection({
-                type: 'image',
-                dataID: loadResult.dataID,
-              });
+              datasetStore.setPrimarySelection(
+                makeImageSelection(loadResult.dataID)
+              );
             } else if (loadResult.type === 'dicom') {
-              datasetStore.setPrimarySelection({
-                type: 'dicom',
-                volumeKey: loadResult.dataID,
-              });
+              datasetStore.setPrimarySelection(
+                makeDICOMSelection(loadResult.dataID)
+              );
             }
           }
         }

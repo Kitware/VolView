@@ -254,7 +254,11 @@ import SampleData from './SampleData.vue';
 import VtkTwoView from '../componentsX/VtkTwoView.vue';
 import VtkThreeView from '../componentsX/VtkThreeView.vue';
 import { syncProxyManagerWithStores } from '../vtk/proxyStoreSync';
-import { useDatasetStore } from '../storex/datasets';
+import {
+  makeImageSelection,
+  makeDICOMSelection,
+  useDatasetStore,
+} from '../storex/datasets';
 import { useImageStore } from '../storex/datasets-images';
 
 export const Modules = [
@@ -457,15 +461,9 @@ export default {
           const dataStatus = loaded[0];
           const { dataType, dataID } = dataStatus;
           if (dataType === 'image') {
-            this.datasetsStore.setPrimarySelection({
-              type: 'image',
-              dataID,
-            });
+            this.datasetsStore.setPrimarySelection(makeImageSelection(dataID));
           } else if (dataType === 'dicom') {
-            this.datasetsStore.setPrimarySelection({
-              type: 'dicom',
-              volumeKey: dataID,
-            });
+            this.datasetsStore.setPrimarySelection(makeDICOMSelection(dataID));
           }
         }
 
