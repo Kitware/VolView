@@ -323,7 +323,9 @@ export default defineComponent({
         );
     });
 
-    const imagesRef = computed(() => imageStore.idList);
+    const imagesRef = computed(() =>
+      imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
+    );
 
     // switches the selected patient/case based on the
     // primary selection.
@@ -417,7 +419,9 @@ export default defineComponent({
       thumbnailCache: thumbnailCacheRef,
       studiesAndVolumes: studiesAndVolumesRef,
       testFunction: selectionEquals,
-      setPrimarySelection: () => {},
+      setPrimarySelection: (sel: DataSelection) => {
+        dataStore.setPrimarySelection(sel);
+      },
       removeImage: (imageID: string) => {
         console.log('removeImage', imageID);
       },
