@@ -450,25 +450,24 @@ export default {
       try {
         const statuses = await this.datasetsStore.loadFiles(Array.from(files));
 
-        if (loadFirstDataset) {
-          const dataStatus = statuses.find((s) => s.loaded);
-          if (dataStatus) {
-            const { dataType, dataID } = dataStatus;
-            if (dataType === 'image') {
-              this.datasetsStore.setPrimarySelection({
-                type: 'image',
-                dataID,
-              });
-            } else if (dataType === 'dicom') {
-              this.datasetsStore.setPrimarySelection({
-                type: 'dicom',
-                volumeKey: dataID,
-              });
-            }
+        const loaded = statuses.filter((s) => s.loaded);
+        const errored = statuses.filter((s) => !s.loaded);
+
+        if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
+          const dataStatus = loaded[0];
+          const { dataType, dataID } = dataStatus;
+          if (dataType === 'image') {
+            this.datasetsStore.setPrimarySelection({
+              type: 'image',
+              dataID,
+            });
+          } else if (dataType === 'dicom') {
+            this.datasetsStore.setPrimarySelection({
+              type: 'dicom',
+              volumeKey: dataID,
+            });
           }
         }
-
-        const errored = statuses.filter((s) => !s.loaded);
 
         if (errored.length) {
           this.errors.fileLoading = errored;
