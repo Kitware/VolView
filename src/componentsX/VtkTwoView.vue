@@ -54,6 +54,7 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
+import deepEqual from 'deep-equal';
 
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -168,8 +169,11 @@ export default defineComponent({
 
     watch(
       curImageData,
-      (imageData) => {
-        if (imageData) {
+      (imageData, oldImageData) => {
+        // FIXME the old check is to workaround a vue bug/quirk where
+        // the curImageData dependencies trigger, but the ref value is
+        // equivalent, yet this watcher still runs.
+        if (imageData && imageData !== oldImageData) {
           const { lpsOrientation, dimensions } = curImageMetadata.value;
           const ijkIndex = lpsOrientation[viewAxis.value];
           const dimMax = dimensions[ijkIndex];
@@ -194,8 +198,8 @@ export default defineComponent({
 
     watch(
       curImageData,
-      (imageData) => {
-        if (imageData) {
+      (imageData, oldImageData) => {
+        if (imageData && imageData !== oldImageData) {
           // TODO listen to changes in point data
           const range = imageData.getPointData().getScalars().getRange();
           view2DStore.updateWLDomain(viewID, range);
@@ -306,12 +310,14 @@ export default defineComponent({
 
     watch(
       [curImageMetadata, cameraDirVec, cameraUpVec],
-      () => {
-        if (resizeToFit.value) {
-          resetCamera();
-        } else {
-          // this will trigger a resetCamera() call
-          resizeToFit.value = true;
+      ([metadata], [oldMetadata]) => {
+        if (!deepEqual(metadata, oldMetadata)) {
+          if (resizeToFit.value) {
+            resetCamera();
+          } else {
+            // this will trigger a resetCamera() call
+            resizeToFit.value = true;
+          }
         }
       },
       { immediate: true, deep: true }

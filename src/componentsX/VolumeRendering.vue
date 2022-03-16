@@ -266,9 +266,11 @@ export default defineComponent({
     // update pwf widget on selection change
     watch(
       [primaryDatasetRef, colorByRef, colorTransferFunctionRef],
-      () => {
-        resetPwfWidget();
-        onOpacityChange();
+      ([primaryDataset], [oldPrimaryDataset]) => {
+        if (primaryDataset && primaryDataset !== oldPrimaryDataset) {
+          resetPwfWidget();
+          onOpacityChange();
+        }
       },
       { deep: true }
     );
