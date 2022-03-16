@@ -143,8 +143,8 @@ export default defineComponent({
             viewProxy
           );
           if (rep) {
-            currentRepRef.value = rep;
             viewProxy.addRepresentation(rep);
+            currentRepRef.value = rep;
           }
         }
       }
@@ -178,7 +178,7 @@ export default defineComponent({
     };
 
     watch(
-      [curImageID, cameraDirVec, cameraUpVec],
+      [currentRepRef, cameraDirVec, cameraUpVec],
       () => {
         resetCamera();
       },

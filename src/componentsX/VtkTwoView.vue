@@ -236,8 +236,8 @@ export default defineComponent({
             viewProxy
           );
           if (rep) {
-            currentImageRepRef.value = rep;
             viewProxy.addRepresentation(rep);
+            currentImageRepRef.value = rep;
           }
         }
       }
@@ -315,7 +315,7 @@ export default defineComponent({
     });
 
     watch(
-      [curImageID, cameraDirVec, cameraUpVec],
+      [currentImageRepRef, cameraDirVec, cameraUpVec],
       () => {
         if (resizeToFit.value) {
           resetCamera();
