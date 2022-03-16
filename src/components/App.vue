@@ -255,9 +255,8 @@ import VtkTwoView from '../componentsX/VtkTwoView.vue';
 import VtkThreeView from '../componentsX/VtkThreeView.vue';
 import { syncProxyManagerWithStores } from '../vtk/proxyStoreSync';
 import {
-  makeImageSelection,
-  makeDICOMSelection,
   useDatasetStore,
+  convertSuccessResultToDataSelection,
 } from '../storex/datasets';
 import { useImageStore } from '../storex/datasets-images';
 
@@ -458,13 +457,8 @@ export default {
         const errored = statuses.filter((s) => !s.loaded);
 
         if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
-          const dataStatus = loaded[0];
-          const { dataType, dataID } = dataStatus;
-          if (dataType === 'image') {
-            this.datasetsStore.setPrimarySelection(makeImageSelection(dataID));
-          } else if (dataType === 'dicom') {
-            this.datasetsStore.setPrimarySelection(makeDICOMSelection(dataID));
-          }
+          const selection = convertSuccessResultToDataSelection(loaded[0]);
+          this.datasetsStore.setPrimarySelection(selection);
         }
 
         if (errored.length) {

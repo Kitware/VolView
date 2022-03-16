@@ -90,6 +90,18 @@ export function selectionEquals(s1: DataSelection, s2: DataSelection) {
   return false;
 }
 
+export function convertSuccessResultToDataSelection(
+  result: FileLoadSuccess | DICOMLoadSuccess
+) {
+  if (result.type === 'dicom') {
+    return makeDICOMSelection(result.dataID);
+  }
+  if (result.type === 'file') {
+    return makeImageSelection(result.dataID);
+  }
+  throw new Error('Did not receive a valid LoadResult');
+}
+
 interface State {
   primarySelection: DataSelection | null;
 }

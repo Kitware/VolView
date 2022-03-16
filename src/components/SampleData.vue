@@ -28,8 +28,7 @@ import { defineComponent, del, reactive, set } from '@vue/composition-api';
 import { Sample, SAMPLE_DATA } from '@src/constants';
 import { fetchFileWithProgress } from '@src/utils';
 import {
-  makeDICOMSelection,
-  makeImageSelection,
+  convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '@src/storex/datasets';
 
@@ -74,15 +73,8 @@ export default defineComponent({
         if (sampleFile) {
           const [loadResult] = await datasetStore.loadFiles([sampleFile]);
           if (loadResult.loaded) {
-            if (loadResult.type === 'file') {
-              datasetStore.setPrimarySelection(
-                makeImageSelection(loadResult.dataID)
-              );
-            } else if (loadResult.type === 'dicom') {
-              datasetStore.setPrimarySelection(
-                makeDICOMSelection(loadResult.dataID)
-              );
-            }
+            const selection = convertSuccessResultToDataSelection(loadResult);
+            datasetStore.setPrimarySelection(selection);
           }
         }
       } catch (error) {
