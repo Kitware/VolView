@@ -4,9 +4,11 @@ import { useDICOMStore } from '../storex/datasets-dicom';
 import { defaultImageMetadata, useImageStore } from '../storex/datasets-images';
 
 export function useCurrentImage() {
+  const dataStore = useDatasetStore();
+  const dicomStore = useDICOMStore();
+  const imageStore = useImageStore();
+
   const currentImageID = computed(() => {
-    const dataStore = useDatasetStore();
-    const dicomStore = useDICOMStore();
     const { primarySelection } = dataStore;
     const { volumeToImageID } = dicomStore;
 
@@ -20,7 +22,6 @@ export function useCurrentImage() {
   });
 
   const currentImageMetadata = computed(() => {
-    const imageStore = useImageStore();
     const { metadata } = imageStore;
     const imageID = currentImageID.value;
 
@@ -31,14 +32,18 @@ export function useCurrentImage() {
   });
 
   const currentImageData = computed(() => {
-    const dataStore = useDatasetStore();
     // assumed to be only images for now
     return dataStore.primaryDataset;
+  });
+
+  const isImageLoading = computed(() => {
+    return !!dataStore.primarySelection && !dataStore.primaryDataset;
   });
 
   return {
     currentImageData,
     currentImageID,
     currentImageMetadata,
+    isImageLoading,
   };
 }

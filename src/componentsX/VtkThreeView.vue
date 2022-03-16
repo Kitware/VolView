@@ -5,14 +5,18 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
-      <div class="overlay">
-        <view-overlay-grid>
-          <template v-slot:top-left>
-            <div class="overlay-cell">
-              <span>{{ topLeftLabel }}</span>
-            </div>
-          </template>
-        </view-overlay-grid>
+      <view-overlay-grid class="overlay view-annotations">
+        <template v-slot:top-left>
+          <div class="annotation-cell">
+            <span>{{ topLeftLabel }}</span>
+          </div>
+        </template>
+      </view-overlay-grid>
+      <div v-if="isImageLoading" class="overlay loading">
+        <div>Loading the image</div>
+        <div>
+          <v-progress-circular indeterminate color="blue" />
+        </div>
       </div>
     </div>
   </div>
@@ -85,6 +89,7 @@ export default defineComponent({
     const {
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
+      isImageLoading,
     } = useCurrentImage();
 
     const coloringConfig = computed(() => view3DStore.coloringConfig);
@@ -209,52 +214,10 @@ export default defineComponent({
       vtkContainerRef,
       active: false,
       topLeftLabel: colorTransferFuncName,
+      isImageLoading,
     };
   },
 });
 </script>
 
-<style src="@/src/assets/styles/vtk-view.css"></style>
-
-<style scoped>
-.vtk-gutter {
-  display: flex;
-  flex-flow: column;
-}
-
-.slice-slider {
-  position: relative;
-  flex: 1 1;
-  width: 20px;
-}
-
-.overlay {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  color: white;
-  /* simulate text border */
-  /* prettier-ignore */
-  text-shadow:  1px  1px black,
-                1px -1px black,
-               -1px -1px black,
-               -1px  1px black,
-                0px  1px black,
-                0px -1px black,
-                1px  0px black,
-               -1px  0px black;
-  /* increase kerning to compensate for border */
-  letter-spacing: 1px;
-  font-size: clamp(8px, 0.75vw, 16px);
-  /* handle text overflow */
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.overlay-cell {
-  padding: 4px;
-  white-space: nowrap;
-}
-</style>
+<style scoped src="@/src/assets/styles/vtk-view.css"></style>

@@ -15,27 +15,31 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
-      <div class="overlay">
-        <view-overlay-grid>
-          <template v-slot:top-middle>
-            <div class="overlay-cell">
-              <span>{{ topLabel }}</span>
+      <view-overlay-grid class="overlay view-annotations">
+        <template v-slot:top-middle>
+          <div class="overlay-cell">
+            <span>{{ topLabel }}</span>
+          </div>
+        </template>
+        <template v-slot:middle-left>
+          <div class="overlay-cell">
+            <span>{{ leftLabel }}</span>
+          </div>
+        </template>
+        <template v-slot:bottom-left>
+          <div class="overlay-cell">
+            <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
+            <div>
+              W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
             </div>
-          </template>
-          <template v-slot:middle-left>
-            <div class="overlay-cell">
-              <span>{{ leftLabel }}</span>
-            </div>
-          </template>
-          <template v-slot:bottom-left>
-            <div class="overlay-cell">
-              <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
-              <div>
-                W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
-              </div>
-            </div>
-          </template>
-        </view-overlay-grid>
+          </div>
+        </template>
+      </view-overlay-grid>
+      <div v-if="isImageLoading" class="overlay loading">
+        <div>Loading the image</div>
+        <div>
+          <v-progress-circular indeterminate color="blue" />
+        </div>
       </div>
     </div>
   </div>
@@ -123,6 +127,7 @@ export default defineComponent({
       currentImageData: curImageData,
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
+      isImageLoading,
     } = useCurrentImage();
 
     const sliceConfig = computed(() => view2DStore.sliceConfigs[viewID]);
@@ -397,53 +402,11 @@ export default defineComponent({
       windowLevel,
       topLabel,
       leftLabel,
+      isImageLoading,
       setSlice: (slice: number) => view2DStore.setSlice(viewID, slice),
     };
   },
 });
 </script>
 
-<style src="@/src/assets/styles/vtk-view.css"></style>
-
-<style scoped>
-.vtk-gutter {
-  display: flex;
-  flex-flow: column;
-}
-
-.slice-slider {
-  position: relative;
-  flex: 1 1;
-  width: 20px;
-}
-
-.overlay {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  color: white;
-  /* simulate text border */
-  /* prettier-ignore */
-  text-shadow:  1px  1px black,
-                1px -1px black,
-               -1px -1px black,
-               -1px  1px black,
-                0px  1px black,
-                0px -1px black,
-                1px  0px black,
-               -1px  0px black;
-  /* increase kerning to compensate for border */
-  letter-spacing: 1px;
-  font-size: clamp(8px, 0.75vw, 16px);
-  /* handle text overflow */
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.overlay-cell {
-  padding: 4px;
-  white-space: nowrap;
-}
-</style>
+<style scoped src="@/src/assets/styles/vtk-view.css"></style>
