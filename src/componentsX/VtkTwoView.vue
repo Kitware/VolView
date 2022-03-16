@@ -311,7 +311,7 @@ export default defineComponent({
           resizeToFit.value = true;
         }
       },
-      { immediate: true }
+      { immediate: true, deep: true }
     );
 
     // --- viewport orientation/camera labels --- //

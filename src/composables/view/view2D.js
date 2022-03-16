@@ -158,10 +158,12 @@ export function use2DMouseControls(
       horizVal.value = hRange.default;
       scrollVal.value = scRange.default;
     },
-    { immediate: true }
+    { immediate: true, deep: true }
   );
 
-  watch([verticalRange, horiontalRange, scrollRange], updateManipulator);
+  watch([verticalRange, horiontalRange, scrollRange], updateManipulator, {
+    deep: true,
+  });
 
   return { vertVal, horizVal, scrollVal };
 }
@@ -284,11 +286,15 @@ export function usePixelProbe(viewRef, baseImage) {
     }
   }
 
-  watch([plane, probeVec], ([planeVal, probeVecVal]) => {
-    if (image.value) {
-      pixelProbe.value = computePixelAt(planeVal, probeVecVal, image.value);
-    }
-  });
+  watch(
+    [plane, probeVec],
+    ([planeVal, probeVecVal]) => {
+      if (image.value) {
+        pixelProbe.value = computePixelAt(planeVal, probeVecVal, image.value);
+      }
+    },
+    { deep: true }
+  );
 
   useSubscription(viewRef, (view) =>
     view
@@ -439,5 +445,6 @@ export function apply2DCameraPlacement(
 
   watch([imageParams, viewUp, orientation, axis], updateCamera, {
     immediate: true,
+    deep: true,
   });
 }

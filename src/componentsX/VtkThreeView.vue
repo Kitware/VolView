@@ -172,6 +172,7 @@ export default defineComponent({
 
     watch([curImageMetadata, cameraDirVec, cameraUpVec], () => resetCamera(), {
       immediate: true,
+      deep: true,
     });
 
     // --- coloring --- //

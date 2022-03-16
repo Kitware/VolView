@@ -34,13 +34,17 @@ export function watchScene(sourcesRef, viewRef, postFn) {
   watch([sourcesRef, viewRef], repopulateScene);
 
   // trigger this after repopulateScene
-  watch(sourcesRef, () => {
-    const view = unref(viewRef);
-    if (view) {
-      view.resetCamera();
-      view.renderLater();
-    }
-  });
+  watch(
+    sourcesRef,
+    () => {
+      const view = unref(viewRef);
+      if (view) {
+        view.resetCamera();
+        view.renderLater();
+      }
+    },
+    { deep: true }
+  );
 }
 
 /**

@@ -264,10 +264,14 @@ export default defineComponent({
     });
 
     // update pwf widget on selection change
-    watch([primaryDatasetRef, colorByRef, colorTransferFunctionRef], () => {
-      resetPwfWidget();
-      onOpacityChange();
-    });
+    watch(
+      [primaryDatasetRef, colorByRef, colorTransferFunctionRef],
+      () => {
+        resetPwfWidget();
+        onOpacityChange();
+      },
+      { deep: true }
+    );
 
     // -- thumbnailing -- //
 

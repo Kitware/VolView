@@ -327,19 +327,16 @@ export default defineComponent({
 
     // switches the selected patient/case based on the
     // primary selection.
-    watch(
-      () => primarySelection.value,
-      (selection) => {
-        if (selection?.type === 'image') {
-          selectedPatient.value = NON_DICOM_IMAGES;
-        } else if (selection?.type === 'dicom') {
-          const { volumeKey } = selection;
-          const patientKey =
-            dicomStore.studyPatient[dicomStore.volumeStudy[volumeKey]];
-          selectedPatient.value = patientKey;
-        }
+    watch(primarySelection, (selection) => {
+      if (selection?.type === 'image') {
+        selectedPatient.value = NON_DICOM_IMAGES;
+      } else if (selection?.type === 'dicom') {
+        const { volumeKey } = selection;
+        const patientKey =
+          dicomStore.studyPatient[dicomStore.volumeStudy[volumeKey]];
+        selectedPatient.value = patientKey;
       }
-    );
+    });
 
     // switches the selected patient/case if
     // (1) no selection, and (2) just loaded patients
@@ -355,32 +352,36 @@ export default defineComponent({
 
     // generates and caches thumbnails
     // FYI this won't update if an image's pixels change
-    watch([studiesAndVolumesRef, imagesRef], () => {
-      const thumbnailCache = thumbnailCacheRef.value;
-      const imageIDs = imagesRef.value;
-      const studiesAndVolumes = studiesAndVolumesRef.value;
+    watch(
+      [studiesAndVolumesRef, imagesRef],
+      () => {
+        const thumbnailCache = thumbnailCacheRef.value;
+        const imageIDs = imagesRef.value;
+        const studiesAndVolumes = studiesAndVolumesRef.value;
 
-      imageIDs.forEach(async (id) => {
-        const cacheKey = imageCacheKey(id);
-        if (!(cacheKey in thumbnailCache)) {
-          const thumb = generateVTKImageThumbnail(imageStore.dataIndex[id]);
-          set(thumbnailCache, cacheKey, thumb);
-        }
-      });
-
-      studiesAndVolumes.forEach(({ volumes }) => {
-        volumes.forEach(async (volumeInfo) => {
-          const cacheKey = dicomCacheKey(volumeInfo.info.VolumeID);
+        imageIDs.forEach(async (id) => {
+          const cacheKey = imageCacheKey(id);
           if (!(cacheKey in thumbnailCache)) {
-            const thumb = await generateDICOMThumbnail(
-              dicomStore,
-              volumeInfo.info.VolumeID
-            );
+            const thumb = generateVTKImageThumbnail(imageStore.dataIndex[id]);
             set(thumbnailCache, cacheKey, thumb);
           }
         });
-      });
-    });
+
+        studiesAndVolumes.forEach(({ volumes }) => {
+          volumes.forEach(async (volumeInfo) => {
+            const cacheKey = dicomCacheKey(volumeInfo.info.VolumeID);
+            if (!(cacheKey in thumbnailCache)) {
+              const thumb = await generateDICOMThumbnail(
+                dicomStore,
+                volumeInfo.info.VolumeID
+              );
+              set(thumbnailCache, cacheKey, thumb);
+            }
+          });
+        });
+      },
+      { deep: true }
+    );
 
     const patientList = computed(() => [
       {

@@ -81,10 +81,12 @@ export function use2DMouseControls(
       horizVal.value = hRange.default;
       scrollVal.value = scRange.default;
     },
-    { immediate: true }
+    { immediate: true, deep: true }
   );
 
-  watch([verticalRange, horiontalRange, scrollRange], updateManipulator);
+  watch([verticalRange, horiontalRange, scrollRange], updateManipulator, {
+    deep: true,
+  });
   updateManipulator();
 
   return { vertVal, horizVal, scrollVal };
