@@ -8,7 +8,7 @@ interface State {
   sources: string[];
 }
 
-export const useVTKProxyStore = defineStore('vtk-proxy', {
+export const useVTKProxyStore = defineStore('vtkProxy', {
   state: (): State => ({
     dataToProxyID: {},
     sources: [],

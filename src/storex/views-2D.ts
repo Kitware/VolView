@@ -40,7 +40,7 @@ interface State {
   syncWindowing: boolean;
 }
 
-export const useView2DStore = defineStore('views-2D', {
+export const useView2DStore = defineStore('view2D', {
   state: (): State => ({
     viewAxis: {},
     sliceConfigs: {},

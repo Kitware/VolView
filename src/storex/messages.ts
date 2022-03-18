@@ -30,7 +30,7 @@ export type Message = RegularMessage | ErrorMessage | PendingMessage;
 export type UpdateProgressFunction = (progress: number) => void;
 export type TaskFunction = (updateProgress?: UpdateProgressFunction) => any;
 
-export const useMessageStore = defineStore('messages', {
+export const useMessageStore = defineStore('message', {
   state: () => ({
     _nextID: 1,
     byID: {} as Record<string, Message>,

@@ -29,7 +29,7 @@ interface State {
   layout: Layout;
 }
 
-export const useViewStore = defineStore('views', {
+export const useViewStore = defineStore('view', {
   state: (): State => ({
     layout: {
       objType: 'Layout',

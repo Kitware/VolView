@@ -15,7 +15,7 @@ interface State {
   coloringConfig: ColoringConfig;
 }
 
-export const useView3DStore = defineStore('views-3D', {
+export const useView3DStore = defineStore('view3D', {
   state: () =>
     ({
       coloringConfig: {

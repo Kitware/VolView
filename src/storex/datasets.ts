@@ -106,7 +106,7 @@ interface State {
   primarySelection: DataSelection | null;
 }
 
-export const useDatasetStore = defineStore('datasets', {
+export const useDatasetStore = defineStore('dataset', {
   state: (): State => ({
     primarySelection: null,
   }),

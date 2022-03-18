@@ -448,17 +448,17 @@ export default {
         },
       ];
 
-      const loadFirstDataset = !this.datasetsStore.primarySelection;
+      const loadFirstDataset = !this.datasetStore.primarySelection;
 
       try {
-        const statuses = await this.datasetsStore.loadFiles(Array.from(files));
+        const statuses = await this.datasetStore.loadFiles(Array.from(files));
 
         const loaded = statuses.filter((s) => s.loaded);
         const errored = statuses.filter((s) => !s.loaded);
 
         if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
           const selection = convertSuccessResultToDataSelection(loaded[0]);
-          this.datasetsStore.setPrimarySelection(selection);
+          this.datasetStore.setPrimarySelection(selection);
         }
 
         if (errored.length) {
