@@ -47,6 +47,9 @@ module.exports = {
     // use typescript no-unused
     'no-unused-vars': 'off',
     '@typescript-eslint/no-unused-vars': 'error',
+    // don't trigger no-unused-expressions for optional chaining
+    'no-unused-expressions': 'off',
+    '@typescript-eslint/no-unused-expressions': 'error',
   },
 
   overrides: [

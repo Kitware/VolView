@@ -4,6 +4,7 @@ declare module '@kitware/vtk.js/vtk' {
   export default (obj: any): vtkObject => {};
 }
 
+// This is replicated in vtk-types. I'm keeping this here for the types in this shim file.
 declare module '@kitware/vtk.js/types/ProxyObject' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
   import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';

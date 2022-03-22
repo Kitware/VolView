@@ -141,7 +141,7 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="errors.dialog" width="50%">
+        <v-dialog v-model="errorDialog" width="50%">
           <v-card>
             <v-card-title>Application Errors</v-card-title>
             <v-card-text>
@@ -235,8 +235,14 @@
   </drag-and-drop>
 </template>
 
-<script>
-import { mapStores } from 'pinia';
+<script lang="ts">
+import {
+  computed,
+  ComputedRef,
+  defineComponent,
+  Ref,
+  ref,
+} from '@vue/composition-api';
 
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
@@ -257,8 +263,18 @@ import { syncProxyManagerWithStores } from '../vtk/proxyStoreSync';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,
+  LoadResult,
+  FileLoadSuccess,
+  DICOMLoadSuccess,
+  FileLoadFailure,
+  DICOMLoadFailure,
 } from '../storex/datasets';
 import { useImageStore } from '../storex/datasets-images';
+import {
+  onProxyManagerEvent,
+  ProxyManagerEvent,
+} from '../composables/onProxyManagerEvent';
+import { useProxyManager } from '../composables/proxyManager';
 
 export const Modules = [
   {
@@ -350,7 +366,12 @@ export const Layouts = {
   ],
 };
 
-export default {
+interface ErrorInfo {
+  name: string;
+  error: Error;
+}
+
+export default defineComponent({
   name: 'App',
 
   components: {
@@ -362,155 +383,140 @@ export default {
     ToolStrip,
   },
 
-  inject: ['widgetProvider'],
+  setup() {
+    const proxyManager = useProxyManager();
+    const dataStore = useDatasetStore();
+    const imageStore = useImageStore();
 
-  data: () => ({
-    selectedModule: Modules[0],
-    aboutBoxDialog: false,
-    errors: {
-      dialog: false,
-      fileLoading: [],
-      actionErrors: [],
-    },
-    layoutName: 'QuadView',
-    Modules,
-  }),
+    // error state
+    const fileLoadingErrors: Ref<LoadResult[]> = ref([]);
+    const otherErrors: Ref<ErrorInfo[]> = ref([]);
 
-  computed: {
-    ...mapStores(useDatasetStore, useImageStore),
-    hasData() {
-      return this.imagesStore.idList.length > 0;
-    },
-    allErrors() {
-      return [].concat(this.errors.fileLoading, this.errors.actionErrors);
-    },
-    layout() {
-      return Layouts[this.layoutName] || [];
-    },
-  },
+    // dialogs
+    const aboutBoxDialog = ref(false);
+    const errorDialog = ref(false);
 
-  watch: {
-    fileErrorDialog(state) {
-      if (!state) {
-        this.fileLoadErrors = [];
+    function clearAndCloseErrors() {
+      errorDialog.value = false;
+      fileLoadingErrors.value = [];
+      otherErrors.value = [];
+    }
+
+    // --- sync adapters --- //
+
+    syncProxyManagerWithStores(proxyManager!);
+
+    // --- auto-animate views whenever a proxy is modified --- //
+
+    onProxyManagerEvent(ProxyManagerEvent.ProxyModified, () => {
+      proxyManager?.autoAnimateViews();
+    });
+
+    // --- modules --- //
+
+    const selectedModule = ref(Modules[0]);
+
+    function focusModule(modName: string) {
+      const mod = Modules.find((m) => m.name === modName);
+      if (mod) {
+        selectedModule.value = mod;
       }
-    },
-  },
+    }
 
-  proxyManagerHooks: {
-    onProxyModified() {
-      // auto-sync views
-      this.$proxyManager.autoAnimateViews();
-    },
-  },
+    // --- layout --- //
 
-  created() {
-    syncProxyManagerWithStores(this.$proxyManager);
-  },
+    const layoutName: Ref<'QuadView' | 'AxialPrimary'> = ref('QuadView');
 
-  mounted() {
+    const layout: ComputedRef<any> = computed(
+      () => Layouts[layoutName.value] || []
+    );
+
+    function relayoutAxial() {
+      layoutName.value = 'AxialPrimary';
+    }
+
+    function relayoutQuad() {
+      layoutName.value = 'QuadView';
+    }
+
+    // --- file handling --- //
+
+    async function openFiles(files: FileList | null) {
+      if (!files) {
+        return;
+      }
+
+      const loadFirstDataset = !dataStore.primarySelection;
+
+      try {
+        const statuses = await dataStore.loadFiles(Array.from(files));
+
+        const loaded = statuses.filter((s) => s.loaded) as (
+          | FileLoadSuccess
+          | DICOMLoadSuccess
+        )[];
+        const errored = statuses.filter((s) => !s.loaded) as (
+          | FileLoadFailure
+          | DICOMLoadFailure
+        )[];
+
+        if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
+          const selection = convertSuccessResultToDataSelection(loaded[0]);
+          dataStore.setPrimarySelection(selection);
+        }
+
+        if (errored.length) {
+          fileLoadingErrors.value = errored;
+        } else {
+          //
+        }
+      } catch (error) {
+        otherErrors.value.push({
+          name: 'openFiles error',
+          error: error as Error,
+        });
+      } finally {
+        // TODO only close if there are no pending files
+      }
+    }
+
     const fileEl = document.createElement('input');
     fileEl.setAttribute('type', 'file');
     fileEl.setAttribute('multiple', 'multiple');
     fileEl.setAttribute('accept', '*');
-    fileEl.addEventListener('change', this.onFileSelect);
-    this.fileEl = fileEl;
+    fileEl.addEventListener('change', () => openFiles(fileEl.files));
+
+    function userPromptFiles() {
+      fileEl.value = '';
+      fileEl.click();
+    }
+
+    // --- template vars --- //
+
+    const hasData = computed(() => imageStore.idList.length > 0);
+    const allErrors = computed(() => [
+      ...fileLoadingErrors.value,
+      ...otherErrors.value,
+    ]);
+
+    return {
+      selectedModule,
+      aboutBoxDialog,
+      errorDialog,
+      layout,
+      layoutName,
+      relayoutAxial,
+      relayoutQuad,
+      allErrors,
+      clearAndCloseErrors,
+      Modules,
+      userPromptFiles,
+      openFiles,
+      focusModule,
+      hasData,
+    };
   },
-
-  methods: {
-    userPromptFiles() {
-      this.fileEl.value = null;
-      this.fileEl.click();
-    },
-
-    async onFileSelect(evt) {
-      return this.openFiles(evt.target.files);
-    },
-
-    async openFiles(files) {
-      this.$notify({
-        id: 'loading',
-        type: 'loading',
-        duration: -1,
-        text: 'Loading...',
-      });
-
-      const actions = [
-        {
-          text: 'details',
-          onclick: () => {
-            this.errors.dialog = true;
-          },
-        },
-        {
-          text: 'close',
-          onclick: this.clearAndCloseErrors,
-        },
-      ];
-
-      const loadFirstDataset = !this.datasetStore.primarySelection;
-
-      try {
-        const statuses = await this.datasetStore.loadFiles(Array.from(files));
-
-        const loaded = statuses.filter((s) => s.loaded);
-        const errored = statuses.filter((s) => !s.loaded);
-
-        if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
-          const selection = convertSuccessResultToDataSelection(loaded[0]);
-          this.datasetStore.setPrimarySelection(selection);
-        }
-
-        if (errored.length) {
-          this.errors.fileLoading = errored;
-          this.$notify({
-            type: 'error',
-            duration: -1,
-            text: 'Some files failed to load',
-            data: { actions },
-          });
-        } else {
-          this.$notify({ type: 'success', text: 'Files loaded' });
-        }
-      } catch (error) {
-        this.errors.actionErrors.push({
-          name: 'Unknown error',
-          error,
-        });
-        this.$notify({
-          type: 'error',
-          duration: -1,
-          text: 'An unknown file loading error occurred',
-          data: { actions },
-        });
-      } finally {
-        // TODO only close if there are no pending files
-        this.$notify.close('loading');
-      }
-    },
-
-    clearAndCloseErrors() {
-      this.errors.dialog = false;
-      this.errors.fileLoading = [];
-      this.errors.actionErrors = [];
-    },
-
-    relayoutAxial() {
-      this.layout = Layouts.AxialPrimary;
-    },
-
-    relayoutQuad() {
-      this.layout = Layouts.QuadView;
-    },
-
-    focusModule(modName) {
-      const mod = Modules.find((m) => m.name === modName);
-      if (mod) {
-        this.selectedModule = mod;
-      }
-    },
-  },
-};
+});
 </script>
 
 <style>
