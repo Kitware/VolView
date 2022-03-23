@@ -16,22 +16,18 @@ export function use2DMouseControls(
   view: vtkLPSView2DProxy,
   verticalRange: Ref<Domain>,
   horiontalRange: Ref<Domain>,
-  scrollRange: Ref<Domain>,
   interactionDefs: any
 ) {
   const rangeManipulator = vtkMouseRangeManipulator.newInstance({
     button: 1,
-    scrollEnabled: true,
   });
   const vertVal = ref(0);
   const horizVal = ref(0);
-  const scrollVal = ref(0);
 
   function updateManipulator() {
     rangeManipulator.removeAllListeners();
     const vertRange = unref(verticalRange);
     const horizRange = unref(horiontalRange);
-    const scRange = unref(scrollRange);
 
     rangeManipulator.setVerticalListener(
       vertRange.min,
@@ -52,16 +48,6 @@ export function use2DMouseControls(
         horizVal.value = v;
       }
     );
-
-    rangeManipulator.setScrollListener(
-      scRange.min,
-      scRange.max,
-      scRange.step,
-      () => scrollVal.value,
-      (v) => {
-        scrollVal.value = v;
-      }
-    );
   }
 
   watchEffect(() => {
@@ -75,19 +61,18 @@ export function use2DMouseControls(
 
   // reset vals when the ranges reset
   watch(
-    [verticalRange, horiontalRange, scrollRange],
-    ([vRange, hRange, scRange]) => {
+    [verticalRange, horiontalRange],
+    ([vRange, hRange]) => {
       vertVal.value = vRange.default;
       horizVal.value = hRange.default;
-      scrollVal.value = scRange.default;
     },
     { immediate: true, deep: true }
   );
 
-  watch([verticalRange, horiontalRange, scrollRange], updateManipulator, {
+  watch([verticalRange, horiontalRange], updateManipulator, {
     deep: true,
   });
   updateManipulator();
 
-  return { vertVal, horizVal, scrollVal };
+  return { vertVal, horizVal };
 }

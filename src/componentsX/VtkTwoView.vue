@@ -15,6 +15,9 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
+      <div class="overlay tool-layer">
+        <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
+      </div>
       <view-overlay-grid class="overlay view-annotations">
         <template v-slot:top-middle>
           <div class="annotation-cell">
@@ -73,7 +76,6 @@ import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
-
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
@@ -81,6 +83,7 @@ import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir, LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
+import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -100,6 +103,7 @@ export default defineComponent({
   components: {
     SliceSlider,
     ViewOverlayGrid,
+    SliceScrollTool,
   },
   setup(props) {
     const idStore = useIDStore();
@@ -152,6 +156,9 @@ export default defineComponent({
         name: viewAxis.value,
       }
     );
+
+    // do this before mounting
+    viewProxy.getInteractorStyle2D().removeAllManipulators();
 
     onMounted(() => {
       viewProxy.setOrientationAxesVisibility(false);
@@ -365,22 +372,10 @@ export default defineComponent({
       step: computeStep(wlConfig.value.min, wlConfig.value.max),
       default: wlConfig.value.level,
     }));
-    const sliceRange = computed(() => ({
-      min: sliceConfig.value.min,
-      max: sliceConfig.value.max,
-      step: 1,
-      default: sliceConfig.value.slice,
-    }));
-    const mouseValues = use2DMouseControls(
-      viewProxy,
-      wwRange,
-      wlRange,
-      sliceRange,
-      [
-        { type: 'pan', options: { shift: true } },
-        { type: 'zoom', options: { control: true } },
-      ]
-    );
+    const mouseValues = use2DMouseControls(viewProxy, wwRange, wlRange, [
+      { type: 'pan', options: { shift: true } },
+      { type: 'zoom', options: { control: true } },
+    ]);
 
     watch(mouseValues.vertVal, (ww) =>
       view2DStore.setWindowLevel(viewID, { width: ww })
@@ -388,14 +383,13 @@ export default defineComponent({
     watch(mouseValues.horizVal, (wl) =>
       view2DStore.setWindowLevel(viewID, { level: wl })
     );
-    watch(mouseValues.scrollVal, (slice) =>
-      view2DStore.setSlice(viewID, slice)
-    );
 
     // --- template vars --- //
 
     return {
       vtkContainerRef,
+      viewID,
+      viewProxy,
       active: true,
       slice: currentSlice,
       sliceMin,
