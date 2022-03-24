@@ -17,6 +17,7 @@
       </div>
       <div class="overlay tool-layer">
         <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
+        <window-level-tool :view-id="viewID" :view-proxy="viewProxy" />
       </div>
       <view-overlay-grid class="overlay view-annotations">
         <template v-slot:top-middle>
@@ -71,7 +72,6 @@ import { useIDStore } from '@src/storex/id';
 import { useView2DStore } from '@src/storex/views-2D';
 import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
-import { use2DMouseControls } from '@src/composables/use2DMouseControls';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
@@ -83,11 +83,8 @@ import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir, LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
+import WindowLevelTool from '../components/tools/WindowLevelTool.vue';
 import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
-
-function computeStep(min: number, max: number) {
-  return Math.min(max - min, 1) / 256;
-}
 
 export default defineComponent({
   props: {
@@ -103,6 +100,7 @@ export default defineComponent({
   components: {
     SliceSlider,
     ViewOverlayGrid,
+    WindowLevelTool,
     SliceScrollTool,
   },
   setup(props) {
@@ -358,31 +356,10 @@ export default defineComponent({
       }
     });
 
-    // --- mouse controls --- //
-
-    const wwRange = computed(() => ({
-      min: 0,
-      max: wlConfig.value.max - wlConfig.value.min,
-      step: computeStep(wlConfig.value.min, wlConfig.value.max),
-      default: wlConfig.value.width,
-    }));
-    const wlRange = computed(() => ({
-      min: wlConfig.value.min,
-      max: wlConfig.value.max,
-      step: computeStep(wlConfig.value.min, wlConfig.value.max),
-      default: wlConfig.value.level,
-    }));
-    const mouseValues = use2DMouseControls(viewProxy, wwRange, wlRange, [
-      { type: 'pan', options: { shift: true } },
-      { type: 'zoom', options: { control: true } },
-    ]);
-
-    watch(mouseValues.vertVal, (ww) =>
-      view2DStore.setWindowLevel(viewID, { width: ww })
-    );
-    watch(mouseValues.horizVal, (wl) =>
-      view2DStore.setWindowLevel(viewID, { level: wl })
-    );
+    // const mouseValues = use2DMouseControls(viewProxy, wwRange, wlRange, [
+    //   { type: 'pan', options: { shift: true } },
+    //   { type: 'zoom', options: { control: true } },
+    // ]);
 
     // --- template vars --- //
 
