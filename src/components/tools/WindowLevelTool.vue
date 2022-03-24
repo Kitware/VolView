@@ -13,6 +13,7 @@ import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Tools, useToolStore } from '@/src/store/tools';
 import { useView2DStore } from '@/src/storex/views-2D';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
+import { CreateElement, RenderContext } from 'vue';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -123,7 +124,7 @@ const WindowLevelTool = defineComponent({
 
 export default {
   functional: true,
-  render(h, ctx) {
+  render(h: CreateElement, ctx: RenderContext<typeof PROPS>) {
     const toolStore = useToolStore();
     const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
     // TODO vue 3 does away with VNodeData, so
