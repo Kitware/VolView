@@ -162,6 +162,8 @@ export default defineComponent({
       }
     );
 
+    proxyStore.addView(viewID, viewProxy.getProxyId());
+
     // do this before mounting
     viewProxy.getInteractorStyle2D().removeAllManipulators();
 
@@ -172,6 +174,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       viewProxy.setContainer(null);
+      proxyStore.removeView(viewID);
       proxyManager.deleteProxy(viewProxy);
     });
 

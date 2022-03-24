@@ -5,12 +5,14 @@ import { del, set } from '@vue/composition-api';
 
 interface State {
   dataToProxyID: Record<string, string>;
+  viewToProxyID: Record<string, string>;
   sources: string[];
 }
 
 export const useVTKProxyStore = defineStore('vtkProxy', {
   state: (): State => ({
-    dataToProxyID: {},
+    dataToProxyID: Object.create(null),
+    viewToProxyID: Object.create(null),
     sources: [],
   }),
   actions: {
@@ -25,6 +27,12 @@ export const useVTKProxyStore = defineStore('vtkProxy', {
         removeFromArray(this.sources, this.dataToProxyID[dataID]);
         del(this.dataToProxyID, dataID);
       }
+    },
+    addView(viewID: string, proxyID: string) {
+      set(this.viewToProxyID, viewID, proxyID);
+    },
+    removeView(viewID: string) {
+      del(this.viewToProxyID, viewID);
     },
   },
 });

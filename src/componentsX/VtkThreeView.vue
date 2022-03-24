@@ -110,6 +110,8 @@ export default defineComponent({
       }
     );
 
+    proxyStore.addView(viewID, viewProxy.getProxyId());
+
     onMounted(() => {
       viewProxy.setOrientationAxesVisibility(true);
       viewProxy.setOrientationAxesType('cube');
@@ -119,6 +121,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       viewProxy.setContainer(null);
+      proxyStore.removeView(viewID);
       proxyManager.deleteProxy(viewProxy);
     });
 
