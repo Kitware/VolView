@@ -2,7 +2,6 @@
 import {
   computed,
   defineComponent,
-  h,
   onBeforeUnmount,
   onMounted,
   PropType,
@@ -19,17 +18,20 @@ function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
 }
 
-const WindowLevelTool = defineComponent({
-  props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
-    viewProxy: {
-      type: Object as PropType<vtkLPSView2DProxy>,
-      required: true,
-    },
+const PROPS = {
+  viewId: {
+    type: String,
+    required: true,
   },
+  viewProxy: {
+    type: Object as PropType<vtkLPSView2DProxy>,
+    required: true,
+  },
+} as const;
+
+const WindowLevelTool = defineComponent({
+  name: 'WindowLevelTool',
+  props: PROPS,
   setup(props) {
     const { viewId: viewID, viewProxy } = toRefs(props);
     const view2DStore = useView2DStore();
@@ -119,28 +121,31 @@ const WindowLevelTool = defineComponent({
   },
 });
 
-export default defineComponent({
-  props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
-    viewProxy: {
-      type: Object as PropType<vtkLPSView2DProxy>,
-      required: true,
-    },
-  },
-  setup(props) {
+export default {
+  functional: true,
+  render(h, ctx) {
     const toolStore = useToolStore();
     const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
-    return () =>
-      active.value
-        ? h(WindowLevelTool, {
-            // TODO vue 3 does away with VNodeData, so
-            // remove the props key
-            props,
-          })
-        : null;
+    // TODO vue 3 does away with VNodeData, so
+    // remove the props key
+    return active.value ? h(WindowLevelTool, { props: ctx.props }) : [];
   },
-});
+};
+
+// export default defineComponent({
+//     name: 'WindowLevelToolContainer',
+//   props: PROPS,
+//   setup(props) {
+//     const toolStore = useToolStore();
+//     const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
+//     return () =>
+//       active.value
+//         ? h(WindowLevelTool, {
+//             // TODO vue 3 does away with VNodeData, so
+//             // remove the props key
+//             props,
+//           })
+//         : null;
+//   },
+// });
 </script>
