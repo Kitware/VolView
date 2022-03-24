@@ -16,6 +16,8 @@
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
       <div class="overlay tool-layer">
+        <pan-tool :view-proxy="viewProxy" />
+        <zoom-tool :view-proxy="viewProxy" />
         <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
         <window-level-tool :view-id="viewID" :view-proxy="viewProxy" />
       </div>
@@ -85,8 +87,11 @@ import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import WindowLevelTool from '../components/tools/WindowLevelTool.vue';
 import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
+import PanTool from '../components/tools/PanTool.vue';
+import ZoomTool from '../components/tools/ZoomTool.vue';
 
 export default defineComponent({
+  name: 'VtkTwoView',
   props: {
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
@@ -102,6 +107,8 @@ export default defineComponent({
     ViewOverlayGrid,
     WindowLevelTool,
     SliceScrollTool,
+    PanTool,
+    ZoomTool,
   },
   setup(props) {
     const idStore = useIDStore();
@@ -355,11 +362,6 @@ export default defineComponent({
         rep.setWindowLevel(level);
       }
     });
-
-    // const mouseValues = use2DMouseControls(viewProxy, wwRange, wlRange, [
-    //   { type: 'pan', options: { shift: true } },
-    //   { type: 'zoom', options: { control: true } },
-    // ]);
 
     // --- template vars --- //
 

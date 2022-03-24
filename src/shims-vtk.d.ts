@@ -477,6 +477,16 @@ declare module '@kitware/vtk.js/Interaction/Manipulators/CompositeMouseManipulat
 
     isDragEnabled(): boolean;
     isScrollEnabled(): boolean;
+
+    getButton(): number;
+    setShift(shift: boolean): boolean;
+    getShift(): boolean;
+    setControl(control: boolean): boolean;
+    getControl(): boolean;
+    setAlt(alt: boolean): boolean;
+    getAlt(): boolean;
+    setDragEnabled(drag: boolean): boolean;
+    setScrollEnabled(scroll: boolean): boolean;
   }
 
   export function extend(
@@ -548,6 +558,64 @@ declare module '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator' 
   };
 
   export default vtkMouseRangeManipulator;
+}
+
+declare module '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+  import vtkCompositeMouseManipulator, {
+    ICompositeMouseManipulatorInitialValues,
+  } from '@kitware/vtk.js/Interaction/Manipulators/CompositeMouseManipulator';
+
+  export interface IMouseCameraTrackballPanManipulatorInitialValues
+    extends ICompositeMouseManipulatorInitialValues {}
+
+  export interface vtkMouseCameraTrackballPanManipulator
+    extends vtkCompositeMouseManipulator {}
+
+  export function extend(
+    publicAPI: object,
+    model: object,
+    initialValues?: IMouseCameraTrackballPanManipulatorInitialValues
+  ): void;
+  export function newInstance(
+    initialValues?: IMouseCameraTrackballPanManipulatorInitialValues
+  ): vtkMouseCameraTrackballPanManipulator;
+
+  export declare const vtkMouseCameraTrackballPanManipulator: {
+    newInstance: typeof newInstance;
+    extend: typeof extend;
+  };
+
+  export default vtkMouseCameraTrackballPanManipulator;
+}
+
+declare module '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+  import vtkCompositeMouseManipulator, {
+    ICompositeMouseManipulatorInitialValues,
+  } from '@kitware/vtk.js/Interaction/Manipulators/CompositeMouseManipulator';
+
+  export interface IMouseCameraTrackballZoomManipulatorInitialValues
+    extends ICompositeMouseManipulatorInitialValues {}
+
+  export interface vtkMouseCameraTrackballZoomManipulator
+    extends vtkCompositeMouseManipulator {}
+
+  export function extend(
+    publicAPI: object,
+    model: object,
+    initialValues?: IMouseCameraTrackballZoomManipulatorInitialValues
+  ): void;
+  export function newInstance(
+    initialValues?: IMouseCameraTrackballZoomManipulatorInitialValues
+  ): vtkMouseCameraTrackballZoomManipulator;
+
+  export declare const vtkMouseCameraTrackballZoomManipulator: {
+    newInstance: typeof newInstance;
+    extend: typeof extend;
+  };
+
+  export default vtkMouseCameraTrackballZoomManipulator;
 }
 
 declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Presets' {
