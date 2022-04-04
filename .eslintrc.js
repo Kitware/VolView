@@ -41,6 +41,13 @@ module.exports = {
         tsx: 'never',
       },
     ],
+    'lines-between-class-members': [
+      'error',
+      'always',
+      {
+        exceptAfterSingleLine: true,
+      },
+    ],
     // use typescript no-shadow
     'no-shadow': 'off',
     '@typescript-eslint/no-shadow': 'error',
@@ -64,6 +71,7 @@ module.exports = {
       rules: {
         // for expect()
         'no-unused-expressions': 'off',
+        '@typescript-eslint/no-unused-expressions': 'off',
       },
     },
     {
