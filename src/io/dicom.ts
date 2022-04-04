@@ -17,13 +17,10 @@ interface Task {
 }
 
 export class DICOMIO {
-  webWorker: any;
-
-  tasksRunning: boolean = false;
-
-  queue: PriorityQueue<Task>;
-
-  initializeCheck: Promise<void> | null;
+  private webWorker: any;
+  private tasksRunning: boolean = false;
+  private queue: PriorityQueue<Task>;
+  private initializeCheck: Promise<void> | null;
 
   constructor() {
     this.webWorker = null;
@@ -31,7 +28,7 @@ export class DICOMIO {
     this.initializeCheck = null;
   }
 
-  async addTask(
+  private async addTask(
     module: string,
     args: any[],
     inputs: any[],
@@ -50,7 +47,7 @@ export class DICOMIO {
     return deferred.promise;
   }
 
-  async runTasks() {
+  private async runTasks() {
     if (this.tasksRunning) {
       return;
     }
@@ -74,7 +71,7 @@ export class DICOMIO {
    * @async
    * @throws Error initialization failed
    */
-  async initialize() {
+  private async initialize() {
     if (!this.initializeCheck) {
       this.initializeCheck = new Promise<void>((resolve, reject) =>
         this.addTask('dicom', [], [], [])
