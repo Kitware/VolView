@@ -6,7 +6,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { setActivePinia, createPinia } from 'pinia';
 import { useDatasetStore } from '@src/storex/datasets';
 import { makeEmptyFile } from '@/tests/testUtils';
-import { fileReaders, resetToDefaultReaders } from '@/src/io/newReaders';
+import { FILE_READERS, resetToDefaultReaders } from '@/src/io/newReaders';
 
 chai.use(chaiSubset);
 
@@ -26,7 +26,7 @@ describe('Dataset store', () => {
 
     // override nrrd reader
     const testImageData = vtkImageData.newInstance();
-    fileReaders.set('nrrd', () => testImageData);
+    FILE_READERS.set('nrrd', () => testImageData);
 
     const loadResults = await datasetStore.loadFiles(files);
     expect(loadResults).to.containSubset([
@@ -50,7 +50,7 @@ describe('Dataset store', () => {
     const datasetStore = useDatasetStore();
     const files = [makeEmptyFile('test1.invalid')];
 
-    fileReaders.set('invalid', () => {
+    FILE_READERS.set('invalid', () => {
       throw new Error('invalid!');
     });
 

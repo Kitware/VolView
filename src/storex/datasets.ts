@@ -7,7 +7,7 @@ import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { useView3DStore } from './views-3D';
 import { extractArchivesRecursively, retypeFile } from '../io/newIO';
-import { fileReaders } from '../io/newReaders';
+import { FILE_READERS } from '../io/newReaders';
 
 export const DataType = {
   Image: 'Image',
@@ -178,7 +178,7 @@ export const useDatasetStore = defineStore('dataset', {
 
       const otherStatuses = Promise.all([
         ...otherFiles.map(async (file) => {
-          const reader = fileReaders.get(file.type);
+          const reader = FILE_READERS.get(file.type);
           if (reader) {
             try {
               const dataObj = await reader(file);
