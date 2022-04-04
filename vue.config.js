@@ -28,6 +28,7 @@ module.exports = {
       .end();
   },
   configureWebpack: {
+    devtool: 'source-map',
     resolve: {
       alias: {
         '@': __dirname,
