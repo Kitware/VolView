@@ -1,6 +1,6 @@
 import vtk from '@kitware/vtk.js/vtk';
 
-import PromiseWorker from '@src/utils/promiseWorker';
+import PromiseWorker from '@/src/utils/promise-worker';
 // eslint-disable-next-line import/extensions
 import AsyncReaderWorker from './async.worker.ts';
 

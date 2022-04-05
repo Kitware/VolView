@@ -1,16 +1,28 @@
-import { defer } from './common';
+/* eslint-disable */
+import { defer, Deferred } from './index';
+
+// this class is only used as a dummy type.
+class WebpackWorker extends Worker {
+  constructor() {
+    super('');
+  }
+}
 
 // to be used to instantiate a worker
 export default class PromiseWorker {
-  constructor(Worker) {
+  private msgID: number;
+  private worker: Worker;
+  private waiting: Record<string, Deferred<any>>;
+
+  constructor(WorkerClass: typeof WebpackWorker) {
     this.msgID = 0;
-    this.worker = new Worker();
+    this.worker = new WorkerClass();
     this.waiting = {};
 
     this.worker.onmessage = this.handleMessage.bind(this);
   }
 
-  postMessage(message, transferables = []) {
+  postMessage(message: any, transferables: any[] = []) {
     const wrappedMsg = {
       id: this.msgID,
       message,
@@ -25,7 +37,7 @@ export default class PromiseWorker {
     return deferred.promise;
   }
 
-  handleMessage(ev) {
+  handleMessage(ev: any) {
     const { id, error, message } = ev.data;
     if (id in this.waiting) {
       const deferred = this.waiting[id];
