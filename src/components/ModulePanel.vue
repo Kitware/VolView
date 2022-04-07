@@ -9,12 +9,13 @@
           <v-tab
             v-for="item in Modules"
             :key="item.name"
-            class="module-text"
+            class="pl-1 pr-1"
           >
-            {{ item.name }}
-            <v-icon>mdi-{{ item.icon }}</v-icon>
+            <div class="tab-content">
+              <span class="mb-0 mt-1 module-text" >{{item.name}}</span>
+              <v-icon>mdi-{{ item.icon }}</v-icon>
+            </div>
           </v-tab>
-
         </v-tabs>
     </div>
     <div id="module-container">
@@ -46,12 +47,12 @@ import SampleData from './SampleData.vue';
 
 export const Modules = [
   {
-    name: 'Sample Data',
+    name: 'Sample\nData',
     icon: 'database',
     component: SampleData,
   },
   {
-    name: 'Patients & Images',
+    name: 'Patients &\nImages',
     icon: 'account',
     component: PatientBrowser,
   },
@@ -66,7 +67,7 @@ export const Modules = [
     component: null,
   },
   {
-    name: 'Volume Rendering',
+    name: 'Volume\nRendering',
     icon: 'cube',
     component: VolumeRendering,
   },
@@ -109,5 +110,15 @@ export default defineComponent({
 
 .module-text {
   font-size: 0.6rem;
+  white-space: pre;
+}
+
+.tab-content {
+  display: flex;
+  padding-top: 10px;
+  justify-content: flex-end;
+  flex-direction: column-reverse;
+  height: 100%;
+  align-items: center;
 }
 </style>
