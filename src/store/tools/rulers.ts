@@ -79,6 +79,19 @@ export const useRulerToolStore = defineStore('rulerTool', {
     },
   },
   actions: {
+    activateRuler(rulerID: string) {
+      if (this.activeRulerID) {
+        this.deactivateRuler(this.activeRulerID);
+      }
+      if (rulerID in this.rulers) {
+        this.activeRulerID = rulerID;
+      }
+    },
+    deactivateRuler(rulerID: string) {
+      if (rulerID in this.rulers) {
+        this.activeRulerID = null;
+      }
+    },
     addNewRuler(ruler: Partial<RulerTool>) {
       const idStore = useIDStore();
       const id = idStore.getNextID();
@@ -90,17 +103,13 @@ export const useRulerToolStore = defineStore('rulerTool', {
       // triggers a sync from store to widget state
       this.updateRuler(id, ruler);
 
-      this.activeRulerID = id;
       return id;
     },
     removeRuler(id: string) {
+      this.deactivateRuler(id);
       this.$toolManagers.ruler.removeRuler(id);
-
       removeFromArray(this.rulerIDs, id);
       del(this.rulers, id);
-      if (this.activeRulerID === id) {
-        this.activeRulerID = null;
-      }
     },
     /**
      * Updates a ruler.
@@ -111,10 +120,17 @@ export const useRulerToolStore = defineStore('rulerTool', {
      */
     updateRuler(id: string, patch: Partial<RulerTool>, updateManager = true) {
       if (id in this.rulers) {
-        Object.assign(this.rulers[id], patch);
+        const ruler = this.rulers[id];
+        Object.assign(ruler, patch);
+
+        if (
+          id === this.activeRulerID &&
+          ruler.interactionState === InteractionState.Settled
+        ) {
+          this.deactivateRuler(id);
+        }
 
         if (updateManager) {
-          const ruler = this.rulers[id];
           const update: RulerStateUpdate = {
             firstPoint: ruler.firstPoint,
             secondPoint: ruler.secondPoint,
@@ -155,6 +171,9 @@ export const updateRulerFromWidgetStateEvent = (event: {
   }
   if ('secondPoint' in update) {
     patch.secondPoint = update.secondPoint;
+  }
+  if ('interactionState' in update) {
+    patch.interactionState = update.interactionState;
   }
   rulerStore.updateRuler(id, patch, false);
 };

@@ -90,7 +90,11 @@ export default class RulerToolManager {
   }
 
   removeRuler(id: string) {
-    this.factories.delete(id);
+    const factory = this.factories.get(id);
+    if (factory) {
+      factory.delete();
+      this.factories.delete(id);
+    }
     const cleanup = this.listeners.get(id);
     if (cleanup) {
       cleanup();
@@ -100,11 +104,10 @@ export default class RulerToolManager {
 
   createStoreUpdater(id: string, state: RulerWidgetState) {
     const sub = state.onModified(() => {
-      // because we don't actually know what changed, we fill the update state
-      // with the two points
       const update: RulerStateUpdate = {
         firstPoint: state.getFirstPoint().getOrigin(),
         secondPoint: state.getSecondPoint().getOrigin(),
+        interactionState: state.getInteractionState(),
       };
 
       this.events.emit('widgetUpdate', { id, update });
@@ -133,7 +136,6 @@ export default class RulerToolManager {
       if (update.interactionState) {
         state.setInteractionState(update.interactionState);
       }
-      console.log(update, state.getInteractionState());
     }
   }
 

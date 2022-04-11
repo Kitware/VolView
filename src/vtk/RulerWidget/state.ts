@@ -34,7 +34,8 @@ export default function generateState() {
       name: 'firstPoint',
       mixins: ['origin', 'scale1', 'visible', 'color'],
       initialValues: {
-        scale1: 50,
+        // diameter
+        scale1: 20,
         origin: null,
         visible: false,
       },
@@ -44,7 +45,8 @@ export default function generateState() {
       name: 'secondPoint',
       mixins: ['origin', 'scale1', 'visible', 'color'],
       initialValues: {
-        scale1: 50,
+        // diameter
+        scale1: 20,
         origin: null,
         visible: false,
       },

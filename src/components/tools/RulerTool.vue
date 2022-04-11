@@ -1,28 +1,24 @@
 <template>
   <div class="overlay">
     <svg class="overlay">
-      <!--
-      <ruler-svg
+      <RulerSVG2D
         v-for="ruler in rulers"
-        v-show="currentSlice === ruler.slice"
         :key="ruler.id"
-        :point1="ruler.firstPoint"
-        :point2="ruler.secondPoint"
+        v-show="currentSlice === ruler.slice"
+        :point1="ruler.firstPointDisplay"
+        :point2="ruler.secondPointDisplay"
       />
-      -->
     </svg>
     <div>
-      <component
+      <RulerWidget2D
         v-for="ruler in rulers"
         :key="ruler.id"
-        :is="RulerWidgetComponent"
         :ruler-id="ruler.id"
         :slice="currentSlice"
         :view-id="viewID"
         :view-direction="viewDirection"
         :view-up="viewUp"
-        :pickable="true"
-        :focused="active && activeRulerID === ruler.id"
+        :focused="ruler.focused"
         :widget-manager="widgetManager"
       />
     </div>
@@ -35,6 +31,7 @@ import {
   defineComponent,
   PropType,
   toRefs,
+  watch,
 } from '@vue/composition-api';
 import { useView2DStore } from '@/src/storex/views-2D';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -42,12 +39,14 @@ import { Tools, useToolStore } from '@/src/store/tools';
 import { useRulerToolStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/tools/ruler/RulerWidget2D.vue';
+import RulerSVG2D from '@/src/tools/ruler/RulerSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
+import { worldToSVG } from '@/src/utils/vtk-helpers';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -68,20 +67,19 @@ export default defineComponent({
       type: Object as PropType<vtkWidgetManager>,
       required: true,
     },
-    viewType: {
-      type: String as PropType<'2D' | '3D'>,
-      required: true,
-    },
     viewProxy: {
       type: Object as PropType<vtkViewProxy>,
       required: true,
     },
   },
+  components: {
+    RulerWidget2D,
+    RulerSVG2D,
+  },
   setup(props) {
     const {
       viewId: viewID,
       viewDirection,
-      viewType,
       viewProxy: viewProxyRef,
     } = toRefs(props);
     const view2DStore = useView2DStore();
@@ -99,7 +97,16 @@ export default defineComponent({
 
     const interactor = viewProxy.getInteractor();
 
+    const deleteActiveRuler = () => {
+      if (activeRulerID.value) {
+        rulerStore.removeRuler(activeRulerID.value);
+      }
+    };
+
     const startNewRuler = (eventData: any) => {
+      if (activeRulerID.value) {
+        return;
+      }
       if (currentImageID.value) {
         const id = rulerStore.addNewRuler({
           name: 'Ruler',
@@ -117,47 +124,63 @@ export default defineComponent({
         if (coords.length) {
           rulerStore.updateRuler(id, {
             firstPoint: coords as Vector3,
+            slice: currentSlice.value,
+            imageID: currentImageID.value,
+            viewAxis: viewAxis.value,
             interactionState: InteractionState.PlacingSecond,
           });
         }
+        rulerStore.activateRuler(id);
       }
     };
 
     manageVTKSubscription(interactor.onMouseMove(() => {}));
     manageVTKSubscription(interactor.onLeftButtonPress(startNewRuler));
 
+    // delete active ruler if slice changes
+    watch(currentSlice, () => {
+      deleteActiveRuler();
+    });
+
+    const renderer = viewProxy.getRenderer();
+
     const currentRulers = computed(() => {
       const rulerByID = rulerStore.rulers;
       const curImageID = currentImageID.value;
+      const isToolActive = active.value;
+      const curViewAxis = viewAxis.value;
+      const curActiveRulerID = activeRulerID.value;
+
       return rulerStore.rulerIDs
-        .filter((id) => {
-          const ruler = rulerByID[id];
+        .map((id) => ({ id, ruler: rulerByID[id] }))
+        .filter(({ ruler }) => {
+          // only show rulers for the current image and the current view
           return (
             ruler.imageID === curImageID &&
-            // if the ruler has a view type, do not add to other views
-            (!ruler.viewAxis || ruler.viewAxis === viewAxis.value)
+            (!ruler.viewAxis || ruler.viewAxis === curViewAxis)
           );
         })
-        .map((id) => {
-          const ruler = rulerByID[id];
+        .map(({ id, ruler }) => {
           return {
             id,
             firstPoint: ruler.firstPoint,
             secondPoint: ruler.secondPoint,
+            firstPointDisplay: ruler.firstPoint
+              ? worldToSVG(ruler.firstPoint, renderer)
+              : null,
+            secondPointDisplay: ruler.secondPoint
+              ? worldToSVG(ruler.secondPoint, renderer)
+              : null,
             slice: ruler.slice,
+            focused: isToolActive && curActiveRulerID === id,
           };
         });
     });
 
-    const RulerWidgetComponent = viewType.value === '2D' ? RulerWidget2D : null;
-
     return {
       rulers: currentRulers,
       currentSlice,
-      active,
-      activeRulerID,
       viewID,
-      RulerWidgetComponent,
     };
   },
 });

@@ -2,18 +2,21 @@
 import { useRulerToolStore } from '@/src/store/tools/rulers';
 import { vtkRulerViewWidget } from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { IndexError } from '@/src/utils/errors';
 import {
+  computed,
   defineComponent,
   onBeforeUnmount,
+  onMounted,
   PropType,
+  ref,
   toRefs,
+  watch,
   watchEffect,
 } from '@vue/composition-api';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
+import { LPSAxisDir } from '@/src/utils/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { Vector3 } from '@kitware/vtk.js/types';
+import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -43,7 +46,6 @@ export default defineComponent({
       required: true,
     },
     focused: Boolean,
-    pickable: Boolean,
   },
   setup(props) {
     const {
@@ -54,47 +56,78 @@ export default defineComponent({
       slice,
     } = toRefs(props);
     const rulerStore = useRulerToolStore();
+    const factoryRef = computed(() =>
+      rulerStore.$toolManagers.ruler.getFactory(rulerIDRef.value)
+    );
+    const widgetRef = ref<vtkRulerViewWidget | null>(null);
+    const rulerRef = computed(() => rulerStore.rulers[rulerIDRef.value]);
 
-    const rulerID = rulerIDRef.value;
-    const widgetManager = widgetManagerRef.value;
-    const factory = rulerStore.$toolManagers.ruler.getFactory(rulerID);
-    if (!factory) {
-      throw new IndexError(`No factory found for ruler ID ${rulerID}`);
-    }
-    const widget = widgetManager.addWidget(factory) as vtkRulerViewWidget;
+    onMounted(() => {
+      if (!factoryRef.value) {
+        throw new Error(
+          `No widget exists for ruler with ID ${rulerIDRef.value}`
+        );
+      }
+      const widgetManager = widgetManagerRef.value;
+      const factory = factoryRef.value;
+
+      widgetRef.value = widgetManager.addWidget(factory) as vtkRulerViewWidget;
+    });
 
     // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
-    widget.setManipulator(manipulator);
+
+    onMounted(() => {
+      widgetRef.value!.setManipulator(manipulator);
+    });
 
     const { currentImageMetadata } = useCurrentImage();
 
     watchEffect(() => {
-      const viewDir = viewDirection.value;
-      const { lpsOrientation } = currentImageMetadata.value;
-      const axis = lpsOrientation[getLPSAxisFromDir(viewDir)];
-
-      const normal = lpsOrientation[viewDir];
-      const origin = [0, 0, 0];
-      origin[axis] = slice.value;
-
-      manipulator.setNormal(normal as Vector3);
-      manipulator.setOrigin(origin as Vector3);
+      updatePlaneManipulatorFor2DView(
+        manipulator,
+        viewDirection.value,
+        rulerRef.value.slice ?? slice.value,
+        currentImageMetadata.value
+      );
     });
 
     // --- focus --- //
 
     watchEffect(() => {
+      const widgetManager = widgetManagerRef.value;
+      const widget = widgetRef.value;
       if (focused.value) {
-        widgetManager.grabFocus(widget);
+        widgetManager.grabFocus(widget!);
       } else {
         // TODO unfocus the specific widget; necessary?
       }
     });
 
     onBeforeUnmount(() => {
-      widgetManager.removeWidget(widget);
+      const widgetManager = widgetManagerRef.value;
+      const widget = widgetRef.value;
+      widgetManager.removeWidget(widget!);
+    });
+
+    // --- visibility --- //
+
+    watch(
+      () => {
+        const rulerSlice = rulerRef.value.slice;
+        const curSlice = slice.value;
+        return !Number.isInteger(rulerSlice) || rulerSlice === curSlice;
+      },
+      (visible) => {
+        widgetRef.value!.setVisibility(visible);
+      }
+    );
+
+    onMounted(() => {
+      // hide handle visibility
+      widgetRef.value!.setHandleVisibility(false);
+      widgetManagerRef.value.renderWidgets();
     });
 
     return () => null;

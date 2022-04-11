@@ -3,12 +3,12 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { ImageMetadata } from '../storex/datasets-images';
 import { getLPSAxisFromDir, LPSAxisDir } from './lps';
 
-export function createPlaneManipulatorFor2DView(
+export function updatePlaneManipulatorFor2DView(
+  manipulator: vtkPlaneManipulator,
   viewDir: LPSAxisDir,
   slice: number,
   imageMetadata: ImageMetadata
 ) {
-  const manipulator = vtkPlaneManipulator.newInstance();
   const { lpsOrientation } = imageMetadata;
   const axis = lpsOrientation[getLPSAxisFromDir(viewDir)];
 
@@ -18,5 +18,14 @@ export function createPlaneManipulatorFor2DView(
 
   manipulator.setNormal(normal as Vector3);
   manipulator.setOrigin(origin as Vector3);
+}
+
+export function createPlaneManipulatorFor2DView(
+  viewDir: LPSAxisDir,
+  slice: number,
+  imageMetadata: ImageMetadata
+) {
+  const manipulator = vtkPlaneManipulator.newInstance();
+  updatePlaneManipulatorFor2DView(manipulator, viewDir, slice, imageMetadata);
   return manipulator;
 }

@@ -57,6 +57,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
           publicAPI.setSecondPoint(worldCoords);
           model.widgetState.setInteractionState(InteractionState.Settled);
         }
+        publicAPI.invokeInteractionEvent();
         return macro.EVENT_ABORT;
       }
     }
@@ -97,7 +98,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       if (worldCoords.length) {
         if (dragging) {
           dragging.setOrigin(worldCoords);
-          publicAPI.invokeInteractionEvent();
         } else if (intState === InteractionState.PlacingFirst) {
           model.widgetState.getFirstPoint().setVisible(true);
           publicAPI.setFirstPoint(worldCoords);
@@ -105,6 +105,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
           model.widgetState.getSecondPoint().setVisible(true);
           publicAPI.setSecondPoint(worldCoords);
         }
+        publicAPI.invokeInteractionEvent();
       }
 
       return macro.EVENT_ABORT;
