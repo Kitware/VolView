@@ -20,48 +20,12 @@
           app
           permanent
           clipped
-          :min-width="250"
-          :max-width="450"
-          :width="350"
+          :min-width="450"
+          :max-width="550"
+          :width="450"
           :handle-size="4"
         >
-          <div class="height-100 d-flex flex-column">
-            <div id="left-pane-outer">
-              <div id="left-pane">
-                <div id="module-switcher" class="mt-1 mb-2">
-                  <v-select
-                    v-model="selectedModule"
-                    outlined
-                    single-line
-                    hide-details
-                    :prepend-inner-icon="`mdi-${selectedModule.icon}`"
-                    :items="Modules"
-                    item-text="name"
-                    return-object
-                    class="no-select"
-                  >
-                    <template v-slot:item="{ item }">
-                      <v-icon v-if="item.icon" class="mr-1">
-                        mdi-{{ item.icon }}
-                      </v-icon>
-                      {{ item.name }}
-                    </template>
-                  </v-select>
-                </div>
-
-                <!-- Preserve component state of modules when switching between modules -->
-                <div id="module-container">
-                  <template v-for="mod in Modules">
-                    <component
-                      :key="mod.name"
-                      v-show="selectedModule === mod"
-                      :is="mod.component"
-                    />
-                  </template>
-                </div>
-              </div>
-            </div>
-          </div>
+          <module-panel/>
         </resizable-nav-drawer>
         <v-main id="content-wrapper">
           <div class="height-100 d-flex flex-row flex-grow-1 grey darken-3">
@@ -248,6 +212,7 @@ import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import PatientBrowser from '../componentsX/PatientBrowser.vue';
+import ModulePanel from './ModulePanel.vue';
 // import Annotations from './Annotations.vue';
 import VolumeRendering from '../componentsX/VolumeRendering.vue';
 // import MeasurementsModule from './MeasurementsModule.vue';
@@ -381,6 +346,7 @@ export default defineComponent({
     DragAndDrop,
     AboutBox,
     ToolStrip,
+    ModulePanel,
   },
 
   setup() {
@@ -588,34 +554,6 @@ export default defineComponent({
   height: 1px;
   border: none;
   border-top: 1px solid rgb(112, 112, 112);
-}
-
-#left-pane {
-  display: flex;
-  flex-flow: column;
-  min-width: 225px;
-  flex: 1;
-  overflow: auto;
-}
-
-#left-pane-outer {
-  display: flex;
-  overflow: auto;
-  flex: 2;
-  width: 100%;
-  flex-flow: column;
-  /* left-nav handle size is 4px */
-  padding: 0 4px 2px 2px;
-}
-
-#module-switcher {
-  flex: 0 2;
-}
-
-#module-container {
-  position: relative;
-  flex: 2;
-  overflow: auto;
 }
 
 .toolbar-button {
