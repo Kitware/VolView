@@ -20,6 +20,14 @@
         <zoom-tool :view-proxy="viewProxy" />
         <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
         <window-level-tool :view-id="viewID" :view-proxy="viewProxy" />
+        <ruler-tool
+          view-type="2D"
+          :view-id="viewID"
+          :widget-manager="widgetManager"
+          :view-direction="viewDirection"
+          :view-up="viewUp"
+          :view-proxy="viewProxy"
+        />
       </div>
       <view-overlay-grid class="overlay view-annotations">
         <template v-slot:top-middle>
@@ -69,6 +77,7 @@ import { vec3 } from 'gl-matrix';
 
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 
 import { useIDStore } from '@src/storex/id';
 import { useView2DStore } from '@src/storex/views-2D';
@@ -89,6 +98,7 @@ import WindowLevelTool from '../components/tools/WindowLevelTool.vue';
 import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
 import PanTool from '../components/tools/PanTool.vue';
 import ZoomTool from '../components/tools/ZoomTool.vue';
+import RulerTool from '../components/tools/RulerTool.vue';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -109,6 +119,7 @@ export default defineComponent({
     SliceScrollTool,
     PanTool,
     ZoomTool,
+    RulerTool,
   },
   setup(props) {
     const idStore = useIDStore();
@@ -186,6 +197,13 @@ export default defineComponent({
 
     useResizeObserver(vtkContainerRef, () => viewProxy.resize());
 
+    // --- widget manager --- //
+
+    const widgetManager = vtkWidgetManager.newInstance({
+      useSvgLayer: false,
+    });
+    widgetManager.setRenderer(viewProxy.getRenderer());
+
     // --- resetting slice properties --- //
 
     watch(
@@ -249,14 +267,14 @@ export default defineComponent({
       // update the current image
       if (curImageID.value && curImageID.value in dataToProxyID) {
         const proxyID = dataToProxyID[curImageID.value];
-        const sourceProxy = proxyManager.getProxyById<
-          vtkSourceProxy<vtkImageData>
-        >(proxyID);
+        const sourceProxy =
+          proxyManager.getProxyById<vtkSourceProxy<vtkImageData>>(proxyID);
         if (sourceProxy) {
-          const rep = proxyManager.getRepresentation<vtkIJKSliceRepresentationProxy>(
-            sourceProxy,
-            viewProxy
-          );
+          const rep =
+            proxyManager.getRepresentation<vtkIJKSliceRepresentationProxy>(
+              sourceProxy,
+              viewProxy
+            );
           if (rep) {
             viewProxy.addRepresentation(rep);
             currentImageRepRef.value = rep;
@@ -278,11 +296,8 @@ export default defineComponent({
       viewUp,
       curImageMetadata
     );
-    const {
-      resizeToFit,
-      ignoreResizeToFitTracking,
-      resetResizeToFitTracking,
-    } = useResizeToFit(viewProxy.getCamera(), false);
+    const { resizeToFit, ignoreResizeToFitTracking, resetResizeToFitTracking } =
+      useResizeToFit(viewProxy.getCamera(), false);
 
     const resizeToFitScene = () =>
       ignoreResizeToFitTracking(() => {
@@ -372,6 +387,7 @@ export default defineComponent({
       vtkContainerRef,
       viewID,
       viewProxy,
+      viewAxis,
       active: true,
       slice: currentSlice,
       sliceMin,
@@ -382,6 +398,7 @@ export default defineComponent({
       leftLabel,
       isImageLoading,
       setSlice: (slice: number) => view2DStore.setSlice(viewID, slice),
+      widgetManager,
     };
   },
 });

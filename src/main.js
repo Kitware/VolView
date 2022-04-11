@@ -20,6 +20,8 @@ import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
 import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
+import { ToolManagerPiniaPlugin, provideToolManagers } from './tools/provider';
+import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
 
 Vue.config.productionTip = false;
 
@@ -61,9 +63,14 @@ const dependencies = {
 const store = createStore(dependencies);
 const widgetProvider = new WidgetProvider(store);
 
-const pinia = createPinia();
+const toolManagers = provideToolManagers();
 
-new Vue({
+const pinia = createPinia();
+pinia.use(ToolManagerPiniaPlugin(toolManagers));
+
+toolManagers.ruler.events.on('widgetUpdate', updateRulerFromWidgetStateEvent);
+
+const app = new Vue({
   store,
   vuetify,
   proxyManager,
@@ -74,4 +81,6 @@ new Vue({
     Store: store,
   },
   render: (h) => h(App),
-}).$mount('#app');
+});
+
+app.$mount('#app');

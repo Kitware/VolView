@@ -34,7 +34,7 @@ export interface LPSDirections {
   Superior: vec3;
   Inferior: vec3;
 
-  // maps LPS axis to
+  // maps LPS axis to column in direction matrix
   Coronal: number;
   Sagittal: number;
   Axial: number;

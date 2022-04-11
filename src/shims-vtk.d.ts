@@ -4,6 +4,12 @@ declare module '@kitware/vtk.js/vtk' {
   export default (obj: any): vtkObject => {};
 }
 
+declare module '@kitware/vtk.js/interfaces-additions' {
+  import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
+  export type EventHandler = (...any: args[]) => EVENT_ABORT | VOID | void;
+  export type vtkBounds = [number, number, number, number, number, number];
+}
+
 // This is replicated in vtk-types. I'm keeping this here for the types in this shim file.
 declare module '@kitware/vtk.js/types/ProxyObject' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
@@ -352,7 +358,7 @@ declare module '@kitware/vtk.js/Proxy/Core/LookupTableProxy' {
   }
 
   export interface ILookupTableProxyInitialValues {
-    lookupTable: vtkColorTransferFunction;
+    lookupTable?: vtkColorTransferFunction;
   }
 
   export function newInstance(
@@ -417,7 +423,7 @@ declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
   }
 
   export interface IPiecewiseFunctionProxyInitialValues {
-    piecewiseFunction: vtkPiecewiseFunction;
+    piecewiseFunction?: vtkPiecewiseFunction;
   }
 
   export function newInstance(
@@ -632,4 +638,291 @@ declare module '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps' 
     rgbPresetNames: string[];
   };
   export default vtkColorMaps;
+}
+
+declare module '@kitware/vtk.js/Widgets/Core/WidgetState' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+
+  export interface vtkWidgetState extends vtkObject {
+    setActive(active: boolean): boolean;
+    getActive(): boolean;
+    bindState(subState: vtkWidgetState, labels?: string | string[]): void;
+    unbindState(subState: vtkWidgetState): void;
+    unbindAll(): void;
+    activate(): void;
+    deactivate(excludingState?: vtkWidgetState): void;
+    activateOnly(subState: vtkWidgetState): void;
+    getStatesWithLabel(label: string): vtkWidgetState[];
+    getAllNestedStates(): vtkWidgetState[];
+  }
+
+  export default vtkWidgetState;
+}
+
+declare module '@kitware/vtk.js/Rendering/Core/InteractorObserver' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+  import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
+  import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
+  import { Vector3 } from '@kitware/vtk.js/types';
+  import { EventHandler } from '@kitware/vtk.js/interfaces-additions';
+
+  export interface vtkInteractorObserver extends vtkObject {
+    invokeInteractionEvent(...args: any[]): void;
+    onInteractionEvent(cb: EventHandler, priority?: number): void;
+    invokeStartInteractionEvent(...args: any[]): void;
+    onStartInteractionEvent(cb: EventHandler, priority?: number): void;
+    invokeEndInteractionEvent(...args: any[]): void;
+    onEndInteractionEvent(cb: EventHandler, priority?: number): void;
+
+    getInteractor(): vtkRenderWindowInteractor;
+    getEnabled(): boolean;
+    setPriority(priority: number): void;
+    getPriority(): number;
+    setProcessEvents(processEvents: boolean): boolean;
+    getProcessEvents(): boolean;
+
+    setInteractor(int: vtkRenderWindowInteractor): void;
+    setEnabled(enable: boolean): void;
+    computeWorldToDisplay(
+      renderer: vtkRenderer,
+      x: number,
+      y: number,
+      z: number
+    ): Vector3;
+    computeDisplayToWorld(
+      renderer: vtkRenderer,
+      x: number,
+      y: number,
+      z: number
+    ): Vector3;
+  }
+
+  export default vtkInteractorObserver;
+}
+
+declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+  import vtkProp from '@kitware/vtk.js/Rendering/Core/Prop';
+  import vtkWidgetRepresentation from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation';
+  import vtkInteractorObserver from '@kitware/vtk.js/Rendering/Core/InteractorObserver';
+  import vtkWidgetManager, {
+    RenderingTypes,
+  } from '@kitware/vtk.js/Widgets/Core/WidgetManager';
+  import { EventHandler } from '@kitware/vtk.js/interfaces-additions';
+
+  export interface vtkAbstractWidget extends vtkProp, vtkInteractorObserver {
+    getBounds(): vtkBounds;
+    getNestedProps(): vtkWidgetRepresentation[];
+    activateHandle(locator: {
+      selectedState: vtkWidgetState;
+      representation: vtkWidgetRepresentation;
+    }): void;
+    deactivateAllHandles(): void;
+    hasActor(actor: vtkProp): boolean;
+    grabFocus(): void;
+    loseFocus(): void;
+    hasFocus(): boolean;
+    placeWidget(bounds: vtkBounds): void;
+    getPlaceFactor(): number;
+    setPlaceFactor(factor: number): void;
+    getRepresentationFromActor(actor: vtkProp): vtkWidgetRepresentation;
+    updateRepresentationForRender(renderingType: RenderingTypes): void;
+    getViewWidgets(): vtkAbstractWidget[];
+    setContextVisibility(visible: boolean): boolean;
+    getContextVisibility(): boolean;
+    setHandleVisibility(visible: boolean): boolean;
+    getHandleVisibility(): boolean;
+    setWidgetManager(wm: vtkWidgetManager): boolean;
+    getWidgetManager(): vtkWidgetManager;
+    getRepresentations(): vtkWidgetRepresentation[];
+    getWidgetState(): vtkWidgetState;
+    onActivateHandle(cb: EventHandler, priority?: number): void;
+    invokeActivateHandle(...args: any[]): void;
+  }
+
+  export default vtkAbstractWidget;
+}
+
+declare module '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+  import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
+  import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
+  import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager';
+  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+
+  export interface vtkAbstractWidgetFactory extends vtkObject {
+    getWidgetForView(locator: {
+      viewId: string;
+      renderer: vtkRenderer;
+      viewType: ViewTypes;
+      initialValues?: object;
+    }): vtkAbstractWidget | null;
+    getViewIds(): string[];
+    setVisibility(visible: boolean): void;
+    setPickable(pickable: boolean): void;
+    setDragable(dragable: boolean): void;
+    setContextVisibility(visible: boolean): void;
+    setHandleVisibility(visible: boolean): void;
+    placeWidget(bounds: vtkBounds);
+    getPlaceFactor(): number;
+    setPlaceFactor(factor: number): void;
+    getWidgetState(): vtkWidgetState;
+    invokeWidgetChangeEvent(...args: any[]): void;
+    onWidgetChangeEvent(cb: EventHandler, priority?: number): void;
+  }
+
+  export interface IAbstractWidgetFactoryInitialValues {
+    widgetState?: vtkWidgetState;
+  }
+
+  export function extend(
+    publicAPI: object,
+    model: object,
+    initialValues?: IAbstractWidgetFactoryInitialValues
+  );
+
+  export function newInstance(
+    initialValues?: IAbstractWidgetFactoryInitialValues
+  ): vtkAbstractWidgetFactory;
+
+  export declare const vtkAbstractWidgetFactory: {
+    extend: typeof extend;
+  };
+  export default vtkAbstractWidgetFactory;
+}
+
+declare module '@kitware/vtk.js/Widgets/Core/WidgetManager' {
+  import { vtkObject } from '@kitware/vtk.js/interfaces';
+  import vtkSelectionNode from '@kitware/vtk.js/Common/DataModel/SelectionNode';
+  import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
+  import vtkProp from '@kitware/vtk.js/Rendering/Core/Prop';
+  import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
+  import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
+  import vtkWidgetRepresentation from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation';
+
+  export enum RenderingTypes {
+    PICKING_BUFFER = 0,
+    FRONT_BUFFER = 1,
+  }
+
+  export enum CaptureOn {
+    MOUSE_MOVE = 0,
+    MOUSE_RELEASE = 1,
+  }
+
+  export enum ViewTypes {
+    DEFAULT = 0,
+    GEOMETRY = 1,
+    SLICE = 2,
+    VOLUME = 3,
+    YZ_PLANE = 4, // Sagittal
+    XZ_PLANE = 5, // Coronal
+    XY_PLANE = 6, // Axial
+  }
+
+  export interface SelectedData {
+    requestCount: number;
+    propID: number;
+    compositeID: number;
+    prop: vtkProp;
+    widget: vtkAbstractWidget;
+    representation: vtkWidgetRepresentation;
+    selectedState: vtkWidgetState;
+  }
+
+  export interface vtkWidgetManager extends vtkObject {
+    setCaptureOn(cap: CaptureOn): boolean;
+    getCaptureOn(): CaptureOn;
+    setViewType(type: ViewTypes): boolean;
+    getViewType(): ViewTypes;
+    getSelections(): vtkSelectionNode[];
+    getWidgets(): vtkAbstractWidget[];
+    getViewId(): string;
+    getPickingEnabled(): boolean;
+    /**
+     * @deprecated
+     */
+    getUseSvgLayer(): boolean;
+    /**
+     * @deprecated
+     */
+    setUseSvgLayer(use: boolean): boolean;
+
+    enablePicking(): void;
+    renderWidgets(): void;
+    disablePicking(): void;
+    setRenderer(ren: vtkRenderer): void;
+    addWidget(
+      widget: vtkAbstractWidgetFactory,
+      viewType?: ViewTypes,
+      initialValues?: object
+    ): vtkAbstractWidget | null;
+    removeWidgets(): void;
+    removeWidget(widget: vtkAbstractWidget | vtkAbstractWidgetFactory): void;
+    getSelectedDataForXY(x: number, y: number): Promise<SelectedData>;
+    updateSelectionFromXY(x: number, y: number): void;
+    updateSelectionFromMouseEvent(event: MouseEvent): void;
+    getSelectedData(): SelectedData | {};
+    grabFocus(widget: vtkAbstractWidget | vtkAbstractWidgetFactory): void;
+    releaseFocus(): void;
+  }
+
+  export interface IWidgetManagerInitialValues {
+    captureOn?: CaptureOn;
+    viewType?: ViewTypes;
+    pickingEnabled?: boolean;
+    /**
+     * @deprecated
+     */
+    useSvgLayer?: boolean;
+  }
+
+  export function extend(
+    publicAPI: object,
+    model: object,
+    initialValues?: IWidgetManagerInitialValues
+  ): vtkWidgetManager;
+
+  export function newInstance(
+    initialValues?: IWidgetManagerInitialValues
+  ): vtkWidgetManager;
+
+  export declare const vtkWidgetManager: {
+    newInstance: typeof newInstance;
+    extend: typeof extend;
+  };
+  export default vtkWidgetManager;
+}
+
+declare module '@kitware/vtk.js/Widgets/Core/StateBuilder' {
+  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+
+  export interface StateBuilder {
+    addDynamicMixinState(buildInfo: {
+      labels: string[];
+      mixins: string[];
+      name: string;
+      initialValues?: object;
+    }): StateBuilder;
+    addStateFromMixin(buildInfo: {
+      labels: string[];
+      mixins: string[];
+      name: string;
+      initialValues?: object;
+    }): StateBuilder;
+    addStateFromInstance(stateInfo: {
+      labels: string[];
+      name: string;
+      instance: vtkWidgetState;
+    });
+    addField(field: { name: string; initialValue: any });
+    build(...mixins: string[]): vtkWidgetState;
+  }
+
+  export function createBuilder(): StateBuilder;
+
+  export declare const vtkStateBuilder: {
+    createBuilder: typeof createBuilder;
+  };
 }
