@@ -38,6 +38,14 @@ export const SAMPLE_DATA = [
       'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
     image: '',
   },
+  {
+    name: 'ABDOMEN-MRI',
+    filename: 'ABDOMEN-MRI.zip',
+    description: '',
+    url:
+      'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
+    image: '',
+  },
 ];
 
 export type Sample = typeof SAMPLE_DATA[0];
