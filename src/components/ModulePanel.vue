@@ -4,7 +4,6 @@
         <v-tabs
           v-model="selectedModuleIndex"
           icons-and-text
-          show-arrows
         >
           <v-tab
             v-for="item in Modules"
