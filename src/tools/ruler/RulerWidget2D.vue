@@ -57,7 +57,7 @@ export default defineComponent({
     } = toRefs(props);
     const rulerStore = useRulerToolStore();
     const factoryRef = computed(() =>
-      rulerStore.$toolManagers.ruler.getFactory(rulerIDRef.value)
+      rulerStore.$tools.ruler.getFactory(rulerIDRef.value)
     );
     const widgetRef = ref<vtkRulerViewWidget | null>(null);
     const rulerRef = computed(() => rulerStore.rulers[rulerIDRef.value]);

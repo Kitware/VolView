@@ -15,6 +15,6 @@ export function ToolManagerPiniaPlugin(
   toolManagers?: ReturnType<typeof provideToolManagers>
 ) {
   return () => ({
-    $toolManagers: toolManagers ?? provideToolManagers(),
+    $tools: toolManagers ?? provideToolManagers(),
   });
 }

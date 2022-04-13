@@ -99,7 +99,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
       set(this.rulers, id, emptyRulerTool());
       this.rulerIDs.push(id);
 
-      this.$toolManagers.ruler.createRuler(id);
+      this.$tools.ruler.createRuler(id);
       // triggers a sync from store to widget state
       this.updateRuler(id, ruler);
 
@@ -107,7 +107,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
     },
     removeRuler(id: string) {
       this.deactivateRuler(id);
-      this.$toolManagers.ruler.removeRuler(id);
+      this.$tools.ruler.removeRuler(id);
       removeFromArray(this.rulerIDs, id);
       del(this.rulers, id);
     },
@@ -136,7 +136,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
             secondPoint: ruler.secondPoint,
             interactionState: ruler.interactionState,
           };
-          this.$toolManagers.ruler.updateRuler(id, update);
+          this.$tools.ruler.updateRuler(id, update);
         }
       }
     },
