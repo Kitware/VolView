@@ -46,7 +46,9 @@ export type RulerToolManagerEvents = {
 
 export default class RulerToolManager {
   private listeners: Map<string, Function>;
+
   private factories: Map<string, vtkRulerWidget>;
+
   public events: Emitter<RulerToolManagerEvents>;
 
   constructor() {
@@ -68,22 +70,6 @@ export default class RulerToolManager {
       id,
       this.createStoreUpdater(id, factory.getWidgetState())
     );
-
-    /*
-    if (initialState) {
-      const state = factory.getWidgetState();
-      const firstPoint = [...initialState.firstPoint] as Vector3;
-      const secondPoint = [...initialState.secondPoint] as Vector3;
-
-      const { indexToWorld } = initialState.imageMetadata;
-      vec3.transformMat4(firstPoint, firstPoint, indexToWorld);
-      vec3.transformMat4(secondPoint, firstPoint, indexToWorld);
-
-      state.getFirstPoint().setOrigin(firstPoint);
-      state.getFirstPoint().setOrigin(secondPoint);
-      state.setInteractionState(InteractionState.Settled);
-    }
-    */
 
     this.factories.set(id, factory);
     return factory;
