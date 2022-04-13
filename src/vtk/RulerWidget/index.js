@@ -26,10 +26,6 @@ function vtkRulerWidget(publicAPI, model) {
   //   'textStateIndex',
   // ];
 
-  // TODO move these into the abstract widget factory constructor
-  model.behavior = widgetBehavior;
-  model.widgetState = stateGenerator();
-
   publicAPI.getRepresentationsForViewType = () => [
     {
       builder: vtkSphereHandleRepresentation,
@@ -62,7 +58,11 @@ const DEFAULT_VALUES = {};
 export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
-  vtkAbstractWidgetFactory.extend(publicAPI, model, initialValues);
+  vtkAbstractWidgetFactory.extend(publicAPI, model, {
+    ...initialValues,
+    behavior: widgetBehavior,
+    widgetState: stateGenerator(),
+  });
   macro.get(publicAPI, model, ['manipulator']);
 
   vtkRulerWidget(publicAPI, model);
