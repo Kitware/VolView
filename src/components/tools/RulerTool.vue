@@ -7,6 +7,7 @@
         v-show="currentSlice === ruler.slice"
         :point1="ruler.firstPointDisplay"
         :point2="ruler.secondPointDisplay"
+        :length="ruler.length"
       />
     </svg>
     <div>
@@ -104,37 +105,40 @@ export default defineComponent({
     };
 
     const startNewRuler = (eventData: any) => {
-      if (activeRulerID.value) {
+      if (activeRulerID.value || !currentImageID.value) {
         return;
       }
-      if (currentImageID.value) {
-        const id = rulerStore.addNewRuler({
-          name: 'Ruler',
+
+      const id = rulerStore.addNewRuler({
+        name: 'Ruler',
+        imageID: currentImageID.value,
+      });
+      const manipulator = createPlaneManipulatorFor2DView(
+        viewDirection.value,
+        currentSlice.value,
+        currentImageMetadata.value
+      );
+      const coords = manipulator.handleEvent(
+        eventData,
+        viewProxy.getOpenglRenderWindow()
+      );
+      if (coords.length) {
+        rulerStore.updateRuler(id, {
+          firstPoint: coords as Vector3,
+          slice: currentSlice.value,
           imageID: currentImageID.value,
+          viewAxis: viewAxis.value,
+          interactionState: InteractionState.PlacingSecond,
         });
-        const manipulator = createPlaneManipulatorFor2DView(
-          viewDirection.value,
-          currentSlice.value,
-          currentImageMetadata.value
-        );
-        const coords = manipulator.handleEvent(
-          eventData,
-          viewProxy.getOpenglRenderWindow()
-        );
-        if (coords.length) {
-          rulerStore.updateRuler(id, {
-            firstPoint: coords as Vector3,
-            slice: currentSlice.value,
-            imageID: currentImageID.value,
-            viewAxis: viewAxis.value,
-            interactionState: InteractionState.PlacingSecond,
-          });
-        }
-        rulerStore.activateRuler(id);
       }
+      rulerStore.activateRuler(id);
     };
 
-    manageVTKSubscription(interactor.onMouseMove(() => {}));
+    // We don't create a ruler until we receive a click, so
+    // the button press listener must be here rather than in
+    // the widget itself.
+    // We may support configuring which mouse button triggers this tool
+    // in the future.
     manageVTKSubscription(interactor.onLeftButtonPress(startNewRuler));
 
     // delete active ruler if slice changes
@@ -150,6 +154,7 @@ export default defineComponent({
       const isToolActive = active.value;
       const curViewAxis = viewAxis.value;
       const curActiveRulerID = activeRulerID.value;
+      const lengthByID = rulerStore.lengths;
 
       return rulerStore.rulerIDs
         .map((id) => ({ id, ruler: rulerByID[id] }))
@@ -172,6 +177,7 @@ export default defineComponent({
               ? worldToSVG(ruler.secondPoint, renderer)
               : null,
             slice: ruler.slice,
+            length: lengthByID[id],
             focused: isToolActive && curActiveRulerID === id,
           };
         });
