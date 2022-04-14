@@ -35,19 +35,19 @@ async function itkReader(file: File) {
 /**
  * A map of the currently registered file readers.
  */
-export const fileReaders: FileReaderMap = new Map();
+export const FILE_READERS: FileReaderMap = new Map();
 
 /**
  * Resets the file reader map to the default values.
  */
 export function resetToDefaultReaders() {
-  fileReaders.clear();
-  fileReaders.set('vti', vtiReader);
-  fileReaders.set('vtp', vtpReader);
-  fileReaders.set('stl', stlReader);
+  FILE_READERS.clear();
+  FILE_READERS.set('vti', vtiReader);
+  FILE_READERS.set('vtp', vtpReader);
+  FILE_READERS.set('stl', stlReader);
 
   ITK_IMAGE_EXTENSIONS.forEach((ext) => {
-    fileReaders.set(ext, itkReader);
+    FILE_READERS.set(ext, itkReader);
   });
 }
 

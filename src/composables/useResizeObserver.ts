@@ -4,7 +4,7 @@ import { onBeforeUnmount, Ref, unref, watch } from '@vue/composition-api';
  * Invokes a callback whenever an element is resized.
  */
 export function useResizeObserver(
-  targetElRef: Ref<HTMLElement | null | undefined>,
+  targetElRef: Ref<Element | null | undefined>,
   callback: (entry: ResizeObserverEntry) => void
 ) {
   const observer = new ResizeObserver((entries) => {
