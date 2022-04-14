@@ -37,7 +37,7 @@ export interface RulerStateUpdate {
   interactionState?: InteractionState;
 }
 
-export type RulerToolManagerEvents = {
+type RulerToolManagerEvents = {
   widgetUpdate: {
     id: string;
     update: RulerStateUpdate;
@@ -57,13 +57,21 @@ export default class RulerToolManager {
     this.events = mitt();
   }
 
+  teardown() {
+    this.events.all.clear();
+    this.listeners.forEach((stop) => stop());
+    this.factories.forEach((factory) => factory.delete());
+    this.listeners.clear();
+    this.factories.clear();
+  }
+
   getFactory(id: string) {
     return this.factories.get(id) ?? null;
   }
 
-  createRuler(id: string) {
+  createRuler(id: string): vtkRulerWidget {
     if (this.factories.has(id)) {
-      return this.factories.get(id);
+      return this.factories.get(id)!;
     }
     const factory = vtkRulerWidget.newInstance();
     this.listeners.set(
@@ -88,7 +96,7 @@ export default class RulerToolManager {
     }
   }
 
-  createStoreUpdater(id: string, state: RulerWidgetState) {
+  private createStoreUpdater(id: string, state: RulerWidgetState) {
     const sub = state.onModified(() => {
       const update: RulerStateUpdate = {
         firstPoint: state.getFirstPoint().getOrigin(),
@@ -119,25 +127,9 @@ export default class RulerToolManager {
         second.setOrigin(update.secondPoint);
         second.setVisible(true);
       }
-      if (update.interactionState) {
-        state.setInteractionState(update.interactionState);
+      if (Number.isInteger(update.interactionState)) {
+        state.setInteractionState(update.interactionState!);
       }
-    }
-  }
-
-  setFirstPoint(id: string, point: Vector3) {
-    const factory = this.factories.get(id);
-    if (factory) {
-      const state = factory.getWidgetState();
-      state.getFirstPoint().setOrigin(point);
-    }
-  }
-
-  setSecondPoint(id: string, point: Vector3) {
-    const factory = this.factories.get(id);
-    if (factory) {
-      const state = factory.getWidgetState();
-      state.getSecondPoint().setOrigin(point);
     }
   }
 }
