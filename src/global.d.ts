@@ -1,5 +1,5 @@
 import 'pinia';
-import { ToolManagers } from './tools/provider';
+import { ToolManagers } from './core/tools/provider';
 
 declare module 'pinia' {
   export interface PiniaCustomProperties {

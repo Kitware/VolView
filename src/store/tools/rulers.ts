@@ -2,7 +2,7 @@ import { del, set } from '@vue/composition-api';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { removeFromArray } from '@/src/utils';
-import { RulerStateUpdate } from '@/src/tools/ruler';
+import { RulerStateUpdate } from '@/src/core/tools/ruler';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { LPSAxis } from '../../utils/lps';

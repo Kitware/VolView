@@ -20,7 +20,10 @@ import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
 import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
-import { ToolManagerPiniaPlugin, provideToolManagers } from './tools/provider';
+import {
+  ToolManagerPiniaPlugin,
+  provideToolManagers,
+} from './core/tools/provider';
 import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
 
 Vue.config.productionTip = false;
