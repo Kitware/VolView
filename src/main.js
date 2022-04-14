@@ -20,11 +20,8 @@ import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
 import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
-import {
-  ToolManagerPiniaPlugin,
-  provideToolManagers,
-} from './core/tools/provider';
 import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
+import { provideToolManagers, CorePiniaProviderPlugin } from './core/provider';
 
 Vue.config.productionTip = false;
 
@@ -69,7 +66,11 @@ const widgetProvider = new WidgetProvider(store);
 const toolManagers = provideToolManagers();
 
 const pinia = createPinia();
-pinia.use(ToolManagerPiniaPlugin(toolManagers));
+pinia.use(
+  CorePiniaProviderPlugin({
+    toolManagers,
+  })
+);
 
 toolManagers.ruler.events.on('widgetUpdate', updateRulerFromWidgetStateEvent);
 
