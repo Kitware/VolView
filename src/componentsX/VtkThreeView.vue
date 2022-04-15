@@ -38,16 +38,11 @@ import {
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 
-import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 
-import { useIDStore } from '@src/storex/id';
 import { useView3DStore } from '@src/storex/views-3D';
-import { useVTKProxyStore } from '@src/storex/vtk-proxy';
 import { useProxyManager } from '@/src/composables/proxyManager';
-import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/componentsX/ViewOverlayGrid.vue';
@@ -55,6 +50,8 @@ import { useResizeObserver } from '../composables/useResizeObserver';
 import { LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
+import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
+import { useViewStore } from '../storex/views';
 
 export default defineComponent({
   props: {
@@ -72,9 +69,8 @@ export default defineComponent({
     ViewOverlayGrid,
   },
   setup(props) {
-    const idStore = useIDStore();
+    const viewStore = useViewStore();
     const view3DStore = useView3DStore();
-    const proxyStore = useVTKProxyStore();
     const proxyManager = useProxyManager()!;
 
     const { viewDirection, viewUp } = toRefs(props);
@@ -82,9 +78,11 @@ export default defineComponent({
     const vtkContainerRef = ref<HTMLElement>();
     const currentRepRef = ref<vtkVolumeRepresentationProxy | null>();
 
-    // --- view store --- //
+    // --- view creation --- //
 
-    const viewID = idStore.getNextID();
+    // TODO changing the viewDirection prop is not supported at this time.
+    const { id: viewID, proxy: viewProxy } =
+      view3DStore.createView<vtkLPSView3DProxy>();
 
     // --- computed vars --- //
 
@@ -102,16 +100,6 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const viewProxy = proxyManager.createProxy<vtkLPSView2DProxy>(
-      'Views',
-      'View3D',
-      {
-        name: `View3D_${viewID}`,
-      }
-    );
-
-    proxyStore.addView(viewID, viewProxy.getProxyId());
-
     onMounted(() => {
       viewProxy.setOrientationAxesVisibility(true);
       viewProxy.setOrientationAxesType('cube');
@@ -121,8 +109,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       viewProxy.setContainer(null);
-      proxyStore.removeView(viewID);
-      proxyManager.deleteProxy(viewProxy);
+      view3DStore.removeView(viewID);
     });
 
     useResizeObserver(vtkContainerRef, () => viewProxy.resize());
@@ -130,8 +117,6 @@ export default defineComponent({
     // --- scene setup --- //
 
     watchEffect(() => {
-      const { dataToProxyID } = proxyStore;
-
       viewProxy.removeAllRepresentations();
       // Nullify image representation ref.
       // Helps re-trigger setting of the rendering properties by
@@ -142,20 +127,15 @@ export default defineComponent({
       currentRepRef.value = null;
 
       // update the current image
-      if (curImageID.value && curImageID.value in dataToProxyID) {
-        const proxyID = dataToProxyID[curImageID.value];
-        const sourceProxy = proxyManager.getProxyById<
-          vtkSourceProxy<vtkImageData>
-        >(proxyID);
-        if (sourceProxy) {
-          const rep = proxyManager.getRepresentation<vtkVolumeRepresentationProxy>(
-            sourceProxy,
-            viewProxy
-          );
-          if (rep) {
-            viewProxy.addRepresentation(rep);
-            currentRepRef.value = rep;
-          }
+      // update the current image
+      if (curImageID.value) {
+        const rep = viewStore.getDataRepresentationForView(
+          curImageID.value,
+          viewID
+        ) as vtkVolumeRepresentationProxy;
+        if (rep) {
+          viewProxy.addRepresentation(rep);
+          currentRepRef.value = rep;
         }
       }
 

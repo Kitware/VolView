@@ -37,6 +37,13 @@ export const useViewStore = defineStore('view', {
       items: [],
     },
   }),
+  getters: {
+    getDataRepresentationForView() {
+      return (dataID: string, viewID: string) => {
+        return this.$proxies.getDataRepresentationForView(dataID, viewID);
+      };
+    },
+  },
   actions: {
     setLayout(layout: Layout) {
       this.layout = layout;

@@ -1,8 +1,11 @@
 import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 
+import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { clampValue } from '@src/utils';
-import { LPSAxis } from '@src/utils/lps';
+import { getLPSAxisFromDir, LPSAxis, LPSAxisDir } from '@src/utils/lps';
+import { useIDStore } from './id';
+import { ViewProxyType } from '../core/proxies';
 
 export interface SliceConfig {
   slice: number;
@@ -15,6 +18,11 @@ export interface WindowLevelConfig {
   level: number;
   min: number; // data range min
   max: number; // data range max
+}
+
+export interface ViewConfig {
+  direction: LPSAxisDir;
+  axis: LPSAxis;
 }
 
 export const defaultSliceConfig = (): SliceConfig => ({
@@ -30,8 +38,14 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   max: 1,
 });
 
+const AXIS_TO_SLICEVIEW: Record<LPSAxis, ViewProxyType> = {
+  Axial: ViewProxyType.Axial,
+  Sagittal: ViewProxyType.Sagittal,
+  Coronal: ViewProxyType.Coronal,
+};
+
 interface State {
-  viewAxis: Record<string, LPSAxis>;
+  viewConfigs: Record<string, ViewConfig>;
   sliceConfigs: Record<string, SliceConfig>;
   wlConfigs: Record<string, WindowLevelConfig>;
   // removes the necessity to have links in proxy.js
@@ -42,51 +56,53 @@ interface State {
 
 export const useView2DStore = defineStore('view2D', {
   state: (): State => ({
-    viewAxis: {},
+    viewConfigs: {},
     sliceConfigs: {},
     wlConfigs: {},
     syncSlices: true,
     syncWindowing: true,
   }),
   actions: {
-    addView(
-      id: string,
-      axis: LPSAxis,
+    createView<T extends vtkViewProxy>(
+      viewDirection: LPSAxisDir,
       sliceDomain?: [number, number],
       wlDomain?: [number, number]
     ) {
-      if (
-        !(id in this.viewAxis) &&
-        !(id in this.sliceConfigs) &&
-        !(id in this.wlConfigs)
-      ) {
-        set<LPSAxis>(this.viewAxis, id, axis);
+      const idStore = useIDStore();
+      const id = idStore.getNextID();
+      const axis = getLPSAxisFromDir(viewDirection);
 
-        const sliceRange = sliceDomain ?? [0, 1];
-        set<SliceConfig>(this.sliceConfigs, id, {
-          slice: Math.floor((sliceRange[0] + sliceRange[1]) / 2),
-          min: sliceRange[0],
-          max: sliceRange[1],
-        });
+      set<ViewConfig>(this.viewConfigs, id, {
+        direction: viewDirection,
+        axis,
+      });
 
-        const wlRange = wlDomain ?? [0, 1];
-        set<WindowLevelConfig>(this.wlConfigs, id, {
-          width: wlRange[1] - wlRange[0],
-          level: (wlRange[0] + wlRange[1]) / 2,
-          min: wlRange[0],
-          max: wlRange[1],
-        });
-      }
+      const sliceRange = sliceDomain ?? [0, 1];
+      set<SliceConfig>(this.sliceConfigs, id, {
+        slice: Math.floor((sliceRange[0] + sliceRange[1]) / 2),
+        min: sliceRange[0],
+        max: sliceRange[1],
+      });
+
+      const wlRange = wlDomain ?? [0, 1];
+      set<WindowLevelConfig>(this.wlConfigs, id, {
+        width: wlRange[1] - wlRange[0],
+        level: (wlRange[0] + wlRange[1]) / 2,
+        min: wlRange[0],
+        max: wlRange[1],
+      });
+
+      return {
+        id,
+        proxy: <T>this.$proxies.createView(id, AXIS_TO_SLICEVIEW[axis]),
+      };
     },
     removeView(id: string) {
-      if (
-        id in this.viewAxis &&
-        id in this.sliceConfigs &&
-        id in this.wlConfigs
-      ) {
-        del(this.viewAxis, id);
+      if (id in this.sliceConfigs && id in this.wlConfigs) {
+        del(this.viewConfigs, id);
         del(this.sliceConfigs, id);
         del(this.wlConfigs, id);
+        this.$proxies.removeView(id);
       }
     },
     setSlice(id: string, slice: number) {
@@ -95,12 +111,12 @@ export const useView2DStore = defineStore('view2D', {
           ? Object.keys(this.sliceConfigs)
           : [id];
 
-        const axis = this.viewAxis[id];
+        const { axis } = this.viewConfigs[id];
 
         // sync slices across all views that share the same dataset and axis.
         // Right now, all views share the same dataset by way of primarySelection.
         viewsToUpdate.forEach((viewID) => {
-          if (this.viewAxis[viewID] === axis) {
+          if (this.viewConfigs[viewID].axis === axis) {
             const config = this.sliceConfigs[viewID];
             const { min, max } = config;
             config.slice = clampValue(slice, min, max);

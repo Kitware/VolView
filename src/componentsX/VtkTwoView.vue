@@ -75,14 +75,9 @@ import {
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 
-import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 
-import { useIDStore } from '@src/storex/id';
 import { useView2DStore } from '@src/storex/views-2D';
-import { useVTKProxyStore } from '@src/storex/vtk-proxy';
-import { useProxyManager } from '@/src/composables/proxyManager';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
@@ -99,6 +94,7 @@ import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
 import PanTool from '../components/tools/PanTool.vue';
 import ZoomTool from '../components/tools/ZoomTool.vue';
 import RulerTool from '../components/tools/RulerTool.vue';
+import { useViewStore } from '../storex/views';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -122,10 +118,8 @@ export default defineComponent({
     RulerTool,
   },
   setup(props) {
-    const idStore = useIDStore();
+    const viewStore = useViewStore();
     const view2DStore = useView2DStore();
-    const proxyStore = useVTKProxyStore();
-    const proxyManager = useProxyManager()!;
 
     const { viewDirection, viewUp } = toRefs(props);
 
@@ -134,14 +128,11 @@ export default defineComponent({
 
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    // --- view store --- //
+    // --- view creation --- //
 
-    const viewID = idStore.getNextID();
-
-    view2DStore.addView(viewID, viewAxis.value);
-    onBeforeUnmount(() => {
-      view2DStore.removeView(viewID);
-    });
+    // TODO changing the viewDirection prop is not supported at this time.
+    const { id: viewID, proxy: viewProxy } =
+      view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
 
     // --- computed vars --- //
 
@@ -163,17 +154,9 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const viewType = `${viewAxis.value}View`;
-    // axis is set via proxy configs
-    const viewProxy = proxyManager.createProxy<vtkLPSView2DProxy>(
-      'Views',
-      viewType,
-      {
-        name: viewAxis.value,
-      }
-    );
-
-    proxyStore.addView(viewID, viewProxy.getProxyId());
+    onBeforeUnmount(() => {
+      view2DStore.removeView(viewID);
+    });
 
     // do this before mounting
     viewProxy.getInteractorStyle2D().removeAllManipulators();
@@ -185,8 +168,6 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       viewProxy.setContainer(null);
-      proxyStore.removeView(viewID);
-      proxyManager.deleteProxy(viewProxy);
     });
 
     // updates slicing mode based on the IJK index
@@ -253,8 +234,6 @@ export default defineComponent({
     // --- scene setup --- //
 
     watchEffect(() => {
-      const { dataToProxyID } = proxyStore;
-
       viewProxy.removeAllRepresentations();
       // Nullify image representation ref.
       // Helps re-trigger setting of the slice and W/L properties by
@@ -265,20 +244,14 @@ export default defineComponent({
       currentImageRepRef.value = null;
 
       // update the current image
-      if (curImageID.value && curImageID.value in dataToProxyID) {
-        const proxyID = dataToProxyID[curImageID.value];
-        const sourceProxy =
-          proxyManager.getProxyById<vtkSourceProxy<vtkImageData>>(proxyID);
-        if (sourceProxy) {
-          const rep =
-            proxyManager.getRepresentation<vtkIJKSliceRepresentationProxy>(
-              sourceProxy,
-              viewProxy
-            );
-          if (rep) {
-            viewProxy.addRepresentation(rep);
-            currentImageRepRef.value = rep;
-          }
+      if (curImageID.value) {
+        const rep = viewStore.getDataRepresentationForView(
+          curImageID.value,
+          viewID
+        ) as vtkIJKSliceRepresentationProxy;
+        if (rep) {
+          viewProxy.addRepresentation(rep);
+          currentImageRepRef.value = rep;
         }
       }
 

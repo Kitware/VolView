@@ -1,3 +1,4 @@
+import ProxyManager from './proxies';
 import RulerToolManager from './tools/ruler';
 
 export function provideToolManagers() {
@@ -13,10 +14,13 @@ export type ToolManagers = ReturnType<typeof provideToolManagers>;
  */
 export function CorePiniaProviderPlugin({
   toolManagers,
+  proxyManager,
 }: {
   toolManagers?: ReturnType<typeof provideToolManagers>;
+  proxyManager: ProxyManager;
 }) {
   return () => ({
     $tools: toolManagers ?? provideToolManagers(),
+    $proxies: proxyManager,
   });
 }

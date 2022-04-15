@@ -21,6 +21,7 @@ import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
 import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
 import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
+import ProxyManager from './core/proxies';
 import { provideToolManagers, CorePiniaProviderPlugin } from './core/provider';
 
 Vue.config.productionTip = false;
@@ -64,11 +65,13 @@ const store = createStore(dependencies);
 const widgetProvider = new WidgetProvider(store);
 
 const toolManagers = provideToolManagers();
+const coreProxyManager = new ProxyManager(proxyManager);
 
 const pinia = createPinia();
 pinia.use(
   CorePiniaProviderPlugin({
     toolManagers,
+    proxyManager: coreProxyManager,
   })
 );
 

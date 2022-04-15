@@ -1,6 +1,9 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { defineStore } from 'pinia';
+import { ViewProxyType } from '../core/proxies';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';
+import { useIDStore } from './id';
 
 export interface ColorBy {
   arrayName: string;
@@ -16,17 +19,27 @@ interface State {
 }
 
 export const useView3DStore = defineStore('view3D', {
-  state: () =>
-    ({
-      coloringConfig: {
-        colorBy: {
-          arrayName: '',
-          location: '',
-        },
-        transferFunction: DEFAULT_PRESET,
+  state: (): State => ({
+    coloringConfig: {
+      colorBy: {
+        arrayName: '',
+        location: '',
       },
-    } as State),
+      transferFunction: DEFAULT_PRESET,
+    },
+  }),
   actions: {
+    createView<T extends vtkViewProxy>() {
+      const idStore = useIDStore();
+      const id = idStore.getNextID();
+      return {
+        id,
+        proxy: <T>this.$proxies.createView(id, ViewProxyType.Volume),
+      };
+    },
+    removeView(id: string) {
+      this.$proxies.removeView(id);
+    },
     setColorBy(arrayName: string, location: string) {
       this.coloringConfig.colorBy = {
         arrayName,
