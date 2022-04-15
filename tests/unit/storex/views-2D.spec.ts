@@ -1,21 +1,36 @@
 import chai, { expect } from 'chai';
+import sinon from 'sinon';
+import sinonChai from 'sinon-chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { setActivePinia, createPinia } from 'pinia';
 
 import { useView2DStore } from '@src/storex/views-2D';
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import ProxyManager from '@/src/core/proxies';
 
 chai.use(chaiAsPromised);
+chai.use(sinonChai);
 
 describe('View 2D store', () => {
+  let proxyManager = sinon.createStubInstance(ProxyManager);
+
   beforeEach(() => {
-    setActivePinia(createPinia());
+    proxyManager = sinon.createStubInstance(ProxyManager);
+
+    const pinia = createPinia();
+    pinia.use(
+      CorePiniaProviderPlugin({
+        proxyManager,
+      })
+    );
+    setActivePinia(pinia);
   });
 
   function addTestData() {
     const view2DStore = useView2DStore();
-    view2DStore.addView('1', 'Sagittal');
-    view2DStore.addView('2', 'Coronal', [0, 100], [10, 250]);
+    view2DStore.createView('Left');
+    view2DStore.createView('Anterior', [0, 100], [10, 250]);
   }
 
   it('sets the default slice and window level', () => {

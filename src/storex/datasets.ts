@@ -1,4 +1,5 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import { defineStore } from 'pinia';
 
@@ -131,6 +132,11 @@ export const useDatasetStore = defineStore('dataset', {
       const imageStore = useImageStore();
       const modelStore = useModelStore();
       return [...imageStore.idList, ...modelStore.idList];
+    },
+    getDataProxyByID<T extends vtkObject>() {
+      return (id: string) => {
+        return this.$proxies.getData<T>(id);
+      };
     },
   },
   actions: {

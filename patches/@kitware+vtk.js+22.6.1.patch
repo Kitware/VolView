@@ -49,6 +49,52 @@ index a0cd6f3..8f7a7cf 100644
  
  	/**
  	 *
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts b/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
+index 47e4e13..aaccf43 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
+@@ -59,7 +59,13 @@ export interface vtkOpenGLRenderWindow extends vtkOpenGLRenderWindowBase {
+ 	/**
+ 	 * Get the container element.
+ 	 */
+-	getContainer(): void;
++	getContainer(): HTMLElement | null;
++
++	/**
++	 * Get the canvas.
++	 */
++
++	getCanvas(): HTMLCanvasElement;
+ 
+ 	/**
+ 	 * Get the container size.
+diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp b/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
+index 39f7f93..2a4c8a9 100644
+--- a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
++++ b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
+@@ -188,15 +188,16 @@ function vtkAbstractWidgetFactory(publicAPI, model) {
+     return unsubscribe();
+   }); // Defer after object instantiation so model.widgetState actually exist
+ 
+-  setTimeout(function () {
++  if (model.widgetState) {
+     unsubscribe = model.widgetState.onModified(function () {
+       return publicAPI.invokeWidgetChange(model.widgetState);
+     }).unsubscribe;
+-  }, 0);
++  }
+ } // ----------------------------------------------------------------------------
+ 
+ 
+-function extend(publicAPI, model) {
++function extend(publicAPI, model, initialValues = {}) {
++  Object.assign(model, initialValues);
+   macro.obj(publicAPI, model);
+   macro.get(publicAPI, model, ['widgetState']);
+   macro.event(publicAPI, model, 'WidgetChange');
 diff --git a/node_modules/@kitware/vtk.js/interfaces.d.ts b/node_modules/@kitware/vtk.js/interfaces.d.ts
 index daec60e..4a45518 100644
 --- a/node_modules/@kitware/vtk.js/interfaces.d.ts

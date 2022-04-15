@@ -1,3 +1,4 @@
+import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { defineStore } from 'pinia';
 import { LPSAxisDir } from '../utils/lps';
 
@@ -37,6 +38,18 @@ export const useViewStore = defineStore('view', {
       items: [],
     },
   }),
+  getters: {
+    getViewProxy() {
+      return <T extends vtkViewProxy>(id: string) => {
+        return this.$proxies.getView<T>(id);
+      };
+    },
+    getDataRepresentationForView() {
+      return (dataID: string, viewID: string) => {
+        return this.$proxies.getDataRepresentationForView(dataID, viewID);
+      };
+    },
+  },
   actions: {
     setLayout(layout: Layout) {
       this.layout = layout;

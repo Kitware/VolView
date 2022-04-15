@@ -55,6 +55,8 @@ export const useImageStore = defineStore('images', {
       this.idList.push(id);
       set(this.dataIndex, id, imageData);
 
+      this.$proxies.addData(id, imageData);
+
       set(this.metadata, id, { ...defaultImageMetadata(), name });
       this.updateData(id, imageData);
       return id;
