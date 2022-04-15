@@ -15,6 +15,8 @@ export interface vtkRulerWidget extends vtkAbstractWidgetFactory {
 
 export function newInstance(): vtkRulerWidget;
 
+export function shouldIgnoreEvent(ev: any): boolean;
+
 export declare const vtkRulerWidget: {
   newInstance: typeof newInstance;
 };

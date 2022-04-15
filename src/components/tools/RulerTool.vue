@@ -46,6 +46,7 @@ import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
+import { shouldIgnoreEvent } from '@/src/vtk/RulerWidget';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -99,11 +100,11 @@ export default defineComponent({
     };
 
     const startNewRuler = (eventData: any) => {
-      if (active.value) {
-        rulerStore.addNewRulerFromViewEvent(eventData, viewID.value);
-        return EVENT_ABORT;
+      if (!active.value || shouldIgnoreEvent(eventData)) {
+        return VOID;
       }
-      return VOID;
+      rulerStore.addNewRulerFromViewEvent(eventData, viewID.value);
+      return EVENT_ABORT;
     };
 
     const interactor = viewProxy.getInteractor();

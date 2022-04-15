@@ -3,6 +3,10 @@ import macro from '@kitware/vtk.js/macro';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { InteractionState, RulerPointWidgetState } from './state';
 
+export function shouldIgnoreEvent(e: any) {
+  return e.altKey || e.controlKey || e.shiftKey;
+}
+
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkRulerWidgetProp');
 
@@ -10,10 +14,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   const subscriptions: vtkSubscription[] = [];
   let dragging: RulerPointWidgetState | null = null;
-
-  function ignoreKey(e: any) {
-    return e.altKey || e.controlKey || e.shiftKey;
-  }
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
@@ -32,7 +32,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Places or drags a point.
    */
   publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (!model.manipulator || ignoreKey(eventData)) {
+    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
       return macro.VOID;
     }
 

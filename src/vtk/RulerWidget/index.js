@@ -7,6 +7,8 @@ import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import widgetBehavior from './behavior';
 import stateGenerator from './state';
 
+export { shouldIgnoreEvent } from './behavior';
+
 // ----------------------------------------------------------------------------
 // Factory
 // ----------------------------------------------------------------------------
