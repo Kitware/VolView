@@ -5,6 +5,9 @@ import { removeFromArray } from '@/src/utils';
 import { RulerStateUpdate } from '@/src/core/tools/ruler';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
+import { useView2DStore } from '@/src/storex/views-2D';
+import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '../../utils/lps';
 import { useIDStore } from '../../storex/id';
 
@@ -104,6 +107,66 @@ export const useRulerToolStore = defineStore('rulerTool', {
       this.updateRuler(id, ruler);
 
       return id;
+    },
+    addNewRulerFromViewEvent(eventData: any, viewID: string) {
+      if (this.activeRulerID) {
+        return;
+      }
+
+      const view2DStore = useView2DStore();
+      const currentImage = useCurrentImage();
+
+      const imageID = currentImage.currentImageID.value;
+      const imageMetadata = currentImage.currentImageMetadata.value;
+
+      if (!imageID) {
+        return;
+      }
+
+      if (!(viewID in view2DStore.viewConfigs)) {
+        return;
+      }
+
+      const { slice } = view2DStore.sliceConfigs[viewID];
+      const {
+        axis: viewAxis,
+        direction: viewDirection,
+      } = view2DStore.viewConfigs[viewID];
+
+      const viewProxy = this.$proxies.getView(viewID);
+      if (!viewProxy) {
+        return;
+      }
+
+      const id = this.addNewRuler({
+        name: 'Ruler',
+        imageID,
+      });
+      const manipulator = createPlaneManipulatorFor2DView(
+        viewDirection,
+        slice,
+        imageMetadata
+      );
+      const coords = manipulator.handleEvent(
+        eventData,
+        viewProxy.getOpenglRenderWindow()
+      );
+      if (coords.length) {
+        this.updateRuler(id, {
+          firstPoint: coords as Vector3,
+          slice,
+          imageID,
+          viewAxis,
+          interactionState: InteractionState.PlacingSecond,
+        });
+      }
+
+      this.activateRuler(id);
+    },
+    removeActiveRuler() {
+      if (this.activeRulerID) {
+        this.removeRuler(this.activeRulerID);
+      }
     },
     removeRuler(id: string) {
       this.deactivateRuler(id);

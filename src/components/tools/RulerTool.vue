@@ -44,10 +44,8 @@ import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import { Vector3 } from '@kitware/vtk.js/types';
-import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
+import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -88,7 +86,7 @@ export default defineComponent({
     const rulerStore = useRulerToolStore();
     const viewProxy = viewProxyRef.value;
 
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const { currentImageID } = useCurrentImage();
     const currentSlice = computed(
       () => view2DStore.sliceConfigs[viewID.value].slice
     );
@@ -96,43 +94,19 @@ export default defineComponent({
     const activeRulerID = computed(() => rulerStore.activeRulerID);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const interactor = viewProxy.getInteractor();
-
     const deleteActiveRuler = () => {
-      if (activeRulerID.value) {
-        rulerStore.removeRuler(activeRulerID.value);
-      }
+      rulerStore.removeActiveRuler();
     };
 
     const startNewRuler = (eventData: any) => {
-      if (activeRulerID.value || !currentImageID.value) {
-        return;
+      if (active.value) {
+        rulerStore.addNewRulerFromViewEvent(eventData, viewID.value);
+        return EVENT_ABORT;
       }
-
-      const id = rulerStore.addNewRuler({
-        name: 'Ruler',
-        imageID: currentImageID.value,
-      });
-      const manipulator = createPlaneManipulatorFor2DView(
-        viewDirection.value,
-        currentSlice.value,
-        currentImageMetadata.value
-      );
-      const coords = manipulator.handleEvent(
-        eventData,
-        viewProxy.getOpenglRenderWindow()
-      );
-      if (coords.length) {
-        rulerStore.updateRuler(id, {
-          firstPoint: coords as Vector3,
-          slice: currentSlice.value,
-          imageID: currentImageID.value,
-          viewAxis: viewAxis.value,
-          interactionState: InteractionState.PlacingSecond,
-        });
-      }
-      rulerStore.activateRuler(id);
+      return VOID;
     };
+
+    const interactor = viewProxy.getInteractor();
 
     // We don't create a ruler until we receive a click, so
     // the button press listener must be here rather than in
