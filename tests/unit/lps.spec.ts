@@ -21,9 +21,9 @@ describe('getLPSDirections', () => {
     function evaluate(desc: string, mat: mat3, expected: Expected) {
       const actual = getLPSDirections(mat);
 
-      expect(actual.Coronal).to.equal(expected.Coronal);
-      expect(actual.Sagittal).to.equal(expected.Sagittal);
-      expect(actual.Axial).to.equal(expected.Axial);
+      expect(actual.Coronal, `${desc}: Coronal`).to.equal(expected.Coronal);
+      expect(actual.Sagittal, `${desc}: Coronal`).to.equal(expected.Sagittal);
+      expect(actual.Axial, `${desc}: Coronal`).to.equal(expected.Axial);
 
       expect(actual.Left, `${desc}: Left`).to.deep.almost(expected.Left);
       expect(actual.Right, `${desc}: Right`).to.deep.almost(
@@ -72,9 +72,9 @@ describe('getLPSDirections', () => {
         Left: [1, 0, 0],
         Posterior: [0, 1, 0],
         Superior: [0, 0, 1],
-        Coronal: 2,
-        Sagittal: 0,
-        Axial: 1,
+        Coronal: 1,
+        Sagittal: 2,
+        Axial: 0,
       }
     );
     evaluate(
