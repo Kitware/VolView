@@ -21,8 +21,24 @@
         :view-direction="viewDirection"
         :focused="ruler.focused"
         :widget-manager="widgetManager"
+        @contextmenu="openContextMenu(ruler.id, $event)"
       />
     </div>
+    <v-menu
+      v-model="contextMenu.show"
+      :position-x="contextMenu.x"
+      :position-y="contextMenu.y"
+      absolute
+      offset-y
+      close-on-click
+      close-on-content-click
+    >
+      <v-list dense>
+        <v-list-item @click="deleteRulerFromContextMenu">
+          <v-list-item-title>Delete</v-list-item-title>
+        </v-list-item>
+      </v-list>
+    </v-menu>
   </div>
 </template>
 
@@ -31,6 +47,7 @@ import {
   computed,
   defineComponent,
   PropType,
+  reactive,
   toRefs,
   watch,
 } from '@vue/composition-api';
@@ -47,6 +64,7 @@ import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
 import { shouldIgnoreEvent } from '@/src/vtk/RulerWidget';
 import { useViewStore } from '@/src/storex/views';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
+import { Vector2 } from '@kitware/vtk.js/types';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -88,12 +106,33 @@ export default defineComponent({
     const activeRulerID = computed(() => rulerStore.activeRulerID);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
+    // --- context menu --- //
+
+    const contextMenu = reactive({
+      show: false,
+      x: 0,
+      y: 0,
+      forRulerID: '',
+    });
+
+    const openContextMenu = (rulerID: string, displayXY: Vector2) => {
+      [contextMenu.x, contextMenu.y] = displayXY;
+      contextMenu.show = true;
+      contextMenu.forRulerID = rulerID;
+    };
+
+    const deleteRulerFromContextMenu = () => {
+      rulerStore.removeRuler(contextMenu.forRulerID);
+    };
+
+    // --- ruler lifecycle --- //
+
     const deleteActiveRuler = () => {
       rulerStore.removeActiveRuler();
     };
 
     const startNewRuler = (eventData: any) => {
-      if (!active.value || shouldIgnoreEvent(eventData)) {
+      if (!active.value || contextMenu.show || shouldIgnoreEvent(eventData)) {
         return VOID;
       }
       rulerStore.addNewRulerFromViewEvent(eventData, viewID.value);
@@ -112,6 +151,8 @@ export default defineComponent({
     watch(currentSlice, () => {
       deleteActiveRuler();
     });
+
+    // --- ruler data --- //
 
     const currentRulers = computed(() => {
       const rulerByID = rulerStore.rulers;
@@ -145,6 +186,9 @@ export default defineComponent({
     return {
       rulers: currentRulers,
       currentSlice,
+      contextMenu,
+      openContextMenu,
+      deleteRulerFromContextMenu,
     };
   },
 });

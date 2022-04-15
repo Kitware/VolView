@@ -49,10 +49,28 @@ index a0cd6f3..8f7a7cf 100644
  
  	/**
  	 *
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts b/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
+index 47e4e13..aaccf43 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
+@@ -59,7 +59,13 @@ export interface vtkOpenGLRenderWindow extends vtkOpenGLRenderWindowBase {
+ 	/**
+ 	 * Get the container element.
+ 	 */
+-	getContainer(): void;
++	getContainer(): HTMLElement | null;
++
++	/**
++	 * Get the canvas.
++	 */
++
++	getCanvas(): HTMLCanvasElement;
+ 
+ 	/**
+ 	 * Get the container size.
 diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp b/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp
 new file mode 100644
-index 0000000..676738a
-Binary files /dev/null and b/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp differ
+index 0000000..e69de29
 diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
 index 39f7f93..2a4c8a9 100644
 --- a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js

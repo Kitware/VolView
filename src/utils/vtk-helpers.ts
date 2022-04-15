@@ -1,4 +1,5 @@
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
+import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import { Vector2, Vector3 } from '@kitware/vtk.js/types';
 
 export function computeWorldToDisplay(
@@ -30,6 +31,7 @@ export function computeDisplayToWorld(
  * Converts world coordinates to SVG-friendly coordinates.
  *
  * Assumes that the SVG layer is the same size as the renderer.
+ * TODO verify this is the case.
  */
 export function worldToSVG(xyz: Vector3, renderer: vtkRenderer) {
   const coords = computeWorldToDisplay(xyz, renderer);
@@ -43,4 +45,24 @@ export function worldToSVG(xyz: Vector3, renderer: vtkRenderer) {
     ] as Vector2;
   }
   return null;
+}
+
+/**
+ * Gets the CSS coordinates for a vtk.js mouse event.
+ */
+export function getCSSCoordinatesFromEvent(eventData: any) {
+  const { pokedRenderer }: { pokedRenderer: vtkRenderer } = eventData;
+  const view = pokedRenderer?.getRenderWindow()?.getViews()?.[0] as
+    | vtkOpenGLRenderWindow
+    | undefined;
+  const bbox = view?.getContainer()?.getBoundingClientRect();
+
+  if (!('position' in eventData) || !bbox) {
+    return null;
+  }
+
+  return [
+    bbox.left + eventData.position.x / devicePixelRatio,
+    bbox.top + bbox.height - eventData.position.y / devicePixelRatio,
+  ] as Vector2;
 }

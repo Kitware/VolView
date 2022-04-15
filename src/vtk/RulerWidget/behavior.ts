@@ -17,6 +17,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
+  // support forwarding events
+  macro.event(publicAPI, model, 'RightClickEvent');
 
   publicAPI.setFirstPoint = (coord: Vector3) => {
     const point = model.widgetState.getFirstPoint();
@@ -135,6 +137,20 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       // model.widgetManager.enablePicking();
       // model.interactor.render();
     }
+  };
+
+  publicAPI.handleRightButtonPress = (eventData: any) => {
+    if (
+      shouldIgnoreEvent(eventData) ||
+      model.widgetState.getInteractionState() !== InteractionState.Settled || // ignore when still placing
+      !model.activeState?.getActive() || // ignore when no selected state
+      model.hasFocus || // ignore when focused
+      dragging // ignore when dragging
+    ) {
+      return macro.VOID;
+    }
+    publicAPI.invokeRightClickEvent(eventData);
+    return macro.EVENT_ABORT;
   };
 
   publicAPI.grabFocus = () => {

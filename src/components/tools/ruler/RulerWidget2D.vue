@@ -17,6 +17,8 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { LPSAxisDir } from '@/src/utils/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
+import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -43,7 +45,7 @@ export default defineComponent({
     },
     focused: Boolean,
   },
-  setup(props) {
+  setup(props, { emit }) {
     const {
       rulerId: rulerIDRef,
       widgetManager: widgetManagerRef,
@@ -68,6 +70,26 @@ export default defineComponent({
       const factory = factoryRef.value;
 
       widgetRef.value = widgetManager.addWidget(factory) as vtkRulerViewWidget;
+    });
+
+    // --- right click handling --- //
+
+    let rightClickSub: vtkSubscription | null = null;
+
+    onMounted(() => {
+      rightClickSub = widgetRef.value!.onRightClickEvent((eventData) => {
+        const coords = getCSSCoordinatesFromEvent(eventData);
+        if (coords) {
+          emit('contextmenu', coords);
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      if (rightClickSub) {
+        rightClickSub.unsubscribe();
+        rightClickSub = null;
+      }
     });
 
     // --- manipulator --- //
