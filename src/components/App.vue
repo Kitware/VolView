@@ -25,7 +25,7 @@
           :width="450"
           :handle-size="4"
         >
-          <module-panel/>
+          <module-panel />
         </resizable-nav-drawer>
         <v-main id="content-wrapper">
           <div class="height-100 d-flex flex-row flex-grow-1 grey darken-3">
@@ -224,7 +224,6 @@ import ToolStrip from './ToolStrip.vue';
 import SampleData from './SampleData.vue';
 import VtkTwoView from '../componentsX/VtkTwoView.vue';
 import VtkThreeView from '../componentsX/VtkThreeView.vue';
-import { syncProxyManagerWithStores } from '../vtk/proxyStoreSync';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,
@@ -367,10 +366,6 @@ export default defineComponent({
       fileLoadingErrors.value = [];
       otherErrors.value = [];
     }
-
-    // --- sync adapters --- //
-
-    syncProxyManagerWithStores(proxyManager!);
 
     // --- auto-animate views whenever a proxy is modified --- //
 
