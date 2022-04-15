@@ -2,8 +2,10 @@
   <div class="height-100 d-flex flex-column">
     <div id="module-switcher" class="mt-1 mb-2">
         <v-tabs
+          id="module-switcher-tabs"
           v-model="selectedModuleIndex"
           icons-and-text
+          :show-arrows=true
         >
           <v-tab
             v-for="item in Modules"
@@ -119,5 +121,13 @@ export default defineComponent({
   flex-direction: column-reverse;
   height: 100%;
   align-items: center;
+}
+
+#module-switcher-tabs >>> .v-slide-group__prev.v-slide-group__prev--disabled {
+  visibility: hidden;
+}
+
+#module-switcher-tabs >>> .v-slide-group__next.v-slide-group__next--disabled {
+  visibility: hidden;
 }
 </style>
