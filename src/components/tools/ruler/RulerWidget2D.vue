@@ -37,10 +37,6 @@ export default defineComponent({
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    viewUp: {
-      type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
     slice: {
       type: Number,
       required: true,

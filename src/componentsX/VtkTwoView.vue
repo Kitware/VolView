@@ -25,7 +25,6 @@
           :view-id="viewID"
           :widget-manager="widgetManager"
           :view-direction="viewDirection"
-          :view-up="viewUp"
           :view-proxy="viewProxy"
         />
       </div>

@@ -37,8 +37,10 @@ export function worldToSVG(xyz: Vector3, renderer: vtkRenderer) {
   if (coords && view) {
     const [, height] = view.getViewportSize(renderer);
     // convert from canvas space to svg space
-    coords[0] /= devicePixelRatio;
-    coords[1] = (height - coords[1]) / devicePixelRatio;
+    return [
+      coords[0] / devicePixelRatio,
+      (height - coords[1]) / devicePixelRatio,
+    ] as Vector2;
   }
-  return coords;
+  return null;
 }

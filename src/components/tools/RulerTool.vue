@@ -5,8 +5,9 @@
         v-for="ruler in rulers"
         :key="ruler.id"
         v-show="currentSlice === ruler.slice"
-        :point1="ruler.firstPointDisplay"
-        :point2="ruler.secondPointDisplay"
+        :view-id="viewId"
+        :point1="ruler.firstPoint"
+        :point2="ruler.secondPoint"
         :length="ruler.length"
       />
     </svg>
@@ -16,9 +17,8 @@
         :key="ruler.id"
         :ruler-id="ruler.id"
         :slice="currentSlice"
-        :view-id="viewID"
+        :view-id="viewId"
         :view-direction="viewDirection"
-        :view-up="viewUp"
         :focused="ruler.focused"
         :widget-manager="widgetManager"
       />
@@ -43,10 +43,10 @@ import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
-import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
 import { shouldIgnoreEvent } from '@/src/vtk/RulerWidget';
+import { useViewStore } from '@/src/storex/views';
+import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -59,16 +59,8 @@ export default defineComponent({
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    viewUp: {
-      type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
     widgetManager: {
       type: Object as PropType<vtkWidgetManager>,
-      required: true,
-    },
-    viewProxy: {
-      type: Object as PropType<vtkViewProxy>,
       required: true,
     },
   },
@@ -77,15 +69,16 @@ export default defineComponent({
     RulerSVG2D,
   },
   setup(props) {
-    const {
-      viewId: viewID,
-      viewDirection,
-      viewProxy: viewProxyRef,
-    } = toRefs(props);
+    const { viewId: viewID, viewDirection } = toRefs(props);
+    const viewStore = useViewStore();
     const view2DStore = useView2DStore();
     const toolStore = useToolStore();
     const rulerStore = useRulerToolStore();
-    const viewProxy = viewProxyRef.value;
+
+    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
+    if (!viewProxy) {
+      throw new Error('Cannot get the view proxy');
+    }
 
     const { currentImageID } = useCurrentImage();
     const currentSlice = computed(
@@ -107,21 +100,18 @@ export default defineComponent({
       return EVENT_ABORT;
     };
 
-    const interactor = viewProxy.getInteractor();
-
     // We don't create a ruler until we receive a click, so
     // the button press listener must be here rather than in
     // the widget itself.
     // We may support configuring which mouse button triggers this tool
     // in the future.
+    const interactor = viewProxy.getInteractor();
     manageVTKSubscription(interactor.onLeftButtonPress(startNewRuler));
 
     // delete active ruler if slice changes
     watch(currentSlice, () => {
       deleteActiveRuler();
     });
-
-    const renderer = viewProxy.getRenderer();
 
     const currentRulers = computed(() => {
       const rulerByID = rulerStore.rulers;
@@ -145,12 +135,6 @@ export default defineComponent({
             id,
             firstPoint: ruler.firstPoint,
             secondPoint: ruler.secondPoint,
-            firstPointDisplay: ruler.firstPoint
-              ? worldToSVG(ruler.firstPoint, renderer)
-              : null,
-            secondPointDisplay: ruler.secondPoint
-              ? worldToSVG(ruler.secondPoint, renderer)
-              : null,
             slice: ruler.slice,
             length: lengthByID[id],
             focused: isToolActive && curActiveRulerID === id,
@@ -161,7 +145,6 @@ export default defineComponent({
     return {
       rulers: currentRulers,
       currentSlice,
-      viewID,
     };
   },
 });
