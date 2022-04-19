@@ -23,6 +23,7 @@ import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
 import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
 import ProxyManager from './core/proxies';
 import { provideToolManagers, CorePiniaProviderPlugin } from './core/provider';
+import IDManager from './core/id';
 
 Vue.config.productionTip = false;
 
@@ -66,11 +67,13 @@ const widgetProvider = new WidgetProvider(store);
 
 const toolManagers = provideToolManagers();
 const coreProxyManager = new ProxyManager(proxyManager);
+const idManager = new IDManager();
 
 const pinia = createPinia();
 pinia.use(
   CorePiniaProviderPlugin({
     toolManagers,
+    idManager,
     proxyManager: coreProxyManager,
   })
 );

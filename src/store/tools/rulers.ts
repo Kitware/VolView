@@ -9,7 +9,6 @@ import { useView2DStore } from '@/src/storex/views-2D';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '../../utils/lps';
-import { useIDStore } from '../../storex/id';
 
 export interface RulerTool {
   name: string;
@@ -96,8 +95,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
       }
     },
     addNewRuler(ruler: Partial<RulerTool>) {
-      const idStore = useIDStore();
-      const id = idStore.getNextID();
+      const id = this.$id.nextID();
 
       set(this.rulers, id, emptyRulerTool());
       this.rulerIDs.push(id);
