@@ -7,8 +7,7 @@ import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { useView3DStore } from './views-3D';
-import { extractArchivesRecursively, retypeFile } from '../io/newIO';
-import { FILE_READERS } from '../io/newReaders';
+import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 
 export const DataType = {
   Image: 'Image',

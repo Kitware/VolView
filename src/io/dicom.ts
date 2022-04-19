@@ -1,7 +1,7 @@
 import { mat3 } from 'gl-matrix';
 import runPipelineBrowser from 'itk/runPipelineBrowser';
 import IOTypes from 'itk/IOTypes';
-import { readFileAsArrayBuffer } from '@/src/io/io';
+import { readFileAsArrayBuffer } from '@/src/io';
 import { defer, Deferred } from '../utils';
 import PriorityQueue from '../utils/priorityqueue';
 
