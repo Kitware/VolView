@@ -93,7 +93,7 @@ import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
 import PanTool from '../components/tools/PanTool.vue';
 import ZoomTool from '../components/tools/ZoomTool.vue';
 import RulerTool from '../components/tools/RulerTool.vue';
-import { useViewStore } from '../storex/views';
+import { useSceneBuilder } from '../composables/useSceneBuilder';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -117,13 +117,11 @@ export default defineComponent({
     RulerTool,
   },
   setup(props) {
-    const viewStore = useViewStore();
     const view2DStore = useView2DStore();
 
     const { viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
-    const currentImageRepRef = ref<vtkIJKSliceRepresentationProxy | null>();
 
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
@@ -232,34 +230,12 @@ export default defineComponent({
 
     // --- scene setup --- //
 
-    watchEffect(() => {
-      viewProxy.removeAllRepresentations();
-      // Nullify image representation ref.
-      // Helps re-trigger setting of the slice and W/L properties by
-      // forcing a trigger of the corresponding watchEffect below.
-      // addRepresentation(rep) triggers the SliceRepresentationProxy to
-      // reset slicing and W/L to its own defaults, and we need to override
-      // that to use our own values.
-      currentImageRepRef.value = null;
-
-      // update the current image
-      if (curImageID.value) {
-        const rep = viewStore.getDataRepresentationForView(
-          curImageID.value,
-          viewID
-        ) as vtkIJKSliceRepresentationProxy;
-        if (rep) {
-          viewProxy.addRepresentation(rep);
-          currentImageRepRef.value = rep;
-        }
+    const { baseImageRep } = useSceneBuilder<vtkIJKSliceRepresentationProxy>(
+      viewID,
+      {
+        baseImage: curImageID,
       }
-
-      // TODO not sure why I need this, but might as well keep
-      // the renderer up to date.
-      // For reference, this doesn't get invoked when resetting the
-      // camera with a supplied bounds, so we manually invoke it here.
-      viewProxy.getRenderer().computeVisiblePropBounds();
-    });
+    );
 
     // --- camera setup --- //
 
@@ -324,7 +300,7 @@ export default defineComponent({
     });
 
     watch(
-      [currentImageRepRef, cameraDirVec, cameraUpVec],
+      [baseImageRep, cameraDirVec, cameraUpVec],
       () => {
         if (resizeToFit.value) {
           resetCamera();
@@ -345,7 +321,7 @@ export default defineComponent({
     watchEffect(() => {
       const { slice } = sliceConfig.value;
       const { width, level } = wlConfig.value;
-      const rep = currentImageRepRef.value;
+      const rep = baseImageRep.value;
       if (rep) {
         rep.setSlice(slice);
         rep.setWindowWidth(width);

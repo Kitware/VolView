@@ -1,5 +1,7 @@
 import { vtkAlgorithm, vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
+import vtkLPSView2DProxy from '../vtk/LPSView2DProxy';
+import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
 
 export interface vtkClass {
   newInstance: () => vtkObject;
@@ -18,3 +20,5 @@ export default interface vtkProxyObject extends vtkObject {
   getProxyManager(): vtkProxyManager;
   setProxyManager(manager: vtkProxyManager): void;
 }
+
+export type vtkLPSViewProxy = vtkLPSView2DProxy | vtkLPSView3DProxy;
