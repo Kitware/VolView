@@ -14,6 +14,8 @@ import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
 import { DICOMIO } from './io/dicom';
+import { FILE_READERS } from './io';
+import { registerAllReaders } from './io/readers';
 import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
 import WidgetProvider from './widgets/widgetProvider';
@@ -29,6 +31,8 @@ Vue.use(VueCompositionAPI);
 Vue.use(VueNotifications);
 Vue.use(ProxyManagerVuePlugin);
 Vue.use(PiniaVuePlugin);
+
+registerAllReaders(FILE_READERS);
 
 const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
 setCurrentInstance(ProxyManagerInst, proxyManager);
