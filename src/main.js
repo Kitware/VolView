@@ -10,7 +10,6 @@ import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 
 import App from './components/App.vue';
-import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
 import { DICOMIO } from './io/dicom';
@@ -18,7 +17,6 @@ import { FILE_READERS } from './io';
 import { registerAllReaders } from './io/readers';
 import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
-import WidgetProvider from './widgets/widgetProvider';
 import { DICOMIOInst, ProxyManagerInst } from './constants';
 import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
 import ProxyManager from './core/proxies';
@@ -32,15 +30,6 @@ Vue.use(VueNotifications);
 Vue.use(ProxyManagerVuePlugin);
 Vue.use(PiniaVuePlugin);
 
-registerAllReaders(FILE_READERS);
-
-const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
-setCurrentInstance(ProxyManagerInst, proxyManager);
-
-const dicomIO = new DICOMIO();
-dicomIO.initialize();
-setCurrentInstance(DICOMIOInst, dicomIO);
-
 // Initialize global mapper topologies
 // polys and lines in the front
 vtkMapper.setResolveCoincidentTopologyToPolygonOffset();
@@ -50,13 +39,14 @@ vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-3, -3);
 vtkImageMapper.setResolveCoincidentTopologyToPolygonOffset();
 vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
 
-const dependencies = {
-  proxyManager,
-  dicomIO,
-};
+registerAllReaders(FILE_READERS);
 
-const store = createStore(dependencies);
-const widgetProvider = new WidgetProvider(store);
+const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
+setCurrentInstance(ProxyManagerInst, proxyManager);
+
+const dicomIO = new DICOMIO();
+dicomIO.initialize();
+setCurrentInstance(DICOMIOInst, dicomIO);
 
 const toolManagers = provideToolManagers();
 const coreProxyManager = new ProxyManager(proxyManager);
@@ -74,14 +64,11 @@ pinia.use(
 toolManagers.ruler.events.on('widgetUpdate', updateRulerFromWidgetStateEvent);
 
 const app = new Vue({
-  store,
   vuetify,
   proxyManager,
   pinia,
   provide: {
-    widgetProvider,
     ProxyManager: proxyManager,
-    Store: store,
   },
   render: (h) => h(App),
 });

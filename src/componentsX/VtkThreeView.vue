@@ -41,7 +41,7 @@ import { vec3 } from 'gl-matrix';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 
-import { useView3DStore } from '@src/storex/views-3D';
+import { useView3DStore } from '@/src/store/views-3D';
 import { useProxyManager } from '@/src/composables/proxyManager';
 
 import SliceSlider from '@src/components/SliceSlider.vue';

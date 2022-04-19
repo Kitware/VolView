@@ -5,7 +5,7 @@ import { removeFromArray } from '@/src/utils';
 import { RulerStateUpdate } from '@/src/core/tools/ruler';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
-import { useView2DStore } from '@/src/storex/views-2D';
+import { useView2DStore } from '@/src/store/views-2D';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '../../utils/lps';

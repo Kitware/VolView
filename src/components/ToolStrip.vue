@@ -54,7 +54,7 @@ import { computed, defineComponent } from '@vue/composition-api';
 import ToolButton from './ToolButton.vue';
 import ItemGroup from './ItemGroup.vue';
 import GroupableItem from './GroupableItem.vue';
-import { useDatasetStore } from '../storex/datasets';
+import { useDatasetStore } from '../store/datasets';
 import { Tools, useToolStore } from '../store/tools';
 
 export default defineComponent({

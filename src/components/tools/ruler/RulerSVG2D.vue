@@ -47,7 +47,7 @@
 
 <script lang="ts">
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
-import { useViewStore } from '@/src/storex/views';
+import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Vector3 } from '@kitware/vtk.js/types';

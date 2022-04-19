@@ -11,7 +11,7 @@ import {
 } from '@vue/composition-api';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Tools, useToolStore } from '@/src/store/tools';
-import { useView2DStore } from '@/src/storex/views-2D';
+import { useView2DStore } from '@/src/store/views-2D';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { CreateElement, RenderContext } from 'vue';
 

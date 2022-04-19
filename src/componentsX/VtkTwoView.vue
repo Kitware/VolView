@@ -76,7 +76,7 @@ import { vec3 } from 'gl-matrix';
 
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 
-import { useView2DStore } from '@src/storex/views-2D';
+import { useView2DStore } from '@/src/store/views-2D';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';

@@ -1,5 +1,5 @@
 import { Vector3 } from '@kitware/vtk.js/types';
-import { ImageMetadata } from '@/src/storex/datasets-images';
+import { ImageMetadata } from '@/src/store/datasets-images';
 import { LPSAxis } from '@/src/utils/lps';
 import {
   InteractionState,

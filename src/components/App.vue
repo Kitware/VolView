@@ -232,8 +232,8 @@ import {
   DICOMLoadSuccess,
   FileLoadFailure,
   DICOMLoadFailure,
-} from '../storex/datasets';
-import { useImageStore } from '../storex/datasets-images';
+} from '../store/datasets';
+import { useImageStore } from '../store/datasets-images';
 import {
   onProxyManagerEvent,
   ProxyManagerEvent,

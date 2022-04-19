@@ -4,7 +4,7 @@ import chaiSubset from 'chai-subset';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { setActivePinia, createPinia } from 'pinia';
-import { useDatasetStore } from '@src/storex/datasets';
+import { useDatasetStore } from '@src/store/datasets';
 import { makeEmptyFile } from '@/tests/testUtils';
 import { FILE_READERS } from '@/src/io';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
