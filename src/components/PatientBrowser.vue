@@ -17,6 +17,29 @@
         class="no-select"
       />
     </div>
+    <div id="patient-study-controls">
+       <v-container
+        class="pa-0"
+       >
+        <v-row no-gutters justify="space-between">
+          <v-col cols="6" id="left-controls" align-self="center" >
+            <v-row no-gutters justify="start">
+              <v-checkbox
+              class="ml-3 align-center justify-center"
+              v-model="selectAll"
+              ></v-checkbox>
+            </v-row>
+          </v-col>
+          <v-col cols="6" id="right-controls" align-self="center">
+            <v-row no-gutters justify="end" >
+              <v-btn icon @click.stop="removeSelected"  >
+                    <v-icon>mdi-delete</v-icon>
+              </v-btn>
+            </v-row>
+          </v-col>
+        </v-row>
+      </v-container>
+    </div>
     <div id="patient-data-list">
       <item-group
         :value="primarySelection"
@@ -32,12 +55,16 @@
             v-slot="{ active, select }"
             :value="image.selectionKey"
           >
-            <avatar-list-card
+
+            <image-list-card
               :active="active"
               :title="image.name"
-              :image-url="thumbnailCache[image.cacheKey] || ''"
+              :image-url="thumbnailCache[image.cacheKey].encodedImage || ''"
               :image-size="100"
               @click="select"
+              :id="image.id"
+              :inputValue="image.id"
+              v-model="selected"
             >
               <div class="body-2 text-truncate">
                 {{ image.name }}
@@ -50,14 +77,7 @@
                   image.spacing.map((s) => s.toFixed(2)).join(', ')
                 }})
               </div>
-              <template v-slot:menu>
-                <v-list>
-                  <v-list-item @click.stop="removeData(image.id)">
-                    Delete
-                  </v-list-item>
-                </v-list>
-              </template>
-            </avatar-list-card>
+            </image-list-card>
           </groupable-item>
         </template>
         <template v-else>
@@ -69,71 +89,122 @@
             >
               <v-expansion-panel-header
                 color="#1976fa0a"
-                class="no-select"
+                class="pl-3 no-select"
                 :title="study.info.StudyDate"
               >
-                <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
-                <div class="study-header">
-                  <div class="subtitle-2 study-header-line">
-                    {{
-                      study.info.StudyDescription ||
-                      study.info.StudyDate ||
-                      study.info.StudyInstanceUID
-                    }}
-                  </div>
-                  <div
-                    v-if="study.info.StudyDescription"
-                    class="caption study-header-line"
-                  >
-                    {{ study.info.StudyDate }}
-                  </div>
-                </div>
+                <v-container
+                  fluid
+                  class="pt-0"
+                >
+                  <v-row align="center" >
+                    <v-checkbox :key="study.info.StudyInstanceUID" :value="study.info.StudyInstanceUID" v-model="selected" @click.stop />
+                    <v-icon class="">mdi-folder-table</v-icon>
+                    <div class="mt-4 ml-4 study-header">
+                      <div class="subtitle-2 study-header-line">
+                        {{
+                          study.info.StudyDescription ||
+                          study.info.StudyDate ||
+                          study.info.StudyInstanceUID
+                        }}
+                      </div>
+                      <div
+                        v-if="study.info.StudyDescription"
+                        class="caption study-header-line"
+                      >
+                        {{ study.info.StudyDate }}
+                      </div>
+                    </div>
+                  </v-row>
+
+
+                  <v-row no-gutters align="center" justify="end">
+                    <v-col cols="2">
+                      <v-tooltip bottom>
+                        Total series in study
+                        <template v-slot:activator="{ on }">
+                          <v-row align="center" justify="end" v-on="on">
+                            <v-icon medium>mdi-folder-open</v-icon>
+                              <span class="mr-3 text--secondary">: {{ study.volumes.length }}</span>
+                          </v-row>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="2" >
+                      <v-tooltip bottom>
+                        Total scans in study
+                        <template v-slot:activator="{ on }">
+                          <v-row align="center" justify="end" v-on="on">
+                            <v-icon medium >mdi-image-filter-none</v-icon>
+                                <span class="mr-1 text--secondary ">: {{ study.volumes.reduce((numSlices, vol) => numSlices + vol.info.NumberOfSlices, 0) }}</span>
+                          </v-row>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                  </v-row>
+
+                  </v-container>
               </v-expansion-panel-header>
               <v-expansion-panel-content>
-                <div class="my-2 volume-list">
-                  <groupable-item
-                    v-for="volume in study.volumes"
-                    :key="volume.info.VolumeID"
-                    v-slot:default="{ active, select }"
-                    :value="volume.selectionKey"
-                  >
-                    <v-card
-                      outlined
-                      ripple
-                      :color="active ? 'light-blue lighten-4' : ''"
-                      class="volume-card"
-                      :title="volume.info.SeriesDescription"
-                      @click="select"
-                    >
-                      <v-img
-                        contain
-                        height="100px"
-                        :src="thumbnailCache[volume.cacheKey] || ''"
-                      />
-                      <v-card-text
-                        class="text--primary caption text-center series-desc mt-n3"
-                      >
-                        <div>[{{ volume.info.NumberOfSlices }}]</div>
-                        <div class="text-ellipsis">
-                          {{
-                            volume.info.SeriesDescription || '(no description)'
-                          }}
-                        </div>
-                        <div class="actions">
-                          <v-btn
-                            small
-                            icon
-                            @click.stop="
-                              removeDICOMVolume(volume.info.volumeID)
-                            "
+                <v-container class="pa-0">
+                  <v-row class="mt-1 mr-1" justify="end">
+                    <v-btn icon @click="removeSelectedDICOMVolumes" >
+                      <v-icon>mdi-delete</v-icon>
+                    </v-btn>
+                  </v-row>
+                  <v-row no-gutters>
+                    <v-col>
+                      <div class="my-2 volume-list">
+                        <groupable-item
+                          v-for="volume in study.volumes"
+                          :key="volume.info.VolumeID"
+                          v-slot:default="{ active, select }"
+                          :value="volume.selectionKey"
+                        >
+                          <v-card
+                            outlined
+                            ripple
+                            :color="active ? 'light-blue lighten-4' : ''"
+                            class="volume-card"
+                            :title="volume.info.SeriesDescription"
+                            @click="select"
                           >
-                            <v-icon>mdi-delete</v-icon>
-                          </v-btn>
-                        </div>
-                      </v-card-text>
-                    </v-card>
-                  </groupable-item>
-                </div>
+                            <v-row no-gutters class="pa-0" justify="center">
+                              <div>
+                                <v-img
+                                  contain
+                                  :height="`${THUMBNAIL_IMAGE_HEIGHT}}px`"
+                                  :width="thumbnailCache[volume.cacheKey] ? `${THUMBNAIL_IMAGE_HEIGHT / thumbnailCache[volume.cacheKey].aspectRatio}px` : null"
+                                  :src="thumbnailCache[volume.cacheKey] ? thumbnailCache[volume.cacheKey].encodedImage : ''"
+                                >
+                                  <v-overlay absolute class="thumbnail-overlay" value="true" opacity="0">
+                                    <div class="d-flex flex-column fill-height" >
+                                      <v-row no-gutters justify="end" align-content="start">
+                                        <v-checkbox :key="volume.info.VolumeID" :value="volume.selectionKey" v-model="selectedSeries" @click.stop dense/>
+                                      </v-row>
+                                      <div class="flex-grow-1"/>
+                                      <v-row no-gutters justify="start" align="end">
+                                        <div class="mb-2 ml-2">[{{ volume.info.NumberOfSlices }}]</div>
+                                      </v-row>
+                                    </div>
+                                  </v-overlay>
+                                </v-img>
+                              </div>
+                            </v-row>
+                            <v-card-text
+                              class="text--primary caption text-center series-desc mt-n3"
+                            >
+                              <div class="text-ellipsis">
+                                {{
+                                  volume.info.SeriesDescription || '(no description)'
+                                }}
+                              </div>
+                            </v-card-text>
+                          </v-card>
+                        </groupable-item>
+                      </div>
+                    </v-col>
+                  </v-row>
+                </v-container>
               </v-expansion-panel-content>
             </v-expansion-panel>
           </v-expansion-panels>
@@ -157,17 +228,20 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import Image from 'itk/Image';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import AvatarListCard from '@/src/components/AvatarListCard.vue';
+import ImageListCard from '@/src/components/ImageListCard.vue';
 import { useDICOMStore } from '../storex/datasets-dicom';
 import {
   DataSelection,
+  DICOMSelection,
   selectionEquals,
   useDatasetStore,
 } from '../storex/datasets';
 import { useImageStore } from '../storex/datasets-images';
 
 const NON_DICOM_IMAGES = Symbol('non dicom images');
+const THUMBNAIL_IMAGE_HEIGHT = 150;
 const canvas = document.createElement('canvas');
+
 
 // Assume itkImage type is Uint8Array
 function itkImageToURI(itkImage: Image) {
@@ -237,9 +311,9 @@ async function generateDICOMThumbnail(
       true
     )) as Image;
 
-    return itkImageToURI(thumb);
+    return thumb;
   }
-  return '';
+  return null;
 }
 
 function generateVTKImageThumbnail(imageData: vtkImageData) {
@@ -269,10 +343,15 @@ export default defineComponent({
   components: {
     ItemGroup,
     GroupableItem,
-    AvatarListCard,
+    ImageListCard,
   },
   setup() {
     const selectedPatient: Ref<string | typeof NON_DICOM_IMAGES> = ref('');
+    const selectedStudy: Ref<string> = ref('');
+    const selectAll: Ref<boolean> = ref(false);
+    const selected: Ref<string[]> = ref([]);
+    const selectedSeries: Ref<DICOMSelection[]> = ref([]);
+
     // no deletion happens here, so technically a leak of sorts
     const thumbnailCacheRef = ref<Record<string, string>>({});
     const dicomStore = useDICOMStore();
@@ -280,6 +359,11 @@ export default defineComponent({
     const imageStore = useImageStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
+
+    if (primarySelection.value?.type === 'dicom') {
+        const { volumeKey } = primarySelection.value;
+        selectedStudy.value = dicomStore.volumeStudy[volumeKey];
+    }
 
     // TODO show patient ID in parens if there is a name conflict
     const patients = computed(() =>
@@ -334,8 +418,10 @@ export default defineComponent({
         selectedPatient.value = NON_DICOM_IMAGES;
       } else if (selection?.type === 'dicom') {
         const { volumeKey } = selection;
+        const studyKey = dicomStore.volumeStudy[volumeKey];
         const patientKey =
-          dicomStore.studyPatient[dicomStore.volumeStudy[volumeKey]];
+          dicomStore.studyPatient[studyKey];
+        selectedStudy.value = studyKey;
         selectedPatient.value = patientKey;
       }
     });
@@ -364,8 +450,11 @@ export default defineComponent({
         imageIDs.forEach(async (id) => {
           const cacheKey = imageCacheKey(id);
           if (!(cacheKey in thumbnailCache)) {
-            const thumb = generateVTKImageThumbnail(imageStore.dataIndex[id]);
-            set(thumbnailCache, cacheKey, thumb);
+            const imageData = imageStore.dataIndex[id];
+            const encodedImage = generateVTKImageThumbnail(imageData);
+            const dims = imageData.getDimensions()
+            const aspectRatio = dims[0] / dims[1];
+            set(thumbnailCache, cacheKey, {encodedImage, aspectRatio});
           }
         });
 
@@ -377,7 +466,13 @@ export default defineComponent({
                 dicomStore,
                 volumeInfo.info.VolumeID
               );
-              set(thumbnailCache, cacheKey, thumb);
+
+              if (thumb !== null) {
+                const encodedImage = itkImageToURI(thumb);
+                const aspectRatio = thumb.size[0] / thumb.size[1];
+
+                set(thumbnailCache, cacheKey, {encodedImage, aspectRatio});
+              }
             }
           });
         });
@@ -410,9 +505,116 @@ export default defineComponent({
       }));
     });
 
+    const allSelected = () => {
+      if (selectedPatient.value  === NON_DICOM_IMAGES) {
+        return selected.value.length !== 0 && selected.value.length === imageList.value.length;
+      }
+
+      return selected.value.length !== 0 && selected.value.length === studiesAndVolumesRef.value.length;
+    }
+
+    // reset select all checkbox value when we switch patient or user changes
+    // selection
+    watch([selectedPatient], () => {
+      selectAll.value = false;
+    });
+
+    watch([selected], () => {
+      selectAll.value = allSelected();
+    });
+
+    watch([selectAll], () => {
+      selected.value = [];
+        if (selectAll.value) {
+          if (selectedPatient.value  === NON_DICOM_IMAGES) {
+            selected.value = imageList.value.map((value) => value.id);
+          } else {
+            selected.value = studiesAndVolumesRef.value.map((value) => value.info.StudyInstanceUID);
+          }
+        }
+    });
+
+    const removeSelectedStudies = () => {
+      selected.value.forEach(async (study) => {
+        dicomStore.deleteStudy(study);
+      });
+
+      // Handle the case where we are deleting the selected study
+      if (selected.value.indexOf(selectedStudy.value) !== -1) {
+        dataStore.setPrimarySelection(null);
+      }
+    }
+
+    const removeSelectedDICOMVolumes = () => {
+      selectedSeries.value.forEach(async (series) => {
+        dicomStore.deleteVolume(series.volumeKey)
+      });
+
+      // Handle the case where we are deleting the selected volume
+      if (primarySelection.value?.type === "dicom") {
+        const { volumeKey } = primarySelection.value;
+
+        // If we are deleting the selected volume, just reset the primary selection
+        if (selectedSeries.value.map((series: DICOMSelection) => series.volumeKey).indexOf(volumeKey) !== -1) {
+          const volumes = dicomStore.studyVolumes[selectedStudy.value];
+          if (volumes.length > 0) {
+            dataStore.setPrimarySelection({
+              type: "dicom",
+              volumeKey: volumes[0]
+            })
+          } else {
+            dataStore.setPrimarySelection(null);
+          }
+        }
+      }
+
+      selectedSeries.value = [];
+    }
+
+    const removeSelectedImages = () => {
+      selected.value.forEach(async (dataID) => {
+        imageStore.deleteData(dataID);
+      })
+
+      // Handle the case where we are deleting the selected volume
+      if (primarySelection.value?.type === "image") {
+        const { dataID } = primarySelection.value;
+
+        // If we are deleting the selected image, just reset the primary selection
+        if (selected.value.map((id: string) => id).indexOf(dataID) !== -1) {
+
+          if (imageStore.idList.length > 0) {
+            dataStore.setPrimarySelection({
+              type: "image",
+              dataID: imageStore.idList[0]
+            })
+          } else {
+            dataStore.setPrimarySelection(null);
+          }
+        }
+      }
+    }
+
+    // remove selected images or studies
+    const removeSelected = async () => {
+      if (selectedPatient.value  === NON_DICOM_IMAGES) {
+        await removeSelectedImages();
+      } else {
+        await removeSelectedStudies();
+      }
+
+      selected.value = []
+      selectAll.value = false;
+    }
+
     return {
       NON_DICOM_IMAGES,
+      THUMBNAIL_IMAGE_HEIGHT,
       selectedPatient,
+      selectedStudy,
+      selectAll,
+      selected,
+      selectedSeries,
       patientList,
       imageList,
       primarySelection,
@@ -422,12 +624,8 @@ export default defineComponent({
       setPrimarySelection: (sel: DataSelection) => {
         dataStore.setPrimarySelection(sel);
       },
-      removeImage: (imageID: string) => {
-        console.log('removeImage', imageID);
-      },
-      removeDICOMVolume: (volumeKey: string) => {
-        console.log('removeDICOM', volumeKey);
-      },
+      removeSelectedDICOMVolumes,
+      removeSelected,
     };
   },
 });
@@ -460,7 +658,6 @@ export default defineComponent({
 
 #patient-data-list {
   flex: 2;
-  margin-top: 12px;
   overflow-y: scroll;
 }
 
@@ -471,7 +668,7 @@ export default defineComponent({
 .volume-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  grid-template-rows: 180px;
+  grid-auto-rows: 200px;
   justify-content: center;
 }
 
@@ -481,13 +678,11 @@ export default defineComponent({
 }
 
 .study-header {
-  width: 100%;
   overflow: hidden;
   white-space: nowrap;
 }
 
 .study-header-line {
-  width: 100%;
   text-overflow: ellipsis;
   overflow: hidden;
 }
@@ -496,5 +691,14 @@ export default defineComponent({
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+ .thumbnail-overlay >>> .v-overlay__content {
+  height: 100%;
+  width: 100%;
+}
+
+.volume-list >>> .theme--light.v-sheet--outlined {
+  border: none;
 }
 </style>

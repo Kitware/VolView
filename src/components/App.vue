@@ -211,7 +211,7 @@ import {
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
-import PatientBrowser from "./PatientBrowser.vue";
+import PatientBrowser from './PatientBrowser.vue';
 import ModulePanel from './ModulePanel.vue';
 // import Annotations from './Annotations.vue';
 import VolumeRendering from '../componentsX/VolumeRendering.vue';
