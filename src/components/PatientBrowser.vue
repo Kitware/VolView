@@ -2,10 +2,10 @@
   <div id="patient-module" class="mx-2 height-100">
     <div id="patient-filter-controls">
       <v-select
-        v-model="patientName"
-        :items="patientListWithImageEntry"
+        v-model="selectedPatient"
+        :items="patientList"
         item-text="name"
-        item-value="id"
+        item-value="key"
         dense
         filled
         single-line
@@ -18,37 +18,41 @@
       />
     </div>
     <div id="patient-data-list">
-      <item-group :value="selectedBaseImage" @change="setSelection">
-        <template v-if="!patientName"> No patient selected </template>
-        <template v-else-if="patientName === IMAGES">
+      <item-group
+        :value="primarySelection"
+        :testFunction="testFunction"
+        @change="setPrimarySelection"
+      >
+        <template v-if="!selectedPatient"> No patient selected </template>
+        <template v-else-if="selectedPatient === NON_DICOM_IMAGES">
           <div v-if="imageList.length === 0">No non-dicom images available</div>
           <groupable-item
-            v-for="imgID in imageList"
-            :key="imgID"
+            v-for="image in imageList"
+            :key="image.id"
             v-slot="{ active, select }"
-            :value="imgID"
+            :value="image.selectionKey"
           >
             <avatar-list-card
               :active="active"
-              :title="dataIndex[imgID].name"
-              :image-url="getImageThumbnail(imgID)"
+              :title="image.name"
+              :image-url="thumbnailCache[image.cacheKey] || ''"
               :image-size="100"
               @click="select"
             >
               <div class="body-2 text-truncate">
-                {{ dataIndex[imgID].name }}
+                {{ image.name }}
               </div>
               <div class="caption">
-                Dims: ({{ dataIndex[imgID].dims.join(', ') }})
+                Dims: ({{ image.dimensions.join(', ') }})
               </div>
               <div class="caption">
                 Spacing: ({{
-                  dataIndex[imgID].spacing.map((s) => s.toFixed(2)).join(', ')
+                  image.spacing.map((s) => s.toFixed(2)).join(', ')
                 }})
               </div>
               <template v-slot:menu>
                 <v-list>
-                  <v-list-item @click.stop="removeData(imgID)">
+                  <v-list-item @click.stop="removeData(image.id)">
                     Delete
                   </v-list-item>
                 </v-list>
@@ -59,68 +63,68 @@
         <template v-else>
           <v-expansion-panels id="patient-data-studies" accordion multiple>
             <v-expansion-panel
-              v-for="study in visibleStudies"
-              :key="study.StudyInstanceUID"
+              v-for="study in studiesAndVolumes"
+              :key="study.info.StudyInstanceUID"
               class="patient-data-study-panel"
             >
               <v-expansion-panel-header
                 color="#1976fa0a"
                 class="no-select"
-                :title="study.StudyDate"
+                :title="study.info.StudyDate"
               >
                 <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
                 <div class="study-header">
                   <div class="subtitle-2 study-header-line">
                     {{
-                      study.StudyDescription ||
-                      study.StudyDate ||
-                      study.StudyInstanceUID
+                      study.info.StudyDescription ||
+                      study.info.StudyDate ||
+                      study.info.StudyInstanceUID
                     }}
                   </div>
                   <div
-                    v-if="study.StudyDescription"
+                    v-if="study.info.StudyDescription"
                     class="caption study-header-line"
                   >
-                    {{ study.StudyDate }}
+                    {{ study.info.StudyDate }}
                   </div>
                 </div>
               </v-expansion-panel-header>
               <v-expansion-panel-content>
                 <div class="my-2 volume-list">
                   <groupable-item
-                    v-for="volInfo in getVolumesForStudy(
-                      study.StudyInstanceUID
-                    )"
-                    :key="volInfo.VolumeID"
+                    v-for="volume in study.volumes"
+                    :key="volume.info.VolumeID"
                     v-slot:default="{ active, select }"
-                    :value="dicomVolumeToDataID[volInfo.VolumeID]"
+                    :value="volume.selectionKey"
                   >
                     <v-card
                       outlined
                       ripple
                       :color="active ? 'light-blue lighten-4' : ''"
                       class="volume-card"
-                      :title="volInfo.SeriesDescription"
+                      :title="volume.info.SeriesDescription"
                       @click="select"
                     >
                       <v-img
                         contain
                         height="100px"
-                        :src="dicomThumbnails[volInfo.VolumeID]"
+                        :src="thumbnailCache[volume.cacheKey] || ''"
                       />
                       <v-card-text
                         class="text--primary caption text-center series-desc mt-n3"
                       >
-                        <div>[{{ volInfo.NumberOfSlices }}]</div>
+                        <div>[{{ volume.info.NumberOfSlices }}]</div>
                         <div class="text-ellipsis">
-                          {{ volInfo.SeriesDescription || '(no description)' }}
+                          {{
+                            volume.info.SeriesDescription || '(no description)'
+                          }}
                         </div>
                         <div class="actions">
                           <v-btn
                             small
                             icon
                             @click.stop="
-                              removeData(dicomVolumeToDataID[volInfo.VolumeID])
+                              removeDICOMVolume(volume.info.volumeID)
                             "
                           >
                             <v-icon>mdi-delete</v-icon>
@@ -139,24 +143,42 @@
   </div>
 </template>
 
-<script>
-import { mapState, mapActions } from 'vuex';
-
+<script lang="ts">
+import {
+  computed,
+  defineComponent,
+  ref,
+  set,
+  watch,
+} from '@vue/composition-api';
+import type { Ref } from '@vue/composition-api';
+import { TypedArray } from '@kitware/vtk.js/types';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import Image from 'itk/Image';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import AvatarListCard from '@/src/components/AvatarListCard.vue';
+import { useDICOMStore } from '../storex/datasets-dicom';
+import {
+  DataSelection,
+  selectionEquals,
+  useDatasetStore,
+} from '../storex/datasets';
+import { useImageStore } from '../storex/datasets-images';
 
-import { DataTypes, NO_SELECTION } from '@/src/constants';
-
-const IMAGES = Symbol('IMAGES');
+const NON_DICOM_IMAGES = Symbol('non dicom images');
 const canvas = document.createElement('canvas');
 
 // Assume itkImage type is Uint8Array
-function itkImageToURI(itkImage) {
+function itkImageToURI(itkImage: Image) {
   const [width, height] = itkImage.size;
   const im = new ImageData(width, height);
   const arr32 = new Uint32Array(im.data.buffer);
   const itkBuf = itkImage.data;
+  if (!itkBuf) {
+    return '';
+  }
+
   for (let i = 0; i < itkBuf.length; i += 1) {
     const byte = itkBuf[i];
     // ABGR order
@@ -167,11 +189,20 @@ function itkImageToURI(itkImage) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  ctx.putImageData(im, 0, 0);
-  return canvas.toDataURL('image/png');
+  if (ctx) {
+    ctx.putImageData(im, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+  return '';
 }
 
-function scalarImageToURI(values, width, height, scaleMin, scaleMax) {
+function scalarImageToURI(
+  values: TypedArray,
+  width: number,
+  height: number,
+  scaleMin: number,
+  scaleMax: number
+) {
   const im = new ImageData(width, height);
   const arr32 = new Uint32Array(im.data.buffer);
   // scale to 1 unsigned byte
@@ -186,192 +217,220 @@ function scalarImageToURI(values, width, height, scaleMin, scaleMax) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  ctx.putImageData(im, 0, 0);
-  return canvas.toDataURL('image/png');
+  if (ctx) {
+    ctx.putImageData(im, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+  return '';
 }
 
-export default {
-  name: 'PatientBrowser',
+async function generateDICOMThumbnail(
+  dicomStore: ReturnType<typeof useDICOMStore>,
+  volumeKey: string
+) {
+  if (volumeKey in dicomStore.volumeInfo) {
+    const info = dicomStore.volumeInfo[volumeKey];
+    const middleSlice = Math.round(Number(info.NumberOfSlices));
+    const thumb = (await dicomStore.getVolumeSlice(
+      volumeKey,
+      middleSlice,
+      true
+    )) as Image;
 
+    return itkImageToURI(thumb);
+  }
+  return '';
+}
+
+function generateVTKImageThumbnail(imageData: vtkImageData) {
+  const scalars = imageData.getPointData().getScalars();
+  const dims = imageData.getDimensions();
+  const length = dims[0] * dims[1];
+  const sliceOffset = Math.floor(dims[2] / 2) * length;
+  const data = scalars.getData();
+  const dataRange = scalars.getRange();
+  const slice = Array.isArray(data)
+    ? data.slice(sliceOffset, sliceOffset + length)
+    : data.subarray(sliceOffset, sliceOffset + length);
+
+  return scalarImageToURI(slice, dims[0], dims[1], dataRange[0], dataRange[1]);
+}
+
+function imageCacheKey(dataID: string) {
+  return `image-${dataID}`;
+}
+
+function dicomCacheKey(volKey: string) {
+  return `dicom-${volKey}`;
+}
+
+export default defineComponent({
+  name: 'PatientBrowser',
   components: {
     ItemGroup,
     GroupableItem,
     AvatarListCard,
   },
+  setup() {
+    const selectedPatient: Ref<string | typeof NON_DICOM_IMAGES> = ref('');
+    // no deletion happens here, so technically a leak of sorts
+    const thumbnailCacheRef = ref<Record<string, string>>({});
+    const dicomStore = useDICOMStore();
+    const dataStore = useDatasetStore();
+    const imageStore = useImageStore();
 
-  data() {
+    const primarySelection = computed(() => dataStore.primarySelection);
+
+    // TODO show patient ID in parens if there is a name conflict
+    const patients = computed(() =>
+      Object.entries(dicomStore.patientInfo)
+        .map(([key, info]) => ({
+          key,
+          name: info.PatientName,
+          info,
+        }))
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+    );
+
+    const studiesAndVolumesRef = computed(() => {
+      const selPatient = selectedPatient.value;
+      const {
+        patientStudies,
+        studyInfo,
+        studyVolumes,
+        volumeInfo,
+      } = dicomStore;
+      return patients.value
+        .filter((patient) => patient.key === selPatient)
+        .flatMap((patient) =>
+          patientStudies[patient.key].map((studyKey) => {
+            const info = studyInfo[studyKey];
+            const volumes = studyVolumes[studyKey].map((volumeKey) => ({
+              // for thumbnailing
+              cacheKey: dicomCacheKey(volumeKey),
+              info: volumeInfo[volumeKey],
+              // for UI selection
+              selectionKey: {
+                type: 'dicom',
+                volumeKey,
+              } as DataSelection,
+            }));
+            return {
+              info,
+              volumes,
+            };
+          })
+        );
+    });
+
+    const imagesRef = computed(() =>
+      imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
+    );
+
+    // switches the selected patient/case based on the
+    // primary selection.
+    watch(primarySelection, (selection) => {
+      if (selection?.type === 'image') {
+        selectedPatient.value = NON_DICOM_IMAGES;
+      } else if (selection?.type === 'dicom') {
+        const { volumeKey } = selection;
+        const patientKey =
+          dicomStore.studyPatient[dicomStore.volumeStudy[volumeKey]];
+        selectedPatient.value = patientKey;
+      }
+    });
+
+    // switches the selected patient/case if
+    // (1) no selection, and (2) just loaded patients
+    watch(
+      patients,
+      () => {
+        if (!selectedPatient.value && patients.value.length) {
+          selectedPatient.value = patients.value[0].key;
+        }
+      },
+      { immediate: true }
+    );
+
+    // generates and caches thumbnails
+    // FYI this won't update if an image's pixels change
+    watch(
+      [studiesAndVolumesRef, imagesRef],
+      () => {
+        const thumbnailCache = thumbnailCacheRef.value;
+        const imageIDs = imagesRef.value;
+        const studiesAndVolumes = studiesAndVolumesRef.value;
+
+        imageIDs.forEach(async (id) => {
+          const cacheKey = imageCacheKey(id);
+          if (!(cacheKey in thumbnailCache)) {
+            const thumb = generateVTKImageThumbnail(imageStore.dataIndex[id]);
+            set(thumbnailCache, cacheKey, thumb);
+          }
+        });
+
+        studiesAndVolumes.forEach(({ volumes }) => {
+          volumes.forEach(async (volumeInfo) => {
+            const cacheKey = dicomCacheKey(volumeInfo.info.VolumeID);
+            if (!(cacheKey in thumbnailCache)) {
+              const thumb = await generateDICOMThumbnail(
+                dicomStore,
+                volumeInfo.info.VolumeID
+              );
+              set(thumbnailCache, cacheKey, thumb);
+            }
+          });
+        });
+      },
+      { deep: true }
+    );
+
+    const patientList = computed(() => [
+      {
+        key: NON_DICOM_IMAGES,
+        name: 'Non-DICOM Images',
+        info: null,
+      },
+      ...patients.value,
+    ]);
+
+    const imageList = computed(() => {
+      const { metadata } = imageStore;
+      return imagesRef.value.map((id) => ({
+        id,
+        cacheKey: imageCacheKey(id),
+        // for UI selection
+        selectionKey: {
+          type: 'image',
+          dataID: id,
+        } as DataSelection,
+        name: metadata[id].name,
+        dimensions: metadata[id].dimensions,
+        spacing: metadata[id].spacing,
+      }));
+    });
+
     return {
-      patientName: '',
-      imageThumbnails: {}, // dataID -> Image
-      dicomThumbnails: {}, // volumeID -> Image
-      pendingDicomThumbnails: {},
-
-      IMAGES, // symbol
+      NON_DICOM_IMAGES,
+      selectedPatient,
+      patientList,
+      imageList,
+      primarySelection,
+      thumbnailCache: thumbnailCacheRef,
+      studiesAndVolumes: studiesAndVolumesRef,
+      testFunction: selectionEquals,
+      setPrimarySelection: (sel: DataSelection) => {
+        dataStore.setPrimarySelection(sel);
+      },
+      removeImage: (imageID: string) => {
+        console.log('removeImage', imageID);
+      },
+      removeDICOMVolume: (volumeKey: string) => {
+        console.log('removeDICOM', volumeKey);
+      },
     };
   },
-
-  computed: {
-    ...mapState({
-      selectedBaseImage: 'selectedBaseImage',
-      dicomVolumeToDataID: 'dicomVolumeToDataID',
-      imageList: (state) => state.data.imageIDs,
-      dataIndex: (state) => state.data.index,
-      vtkCache: (state) => state.data.vtkCache,
-    }),
-    ...mapState('dicom', {
-      patientIndex: 'patientIndex',
-      patientStudies: 'patientStudies',
-      studyIndex: 'studyIndex',
-      studyVolumes: 'studyVolumes',
-      volumeIndex: 'volumeIndex',
-    }),
-    patients(state) {
-      const seen = new Set();
-      const patients = [];
-
-      // select key, name from patientIndex group by name
-      Object.entries(state.patientIndex).forEach(([key, p]) => {
-        const name = p.PatientName;
-        if (!seen.has(name)) {
-          seen.add(name);
-          patients.push([key, p]);
-        }
-      });
-
-      patients.sort((a, b) => a[1].PatientName < b[1].PatientName);
-      return patients.map(([key, p]) => ({
-        id: p.PatientName,
-        name: p.PatientName,
-        key, // patient key
-        patient: p,
-      }));
-    },
-    patientListWithImageEntry() {
-      return [].concat(
-        {
-          id: IMAGES,
-          name: 'Non-DICOM images',
-          key: null,
-          patient: null,
-        },
-        this.patients
-      );
-    },
-    visibleStudies() {
-      // select all studies associated with a patient whose name is
-      // the same as this.patientName
-      let studies = [];
-      this.patients
-        .filter(({ patient }) => patient.PatientName === this.patientName)
-        .forEach(({ key }) => {
-          studies = studies.concat(
-            this.patientStudies[key].map(
-              (studyKey) => this.studyIndex[studyKey]
-            )
-          );
-        });
-      return studies;
-    },
-  },
-
-  watch: {
-    selectedBaseImage(id) {
-      if (id !== NO_SELECTION) {
-        const dataInfo = this.dataIndex[id];
-        if (dataInfo.type === DataTypes.Image) {
-          this.patientName = IMAGES;
-        } else if (dataInfo.type === DataTypes.Dicom) {
-          const patientInfo = this.patientIndex[dataInfo.patientKey];
-          this.patientName = patientInfo.PatientName;
-        }
-      }
-    },
-    patients() {
-      // if patient index is updated, then try to select first one
-      if (!this.patientName) {
-        if (this.patients.length) {
-          this.patientName = this.patients[0].id;
-        } else {
-          this.patientName = '';
-        }
-      }
-    },
-  },
-
-  methods: {
-    getVolumesForStudy(studyUID) {
-      const volumeList = (this.studyVolumes[studyUID] ?? []).map(
-        (volID) => this.volumeIndex[volID]
-      );
-
-      // trigger a background job fetch thumbnails
-      this.doBackgroundDicomThumbnails(volumeList);
-
-      return volumeList;
-    },
-
-    async setSelection(sel) {
-      if (sel !== this.selectedBaseImage) {
-        await this.selectBaseImage(sel);
-        await this.updateScene({ reset: true });
-      }
-    },
-
-    async doBackgroundDicomThumbnails(volumeList) {
-      volumeList.forEach(async (volInfo) => {
-        const id = volInfo.VolumeID;
-        if (
-          !(id in this.dicomThumbnails || id in this.pendingDicomThumbnails)
-        ) {
-          this.$set(this.pendingDicomThumbnails, id, true);
-          try {
-            const middleSlice = Math.round(Number(volInfo.NumberOfSlices) / 2);
-            const thumbItkImage = await this.getVolumeSlice({
-              volumeID: id,
-              slice: middleSlice,
-              asThumbnail: true,
-            });
-            this.$set(this.dicomThumbnails, id, itkImageToURI(thumbItkImage));
-          } finally {
-            delete this.pendingDicomThumbnails[id];
-          }
-        }
-      });
-    },
-
-    getImageThumbnail(id) {
-      if (id in this.imageThumbnails) {
-        return this.imageThumbnails[id];
-      }
-      if (id in this.vtkCache) {
-        const imageData = this.vtkCache[id];
-        const scalars = imageData.getPointData().getScalars();
-        const dims = imageData.getDimensions();
-        const length = dims[0] * dims[1];
-        const sliceOffset = Math.floor(dims[2] / 2) * length;
-        const slice = scalars
-          .getData()
-          .subarray(sliceOffset, sliceOffset + length);
-        const dataRange = scalars.getRange();
-
-        const img = scalarImageToURI(
-          slice,
-          dims[0],
-          dims[1],
-          dataRange[0],
-          dataRange[1]
-        );
-        this.$set(this.imageThumbnails, id, img);
-        return img;
-      }
-      return '';
-    },
-
-    ...mapActions(['selectBaseImage', 'removeData']),
-    ...mapActions('visualization', ['updateScene']),
-    ...mapActions('dicom', ['getVolumeSlice']),
-  },
-};
+});
 </script>
 
 <style>
