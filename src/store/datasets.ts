@@ -132,8 +132,8 @@ export const useDatasetStore = defineStore('dataset', {
       const modelStore = useModelStore();
       return [...imageStore.idList, ...modelStore.idList];
     },
-    getDataProxyByID<T extends vtkObject>() {
-      return (id: string) => {
+    getDataProxyByID() {
+      return <T extends vtkObject>(id: string) => {
         return this.$proxies.getData<T>(id);
       };
     },
