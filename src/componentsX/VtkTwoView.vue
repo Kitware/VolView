@@ -13,9 +13,9 @@
     </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
-        <div class="vtk-view" ref="vtkContainerRef" />
+        <div class="vtk-view" ref="vtkContainerRef"/>
       </div>
-      <div class="overlay tool-layer">
+      <div class="overlay-no-events tool-layer">
         <pan-tool :view-proxy="viewProxy" />
         <zoom-tool :view-proxy="viewProxy" />
         <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
@@ -28,7 +28,7 @@
           :view-proxy="viewProxy"
         />
       </div>
-      <view-overlay-grid class="overlay view-annotations">
+      <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-middle>
           <div class="annotation-cell">
             <span>{{ topLabel }}</span>
@@ -47,9 +47,62 @@
             </div>
           </div>
         </template>
+        <template v-slot:top-right>
+          <div class="annotation-cell">
+            <v-menu
+              open-on-hover
+              offset-y
+              left
+              nudge-left="10"
+              dark
+              v-if="dicomInfo !== null"
+              max-width="200px"
+            >
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  dark
+                  small
+                  icon
+                  v-bind="attrs"
+                  v-on="on"
+                  class="info-button"
+                >
+                  <v-icon dark>
+                    mdi-information
+                  </v-icon>
+                </v-btn>
+              </template>
+              <v-list class="grey darken-3">
+                <v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title class=".font-color">PATIENT / CASE</v-list-item-title>
+                    <v-divider/>
+                    <v-list-item-title>ID: {{ dicomInfo.patientID }}</v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+                <v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title>STUDY</v-list-item-title>
+                    <v-divider/>
+                    <v-list-item-title>ID: {{ dicomInfo.studyID }}</v-list-item-title>
+                    <v-list-item-title>{{ dicomInfo.studyDescription }}</v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+                <v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title>SERIES</v-list-item-title>
+                    <v-divider/>
+                    <v-list-item-title>SERIES #: {{ dicomInfo.seriesNumber }}</v-list-item-title>
+                    <v-list-item-title>{{ dicomInfo.seriesDescription }}</v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </div>
+        </template>
       </view-overlay-grid>
       <transition name="loading">
-        <div v-if="isImageLoading" class="overlay loading">
+        <div v-if="isImageLoading" class="overlay-no-events loading">
           <div>Loading the image</div>
           <div>
             <v-progress-circular indeterminate color="blue" />
@@ -94,6 +147,7 @@ import PanTool from '../components/tools/PanTool.vue';
 import ZoomTool from '../components/tools/ZoomTool.vue';
 import RulerTool from '../components/tools/RulerTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
+import { useDICOMStore } from '../store/datasets-dicom';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -140,6 +194,8 @@ export default defineComponent({
       isImageLoading,
     } = useCurrentImage();
 
+    const dicomStore = useDICOMStore();
+
     const sliceConfig = computed(() => view2DStore.sliceConfigs[viewID]);
     const currentSlice = computed(() => sliceConfig.value.slice);
     const sliceMin = computed(() => sliceConfig.value.min);
@@ -148,6 +204,33 @@ export default defineComponent({
     const wlConfig = computed(() => view2DStore.wlConfigs[viewID]);
     const windowWidth = computed(() => wlConfig.value.width);
     const windowLevel = computed(() => wlConfig.value.level);
+    const dicomInfo = computed(() => {
+
+      if (curImageID.value !== null && curImageID.value in dicomStore.imageIDToVolumeKey) {
+        const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];
+        const volumeInfo = dicomStore.volumeInfo[volumeKey];
+        const studyKey = dicomStore.volumeStudy[volumeKey];
+        const studyInfo = dicomStore.studyInfo[studyKey];
+        const patientKey = dicomStore.studyPatient[studyKey];
+        const patientInfo = dicomStore.patientInfo[patientKey];
+
+        const patientID = patientInfo.PatientID;
+        const studyID = studyInfo.StudyID;
+        const studyDescription = studyInfo.StudyDescription;
+        const seriesNumber = volumeInfo.SeriesNumber;
+        const seriesDescription = volumeInfo.SeriesDescription;
+
+        return {
+          patientID,
+          studyID,
+          studyDescription,
+          seriesNumber,
+          seriesDescription,
+          };
+      }
+
+      return null;
+    });
 
     // --- view proxy setup --- //
 
@@ -347,6 +430,7 @@ export default defineComponent({
       isImageLoading,
       setSlice: (slice: number) => view2DStore.setSlice(viewID, slice),
       widgetManager,
+      dicomInfo,
     };
   },
 });
