@@ -28,6 +28,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Paints
    */
   publicAPI.handleMouseMove = (eventData: any) => {
+    if (shouldIgnoreEvent(eventData)) {
+      return macro.VOID;
+    }
+
     const worldCoords = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
@@ -49,8 +53,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   /**
    * Finishes paint
    */
-  publicAPI.handleLeftButtonRelease = () => {
-    if (!isPainting) {
+  publicAPI.handleLeftButtonRelease = (eventData: any) => {
+    if (!isPainting || shouldIgnoreEvent(eventData)) {
       return macro.VOID;
     }
 
