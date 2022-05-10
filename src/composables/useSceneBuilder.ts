@@ -1,6 +1,6 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import { Ref, watchEffect, shallowRef } from '@vue/composition-api';
-import { useViewStore } from '../storex/views';
+import { useViewStore } from '../store/views';
 import { vtkLPSViewProxy } from '../types/vtk-types';
 
 interface Scene {
