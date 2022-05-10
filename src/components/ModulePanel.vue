@@ -45,6 +45,7 @@ import {
 import PatientBrowser from '../componentsX/PatientBrowser.vue';
 import VolumeRendering from '../componentsX/VolumeRendering.vue';
 import SampleData from './SampleData.vue';
+import Settings from './Settings.vue';
 
 export const Modules = [
   {
@@ -82,6 +83,12 @@ export const Modules = [
     icon: 'robot-outline',
     component: null,
   },
+  {
+    name: 'Settings',
+    icon: 'cog',
+    component: Settings,
+  },
+
 
 ];
 
