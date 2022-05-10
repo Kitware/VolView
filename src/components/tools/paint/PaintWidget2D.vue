@@ -17,6 +17,8 @@ import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
+import { useViewStore } from '@/src/store/views';
+import { useEventListener } from '@/src/composables/useEventListener';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -43,10 +45,14 @@ export default defineComponent({
       widgetManager: widgetManagerRef,
       viewDirection,
       slice,
+      viewId: viewID,
     } = toRefs(props);
 
     const paintStore = usePaintToolStore();
     const factory = paintStore.getWidgetFactory();
+
+    const viewStore = useViewStore();
+    const viewProxyRef = computed(() => viewStore.getViewProxy(viewID.value));
 
     const widgetRef = ref<vtkPaintViewWidget>();
 
@@ -61,6 +67,8 @@ export default defineComponent({
         throw new Error('[PaintWidget2D] failed to create view widget');
       }
     });
+
+    // --- widget representation config --- //
 
     watchEffect(() => {
       const widget = widgetRef.value!;
@@ -107,8 +115,25 @@ export default defineComponent({
     // --- visibility --- //
 
     onMounted(() => {
-      // hide handle visibility
-      widgetRef.value!.setHandleVisibility(true);
+      widgetRef.value!.setVisibility(false);
+    });
+
+    const interactorContainer = computed(() =>
+      viewProxyRef.value?.getInteractor().getContainer()
+    );
+
+    useEventListener(interactorContainer, 'pointerenter', () => {
+      const widget = widgetRef.value;
+      if (widget) {
+        widget.setVisibility(true);
+      }
+    });
+
+    useEventListener(interactorContainer, 'pointerleave', () => {
+      const widget = widgetRef.value;
+      if (widget) {
+        widget.setVisibility(false);
+      }
     });
 
     // --- focus and rendering --- //
