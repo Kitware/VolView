@@ -145,8 +145,8 @@ function vtkPaintBrushContextRepresentation(publicAPI, model) {
     const brush = widgetState.getBrush();
     const { indexToWorld, worldToIndex } = model;
 
-    const location = [];
-    if (brush.getOrigin()) {
+    if (stamp && brush.getOrigin()) {
+      const location = [];
       vec3.transformMat4(location, brush.getOrigin(), worldToIndex);
 
       const contour = generateContour({

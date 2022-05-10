@@ -11,12 +11,14 @@ export interface PaintPointWidgetState extends vtkWidgetState {
   getVisible(): boolean;
   setColor(color: number): boolean;
   getColor(): number;
-  getStamp(): number[];
-  getStampSize(): [number, number];
 }
 
 export interface PaintWidgetState extends vtkWidgetState {
   getBrush(): PaintPointWidgetState;
+  getStamp(): Uint8Array;
+  setStamp(stamp: Uint8Array): boolean;
+  getStampSize(): [number, number];
+  setStampSize(size: [number, number]): boolean;
 }
 
 export default function generateState() {
@@ -34,11 +36,11 @@ export default function generateState() {
     })
     .addField({
       name: 'stamp',
-      initialValue: [0, 1, 0, 1, 1, 1, 0, 1, 0],
+      initialValue: null,
     })
     .addField({
       name: 'stampSize',
-      initialValue: [3, 3],
+      initialValue: [0, 0],
     })
     .build() as PaintWidgetState;
 }
