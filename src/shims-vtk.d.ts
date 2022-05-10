@@ -665,14 +665,18 @@ declare module '@kitware/vtk.js/Rendering/Core/InteractorObserver' {
   import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
   import { Vector3 } from '@kitware/vtk.js/types';
   import { EventHandler } from '@kitware/vtk.js/interfaces-additions';
+  import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 
   export interface vtkInteractorObserver extends vtkObject {
     invokeInteractionEvent(...args: any[]): void;
-    onInteractionEvent(cb: EventHandler, priority?: number): void;
+    onInteractionEvent(cb: EventHandler, priority?: number): vtkSubscription;
     invokeStartInteractionEvent(...args: any[]): void;
-    onStartInteractionEvent(cb: EventHandler, priority?: number): void;
+    onStartInteractionEvent(
+      cb: EventHandler,
+      priority?: number
+    ): vtkSubscription;
     invokeEndInteractionEvent(...args: any[]): void;
-    onEndInteractionEvent(cb: EventHandler, priority?: number): void;
+    onEndInteractionEvent(cb: EventHandler, priority?: number): vtkSubscription;
 
     getInteractor(): vtkRenderWindowInteractor;
     getEnabled(): boolean;

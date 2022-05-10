@@ -27,6 +27,11 @@
           :view-direction="viewDirection"
           :view-proxy="viewProxy"
         />
+        <paint-tool
+          :view-id="viewID"
+          :view-direction="viewDirection"
+          :widget-manager="widgetManager"
+        />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-middle>
@@ -146,8 +151,10 @@ import SliceScrollTool from '../components/tools/SliceScrollTool.vue';
 import PanTool from '../components/tools/PanTool.vue';
 import ZoomTool from '../components/tools/ZoomTool.vue';
 import RulerTool from '../components/tools/RulerTool.vue';
+import PaintTool from '../components/tools/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
+import { useLabelmapStore } from '../store/datasets-labelmaps';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -169,6 +176,7 @@ export default defineComponent({
     PanTool,
     ZoomTool,
     RulerTool,
+    PaintTool,
   },
   setup(props) {
     const view2DStore = useView2DStore();
@@ -313,10 +321,19 @@ export default defineComponent({
 
     // --- scene setup --- //
 
+    const labelmapStore = useLabelmapStore();
+
+    const labelmapIDs = computed(() => {
+      return labelmapStore.idList.filter(
+        (id) => labelmapStore.parentImage[id] === curImageID.value
+      );
+    });
+
     const { baseImageRep } = useSceneBuilder<vtkIJKSliceRepresentationProxy>(
       viewID,
       {
         baseImage: curImageID,
+        labelmaps: labelmapIDs,
       }
     );
 
