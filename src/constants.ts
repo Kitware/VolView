@@ -3,6 +3,7 @@ export const NO_SELECTION = -1;
 export const NO_WIDGET = -1;
 
 export const EPSILON = 10e-6;
+export const NOOP = () => {};
 
 // instances
 export const FileIOInst = Symbol('FileIO');
