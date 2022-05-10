@@ -383,7 +383,7 @@ export default defineComponent({
     });
 
     watch(
-      [baseImageRep, cameraDirVec, cameraUpVec],
+      [curImageID, cameraDirVec, cameraUpVec],
       () => {
         if (resizeToFit.value) {
           resetCamera();
