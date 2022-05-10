@@ -13,7 +13,7 @@ export const usePaintToolStore = defineStore('paint', {
   state: (): State => ({
     activeLabelmapID: null,
     brushType: BrushTypes.Circle,
-    brushSize: 5,
+    brushSize: 8,
   }),
   getters: {
     getWidgetFactory() {
@@ -38,10 +38,17 @@ export const usePaintToolStore = defineStore('paint', {
       } else {
         this.activeLabelmapID = labelmapStore.newLabelmapFromImage(imageID);
       }
-      console.log(this.activeLabelmapID);
+
+      this.$tools.paint.setBrushSize(this.brushSize);
 
       return true;
     },
-    teardown() {},
+    teardown() {
+      this.activeLabelmapID = null;
+    },
+    setBrushSize(size: number) {
+      this.brushSize = Math.round(size);
+      this.$tools.paint.setBrushSize(size);
+    },
   },
 });
