@@ -29,7 +29,6 @@ export const usePaintToolStore = defineStore('paint', {
         return false;
       }
 
-      // TODO pick a labelmap for a given image, else new
       const found = Object.entries(labelmapStore.parentImage).find(
         ([, parentID]) => imageID === parentID
       );
