@@ -7,7 +7,7 @@ import {
   MessageType,
   PendingMessage,
   useMessageStore,
-} from '@src/storex/messages';
+} from '@src/store/messages';
 
 chai.use(chaiAsPromised);
 

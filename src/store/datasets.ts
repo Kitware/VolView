@@ -7,8 +7,7 @@ import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { useView3DStore } from './views-3D';
-import { extractArchivesRecursively, retypeFile } from '../io/newIO';
-import { FILE_READERS } from '../io/newReaders';
+import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 
 export const DataType = {
   Image: 'Image',
@@ -133,8 +132,8 @@ export const useDatasetStore = defineStore('dataset', {
       const modelStore = useModelStore();
       return [...imageStore.idList, ...modelStore.idList];
     },
-    getDataProxyByID<T extends vtkObject>() {
-      return (id: string) => {
+    getDataProxyByID() {
+      return <T extends vtkObject>(id: string) => {
         return this.$proxies.getData<T>(id);
       };
     },

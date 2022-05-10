@@ -111,7 +111,13 @@
                         :src="thumbnailCache[volume.cacheKey] || ''"
                       />
                       <v-card-text
-                        class="text--primary caption text-center series-desc mt-n3"
+                        class="
+                          text--primary
+                          caption
+                          text-center
+                          series-desc
+                          mt-n3
+                        "
                       >
                         <div>[{{ volume.info.NumberOfSlices }}]</div>
                         <div class="text-ellipsis">
@@ -158,13 +164,13 @@ import Image from 'itk/Image';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import AvatarListCard from '@/src/components/AvatarListCard.vue';
-import { useDICOMStore } from '../storex/datasets-dicom';
+import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
   selectionEquals,
   useDatasetStore,
-} from '../storex/datasets';
-import { useImageStore } from '../storex/datasets-images';
+} from '../store/datasets';
+import { useImageStore } from '../store/datasets-images';
 
 const NON_DICOM_IMAGES = Symbol('non dicom images');
 const canvas = document.createElement('canvas');
@@ -294,12 +300,8 @@ export default defineComponent({
 
     const studiesAndVolumesRef = computed(() => {
       const selPatient = selectedPatient.value;
-      const {
-        patientStudies,
-        studyInfo,
-        studyVolumes,
-        volumeInfo,
-      } = dicomStore;
+      const { patientStudies, studyInfo, studyVolumes, volumeInfo } =
+        dicomStore;
       return patients.value
         .filter((patient) => patient.key === selPatient)
         .flatMap((patient) =>

@@ -1,5 +1,5 @@
 import { vtkReader, vtkClass } from '@/src/types/vtk-types';
-import { readFileAsArrayBuffer, readFileAsUTF8Text } from '../io';
+import { readFileAsArrayBuffer, readFileAsUTF8Text } from '@/src/io';
 
 export default async function readFile(
   file: File,

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { retypeFile } from '@src/io/newIO';
+import { retypeFile } from '@src/io';
 
 function makeEmptyFile(name: string) {
   return new File([], name);

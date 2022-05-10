@@ -1,7 +1,7 @@
 import { computed } from '@vue/composition-api';
-import { useDatasetStore } from '../storex/datasets';
-import { useDICOMStore } from '../storex/datasets-dicom';
-import { defaultImageMetadata, useImageStore } from '../storex/datasets-images';
+import { useDatasetStore } from '../store/datasets';
+import { useDICOMStore } from '../store/datasets-dicom';
+import { defaultImageMetadata, useImageStore } from '../store/datasets-images';
 
 export function useCurrentImage() {
   const dataStore = useDatasetStore();

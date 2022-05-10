@@ -1,6 +1,6 @@
 import { computed, Ref } from '@vue/composition-api';
 import { mat3 } from 'gl-matrix';
-import { ImageMetadata } from '../storex/datasets-images';
+import { ImageMetadata } from '../store/datasets-images';
 import { getLPSDirections, LPSAxisDir } from '../utils/lps';
 
 /**

@@ -41,7 +41,7 @@ import { vec3 } from 'gl-matrix';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 
-import { useView3DStore } from '@src/storex/views-3D';
+import { useView3DStore } from '@/src/store/views-3D';
 import { useProxyManager } from '@/src/composables/proxyManager';
 
 import SliceSlider from '@src/components/SliceSlider.vue';
@@ -51,7 +51,7 @@ import { LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
-import { useViewStore } from '../storex/views';
+import { useSceneBuilder } from '../composables/useSceneBuilder';
 
 export default defineComponent({
   props: {
@@ -69,14 +69,12 @@ export default defineComponent({
     ViewOverlayGrid,
   },
   setup(props) {
-    const viewStore = useViewStore();
     const view3DStore = useView3DStore();
     const proxyManager = useProxyManager()!;
 
     const { viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
-    const currentRepRef = ref<vtkVolumeRepresentationProxy | null>();
 
     // --- view creation --- //
 
@@ -116,35 +114,12 @@ export default defineComponent({
 
     // --- scene setup --- //
 
-    watchEffect(() => {
-      viewProxy.removeAllRepresentations();
-      // Nullify image representation ref.
-      // Helps re-trigger setting of the rendering properties by
-      // forcing a trigger of the corresponding watchEffect below.
-      // addRepresentation(rep) triggers the representation proxy to
-      // reset properties to its own defaults, and we need to override
-      // that to use our own values.
-      currentRepRef.value = null;
-
-      // update the current image
-      // update the current image
-      if (curImageID.value) {
-        const rep = viewStore.getDataRepresentationForView(
-          curImageID.value,
-          viewID
-        ) as vtkVolumeRepresentationProxy;
-        if (rep) {
-          viewProxy.addRepresentation(rep);
-          currentRepRef.value = rep;
-        }
+    const { baseImageRep } = useSceneBuilder<vtkVolumeRepresentationProxy>(
+      viewID,
+      {
+        baseImage: curImageID,
       }
-
-      // TODO not sure why I need this, but might as well keep
-      // the renderer up to date.
-      // For reference, this doesn't get invoked when resetting the
-      // camera with a supplied bounds, so we manually invoke it here.
-      viewProxy.getRenderer().computeVisiblePropBounds();
-    });
+    );
 
     // --- camera setup --- //
 
@@ -168,7 +143,7 @@ export default defineComponent({
     };
 
     watch(
-      [currentRepRef, cameraDirVec, cameraUpVec],
+      [baseImageRep, cameraDirVec, cameraUpVec],
       () => {
         resetCamera();
       },
@@ -181,7 +156,7 @@ export default defineComponent({
     // --- coloring --- //
 
     watchEffect(() => {
-      const rep = currentRepRef.value;
+      const rep = baseImageRep.value;
       const { arrayName, location } = colorBy.value;
 
       // TODO move lut stuff to proxymanager sync code
