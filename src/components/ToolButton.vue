@@ -14,6 +14,7 @@
         v-on="{ ...on, ...$listeners }"
       >
         <v-icon :size="iconSize">{{ icon }}</v-icon>
+        <slot />
       </v-btn>
     </template>
     <span>{{ name }}</span>
