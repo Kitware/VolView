@@ -1,10 +1,10 @@
-# paraview-medical
+# VolView
 
 [![DOI](https://zenodo.org/badge/248073292.svg)](https://zenodo.org/badge/latestdoi/248073292)
 
 ![A screenshot of a sample ParaView Medical session](./public/pvm-sample.png)
 
-ParaView Medical is a medical image viewer for the web!
+VolView is a medical image viewer for the web!
 Built on [vtk.js](https://github.com/Kitware/vtk-js) and [itk.js](https://github.com/InsightSoftwareConsortium/itk-js/), it is a self-contained single-page web application with the following features:
 
 - DICOM loading: load your studies and series directly into the app! No PACS needed
@@ -16,11 +16,11 @@ Built on [vtk.js](https://github.com/Kitware/vtk-js) and [itk.js](https://github
 
 This project is still a work in progress, so suggestions and contributions are welcome in the issue tracker!
 
-You can also play with the online demo: https://paraview-medical.netlify.app/
+You can also play with the online demo: https://volview.netlify.app/
 
 ## Development
 
-Below lists a few commands for building and running a local copy of paraview-medical.
+Below lists a few commands for building and running a local copy of VolView.
 
 To prepare your environment after cloning the repo, run:
 
