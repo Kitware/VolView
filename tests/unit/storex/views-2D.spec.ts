@@ -5,7 +5,7 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { setActivePinia, createPinia } from 'pinia';
 
-import { useView2DStore } from '@src/storex/views-2D';
+import { useView2DStore } from '@src/store/views-2D';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import ProxyManager from '@/src/core/proxies';
 

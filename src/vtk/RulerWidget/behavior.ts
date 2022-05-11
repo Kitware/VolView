@@ -49,7 +49,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       const worldCoords = model.manipulator.handleEvent(
         eventData,
-        model.apiSpecificRenderWindow
+        model._apiSpecificRenderWindow
       );
       if (worldCoords.length) {
         if (intState === InteractionState.PlacingFirst) {
@@ -68,8 +68,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // are trying to drag a point.
     if (model.activeState?.getActive() && model.pickable) {
       dragging = model.activeState;
-      model.apiSpecificRenderWindow.setCursor('grabbing');
-      model.interactor.requestAnimation(publicAPI);
+      model._apiSpecificRenderWindow.setCursor('grabbing');
+      model._interactor.requestAnimation(publicAPI);
       publicAPI.invokeStartInteractionEvent();
       return macro.EVENT_ABORT;
     }
@@ -94,7 +94,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       const worldCoords = model.manipulator.handleEvent(
         eventData,
-        model.apiSpecificRenderWindow
+        model._apiSpecificRenderWindow
       );
 
       if (worldCoords.length) {
@@ -123,19 +123,19 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (dragging) {
       const worldCoords = model.manipulator.handleEvent(
         eventData,
-        model.apiSpecificRenderWindow
+        model._apiSpecificRenderWindow
       );
       if (worldCoords.length) {
         dragging.setOrigin(worldCoords);
       }
 
       dragging = null;
-      model.apiSpecificRenderWindow.setCursor('pointer');
+      model._apiSpecificRenderWindow.setCursor('pointer');
       model.widgetState.deactivate();
-      model.interactor.cancelAnimation(publicAPI);
+      model._interactor.cancelAnimation(publicAPI);
       publicAPI.invokeEndInteractionEvent();
-      // model.widgetManager.enablePicking();
-      // model.interactor.render();
+      // model._widgetManager.enablePicking();
+      // model._interactor.render();
     }
   };
 
@@ -161,19 +161,19 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       model.hasFocus = true;
       // render the (invisible) point handles
-      model.interactor.requestAnimation(publicAPI);
+      model._interactor.requestAnimation(publicAPI);
       publicAPI.invokeStartInteractionEvent();
     }
   };
 
   publicAPI.loseFocus = () => {
     if (model.hasFocus) {
-      model.interactor.cancelAnimation(publicAPI);
+      model._interactor.cancelAnimation(publicAPI);
       publicAPI.invokeEndInteractionEvent();
     }
     model.hasFocus = false;
-    // model.widgetManager.enablePicking();
-    // model.interactor.render();
+    // model._widgetManager.enablePicking();
+    // model._interactor.render();
   };
 
   publicAPI.delete = () => {

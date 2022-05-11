@@ -51,7 +51,7 @@ import {
   toRefs,
   watch,
 } from '@vue/composition-api';
-import { useView2DStore } from '@/src/storex/views-2D';
+import { useView2DStore } from '@/src/store/views-2D';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Tools, useToolStore } from '@/src/store/tools';
 import { useRulerToolStore } from '@/src/store/tools/rulers';
@@ -62,7 +62,7 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
 import { shouldIgnoreEvent } from '@/src/vtk/RulerWidget';
-import { useViewStore } from '@/src/storex/views';
+import { useViewStore } from '@/src/store/views';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Vector2 } from '@kitware/vtk.js/types';
 

@@ -4,7 +4,6 @@ import { defineStore } from 'pinia';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { clampValue } from '@src/utils';
 import { getLPSAxisFromDir, LPSAxis, LPSAxisDir } from '@src/utils/lps';
-import { useIDStore } from './id';
 import { ViewProxyType } from '../core/proxies';
 
 export interface SliceConfig {
@@ -68,8 +67,7 @@ export const useView2DStore = defineStore('view2D', {
       sliceDomain?: [number, number],
       wlDomain?: [number, number]
     ) {
-      const idStore = useIDStore();
-      const id = idStore.getNextID();
+      const id = this.$id.nextID();
       const axis = getLPSAxisFromDir(viewDirection);
 
       set<ViewConfig>(this.viewConfigs, id, {

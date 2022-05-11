@@ -4,6 +4,7 @@ import { useRulerToolStore } from './rulers';
 export enum Tools {
   WindowLevel = 'WindowLevel',
   Ruler = 'Ruler',
+  Paint = 'Paint',
 }
 
 interface State {

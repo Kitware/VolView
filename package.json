@@ -1,5 +1,5 @@
 {
-  "name": "paraview-medical",
+  "name": "VolView",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -14,9 +14,10 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
-    "@kitware/vtk.js": "^22.6.1",
+    "@kitware/vtk.js": "^24.5.6",
     "@vue/composition-api": "1.4.5",
     "@vue/reactivity": "^3.0.5",
+    "@vueuse/core": "^8.4.2",
     "core-js": "3.8.3",
     "deep-equal": "^2.0.5",
     "gl-matrix": "3.3.0",

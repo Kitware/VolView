@@ -1,5 +1,5 @@
 diff --git a/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts b/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
-index 280c758..b455791 100644
+index c9fbaa5..8b31d56 100644
 --- a/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
 +++ b/node_modules/@kitware/vtk.js/Common/Core/DataArray.d.ts
 @@ -54,7 +54,7 @@ export interface vtkDataArray extends vtkObject {
@@ -12,7 +12,7 @@ index 280c758..b455791 100644
  	/**
  	 *
 diff --git a/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts b/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
-index 3f8576e..e32e464 100644
+index fda2089..382c406 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
 +++ b/node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.d.ts
 @@ -53,7 +53,7 @@ export interface vtkRenderWindow extends vtkObject {
@@ -34,7 +34,7 @@ index 3f8576e..e32e464 100644
  	/**
  	 * Remove renderer
 diff --git a/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts b/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
-index a0cd6f3..8f7a7cf 100644
+index f8304b7..eec495d 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
 +++ b/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
 @@ -263,9 +263,9 @@ export interface vtkVolumeProperty extends vtkObject {
@@ -49,81 +49,27 @@ index a0cd6f3..8f7a7cf 100644
  
  	/**
  	 *
-diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts b/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
-index 47e4e13..aaccf43 100644
---- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
-+++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.d.ts
-@@ -59,7 +59,13 @@ export interface vtkOpenGLRenderWindow extends vtkOpenGLRenderWindowBase {
- 	/**
- 	 * Get the container element.
- 	 */
--	getContainer(): void;
-+	getContainer(): HTMLElement | null;
-+
-+	/**
-+	 * Get the canvas.
-+	 */
-+
-+	getCanvas(): HTMLCanvasElement;
- 
- 	/**
- 	 * Get the container size.
-diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp b/node_modules/@kitware/vtk.js/Widgets/Core/.AbstractWidgetFactory.js.swp
-new file mode 100644
-index 0000000..e69de29
 diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
-index 39f7f93..2a4c8a9 100644
+index f990caa..b1706d0 100644
 --- a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
 +++ b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
-@@ -188,15 +188,16 @@ function vtkAbstractWidgetFactory(publicAPI, model) {
+@@ -189,17 +189,16 @@ function vtkAbstractWidgetFactory(publicAPI, model) {
      return unsubscribe();
    }); // Defer after object instantiation so model.widgetState actually exist
  
 -  setTimeout(function () {
-+  if (model.widgetState) {
-     unsubscribe = model.widgetState.onModified(function () {
-       return publicAPI.invokeWidgetChange(model.widgetState);
-     }).unsubscribe;
+     if (model.widgetState) {
+       unsubscribe = model.widgetState.onModified(function () {
+         return publicAPI.invokeWidgetChange(model.widgetState);
+       }).unsubscribe;
+     }
 -  }, 0);
-+  }
  } // ----------------------------------------------------------------------------
  
  
 -function extend(publicAPI, model) {
 +function extend(publicAPI, model, initialValues = {}) {
-+  Object.assign(model, initialValues);
++Object.assign(model, initialValues);
    macro.obj(publicAPI, model);
    macro.get(publicAPI, model, ['widgetState']);
    macro.event(publicAPI, model, 'WidgetChange');
-diff --git a/node_modules/@kitware/vtk.js/interfaces.d.ts b/node_modules/@kitware/vtk.js/interfaces.d.ts
-index daec60e..4a45518 100644
---- a/node_modules/@kitware/vtk.js/interfaces.d.ts
-+++ b/node_modules/@kitware/vtk.js/interfaces.d.ts
-@@ -37,15 +37,15 @@ export interface vtkAlgorithm {
- 
- 	/**
- 	 * Assign a data object as input.
--	 * @param {vtkPolyData} dataset 
-+	 * @param {vtkObject} dataset 
- 	 * @param {Number} [port] The port number (default 0).
- 	 */
--	setInputData(dataset: vtkPolyData, port?: number): void;
-+	setInputData(dataset: vtkObject, port?: number): void;
- 
- 	/**
- 	 * @param {Number} [port] The port number (default 0).
- 	 */
--	getInputData(port?: number): any;
-+	getInputData(port?: number): vtkObject | null;
- 
- 	/**
- 	 * @param outputPort
-@@ -75,7 +75,7 @@ export interface vtkAlgorithm {
- 	 * port.
- 	 * @param {Number} [port] The port number (default 0).
- 	 */
--	getOutputData(port?: number): vtkImageData | vtkPolyData;
-+	getOutputData(port?: number): vtkObject;
- 
- 	/**
- 	 * 

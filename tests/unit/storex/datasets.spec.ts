@@ -4,16 +4,29 @@ import chaiSubset from 'chai-subset';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { setActivePinia, createPinia } from 'pinia';
-import { useDatasetStore } from '@src/storex/datasets';
+import { useDatasetStore } from '@src/store/datasets';
 import { makeEmptyFile } from '@/tests/testUtils';
-import { FILE_READERS, resetToDefaultReaders } from '@/src/io/newReaders';
+import { FILE_READERS } from '@/src/io';
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import ProxyManager from '@/src/core/proxies';
+import Sinon from 'sinon';
 
 chai.use(chaiSubset);
 
 describe('Dataset store', () => {
+  let proxyManager = Sinon.createStubInstance(ProxyManager);
+
   beforeEach(() => {
-    setActivePinia(createPinia());
-    resetToDefaultReaders();
+    proxyManager = Sinon.createStubInstance(ProxyManager);
+
+    const pinia = createPinia();
+    pinia.use(
+      CorePiniaProviderPlugin({
+        proxyManager,
+      })
+    );
+
+    setActivePinia(pinia);
   });
 
   it('loads images', async () => {

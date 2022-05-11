@@ -3,7 +3,6 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { defineStore } from 'pinia';
 import { ViewProxyType } from '../core/proxies';
 import { DEFAULT_PRESET } from '../vtk/ColorMaps';
-import { useIDStore } from './id';
 
 export interface ColorBy {
   arrayName: string;
@@ -30,8 +29,7 @@ export const useView3DStore = defineStore('view3D', {
   }),
   actions: {
     createView<T extends vtkViewProxy>() {
-      const idStore = useIDStore();
-      const id = idStore.getNextID();
+      const id = this.$id.nextID();
       return {
         id,
         proxy: <T>this.$proxies.createView(id, ViewProxyType.Volume),

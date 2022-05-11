@@ -229,14 +229,14 @@ import Image from 'itk/Image';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
-import { useDICOMStore } from '../storex/datasets-dicom';
+import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
   DICOMSelection,
   selectionEquals,
   useDatasetStore,
-} from '../storex/datasets';
-import { useImageStore } from '../storex/datasets-images';
+} from '../store/datasets';
+import { useImageStore } from '../store/datasets-images';
 
 const NON_DICOM_IMAGES = Symbol('non dicom images');
 const THUMBNAIL_IMAGE_HEIGHT = 150;

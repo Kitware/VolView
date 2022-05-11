@@ -30,7 +30,7 @@ import { fetchFileWithProgress } from '@src/utils';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
-} from '@src/storex/datasets';
+} from '@/src/store/datasets';
 
 enum ProgressState {
   Pending,

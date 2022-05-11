@@ -1,0 +1,11 @@
+import { vtkObject } from '@kitware/vtk.js/interfaces';
+
+export * from './io';
+
+export type ReaderType = (file: File) => vtkObject | Promise<vtkObject>;
+export type FileReaderMap = Map<string, ReaderType>;
+
+/**
+ * A map of the currently registered file readers.
+ */
+export const FILE_READERS: FileReaderMap = new Map();

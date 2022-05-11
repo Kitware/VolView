@@ -3,7 +3,6 @@ import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { useIDStore } from './id';
 import {
   defaultLPSDirections,
   getLPSDirections,
@@ -44,13 +43,12 @@ interface State {
 export const useImageStore = defineStore('images', {
   state: (): State => ({
     idList: [],
-    dataIndex: {},
-    metadata: {},
+    dataIndex: Object.create(null),
+    metadata: Object.create(null),
   }),
   actions: {
     addVTKImageData(name: string, imageData: vtkImageData) {
-      const idStore = useIDStore();
-      const id = idStore.getNextID();
+      const id = this.$id.nextID();
 
       this.idList.push(id);
       set(this.dataIndex, id, imageData);

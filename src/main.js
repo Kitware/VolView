@@ -10,19 +10,18 @@ import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 
 import App from './components/App.vue';
-import createStore from './store';
 import vuetify from './plugins/vuetify';
 import { ProxyManagerVuePlugin } from './plugins/proxyManager';
-import { FileIO } from './io/io';
 import { DICOMIO } from './io/dicom';
-import { createTREReader, registerAllReaders } from './io/readers';
+import { FILE_READERS } from './io';
+import { registerAllReaders } from './io/readers';
 import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
-import WidgetProvider from './widgets/widgetProvider';
-import { FileIOInst, DICOMIOInst, ProxyManagerInst } from './constants';
+import { DICOMIOInst, ProxyManagerInst } from './constants';
 import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
 import ProxyManager from './core/proxies';
 import { provideToolManagers, CorePiniaProviderPlugin } from './core/provider';
+import IDManager from './core/id';
 
 Vue.config.productionTip = false;
 
@@ -30,21 +29,6 @@ Vue.use(VueCompositionAPI);
 Vue.use(VueNotifications);
 Vue.use(ProxyManagerVuePlugin);
 Vue.use(PiniaVuePlugin);
-
-const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
-setCurrentInstance(ProxyManagerInst, proxyManager);
-
-const fileIO = new FileIO();
-registerAllReaders(fileIO);
-setCurrentInstance(FileIOInst, fileIO);
-
-const dicomIO = new DICOMIO();
-dicomIO.initialize();
-setCurrentInstance(DICOMIOInst, dicomIO);
-
-// Right now, TRE reader depends on the DicomIO module since
-// that's where the TRE read logic resides.
-fileIO.addSingleReader('tre', createTREReader(dicomIO));
 
 // Initialize global mapper topologies
 // polys and lines in the front
@@ -55,22 +39,24 @@ vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-3, -3);
 vtkImageMapper.setResolveCoincidentTopologyToPolygonOffset();
 vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
 
-const dependencies = {
-  proxyManager,
-  fileIO,
-  dicomIO,
-};
+registerAllReaders(FILE_READERS);
 
-const store = createStore(dependencies);
-const widgetProvider = new WidgetProvider(store);
+const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
+setCurrentInstance(ProxyManagerInst, proxyManager);
+
+const dicomIO = new DICOMIO();
+dicomIO.initialize();
+setCurrentInstance(DICOMIOInst, dicomIO);
 
 const toolManagers = provideToolManagers();
 const coreProxyManager = new ProxyManager(proxyManager);
+const idManager = new IDManager();
 
 const pinia = createPinia();
 pinia.use(
   CorePiniaProviderPlugin({
     toolManagers,
+    idManager,
     proxyManager: coreProxyManager,
   })
 );
@@ -78,14 +64,11 @@ pinia.use(
 toolManagers.ruler.events.on('widgetUpdate', updateRulerFromWidgetStateEvent);
 
 const app = new Vue({
-  store,
   vuetify,
   proxyManager,
   pinia,
   provide: {
-    widgetProvider,
     ProxyManager: proxyManager,
-    Store: store,
   },
   render: (h) => h(App),
 });
