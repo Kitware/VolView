@@ -3,7 +3,7 @@
     <template v-slot="{ dragHover }">
       <v-app>
         <v-app-bar app dense clipped-left>
-          <v-toolbar-title>ParaView Medical</v-toolbar-title>
+          <v-toolbar-title>VolView</v-toolbar-title>
           <v-spacer />
           <v-btn
             text

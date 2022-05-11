@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/248073292.svg)](https://zenodo.org/badge/latestdoi/248073292)
 
-![A screenshot of a sample ParaView Medical session](./public/pvm-sample.png)
+![A screenshot of a sample VolView session](./public/pvm-sample.png)
 
 VolView is a medical image viewer for the web!
 Built on [vtk.js](https://github.com/Kitware/vtk-js) and [itk.js](https://github.com/InsightSoftwareConsortium/itk-js/), it is a self-contained single-page web application with the following features:
