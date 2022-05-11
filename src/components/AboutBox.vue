@@ -1,8 +1,8 @@
 <template>
   <v-card>
-    <v-card-title>ParaView Medical</v-card-title>
+    <v-card-title>VolView</v-card-title>
     <v-card-text>
-      ParaView Medical is an open-source web application developed at
+      VolView is an open-source web application developed at
       <a>Kitware</a> for visualizing and annotating medical images stored in
       DICOM, NRRD, NIFTI, and other file formats. It is built as a custom
       application on top of the <a>itk.js</a> and <a>vtk.js</a> toolkits.
