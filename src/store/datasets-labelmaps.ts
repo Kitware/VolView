@@ -40,10 +40,6 @@ export const useLabelmapStore = defineStore('labelmap', {
       labelmap.setDimensions(imageData.getDimensions());
       labelmap.computeTransforms();
 
-      for (let i = 0; i < 10000; i++) {
-        points[Math.floor(Math.random() * points.length)] = 1;
-      }
-
       const id = this.$id.nextID();
 
       this.idList.push(id);
