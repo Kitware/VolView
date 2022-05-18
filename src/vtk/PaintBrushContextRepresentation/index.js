@@ -36,17 +36,16 @@ function generateContour({
       return vertexMap[key];
     }
 
-    // floor or round?
     const indexCoords = [...location].map((val) => Math.floor(val));
     if (slicingIndex === 0) {
-      indexCoords[1] += x - xoffset + 0.5;
-      indexCoords[2] += y - yoffset + 0.5;
+      indexCoords[1] += x - xoffset - 0.5;
+      indexCoords[2] += y - yoffset - 0.5;
     } else if (slicingIndex === 1) {
-      indexCoords[0] += x - xoffset + 0.5;
-      indexCoords[2] += y - yoffset + 0.5;
+      indexCoords[0] += x - xoffset - 0.5;
+      indexCoords[2] += y - yoffset - 0.5;
     } else if (slicingIndex === 2) {
-      indexCoords[0] += x - xoffset + 0.5;
-      indexCoords[1] += y - yoffset + 0.5;
+      indexCoords[0] += x - xoffset - 0.5;
+      indexCoords[1] += y - yoffset - 0.5;
     }
 
     // get the grid point x/y's actual vertex in world space
