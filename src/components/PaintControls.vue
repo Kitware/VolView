@@ -39,29 +39,87 @@
           </v-slider>
         </v-col>
       </v-row>
+      <v-row no-gutters align="center">
+        <v-col>
+          <v-color-picker
+            hide-canvas
+            hide-inputs
+            hide-mode-switch
+            hide-sliders
+            show-swatches
+            :swatches="swatches"
+            :value="brushColor"
+            @input="setBrushColor"
+          />
+        </v-col>
+      </v-row>
     </v-container>
   </v-card>
 </template>
 
-<script>
+<script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
+import { LABELMAP_PALETTE } from '../constants';
 import { usePaintToolStore } from '../store/tools/paint';
+import { rgbaToHexa } from '../utils/color';
+
+// generates both the swatches for v-color-picker and the color-to-value mapping
+function convertToSwatches(
+  palette: typeof LABELMAP_PALETTE,
+  width: number = 5
+) {
+  const hexToValue: Record<string, number> = {};
+  const swatches: string[][] = [];
+  const entries = Object.entries(palette);
+  while (entries.length) {
+    const [value, rgba] = entries.shift()!;
+    const hex = rgbaToHexa(rgba).toUpperCase();
+    hexToValue[hex] = Number(value);
+
+    let row = swatches[swatches.length - 1];
+    if (!row || row.length === width) {
+      row = [];
+      swatches.push(row);
+    }
+    row.push(hex);
+  }
+
+  return { hexToValue, swatches };
+}
 
 export default defineComponent({
   name: 'PaintControls',
 
   setup() {
     const paintStore = usePaintToolStore();
-
     const brushSize = computed(() => paintStore.brushSize);
 
-    const setBrushSize = (size) => {
+    const { hexToValue, swatches } = convertToSwatches(LABELMAP_PALETTE, 3);
+    const brushColor = computed(() => {
+      const value = paintStore.brushValue;
+      if (value in LABELMAP_PALETTE) {
+        return rgbaToHexa(LABELMAP_PALETTE[value]);
+      }
+      return null;
+    });
+
+    const setBrushSize = (size: number) => {
       paintStore.setBrushSize(Number(size));
+    };
+
+    const setBrushColor = (color: string) => {
+      const hexa = color.toUpperCase();
+      if (hexa in hexToValue) {
+        paintStore.setBrushValue(hexToValue[hexa]);
+      }
     };
 
     return {
       brushSize,
       setBrushSize,
+      swatches,
+      brushColor,
+      setBrushColor,
     };
   },
 });

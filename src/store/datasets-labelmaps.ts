@@ -3,6 +3,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import vtkLabelMap from '../vtk/LabelMap';
+import { LABELMAP_PALETTE } from '../constants';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -39,6 +40,7 @@ export const useLabelmapStore = defineStore('labelmap', {
       );
       labelmap.setDimensions(imageData.getDimensions());
       labelmap.computeTransforms();
+      labelmap.setColorMap(LABELMAP_PALETTE);
 
       const id = this.$id.nextID();
 

@@ -8,6 +8,7 @@ interface State {
   activeLabelmapID: string | null;
   brushType: BrushTypes;
   brushSize: number;
+  brushValue: number;
   strokePoints: vec3[];
 }
 
@@ -16,6 +17,7 @@ export const usePaintToolStore = defineStore('paint', {
     activeLabelmapID: null,
     brushType: BrushTypes.Circle,
     brushSize: 8,
+    brushValue: 1,
     strokePoints: [],
   }),
   getters: {
@@ -51,6 +53,10 @@ export const usePaintToolStore = defineStore('paint', {
     setBrushSize(size: number) {
       this.brushSize = Math.round(size);
       this.$tools.paint.setBrushSize(size);
+    },
+    setBrushValue(value: number) {
+      this.brushValue = value;
+      this.$tools.paint.setBrushValue(value);
     },
     _doPaintStroke(axisIndex: 0 | 1 | 2) {
       if (!this.activeLabelmapID) {

@@ -17,6 +17,8 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
 
   let labelMapSub = null;
 
+  // needed for vtk.js >= 23.0.0
+  model.property.setUseLookupTableScalarRange(true);
   model.property.setInterpolationType(InterpolationType.NEAREST);
   model.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
