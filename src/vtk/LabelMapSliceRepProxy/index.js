@@ -22,8 +22,16 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
   model.property.setInterpolationType(InterpolationType.NEAREST);
   model.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
+  let cachedColorMap = null;
+
   function updateTransferFunctions(labelmap) {
     const colorMap = labelmap.getColorMap();
+    if (colorMap === cachedColorMap) {
+      return;
+    }
+    // Cache the colormap using ref equality. This will
+    // avoid updating the colormap unnecessarily.
+    cachedColorMap = colorMap;
 
     const cfun = vtkColorTransferFunction.newInstance();
     const ofun = vtkPiecewiseFunction.newInstance();
