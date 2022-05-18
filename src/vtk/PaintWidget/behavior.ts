@@ -16,7 +16,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Starts painting
    */
   publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
+    if (
+      !model.manipulator ||
+      shouldIgnoreEvent(eventData) ||
+      !model.widgetState.getBrush().getOrigin()
+    ) {
       return macro.VOID;
     }
     isPainting = true;
@@ -74,14 +78,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (!model.hasFocus) {
       model.hasFocus = true;
       model._interactor.requestAnimation(publicAPI);
-      publicAPI.invokeStartInteractionEvent();
     }
   };
 
   publicAPI.loseFocus = () => {
     if (model.hasFocus) {
       model._interactor.cancelAnimation(publicAPI);
-      publicAPI.invokeEndInteractionEvent();
     }
     model.hasFocus = false;
     // model._widgetManager.enablePicking();

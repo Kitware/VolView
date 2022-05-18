@@ -1,5 +1,6 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { BrushTypes } from '@/src/core/tools/paint';
+import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
@@ -7,6 +8,7 @@ interface State {
   activeLabelmapID: string | null;
   brushType: BrushTypes;
   brushSize: number;
+  strokePoints: vec3[];
 }
 
 export const usePaintToolStore = defineStore('paint', {
@@ -14,6 +16,7 @@ export const usePaintToolStore = defineStore('paint', {
     activeLabelmapID: null,
     brushType: BrushTypes.Circle,
     brushSize: 8,
+    strokePoints: [],
   }),
   getters: {
     getWidgetFactory() {
@@ -48,6 +51,42 @@ export const usePaintToolStore = defineStore('paint', {
     setBrushSize(size: number) {
       this.brushSize = Math.round(size);
       this.$tools.paint.setBrushSize(size);
+    },
+    _doPaintStroke(axisIndex: 0 | 1 | 2) {
+      if (!this.activeLabelmapID) {
+        return;
+      }
+
+      const labelmapStore = useLabelmapStore();
+      const labelmap = labelmapStore.labelmaps[this.activeLabelmapID];
+      if (!labelmap) {
+        return;
+      }
+
+      const lastIndex = this.strokePoints.length - 1;
+      if (lastIndex >= 0) {
+        const lastPoint = this.strokePoints[lastIndex];
+        const prevPoint =
+          lastIndex >= 1 ? this.strokePoints[lastIndex - 1] : undefined;
+        this.$tools.paint.paintLabelmap(
+          labelmap,
+          axisIndex,
+          lastPoint,
+          prevPoint
+        );
+      }
+    },
+    startStroke(indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+      this.strokePoints = [vec3.clone(indexPoint)];
+      this._doPaintStroke(axisIndex);
+    },
+    placeStrokePoint(indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+      this.strokePoints.push(indexPoint);
+      this._doPaintStroke(axisIndex);
+    },
+    endStroke(indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+      this.strokePoints.push(indexPoint);
+      this._doPaintStroke(axisIndex);
     },
   },
 });

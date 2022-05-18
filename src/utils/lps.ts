@@ -37,9 +37,9 @@ export interface LPSDirections {
   Inferior: vec3;
 
   // maps LPS axis to column in direction matrix
-  Coronal: number;
-  Sagittal: number;
-  Axial: number;
+  Coronal: 0 | 1 | 2;
+  Sagittal: 0 | 1 | 2;
+  Axial: 0 | 1 | 2;
 }
 
 export const defaultLPSDirections = () => ({
@@ -50,9 +50,9 @@ export const defaultLPSDirections = () => ({
   Superior: vec3.fromValues(0, 0, 1),
   Inferior: vec3.fromValues(0, 0, -1),
 
-  Coronal: 0,
-  Sagittal: 1,
-  Axial: 2,
+  Coronal: 0 as const,
+  Sagittal: 1 as const,
+  Axial: 2 as const,
 });
 
 /**
@@ -99,17 +99,17 @@ export function getLPSDirections(direction: mat3): LPSDirections {
       // Coronal
       lpsDirs.Left = posVector;
       lpsDirs.Right = negVector;
-      lpsDirs.Coronal = col;
+      lpsDirs.Coronal = col as 0 | 1 | 2;
     } else if (axis === 1) {
       // Sagittal
       lpsDirs.Posterior = posVector;
       lpsDirs.Anterior = negVector;
-      lpsDirs.Sagittal = col;
+      lpsDirs.Sagittal = col as 0 | 1 | 2;
     } else if (axis === 2) {
       // Axial
       lpsDirs.Superior = posVector;
       lpsDirs.Inferior = negVector;
-      lpsDirs.Axial = col;
+      lpsDirs.Axial = col as 0 | 1 | 2;
     }
 
     availableCols.splice(removeIndices[0], 1);

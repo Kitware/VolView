@@ -19,6 +19,8 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { useViewStore } from '@/src/store/views';
 import { useEventListener } from '@/src/composables/useEventListener';
+import { PaintWidgetState } from '@/src/vtk/PaintWidget/state';
+import { vec3 } from 'gl-matrix';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -58,6 +60,16 @@ export default defineComponent({
 
     const { currentImageMetadata } = useCurrentImage();
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
+    const viewAxisIndex = computed(
+      () => currentImageMetadata.value.lpsOrientation[viewAxis.value]
+    );
+
+    const worldPointToIndex = (worldPoint: vec3) => {
+      const { worldToIndex } = currentImageMetadata.value;
+      const indexPoint = vec3.create();
+      vec3.transformMat4(indexPoint, worldPoint, worldToIndex);
+      return indexPoint;
+    };
 
     onMounted(() => {
       const widgetManager = widgetManagerRef.value;
@@ -89,9 +101,25 @@ export default defineComponent({
       const widget = widgetRef.value!;
 
       subs.push(
-        widget.onStartInteractionEvent(() => {}),
-        widget.onInteractionEvent(() => {}),
-        widget.onEndInteractionEvent(() => {})
+        widget.onStartInteractionEvent(() => {
+          // start stroke
+          const state = widget.getWidgetState() as PaintWidgetState;
+          // StartInteraction cannot occur if origin is null.
+          const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
+          paintStore.startStroke(indexPoint, viewAxisIndex.value);
+        }),
+        widget.onInteractionEvent(() => {
+          // register stroke
+          const state = widget.getWidgetState() as PaintWidgetState;
+          const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
+          paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value);
+        }),
+        widget.onEndInteractionEvent(() => {
+          // end stroke
+          const state = widget.getWidgetState() as PaintWidgetState;
+          const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
+          paintStore.endStroke(indexPoint, viewAxisIndex.value);
+        })
       );
     });
 

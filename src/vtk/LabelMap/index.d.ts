@@ -6,7 +6,7 @@ export interface vtkLabelMap extends vtkImageData {
   removeLabel(label: number): void;
 }
 
-export function newInstance(initialValues: any): vtkLabelMap;
+export function newInstance(initialValues?: any): vtkLabelMap;
 
 export declare const vtkLabelMap: {
   newInstance: typeof newInstance;
