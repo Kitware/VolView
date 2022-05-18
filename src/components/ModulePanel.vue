@@ -42,7 +42,7 @@ import {
   ref,
 } from '@vue/composition-api';
 
-import PatientBrowser from '../componentsX/PatientBrowser.vue';
+import PatientBrowser from "./PatientBrowser.vue";
 import VolumeRendering from '../componentsX/VolumeRendering.vue';
 import SampleData from './SampleData.vue';
 import Settings from './Settings.vue';

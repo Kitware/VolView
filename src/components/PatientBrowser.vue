@@ -2,10 +2,10 @@
   <div id="patient-module" class="mx-2 height-100">
     <div id="patient-filter-controls">
       <v-select
-        v-model="patientName"
-        :items="patientListWithImageEntry"
+        v-model="selectedPatient"
+        :items="patientList"
         item-text="name"
-        item-value="id"
+        item-value="key"
         dense
         filled
         single-line
@@ -17,119 +17,194 @@
         class="no-select"
       />
     </div>
+    <div id="patient-study-controls">
+       <v-container
+        class="pa-0"
+       >
+        <v-row no-gutters justify="space-between">
+          <v-col cols="6" id="left-controls" align-self="center" >
+            <v-row no-gutters justify="start">
+              <v-checkbox
+              class="ml-3 align-center justify-center"
+              v-model="selectAll"
+              ></v-checkbox>
+            </v-row>
+          </v-col>
+          <v-col cols="6" id="right-controls" align-self="center">
+            <v-row no-gutters justify="end" >
+              <v-btn icon @click.stop="removeSelected"  >
+                    <v-icon>mdi-delete</v-icon>
+              </v-btn>
+            </v-row>
+          </v-col>
+        </v-row>
+      </v-container>
+    </div>
     <div id="patient-data-list">
-      <item-group :value="selectedBaseImage" @change="setSelection">
-        <template v-if="!patientName"> No patient selected </template>
-        <template v-else-if="patientName === IMAGES">
+      <item-group
+        :value="primarySelection"
+        :testFunction="testFunction"
+        @change="setPrimarySelection"
+      >
+        <template v-if="!selectedPatient"> No patient selected </template>
+        <template v-else-if="selectedPatient === NON_DICOM_IMAGES">
           <div v-if="imageList.length === 0">No non-dicom images available</div>
           <groupable-item
-            v-for="imgID in imageList"
-            :key="imgID"
+            v-for="image in imageList"
+            :key="image.id"
             v-slot="{ active, select }"
-            :value="imgID"
+            :value="image.selectionKey"
           >
-            <avatar-list-card
+
+            <image-list-card
               :active="active"
-              :title="dataIndex[imgID].name"
-              :image-url="getImageThumbnail(imgID)"
+              :title="image.name"
+              :image-url="thumbnailCache[image.cacheKey].encodedImage || ''"
               :image-size="100"
               @click="select"
+              :id="image.id"
+              :inputValue="image.id"
+              v-model="selected"
             >
               <div class="body-2 text-truncate">
-                {{ dataIndex[imgID].name }}
+                {{ image.name }}
               </div>
               <div class="caption">
-                Dims: ({{ dataIndex[imgID].dims.join(', ') }})
+                Dims: ({{ image.dimensions.join(', ') }})
               </div>
               <div class="caption">
                 Spacing: ({{
-                  dataIndex[imgID].spacing.map((s) => s.toFixed(2)).join(', ')
+                  image.spacing.map((s) => s.toFixed(2)).join(', ')
                 }})
               </div>
-              <template v-slot:menu>
-                <v-list>
-                  <v-list-item @click.stop="removeData(imgID)">
-                    Delete
-                  </v-list-item>
-                </v-list>
-              </template>
-            </avatar-list-card>
+            </image-list-card>
           </groupable-item>
         </template>
         <template v-else>
           <v-expansion-panels id="patient-data-studies" accordion multiple>
             <v-expansion-panel
-              v-for="study in visibleStudies"
-              :key="study.StudyInstanceUID"
+              v-for="study in studiesAndVolumes"
+              :key="study.info.StudyInstanceUID"
               class="patient-data-study-panel"
             >
               <v-expansion-panel-header
                 color="#1976fa0a"
-                class="no-select"
-                :title="study.StudyDate"
+                class="pl-3 no-select"
+                :title="study.info.StudyDate"
               >
-                <v-icon class="ml-n3 pr-3">mdi-folder-table</v-icon>
-                <div class="study-header">
-                  <div class="subtitle-2 study-header-line">
-                    {{
-                      study.StudyDescription ||
-                      study.StudyDate ||
-                      study.StudyInstanceUID
-                    }}
-                  </div>
-                  <div
-                    v-if="study.StudyDescription"
-                    class="caption study-header-line"
-                  >
-                    {{ study.StudyDate }}
-                  </div>
-                </div>
+                <v-container
+                  fluid
+                  class="pt-0"
+                >
+                  <v-row align="center" >
+                    <v-checkbox :key="study.info.StudyInstanceUID" :value="study.info.StudyInstanceUID" v-model="selected" @click.stop />
+                    <v-icon class="">mdi-folder-table</v-icon>
+                    <div class="mt-4 ml-4 study-header">
+                      <div class="subtitle-2 study-header-line">
+                        {{
+                          study.info.StudyDescription ||
+                          study.info.StudyDate ||
+                          study.info.StudyInstanceUID
+                        }}
+                      </div>
+                      <div
+                        v-if="study.info.StudyDescription"
+                        class="caption study-header-line"
+                      >
+                        {{ study.info.StudyDate }}
+                      </div>
+                    </div>
+                  </v-row>
+
+
+                  <v-row no-gutters align="center" justify="end">
+                    <v-col cols="2">
+                      <v-tooltip bottom>
+                        Total series in study
+                        <template v-slot:activator="{ on }">
+                          <v-row align="center" justify="end" v-on="on">
+                            <v-icon medium>mdi-folder-open</v-icon>
+                              <span class="mr-3 text--secondary">: {{ study.volumes.length }}</span>
+                          </v-row>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                    <v-col cols="2" >
+                      <v-tooltip bottom>
+                        Total scans in study
+                        <template v-slot:activator="{ on }">
+                          <v-row align="center" justify="end" v-on="on">
+                            <v-icon medium >mdi-image-filter-none</v-icon>
+                                <span class="mr-1 text--secondary ">: {{ study.volumes.reduce((numSlices, vol) => numSlices + vol.info.NumberOfSlices, 0) }}</span>
+                          </v-row>
+                        </template>
+                      </v-tooltip>
+                    </v-col>
+                  </v-row>
+
+                  </v-container>
               </v-expansion-panel-header>
               <v-expansion-panel-content>
-                <div class="my-2 volume-list">
-                  <groupable-item
-                    v-for="volInfo in getVolumesForStudy(
-                      study.StudyInstanceUID
-                    )"
-                    :key="volInfo.VolumeID"
-                    v-slot:default="{ active, select }"
-                    :value="dicomVolumeToDataID[volInfo.VolumeID]"
-                  >
-                    <v-card
-                      outlined
-                      ripple
-                      :color="active ? 'light-blue lighten-4' : ''"
-                      class="volume-card"
-                      :title="volInfo.SeriesDescription"
-                      @click="select"
-                    >
-                      <v-img
-                        contain
-                        height="100px"
-                        :src="dicomThumbnails[volInfo.VolumeID]"
-                      />
-                      <v-card-text
-                        class="text--primary caption text-center series-desc mt-n3"
-                      >
-                        <div>[{{ volInfo.NumberOfSlices }}]</div>
-                        <div class="text-ellipsis">
-                          {{ volInfo.SeriesDescription || '(no description)' }}
-                        </div>
-                        <div class="actions">
-                          <v-btn
-                            small
-                            icon
-                            @click.stop="
-                              removeData(dicomVolumeToDataID[volInfo.VolumeID])
-                            "
+                <v-container class="pa-0">
+                  <v-row class="mt-1 mr-1" justify="end">
+                    <v-btn icon @click="removeSelectedDICOMVolumes" >
+                      <v-icon>mdi-delete</v-icon>
+                    </v-btn>
+                  </v-row>
+                  <v-row no-gutters>
+                    <v-col>
+                      <div class="my-2 volume-list">
+                        <groupable-item
+                          v-for="volume in study.volumes"
+                          :key="volume.info.VolumeID"
+                          v-slot:default="{ active, select }"
+                          :value="volume.selectionKey"
+                        >
+                          <v-card
+                            outlined
+                            ripple
+                            :color="active ? 'light-blue lighten-4' : ''"
+                            class="volume-card"
+                            :title="volume.info.SeriesDescription"
+                            @click="select"
                           >
-                            <v-icon>mdi-delete</v-icon>
-                          </v-btn>
-                        </div>
-                      </v-card-text>
-                    </v-card>
-                  </groupable-item>
-                </div>
+                            <v-row no-gutters class="pa-0" justify="center">
+                              <div>
+                                <v-img
+                                  contain
+                                  :height="`${THUMBNAIL_IMAGE_HEIGHT}}px`"
+                                  :width="thumbnailCache[volume.cacheKey] ? `${THUMBNAIL_IMAGE_HEIGHT / thumbnailCache[volume.cacheKey].aspectRatio}px` : null"
+                                  :src="thumbnailCache[volume.cacheKey] ? thumbnailCache[volume.cacheKey].encodedImage : ''"
+                                >
+                                  <v-overlay absolute class="thumbnail-overlay" value="true" opacity="0">
+                                    <div class="d-flex flex-column fill-height" >
+                                      <v-row no-gutters justify="end" align-content="start">
+                                        <v-checkbox :key="volume.info.VolumeID" :value="volume.selectionKey" v-model="selectedSeries" @click.stop dense/>
+                                      </v-row>
+                                      <div class="flex-grow-1"/>
+                                      <v-row no-gutters justify="start" align="end">
+                                        <div class="mb-2 ml-2">[{{ volume.info.NumberOfSlices }}]</div>
+                                      </v-row>
+                                    </div>
+                                  </v-overlay>
+                                </v-img>
+                              </div>
+                            </v-row>
+                            <v-card-text
+                              class="text--primary caption text-center series-desc mt-n3"
+                            >
+                              <div class="text-ellipsis">
+                                {{
+                                  volume.info.SeriesDescription || '(no description)'
+                                }}
+                              </div>
+                            </v-card-text>
+                          </v-card>
+                        </groupable-item>
+                      </div>
+                    </v-col>
+                  </v-row>
+                </v-container>
               </v-expansion-panel-content>
             </v-expansion-panel>
           </v-expansion-panels>
@@ -139,24 +214,45 @@
   </div>
 </template>
 
-<script>
-import { mapState, mapActions } from 'vuex';
-
+<script lang="ts">
+import {
+  computed,
+  defineComponent,
+  ref,
+  set,
+  watch,
+} from '@vue/composition-api';
+import type { Ref } from '@vue/composition-api';
+import { TypedArray } from '@kitware/vtk.js/types';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import Image from 'itk/Image';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import AvatarListCard from '@/src/components/AvatarListCard.vue';
+import ImageListCard from '@/src/components/ImageListCard.vue';
+import { useDICOMStore } from '../store/datasets-dicom';
+import {
+  DataSelection,
+  DICOMSelection,
+  selectionEquals,
+  useDatasetStore,
+} from '../store/datasets';
+import { useImageStore } from '../store/datasets-images';
 
-import { DataTypes, NO_SELECTION } from '@/src/constants';
-
-const IMAGES = Symbol('IMAGES');
+const NON_DICOM_IMAGES = Symbol('non dicom images');
+const THUMBNAIL_IMAGE_HEIGHT = 150;
 const canvas = document.createElement('canvas');
 
+
 // Assume itkImage type is Uint8Array
-function itkImageToURI(itkImage) {
+function itkImageToURI(itkImage: Image) {
   const [width, height] = itkImage.size;
   const im = new ImageData(width, height);
   const arr32 = new Uint32Array(im.data.buffer);
   const itkBuf = itkImage.data;
+  if (!itkBuf) {
+    return '';
+  }
+
   for (let i = 0; i < itkBuf.length; i += 1) {
     const byte = itkBuf[i];
     // ABGR order
@@ -167,11 +263,20 @@ function itkImageToURI(itkImage) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  ctx.putImageData(im, 0, 0);
-  return canvas.toDataURL('image/png');
+  if (ctx) {
+    ctx.putImageData(im, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+  return '';
 }
 
-function scalarImageToURI(values, width, height, scaleMin, scaleMax) {
+function scalarImageToURI(
+  values: TypedArray,
+  width: number,
+  height: number,
+  scaleMin: number,
+  scaleMax: number
+) {
   const im = new ImageData(width, height);
   const arr32 = new Uint32Array(im.data.buffer);
   // scale to 1 unsigned byte
@@ -186,192 +291,344 @@ function scalarImageToURI(values, width, height, scaleMin, scaleMax) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
-  ctx.putImageData(im, 0, 0);
-  return canvas.toDataURL('image/png');
+  if (ctx) {
+    ctx.putImageData(im, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+  return '';
 }
 
-export default {
-  name: 'PatientBrowser',
+async function generateDICOMThumbnail(
+  dicomStore: ReturnType<typeof useDICOMStore>,
+  volumeKey: string
+) {
+  if (volumeKey in dicomStore.volumeInfo) {
+    const info = dicomStore.volumeInfo[volumeKey];
+    const middleSlice = Math.round(Number(info.NumberOfSlices));
+    const thumb = (await dicomStore.getVolumeSlice(
+      volumeKey,
+      middleSlice,
+      true
+    )) as Image;
 
+    return thumb;
+  }
+  return null;
+}
+
+function generateVTKImageThumbnail(imageData: vtkImageData) {
+  const scalars = imageData.getPointData().getScalars();
+  const dims = imageData.getDimensions();
+  const length = dims[0] * dims[1];
+  const sliceOffset = Math.floor(dims[2] / 2) * length;
+  const data = scalars.getData();
+  const dataRange = scalars.getRange();
+  const slice = Array.isArray(data)
+    ? data.slice(sliceOffset, sliceOffset + length)
+    : data.subarray(sliceOffset, sliceOffset + length);
+
+  return scalarImageToURI(slice, dims[0], dims[1], dataRange[0], dataRange[1]);
+}
+
+function imageCacheKey(dataID: string) {
+  return `image-${dataID}`;
+}
+
+function dicomCacheKey(volKey: string) {
+  return `dicom-${volKey}`;
+}
+
+export default defineComponent({
+  name: 'PatientBrowser',
   components: {
     ItemGroup,
     GroupableItem,
-    AvatarListCard,
+    ImageListCard,
   },
+  setup() {
+    const selectedPatient: Ref<string | typeof NON_DICOM_IMAGES> = ref('');
+    const selectedStudy: Ref<string> = ref('');
+    const selectAll: Ref<boolean> = ref(false);
+    const selected: Ref<string[]> = ref([]);
+    const selectedSeries: Ref<DICOMSelection[]> = ref([]);
 
-  data() {
-    return {
-      patientName: '',
-      imageThumbnails: {}, // dataID -> Image
-      dicomThumbnails: {}, // volumeID -> Image
-      pendingDicomThumbnails: {},
+    // no deletion happens here, so technically a leak of sorts
+    const thumbnailCacheRef = ref<Record<string, string>>({});
+    const dicomStore = useDICOMStore();
+    const dataStore = useDatasetStore();
+    const imageStore = useImageStore();
 
-      IMAGES, // symbol
-    };
-  },
+    const primarySelection = computed(() => dataStore.primarySelection);
 
-  computed: {
-    ...mapState({
-      selectedBaseImage: 'selectedBaseImage',
-      dicomVolumeToDataID: 'dicomVolumeToDataID',
-      imageList: (state) => state.data.imageIDs,
-      dataIndex: (state) => state.data.index,
-      vtkCache: (state) => state.data.vtkCache,
-    }),
-    ...mapState('dicom', {
-      patientIndex: 'patientIndex',
-      patientStudies: 'patientStudies',
-      studyIndex: 'studyIndex',
-      studyVolumes: 'studyVolumes',
-      volumeIndex: 'volumeIndex',
-    }),
-    patients(state) {
-      const seen = new Set();
-      const patients = [];
+    if (primarySelection.value?.type === 'dicom') {
+        const { volumeKey } = primarySelection.value;
+        selectedStudy.value = dicomStore.volumeStudy[volumeKey];
+    }
 
-      // select key, name from patientIndex group by name
-      Object.entries(state.patientIndex).forEach(([key, p]) => {
-        const name = p.PatientName;
-        if (!seen.has(name)) {
-          seen.add(name);
-          patients.push([key, p]);
+    // TODO show patient ID in parens if there is a name conflict
+    const patients = computed(() =>
+      Object.entries(dicomStore.patientInfo)
+        .map(([key, info]) => ({
+          key,
+          name: info.PatientName,
+          info,
+        }))
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+    );
+
+    const studiesAndVolumesRef = computed(() => {
+      const selPatient = selectedPatient.value;
+      const {
+        patientStudies,
+        studyInfo,
+        studyVolumes,
+        volumeInfo,
+      } = dicomStore;
+      return patients.value
+        .filter((patient) => patient.key === selPatient)
+        .flatMap((patient) =>
+          patientStudies[patient.key].map((studyKey) => {
+            const info = studyInfo[studyKey];
+            const volumes = studyVolumes[studyKey].map((volumeKey) => ({
+              // for thumbnailing
+              cacheKey: dicomCacheKey(volumeKey),
+              info: volumeInfo[volumeKey],
+              // for UI selection
+              selectionKey: {
+                type: 'dicom',
+                volumeKey,
+              } as DataSelection,
+            }));
+            return {
+              info,
+              volumes,
+            };
+          })
+        );
+    });
+
+    const imagesRef = computed(() =>
+      imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
+    );
+
+    // switches the selected patient/case based on the
+    // primary selection.
+    watch(primarySelection, (selection) => {
+      if (selection?.type === 'image') {
+        selectedPatient.value = NON_DICOM_IMAGES;
+      } else if (selection?.type === 'dicom') {
+        const { volumeKey } = selection;
+        const studyKey = dicomStore.volumeStudy[volumeKey];
+        const patientKey =
+          dicomStore.studyPatient[studyKey];
+        selectedStudy.value = studyKey;
+        selectedPatient.value = patientKey;
+      }
+    });
+
+    // switches the selected patient/case if
+    // (1) no selection, and (2) just loaded patients
+    watch(
+      patients,
+      () => {
+        if (!selectedPatient.value && patients.value.length) {
+          selectedPatient.value = patients.value[0].key;
         }
-      });
+      },
+      { immediate: true }
+    );
 
-      patients.sort((a, b) => a[1].PatientName < b[1].PatientName);
-      return patients.map(([key, p]) => ({
-        id: p.PatientName,
-        name: p.PatientName,
-        key, // patient key
-        patient: p,
-      }));
-    },
-    patientListWithImageEntry() {
-      return [].concat(
-        {
-          id: IMAGES,
-          name: 'Non-DICOM images',
-          key: null,
-          patient: null,
-        },
-        this.patients
-      );
-    },
-    visibleStudies() {
-      // select all studies associated with a patient whose name is
-      // the same as this.patientName
-      let studies = [];
-      this.patients
-        .filter(({ patient }) => patient.PatientName === this.patientName)
-        .forEach(({ key }) => {
-          studies = studies.concat(
-            this.patientStudies[key].map(
-              (studyKey) => this.studyIndex[studyKey]
-            )
-          );
+    // generates and caches thumbnails
+    // FYI this won't update if an image's pixels change
+    watch(
+      [studiesAndVolumesRef, imagesRef],
+      () => {
+        const thumbnailCache = thumbnailCacheRef.value;
+        const imageIDs = imagesRef.value;
+        const studiesAndVolumes = studiesAndVolumesRef.value;
+
+        imageIDs.forEach(async (id) => {
+          const cacheKey = imageCacheKey(id);
+          if (!(cacheKey in thumbnailCache)) {
+            const imageData = imageStore.dataIndex[id];
+            const encodedImage = generateVTKImageThumbnail(imageData);
+            const dims = imageData.getDimensions()
+            const aspectRatio = dims[0] / dims[1];
+            set(thumbnailCache, cacheKey, {encodedImage, aspectRatio});
+          }
         });
-      return studies;
-    },
-  },
 
-  watch: {
-    selectedBaseImage(id) {
-      if (id !== NO_SELECTION) {
-        const dataInfo = this.dataIndex[id];
-        if (dataInfo.type === DataTypes.Image) {
-          this.patientName = IMAGES;
-        } else if (dataInfo.type === DataTypes.Dicom) {
-          const patientInfo = this.patientIndex[dataInfo.patientKey];
-          this.patientName = patientInfo.PatientName;
-        }
+        studiesAndVolumes.forEach(({ volumes }) => {
+          volumes.forEach(async (volumeInfo) => {
+            const cacheKey = dicomCacheKey(volumeInfo.info.VolumeID);
+            if (!(cacheKey in thumbnailCache)) {
+              const thumb = await generateDICOMThumbnail(
+                dicomStore,
+                volumeInfo.info.VolumeID
+              );
+
+              if (thumb !== null) {
+                const encodedImage = itkImageToURI(thumb);
+                const aspectRatio = thumb.size[0] / thumb.size[1];
+
+                set(thumbnailCache, cacheKey, {encodedImage, aspectRatio});
+              }
+            }
+          });
+        });
+      },
+      { deep: true }
+    );
+
+    const patientList = computed(() => [
+      {
+        key: NON_DICOM_IMAGES,
+        name: 'Non-DICOM Images',
+        info: null,
+      },
+      ...patients.value,
+    ]);
+
+    const imageList = computed(() => {
+      const { metadata } = imageStore;
+      return imagesRef.value.map((id) => ({
+        id,
+        cacheKey: imageCacheKey(id),
+        // for UI selection
+        selectionKey: {
+          type: 'image',
+          dataID: id,
+        } as DataSelection,
+        name: metadata[id].name,
+        dimensions: metadata[id].dimensions,
+        spacing: metadata[id].spacing,
+      }));
+    });
+
+    const allSelected = () => {
+      if (selectedPatient.value  === NON_DICOM_IMAGES) {
+        return selected.value.length !== 0 && selected.value.length === imageList.value.length;
       }
-    },
-    patients() {
-      // if patient index is updated, then try to select first one
-      if (!this.patientName) {
-        if (this.patients.length) {
-          this.patientName = this.patients[0].id;
-        } else {
-          this.patientName = '';
-        }
-      }
-    },
-  },
 
-  methods: {
-    getVolumesForStudy(studyUID) {
-      const volumeList = (this.studyVolumes[studyUID] ?? []).map(
-        (volID) => this.volumeIndex[volID]
-      );
+      return selected.value.length !== 0 && selected.value.length === studiesAndVolumesRef.value.length;
+    }
 
-      // trigger a background job fetch thumbnails
-      this.doBackgroundDicomThumbnails(volumeList);
+    // reset select all checkbox value when we switch patient or user changes
+    // selection
+    watch([selectedPatient], () => {
+      selectAll.value = false;
+    });
 
-      return volumeList;
-    },
+    watch([selected], () => {
+      selectAll.value = allSelected();
+    });
 
-    async setSelection(sel) {
-      if (sel !== this.selectedBaseImage) {
-        await this.selectBaseImage(sel);
-        await this.updateScene({ reset: true });
-      }
-    },
-
-    async doBackgroundDicomThumbnails(volumeList) {
-      volumeList.forEach(async (volInfo) => {
-        const id = volInfo.VolumeID;
-        if (
-          !(id in this.dicomThumbnails || id in this.pendingDicomThumbnails)
-        ) {
-          this.$set(this.pendingDicomThumbnails, id, true);
-          try {
-            const middleSlice = Math.round(Number(volInfo.NumberOfSlices) / 2);
-            const thumbItkImage = await this.getVolumeSlice({
-              volumeID: id,
-              slice: middleSlice,
-              asThumbnail: true,
-            });
-            this.$set(this.dicomThumbnails, id, itkImageToURI(thumbItkImage));
-          } finally {
-            delete this.pendingDicomThumbnails[id];
+    watch([selectAll], () => {
+      selected.value = [];
+        if (selectAll.value) {
+          if (selectedPatient.value  === NON_DICOM_IMAGES) {
+            selected.value = imageList.value.map((value) => value.id);
+          } else {
+            selected.value = studiesAndVolumesRef.value.map((value) => value.info.StudyInstanceUID);
           }
         }
+    });
+
+    const removeSelectedStudies = () => {
+      selected.value.forEach(async (study) => {
+        dicomStore.deleteStudy(study);
       });
-    },
 
-    getImageThumbnail(id) {
-      if (id in this.imageThumbnails) {
-        return this.imageThumbnails[id];
+      // Handle the case where we are deleting the selected study
+      if (selected.value.indexOf(selectedStudy.value) !== -1) {
+        dataStore.setPrimarySelection(null);
       }
-      if (id in this.vtkCache) {
-        const imageData = this.vtkCache[id];
-        const scalars = imageData.getPointData().getScalars();
-        const dims = imageData.getDimensions();
-        const length = dims[0] * dims[1];
-        const sliceOffset = Math.floor(dims[2] / 2) * length;
-        const slice = scalars
-          .getData()
-          .subarray(sliceOffset, sliceOffset + length);
-        const dataRange = scalars.getRange();
+    }
 
-        const img = scalarImageToURI(
-          slice,
-          dims[0],
-          dims[1],
-          dataRange[0],
-          dataRange[1]
-        );
-        this.$set(this.imageThumbnails, id, img);
-        return img;
+    const removeSelectedDICOMVolumes = () => {
+      selectedSeries.value.forEach(async (series) => {
+        dicomStore.deleteVolume(series.volumeKey)
+      });
+
+      // Handle the case where we are deleting the selected volume
+      if (primarySelection.value?.type === "dicom") {
+        const { volumeKey } = primarySelection.value;
+
+        // If we are deleting the selected volume, just reset the primary selection
+        if (selectedSeries.value.map((series: DICOMSelection) => series.volumeKey).indexOf(volumeKey) !== -1) {
+          const volumes = dicomStore.studyVolumes[selectedStudy.value];
+          if (volumes.length > 0) {
+            dataStore.setPrimarySelection({
+              type: "dicom",
+              volumeKey: volumes[0]
+            })
+          } else {
+            dataStore.setPrimarySelection(null);
+          }
+        }
       }
-      return '';
-    },
 
-    ...mapActions(['selectBaseImage', 'removeData']),
-    ...mapActions('visualization', ['updateScene']),
-    ...mapActions('dicom', ['getVolumeSlice']),
+      selectedSeries.value = [];
+    }
+
+    const removeSelectedImages = () => {
+      selected.value.forEach(async (dataID) => {
+        imageStore.deleteData(dataID);
+      })
+
+      // Handle the case where we are deleting the selected volume
+      if (primarySelection.value?.type === "image") {
+        const { dataID } = primarySelection.value;
+
+        // If we are deleting the selected image, just reset the primary selection
+        if (selected.value.map((id: string) => id).indexOf(dataID) !== -1) {
+
+          if (imageStore.idList.length > 0) {
+            dataStore.setPrimarySelection({
+              type: "image",
+              dataID: imageStore.idList[0]
+            })
+          } else {
+            dataStore.setPrimarySelection(null);
+          }
+        }
+      }
+    }
+
+    // remove selected images or studies
+    const removeSelected = async () => {
+      if (selectedPatient.value  === NON_DICOM_IMAGES) {
+        await removeSelectedImages();
+      } else {
+        await removeSelectedStudies();
+      }
+
+      selected.value = []
+      selectAll.value = false;
+    }
+
+    return {
+      NON_DICOM_IMAGES,
+      THUMBNAIL_IMAGE_HEIGHT,
+      selectedPatient,
+      selectedStudy,
+      selectAll,
+      selected,
+      selectedSeries,
+      patientList,
+      imageList,
+      primarySelection,
+      thumbnailCache: thumbnailCacheRef,
+      studiesAndVolumes: studiesAndVolumesRef,
+      testFunction: selectionEquals,
+      setPrimarySelection: (sel: DataSelection) => {
+        dataStore.setPrimarySelection(sel);
+      },
+      removeSelectedDICOMVolumes,
+      removeSelected,
+    };
   },
-};
+});
 </script>
 
 <style>
@@ -401,7 +658,6 @@ export default {
 
 #patient-data-list {
   flex: 2;
-  margin-top: 12px;
   overflow-y: scroll;
 }
 
@@ -412,7 +668,7 @@ export default {
 .volume-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  grid-template-rows: 180px;
+  grid-auto-rows: 200px;
   justify-content: center;
 }
 
@@ -422,13 +678,11 @@ export default {
 }
 
 .study-header {
-  width: 100%;
   overflow: hidden;
   white-space: nowrap;
 }
 
 .study-header-line {
-  width: 100%;
   text-overflow: ellipsis;
   overflow: hidden;
 }
@@ -437,5 +691,14 @@ export default {
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+ .thumbnail-overlay >>> .v-overlay__content {
+  height: 100%;
+  width: 100%;
+}
+
+.volume-list >>> .theme--light.v-sheet--outlined {
+  border: none;
 }
 </style>

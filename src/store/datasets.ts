@@ -139,8 +139,12 @@ export const useDatasetStore = defineStore('dataset', {
     },
   },
   actions: {
-    async setPrimarySelection(sel: DataSelection) {
+    async setPrimarySelection(sel: DataSelection | null) {
       this.primarySelection = sel;
+
+      if (sel === null) {
+        return;
+      }
 
       let imageID: string = '';
 
