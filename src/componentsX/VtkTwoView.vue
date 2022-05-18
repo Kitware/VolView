@@ -155,6 +155,7 @@ import PaintTool from '../components/tools/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
+import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -329,13 +330,13 @@ export default defineComponent({
       );
     });
 
-    const { baseImageRep } = useSceneBuilder<vtkIJKSliceRepresentationProxy>(
-      viewID,
-      {
-        baseImage: curImageID,
-        labelmaps: labelmapIDs,
-      }
-    );
+    const { baseImageRep, labelmapReps } = useSceneBuilder<
+      vtkIJKSliceRepresentationProxy,
+      vtkLabelMapSliceRepProxy
+    >(viewID, {
+      baseImage: curImageID,
+      labelmaps: labelmapIDs,
+    });
 
     // --- camera setup --- //
 
@@ -427,6 +428,9 @@ export default defineComponent({
         rep.setWindowWidth(width);
         rep.setWindowLevel(level);
       }
+      labelmapReps.value.forEach((lmRep) => {
+        lmRep.setSlice(slice);
+      });
     });
 
     // --- template vars --- //
