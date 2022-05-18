@@ -1,3 +1,5 @@
+import vtkLabelMap from '@/src/vtk/LabelMap';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { expect } from 'chai';
 import { PaintToolManager } from '../paint';
 import CirclePaintBrush from '../paint/circle-brush';
@@ -47,6 +49,32 @@ describe('Paint Tool', () => {
         const state = manager.factory.getWidgetState();
         expect(state.getStamp()).to.not.be.null;
         expect(state.getStampSize()).to.not.deep.equal([0, 0]);
+      });
+    });
+    describe('paintLabelmap', () => {
+      it('should add paint of a given value to a labelmap', () => {
+        const labelmap = vtkLabelMap.newInstance();
+        const points = new Uint8Array(4 * 4 * 4);
+        labelmap.setDimensions([4, 4, 4]);
+        labelmap.getPointData().setScalars(
+          vtkDataArray.newInstance({
+            numberOfComponents: 1,
+            values: points,
+          })
+        );
+
+        const brushValue = 8;
+        const manager = new PaintToolManager();
+        manager.setBrushValue(brushValue);
+        manager.setBrushSize(2);
+
+        manager.paintLabelmap(labelmap, 0, [5, 5, 5]);
+        expect(points.every((value) => !value)).to.be.true;
+        manager.paintLabelmap(labelmap, 0, [2, 2, 2]);
+        // only checks some of the brush, not the entire brush.
+        expect(points[2 + 4 * 2 + 16 * 2]).to.equal(brushValue);
+        expect(points[2 + 4 * 3 + 16 * 3]).to.equal(brushValue);
+        expect(points[2 + 4 * 1 + 16 * 1]).to.equal(brushValue);
       });
     });
   });
