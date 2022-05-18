@@ -27,6 +27,8 @@ export function getLPSAxisFromDir(dir: LPSAxisDir): LPSAxis {
 }
 
 export interface LPSDirections {
+  // Maps LPS direction to world-space direction (not index-space direction)
+  // These should match columns of the current image orientation matrix.
   Left: vec3;
   Right: vec3;
   Posterior: vec3;
