@@ -96,7 +96,6 @@ export default class PaintToolManager {
       }
     }
 
-    labelmap.getPointData().getScalars().modified();
     labelmap.modified();
   }
 }
