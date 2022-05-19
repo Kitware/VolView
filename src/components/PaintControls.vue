@@ -41,6 +41,34 @@
       </v-row>
       <v-row no-gutters align="center">
         <v-col>
+          <v-slider
+            :value="opacity"
+            @input="setOpacity"
+            dense
+            hide-details
+            label="Opacity"
+            min="0"
+            max="1"
+            step="0.01"
+          >
+            <template v-slot:append>
+              <v-text-field
+                :value="opacity"
+                @input="setOpacity"
+                class="mt-n1 pt-0"
+                style="width: 40px"
+                hide-details
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+              />
+            </template>
+          </v-slider>
+        </v-col>
+      </v-row>
+      <v-row no-gutters align="center">
+        <v-col>
           <v-color-picker
             hide-canvas
             hide-inputs
@@ -92,7 +120,6 @@ export default defineComponent({
 
   setup() {
     const paintStore = usePaintToolStore();
-    const brushSize = computed(() => paintStore.brushSize);
 
     const { hexToValue, swatches } = convertToSwatches(LABELMAP_PALETTE, 3);
     const brushColor = computed(() => {
@@ -103,15 +130,21 @@ export default defineComponent({
       return null;
     });
 
-    const setBrushSize = (size: number) => {
-      paintStore.setBrushSize(Number(size));
-    };
-
     const setBrushColor = (color: string) => {
       const hexa = color.toUpperCase();
       if (hexa in hexToValue) {
         paintStore.setBrushValue(hexToValue[hexa]);
       }
+    };
+
+    const brushSize = computed(() => paintStore.brushSize);
+    const setBrushSize = (size: number) => {
+      paintStore.setBrushSize(Number(size));
+    };
+
+    const opacity = computed(() => paintStore.labelmapOpacity);
+    const setOpacity = (op: number) => {
+      paintStore.setLabelmapOpacity(Number(op));
     };
 
     return {
@@ -120,6 +153,8 @@ export default defineComponent({
       swatches,
       brushColor,
       setBrushColor,
+      opacity,
+      setOpacity,
     };
   },
 });

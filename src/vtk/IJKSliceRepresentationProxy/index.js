@@ -21,7 +21,7 @@ function vtkIJKSliceRepresentationProxy(publicAPI, model) {
 
   // pretend XYZ slicing is actually just IJK.
   publicAPI.setSlicingMode = (modeString) => {
-    superClass.setSlicingMode(SLICE_MODE_MAP[modeString]);
+    return superClass.setSlicingMode(SLICE_MODE_MAP[modeString]);
   };
 }
 
@@ -38,6 +38,10 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   // Object methods
   vtkSliceRepresentationProxy.extend(publicAPI, model);
+
+  macro.proxyPropertyMapping(publicAPI, model, {
+    opacity: { modelKey: 'property', property: 'opacity' },
+  });
 
   // Object specific methods
   vtkIJKSliceRepresentationProxy(publicAPI, model);

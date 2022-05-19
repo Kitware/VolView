@@ -156,6 +156,7 @@ import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
+import { usePaintToolStore } from '../store/tools/paint';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -181,6 +182,7 @@ export default defineComponent({
   },
   setup(props) {
     const view2DStore = useView2DStore();
+    const paintStore = usePaintToolStore();
 
     const { viewDirection, viewUp } = toRefs(props);
 
@@ -430,6 +432,15 @@ export default defineComponent({
       }
       labelmapReps.value.forEach((lmRep) => {
         lmRep.setSlice(slice);
+      });
+    });
+
+    // --- apply labelmap opacity --- //
+
+    watchEffect(() => {
+      const { labelmapOpacity } = paintStore;
+      labelmapReps.value.forEach((lmRep) => {
+        lmRep.setOpacity(labelmapOpacity);
       });
     });
 

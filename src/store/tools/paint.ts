@@ -10,6 +10,7 @@ interface State {
   brushSize: number;
   brushValue: number;
   strokePoints: vec3[];
+  labelmapOpacity: number;
 }
 
 export const usePaintToolStore = defineStore('paint', {
@@ -19,6 +20,7 @@ export const usePaintToolStore = defineStore('paint', {
     brushSize: 8,
     brushValue: 1,
     strokePoints: [],
+    labelmapOpacity: 1,
   }),
   getters: {
     getWidgetFactory() {
@@ -57,6 +59,11 @@ export const usePaintToolStore = defineStore('paint', {
     setBrushValue(value: number) {
       this.brushValue = value;
       this.$tools.paint.setBrushValue(value);
+    },
+    setLabelmapOpacity(opacity: number) {
+      if (opacity >= 0 && opacity <= 1) {
+        this.labelmapOpacity = opacity;
+      }
     },
     _doPaintStroke(axisIndex: 0 | 1 | 2) {
       if (!this.activeLabelmapID) {
