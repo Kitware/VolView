@@ -14,7 +14,12 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <v-menu offset-x :close-on-content-click="false" :disabled="!active">
+      <v-menu
+        v-model="paintMenu"
+        offset-x
+        :close-on-content-click="false"
+        :disabled="!active"
+      >
         <template v-slot:activator="{ attrs, on }">
           <div>
             <tool-button
@@ -63,7 +68,8 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
+import { onKeyDown } from '@vueuse/core';
 import ToolButton from './ToolButton.vue';
 import ItemGroup from './ItemGroup.vue';
 import GroupableItem from './GroupableItem.vue';
@@ -85,11 +91,17 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
 
+    const paintMenu = ref(false);
+    onKeyDown('Escape', () => {
+      paintMenu.value = false;
+    });
+
     return {
       currentTool,
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
       Tools,
+      paintMenu,
     };
   },
 });
