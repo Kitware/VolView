@@ -8,7 +8,7 @@ function rasterizeCircle(radius: number) {
   // does not check on validity of xStart and xEnd
   const blitPixels = (xStart: number, xEnd: number, y: number) => {
     const start = y * imgDim + xStart;
-    const end = start + (xEnd - xStart);
+    const end = start + (xEnd - xStart + 1);
     buffer.fill(1, start, end);
   };
 
