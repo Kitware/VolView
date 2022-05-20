@@ -1,5 +1,5 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { ref } from '@vue/composition-api';
+import { ref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { useLabelmapStore } from '../datasets-labelmaps';
@@ -12,6 +12,9 @@ export const usePaintToolStore = defineStore('paint', () => {
   const brushValue = ref(1);
   const strokePoints = ref<vec3[]>([]);
   const labelmapOpacity = ref(1);
+  const isActive = ref(false);
+
+  const { currentImageID } = useCurrentImage();
 
   function getWidgetFactory(this: _This) {
     return this.$tools.paint.factory;
@@ -19,23 +22,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   // --- actions --- //
 
-  function setup(this: _This) {
-    const { currentImageID } = useCurrentImage();
-    const imageID = currentImageID.value;
-    if (!imageID) {
-      return false;
-    }
-    // eslint-disable-next-line no-use-before-define
-    selectOrCreateLabelmap(imageID);
-    this.$tools.paint.setBrushSize(this.brushSize);
-    return true;
-  }
-
-  function teardown() {
-    activeLabelmapID.value = null;
-  }
-
-  function selectOrCreateLabelmap(imageID: string) {
+  function selectOrCreateLabelmap(imageID: string | null) {
     if (!imageID) {
       activeLabelmapID.value = null;
       return;
@@ -51,14 +38,17 @@ export const usePaintToolStore = defineStore('paint', () => {
       activeLabelmapID.value = labelmapStore.newLabelmapFromImage(imageID);
     }
   }
+
   function setBrushSize(this: _This, size: number) {
     brushSize.value = Math.round(size);
     this.$tools.paint.setBrushSize(size);
   }
+
   function setBrushValue(this: _This, value: number) {
     brushValue.value = value;
     this.$tools.paint.setBrushValue(value);
   }
+
   function setLabelmapOpacity(opacity: number) {
     if (opacity >= 0 && opacity <= 1) {
       labelmapOpacity.value = opacity;
@@ -109,6 +99,33 @@ export const usePaintToolStore = defineStore('paint', () => {
     doPaintStroke.call(this, axisIndex);
   }
 
+  // --- setup and teardown --- //
+
+  function setup(this: _This) {
+    const imageID = currentImageID.value;
+    if (!imageID) {
+      return false;
+    }
+    selectOrCreateLabelmap(imageID);
+    this.$tools.paint.setBrushSize(this.brushSize);
+
+    isActive.value = true;
+    return true;
+  }
+
+  function teardown() {
+    activeLabelmapID.value = null;
+    isActive.value = false;
+  }
+
+  // --- change labelmap if paint is active --- //
+
+  watch(currentImageID, (imageID) => {
+    if (isActive.value) {
+      selectOrCreateLabelmap(imageID);
+    }
+  });
+
   return {
     // state
     activeLabelmapID,
@@ -116,6 +133,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     brushValue,
     strokePoints,
     labelmapOpacity,
+    isActive,
 
     // actions and getters
     getWidgetFactory,

@@ -25,11 +25,11 @@ import {
   toRefs,
 } from '@vue/composition-api';
 import { useView2DStore } from '@/src/store/views-2D';
-import { Tools, useToolStore } from '@/src/store/tools';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { useViewStore } from '@/src/store/views';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { LPSAxisDir } from '@/src/utils/lps';
+import { usePaintToolStore } from '@/src/store/tools/paint';
 import PaintWidget2D from './paint/PaintWidget2D.vue';
 
 export default defineComponent({
@@ -59,8 +59,8 @@ export default defineComponent({
       () => view2DStore.sliceConfigs[viewID.value].slice
     );
 
-    const toolStore = useToolStore();
-    const active = computed(() => toolStore.currentTool === Tools.Paint);
+    const paintStore = usePaintToolStore();
+    const active = computed(() => paintStore.isActive);
 
     // viewProxy is expected to never change over
     // the course of this component's lifespan.
