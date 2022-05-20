@@ -5,20 +5,18 @@ function rasterizeCircle(radius: number) {
   const center = radius - 1;
   const buffer = new Uint8Array(imgDim ** 2);
 
-  const putPixel = (x: number, y: number) => {
-    buffer[y * imgDim + x] = 1;
+  // does not check on validity of xStart and xEnd
+  const blitPixels = (xStart: number, xEnd: number, y: number) => {
+    const start = y * imgDim + xStart;
+    const end = start + (xEnd - xStart);
+    buffer.fill(1, start, end);
   };
 
   const plot = (x: number, y: number) => {
-    for (let xi = center - x; xi <= center + x; xi++) {
-      putPixel(xi, center - y);
-      putPixel(xi, center + y);
-    }
-
-    for (let xi = center - y; xi <= center + y; xi++) {
-      putPixel(xi, center - x);
-      putPixel(xi, center + x);
-    }
+    blitPixels(center - x, center + x, center - y);
+    blitPixels(center - x, center + x, center + y);
+    blitPixels(center - y, center + y, center - x);
+    blitPixels(center - y, center + y, center + x);
   };
 
   let x = center;
