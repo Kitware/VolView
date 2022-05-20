@@ -1,0 +1,16 @@
+name: PR Checks
+on: pull_request
+
+jobs:
+  pr-checks:
+    runs-on: ubuntu-20.04
+    name: Check and lint PR
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - run: npm ci
+      - name: Enforce code style
+        run: npx prettier --config ./prettier.config.js --list-different "src/**/*.[jt]s"

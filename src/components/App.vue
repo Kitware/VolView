@@ -41,15 +41,15 @@
               />
               <v-menu offset-x>
                 <template v-slot:activator="{ on, attrs }">
-                  <!-- hack to get menu to show up -->
-                  &nbsp;
-                  <tool-button
-                    size="40"
-                    icon="mdi-view-dashboard"
-                    name="Layouts"
-                    v-bind="attrs"
-                    v-on="on"
-                  />
+                  <div>
+                    <tool-button
+                      size="40"
+                      icon="mdi-view-dashboard"
+                      name="Layouts"
+                      v-bind="attrs"
+                      v-on="on"
+                    />
+                  </div>
                 </template>
                 <v-card>
                   <v-card-text>

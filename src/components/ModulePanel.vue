@@ -1,30 +1,23 @@
 <template>
   <div class="height-100 d-flex flex-column">
     <div id="module-switcher" class="mt-1 mb-2">
-        <v-tabs
-          id="module-switcher-tabs"
-          v-model="selectedModuleIndex"
-          icons-and-text
-          :show-arrows=true
-        >
-          <v-tab
-            v-for="item in Modules"
-            :key="item.name"
-            class="pl-1 pr-1"
-          >
-            <div class="tab-content">
-              <span class="mb-0 mt-1 module-text" >{{item.name}}</span>
-              <v-icon>mdi-{{ item.icon }}</v-icon>
-            </div>
-          </v-tab>
-        </v-tabs>
+      <v-tabs
+        id="module-switcher-tabs"
+        v-model="selectedModuleIndex"
+        icons-and-text
+        :show-arrows="true"
+      >
+        <v-tab v-for="item in Modules" :key="item.name" class="pl-1 pr-1">
+          <div class="tab-content">
+            <span class="mb-0 mt-1 module-text">{{ item.name }}</span>
+            <v-icon>mdi-{{ item.icon }}</v-icon>
+          </div>
+        </v-tab>
+      </v-tabs>
     </div>
     <div id="module-container">
       <v-tabs-items v-model="selectedModuleIndex">
-        <v-tab-item
-          v-for="mod in Modules"
-          :key="mod.name"
-        >
+        <v-tab-item v-for="mod in Modules" :key="mod.name">
           <component
             :key="mod.name"
             v-show="Modules[selectedModuleIndex] === mod"
@@ -37,12 +30,9 @@
 </template>
 
 <script lang="ts">
-import {
-  defineComponent,
-  ref,
-} from '@vue/composition-api';
+import { defineComponent, ref } from '@vue/composition-api';
 
-import PatientBrowser from "./PatientBrowser.vue";
+import PatientBrowser from './PatientBrowser.vue';
 import VolumeRendering from '../componentsX/VolumeRendering.vue';
 import SampleData from './SampleData.vue';
 import Settings from './Settings.vue';
@@ -88,8 +78,6 @@ export const Modules = [
     icon: 'cog',
     component: Settings,
   },
-
-
 ];
 
 export default defineComponent({

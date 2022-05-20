@@ -8,7 +8,14 @@
     <v-container>
       <v-row no-gutters>
         <v-col cols="1" class="d-flex align-center">
-          <v-checkbox id="test" @click.stop :key="id" :value="inputValue" :input-value="value" @change="onChange" />
+          <v-checkbox
+            id="test"
+            @click.stop
+            :key="id"
+            :value="inputValue"
+            :input-value="value"
+            @change="onChange"
+          />
         </v-col>
         <v-col
           cols="4"
@@ -33,9 +40,7 @@
 </template>
 
 <script lang="ts">
-import {
-  defineComponent
-} from '@vue/composition-api';
+import { defineComponent } from '@vue/composition-api';
 
 export default defineComponent({
   name: 'ImageListCard',
@@ -50,17 +55,17 @@ export default defineComponent({
     },
     id: String,
     value: Array,
-    inputValue: String
+    inputValue: String,
   },
 
   setup(props, context) {
     const onChange = (event: any) => {
-        context.emit('input', event);
-    }
+      context.emit('input', event);
+    };
 
     return {
       onChange,
-    }
-  }
+    };
+  },
 });
 </script>
