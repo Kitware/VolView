@@ -19,8 +19,8 @@ export function updatePlaneManipulatorFor2DView(
 
   vec3.transformMat4(origin, origin, imageMetadata.indexToWorld);
 
-  manipulator.setNormal(normal as Vector3);
-  manipulator.setOrigin(origin as Vector3);
+  manipulator.setUserNormal(normal as Vector3);
+  manipulator.setUserOrigin(origin as Vector3);
 }
 
 export function createPlaneManipulatorFor2DView(
