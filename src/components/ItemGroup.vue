@@ -38,7 +38,9 @@ export default {
   },
   watch: {
     value(v) {
-      this.internalValue = v;
+      if (v !== this.internalValue) {
+        this.selectItem(v);
+      }
     },
   },
   mounted() {

@@ -17,11 +17,21 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
 
   let labelMapSub = null;
 
+  // needed for vtk.js >= 23.0.0
+  model.property.setUseLookupTableScalarRange(true);
   model.property.setInterpolationType(InterpolationType.NEAREST);
   model.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
+  let cachedColorMap = null;
+
   function updateTransferFunctions(labelmap) {
     const colorMap = labelmap.getColorMap();
+    if (colorMap === cachedColorMap) {
+      return;
+    }
+    // Cache the colormap using ref equality. This will
+    // avoid updating the colormap unnecessarily.
+    cachedColorMap = colorMap;
 
     const cfun = vtkColorTransferFunction.newInstance();
     const ofun = vtkPiecewiseFunction.newInstance();

@@ -57,7 +57,6 @@ interface State {
   rulerIDs: string[];
   rulers: Record<string, RulerTool>;
   activeRulerID: string | null;
-  // imageToRulers: Record<string, string[]>;
 }
 
 export const useRulerToolStore = defineStore('rulerTool', {
@@ -65,7 +64,6 @@ export const useRulerToolStore = defineStore('rulerTool', {
     rulerIDs: [],
     rulers: Object.create(null),
     activeRulerID: null,
-    // imageToRulers: Object.create(null),
   }),
   getters: {
     lengths(state) {
@@ -81,6 +79,14 @@ export const useRulerToolStore = defineStore('rulerTool', {
     },
   },
   actions: {
+    setup() {
+      return true;
+    },
+    teardown() {
+      if (this.activeRulerID) {
+        this.removeRuler(this.activeRulerID);
+      }
+    },
     activateRuler(rulerID: string) {
       if (this.activeRulerID) {
         this.deactivateRuler(this.activeRulerID);
@@ -201,14 +207,6 @@ export const useRulerToolStore = defineStore('rulerTool', {
         }
       }
     },
-    /*
-    updatePendingRuler(ruler: NullableValues<RulerTool>) {
-      Object.assign(this.pendingRuler, ruler);
-    },
-    clearPendingRuler() {
-      this.pendingRuler = createNulledRuler();
-    },
-    */
   },
 });
 

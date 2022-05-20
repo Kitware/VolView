@@ -17,7 +17,6 @@ export function updatePlaneManipulatorFor2DView(
   const origin: vec3 = [0, 0, 0];
   origin[axis] = slice;
 
-  vec3.transformMat3(normal, normal, imageMetadata.orientation);
   vec3.transformMat4(origin, origin, imageMetadata.indexToWorld);
 
   manipulator.setNormal(normal as Vector3);

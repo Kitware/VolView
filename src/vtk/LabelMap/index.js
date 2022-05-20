@@ -1,8 +1,6 @@
 import macro from '@kitware/vtk.js/macro';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-const { vtkWarningMacro } = macro;
-
 // ----------------------------------------------------------------------------
 // vtkLabelMap methods
 // ----------------------------------------------------------------------------
@@ -10,28 +8,6 @@ const { vtkWarningMacro } = macro;
 function vtkLabelMap(publicAPI, model) {
   // Set our className
   model.classHierarchy.push('vtkLabelMap');
-
-  // color is RGB, with optional A. Values in [0, 255].
-  publicAPI.setLabelColor = (label, color) => {
-    if (Number.isNaN(Number(label))) {
-      vtkWarningMacro('Provided label is not a number');
-    } else {
-      model.colorMap[label] = color.slice();
-      if (model.colorMap[label][3] === undefined) {
-        model.colorMap[label][3] = 255;
-      }
-      publicAPI.modified();
-    }
-  };
-
-  publicAPI.removeLabel = (label) => {
-    if (Number.isNaN(Number(label))) {
-      vtkWarningMacro('Provided label is not a number');
-    } else {
-      delete model.colorMap[label];
-      publicAPI.modified();
-    }
-  };
 
   if (model.colorMap === null) {
     // default colormap
