@@ -1,196 +1,154 @@
 <template>
   <div id="volume-rendering-module" class="mx-2 height-100">
-    <div
-      v-show="hasBaseImage"
-      id="volume-transfer-func-editor"
-      ref="editorContainer"
-    >
-      <div ref="pwfEditor" />
-    </div>
-    <div v-show="hasBaseImage" id="preset-list">
-      <item-group :value="baseImageColorPreset" @change="selectPreset">
-        <groupable-item
-          v-for="name in PresetNames"
-          :key="name"
-          v-slot="{ active, select }"
-          :value="name"
-        >
-          <avatar-list-card
-            :active="active"
-            :image-size="size"
-            :image-url="thumbnailCache[thumbKey(baseImage, name)]"
-            :title="name"
-            @click="select"
+    <template v-if="hasPrimaryDataset">
+      <div id="volume-transfer-func-editor" ref="editorContainerRef">
+        <div ref="pwfEditorRef" />
+      </div>
+      <div id="preset-list">
+        <item-group :value="colorTransferFunctionName" @change="selectPreset">
+          <groupable-item
+            v-for="preset in presetList"
+            :key="preset.name"
+            v-slot="{ active, select }"
+            :value="preset.name"
           >
-            <div class="text-truncate">
-              {{ name }}
-            </div>
-          </avatar-list-card>
-        </groupable-item>
-      </item-group>
-    </div>
-    <div v-show="!hasBaseImage">No image selected</div>
+            <avatar-list-card
+              :active="active"
+              :image-size="size"
+              :image-url="thumbnailCache[preset.thumbnailKey] || ''"
+              :title="preset.name"
+              @click="select"
+            >
+              <div class="text-truncate">
+                {{ preset.name }}
+              </div>
+            </avatar-list-card>
+          </groupable-item>
+        </item-group>
+      </div>
+    </template>
+    <template v-else>
+      <div>No image selected</div>
+    </template>
   </div>
 </template>
 
-<script>
-import { mapState, mapGetters, mapActions } from 'vuex';
-import vtkGenericRenderWindow from '@kitware/vtk.js/Rendering/Misc/GenericRenderWindow';
-import vtkVolume from '@kitware/vtk.js/Rendering/Core/Volume';
-import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
-import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
-import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
-import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
-import PwfProxyConstants from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy/Constants';
-
+<script lang="ts">
+import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  ref,
+  set,
+  watch,
+  watchEffect,
+} from '@vue/composition-api';
+import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
+import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import AvatarListCard from '@/src/components/AvatarListCard.vue';
-import { PresetNameList } from '@/src/vtk/ColorMaps';
-import { NO_SELECTION } from '@/src/constants';
-import { unsubscribeVtkList } from '@/src/utils/common';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { Vector3 } from '@kitware/vtk.js/types';
+import { useResizeObserver } from '../composables/useResizeObserver';
+import { manageVTKSubscription } from '../composables/manageVTKSubscription';
+import { useView3DStore } from '../store/views-3D';
+import { useProxyManager } from '../composables/proxyManager';
+import { useDatasetStore } from '../store/datasets';
+import { createVolumeThumbnailer } from '../utils/volume-thumbnailer';
+import { useCurrentImage } from '../composables/useCurrentImage';
+import { useCameraOrientation } from '../composables/useCameraOrientation';
+import { LPSAxisDir } from '../utils/lps';
 
-const { Defaults, Mode } = PwfProxyConstants;
 const WIDGET_HEIGHT = 150;
+const THUMBNAIL_SIZE = 80;
 
-export function createThumbnailPipeline() {
-  const actor = vtkVolume.newInstance();
-  const mapper = vtkVolumeMapper.newInstance();
-  const property = actor.getProperty();
-  const cfun = vtkColorTransferFunction.newInstance();
-  const ofun = vtkPiecewiseFunction.newInstance();
-  property.setRGBTransferFunction(0, cfun);
-  property.setScalarOpacity(0, ofun);
-  property.setUseGradientOpacity(0, true);
-  property.setScalarOpacityUnitDistance(0, 3);
-  property.setInterpolationTypeToLinear();
-  property.setGradientOpacityMinimumValue(0, 2);
-  property.setGradientOpacityMaximumValue(0, 20);
-  property.setGradientOpacityMinimumOpacity(0, 0);
-  property.setGradientOpacityMaximumOpacity(0, 1);
-  mapper.setSampleDistance(1);
-  actor.setMapper(mapper);
-  return {
-    actor,
-    mapper,
-    property,
-    cfun,
-    ofun,
-  };
+function makeCacheKey(presetName: string, imageID: string) {
+  return `cache-${presetName}-${imageID}`;
 }
 
-export function resetCameraToZ(renderer) {
-  // mimics ViewProxy.updateOrientation to get a
-  // similar looking default position thumbnail
-  const camera = renderer.getActiveCamera();
-  const pos = camera.getFocalPoint();
-  pos[2] -= 1;
-  camera.setPosition(...pos);
-  camera.setViewUp(0, -1, 0);
-  renderer.resetCamera();
+function resetOpacityFunction(
+  pwfProxy: vtkPiecewiseFunctionProxy,
+  dataRange: [number, number],
+  presetName: string
+) {
+  // reset pwf proxy range
+  pwfProxy.setDataRange(...dataRange);
+
+  const preset = vtkColorMaps.getPresetByName(presetName);
+  if (preset.OpacityPoints) {
+    const OpacityPoints = preset.OpacityPoints as number[];
+    const points = [];
+    let xmin = Infinity;
+    let xmax = -Infinity;
+    for (let i = 0; i < OpacityPoints.length; i += 2) {
+      xmin = Math.min(xmin, OpacityPoints[i]);
+      xmax = Math.max(xmax, OpacityPoints[i]);
+      points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
+    }
+
+    const width = xmax - xmin;
+    const pointsNormalized = points.map(([x, y]) => [(x - xmin) / width, y]);
+
+    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
+    pwfProxy.setPoints(pointsNormalized);
+    pwfProxy.setDataRange(xmin, xmax);
+  } else {
+    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Gaussians);
+    pwfProxy.setGaussians(vtkPiecewiseFunctionProxy.Defaults.Gaussians);
+  }
 }
 
-export function thumbKey(imageID, presetName) {
-  return `${imageID}:${presetName}`;
-}
-
-export default {
+export default defineComponent({
   name: 'VolumeRendering',
-
   components: {
-    AvatarListCard,
     ItemGroup,
     GroupableItem,
+    AvatarListCard,
   },
+  setup() {
+    const view3DStore = useView3DStore();
+    const dataStore = useDatasetStore();
+    const proxyManager = useProxyManager();
+    const mapOpacityRangeToLutRangeRef = ref(false);
+    const editorContainerRef = ref<HTMLElement | null>(null);
+    const pwfEditorRef = ref<HTMLElement | null>(null);
 
-  data() {
-    return {
-      size: 80,
-      thumbnailCache: {}, // TODO how to remove entries from cache
-      mapOpacityRangeToLutRange: false,
-      PresetNames: PresetNameList,
-    };
-  },
+    let recurseGuard = false;
 
-  computed: {
-    ...mapState({ baseImage: 'selectedBaseImage' }),
-    ...mapState('visualization', ['colorBy']),
-    ...mapGetters('visualization', [
-      'baseImagePipeline',
-      'baseImageColorPreset',
-    ]),
-    baseColorBy() {
-      return this.colorBy[this.baseImage] || {};
-    },
-    hasBaseImage() {
-      return this.baseImage !== NO_SELECTION;
-    },
-    pwfProxy() {
-      const { array } = this.baseColorBy;
-      if (array) {
-        return this.$proxyManager.getPiecewiseFunction(array);
+    const { currentImageID } = useCurrentImage();
+    const primaryDatasetRef = computed(() => dataStore.primaryDataset);
+    const colorTransferFunctionRef = computed(
+      () => view3DStore.coloringConfig.transferFunction
+    );
+    const colorByRef = computed(() => view3DStore.coloringConfig.colorBy);
+    const pwfProxyRef = computed(() => {
+      const { arrayName } = colorByRef.value;
+      if (arrayName) {
+        return proxyManager?.getPiecewiseFunction(arrayName);
       }
       return null;
-    },
-    lutProxy() {
-      if (this.pwfProxy) {
-        return this.pwfProxy.getLookupTableProxy();
-      }
-      return null;
-    },
-  },
-
-  watch: {
-    baseImage() {
-      if (this.hasBaseImage) {
-        this.resetPwfWidget();
-        this.onOpacityChange();
-      }
-    },
-
-    baseImagePipeline(pipeline) {
-      if (pipeline) {
-        const { source } = pipeline;
-        const volume = source.getDataset();
-        const { actor, mapper } = this.volumePipeline;
-        mapper.setInputData(volume);
-        this.scene.getRenderer().addVolume(actor);
-        this.doThumbnailing(volume);
-      } else {
-        const { actor } = this.volumePipeline;
-        this.scene.getRenderer().removeVolume(actor);
-      }
-    },
-
-    baseImageColorPreset() {
-      this.resetPwfWidget();
-      this.onOpacityChange();
-    },
-
-    baseColorBy() {
-      this.resetPwfWidget();
-      this.onOpacityChange();
-    },
-  },
-
-  created() {
-    this.container = document.createElement('div');
-    this.container.style.width = `${this.size}px`;
-    this.container.style.height = `${this.size}px`;
-
-    this.scene = vtkGenericRenderWindow.newInstance({
-      listenWindowResize: false,
     });
-    this.scene.setContainer(this.container);
+    const lutProxyRef = computed(() => {
+      return pwfProxyRef.value?.getLookupTableProxy();
+    });
 
-    this.volumePipeline = createThumbnailPipeline();
+    const pwfSubscriptions: vtkSubscription[] = [];
 
-    this.pwfWidget = vtkPiecewiseWidget.newInstance({
+    onBeforeUnmount(() => {
+      while (pwfSubscriptions.length) {
+        pwfSubscriptions.pop()!.unsubscribe();
+      }
+    });
+
+    const pwfWidget = vtkPiecewiseWidget.newInstance({
       numberOfBins: 256,
       size: [250, WIDGET_HEIGHT],
     });
-    this.pwfWidget.updateStyle({
+    pwfWidget.updateStyle({
       backgroundColor: 'rgba(255, 255, 255, 0.6)',
       histogramColor: 'rgba(100, 100, 100, 0.5)',
       strokeColor: 'rgb(0, 0, 0)',
@@ -208,224 +166,226 @@ export default {
       padding: 10,
     });
 
-    this.lifeSubscriptions = [];
-    this.pwfSubscriptions = [];
-
-    this.recurseGuard = false;
-  },
-
-  mounted() {
-    this.resizeObserver = new ResizeObserver((entries) => {
-      if (entries.length === 1) {
-        const { width } = entries[0].contentRect;
-        this.setPwfWidgetWidth(width);
-        this.onOpacityChange();
-      }
-    });
-    this.resizeObserver.observe(this.$refs.editorContainer);
-
-    this.lifeSubscriptions.push(
-      this.pwfWidget.onOpacityChange(() => this.onOpacityChange())
-    );
-
-    this.pwfWidget.setContainer(this.$refs.pwfEditor);
-    this.pwfWidget.bindMouseListeners();
-
-    this.resetPwfWidget();
-    this.onOpacityChange();
-  },
-
-  beforeDestroy() {
-    this.resizeObserver.unobserve(this.$refs.editorContainer);
-    unsubscribeVtkList(this.lifeSubscriptions);
-    unsubscribeVtkList(this.pwfSubscriptions);
-    this.pwfWidget.unbindMouseListeners();
-    this.pwfWidget.setContainer(null);
-  },
-
-  methods: {
-    thumbKey,
-
-    async selectPreset(name) {
-      await this.setBaseImageColorPreset(name);
-
-      const lut = this.lutProxy.getLookupTable();
-      this.pwfWidget.setColorTransferFunction(lut);
-    },
-
-    doThumbnailing(volume) {
-      const dataRange = volume.getPointData().getScalars().getRange();
-      this.thumbnailHelper(this.baseImage, 0, dataRange);
-    },
-
-    thumbnailHelper(currentImageId, currentIndex, mappingRange) {
-      if (
-        this.baseImage === currentImageId &&
-        currentIndex < PresetNameList.length
-      ) {
-        const presetName = PresetNameList[currentIndex];
-        const key = thumbKey(currentImageId, presetName);
-        if (key in this.thumbnailCache) {
-          this.thumbnailHelper(currentImageId, currentIndex + 1, mappingRange);
-        } else {
-          const preset = vtkColorMaps.getPresetByName(presetName);
-          const { ofun, cfun } = this.volumePipeline;
-          ofun.addPoint(0, 0);
-          ofun.addPoint(255, 1);
-          cfun.applyColorMap(preset);
-          cfun.setMappingRange(mappingRange[0], mappingRange[1]);
-
-          resetCameraToZ(this.scene.getRenderer());
-          this.scene.getRenderWindow().render();
-          this.scene
-            .getRenderWindow()
-            .captureImages()[0]
-            .then((imageURL) => {
-              this.$set(this.thumbnailCache, key, imageURL);
-              this.thumbnailHelper(
-                currentImageId,
-                currentIndex + 1,
-                mappingRange
-              );
-            });
+    function onOpacityChange() {
+      const pwfProxy = pwfProxyRef.value;
+      if (pwfProxy) {
+        if (recurseGuard) {
+          return;
         }
+        recurseGuard = true;
+
+        if (pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
+          pwfProxy.setGaussians(pwfWidget.getReferenceByName('gaussians'));
+        } else if (
+          pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Points
+        ) {
+          pwfProxy.setPoints(pwfWidget.getEffectiveOpacityPoints());
+        }
+        if (mapOpacityRangeToLutRangeRef.value) {
+          const newColorRange = pwfWidget.getOpacityRange() as [number, number];
+          pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
+        }
+        pwfWidget.render();
+
+        recurseGuard = false;
       }
-    },
+    }
 
-    resetPwfWidget() {
-      unsubscribeVtkList(this.pwfSubscriptions);
+    function resetPwfWidget() {
+      while (pwfSubscriptions.length) {
+        pwfSubscriptions.pop()!.unsubscribe();
+      }
 
-      if (this.hasBaseImage && this.pwfProxy) {
-        const pwf = this.pwfProxy.getPiecewiseFunction();
-        const lut = this.lutProxy.getLookupTable();
+      const pwfProxy = pwfProxyRef.value;
+      const lutProxy = lutProxyRef.value;
+      const image = primaryDatasetRef.value;
+      const colorTFName = colorTransferFunctionRef.value;
 
-        const { data, selectedBaseImage } = this.$store.state;
-        const image = data.vtkCache[selectedBaseImage];
+      if (image && pwfProxy && lutProxy) {
         const scalars = image.getPointData().getScalars();
         const dataRange = scalars.getRange();
 
-        // reset pwf proxy and lut proxy ranges
-        this.pwfProxy.setDataRange(...dataRange);
-        this.lutProxy.setDataRange(...dataRange);
+        resetOpacityFunction(pwfProxy, dataRange, colorTFName);
+        lutProxy.setDataRange(...dataRange);
 
-        const preset = vtkColorMaps.getPresetByName(this.baseImageColorPreset);
-        if (preset.OpacityPoints) {
-          const { OpacityPoints } = preset;
-          const points = [];
-          let xmin = Infinity;
-          let xmax = -Infinity;
-          for (let i = 0; i < OpacityPoints.length; i += 2) {
-            xmin = Math.min(xmin, OpacityPoints[i]);
-            xmax = Math.max(xmax, OpacityPoints[i]);
-            points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
-          }
-
-          const width = xmax - xmin;
-          const pointsNormalized = points.map(([x, y]) => [
-            (x - xmin) / width,
-            y,
-          ]);
-
-          this.pwfProxy.setMode(Mode.Points);
-          this.pwfProxy.setPoints(pointsNormalized);
-          this.pwfProxy.setDataRange(xmin, xmax);
-
-          this.pwfWidget.setPointsMode();
-          this.pwfWidget.setOpacityPoints(pointsNormalized);
-        } else {
-          this.pwfProxy.setMode(Mode.Gaussians);
-          this.pwfProxy.setGaussians(Defaults.Gaussians);
-
-          this.pwfWidget.setGaussiansMode();
-          this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
+        if (pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Points) {
+          pwfWidget.setPointsMode();
+          pwfWidget.setOpacityPoints(pwfProxy.getPoints());
+        } else if (
+          pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Gaussians
+        ) {
+          pwfWidget.setGaussiansMode();
+          pwfWidget.setGaussians(pwfProxy.getGaussians());
         }
 
-        this.pwfWidget.setColorTransferFunction(lut);
-        this.pwfWidget.setDataArray(scalars.getData());
+        const pwf = pwfProxy.getPiecewiseFunction();
+        const lut = lutProxy.getLookupTable();
 
-        this.pwfSubscriptions.push(
+        pwfWidget.setColorTransferFunction(lut);
+        pwfWidget.setDataArray(scalars.getData());
+
+        pwfSubscriptions.push(
           pwf.onModified(() => {
-            if (this.pwfProxy) {
-              if (this.recurseGuard) {
-                return;
-              }
-              this.recurseGuard = true;
-
-              this.pwfWidget.setGaussians(this.pwfProxy.getGaussians());
-
-              this.recurseGuard = false;
-            }
+            onOpacityChange();
           })
         );
 
-        this.pwfSubscriptions.push(
+        pwfSubscriptions.push(
           lut.onModified(() => {
-            if (this.pwfProxy) {
-              if (this.recurseGuard) {
-                return;
-              }
-              this.recurseGuard = true;
-
-              if (this.mapOpacityRangeToLutRange) {
-                const newColorRange = this.pwfWidget.getOpacityRange();
-                this.pwfProxy
-                  .getLookupTableProxy()
-                  .setDataRange(...newColorRange);
-                this.pwfWidget.render();
-              }
-
-              this.recurseGuard = false;
-            }
+            onOpacityChange();
           })
         );
-
-        this.pwfWidget.render();
       }
-    },
 
-    setPwfWidgetWidth(width) {
+      pwfWidget.render();
+    }
+
+    useResizeObserver(editorContainerRef, (entry) => {
+      const { width } = entry.contentRect;
       if (width > 0) {
-        this.pwfWidget.setSize(width, WIDGET_HEIGHT);
+        pwfWidget.setSize(width, WIDGET_HEIGHT);
       }
-    },
+      onOpacityChange();
+    });
 
-    onOpacityChange() {
-      if (this.pwfProxy) {
-        if (this.recurseGuard) {
+    manageVTKSubscription(pwfWidget.onOpacityChange(onOpacityChange));
+
+    // mounted the pwf widget container
+    watchEffect(() => {
+      if (pwfEditorRef.value) {
+        pwfWidget.setContainer(pwfEditorRef.value);
+        pwfWidget.bindMouseListeners();
+      }
+    });
+
+    onBeforeUnmount(() => {
+      pwfWidget.unbindMouseListeners();
+      pwfWidget.setContainer(null);
+    });
+
+    // update pwf widget on selection change
+    watch(
+      [primaryDatasetRef, colorByRef, colorTransferFunctionRef],
+      ([primaryDataset], [oldPrimaryDataset]) => {
+        if (primaryDataset && primaryDataset !== oldPrimaryDataset) {
+          resetPwfWidget();
+          onOpacityChange();
+        }
+      },
+      { deep: true }
+    );
+
+    // -- thumbnailing -- //
+
+    const thumbnailCacheRef = ref<Record<string, string>>({});
+    const thumbnailer = createVolumeThumbnailer(THUMBNAIL_SIZE);
+    const { currentImageMetadata } = useCurrentImage();
+
+    // same as 3D view
+    const viewDirection = ref<LPSAxisDir>('Inferior');
+    const viewUp = ref<LPSAxisDir>('Anterior');
+    const { cameraDirVec, cameraUpVec } = useCameraOrientation(
+      viewDirection,
+      viewUp,
+      currentImageMetadata
+    );
+
+    // used to interrupt a thumbnailing cycle if
+    // doThumbnailing is called again
+    let interruptSentinel = Symbol('interrupt');
+
+    async function doThumbnailing(imageID: string, image: vtkImageData) {
+      const localSentinel = Symbol('interrupt');
+      interruptSentinel = localSentinel;
+
+      thumbnailer.setInputImage(image);
+      const dataRange = image.getPointData().getScalars().getRange();
+
+      async function helper(presetName: string) {
+        // bail if a new thumbnail process has started
+        if (interruptSentinel !== localSentinel) {
           return;
         }
-        this.recurseGuard = true;
 
-        if (this.pwfProxy.getMode() === Mode.Gaussians) {
-          this.pwfProxy.setGaussians(
-            this.pwfWidget.getReferenceByName('gaussians')
-          );
-        } else if (this.pwfProxy.getMode() === Mode.Points) {
-          this.pwfProxy.setPoints(this.pwfWidget.getEffectiveOpacityPoints());
+        // sanity check; did the current image change
+        if (imageID !== currentImageID.value) {
+          return;
         }
-        if (this.mapOpacityRangeToLutRange) {
-          const newColorRange = this.pwfWidget.getOpacityRange();
-          this.pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
-        }
-        this.pwfWidget.render();
 
-        this.recurseGuard = false;
+        const thumbnailCache = thumbnailCacheRef.value;
+        const cacheKey = makeCacheKey(presetName, imageID);
+        // don't thumbnail something that has been thumbnailed
+        // FIXME (?) doesn't account for if the dataset changes
+        if (cacheKey in thumbnailCache) {
+          return;
+        }
+
+        const preset = vtkColorMaps.getPresetByName(presetName);
+        resetOpacityFunction(
+          thumbnailer.opacityFuncProxy,
+          dataRange,
+          presetName
+        );
+        thumbnailer.colorTransferFuncProxy
+          .getLookupTable()
+          .applyColorMap(preset);
+        thumbnailer.colorTransferFuncProxy.setDataRange(...dataRange);
+        thumbnailer.resetCameraWithOrientation(
+          cameraDirVec.value as Vector3,
+          cameraUpVec.value as Vector3
+        );
+
+        const renWin = thumbnailer.scene.getRenderWindow();
+        renWin.render();
+        const imageURL = await renWin.captureImages()[0];
+        if (imageURL) {
+          set(thumbnailCache, cacheKey, imageURL);
+        }
       }
-    },
 
-    ...mapActions('visualization', ['setBaseImageColorPreset']),
+      PresetNameList.reduce(
+        (promise, presetName) => promise.then(() => helper(presetName)),
+        Promise.resolve()
+      );
+    }
+
+    // force thumbnailing to stop
+    onBeforeUnmount(() => {
+      interruptSentinel = Symbol('unmount');
+    });
+
+    // trigger thumbnailing
+    watch(currentImageID, (imageID) => {
+      if (imageID) {
+        // set the thumbnailer's camera
+        // set ofun via pwfWidget, since it should have been
+        // reset prior to this code
+        // trigger thumbnailing
+        doThumbnailing(imageID, primaryDatasetRef.value!);
+      }
+    });
+
+    const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
+    const presetList = computed(() => {
+      const id = currentImageID.value || '';
+      return PresetNameList.map((name) => ({
+        name,
+        thumbnailKey: makeCacheKey(name, id),
+      }));
+    });
+
+    return {
+      editorContainerRef,
+      pwfEditorRef,
+      thumbnailCache: thumbnailCacheRef,
+      hasPrimaryDataset,
+      colorTransferFunctionName: colorTransferFunctionRef,
+      presetList,
+      selectPreset: (name: string) => {
+        view3DStore.setColorTransferFunction(name);
+      },
+      size: THUMBNAIL_SIZE,
+    };
   },
-};
+});
 </script>
-
-<style scoped>
-#volume-rendering-module {
-  display: flex;
-  flex-flow: column;
-}
-
-#preset-list {
-  flex: 2;
-  overflow-y: scroll;
-}
-</style>

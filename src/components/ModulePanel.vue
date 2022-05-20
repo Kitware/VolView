@@ -33,7 +33,7 @@
 import { defineComponent, ref } from '@vue/composition-api';
 
 import PatientBrowser from './PatientBrowser.vue';
-import VolumeRendering from '../componentsX/VolumeRendering.vue';
+import VolumeRendering from "./VolumeRendering.vue";
 import SampleData from './SampleData.vue';
 import Settings from './Settings.vue';
 

@@ -149,6 +149,7 @@
             <div
               class="vue-notification-template general-notifications"
               :class="`notify-${item.type}`"
+              @keypress.esc="close"
               @click="close"
             >
               <div class="notification-content d-flex flex-row align-center">
@@ -214,7 +215,7 @@ import LayoutGrid from './LayoutGrid.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import ModulePanel from './ModulePanel.vue';
 // import Annotations from './Annotations.vue';
-import VolumeRendering from '../componentsX/VolumeRendering.vue';
+import VolumeRendering from './VolumeRendering.vue';
 // import MeasurementsModule from './MeasurementsModule.vue';
 // import ModelBrowser from './ModelBrowser.vue';
 import DragAndDrop from './DragAndDrop.vue';
@@ -222,8 +223,8 @@ import AboutBox from './AboutBox.vue';
 // import AiModule from './AiModule.vue';
 import ToolStrip from './ToolStrip.vue';
 import SampleData from './SampleData.vue';
-import VtkTwoView from '../componentsX/VtkTwoView.vue';
-import VtkThreeView from '../componentsX/VtkThreeView.vue';
+import VtkTwoView from './VtkTwoView.vue';
+import VtkThreeView from './VtkThreeView.vue';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,

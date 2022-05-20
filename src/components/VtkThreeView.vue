@@ -3,154 +3,181 @@
     <div class="vtk-gutter"></div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
-        <div class="vtk-view" ref="vtkContainer" />
+        <div class="vtk-view" ref="vtkContainerRef" />
       </div>
+      <view-overlay-grid class="overlay-no-events view-annotations">
+        <template v-slot:top-left>
+          <div class="annotation-cell">
+            <span>{{ topLeftLabel }}</span>
+          </div>
+        </template>
+      </view-overlay-grid>
+      <transition name="loading">
+        <div v-if="isImageLoading" class="overlay-no-events loading">
+          <div>Loading the image</div>
+          <div>
+            <v-progress-circular indeterminate color="blue" />
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
 
-<script>
+<script lang="ts">
 import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  onMounted,
+  PropType,
   ref,
   toRefs,
   watch,
-  unref,
-  reactive,
   watchEffect,
-  computed,
 } from '@vue/composition-api';
+import { vec3 } from 'gl-matrix';
 
-import {
-  CommonViewProps,
-  useVtkView,
-  useVtkViewCameraOrientation,
-  applyViewAnnotations,
-} from '@/src/composables/view/common';
-import { useResizeObserver } from '@/src/composables/useResizeObserver';
-import { watchScene, watchColorBy } from '@/src/composables/scene';
-import { useComputedState } from '@/src/composables/store';
+import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
+import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+
+import { useView3DStore } from '@/src/store/views-3D';
 import { useProxyManager } from '@/src/composables/proxyManager';
 
-export default {
-  name: 'VtkThreeView',
-  props: CommonViewProps,
-  setup(props) {
-    const { viewName, viewType, viewUp, axis, orientation } = toRefs(props);
-    const vtkContainer = ref(null);
+import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
+import { useResizeObserver } from '../composables/useResizeObserver';
+import { LPSAxisDir } from '../utils/lps';
+import { useCurrentImage } from '../composables/useCurrentImage';
+import { useCameraOrientation } from '../composables/useCameraOrientation';
+import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
+import { useSceneBuilder } from '../composables/useSceneBuilder';
 
-    const pxm = useProxyManager();
+export default defineComponent({
+  props: {
+    viewDirection: {
+      type: String as PropType<LPSAxisDir>,
+      required: true,
+    },
+    viewUp: {
+      type: String as PropType<LPSAxisDir>,
+      required: true,
+    },
+  },
+  components: {
+    ViewOverlayGrid,
+  },
+  setup(props) {
+    const view3DStore = useView3DStore();
+    const proxyManager = useProxyManager()!;
+
+    const { viewDirection, viewUp } = toRefs(props);
+
+    const vtkContainerRef = ref<HTMLElement>();
+
+    // --- view creation --- //
+
+    // TODO changing the viewDirection prop is not supported at this time.
+    const {
+      id: viewID,
+      proxy: viewProxy,
+    } = view3DStore.createView<vtkLPSView3DProxy>();
+
+    // --- computed vars --- //
 
     const {
-      sceneSources,
-      imageParams,
-      colorBy,
-      extentWithSpacing,
-      baseImageColorPreset,
-      baseImage,
-      slices,
-      windowing,
-    } = useComputedState({
-      sceneSources(state, getters) {
-        const { pipelines } = state.visualization;
-        return getters.sceneObjectIDs
-          .filter((id) => id in pipelines)
-          .map((id) => pipelines[id].last);
-      },
-      imageParams: (state) => state.visualization.imageParams,
-      colorBy: (state, getters) =>
-        getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
-      extentWithSpacing: (_, getters) =>
-        getters['visualization/extentWithSpacing'],
-      baseImageColorPreset: (_, getters) =>
-        getters['visualization/baseImageColorPreset'],
-      baseImage(state) {
-        const { pipelines } = state.visualization;
-        const { selectedBaseImage } = state;
-        if (selectedBaseImage in pipelines) {
-          return pipelines[selectedBaseImage].last;
-        }
-        return null;
-      },
-      slices: (state) => state.visualization.slices,
-      windowing: (state) => state.visualization.windowing,
+      currentImageID: curImageID,
+      currentImageMetadata: curImageMetadata,
+      isImageLoading,
+    } = useCurrentImage();
+
+    const coloringConfig = computed(() => view3DStore.coloringConfig);
+    const colorBy = computed(() => coloringConfig.value.colorBy);
+    const colorTransferFuncName = computed(
+      () => coloringConfig.value.transferFunction
+    );
+
+    // --- view proxy setup --- //
+
+    onMounted(() => {
+      viewProxy.setOrientationAxesVisibility(true);
+      viewProxy.setOrientationAxesType('cube');
+      viewProxy.setBackground([0.1, 0.2, 0.3]);
+      viewProxy.setContainer(vtkContainerRef.value ?? null);
     });
 
-    const spacing = computed(() => imageParams.value.spacing);
-
-    const viewRef = useVtkView({
-      containerRef: vtkContainer,
-      viewName,
-      viewType,
+    onBeforeUnmount(() => {
+      viewProxy.setContainer(null);
+      view3DStore.removeView(viewID);
     });
 
-    // handle camera orientation
-    useVtkViewCameraOrientation(viewRef, viewUp, axis, orientation);
+    useResizeObserver(vtkContainerRef, () => viewProxy.resize());
 
-    useResizeObserver(vtkContainer, () => {
-      const view = unref(viewRef);
-      if (view) {
-        view.resize();
-      }
-    });
+    // --- scene setup --- //
 
-    // update scene sources and their colors
-    watchScene(sceneSources, viewRef);
-    watchColorBy(colorBy, sceneSources, viewRef);
-
-    // prepare view
-    watchEffect(() => {
-      const view = unref(viewRef);
-      if (view) {
-        view.setBackground(0.1, 0.2, 0.3);
-        view.setOrientationAxesType('cube');
-      }
-    });
-
-    // set wl and slices
-    watchEffect(() => {
-      if (viewRef.value && baseImage.value) {
-        const rep = pxm.getRepresentation(baseImage.value, viewRef.value);
-        if (rep) {
-          rep.setXSlice(slices.value.x * spacing.value[0]);
-          rep.setYSlice(slices.value.y * spacing.value[1]);
-          rep.setZSlice(slices.value.z * spacing.value[2]);
-          rep.setWindowWidth(windowing.value.width);
-          rep.setWindowLevel(windowing.value.level);
-        }
-      }
-    });
-
-    // reset camera whenever bounds changes
-    watch(extentWithSpacing, () => {
-      const view = unref(viewRef);
-      if (view) {
-        view.resetCamera();
-      }
-    });
-
-    applyViewAnnotations(
-      viewRef,
-      reactive({
-        nw: baseImageColorPreset,
-      }),
+    const { baseImageRep } = useSceneBuilder<vtkVolumeRepresentationProxy>(
+      viewID,
       {
-        nw: 'No colormap',
+        baseImage: curImageID,
       }
     );
 
+    // --- camera setup --- //
+
+    const { cameraUpVec, cameraDirVec } = useCameraOrientation(
+      viewDirection,
+      viewUp,
+      curImageMetadata
+    );
+
+    const resetCamera = () => {
+      const bounds = curImageMetadata.value.worldBounds;
+      const center = [
+        (bounds[0] + bounds[1]) / 2,
+        (bounds[2] + bounds[3]) / 2,
+        (bounds[4] + bounds[5]) / 2,
+      ] as vec3;
+
+      viewProxy.updateCamera(cameraDirVec.value, cameraUpVec.value, center);
+      viewProxy.resetCamera();
+      viewProxy.render();
+    };
+
+    watch(
+      [baseImageRep, cameraDirVec, cameraUpVec],
+      () => {
+        resetCamera();
+      },
+      {
+        immediate: true,
+        deep: true,
+      }
+    );
+
+    // --- coloring --- //
+
+    watchEffect(() => {
+      const rep = baseImageRep.value;
+      const { arrayName, location } = colorBy.value;
+
+      // TODO move lut stuff to proxymanager sync code
+      const lut = proxyManager.getLookupTable(arrayName);
+      lut.setMode(vtkLookupTableProxy.Mode.Preset);
+      lut.setPresetName(colorTransferFuncName.value);
+      if (rep) {
+        rep.setColorBy(arrayName, location);
+      }
+    });
+
+    // --- template vars --- //
+
     return {
-      vtkContainer, // dom ref
-      active: true,
+      vtkContainerRef,
+      active: false,
+      topLeftLabel: colorTransferFuncName,
+      isImageLoading,
     };
   },
-};
+});
 </script>
 
-<style src="@/src/assets/styles/vtk-view.css"></style>
-
-<style scoped>
-.vtk-gutter {
-  display: flex;
-  flex-flow: column;
-}
-</style>
+<style scoped src="@/src/assets/styles/vtk-view.css"></style>

@@ -4,8 +4,8 @@
       <slice-slider
         class="slice-slider"
         :slice="slice"
-        :min="sliceRange[0]"
-        :max="sliceRange[1]"
+        :min="sliceMin"
+        :max="sliceMax"
         :step="1"
         :handle-height="20"
         @input="setSlice"
@@ -13,408 +13,476 @@
     </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
-        <div class="vtk-view" ref="vtkContainer" />
+        <div class="vtk-view" ref="vtkContainerRef" />
       </div>
+      <div class="overlay-no-events tool-layer">
+        <pan-tool :view-proxy="viewProxy" />
+        <zoom-tool :view-proxy="viewProxy" />
+        <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
+        <window-level-tool :view-id="viewID" :view-proxy="viewProxy" />
+        <ruler-tool
+          view-type="2D"
+          :view-id="viewID"
+          :widget-manager="widgetManager"
+          :view-direction="viewDirection"
+          :view-proxy="viewProxy"
+        />
+        <paint-tool
+          :view-id="viewID"
+          :view-direction="viewDirection"
+          :widget-manager="widgetManager"
+        />
+      </div>
+      <view-overlay-grid class="overlay-no-events view-annotations">
+        <template v-slot:top-middle>
+          <div class="annotation-cell">
+            <span>{{ topLabel }}</span>
+          </div>
+        </template>
+        <template v-slot:middle-left>
+          <div class="annotation-cell">
+            <span>{{ leftLabel }}</span>
+          </div>
+        </template>
+        <template v-slot:bottom-left>
+          <div class="annotation-cell">
+            <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
+            <div>
+              W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
+            </div>
+          </div>
+        </template>
+        <template v-slot:top-right>
+          <div class="annotation-cell">
+            <v-menu
+              open-on-hover
+              offset-y
+              left
+              nudge-left="10"
+              dark
+              v-if="dicomInfo !== null"
+              max-width="200px"
+            >
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  dark
+                  small
+                  icon
+                  v-bind="attrs"
+                  v-on="on"
+                  class="info-button"
+                >
+                  <v-icon dark> mdi-information </v-icon>
+                </v-btn>
+              </template>
+              <v-list class="grey darken-3">
+                <v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title class=".font-color"
+                      >PATIENT / CASE</v-list-item-title
+                    >
+                    <v-divider />
+                    <v-list-item-title
+                      >ID: {{ dicomInfo.patientID }}</v-list-item-title
+                    >
+                  </v-list-item-content>
+                </v-list-item>
+                <v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title>STUDY</v-list-item-title>
+                    <v-divider />
+                    <v-list-item-title
+                      >ID: {{ dicomInfo.studyID }}</v-list-item-title
+                    >
+                    <v-list-item-title>{{
+                      dicomInfo.studyDescription
+                    }}</v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+                <v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title>SERIES</v-list-item-title>
+                    <v-divider />
+                    <v-list-item-title
+                      >SERIES #: {{ dicomInfo.seriesNumber }}</v-list-item-title
+                    >
+                    <v-list-item-title>{{
+                      dicomInfo.seriesDescription
+                    }}</v-list-item-title>
+                  </v-list-item-content>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </div>
+        </template>
+      </view-overlay-grid>
+      <transition name="loading">
+        <div v-if="isImageLoading" class="overlay-no-events loading">
+          <div>Loading the image</div>
+          <div>
+            <v-progress-circular indeterminate color="blue" />
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
 
-<script>
+<script lang="ts">
 import {
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  onMounted,
+  PropType,
   ref,
   toRefs,
   watch,
-  unref,
-  computed,
-  reactive,
   watchEffect,
 } from '@vue/composition-api';
+import { vec3 } from 'gl-matrix';
 
-import {
-  CommonViewProps,
-  useVtkView,
-  applyViewAnnotations,
-} from '@/src/composables/view/common';
-import {
-  useOrientationLabels,
-  use2DMouseControls,
-  usePixelProbe,
-  apply2DCameraPlacement,
-  useIJKAxisCamera,
-} from '@/src/composables/view/view2D';
-import { useResizeObserver } from '@/src/composables/useResizeObserver';
-import { watchScene, watchColorBy } from '@/src/composables/scene';
-import { useStore, useComputedState } from '@/src/composables/store';
-import { useSubscription } from '@/src/composables/vtk';
-import { useWidgetProvider } from '@/src/composables/widgetProvider';
-import { useProxyManager } from '@/src/composables/proxyManager';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 
-import { DataTypes } from '@/src/constants';
+import { useView2DStore } from '@/src/store/views-2D';
+import { useResizeToFit } from '@src/composables/useResizeToFit';
+import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
+import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
+import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
+import SliceSlider from '@src/components/SliceSlider.vue';
+import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
+import { useResizeObserver } from '../composables/useResizeObserver';
+import { useOrientationLabels } from '../composables/useOrientationLabels';
+import { getLPSAxisFromDir, LPSAxisDir } from '../utils/lps';
+import { useCurrentImage } from '../composables/useCurrentImage';
+import { useCameraOrientation } from '../composables/useCameraOrientation';
+import WindowLevelTool from "./tools/WindowLevelTool.vue";
+import SliceScrollTool from "./tools/SliceScrollTool.vue";
+import PanTool from "./tools/PanTool.vue";
+import ZoomTool from "./tools/ZoomTool.vue";
+import RulerTool from "./tools/RulerTool.vue";
+import PaintTool from "./tools/PaintTool.vue";
+import { useSceneBuilder } from '../composables/useSceneBuilder';
+import { useDICOMStore } from '../store/datasets-dicom';
+import { useLabelmapStore } from '../store/datasets-labelmaps';
+import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
+import { usePaintToolStore } from '../store/tools/paint';
 
-import SliceSlider from '@/src/components/SliceSlider.vue';
-
-/**
- * Sets parallel scale of 2D view camera to fit a given bounds.
- *
- * Assumes the camera is reset, i.e. focused correctly.
- *
- * Bounds is specified as width/height of orthographic view.
- * Renders must be triggered manually.
- */
-function resize2DCameraToFit(view, lookAxis, viewUpAxis, bounds) {
-  const camera = view.getCamera();
-  const lengths = [
-    bounds[1] - bounds[0],
-    bounds[3] - bounds[2],
-    bounds[5] - bounds[4],
-  ];
-  const [w, h] = view.getOpenglRenderWindow().getSize();
-  let bw;
-  let bh;
-  /* eslint-disable prefer-destructuring */
-  if (lookAxis === 0 && viewUpAxis === 1) {
-    bw = lengths[2];
-    bh = lengths[1];
-  } else if (lookAxis === 0 && viewUpAxis === 2) {
-    bw = lengths[1];
-    bh = lengths[2];
-  } else if (lookAxis === 1 && viewUpAxis === 0) {
-    bw = lengths[2];
-    bh = lengths[0];
-  } else if (lookAxis === 1 && viewUpAxis === 2) {
-    bw = lengths[0];
-    bh = lengths[2];
-  } else if (lookAxis === 2 && viewUpAxis === 0) {
-    bw = lengths[1];
-    bh = lengths[0];
-  } else if (lookAxis === 2 && viewUpAxis === 1) {
-    bw = lengths[0];
-    bh = lengths[1];
-  }
-  /* eslint-enable prefer-destructuring */
-  const viewAspect = w / h;
-  const boundsAspect = bw / bh;
-
-  let scale = 0;
-  if (viewAspect >= boundsAspect) {
-    scale = bh / 2;
-  } else {
-    scale = bw / 2 / viewAspect;
-  }
-
-  camera.setParallelScale(scale);
-}
-
-/**
- * This differs from view.resetCamera() in that we reset the view
- * to the specified bounds.
- */
-function resetCamera(viewRef, lookAxis, viewUpAxis, imageParams, resizeToFit) {
-  const view = unref(viewRef);
-  if (view) {
-    const renderer = view.getRenderer();
-    renderer.computeVisiblePropBounds();
-    renderer.resetCamera(imageParams.value.bounds);
-
-    if (unref(resizeToFit)) {
-      const { extent, spacing } = imageParams.value;
-      const extentWithSpacing = extent.map(
-        (e, i) => e * spacing[Math.floor(i / 2)]
-      );
-      resize2DCameraToFit(
-        view,
-        unref(lookAxis),
-        unref(viewUpAxis),
-        unref(extentWithSpacing)
-      );
-    }
-  }
-}
-
-export default {
+export default defineComponent({
   name: 'VtkTwoView',
-
-  props: CommonViewProps,
-
+  props: {
+    viewDirection: {
+      type: String as PropType<LPSAxisDir>,
+      required: true,
+    },
+    viewUp: {
+      type: String as PropType<LPSAxisDir>,
+      required: true,
+    },
+  },
   components: {
     SliceSlider,
+    ViewOverlayGrid,
+    WindowLevelTool,
+    SliceScrollTool,
+    PanTool,
+    ZoomTool,
+    RulerTool,
+    PaintTool,
   },
-
   setup(props) {
-    const { viewName, viewType } = toRefs(props);
-    const vtkContainer = ref(null);
-    const resizeToFit = ref(true);
+    const view2DStore = useView2DStore();
+    const paintStore = usePaintToolStore();
 
-    const { direction } = useComputedState({
-      direction: (state) => state.visualization.imageParams.direction,
-    });
+    const { viewDirection, viewUp } = toRefs(props);
 
-    const { axis, orientation, viewUp, viewUpAxis } = useIJKAxisCamera(
-      viewType,
-      direction
-    );
-    const axisLabel = computed(() => 'xyz'[axis.value]);
+    const vtkContainerRef = ref<HTMLElement>();
 
-    const store = useStore();
-    const widgetProvider = useWidgetProvider();
-    const pxm = useProxyManager();
+    const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    // currentSlice: VtkTwoView concerns itself only with IJK coords, so
-    //               currentSlice is expected to be in image coords.
+    // --- view creation --- //
+
+    // TODO changing the viewDirection prop is not supported at this time.
     const {
-      sceneSources,
-      imageParams,
-      colorBy,
-      extentWithSpacing,
-      baseImage,
-      currentSlice,
-      windowing,
-      dicomInfo,
-    } = useComputedState({
-      sceneSources(state, getters) {
-        const { pipelines } = state.visualization;
-        return getters.sceneObjectIDs
-          .filter((id) => id in pipelines)
-          .map((id) => pipelines[id].last);
-      },
-      imageParams: (state) => state.visualization.imageParams,
-      colorBy: (state, getters) =>
-        getters.sceneObjectIDs.map((id) => state.visualization.colorBy[id]),
-      extentWithSpacing: (_, getters) =>
-        getters['visualization/extentWithSpacing'],
-      baseImage(state) {
-        const { pipelines } = state.visualization;
-        const { selectedBaseImage } = state;
-        if (selectedBaseImage in pipelines) {
-          return pipelines[selectedBaseImage].last;
-        }
-        return null;
-      },
-      currentSlice: (state) => state.visualization.slices[axisLabel.value],
-      windowing: (state) => state.visualization.windowing,
-      dicomInfo(state) {
-        const { selectedBaseImage } = state;
-        if (selectedBaseImage in state.data.index) {
-          const dataInfo = state.data.index[selectedBaseImage];
-          if (dataInfo.type === DataTypes.Dicom) {
-            const { patientKey, studyKey, volumeKey } = dataInfo;
-            return {
-              patient: state.dicom.patientIndex[patientKey],
-              study: state.dicom.studyIndex[studyKey],
-              volume: state.dicom.volumeIndex[volumeKey],
-            };
-          }
-        }
-        return null;
-      },
-    });
+      id: viewID,
+      proxy: viewProxy,
+    } = view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
 
-    const viewRef = useVtkView({
-      containerRef: vtkContainer,
-      viewName,
-      viewType,
-    });
+    // --- computed vars --- //
 
-    // configure camera orientation
-    apply2DCameraPlacement(
-      viewRef,
-      imageParams,
-      viewUp,
-      orientation,
-      axis,
-      'image'
-    );
+    const {
+      currentImageData: curImageData,
+      currentImageID: curImageID,
+      currentImageMetadata: curImageMetadata,
+      isImageLoading,
+    } = useCurrentImage();
 
-    useResizeObserver(vtkContainer, () => {
-      const view = unref(viewRef);
-      if (view) {
-        view.resize();
+    const dicomStore = useDICOMStore();
+
+    const sliceConfig = computed(() => view2DStore.sliceConfigs[viewID]);
+    const currentSlice = computed(() => sliceConfig.value.slice);
+    const sliceMin = computed(() => sliceConfig.value.min);
+    const sliceMax = computed(() => sliceConfig.value.max);
+
+    const wlConfig = computed(() => view2DStore.wlConfigs[viewID]);
+    const windowWidth = computed(() => wlConfig.value.width);
+    const windowLevel = computed(() => wlConfig.value.level);
+    const dicomInfo = computed(() => {
+      if (
+        curImageID.value !== null &&
+        curImageID.value in dicomStore.imageIDToVolumeKey
+      ) {
+        const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];
+        const volumeInfo = dicomStore.volumeInfo[volumeKey];
+        const studyKey = dicomStore.volumeStudy[volumeKey];
+        const studyInfo = dicomStore.studyInfo[studyKey];
+        const patientKey = dicomStore.studyPatient[studyKey];
+        const patientInfo = dicomStore.patientInfo[patientKey];
+
+        const patientID = patientInfo.PatientID;
+        const studyID = studyInfo.StudyID;
+        const studyDescription = studyInfo.StudyDescription;
+        const seriesNumber = volumeInfo.SeriesNumber;
+        const seriesDescription = volumeInfo.SeriesDescription;
+
+        return {
+          patientID,
+          studyID,
+          studyDescription,
+          seriesNumber,
+          seriesDescription,
+        };
       }
+
+      return null;
     });
 
-    watchScene(sceneSources, viewRef, () => {
-      const view = unref(viewRef);
-      if (view) {
-        view
-          .getRepresentations()
-          .filter((rep) => rep.setSlice instanceof Function)
-          .forEach((rep) => {
-            rep.setSlice(currentSlice.value);
-          });
-      }
-    });
-    watchColorBy(colorBy, sceneSources, viewRef);
+    // --- view proxy setup --- //
 
-    // reset camera conditions
+    onBeforeUnmount(() => {
+      view2DStore.removeView(viewID);
+    });
+
+    // do this before mounting
+    viewProxy.getInteractorStyle2D().removeAllManipulators();
+
+    onMounted(() => {
+      viewProxy.setOrientationAxesVisibility(false);
+      viewProxy.setContainer(vtkContainerRef.value ?? null);
+    });
+
+    onBeforeUnmount(() => {
+      viewProxy.setContainer(null);
+    });
+
+    // updates slicing mode based on the IJK index
+    watchEffect(() => {
+      const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
+      viewProxy.setSlicingMode('IJK'[ijkIndex]);
+    });
+
+    useResizeObserver(vtkContainerRef, () => viewProxy.resize());
+
+    // --- widget manager --- //
+
+    const widgetManager = vtkWidgetManager.newInstance({
+      useSvgLayer: false,
+    });
+    widgetManager.setRenderer(viewProxy.getRenderer());
+
+    // --- resetting slice properties --- //
+
     watch(
-      [baseImage, extentWithSpacing],
-      () => resetCamera(viewRef, axis, viewUpAxis, imageParams, resizeToFit),
+      curImageData,
+      (imageData, oldImageData) => {
+        // FIXME the old check is to workaround a vue bug/quirk where
+        // the curImageData dependencies trigger, but the ref value is
+        // equivalent, yet this watcher still runs.
+        if (imageData && imageData !== oldImageData) {
+          const { lpsOrientation, dimensions } = curImageMetadata.value;
+          const ijkIndex = lpsOrientation[viewAxis.value];
+          const dimMax = dimensions[ijkIndex];
+
+          // update dimensions
+          // dimMax is upper bound of slices, exclusive.
+          view2DStore.updateSliceDomain(viewID, [0, dimMax - 1]);
+          // move slice to center when image metadata changes.
+          // TODO what if new slices are added to the same image?
+          //      do we still reset the slicing?
+          view2DStore.setSlice(viewID, Math.floor((dimMax - 1) / 2));
+        }
+      },
+
+      // we don't use watchEffect, since I think
+      // accessing the actions on view2DStore cause it
+      // to trigger when any view2DStore state is modified.
       { immediate: true }
     );
-    useSubscription(viewRef, (view) =>
-      view.onResize(() =>
-        resetCamera(viewRef, axis, viewUpAxis, imageParams, resizeToFit)
-      )
-    );
 
-    // setup view
-    watchEffect(() => {
-      const view = unref(viewRef);
-      if (view) {
-        view.setOrientationAxesVisibility(false);
-      }
-    });
+    // --- window/level setup --- //
 
-    // add/remove view from widget provider
-    watch(viewRef, (view, oldView) => {
-      widgetProvider.detachView(oldView);
-      widgetProvider.addView(view, viewType.value);
-    });
-
-    // setup ranges for mouse controls
-    const wwRange = computed(() => ({
-      min: 0,
-      max: windowing.value.max - windowing.value.min,
-      step: 1 / 512,
-      default: windowing.value.width,
-    }));
-    const wlRange = computed(() => ({
-      min: windowing.value.min,
-      max: windowing.value.max,
-      step: 1 / 512,
-      default: windowing.value.level,
-    }));
-    const sliceRange = computed(() => {
-      const { extent } = unref(imageParams);
-      return {
-        min: extent[axis.value * 2],
-        max: extent[axis.value * 2 + 1],
-        step: 1,
-        default: currentSlice.value,
-      };
-    });
-
-    const mouseValues = use2DMouseControls(
-      viewRef,
-      wwRange,
-      wlRange,
-      sliceRange,
-      [
-        { type: 'pan', options: { shift: true } },
-        { type: 'zoom', options: { control: true } },
-        { type: 'zoom', options: { button: 3 } },
-      ]
-    );
-
-    // bind mouse outputs to ww, wl, and slice
-    const setWindowWidth = (width) =>
-      store.dispatch('visualization/setWindowing', { width });
-    const setWindowLevel = (level) =>
-      store.dispatch('visualization/setWindowing', { level });
-    const setSlice = (s) =>
-      store.dispatch('visualization/setSlices', { [axisLabel.value]: s });
-
-    watch(mouseValues.vertVal, (ww) => setWindowWidth(ww));
-    watch(mouseValues.horizVal, (wl) => setWindowLevel(wl));
-    watch(mouseValues.scrollVal, (s) => setSlice(s));
-
-    // sync windowing and slicing to reps
-    watchEffect(() => {
-      if (viewRef.value && sceneSources.value.length) {
-        const first = sceneSources.value[0];
-        const rep = pxm.getRepresentation(first, viewRef.value);
-        if (rep) {
-          if (rep.setSlice) rep.setSlice(currentSlice.value);
-          if (rep.setWindowWidth) rep.setWindowWidth(windowing.value.width);
-          if (rep.setWindowLevel) rep.setWindowLevel(windowing.value.level);
+    watch(
+      curImageData,
+      (imageData, oldImageData) => {
+        if (imageData && imageData !== oldImageData) {
+          // TODO listen to changes in point data
+          const range = imageData.getPointData().getScalars().getRange();
+          view2DStore.updateWLDomain(viewID, range);
+          view2DStore.resetWindowLevel(viewID);
         }
+      },
+      {
+        immediate: true,
       }
-    });
-
-    // obtain pixel of base image under mouse cursor
-    const { pixelProbe } = usePixelProbe(viewRef, baseImage);
-
-    // orientation labels
-    const { left: leftLabel, top: upLabel } = useOrientationLabels(viewRef);
-
-    // pixel probe annotation
-    const pixelAnnotation = computed(() => {
-      if (pixelProbe.value) {
-        const { location, value } = pixelProbe.value;
-        const coord = location.map((c) => Math.round(c));
-        const pixel = value.map((p) => p.toFixed(1));
-        return `(${coord.join(', ')}) = ${pixel.join(', ')}`;
-      }
-      return 'NONE';
-    });
-
-    // w/l annotation
-    const windowAnnotations = computed(() => ({
-      width: windowing.value.width.toFixed(1),
-      level: windowing.value.level.toFixed(1),
-    }));
-
-    // dicom annotations
-    const patientAnnotation = computed(() =>
-      dicomInfo.value
-        ? [
-            dicomInfo.value.patient.patientName,
-            `ID: ${dicomInfo.value.patient.PatientID}`,
-          ].join('<br>')
-        : ''
-    );
-    const studyAnnotation = computed(() =>
-      dicomInfo.value
-        ? [
-            `StudyID: ${dicomInfo.value.study.StudyID}`,
-            dicomInfo.value.study.StudyDescription,
-            `Series #: ${dicomInfo.value.volume.SeriesNumber}`,
-            dicomInfo.value.volume.SeriesDescription,
-          ].join('<br>')
-        : ''
     );
 
-    applyViewAnnotations(
-      viewRef,
-      reactive({
-        n: upLabel,
-        w: leftLabel,
-        nw: patientAnnotation,
-        ne: studyAnnotation,
-        sw: computed(() =>
-          [
-            `Slice: ${currentSlice.value + 1}`,
-            `W/L: ${windowAnnotations.value.width}, ${windowAnnotations.value.level}`,
-            `Pixel: ${pixelAnnotation.value}`,
-          ].join('<br>')
-        ),
+    // --- scene setup --- //
+
+    const labelmapStore = useLabelmapStore();
+
+    const labelmapIDs = computed(() => {
+      return labelmapStore.idList.filter(
+        (id) => labelmapStore.parentImage[id] === curImageID.value
+      );
+    });
+
+    const { baseImageRep, labelmapReps } = useSceneBuilder<
+      vtkIJKSliceRepresentationProxy,
+      vtkLabelMapSliceRepProxy
+    >(viewID, {
+      baseImage: curImageID,
+      labelmaps: labelmapIDs,
+    });
+
+    // --- camera setup --- //
+
+    const { cameraDirVec, cameraUpVec } = useCameraOrientation(
+      viewDirection,
+      viewUp,
+      curImageMetadata
+    );
+    const {
+      resizeToFit,
+      ignoreResizeToFitTracking,
+      resetResizeToFitTracking,
+    } = useResizeToFit(viewProxy.getCamera(), false);
+
+    const resizeToFitScene = () =>
+      ignoreResizeToFitTracking(() => {
+        // resize to fit
+        const lookAxis =
+          curImageMetadata.value.lpsOrientation[
+            getLPSAxisFromDir(viewDirection.value)
+          ];
+        const upAxis =
+          curImageMetadata.value.lpsOrientation[
+            getLPSAxisFromDir(viewUp.value)
+          ];
+        const dimsWithSpacing = curImageMetadata.value.dimensions.map(
+          (d, i) => d * curImageMetadata.value.spacing[i]
+        );
+        viewProxy.resizeToFit(lookAxis, upAxis, dimsWithSpacing);
+        resetResizeToFitTracking();
+      });
+
+    const resetCamera = () => {
+      const bounds = curImageMetadata.value.worldBounds;
+      const center = [
+        (bounds[0] + bounds[1]) / 2,
+        (bounds[2] + bounds[3]) / 2,
+        (bounds[4] + bounds[5]) / 2,
+      ] as vec3;
+
+      // do not track resizeToFit state
+      ignoreResizeToFitTracking(() => {
+        viewProxy.updateCamera(cameraDirVec.value, cameraUpVec.value, center);
+        viewProxy.resetCamera(bounds);
+      });
+
+      resizeToFitScene();
+
+      viewProxy.render();
+    };
+
+    manageVTKSubscription(
+      viewProxy.onResize(() => {
+        if (resizeToFit.value) {
+          resizeToFitScene();
+        }
       })
     );
 
+    // if we re-enable resizeToFit, reset the camera
+    watch(resizeToFit, () => {
+      if (resizeToFit.value) {
+        resetCamera();
+      }
+    });
+
+    watch(
+      [curImageID, cameraDirVec, cameraUpVec],
+      () => {
+        if (resizeToFit.value) {
+          resetCamera();
+        } else {
+          // this will trigger a resetCamera() call
+          resizeToFit.value = true;
+        }
+      },
+      { immediate: true, deep: true }
+    );
+
+    // --- viewport orientation/camera labels --- //
+
+    const { top: topLabel, left: leftLabel } = useOrientationLabels(viewProxy);
+
+    // --- apply windowing and slice configs --- //
+
+    watchEffect(() => {
+      const { slice } = sliceConfig.value;
+      const { width, level } = wlConfig.value;
+      const rep = baseImageRep.value;
+      if (rep) {
+        rep.setSlice(slice);
+        rep.setWindowWidth(width);
+        rep.setWindowLevel(level);
+      }
+      labelmapReps.value.forEach((lmRep) => {
+        lmRep.setSlice(slice);
+      });
+    });
+
+    // --- apply labelmap opacity --- //
+
+    watchEffect(() => {
+      const { labelmapOpacity } = paintStore;
+      labelmapReps.value.forEach((lmRep) => {
+        lmRep.setOpacity(labelmapOpacity);
+      });
+    });
+
+    // --- template vars --- //
+
     return {
-      vtkContainer, // dom ref
+      vtkContainerRef,
+      viewID,
+      viewProxy,
+      viewAxis,
       active: true,
       slice: currentSlice,
-      sliceRange: computed(() => [sliceRange.value.min, sliceRange.value.max]),
-
-      // methods
-      setSlice,
+      sliceMin,
+      sliceMax,
+      windowWidth,
+      windowLevel,
+      topLabel,
+      leftLabel,
+      isImageLoading,
+      setSlice: (slice: number) => view2DStore.setSlice(viewID, slice),
+      widgetManager,
+      dicomInfo,
     };
   },
-};
+});
 </script>
 
-<style src="@/src/assets/styles/vtk-view.css"></style>
-
-<style scoped>
-.vtk-gutter {
-  display: flex;
-  flex-flow: column;
-}
-
-.slice-slider {
-  position: relative;
-  flex: 1 1;
-  width: 20px;
-}
-</style>
+<style scoped src="@/src/assets/styles/vtk-view.css"></style>
