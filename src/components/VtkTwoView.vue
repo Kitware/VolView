@@ -156,12 +156,12 @@ import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir, LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
-import WindowLevelTool from "./tools/WindowLevelTool.vue";
-import SliceScrollTool from "./tools/SliceScrollTool.vue";
-import PanTool from "./tools/PanTool.vue";
-import ZoomTool from "./tools/ZoomTool.vue";
-import RulerTool from "./tools/RulerTool.vue";
-import PaintTool from "./tools/PaintTool.vue";
+import WindowLevelTool from './tools/WindowLevelTool.vue';
+import SliceScrollTool from './tools/SliceScrollTool.vue';
+import PanTool from './tools/PanTool.vue';
+import ZoomTool from './tools/ZoomTool.vue';
+import RulerTool from './tools/RulerTool.vue';
+import PaintTool from './tools/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
@@ -203,10 +203,8 @@ export default defineComponent({
     // --- view creation --- //
 
     // TODO changing the viewDirection prop is not supported at this time.
-    const {
-      id: viewID,
-      proxy: viewProxy,
-    } = view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
+    const { id: viewID, proxy: viewProxy } =
+      view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
 
     // --- computed vars --- //
 
@@ -361,11 +359,8 @@ export default defineComponent({
       viewUp,
       curImageMetadata
     );
-    const {
-      resizeToFit,
-      ignoreResizeToFitTracking,
-      resetResizeToFitTracking,
-    } = useResizeToFit(viewProxy.getCamera(), false);
+    const { resizeToFit, ignoreResizeToFitTracking, resetResizeToFitTracking } =
+      useResizeToFit(viewProxy.getCamera(), false);
 
     const resizeToFitScene = () =>
       ignoreResizeToFitTracking(() => {

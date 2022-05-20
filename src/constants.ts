@@ -40,24 +40,21 @@ export const SAMPLE_DATA = [
     name: 'HEAD-MRA',
     filename: 'HEAD-MRA.mha',
     description: '',
-    url:
-      'https://data.kitware.com/api/v1/item/620db46f4acac99f42e753f9/download',
+    url: 'https://data.kitware.com/api/v1/item/620db46f4acac99f42e753f9/download',
     image: '',
   },
   {
     name: 'LIVER-CT',
     filename: 'LIVER-CT.mha',
     description: '',
-    url:
-      'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
+    url: 'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
     image: '',
   },
   {
     name: 'ABDOMEN-MRI',
     filename: 'ABDOMEN-MRI.zip',
     description: '',
-    url:
-      'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
+    url: 'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
     image: '',
   },
 ];

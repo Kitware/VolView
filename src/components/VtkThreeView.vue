@@ -77,10 +77,8 @@ export default defineComponent({
     // --- view creation --- //
 
     // TODO changing the viewDirection prop is not supported at this time.
-    const {
-      id: viewID,
-      proxy: viewProxy,
-    } = view3DStore.createView<vtkLPSView3DProxy>();
+    const { id: viewID, proxy: viewProxy } =
+      view3DStore.createView<vtkLPSView3DProxy>();
 
     // --- computed vars --- //
 

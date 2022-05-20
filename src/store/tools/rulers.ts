@@ -132,10 +132,8 @@ export const useRulerToolStore = defineStore('rulerTool', {
       }
 
       const { slice } = view2DStore.sliceConfigs[viewID];
-      const {
-        axis: viewAxis,
-        direction: viewDirection,
-      } = view2DStore.viewConfigs[viewID];
+      const { axis: viewAxis, direction: viewDirection } =
+        view2DStore.viewConfigs[viewID];
 
       const viewProxy = this.$proxies.getView(viewID);
       if (!viewProxy) {
