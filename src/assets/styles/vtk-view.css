@@ -25,6 +25,8 @@
 }
 
 .vtk-view {
+  position: relative;
+  z-index: 0;
   width: 100%;
   height: 100%;
 }
@@ -44,12 +46,13 @@
   width: 20px;
 }
 
-.overlay {
+.overlay-no-events {
   position: absolute;
   width: 100%;
   height: 100%;
   top: 0;
   left: 0;
+  pointer-events: none;
 }
 
 .view-annotations {
@@ -106,4 +109,9 @@
 
 .loading-enter-to {
   opacity: 1;
+}
+
+
+.info-button {
+  pointer-events: all;
 }

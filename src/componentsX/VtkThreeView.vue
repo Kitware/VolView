@@ -5,7 +5,7 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
-      <view-overlay-grid class="overlay view-annotations">
+      <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
           <div class="annotation-cell">
             <span>{{ topLeftLabel }}</span>
@@ -13,7 +13,7 @@
         </template>
       </view-overlay-grid>
       <transition name="loading">
-        <div v-if="isImageLoading" class="overlay loading">
+        <div v-if="isImageLoading" class="overlay-no-events loading">
           <div>Loading the image</div>
           <div>
             <v-progress-circular indeterminate color="blue" />
