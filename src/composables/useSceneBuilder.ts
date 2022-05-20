@@ -1,5 +1,5 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-import { Ref, watchEffect, shallowRef } from '@vue/composition-api';
+import { Ref, shallowRef, watch } from '@vue/composition-api';
 import { useViewStore } from '../store/views';
 import { vtkLPSViewProxy } from '../types/vtk-types';
 
@@ -23,41 +23,45 @@ export function useSceneBuilder<
   const baseImageRep = shallowRef<BaseImageType | null>(null);
   const labelmapReps = shallowRef<LabelMapType[]>([]);
 
-  watchEffect(() => {
-    viewProxy.removeAllRepresentations();
+  watch(
+    () => [sceneIDs.baseImage?.value, sceneIDs.labelmaps?.value] as const,
+    ([baseImageID, labelmapIDs]) => {
+      viewProxy.removeAllRepresentations();
 
-    baseImageRep.value = null;
-    if (sceneIDs.baseImage?.value) {
-      const rep = viewStore.getDataRepresentationForView<BaseImageType>(
-        sceneIDs.baseImage.value,
-        viewID
-      );
-      baseImageRep.value = rep;
-      if (rep) {
-        viewProxy.addRepresentation(rep);
-      }
-    }
-
-    labelmapReps.value = [];
-    if (sceneIDs.labelmaps) {
-      sceneIDs.labelmaps.value.forEach((id) => {
-        const rep = viewStore.getDataRepresentationForView<LabelMapType>(
-          id,
+      baseImageRep.value = null;
+      if (baseImageID) {
+        const rep = viewStore.getDataRepresentationForView<BaseImageType>(
+          baseImageID,
           viewID
         );
+        baseImageRep.value = rep;
         if (rep) {
-          labelmapReps.value.push(rep);
           viewProxy.addRepresentation(rep);
         }
-      });
-    }
+      }
 
-    // TODO not sure why I need this, but might as well keep
-    // the renderer up to date.
-    // For reference, this doesn't get invoked when resetting the
-    // camera with a supplied bounds, so we manually invoke it here.
-    viewProxy.getRenderer().computeVisiblePropBounds();
-  });
+      labelmapReps.value = [];
+      if (labelmapIDs) {
+        labelmapIDs.forEach((id) => {
+          const rep = viewStore.getDataRepresentationForView<LabelMapType>(
+            id,
+            viewID
+          );
+          if (rep) {
+            labelmapReps.value.push(rep);
+            viewProxy.addRepresentation(rep);
+          }
+        });
+      }
+
+      // TODO not sure why I need this, but might as well keep
+      // the renderer up to date.
+      // For reference, this doesn't get invoked when resetting the
+      // camera with a supplied bounds, so we manually invoke it here.
+      viewProxy.getRenderer().computeVisiblePropBounds();
+    },
+    { immediate: true }
+  );
 
   return { baseImageRep, labelmapReps };
 }
