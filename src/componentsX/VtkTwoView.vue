@@ -193,8 +193,10 @@ export default defineComponent({
     // --- view creation --- //
 
     // TODO changing the viewDirection prop is not supported at this time.
-    const { id: viewID, proxy: viewProxy } =
-      view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
+    const {
+      id: viewID,
+      proxy: viewProxy,
+    } = view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
 
     // --- computed vars --- //
 
@@ -347,8 +349,11 @@ export default defineComponent({
       viewUp,
       curImageMetadata
     );
-    const { resizeToFit, ignoreResizeToFitTracking, resetResizeToFitTracking } =
-      useResizeToFit(viewProxy.getCamera(), false);
+    const {
+      resizeToFit,
+      ignoreResizeToFitTracking,
+      resetResizeToFitTracking,
+    } = useResizeToFit(viewProxy.getCamera(), false);
 
     const resizeToFitScene = () =>
       ignoreResizeToFitTracking(() => {
