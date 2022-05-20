@@ -1,5 +1,6 @@
 import { set } from '@vue/composition-api';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import vtkLabelMap from '../vtk/LabelMap';
@@ -12,6 +13,24 @@ interface State {
   idList: string[];
   labelmaps: Record<string, vtkLabelMap>;
   parentImage: Record<string, string>;
+}
+
+function createLabelmapFromImage(imageData: vtkImageData) {
+  const points = new LabelmapArrayType(imageData.getNumberOfPoints());
+  const labelmap = vtkLabelMap.newInstance(
+    imageData.get('spacing', 'origin', 'direction')
+  );
+  labelmap.getPointData().setScalars(
+    vtkDataArray.newInstance({
+      numberOfComponents: 1,
+      values: points,
+    })
+  );
+  labelmap.setDimensions(imageData.getDimensions());
+  labelmap.computeTransforms();
+  labelmap.setColorMap(LABELMAP_PALETTE);
+
+  return labelmap;
 }
 
 export const useLabelmapStore = defineStore('labelmap', {
@@ -28,21 +47,8 @@ export const useLabelmapStore = defineStore('labelmap', {
         return null;
       }
 
-      const points = new LabelmapArrayType(imageData.getNumberOfPoints());
-      const labelmap = vtkLabelMap.newInstance(
-        imageData.get('spacing', 'origin', 'direction')
-      );
-      labelmap.getPointData().setScalars(
-        vtkDataArray.newInstance({
-          numberOfComponents: 1,
-          values: points,
-        })
-      );
-      labelmap.setDimensions(imageData.getDimensions());
-      labelmap.computeTransforms();
-      labelmap.setColorMap(LABELMAP_PALETTE);
-
       const id = this.$id.nextID();
+      const labelmap = createLabelmapFromImage(imageData);
 
       this.idList.push(id);
       set(this.parentImage, id, imageID);

@@ -1,105 +1,132 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { BrushTypes } from '@/src/core/tools/paint';
+import { ref } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
-interface State {
-  activeLabelmapID: string | null;
-  brushType: BrushTypes;
-  brushSize: number;
-  brushValue: number;
-  strokePoints: vec3[];
-  labelmapOpacity: number;
-}
+export const usePaintToolStore = defineStore('paint', () => {
+  type _This = ReturnType<typeof usePaintToolStore>;
 
-export const usePaintToolStore = defineStore('paint', {
-  state: (): State => ({
-    activeLabelmapID: null,
-    brushType: BrushTypes.Circle,
-    brushSize: 8,
-    brushValue: 1,
-    strokePoints: [],
-    labelmapOpacity: 1,
-  }),
-  getters: {
-    getWidgetFactory() {
-      return () => this.$tools.paint.factory;
-    },
-  },
-  actions: {
-    setup() {
-      const labelmapStore = useLabelmapStore();
-      const { currentImageID } = useCurrentImage();
-      const imageID = currentImageID.value;
-      if (!imageID) {
-        return false;
-      }
+  const activeLabelmapID = ref<string | null>(null);
+  const brushSize = ref(8);
+  const brushValue = ref(1);
+  const strokePoints = ref<vec3[]>([]);
+  const labelmapOpacity = ref(1);
 
-      const found = Object.entries(labelmapStore.parentImage).find(
-        ([, parentID]) => imageID === parentID
+  function getWidgetFactory(this: _This) {
+    return this.$tools.paint.factory;
+  }
+
+  // --- actions --- //
+
+  function setup(this: _This) {
+    const { currentImageID } = useCurrentImage();
+    const imageID = currentImageID.value;
+    if (!imageID) {
+      return false;
+    }
+    // eslint-disable-next-line no-use-before-define
+    selectOrCreateLabelmap(imageID);
+    this.$tools.paint.setBrushSize(this.brushSize);
+    return true;
+  }
+
+  function teardown() {
+    activeLabelmapID.value = null;
+  }
+
+  function selectOrCreateLabelmap(imageID: string) {
+    if (!imageID) {
+      activeLabelmapID.value = null;
+      return;
+    }
+
+    const labelmapStore = useLabelmapStore();
+    const found = Object.entries(labelmapStore.parentImage).find(
+      ([, parentID]) => imageID === parentID
+    );
+    if (found) {
+      [activeLabelmapID.value] = found;
+    } else {
+      activeLabelmapID.value = labelmapStore.newLabelmapFromImage(imageID);
+    }
+  }
+  function setBrushSize(this: _This, size: number) {
+    brushSize.value = Math.round(size);
+    this.$tools.paint.setBrushSize(size);
+  }
+  function setBrushValue(this: _This, value: number) {
+    brushValue.value = value;
+    this.$tools.paint.setBrushValue(value);
+  }
+  function setLabelmapOpacity(opacity: number) {
+    if (opacity >= 0 && opacity <= 1) {
+      labelmapOpacity.value = opacity;
+    }
+  }
+
+  function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2) {
+    if (!activeLabelmapID.value) {
+      return;
+    }
+
+    const labelmapStore = useLabelmapStore();
+    const labelmap = labelmapStore.labelmaps[activeLabelmapID.value];
+    if (!labelmap) {
+      return;
+    }
+
+    const lastIndex = strokePoints.value.length - 1;
+    if (lastIndex >= 0) {
+      const lastPoint = strokePoints.value[lastIndex];
+      const prevPoint =
+        lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
+      this.$tools.paint.paintLabelmap(
+        labelmap,
+        axisIndex,
+        lastPoint,
+        prevPoint
       );
-      if (found) {
-        [this.activeLabelmapID] = found;
-      } else {
-        this.activeLabelmapID = labelmapStore.newLabelmapFromImage(imageID);
-      }
+    }
+  }
 
-      this.$tools.paint.setBrushSize(this.brushSize);
+  function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+    strokePoints.value = [vec3.clone(indexPoint)];
+    doPaintStroke.call(this, axisIndex);
+  }
 
-      return true;
-    },
-    teardown() {
-      this.activeLabelmapID = null;
-    },
-    setBrushSize(size: number) {
-      this.brushSize = Math.round(size);
-      this.$tools.paint.setBrushSize(size);
-    },
-    setBrushValue(value: number) {
-      this.brushValue = value;
-      this.$tools.paint.setBrushValue(value);
-    },
-    setLabelmapOpacity(opacity: number) {
-      if (opacity >= 0 && opacity <= 1) {
-        this.labelmapOpacity = opacity;
-      }
-    },
-    _doPaintStroke(axisIndex: 0 | 1 | 2) {
-      if (!this.activeLabelmapID) {
-        return;
-      }
+  function placeStrokePoint(
+    this: _This,
+    indexPoint: vec3,
+    axisIndex: 0 | 1 | 2
+  ) {
+    strokePoints.value.push(indexPoint);
+    doPaintStroke.call(this, axisIndex);
+  }
 
-      const labelmapStore = useLabelmapStore();
-      const labelmap = labelmapStore.labelmaps[this.activeLabelmapID];
-      if (!labelmap) {
-        return;
-      }
+  function endStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+    strokePoints.value.push(indexPoint);
+    doPaintStroke.call(this, axisIndex);
+  }
 
-      const lastIndex = this.strokePoints.length - 1;
-      if (lastIndex >= 0) {
-        const lastPoint = this.strokePoints[lastIndex];
-        const prevPoint =
-          lastIndex >= 1 ? this.strokePoints[lastIndex - 1] : undefined;
-        this.$tools.paint.paintLabelmap(
-          labelmap,
-          axisIndex,
-          lastPoint,
-          prevPoint
-        );
-      }
-    },
-    startStroke(indexPoint: vec3, axisIndex: 0 | 1 | 2) {
-      this.strokePoints = [vec3.clone(indexPoint)];
-      this._doPaintStroke(axisIndex);
-    },
-    placeStrokePoint(indexPoint: vec3, axisIndex: 0 | 1 | 2) {
-      this.strokePoints.push(indexPoint);
-      this._doPaintStroke(axisIndex);
-    },
-    endStroke(indexPoint: vec3, axisIndex: 0 | 1 | 2) {
-      this.strokePoints.push(indexPoint);
-      this._doPaintStroke(axisIndex);
-    },
-  },
+  return {
+    // state
+    activeLabelmapID,
+    brushSize,
+    brushValue,
+    strokePoints,
+    labelmapOpacity,
+
+    // actions and getters
+    getWidgetFactory,
+    setup,
+    teardown,
+    selectOrCreateLabelmap,
+    setBrushSize,
+    setBrushValue,
+    setLabelmapOpacity,
+    startStroke,
+    placeStrokePoint,
+    endStroke,
+  };
 });
