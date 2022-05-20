@@ -1,8 +1,5 @@
 <template>
-  <div class="overlay">
-    <svg class="overlay">
-      <!-- PaintSVG2D /-->
-    </svg>
+  <div class="overlay-no-events">
     <div>
       <PaintWidget2D
         v-if="active"
@@ -11,8 +8,6 @@
         :view-direction="viewDirection"
         :widget-manager="widgetManager"
       />
-
-      <!-- PaintWidget2D -->
     </div>
   </div>
 </template>

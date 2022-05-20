@@ -1,6 +1,6 @@
 <template>
-  <div class="overlay">
-    <svg class="overlay">
+  <div class="overlay-no-events">
+    <svg class="overlay-no-events">
       <RulerSVG2D
         v-for="ruler in rulers"
         :key="ruler.id"
