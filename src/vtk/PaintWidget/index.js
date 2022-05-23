@@ -1,7 +1,6 @@
 import macro from '@kitware/vtk.js/macro';
 import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 import vtkPaintBrushContextRepresentation from '@/src/vtk/PaintBrushContextRepresentation';
 
 import widgetBehavior from './behavior';
@@ -19,10 +18,6 @@ function vtkPaintWidget(publicAPI, model) {
   model.methodsToLink = ['slicingIndex', 'indexToWorld', 'worldToIndex'];
 
   publicAPI.getRepresentationsForViewType = () => [
-    {
-      builder: vtkSphereHandleRepresentation,
-      labels: ['brush'],
-    },
     {
       builder: vtkPaintBrushContextRepresentation,
       labels: ['brush'],
