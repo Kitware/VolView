@@ -420,12 +420,8 @@ export default defineComponent({
 
     const studiesAndVolumesRef = computed(() => {
       const selPatient = selectedPatient.value;
-      const {
-        patientStudies,
-        studyInfo,
-        studyVolumes,
-        volumeInfo,
-      } = dicomStore;
+      const { patientStudies, studyInfo, studyVolumes, volumeInfo } =
+        dicomStore;
       return patients.value
         .filter((patient) => patient.key === selPatient)
         .flatMap((patient) =>

@@ -13,4 +13,4 @@ jobs:
           node-version: 16
       - run: npm ci
       - name: Enforce code style
-        run: npx prettier --config ./prettier.config.js --list-different "src/**/*.[jt]s"
+        run: npx prettier --config ./prettier.config.js --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
