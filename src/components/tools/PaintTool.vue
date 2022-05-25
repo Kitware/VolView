@@ -3,7 +3,7 @@
     <div>
       <PaintWidget2D
         v-if="active"
-        :slice="currentSlice"
+        :slice="slice"
         :view-id="viewId"
         :view-direction="viewDirection"
         :widget-manager="widgetManager"
@@ -19,7 +19,6 @@ import {
   PropType,
   toRefs,
 } from '@vue/composition-api';
-import { useView2DStore } from '@/src/store/views-2D';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { useViewStore } from '@/src/store/views';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -32,6 +31,10 @@ export default defineComponent({
   props: {
     viewId: {
       type: String,
+      required: true,
+    },
+    slice: {
+      type: Number,
       required: true,
     },
     viewDirection: {
@@ -49,11 +52,6 @@ export default defineComponent({
   setup(props) {
     const { viewId: viewID } = toRefs(props);
 
-    const view2DStore = useView2DStore();
-    const currentSlice = computed(
-      () => view2DStore.sliceConfigs[viewID.value].slice
-    );
-
     const paintStore = usePaintToolStore();
     const active = computed(() => paintStore.isActive);
 
@@ -67,7 +65,6 @@ export default defineComponent({
 
     return {
       active,
-      currentSlice,
     };
   },
 });

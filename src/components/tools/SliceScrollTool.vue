@@ -11,7 +11,11 @@ import {
 } from '@vue/composition-api';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
-import { useView2DStore } from '@/src/store/views-2D';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import {
+  useView2DConfigStore,
+  defaultSliceConfig,
+} from '@/src/store/view-2D-configs';
 
 export default defineComponent({
   name: 'SliceScrollTool',
@@ -27,20 +31,37 @@ export default defineComponent({
   },
   setup(props) {
     const { viewId: viewID, viewProxy } = toRefs(props);
-    const view2DStore = useView2DStore();
+    const view2DConfigStore = useView2DConfigStore();
+    const { currentImageID } = useCurrentImage();
 
-    const sliceConfig = computed(() => view2DStore.sliceConfigs[viewID.value]);
+    const sliceConfigDefault = defaultSliceConfig();
+    const sliceConfig = computed(() =>
+      currentImageID.value !== null
+        ? view2DConfigStore.getSliceConfig(viewID.value, currentImageID.value)
+        : null
+    );
     const sliceRange = computed(() => ({
-      min: sliceConfig.value.min,
-      max: sliceConfig.value.max,
+      min:
+        sliceConfig.value !== null
+          ? sliceConfig.value.min
+          : sliceConfigDefault.min,
+      max:
+        sliceConfig.value !== null
+          ? sliceConfig.value.max
+          : sliceConfigDefault.max,
       step: 1,
-      default: sliceConfig.value.slice,
+      default:
+        sliceConfig.value !== null
+          ? sliceConfig.value.slice
+          : sliceConfigDefault.slice,
     }));
 
     const scrollVal = ref(0);
 
     watch(scrollVal, (slice) => {
-      view2DStore.setSlice(viewID.value, slice);
+      if (currentImageID.value !== null) {
+        view2DConfigStore.setSlice(viewID.value, currentImageID.value, slice);
+      }
     });
 
     const rangeManipulator = vtkMouseRangeManipulator.newInstance({
