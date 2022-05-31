@@ -1,7 +1,7 @@
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { mat4 } from 'gl-matrix';
+import { mat4, vec3 } from 'gl-matrix';
 import { PaintWidgetState } from './state';
 
 export interface vtkPaintViewWidget extends vtkAbstractWidget {
@@ -12,6 +12,8 @@ export interface vtkPaintViewWidget extends vtkAbstractWidget {
   getIndexToWorld(): mat4;
   setWorldToIndex(transform: mat4): boolean;
   getWorldToIndex(): mat4;
+  setImageSpacing(spacing: vec3): boolean;
+  getImageSpacing(): vec3;
 }
 
 export interface vtkPaintWidget extends vtkAbstractWidgetFactory {

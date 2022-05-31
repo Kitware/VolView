@@ -48,7 +48,6 @@ describe('Paint Tool', () => {
         manager.setBrushSize(5);
         const state = manager.factory.getWidgetState();
         expect(state.getStamp()).to.not.be.null;
-        expect(state.getStampSize()).to.not.deep.equal([0, 0]);
       });
     });
     describe('paintLabelmap', () => {
@@ -75,6 +74,52 @@ describe('Paint Tool', () => {
         expect(points[2 + 4 * 2 + 16 * 2]).to.equal(brushValue);
         expect(points[2 + 4 * 3 + 16 * 3]).to.equal(brushValue);
         expect(points[2 + 4 * 1 + 16 * 1]).to.equal(brushValue);
+      });
+
+      it('should linearly interpolate points', () => {
+        const labelmap = vtkLabelMap.newInstance();
+        const points = new Uint8Array(4 * 4 * 4);
+        labelmap.setDimensions([4, 4, 4]);
+        labelmap.getPointData().setScalars(
+          vtkDataArray.newInstance({
+            numberOfComponents: 1,
+            values: points,
+          })
+        );
+
+        const brushValue = 8;
+        const manager = new PaintToolManager();
+        manager.setBrushValue(brushValue);
+        manager.setBrushSize(1);
+
+        manager.paintLabelmap(labelmap, 2, [0, 0, 0], [3, 3, 0]);
+        for (let i = 0; i <= 3; i++) {
+          const offset = i + 4 * i;
+          expect(points[offset]).to.equal(brushValue);
+        }
+      });
+
+      it('should rescale the brush into image space', () => {
+        const labelmap = vtkLabelMap.newInstance();
+        const points = new Uint8Array(4 * 4 * 4);
+        labelmap.setDimensions([4, 4, 4]);
+        labelmap.setSpacing([2, 2, 1]);
+        labelmap.getPointData().setScalars(
+          vtkDataArray.newInstance({
+            numberOfComponents: 1,
+            values: points,
+          })
+        );
+
+        const brushValue = 8;
+        const manager = new PaintToolManager();
+        manager.setBrushValue(brushValue);
+        manager.setBrushSize(3);
+
+        manager.paintLabelmap(labelmap, 2, [1, 1, 1]);
+        expect(Array.from(points.slice(4 * 4, 7 * 4 + 3))).to.deep.equal(
+          Array(15).fill(brushValue)
+        );
       });
     });
   });
