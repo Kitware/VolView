@@ -9,15 +9,19 @@ import { Coordinate } from '@kitware/vtk.js/Rendering/Core/Coordinate/Constants'
 import { Representation } from '@kitware/vtk.js/Rendering/Core/Property/Constants';
 import { DisplayLocation } from '@kitware/vtk.js/Rendering/Core/Property2D/Constants';
 import { vec3 } from 'gl-matrix';
+import { rescaleStamp } from '@/src/core/tools/paint/manager';
 
 function generateContour({
-  stamp,
-  stampSize,
+  stamp: initialStamp,
   location,
   slicingIndex,
   indexToWorld,
+  imageSpacing,
 }) {
-  const [xdim, ydim] = stampSize;
+  const sliceSpacing = [...imageSpacing];
+  sliceSpacing.splice(slicingIndex, 1);
+  const stamp = rescaleStamp(initialStamp, sliceSpacing, true);
+  const [xdim, ydim] = stamp.size;
   const xoffset = Math.floor((xdim - 1) / 2);
   const yoffset = Math.floor((ydim - 1) / 2);
 
@@ -65,7 +69,7 @@ function generateContour({
   const getStampPixelAt = (x, y) => {
     if (x < 0 || x >= xdim) return 0;
     if (y < 0 || y >= ydim) return 0;
-    return stamp[y * xdim + x] || 0;
+    return stamp.pixels[y * xdim + x] || 0;
   };
 
   for (let gy = 0; gy < gridydim; gy++) {
@@ -140,7 +144,6 @@ function vtkPaintBrushContextRepresentation(publicAPI, model) {
     const widgetState = inData[0];
 
     const stamp = widgetState.getStamp();
-    const stampSize = widgetState.getStampSize();
     const brush = widgetState.getBrush();
     const { indexToWorld, worldToIndex } = model;
 
@@ -150,10 +153,10 @@ function vtkPaintBrushContextRepresentation(publicAPI, model) {
 
       const contour = generateContour({
         stamp,
-        stampSize,
         location,
         slicingIndex: model.slicingIndex,
         indexToWorld,
+        imageSpacing: model.imageSpacing,
       });
 
       const { points, lines } = model.internalArrays;
@@ -173,6 +176,7 @@ const DEFAULT_VALUES = {
   worldToIndex: null,
   indexToWorld: null,
   slicingIndex: 0,
+  imageSpacing: [1, 1, 1],
 };
 
 // ----------------------------------------------------------------------------
@@ -184,6 +188,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'slicingIndex',
     'indexToWorld',
     'worldToIndex',
+    'imageSpacing',
   ]);
   macro.get(publicAPI, model, ['mapper', 'actor']);
   vtkPaintBrushContextRepresentation(publicAPI, model);

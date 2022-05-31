@@ -48,7 +48,6 @@ describe('Paint Tool', () => {
         manager.setBrushSize(5);
         const state = manager.factory.getWidgetState();
         expect(state.getStamp()).to.not.be.null;
-        expect(state.getStampSize()).to.not.deep.equal([0, 0]);
       });
     });
     describe('paintLabelmap', () => {

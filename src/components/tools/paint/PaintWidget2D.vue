@@ -90,6 +90,7 @@ export default defineComponent({
         widget.setSlicingIndex(slicingIndex);
         widget.setIndexToWorld(metadata.indexToWorld);
         widget.setWorldToIndex(metadata.worldToIndex);
+        widget.setImageSpacing(metadata.spacing);
       }
     });
 

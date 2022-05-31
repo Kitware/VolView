@@ -65,8 +65,7 @@ export default class PaintToolManager {
     this.brush.setSize(size);
     const stamp = this.brush.getStamp();
     const widgetState = this.factory.getWidgetState();
-    widgetState.setStamp(stamp.pixels);
-    widgetState.setStampSize(stamp.size);
+    widgetState.setStamp(stamp);
   }
 
   setBrushValue(value: number) {
