@@ -4,7 +4,7 @@
       <RulerSVG2D
         v-for="ruler in rulers"
         :key="ruler.id"
-        v-show="currentSlice === ruler.slice"
+        v-show="slice === ruler.slice"
         :view-id="viewId"
         :point1="ruler.firstPoint"
         :point2="ruler.secondPoint"
@@ -16,7 +16,7 @@
         v-for="ruler in rulers"
         :key="ruler.id"
         :ruler-id="ruler.id"
-        :slice="currentSlice"
+        :slice="slice"
         :view-id="viewId"
         :view-direction="viewDirection"
         :focused="ruler.focused"
@@ -51,7 +51,6 @@ import {
   toRefs,
   watch,
 } from '@vue/composition-api';
-import { useView2DStore } from '@/src/store/views-2D';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Tools, useToolStore } from '@/src/store/tools';
 import { useRulerToolStore } from '@/src/store/tools/rulers';
@@ -73,6 +72,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    slice: {
+      type: Number,
+      required: true,
+    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
@@ -89,7 +92,6 @@ export default defineComponent({
   setup(props) {
     const { viewId: viewID, viewDirection } = toRefs(props);
     const viewStore = useViewStore();
-    const view2DStore = useView2DStore();
     const toolStore = useToolStore();
     const rulerStore = useRulerToolStore();
 
@@ -99,9 +101,6 @@ export default defineComponent({
     }
 
     const { currentImageID } = useCurrentImage();
-    const currentSlice = computed(
-      () => view2DStore.sliceConfigs[viewID.value].slice
-    );
     const active = computed(() => toolStore.currentTool === Tools.Ruler);
     const activeRulerID = computed(() => rulerStore.activeRulerID);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
@@ -148,9 +147,12 @@ export default defineComponent({
     manageVTKSubscription(interactor.onLeftButtonPress(startNewRuler));
 
     // delete active ruler if slice changes
-    watch(currentSlice, () => {
-      deleteActiveRuler();
-    });
+    watch(
+      () => props.slice,
+      () => {
+        deleteActiveRuler();
+      }
+    );
 
     // --- ruler data --- //
 
@@ -185,7 +187,6 @@ export default defineComponent({
 
     return {
       rulers: currentRulers,
-      currentSlice,
       contextMenu,
       openContextMenu,
       deleteRulerFromContextMenu,

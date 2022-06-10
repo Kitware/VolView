@@ -9,6 +9,8 @@ import {
   LPSDirections,
 } from '../utils/lps';
 import { removeFromArray } from '../utils';
+import { useView2DConfigStore } from './view-2D-configs';
+import { useView2DStore } from './views-2D';
 
 export interface ImageMetadata {
   name: string;
@@ -83,6 +85,14 @@ export const useImageStore = defineStore('images', {
         del(this.dataIndex, id);
         del(this.metadata, id);
         removeFromArray(this.idList, id);
+
+        // Remove the data views
+        const view2DStore = useView2DStore();
+        const view2DConfigStore = useView2DConfigStore();
+
+        view2DStore.allViewIDs.forEach((viewID: string) => {
+          view2DConfigStore.removeViewConfig(viewID, id);
+        });
       }
     },
   },

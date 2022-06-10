@@ -5,10 +5,11 @@ import { removeFromArray } from '@/src/utils';
 import { RulerStateUpdate } from '@/src/core/tools/ruler';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
-import { useView2DStore } from '@/src/store/views-2D';
+import { useView2DConfigStore } from '@/src/store/view-2D-configs';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '../../utils/lps';
+import { useView2DStore } from '../views-2D';
 
 export interface RulerTool {
   name: string;
@@ -118,6 +119,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
       }
 
       const view2DStore = useView2DStore();
+      const view2DConfigStore = useView2DConfigStore();
       const currentImage = useCurrentImage();
 
       const imageID = currentImage.currentImageID.value;
@@ -127,13 +129,18 @@ export const useRulerToolStore = defineStore('rulerTool', {
         return;
       }
 
-      if (!(viewID in view2DStore.viewConfigs)) {
+      if (!(viewID in view2DStore.orientationConfigs)) {
         return;
       }
 
-      const { slice } = view2DStore.sliceConfigs[viewID];
+      const sliceConfig = view2DConfigStore.getSliceConfig(viewID, imageID);
+      if (!sliceConfig) {
+        return;
+      }
+
+      const { slice } = sliceConfig;
       const { axis: viewAxis, direction: viewDirection } =
-        view2DStore.viewConfigs[viewID];
+        view2DStore.orientationConfigs[viewID];
 
       const viewProxy = this.$proxies.getView(viewID);
       if (!viewProxy) {

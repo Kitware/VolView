@@ -11,7 +11,11 @@ import {
 } from '@vue/composition-api';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Tools, useToolStore } from '@/src/store/tools';
-import { useView2DStore } from '@/src/store/views-2D';
+import {
+  useView2DConfigStore,
+  defaultWindowLevelConfig,
+} from '@/src/store/view-2D-configs';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { CreateElement, RenderContext } from 'vue';
 
@@ -35,32 +39,63 @@ const WindowLevelTool = defineComponent({
   props: PROPS,
   setup(props) {
     const { viewId: viewID, viewProxy } = toRefs(props);
-    const view2DStore = useView2DStore();
+    const view2DConfigStore = useView2DConfigStore();
+    const { currentImageID } = useCurrentImage();
 
-    const wlConfig = computed(() => view2DStore.wlConfigs[viewID.value]);
+    const windowConfigDefaults = defaultWindowLevelConfig();
+    const wlConfig = computed(() =>
+      currentImageID.value !== null
+        ? view2DConfigStore.getWindowConfig(viewID.value, currentImageID.value)
+        : null
+    );
 
     const wwRange = computed(() => ({
       min: 0,
-      max: wlConfig.value.max - wlConfig.value.min,
-      step: computeStep(wlConfig.value.min, wlConfig.value.max),
-      default: wlConfig.value.width,
+      max:
+        wlConfig.value !== null
+          ? wlConfig.value.max - wlConfig.value.min
+          : windowConfigDefaults.max,
+      step:
+        wlConfig.value !== null
+          ? computeStep(wlConfig.value.min, wlConfig.value.max)
+          : computeStep(windowConfigDefaults.min, windowConfigDefaults.max),
+      default:
+        wlConfig.value !== null
+          ? wlConfig.value.width
+          : windowConfigDefaults.width,
     }));
     const wlRange = computed(() => ({
-      min: wlConfig.value.min,
-      max: wlConfig.value.max,
-      step: computeStep(wlConfig.value.min, wlConfig.value.max),
-      default: wlConfig.value.level,
+      min:
+        wlConfig.value !== null ? wlConfig.value.min : windowConfigDefaults.min,
+      max:
+        wlConfig.value !== null ? wlConfig.value.max : windowConfigDefaults.max,
+      step:
+        wlConfig.value !== null
+          ? computeStep(wlConfig.value.min, wlConfig.value.max)
+          : computeStep(windowConfigDefaults.min, windowConfigDefaults.max),
+      default:
+        wlConfig.value !== null
+          ? wlConfig.value.level
+          : windowConfigDefaults.level,
     }));
 
     const vertVal = ref(0);
     const horizVal = ref(0);
 
-    watch(vertVal, (ww) =>
-      view2DStore.setWindowLevel(viewID.value, { width: ww })
-    );
-    watch(horizVal, (wl) =>
-      view2DStore.setWindowLevel(viewID.value, { level: wl })
-    );
+    watch(vertVal, (ww) => {
+      if (currentImageID.value !== null) {
+        view2DConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
+          width: ww,
+        });
+      }
+    });
+    watch(horizVal, (wl) => {
+      if (currentImageID.value !== null) {
+        view2DConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
+          level: wl,
+        });
+      }
+    });
 
     const rangeManipulator = vtkMouseRangeManipulator.newInstance({
       button: 1,

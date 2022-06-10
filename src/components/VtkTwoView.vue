@@ -26,11 +26,13 @@
           :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :view-proxy="viewProxy"
+          :slice="slice"
         />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
           :widget-manager="widgetManager"
+          :slice="slice"
         />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
@@ -167,6 +169,11 @@ import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
+import {
+  useView2DConfigStore,
+  defaultSliceConfig,
+  defaultWindowLevelConfig,
+} from '../store/view-2D-configs';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -192,6 +199,7 @@ export default defineComponent({
   },
   setup(props) {
     const view2DStore = useView2DStore();
+    const view2DConfigStore = useView2DConfigStore();
     const paintStore = usePaintToolStore();
 
     const { viewDirection, viewUp } = toRefs(props);
@@ -217,14 +225,44 @@ export default defineComponent({
 
     const dicomStore = useDICOMStore();
 
-    const sliceConfig = computed(() => view2DStore.sliceConfigs[viewID]);
-    const currentSlice = computed(() => sliceConfig.value.slice);
-    const sliceMin = computed(() => sliceConfig.value.min);
-    const sliceMax = computed(() => sliceConfig.value.max);
+    const sliceConfigDefaults = defaultSliceConfig();
+    const sliceConfig = computed(() =>
+      curImageID.value !== null
+        ? view2DConfigStore.getSliceConfig(viewID, curImageID.value)
+        : null
+    );
+    const currentSlice = computed(() =>
+      sliceConfig.value !== null
+        ? sliceConfig.value.slice
+        : sliceConfigDefaults.slice
+    );
+    const sliceMin = computed(() =>
+      sliceConfig.value !== null
+        ? sliceConfig.value.min
+        : sliceConfigDefaults.min
+    );
+    const sliceMax = computed(() =>
+      sliceConfig.value !== null
+        ? sliceConfig.value.max
+        : sliceConfigDefaults.max
+    );
 
-    const wlConfig = computed(() => view2DStore.wlConfigs[viewID]);
-    const windowWidth = computed(() => wlConfig.value.width);
-    const windowLevel = computed(() => wlConfig.value.level);
+    const windowConfigDefaults = defaultWindowLevelConfig();
+    const wlConfig = computed(() =>
+      curImageID.value !== null
+        ? view2DConfigStore.getWindowConfig(viewID, curImageID.value)
+        : null
+    );
+    const windowWidth = computed(() =>
+      wlConfig.value !== null
+        ? wlConfig.value.width
+        : windowConfigDefaults.width
+    );
+    const windowLevel = computed(() =>
+      wlConfig.value !== null
+        ? wlConfig.value.level
+        : windowConfigDefaults.level
+    );
     const dicomInfo = computed(() => {
       if (
         curImageID.value !== null &&
@@ -259,6 +297,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       view2DStore.removeView(viewID);
+      view2DConfigStore.removeViewConfig(viewID);
     });
 
     // do this before mounting
@@ -303,11 +342,23 @@ export default defineComponent({
 
           // update dimensions
           // dimMax is upper bound of slices, exclusive.
-          view2DStore.updateSliceDomain(viewID, [0, dimMax - 1]);
-          // move slice to center when image metadata changes.
-          // TODO what if new slices are added to the same image?
-          //      do we still reset the slicing?
-          view2DStore.setSlice(viewID, Math.floor((dimMax - 1) / 2));
+          if (
+            curImageID.value !== null &&
+            view2DConfigStore.getSliceConfig(viewID, curImageID.value) === null
+          ) {
+            view2DConfigStore.updateSliceDomain(viewID, curImageID.value, [
+              0,
+              dimMax - 1,
+            ]);
+            // move slice to center when image metadata changes.
+            // TODO what if new slices are added to the same image?
+            //      do we still reset the slicing?
+            view2DConfigStore.setSlice(
+              viewID,
+              curImageID.value,
+              Math.floor((dimMax - 1) / 2)
+            );
+          }
         }
       },
 
@@ -325,8 +376,13 @@ export default defineComponent({
         if (imageData && imageData !== oldImageData) {
           // TODO listen to changes in point data
           const range = imageData.getPointData().getScalars().getRange();
-          view2DStore.updateWLDomain(viewID, range);
-          view2DStore.resetWindowLevel(viewID);
+          if (
+            curImageID.value !== null &&
+            view2DConfigStore.getWindowConfig(viewID, curImageID.value) === null
+          ) {
+            view2DConfigStore.updateWLDomain(viewID, curImageID.value, range);
+            view2DConfigStore.resetWindowLevel(viewID, curImageID.value);
+          }
         }
       },
       {
@@ -434,6 +490,10 @@ export default defineComponent({
     // --- apply windowing and slice configs --- //
 
     watchEffect(() => {
+      if (sliceConfig.value === null || wlConfig.value === null) {
+        return;
+      }
+
       const { slice } = sliceConfig.value;
       const { width, level } = wlConfig.value;
       const rep = baseImageRep.value;
@@ -472,7 +532,11 @@ export default defineComponent({
       topLabel,
       leftLabel,
       isImageLoading,
-      setSlice: (slice: number) => view2DStore.setSlice(viewID, slice),
+      setSlice: (slice: number) => {
+        if (curImageID.value !== null) {
+          view2DConfigStore.setSlice(viewID, curImageID.value, slice);
+        }
+      },
       widgetManager,
       dicomInfo,
     };
