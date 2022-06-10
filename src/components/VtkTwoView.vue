@@ -505,6 +505,8 @@ export default defineComponent({
       labelmapReps.value.forEach((lmRep) => {
         lmRep.setSlice(slice);
       });
+
+      viewProxy.render();
     });
 
     // --- apply labelmap opacity --- //
