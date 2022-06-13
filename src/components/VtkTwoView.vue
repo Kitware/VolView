@@ -136,6 +136,7 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
+  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -295,7 +296,7 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    onBeforeUnmount(() => {
+    onUnmounted(() => {
       view2DStore.removeView(viewID);
       view2DConfigStore.removeViewConfig(viewID);
     });
@@ -326,6 +327,10 @@ export default defineComponent({
       useSvgLayer: false,
     });
     widgetManager.setRenderer(viewProxy.getRenderer());
+
+    onUnmounted(() => {
+      widgetManager.delete();
+    });
 
     // --- resetting slice properties --- //
 
