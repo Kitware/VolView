@@ -304,8 +304,8 @@ export default defineComponent({
     viewProxy.getInteractorStyle2D().removeAllManipulators();
 
     onMounted(() => {
-      viewProxy.setOrientationAxesVisibility(false);
       viewProxy.setContainer(vtkContainerRef.value ?? null);
+      viewProxy.setOrientationAxesVisibility(false);
     });
 
     onBeforeUnmount(() => {
