@@ -16,16 +16,15 @@
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
       <div class="overlay-no-events tool-layer">
-        <pan-tool :view-proxy="viewProxy" />
-        <zoom-tool :view-proxy="viewProxy" />
-        <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
-        <window-level-tool :view-id="viewID" :view-proxy="viewProxy" />
+        <pan-tool :view-id="viewID" />
+        <zoom-tool :view-id="viewID" />
+        <slice-scroll-tool :view-id="viewID" />
+        <window-level-tool :view-id="viewID" />
         <ruler-tool
           view-type="2D"
           :view-id="viewID"
           :widget-manager="widgetManager"
           :view-direction="viewDirection"
-          :view-proxy="viewProxy"
           :slice="slice"
         />
         <paint-tool
