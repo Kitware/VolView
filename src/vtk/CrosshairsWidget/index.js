@@ -1,11 +1,8 @@
 import macro from '@kitware/vtk.js/macro';
 import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
-
-import vtkSVGCrosshairsRepresentation from '@/src/vtk/SVGCrosshairsRepresentation';
 
 import stateGenerator from './state';
 import widgetBehavior from './behavior';
@@ -19,12 +16,6 @@ function vtkCrosshairsWidget(publicAPI, model) {
 
   // --- Widget Requirement ---------------------------------------------------
 
-  model.methodsToLink = [
-    'horizontalLineProps',
-    'verticalLineProps',
-    'centerGapRadius',
-  ];
-
   model.behavior = widgetBehavior;
   model.widgetState = stateGenerator();
 
@@ -35,10 +26,7 @@ function vtkCrosshairsWidget(publicAPI, model) {
       case ViewTypes.SLICE:
       case ViewTypes.VOLUME:
       default:
-        return [
-          { builder: vtkSphereHandleRepresentation, labels: ['handle'] },
-          { builder: vtkSVGCrosshairsRepresentation, labels: ['handle'] },
-        ];
+        return [];
     }
   };
 

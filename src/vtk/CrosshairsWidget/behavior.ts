@@ -1,28 +1,25 @@
 import macro from '@kitware/vtk.js/macro';
+import { Bounds } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 
-function clampPointToBounds(bounds, point) {
+function clampPointToBounds(bounds: Bounds, point: vec3) {
   return point.map((p, i) =>
     Math.max(bounds[i * 2], Math.min(bounds[i * 2 + 1], p))
-  );
+  ) as vec3;
 }
 
-export default function widgetBehavior(publicAPI, model) {
+export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkCrosshairsWidgetProp');
   let isDragging = false;
 
-  // --------------------------------------------------------------------------
-  // Display 2D
-  // --------------------------------------------------------------------------
-
-  // publicAPI.setDisplayCallback = (callback) =>
-  //   model.representations[0].setDisplayCallback(callback);
+  // support setting per-view widget manipulators
+  macro.setGet(publicAPI, model, ['manipulator']);
 
   // --------------------------------------------------------------------------
   // Interactor events
   // --------------------------------------------------------------------------
 
-  function ignoreKey(e) {
+  function ignoreKey(e: any) {
     return e.altKey || e.controlKey || e.shiftKey;
   }
 
@@ -30,15 +27,15 @@ export default function widgetBehavior(publicAPI, model) {
   // Left press: Select handle to drag
   // --------------------------------------------------------------------------
 
-  publicAPI.handleLeftButtonPress = (e) => {
+  publicAPI.handleLeftButtonPress = (e: any) => {
     if (!model.pickable || ignoreKey(e)) {
       return macro.VOID;
     }
 
     model.widgetState.setPlaced(true);
     isDragging = true;
-    model.interactor.requestAnimation(publicAPI);
-    model.openGLRenderWindow.setCursor('crosshairs');
+    model._interactor.requestAnimation(publicAPI);
+    model._apiSpecificRenderWindow.setCursor('crosshairs');
     publicAPI.invokeStartInteractionEvent();
     publicAPI.handleMouseMove(e);
     return macro.EVENT_ABORT;
@@ -48,7 +45,12 @@ export default function widgetBehavior(publicAPI, model) {
   // Mouse move: Drag selected handle / Handle follow the mouse
   // --------------------------------------------------------------------------
 
-  publicAPI.handleMouseMove = (callData) => {
+  publicAPI.handleMouseMove = (callData: any) => {
+    // technically need to call requestAnimation during
+    // the initial phase of placing the crosshairs,
+    // but that's not needed since no VTK object
+    // is actually being rendered.
+
     if (
       (!model.widgetState.getPlaced() || isDragging) &&
       model.pickable &&
@@ -57,15 +59,15 @@ export default function widgetBehavior(publicAPI, model) {
     ) {
       const worldCoordsOfPointer = model.manipulator.handleEvent(
         callData,
-        model.openGLRenderWindow
+        model._apiSpecificRenderWindow
       );
 
       const handle = model.widgetState.getHandle();
-      const worldToIndex = model.widgetState.getWorldToIndexTransform();
-      const indexToWorld = model.widgetState.getIndexToWorldTransform();
+      const worldToIndex = model.widgetState.getWorldToIndex();
+      const indexToWorld = model.widgetState.getIndexToWorld();
       if (worldToIndex.length && indexToWorld.length) {
-        const indexCoordsOfPointer = [];
-        const worldOrigin = [];
+        const indexCoordsOfPointer = vec3.create();
+        const worldOrigin = vec3.create();
         const bounds = handle.getBounds();
 
         vec3.transformMat4(
@@ -91,8 +93,8 @@ export default function widgetBehavior(publicAPI, model) {
 
   publicAPI.handleLeftButtonRelease = () => {
     if (isDragging && model.pickable) {
-      model.interactor.cancelAnimation(publicAPI);
-      model.openGLRenderWindow.setCursor('default');
+      model._interactor.cancelAnimation(publicAPI);
+      model._apiSpecificRenderWindow.setCursor('default');
       publicAPI.invokeEndInteractionEvent();
     }
     isDragging = false;
