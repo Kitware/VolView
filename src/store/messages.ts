@@ -9,17 +9,20 @@ export enum MessageType {
 }
 
 export interface RegularMessage {
+  id: string;
   type: MessageType.Warning | MessageType.Info;
   contents: string;
 }
 
 export interface ErrorMessage {
+  id: string;
   type: MessageType.Error;
   contents: string;
   error: Error | null;
 }
 
 export interface PendingMessage {
+  id: string;
   type: MessageType.Pending;
   contents: string;
   progress: number;
@@ -30,11 +33,17 @@ export type Message = RegularMessage | ErrorMessage | PendingMessage;
 export type UpdateProgressFunction = (progress: number) => void;
 export type TaskFunction = (updateProgress?: UpdateProgressFunction) => any;
 
+interface State {
+  _nextID: number;
+  byID: Record<string, Message>;
+  msgList: string[];
+}
+
 export const useMessageStore = defineStore('message', {
-  state: () => ({
+  state: (): State => ({
     _nextID: 1,
-    byID: {} as Record<string, Message>,
-    msgList: [] as string[],
+    byID: {},
+    msgList: [],
   }),
   getters: {
     messages(): Array<Message> {
@@ -49,7 +58,7 @@ export const useMessageStore = defineStore('message', {
         error,
       } as ErrorMessage);
     },
-    addPending(contents: string, progress: number = -1) {
+    addPending(contents: string, progress: number = Infinity) {
       return this._addMessage({
         type: MessageType.Pending,
         contents,
@@ -103,17 +112,21 @@ export const useMessageStore = defineStore('message', {
         } else {
           error = new Error(String(err));
         }
-        this.byID[id] = {
+        Vue.set(this.byID, id, {
+          id,
           type: MessageType.Error,
           contents,
           error,
-        };
+        });
         throw err;
       }
     },
-    _addMessage(msg: Message) {
+    _addMessage(msg: Omit<Message, 'id'>) {
       const id = String(this._nextID++);
-      Vue.set(this.byID, id, msg);
+      Vue.set(this.byID, id, {
+        ...msg,
+        id,
+      });
       this.msgList.push(id);
       return id;
     },

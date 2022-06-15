@@ -16,7 +16,7 @@ describe('Message store', () => {
     setActivePinia(createPinia());
   });
 
-  it('supports different kinds of messages', () => {
+  it('supports adding, accessing, and deleting messages', () => {
     const messageStore = useMessageStore();
 
     const innerError = new Error('inner error');
@@ -30,25 +30,30 @@ describe('Message store', () => {
 
     const expected = [
       {
+        id: '1',
         type: MessageType.Error,
         contents: 'explicit error',
         error: null,
       },
       {
+        id: '2',
         type: MessageType.Error,
         contents: 'an error',
         error: innerError,
       },
       {
+        id: '3',
         type: MessageType.Warning,
         contents: 'warning',
       },
       {
+        id: '4',
         type: MessageType.Pending,
         contents: 'pending',
-        progress: -1,
+        progress: Infinity,
       },
       {
+        id: '5',
         type: MessageType.Info,
         contents: 'info',
       },
@@ -86,18 +91,19 @@ describe('Message store', () => {
     const result = await messageStore.runTaskWithMessage(
       'tasks message',
       async () =>
-        new Promise((resolve) =>
+        new Promise((resolve) => {
           setTimeout(() => {
             expect(messageStore.messages).to.have.length(1);
             expect(messageStore.messages[0]).to.deep.equal({
+              id: '1',
               type: MessageType.Pending,
-              progress: -1,
+              progress: Infinity,
               contents: 'tasks message',
             });
 
             resolve('result');
-          }, 5)
-        )
+          }, 5);
+        })
     );
 
     expect(result).to.equal('result');
