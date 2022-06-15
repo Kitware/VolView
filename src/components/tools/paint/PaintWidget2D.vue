@@ -5,6 +5,7 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
+  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -122,6 +123,12 @@ export default defineComponent({
           paintStore.endStroke(indexPoint, viewAxisIndex.value);
         })
       );
+    });
+
+    onUnmounted(() => {
+      while (subs.length) {
+        subs.pop()!.unsubscribe();
+      }
     });
 
     // --- manipulator --- //
