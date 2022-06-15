@@ -57,6 +57,12 @@ module.exports = {
     // don't trigger no-unused-expressions for optional chaining
     'no-unused-expressions': 'off',
     '@typescript-eslint/no-unused-expressions': 'error',
+    'vue/multi-word-component-names': [
+      'error',
+      {
+        ignores: ['Settings'],
+      },
+    ],
   },
 
   overrides: [

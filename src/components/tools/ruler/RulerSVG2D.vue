@@ -40,7 +40,7 @@
       fill="yellow"
       :font-size="`${textSize}px`"
     >
-      {{ length.toFixed(2) }}
+      {{ rulerLength }}
     </text>
   </g>
 </template>
@@ -85,7 +85,13 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { viewId: viewID, point1, point2, textOffset } = toRefs(props);
+    const {
+      viewId: viewID,
+      point1,
+      point2,
+      textOffset,
+      length,
+    } = toRefs(props);
     const firstPoint = ref<SVGPoint | null>();
     const secondPoint = ref<SVGPoint | null>();
 
@@ -145,6 +151,7 @@ export default defineComponent({
       anchor: computed(() => textProperties.value?.anchor ?? 'start'),
       first: firstPoint,
       second: secondPoint,
+      rulerLength: computed(() => length?.value?.toFixed(2) ?? ''),
     };
   },
 });

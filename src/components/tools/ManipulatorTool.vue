@@ -3,18 +3,18 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
-  PropType,
   toRefs,
 } from '@vue/composition-api';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
+import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
   name: 'ManipulatorTool',
   props: {
     // only useful for determining the kind of manipulator
     name: String,
-    viewProxy: {
-      type: Object as PropType<vtkViewProxy>,
+    viewId: {
+      type: String,
       required: true,
     },
     manipulatorClass: {
@@ -27,12 +27,18 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { viewProxy, manipulatorClass, options } = toRefs(props);
+    const { viewId: viewID, manipulatorClass, options } = toRefs(props);
 
-    const is2D = viewProxy.value.isA('vtkView2DProxy');
+    const viewStore = useViewStore();
+    const viewProxy = viewStore.getViewProxy<vtkViewProxy>(viewID.value);
+    if (!viewProxy) {
+      throw new Error('Cannot get the view proxy');
+    }
+
+    const is2D = viewProxy.isA('vtkView2DProxy');
     const istyle = is2D
-      ? viewProxy.value.getInteractorStyle2D()
-      : viewProxy.value.getInteractorStyle3D();
+      ? viewProxy.getInteractorStyle2D()
+      : viewProxy.getInteractorStyle3D();
     const manipulator = manipulatorClass.value.newInstance(options.value);
 
     onMounted(() => {
@@ -42,7 +48,7 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
-      if (!viewProxy.value.isDeleted()) {
+      if (!viewProxy.isDeleted()) {
         if (manipulator.isA('vtkCompositeMouseManipulator')) {
           istyle.removeMouseManipulator(manipulator);
         }

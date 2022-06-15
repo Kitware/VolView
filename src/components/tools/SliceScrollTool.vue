@@ -4,7 +4,6 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
-  PropType,
   ref,
   toRefs,
   watch,
@@ -16,6 +15,7 @@ import {
   useView2DConfigStore,
   defaultSliceConfig,
 } from '@/src/store/view-2D-configs';
+import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
   name: 'SliceScrollTool',
@@ -24,15 +24,17 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    viewProxy: {
-      type: Object as PropType<vtkLPSView2DProxy>,
-      required: true,
-    },
   },
   setup(props) {
-    const { viewId: viewID, viewProxy } = toRefs(props);
+    const { viewId: viewID } = toRefs(props);
     const view2DConfigStore = useView2DConfigStore();
+    const viewStore = useViewStore();
     const { currentImageID } = useCurrentImage();
+
+    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
+    if (!viewProxy) {
+      throw new Error('Cannot get the view proxy');
+    }
 
     const sliceConfigDefault = defaultSliceConfig();
     const sliceConfig = computed(() =>
@@ -71,15 +73,15 @@ export default defineComponent({
 
     onMounted(() => {
       // assumed to be vtkInteractorStyleManipulator
-      const istyle = viewProxy.value.getInteractorStyle2D();
+      const istyle = viewProxy.getInteractorStyle2D();
       istyle.addMouseManipulator(rangeManipulator);
     });
 
     onBeforeUnmount(() => {
       // for some reason, VtkTwoView.onBeforeUnmount is being
       // invoked before this onBeforeUnmount during HMR.
-      if (!viewProxy.value.isDeleted()) {
-        const istyle = viewProxy.value.getInteractorStyle2D();
+      if (!viewProxy.isDeleted()) {
+        const istyle = viewProxy.getInteractorStyle2D();
         istyle.removeMouseManipulator(rangeManipulator);
       }
     });
