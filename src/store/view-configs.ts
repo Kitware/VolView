@@ -2,6 +2,7 @@ import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 
 import { clampValue } from '@src/utils';
+import { Vector3 } from '@kitware/vtk.js/types';
 import { useView2DStore } from './views-2D';
 
 export interface SliceConfig {
@@ -15,6 +16,14 @@ export interface WindowLevelConfig {
   level: number;
   min: number; // data range min
   max: number; // data range max
+}
+
+export interface CameraConfig {
+  parallelScale?: number;
+  position?: Vector3;
+  focalPoint?: Vector3;
+  directionOfProjection?: Vector3;
+  viewUp?: Vector3;
 }
 
 export const defaultSliceConfig = (): SliceConfig => ({
@@ -33,6 +42,7 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
 interface State {
   sliceConfigs: Record<string, SliceConfig>;
   wlConfigs: Record<string, WindowLevelConfig>;
+  cameraConfigs: Record<string, CameraConfig>;
   // viewID -> configurations keys associate with the view
   viewConfigs: Record<string, Set<string>>;
 }
@@ -41,14 +51,50 @@ const genSynViewConfigKey = (viewID: string, dataID: string) => {
   return [viewID, dataID].join('|');
 };
 
+const addViewConfigKey = (
+  viewConfigs: Record<string, Set<string>>,
+  viewID: string,
+  key: string
+) => {
+  const configs = viewConfigs;
+  if (!(viewID in configs)) {
+    configs[viewID] = new Set<string>();
+  }
+  configs[viewID].add(key);
+};
+
+const setCameraConfig = (
+  state: State,
+  viewID: string,
+  dataID: string,
+  key: keyof CameraConfig,
+  value: any
+) => {
+  const configKey = genSynViewConfigKey(viewID, dataID);
+
+  let config: CameraConfig = {};
+  if (configKey in state.cameraConfigs) {
+    config = state.cameraConfigs[configKey];
+  }
+
+  config[key as keyof CameraConfig] = value;
+
+  // New record
+  if (!(configKey in state.cameraConfigs)) {
+    set<CameraConfig>(state.cameraConfigs, configKey, config);
+    addViewConfigKey(state.viewConfigs, viewID, configKey);
+  }
+};
+
 /**
  * The data view store saves view configuration that is associated with a specific
  * view. The key is a synthetic id generated from the view ID and data ID.
  */
-export const useView2DConfigStore = defineStore('view2DConfig', {
+export const useViewConfigStore = defineStore('viewConfig', {
   state: (): State => ({
     sliceConfigs: {},
     wlConfigs: {},
+    cameraConfigs: {},
     viewConfigs: {},
   }),
   getters: {
@@ -74,14 +120,19 @@ export const useView2DConfigStore = defineStore('view2DConfig', {
         return null;
       };
     },
+    getCameraConfig: (state) => {
+      return (viewID: string, dataID: string) => {
+        const key = genSynViewConfigKey(viewID, dataID);
+
+        if (key in state.cameraConfigs) {
+          return state.cameraConfigs[key];
+        }
+
+        return null;
+      };
+    },
   },
   actions: {
-    addViewConfigKey(viewID: string, key: string) {
-      if (!(viewID in this.viewConfigs)) {
-        this.viewConfigs[viewID] = new Set<string>();
-      }
-      this.viewConfigs[viewID].add(key);
-    },
     removeViewConfig(viewID: string, dataID?: string) {
       // If we haven't been provided a dataID we will remove all view configs
       // associated with the view.
@@ -136,7 +187,7 @@ export const useView2DConfigStore = defineStore('view2DConfig', {
         const config = defaultSliceConfig();
         config.slice = clampValue(slice, config.min, config.max);
         set<SliceConfig>(this.sliceConfigs, key, config);
-        this.addViewConfigKey(viewID, key);
+        addViewConfigKey(this.viewConfigs, viewID, key);
       }
     },
     updateSliceDomain(
@@ -160,7 +211,7 @@ export const useView2DConfigStore = defineStore('view2DConfig', {
       // New record
       if (!(key in this.sliceConfigs)) {
         set<SliceConfig>(this.sliceConfigs, key, config);
-        this.addViewConfigKey(viewID, key);
+        addViewConfigKey(this.viewConfigs, viewID, key);
       }
     },
     resetSlice(viewID: string, dataID: string) {
@@ -204,7 +255,7 @@ export const useView2DConfigStore = defineStore('view2DConfig', {
         // New record using the defaults
         if (!(viewConfigKey in this.wlConfigs)) {
           set<WindowLevelConfig>(this.wlConfigs, viewConfigKey, config);
-          this.addViewConfigKey(id, viewConfigKey);
+          addViewConfigKey(this.viewConfigs, id, viewConfigKey);
         }
       });
     },
@@ -223,7 +274,7 @@ export const useView2DConfigStore = defineStore('view2DConfig', {
       // New record using the defaults
       if (!(key in this.wlConfigs)) {
         set<WindowLevelConfig>(this.wlConfigs, key, config);
-        this.addViewConfigKey(viewID, key);
+        addViewConfigKey(this.viewConfigs, viewID, key);
       }
     },
     resetWindowLevel(viewID: string, dataID: string) {
@@ -237,6 +288,44 @@ export const useView2DConfigStore = defineStore('view2DConfig', {
       const width = config.max - config.min;
       const level = (config.max + config.min) / 2;
       this.setWindowLevel(viewID, dataID, { width, level });
+    },
+    setParallelScale(viewID: string, dataID: string, parallelScale: number) {
+      const key = genSynViewConfigKey(viewID, dataID);
+
+      let config: CameraConfig = {};
+      if (key in this.cameraConfigs) {
+        config = this.cameraConfigs[key];
+      }
+
+      config.parallelScale = parallelScale;
+
+      // New record
+      if (!(key in this.cameraConfigs)) {
+        set<CameraConfig>(this.cameraConfigs, key, config);
+        addViewConfigKey(this.viewConfigs, viewID, key);
+      }
+    },
+    setPosition(viewID: string, dataID: string, position: Vector3) {
+      setCameraConfig(this, viewID, dataID, 'position', position);
+    },
+    setFocalPoint(viewID: string, dataID: string, focalPoint: Vector3) {
+      setCameraConfig(this, viewID, dataID, 'focalPoint', focalPoint);
+    },
+    setDirectionOfProjection(
+      viewID: string,
+      dataID: string,
+      directionOfProjection: Vector3
+    ) {
+      setCameraConfig(
+        this,
+        viewID,
+        dataID,
+        'directionOfProjection',
+        directionOfProjection
+      );
+    },
+    setViewUp(viewID: string, dataID: string, viewUp: Vector3) {
+      setCameraConfig(this, viewID, dataID, 'viewUp', viewUp);
     },
   },
 });

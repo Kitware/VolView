@@ -12,9 +12,9 @@ import {
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Tools, useToolStore } from '@/src/store/tools';
 import {
-  useView2DConfigStore,
+  useViewConfigStore,
   defaultWindowLevelConfig,
-} from '@/src/store/view-2D-configs';
+} from '@/src/store/view-configs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { CreateElement, RenderContext } from 'vue';
@@ -39,13 +39,13 @@ const WindowLevelTool = defineComponent({
   props: PROPS,
   setup(props) {
     const { viewId: viewID, viewProxy } = toRefs(props);
-    const view2DConfigStore = useView2DConfigStore();
+    const viewConfigStore = useViewConfigStore();
     const { currentImageID } = useCurrentImage();
 
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
       currentImageID.value !== null
-        ? view2DConfigStore.getWindowConfig(viewID.value, currentImageID.value)
+        ? viewConfigStore.getWindowConfig(viewID.value, currentImageID.value)
         : null
     );
 
@@ -84,14 +84,14 @@ const WindowLevelTool = defineComponent({
 
     watch(vertVal, (ww) => {
       if (currentImageID.value !== null) {
-        view2DConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
+        viewConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
           width: ww,
         });
       }
     });
     watch(horizVal, (wl) => {
       if (currentImageID.value !== null) {
-        view2DConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
+        viewConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
           level: wl,
         });
       }

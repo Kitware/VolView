@@ -6,7 +6,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { setActivePinia, createPinia } from 'pinia';
 
 import { useView2DStore } from '@src/store/views-2D';
-import { useView2DConfigStore } from '@/src/store/view-2D-configs';
+import { useViewConfigStore } from '@/src/store/view-configs';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import ProxyManager from '@/src/core/proxies';
 
@@ -30,27 +30,27 @@ describe('View 2D Config store', () => {
 
   function addTestData() {
     const view2DStore = useView2DStore();
-    const view2DConfigStore = useView2DConfigStore();
+    const viewConfigStore = useViewConfigStore();
     view2DStore.createView('Left');
     const anterior = view2DStore.createView('Anterior');
 
-    view2DConfigStore.updateSliceDomain(anterior.id, '1', [0, 100]);
-    view2DConfigStore.updateWLDomain(anterior.id, '1', [10, 250]);
+    viewConfigStore.updateSliceDomain(anterior.id, '1', [0, 100]);
+    viewConfigStore.updateWLDomain(anterior.id, '1', [10, 250]);
   }
 
   it('clamps slice values appropriately', () => {
-    const view2DConfigStore = useView2DConfigStore();
+    const viewConfigStore = useViewConfigStore();
     addTestData();
 
-    view2DConfigStore.setSlice('2', '1', 200);
-    let config = view2DConfigStore.getSliceConfig('2', '1');
+    viewConfigStore.setSlice('2', '1', 200);
+    let config = viewConfigStore.getSliceConfig('2', '1');
     expect(config).to.not.be.null;
     if (config !== null) {
       expect(config.slice).to.equal(100);
     }
 
-    view2DConfigStore.setSlice('2', '1', -200);
-    config = view2DConfigStore.getSliceConfig('2', '1');
+    viewConfigStore.setSlice('2', '1', -200);
+    config = viewConfigStore.getSliceConfig('2', '1');
     expect(config).to.not.be.null;
     if (config !== null) {
       expect(config.slice).to.equal(0);
@@ -58,10 +58,10 @@ describe('View 2D Config store', () => {
   });
 
   it('updates slice domains', () => {
-    const view2DConfigStore = useView2DConfigStore();
+    const viewConfigStore = useViewConfigStore();
     addTestData();
-    view2DConfigStore.updateSliceDomain('2', '1', [0, 20]);
-    const config = view2DConfigStore.getSliceConfig('2', '1');
+    viewConfigStore.updateSliceDomain('2', '1', [0, 20]);
+    const config = viewConfigStore.getSliceConfig('2', '1');
     expect(config).to.not.be.null;
     if (config !== null) {
       expect(config.max).to.equal(20);
