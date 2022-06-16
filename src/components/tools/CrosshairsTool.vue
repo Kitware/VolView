@@ -79,4 +79,4 @@ export default defineComponent({
 });
 </script>
 
-<style scoped src="@/src/assets/styles/vtk-view.css"></style>
+<style scoped src="@/src/components/styles/vtk-view.css"></style>
