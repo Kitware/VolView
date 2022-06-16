@@ -69,12 +69,20 @@
                 <tool-strip />
               </template>
               <v-spacer />
-              <tool-button
-                size="40"
-                icon="mdi-bell-outline"
-                name="Notifications"
-                @click="messageDialog = true"
-              />
+              <v-badge
+                overlap
+                offset-x="20"
+                offset-y="20"
+                :content="messageCount"
+                :value="messageCount > 0"
+              >
+                <tool-button
+                  size="40"
+                  icon="mdi-bell-outline"
+                  name="Notifications"
+                  @click="messageDialog = true"
+                />
+              </v-badge>
             </div>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
@@ -430,9 +438,12 @@ export default defineComponent({
     // --- template vars --- //
 
     const hasData = computed(() => imageStore.idList.length > 0);
+    const messageCount = computed(() => messageStore.importantMessages.length);
+
     return {
       aboutBoxDialog,
       messageDialog,
+      messageCount,
       layout: layoutGrid,
       layoutName,
       relayoutAxial,

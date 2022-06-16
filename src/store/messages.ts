@@ -34,6 +34,10 @@ export const useMessageStore = defineStore('message', {
     messages(): Array<Message> {
       return this.msgList.map((id: string) => this.byID[id]);
     },
+    // only info, error, warn
+    importantMessages(): Array<Message> {
+      return this.messages.filter((msg) => msg.type !== MessageType.Success);
+    },
   },
   actions: {
     addError(title: string, error?: Error | string) {
