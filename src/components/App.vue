@@ -68,6 +68,13 @@
               <template v-if="hasData">
                 <tool-strip />
               </template>
+              <v-spacer />
+              <tool-button
+                size="40"
+                icon="mdi-bell-outline"
+                name="Notifications"
+                @click="messageDialog = true"
+              />
             </div>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
@@ -139,6 +146,14 @@
 
         <v-dialog v-model="aboutBoxDialog" width="50%">
           <about-box />
+        </v-dialog>
+
+        <v-dialog
+          v-model="messageDialog"
+          width="75%"
+          content-class="height-100"
+        >
+          <message-center @close="messageDialog = false" />
         </v-dialog>
 
         <notifications position="bottom left" :duration="4000" width="350px">
@@ -217,6 +232,7 @@ import AboutBox from './AboutBox.vue';
 import ToolStrip from './ToolStrip.vue';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
+import MessageCenter from './MessageCenter.vue';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,
@@ -240,6 +256,7 @@ import {
   LayoutDirection,
 } from '../store/views';
 import { LPSAxisDir } from '../utils/lps';
+import { useMessageStore } from '../store/messages';
 
 export const Views: Record<string, ViewConfig> = {
   Coronal: {
@@ -367,12 +384,18 @@ export default defineComponent({
     AboutBox,
     ToolStrip,
     ModulePanel,
+    MessageCenter,
   },
 
   setup() {
     const proxyManager = useProxyManager();
     const dataStore = useDatasetStore();
     const imageStore = useImageStore();
+    const messageStore = useMessageStore();
+
+    messageStore.addError('meow meow');
+    messageStore.addWarning('meow meow');
+    messageStore.addInfo('meow meow');
 
     // error state
     const fileLoadingErrors: Ref<LoadResult[]> = ref([]);
@@ -381,6 +404,7 @@ export default defineComponent({
     // dialogs
     const aboutBoxDialog = ref(false);
     const errorDialog = ref(false);
+    const messageDialog = ref(false);
 
     const viewStore = useViewStore();
 
@@ -487,6 +511,7 @@ export default defineComponent({
     return {
       aboutBoxDialog,
       errorDialog,
+      messageDialog,
       layout: layoutGrid,
       layoutName,
       relayoutAxial,
