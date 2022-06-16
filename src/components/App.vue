@@ -66,7 +66,7 @@
               </v-menu>
               <div class="mt-2 mb-1 tool-separator" />
               <template v-if="hasData">
-                <tool-strip @focus-module="focusModule" />
+                <tool-strip />
               </template>
             </div>
             <div class="d-flex flex-column flex-grow-1">
@@ -210,17 +210,11 @@ import {
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
-import PatientBrowser from './PatientBrowser.vue';
 import ModulePanel from './ModulePanel.vue';
-// import Annotations from './Annotations.vue';
-import VolumeRendering from './VolumeRendering.vue';
-// import MeasurementsModule from './MeasurementsModule.vue';
-// import ModelBrowser from './ModelBrowser.vue';
 import DragAndDrop from './DragAndDrop.vue';
 import AboutBox from './AboutBox.vue';
 // import AiModule from './AiModule.vue';
 import ToolStrip from './ToolStrip.vue';
-import SampleData from './SampleData.vue';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import {
@@ -246,48 +240,6 @@ import {
   LayoutDirection,
 } from '../store/views';
 import { LPSAxisDir } from '../utils/lps';
-
-export const Modules = [
-  {
-    name: 'Sample Data',
-    icon: 'database',
-    component: SampleData,
-  },
-  {
-    name: 'Patients & Images',
-    icon: 'account',
-    component: PatientBrowser,
-  },
-  /*
-  {
-    name: 'Annotations',
-    icon: 'pencil',
-    component: Annotations,
-  },
-  {
-    name: 'Models',
-    icon: 'hexagon-multiple',
-    component: ModelBrowser,
-  },
-  */
-  {
-    name: 'Volume Rendering',
-    icon: 'cube',
-    component: VolumeRendering,
-  },
-  /*
-  {
-    name: 'Measurements',
-    icon: 'pencil-ruler',
-    component: MeasurementsModule,
-  },
-  {
-    name: 'AI',
-    icon: 'robot-outline',
-    component: AiModule,
-  },
-  */
-];
 
 export const Views: Record<string, ViewConfig> = {
   Coronal: {
@@ -444,17 +396,6 @@ export default defineComponent({
       proxyManager?.autoAnimateViews();
     });
 
-    // --- modules --- //
-
-    const selectedModule = ref(Modules[0]);
-
-    function focusModule(modName: string) {
-      const mod = Modules.find((m) => m.name === modName);
-      if (mod) {
-        selectedModule.value = mod;
-      }
-    }
-
     // --- layout --- //
 
     const layoutName: Ref<'QuadView' | 'AxialPrimary'> = ref('QuadView');
@@ -544,7 +485,6 @@ export default defineComponent({
     ]);
 
     return {
-      selectedModule,
       aboutBoxDialog,
       errorDialog,
       layout: layoutGrid,
@@ -553,10 +493,8 @@ export default defineComponent({
       relayoutQuad,
       allErrors,
       clearAndCloseErrors,
-      Modules,
       userPromptFiles,
       openFiles,
-      focusModule,
       hasData,
     };
   },

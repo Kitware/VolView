@@ -36,6 +36,7 @@ import PatientBrowser from './PatientBrowser.vue';
 import VolumeRendering from './VolumeRendering.vue';
 import SampleData from './SampleData.vue';
 import Settings from './Settings.vue';
+import AnnotationsModule from './AnnotationsModule.vue';
 
 export const Modules = [
   {
@@ -51,12 +52,7 @@ export const Modules = [
   {
     name: 'Annotations',
     icon: 'pencil',
-    component: null,
-  },
-  {
-    name: 'Models',
-    icon: 'hexagon-multiple',
-    component: null,
+    component: AnnotationsModule,
   },
   {
     name: 'Volume\nRendering',
