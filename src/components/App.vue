@@ -109,41 +109,6 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="errorDialog" width="50%">
-          <v-card>
-            <v-card-title>Application Errors</v-card-title>
-            <v-card-text>
-              <v-container>
-                <v-row
-                  v-for="(errorInfo, i) in allErrors"
-                  :key="i"
-                  no-gutters
-                  class="align-center mt-2"
-                >
-                  <v-col
-                    cols="6"
-                    class="text-ellipsis subtitle-1 black--text"
-                    :title="errorInfo.name"
-                  >
-                    Error: {{ errorInfo.name }}
-                  </v-col>
-                  <v-col>
-                    <span class="ml-2">
-                      {{ errorInfo.error.message || 'Unknown error' }}
-                    </span>
-                  </v-col>
-                </v-row>
-              </v-container>
-            </v-card-text>
-            <v-card-actions>
-              <v-spacer />
-              <v-btn color="primary" @click="clearAndCloseErrors">
-                Clear
-              </v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
-
         <v-dialog v-model="aboutBoxDialog" width="50%">
           <about-box />
         </v-dialog>
@@ -156,46 +121,8 @@
           <message-center @close="messageDialog = false" />
         </v-dialog>
 
-        <notifications position="bottom left" :duration="4000" width="350px">
-          <template slot="body" slot-scope="{ item, close }">
-            <div
-              class="vue-notification-template general-notifications"
-              :class="`notify-${item.type}`"
-              @keypress.esc="close"
-              @click="close"
-            >
-              <div class="notification-content d-flex flex-row align-center">
-                <span class="subtitle-1 flex-grow-1">{{ item.text }}</span>
-                <div class="actions-stack d-flex flex-column align-right">
-                  <template v-if="item.data && item.data.actions">
-                    <v-btn
-                      v-for="(action, i) in item.data.actions"
-                      :key="i"
-                      text
-                      color="white"
-                      @click.stop="
-                        close();
-                        action.onclick();
-                      "
-                    >
-                      {{ action.text }}
-                    </v-btn>
-                  </template>
-                  <template v-else>
-                    <v-btn
-                      v-if="item.type !== 'loading'"
-                      text
-                      color="white"
-                      @click.stop="close"
-                    >
-                      Close
-                    </v-btn>
-                  </template>
-                </div>
-              </div>
-            </div>
-          </template>
-        </notifications>
+        <message-notifications @open-notifications="messageDialog = true" />
+
         <v-overlay
           :value="dragHover"
           color="#fff"
@@ -233,6 +160,7 @@ import ToolStrip from './ToolStrip.vue';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import MessageCenter from './MessageCenter.vue';
+import MessageNotifications from './MessageNotifications.vue';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,
@@ -257,6 +185,7 @@ import {
 } from '../store/views';
 import { LPSAxisDir } from '../utils/lps';
 import { useMessageStore } from '../store/messages';
+import { plural } from '../utils';
 
 export const Views: Record<string, ViewConfig> = {
   Coronal: {
@@ -368,11 +297,6 @@ const toLayoutGridArray = (layout: Layout): LayoutGridArrayItem => {
   throw new Error('Unrecognized objType');
 };
 
-interface ErrorInfo {
-  name: string;
-  error: Error;
-}
-
 export default defineComponent({
   name: 'App',
 
@@ -385,6 +309,7 @@ export default defineComponent({
     ToolStrip,
     ModulePanel,
     MessageCenter,
+    MessageNotifications,
   },
 
   setup() {
@@ -392,27 +317,11 @@ export default defineComponent({
     const dataStore = useDatasetStore();
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
-
-    messageStore.addError('meow meow');
-    messageStore.addWarning('meow meow');
-    messageStore.addInfo('meow meow');
-
-    // error state
-    const fileLoadingErrors: Ref<LoadResult[]> = ref([]);
-    const otherErrors: Ref<ErrorInfo[]> = ref([]);
+    const viewStore = useViewStore();
 
     // dialogs
     const aboutBoxDialog = ref(false);
-    const errorDialog = ref(false);
     const messageDialog = ref(false);
-
-    const viewStore = useViewStore();
-
-    function clearAndCloseErrors() {
-      errorDialog.value = false;
-      fileLoadingErrors.value = [];
-      otherErrors.value = [];
-    }
 
     // --- auto-animate views whenever a proxy is modified --- //
 
@@ -455,37 +364,55 @@ export default defineComponent({
         return;
       }
 
+      const nFiles = files.length;
+
       const loadFirstDataset = !dataStore.primarySelection;
+      const msgID = messageStore.addInfo(
+        `Loading ${nFiles} ${plural(nFiles, 'file')}...`
+      );
+
+      let statuses: LoadResult[] = [];
 
       try {
-        const statuses = await dataStore.loadFiles(Array.from(files));
-
-        const loaded = statuses.filter((s) => s.loaded) as (
-          | FileLoadSuccess
-          | DICOMLoadSuccess
-        )[];
-        const errored = statuses.filter((s) => !s.loaded) as (
-          | FileLoadFailure
-          | DICOMLoadFailure
-        )[];
-
-        if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
-          const selection = convertSuccessResultToDataSelection(loaded[0]);
-          dataStore.setPrimarySelection(selection);
-        }
-
-        if (errored.length) {
-          fileLoadingErrors.value = errored;
-        } else {
-          //
-        }
+        statuses = await dataStore.loadFiles(Array.from(files));
       } catch (error) {
-        otherErrors.value.push({
-          name: 'openFiles error',
-          error: error as Error,
-        });
+        messageStore.addError('Failed to load files', error as Error);
       } finally {
-        // TODO only close if there are no pending files
+        messageStore.clearOne(msgID);
+      }
+
+      const loaded = statuses.filter((s) => s.loaded) as (
+        | FileLoadSuccess
+        | DICOMLoadSuccess
+      )[];
+      const errored = statuses.filter((s) => !s.loaded) as (
+        | FileLoadFailure
+        | DICOMLoadFailure
+      )[];
+
+      if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
+        const selection = convertSuccessResultToDataSelection(loaded[0]);
+        dataStore.setPrimarySelection(selection);
+      }
+
+      const failedFilenames = errored.map((result) => {
+        if (result.type === 'file') {
+          return result.filename;
+        }
+        return 'DICOM files';
+      });
+      const failedFileMessage = `These files failed to load:\n${failedFilenames.join(
+        '\n'
+      )}`;
+
+      if (loaded.length && !errored.length) {
+        messageStore.addSuccess('Loaded files');
+      }
+      if (loaded.length && errored.length) {
+        messageStore.addWarning('Some files failed to load', failedFileMessage);
+      }
+      if (!loaded.length && errored.length) {
+        messageStore.addError('Files failed to load', failedFileMessage);
       }
     }
 
@@ -503,21 +430,13 @@ export default defineComponent({
     // --- template vars --- //
 
     const hasData = computed(() => imageStore.idList.length > 0);
-    const allErrors = computed(() => [
-      ...fileLoadingErrors.value,
-      ...otherErrors.value,
-    ]);
-
     return {
       aboutBoxDialog,
-      errorDialog,
       messageDialog,
       layout: layoutGrid,
       layoutName,
       relayoutAxial,
       relayoutQuad,
-      allErrors,
-      clearAndCloseErrors,
       userPromptFiles,
       openFiles,
       hasData,
@@ -544,30 +463,6 @@ export default defineComponent({
 .alert > .v-snack__wrapper {
   /* transition background color */
   transition: background-color 0.25s;
-}
-
-.general-notifications {
-  padding: 10px;
-  margin: 0 20px 20px;
-  color: #fff;
-  background: #44a4fc;
-  border-left: 5px solid #187fe7;
-  user-select: none;
-}
-
-.general-notifications.notify-success {
-  background: #4caf50;
-  border-left-color: #42a85f;
-}
-
-.general-notifications.notify-warn {
-  background: #ffb648;
-  border-left-color: #f48a06;
-}
-
-.general-notifications.notify-error {
-  background: #e54d42;
-  border-left-color: #b82e24;
 }
 </style>
 

@@ -1,9 +1,10 @@
 import '@/public/global.css';
 import '@kitware/vtk.js/Rendering/Profiles/All';
+import 'vue-toastification/dist/index.css';
 
 import Vue from 'vue';
 import VueCompositionAPI from '@vue/composition-api';
-import VueNotifications from 'vue-notification';
+import VueToast from 'vue-toastification';
 import { createPinia, PiniaVuePlugin } from 'pinia';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
@@ -26,7 +27,7 @@ import IDManager from './core/id';
 Vue.config.productionTip = false;
 
 Vue.use(VueCompositionAPI);
-Vue.use(VueNotifications);
+Vue.use(VueToast);
 Vue.use(ProxyManagerVuePlugin);
 Vue.use(PiniaVuePlugin);
 

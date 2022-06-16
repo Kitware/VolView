@@ -26,15 +26,25 @@ export interface WorkerInput {
 }
 
 workerHandler.registerHandler(async (data: WorkerInput) => {
-  const { file, readerName } = data;
-  if (!file) {
-    throw new Error('No file provided');
-  }
-  if (!(readerName in Readers)) {
-    throw new Error(`No reader found for ${file.name}`);
-  }
+  try {
+    const { file, readerName } = data;
+    if (!file) {
+      throw new Error('No file provided');
+    }
+    if (!(readerName in Readers)) {
+      throw new Error(`No reader found for ${file.name}`);
+    }
 
-  const { readerClass, asBinary } = Readers[readerName];
-  const ds = await readFile(file, readerClass, asBinary);
-  return ds.getState();
+    const { readerClass, asBinary } = Readers[readerName];
+    const ds = await readFile(file, readerClass, asBinary);
+    return {
+      status: 'success',
+      obj: ds.getState(),
+    };
+  } catch (error) {
+    return {
+      status: 'fail',
+      error: error as Error,
+    };
+  }
 });

@@ -1,65 +1,8 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  h,
-  PropType,
-  ref,
-  toRefs,
-  unref,
-} from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 import { storeToRefs } from 'pinia';
-import { Message, MessageType, useMessageStore } from '../store/messages';
-import ErrorMessage from './messages/ErrorMessage.vue';
-import RegularMessage from './messages/RegularMessage.vue';
-
-const MessageComponent = defineComponent({
-  props: {
-    message: Object as PropType<Message>,
-  },
-  setup(props, { emit }) {
-    const { message } = toRefs(props);
-    return () => {
-      const msg = unref(message);
-      if (!msg) {
-        return null;
-      }
-
-      const on = {
-        delete: () => emit('delete'),
-      };
-
-      switch (msg.type) {
-        case MessageType.Error:
-          return h(ErrorMessage, {
-            props: {
-              message: msg.contents,
-              error: msg.error,
-            },
-            on,
-          });
-        case MessageType.Info:
-          return h(RegularMessage, {
-            props: {
-              type: 'info',
-              message: msg.contents,
-            },
-            on,
-          });
-        case MessageType.Warning:
-          return h(RegularMessage, {
-            props: {
-              type: 'warn',
-              message: msg.contents,
-            },
-            on,
-          });
-        default:
-          return null;
-      }
-    };
-  },
-});
+import { MessageType, useMessageStore } from '../store/messages';
+import MessageItem from './MessageItem.vue';
 
 function watchResize(
   element: Element,
@@ -88,7 +31,7 @@ function watchResize(
 
 export default defineComponent({
   components: {
-    MessageComponent,
+    MessageItem,
   },
   setup() {
     const messageStore = useMessageStore();
@@ -97,21 +40,18 @@ export default defineComponent({
     const showErrors = ref(true);
     const showWarnings = ref(true);
     const showInfo = ref(true);
-    const showPending = ref(true);
 
     const filteredMessages = computed(() => {
       const show = {
         errors: showErrors.value,
         warnings: showWarnings.value,
         info: showInfo.value,
-        pending: showPending.value,
       };
       return messages.value.filter(
         (msg) =>
           (msg.type === MessageType.Error && show.errors) ||
           (msg.type === MessageType.Warning && show.warnings) ||
-          (msg.type === MessageType.Info && show.info) ||
-          (msg.type === MessageType.Pending && show.pending)
+          (msg.type === MessageType.Info && show.info)
       );
     });
 
@@ -147,7 +87,6 @@ export default defineComponent({
       showErrors,
       showWarnings,
       showInfo,
-      showPending,
       filteredMessages,
     };
   },
@@ -182,12 +121,6 @@ export default defineComponent({
             hide-details
             label="Info"
           />
-          <v-checkbox
-            v-model="showPending"
-            class="px-2"
-            hide-details
-            label="Pending"
-          />
         </div>
         <v-btn color="secondary" @click="clearAll">
           <v-icon class="mr-2">mdi-delete</v-icon>
@@ -196,7 +129,7 @@ export default defineComponent({
       </div>
       <div class="message-list ma-2" ref="messageListEl">
         <v-expansion-panels accordion multiple hover @change="scrollIfLast">
-          <message-component
+          <message-item
             v-for="msg in filteredMessages"
             :key="msg.id"
             :message="msg"
