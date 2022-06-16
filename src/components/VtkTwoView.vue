@@ -33,6 +33,12 @@
           :widget-manager="widgetManager"
           :slice="slice"
         />
+        <crosshairs-tool
+          :view-id="viewID"
+          :view-direction="viewDirection"
+          :widget-manager="widgetManager"
+          :slice="slice"
+        />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-middle>
@@ -174,6 +180,7 @@ import {
   defaultSliceConfig,
   defaultWindowLevelConfig,
 } from '../store/view-2D-configs';
+import CrosshairsTool from './tools/CrosshairsTool.vue';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -196,6 +203,7 @@ export default defineComponent({
     ZoomTool,
     RulerTool,
     PaintTool,
+    CrosshairsTool,
   },
   setup(props) {
     const view2DStore = useView2DStore();
