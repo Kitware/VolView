@@ -1,5 +1,5 @@
 /**
- * Percent is in [0, 1]. If it's negative, then the progress is indeterminate.
+ * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */
 export type ProgressCallback = (percent: number) => void;
 
@@ -13,7 +13,7 @@ export async function fetchFileWithProgress(
   const contentLength = Number(response.headers.get('content-length')) || 0;
 
   if (contentLength <= 0) {
-    progress(0);
+    progress(Infinity);
 
     const blob = await response.blob();
     return new File([blob], name);

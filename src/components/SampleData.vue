@@ -10,7 +10,12 @@
         <v-list-item-title>{{ sample.name }}</v-list-item-title>
         <template v-if="sample.name in inProgress">
           <span v-if="inProgress[sample.name].state === Pending">
-            {{ inProgress[sample.name].progress.toFixed(2) }}
+            <template v-if="inProgress[sample.name].progress === Infinity">
+              Downloading...
+            </template>
+            <template v-else>
+              {{ inProgress[sample.name].progress.toFixed(2) }}
+            </template>
           </span>
           <span v-else-if="inProgress[sample.name].state === Error">
             Error
@@ -58,7 +63,7 @@ export default defineComponent({
         });
       };
       try {
-        progress(0);
+        progress(Infinity);
 
         const sampleFile = await fetchFileWithProgress(
           sample.url,

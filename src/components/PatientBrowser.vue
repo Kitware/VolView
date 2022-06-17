@@ -1,5 +1,5 @@
 <template>
-  <div id="patient-module" class="mx-2 height-100">
+  <div id="patient-module" class="mx-2 py-2 height-100">
     <div id="patient-filter-controls">
       <v-select
         v-model="selectedPatient"
