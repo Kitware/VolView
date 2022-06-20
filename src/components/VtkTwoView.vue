@@ -173,7 +173,9 @@ import {
   useViewConfigStore,
   defaultSliceConfig,
   defaultWindowLevelConfig,
+  CameraConfig,
 } from '../store/view-configs';
+import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -470,10 +472,36 @@ export default defineComponent({
       }
     });
 
+    const { restoreCameraConfig } = usePersistCameraConfig(
+      viewID,
+      curImageID,
+      viewProxy,
+      'parallelScale',
+      'position',
+      'focalPoint'
+    );
+
     watch(
       [curImageID, cameraDirVec, cameraUpVec],
       () => {
-        if (resizeToFit.value) {
+        let cameraConfig: CameraConfig | null = null;
+        if (curImageID.value !== null) {
+          cameraConfig = viewConfigStore.getCameraConfig(
+            viewID,
+            curImageID.value
+          );
+        }
+
+        // If we have a save camera configuration restore it
+        if (cameraConfig) {
+          restoreCameraConfig(cameraConfig);
+
+          viewProxy.getRenderer().resetCameraClippingRange();
+          viewProxy.render();
+
+          // Prevent resize
+          resizeToFit.value = false;
+        } else if (resizeToFit.value) {
           resetCamera();
         } else {
           // this will trigger a resetCamera() call
