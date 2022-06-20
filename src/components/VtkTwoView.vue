@@ -490,7 +490,8 @@ export default defineComponent({
       viewProxy,
       'parallelScale',
       'position',
-      'focalPoint'
+      'focalPoint',
+      'viewUp'
     );
 
     watch(
