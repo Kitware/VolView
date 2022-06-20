@@ -70,37 +70,34 @@
               </template>
             </div>
             <div class="d-flex flex-column flex-grow-1">
-              <template v-if="hasData">
-                <layout-grid :layout="layout" />
-              </template>
-              <template v-else>
-                <v-row
-                  no-gutters
-                  align="center"
-                  class="clickable"
-                  @click="userPromptFiles"
-                >
-                  <v-col>
-                    <v-row justify="center">
-                      <v-card
-                        flat
-                        dark
-                        color="transparent"
-                        class="text-center headline"
-                      >
-                        <div>
-                          <v-icon size="64">mdi-folder-open</v-icon>
-                        </div>
-                        <div>Click anywhere here to open files</div>
-                        <div class="mt-8">
-                          <v-icon size="64">mdi-arrow-down-bold</v-icon>
-                        </div>
-                        <div>Drop your files anywhere here to open</div>
-                      </v-card>
-                    </v-row>
-                  </v-col>
-                </v-row>
-              </template>
+              <layout-grid v-show="hasData" :layout="layout" />
+              <v-row
+                v-show="!hasData"
+                no-gutters
+                align="center"
+                class="clickable"
+                @click="userPromptFiles"
+              >
+                <v-col>
+                  <v-row justify="center">
+                    <v-card
+                      flat
+                      dark
+                      color="transparent"
+                      class="text-center headline"
+                    >
+                      <div>
+                        <v-icon size="64">mdi-folder-open</v-icon>
+                      </div>
+                      <div>Click anywhere here to open files</div>
+                      <div class="mt-8">
+                        <v-icon size="64">mdi-arrow-down-bold</v-icon>
+                      </div>
+                      <div>Drop your files anywhere here to open</div>
+                    </v-card>
+                  </v-row>
+                </v-col>
+              </v-row>
             </div>
           </div>
         </v-main>

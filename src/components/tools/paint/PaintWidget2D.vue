@@ -5,6 +5,7 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
+  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -18,9 +19,9 @@ import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { useViewStore } from '@/src/store/views';
-import { useEventListener } from '@/src/composables/useEventListener';
 import { PaintWidgetState } from '@/src/vtk/PaintWidget/state';
 import { vec3 } from 'gl-matrix';
+import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -124,6 +125,12 @@ export default defineComponent({
       );
     });
 
+    onUnmounted(() => {
+      while (subs.length) {
+        subs.pop()!.unsubscribe();
+      }
+    });
+
     // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
@@ -147,23 +154,23 @@ export default defineComponent({
       widgetRef.value!.setVisibility(false);
     });
 
-    const interactorContainer = computed(() =>
-      viewProxyRef.value?.getInteractor().getContainer()
+    manageVTKSubscription(
+      viewProxyRef.value!.getInteractor().onMouseEnter(() => {
+        const widget = widgetRef.value;
+        if (widget) {
+          widget.setVisibility(true);
+        }
+      })
     );
 
-    useEventListener(interactorContainer, 'pointerenter', () => {
-      const widget = widgetRef.value;
-      if (widget) {
-        widget.setVisibility(true);
-      }
-    });
-
-    useEventListener(interactorContainer, 'pointerleave', () => {
-      const widget = widgetRef.value;
-      if (widget) {
-        widget.setVisibility(false);
-      }
-    });
+    manageVTKSubscription(
+      viewProxyRef.value!.getInteractor().onMouseLeave(() => {
+        const widget = widgetRef.value;
+        if (widget) {
+          widget.setVisibility(true);
+        }
+      })
+    );
 
     // --- focus and rendering --- //
 

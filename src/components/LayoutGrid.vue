@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex flex-grow-1" :class="flexFlow">
+  <div class="layout-container" :class="flexFlow">
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-grow-1">
       <layout-grid v-if="Array.isArray(item)" :layout="item" />
       <div v-else-if="item" class="layout-item">
@@ -28,6 +28,12 @@ export default {
 </script>
 
 <style scoped>
+.layout-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
 .layout-item {
   display: flex;
   flex: 1 1;

@@ -4,7 +4,6 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
-  PropType,
   ref,
   toRefs,
   watch,
@@ -18,6 +17,7 @@ import {
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { CreateElement, RenderContext } from 'vue';
+import { useViewStore } from '@/src/store/views';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -28,19 +28,21 @@ const PROPS = {
     type: String,
     required: true,
   },
-  viewProxy: {
-    type: Object as PropType<vtkLPSView2DProxy>,
-    required: true,
-  },
 } as const;
 
 const WindowLevelTool = defineComponent({
   name: 'WindowLevelTool',
   props: PROPS,
   setup(props) {
-    const { viewId: viewID, viewProxy } = toRefs(props);
+    const { viewId: viewID } = toRefs(props);
     const viewConfigStore = useViewConfigStore();
+    const viewStore = useViewStore();
     const { currentImageID } = useCurrentImage();
+
+    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
+    if (!viewProxy) {
+      throw new Error('Cannot get the view proxy');
+    }
 
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
@@ -104,15 +106,15 @@ const WindowLevelTool = defineComponent({
 
     onMounted(() => {
       // assumed to be vtkInteractorStyleManipulator
-      const istyle = viewProxy.value.getInteractorStyle2D();
+      const istyle = viewProxy.getInteractorStyle2D();
       istyle.addMouseManipulator(rangeManipulator);
     });
 
     onBeforeUnmount(() => {
       // for some reason, VtkTwoView.onBeforeUnmount is being
       // invoked before this onBeforeUnmount during HMR.
-      if (!viewProxy.value.isDeleted()) {
-        const istyle = viewProxy.value.getInteractorStyle2D();
+      if (!viewProxy.isDeleted()) {
+        const istyle = viewProxy.getInteractorStyle2D();
         istyle.removeMouseManipulator(rangeManipulator);
       }
     });

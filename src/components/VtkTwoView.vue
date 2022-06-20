@@ -16,19 +16,24 @@
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
       <div class="overlay-no-events tool-layer">
-        <pan-tool :view-proxy="viewProxy" />
-        <zoom-tool :view-proxy="viewProxy" />
-        <slice-scroll-tool :view-id="viewID" :view-proxy="viewProxy" />
-        <window-level-tool :view-id="viewID" :view-proxy="viewProxy" />
+        <pan-tool :view-id="viewID" />
+        <zoom-tool :view-id="viewID" />
+        <slice-scroll-tool :view-id="viewID" />
+        <window-level-tool :view-id="viewID" />
         <ruler-tool
           view-type="2D"
           :view-id="viewID"
           :widget-manager="widgetManager"
           :view-direction="viewDirection"
-          :view-proxy="viewProxy"
           :slice="slice"
         />
         <paint-tool
+          :view-id="viewID"
+          :view-direction="viewDirection"
+          :widget-manager="widgetManager"
+          :slice="slice"
+        />
+        <crosshairs-tool
           :view-id="viewID"
           :view-direction="viewDirection"
           :widget-manager="widgetManager"
@@ -136,6 +141,7 @@ import {
   defineComponent,
   onBeforeUnmount,
   onMounted,
+  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -176,6 +182,7 @@ import {
   CameraConfig,
 } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
+import CrosshairsTool from './tools/CrosshairsTool.vue';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -198,6 +205,7 @@ export default defineComponent({
     ZoomTool,
     RulerTool,
     PaintTool,
+    CrosshairsTool,
   },
   setup(props) {
     const view2DStore = useView2DStore();
@@ -297,7 +305,7 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    onBeforeUnmount(() => {
+    onUnmounted(() => {
       view2DStore.removeView(viewID);
       viewConfigStore.removeViewConfig(viewID);
     });
@@ -306,8 +314,8 @@ export default defineComponent({
     viewProxy.getInteractorStyle2D().removeAllManipulators();
 
     onMounted(() => {
-      viewProxy.setOrientationAxesVisibility(false);
       viewProxy.setContainer(vtkContainerRef.value ?? null);
+      viewProxy.setOrientationAxesVisibility(false);
     });
 
     onBeforeUnmount(() => {
@@ -328,6 +336,10 @@ export default defineComponent({
       useSvgLayer: false,
     });
     widgetManager.setRenderer(viewProxy.getRenderer());
+
+    onUnmounted(() => {
+      widgetManager.delete();
+    });
 
     // --- resetting slice properties --- //
 
@@ -533,6 +545,8 @@ export default defineComponent({
       labelmapReps.value.forEach((lmRep) => {
         lmRep.setSlice(slice);
       });
+
+      viewProxy.render();
     });
 
     // --- apply labelmap opacity --- //
