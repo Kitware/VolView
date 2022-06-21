@@ -169,26 +169,18 @@ export const useViewConfigStore = defineStore('viewConfig', {
         // sync slices across all views that share the same dataset and axis.
         // Right now, all views share the same dataset by way of primarySelection.
         viewsToUpdate.forEach((id) => {
-          let config = defaultSliceConfig();
           if (viewStore.orientationConfigs[id].axis === axis) {
             // Right now all views share the same dataset, so just use dataID to
             // generate the key. This may change in the future.
             const viewConfigKey = genSynViewConfigKey(id, dataID);
 
             if (viewConfigKey in this.sliceConfigs) {
-              config = this.sliceConfigs[viewConfigKey];
+              const config = this.sliceConfigs[viewConfigKey];
+              const { min, max } = config;
+              config.slice = clampValue(slice, min, max);
             }
-            const { min, max } = config;
-            config.slice = clampValue(slice, min, max);
           }
         });
-      }
-      // New record using the defaults
-      else {
-        const config = defaultSliceConfig();
-        config.slice = clampValue(slice, config.min, config.max);
-        set<SliceConfig>(this.sliceConfigs, key, config);
-        addViewConfigKey(this.viewConfigs, viewID, key);
       }
     },
     updateSliceDomain(
@@ -239,24 +231,17 @@ export const useViewConfigStore = defineStore('viewConfig', {
         : [viewID];
 
       viewsToUpdate.forEach((id: string) => {
-        let config = defaultWindowLevelConfig();
         const viewConfigKey = genSynViewConfigKey(id, dataID);
         if (viewConfigKey in this.wlConfigs) {
-          config = this.wlConfigs[viewConfigKey];
-        }
+          const config = this.wlConfigs[viewConfigKey];
 
-        // don't constrain w/l to min/max
-        if ('width' in wl) {
-          config.width = wl.width!;
-        }
-        if ('level' in wl) {
-          config.level = wl.level!;
-        }
-
-        // New record using the defaults
-        if (!(viewConfigKey in this.wlConfigs)) {
-          set<WindowLevelConfig>(this.wlConfigs, viewConfigKey, config);
-          addViewConfigKey(this.viewConfigs, id, viewConfigKey);
+          // don't constrain w/l to min/max
+          if ('width' in wl) {
+            config.width = wl.width!;
+          }
+          if ('level' in wl) {
+            config.level = wl.level!;
+          }
         }
       });
     },
