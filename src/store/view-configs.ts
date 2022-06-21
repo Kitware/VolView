@@ -147,6 +147,7 @@ export const useViewConfigStore = defineStore('viewConfig', {
         if (key in this.sliceConfigs && key in this.wlConfigs) {
           del(this.sliceConfigs, key);
           del(this.wlConfigs, key);
+          del(this.cameraConfigs, key);
 
           if (viewID in this.viewConfigs) {
             this.viewConfigs[viewID].delete(key);
