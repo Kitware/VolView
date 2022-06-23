@@ -5,14 +5,28 @@ import { LPSAxisDir } from '../utils/lps';
 
 export type ViewType = '2D' | '3D';
 
+export enum LayoutDirection {
+  V = 'V',
+  H = 'H',
+}
+
+export enum ViewKey {
+  CoronalView = 'CoronalView',
+  SagittalView = 'SagittalView',
+  AxialView = 'AxialView',
+  ThreeDView = '3DView',
+}
+
 export interface View2DConfig {
   objType: 'View2D';
+  key: ViewKey;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
 }
 
 export interface View3DConfig {
   objType: 'View3D';
+  key: ViewKey;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
 }
@@ -22,7 +36,7 @@ export type ViewConfig = View2DConfig | View3DConfig;
 export type Layout =
   | {
       objType: 'Layout';
-      direction: 'V' | 'H';
+      direction: LayoutDirection;
       items: Array<Layout | ViewConfig>;
     }
   | ViewConfig;
@@ -35,7 +49,7 @@ export const useViewStore = defineStore('view', {
   state: (): State => ({
     layout: {
       objType: 'Layout',
-      direction: 'V',
+      direction: LayoutDirection.V,
       items: [],
     },
   }),
