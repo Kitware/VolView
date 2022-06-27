@@ -204,6 +204,7 @@ import {
   defineComponent,
   Ref,
   ref,
+  watch,
 } from '@vue/composition-api';
 
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
@@ -237,6 +238,14 @@ import {
   ProxyManagerEvent,
 } from '../composables/onProxyManagerEvent';
 import { useProxyManager } from '../composables/proxyManager';
+import {
+  useViewStore,
+  Layout,
+  ViewKey,
+  ViewConfig,
+  LayoutDirection,
+} from '../store/views';
+import { LPSAxisDir } from '../utils/lps';
 
 export const Modules = [
   {
@@ -280,52 +289,114 @@ export const Modules = [
   */
 ];
 
-export const Views = {
+export const Views: Record<string, ViewConfig> = {
   Coronal: {
-    comp: VtkTwoView,
-    props: {
-      key: 'CoronalView',
-      viewDirection: 'Left',
-      viewUp: 'Superior',
-    },
+    objType: 'View2D',
+    key: ViewKey.CoronalView,
+    viewDirection: 'Left',
+    viewUp: 'Superior',
   },
   Sagittal: {
-    comp: VtkTwoView,
-    props: {
-      key: 'SagittalView',
-      viewDirection: 'Anterior',
-      viewUp: 'Superior',
-    },
+    objType: 'View2D',
+    key: ViewKey.SagittalView,
+    viewDirection: 'Anterior',
+    viewUp: 'Superior',
   },
   Axial: {
-    comp: VtkTwoView,
-    props: {
-      key: 'AxialView',
-      viewDirection: 'Inferior',
-      viewUp: 'Anterior',
-    },
+    objType: 'View2D',
+    key: ViewKey.AxialView,
+    viewDirection: 'Inferior',
+    viewUp: 'Anterior',
   },
   Three: {
-    comp: VtkThreeView,
-    props: {
-      key: '3DView',
-      viewDirection: 'Inferior',
-      viewUp: 'Anterior',
-    },
+    objType: 'View3D',
+    key: ViewKey.ThreeDView,
+    viewDirection: 'Inferior',
+    viewUp: 'Anterior',
   },
 };
 
-export const Layouts = {
-  AxialPrimary: [
-    'V',
-    Views.Axial,
-    ['H', Views.Coronal, Views.Sagittal, Views.Three],
-  ],
-  QuadView: [
-    'H',
-    ['V', Views.Coronal, Views.Three],
-    ['V', Views.Sagittal, Views.Axial],
-  ],
+export const Layouts: Record<string, Layout> = {
+  AxialPrimary: {
+    objType: 'Layout',
+    direction: LayoutDirection.V,
+    items: [
+      Views.Axial,
+      {
+        objType: 'Layout',
+        direction: LayoutDirection.H,
+        items: [Views.Coronal, Views.Sagittal, Views.Three],
+      },
+    ],
+  },
+  QuadView: {
+    objType: 'Layout',
+    direction: LayoutDirection.H,
+    items: [
+      {
+        objType: 'Layout',
+        direction: LayoutDirection.V,
+        items: [Views.Coronal, Views.Three],
+      },
+      {
+        objType: 'Layout',
+        direction: LayoutDirection.V,
+        items: [Views.Sagittal, Views.Axial],
+      },
+    ],
+  },
+};
+
+interface LayoutGridItemProps {
+  key: ViewKey;
+  viewDirection: LPSAxisDir;
+  viewUp: LPSAxisDir;
+}
+
+interface LayoutGridItem {
+  comp: typeof VtkTwoView | typeof VtkThreeView;
+  props: LayoutGridItemProps;
+}
+
+type LayoutGridArrayItem =
+  | LayoutDirection
+  | LayoutGridItem
+  | Array<LayoutGridArrayItem>;
+
+type LayoutGridArray = Array<LayoutGridArrayItem>;
+
+// Convert Layout to format LayoutGrid expects
+const toLayoutGridArray = (layout: Layout): LayoutGridArrayItem => {
+  if (layout.objType === 'Layout') {
+    const layoutArray: LayoutGridArray = [layout.direction];
+    layout.items.forEach((item) => {
+      layoutArray.push(toLayoutGridArray(item));
+    });
+
+    return layoutArray;
+  }
+  if (layout.objType === 'View2D') {
+    return {
+      comp: VtkTwoView,
+      props: {
+        key: layout.key,
+        viewDirection: layout.viewDirection,
+        viewUp: layout.viewUp,
+      },
+    };
+  }
+  if (layout.objType === 'View3D') {
+    return {
+      comp: VtkThreeView,
+      props: {
+        key: layout.key,
+        viewDirection: layout.viewDirection,
+        viewUp: layout.viewUp,
+      },
+    };
+  }
+  // Needed to keep compiler happy!
+  throw new Error('Unrecognized objType');
 };
 
 interface ErrorInfo {
@@ -359,6 +430,8 @@ export default defineComponent({
     const aboutBoxDialog = ref(false);
     const errorDialog = ref(false);
 
+    const viewStore = useViewStore();
+
     function clearAndCloseErrors() {
       errorDialog.value = false;
       fileLoadingErrors.value = [];
@@ -386,9 +459,10 @@ export default defineComponent({
 
     const layoutName: Ref<'QuadView' | 'AxialPrimary'> = ref('QuadView');
 
-    const layout: ComputedRef<any> = computed(
-      () => Layouts[layoutName.value] || []
-    );
+    const layoutGrid: ComputedRef<any> = computed(() => {
+      const { layout } = viewStore;
+      return toLayoutGridArray(layout);
+    });
 
     function relayoutAxial() {
       layoutName.value = 'AxialPrimary';
@@ -397,6 +471,17 @@ export default defineComponent({
     function relayoutQuad() {
       layoutName.value = 'QuadView';
     }
+
+    watch(
+      layoutName,
+      () => {
+        const layout = Layouts[layoutName.value] || [];
+        viewStore.setLayout(layout);
+      },
+      {
+        immediate: true,
+      }
+    );
 
     // --- file handling --- //
 
@@ -462,7 +547,7 @@ export default defineComponent({
       selectedModule,
       aboutBoxDialog,
       errorDialog,
-      layout,
+      layout: layoutGrid,
       layoutName,
       relayoutAxial,
       relayoutQuad,
