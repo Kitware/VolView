@@ -51,6 +51,8 @@ import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
+import { useViewConfigStore } from '../store/view-configs';
+import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 
 export default defineComponent({
   props: {
@@ -69,6 +71,7 @@ export default defineComponent({
   setup(props) {
     const view3DStore = useView3DStore();
     const proxyManager = useProxyManager()!;
+    const viewConfigStore = useViewConfigStore();
 
     const { viewDirection, viewUp } = toRefs(props);
 
@@ -143,13 +146,52 @@ export default defineComponent({
     watch(
       [baseImageRep, cameraDirVec, cameraUpVec],
       () => {
-        resetCamera();
+        let cameraConfig = null;
+        if (curImageID.value !== null) {
+          cameraConfig = viewConfigStore.getCameraConfig(
+            viewID,
+            curImageID.value
+          );
+        }
+
+        // We don't want to reset the camera if we have a config we are restoring
+        if (cameraConfig === null) {
+          resetCamera();
+        }
       },
       {
         immediate: true,
         deep: true,
       }
     );
+
+    const { restoreCameraConfig } = usePersistCameraConfig(
+      viewID,
+      curImageID,
+      viewProxy,
+      'position',
+      'focalPoint',
+      'directionOfProjection',
+      'viewUp'
+    );
+
+    watch([curImageID], () => {
+      // See if we have a camera configuration to restore
+      let cameraConfig = null;
+      if (curImageID.value !== null) {
+        cameraConfig = viewConfigStore.getCameraConfig(
+          viewID,
+          curImageID.value
+        );
+      }
+
+      if (cameraConfig) {
+        restoreCameraConfig(cameraConfig);
+
+        viewProxy.getRenderer().resetCameraClippingRange();
+        viewProxy.render();
+      }
+    });
 
     // --- coloring --- //
 

@@ -4,7 +4,7 @@ import { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { computed, ref, unref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { useView2DConfigStore } from '../view-2D-configs';
+import { useViewConfigStore } from '../view-configs';
 import { useView2DStore } from '../views-2D';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
@@ -30,14 +30,14 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     return out as Vector3;
   });
 
-  const view2DConfigStore = useView2DConfigStore();
+  const viewConfigStore = useViewConfigStore();
   const view2DStore = useView2DStore();
 
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
     if (imageID) {
       return view2DStore.allViewIDs.filter(
-        (viewID) => !!view2DConfigStore.getSliceConfig(viewID, imageID)
+        (viewID) => !!viewConfigStore.getSliceConfig(viewID, imageID)
       );
     }
     return [];
@@ -65,7 +65,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
         const { axis } = view2DStore.orientationConfigs[viewID];
         const index = lpsOrientation[axis];
         const slice = Math.round(indexPos[index]);
-        view2DConfigStore.setSlice(viewID, imageID, slice);
+        viewConfigStore.setSlice(viewID, imageID, slice);
       });
     }
   });

@@ -12,9 +12,9 @@ import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
-  useView2DConfigStore,
+  useViewConfigStore,
   defaultSliceConfig,
-} from '@/src/store/view-2D-configs';
+} from '@/src/store/view-configs';
 import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
@@ -27,7 +27,7 @@ export default defineComponent({
   },
   setup(props) {
     const { viewId: viewID } = toRefs(props);
-    const view2DConfigStore = useView2DConfigStore();
+    const viewConfigStore = useViewConfigStore();
     const viewStore = useViewStore();
     const { currentImageID } = useCurrentImage();
 
@@ -39,7 +39,7 @@ export default defineComponent({
     const sliceConfigDefault = defaultSliceConfig();
     const sliceConfig = computed(() =>
       currentImageID.value !== null
-        ? view2DConfigStore.getSliceConfig(viewID.value, currentImageID.value)
+        ? viewConfigStore.getSliceConfig(viewID.value, currentImageID.value)
         : null
     );
     const sliceRange = computed(() => ({
@@ -62,7 +62,7 @@ export default defineComponent({
 
     watch(scrollVal, (slice) => {
       if (currentImageID.value !== null) {
-        view2DConfigStore.setSlice(viewID.value, currentImageID.value, slice);
+        viewConfigStore.setSlice(viewID.value, currentImageID.value, slice);
       }
     });
 

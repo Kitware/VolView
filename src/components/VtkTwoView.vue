@@ -176,10 +176,12 @@ import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import {
-  useView2DConfigStore,
+  useViewConfigStore,
   defaultSliceConfig,
   defaultWindowLevelConfig,
-} from '../store/view-2D-configs';
+  CameraConfig,
+} from '../store/view-configs';
+import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
 
 export default defineComponent({
@@ -207,7 +209,7 @@ export default defineComponent({
   },
   setup(props) {
     const view2DStore = useView2DStore();
-    const view2DConfigStore = useView2DConfigStore();
+    const viewConfigStore = useViewConfigStore();
     const paintStore = usePaintToolStore();
 
     const { viewDirection, viewUp } = toRefs(props);
@@ -236,7 +238,7 @@ export default defineComponent({
     const sliceConfigDefaults = defaultSliceConfig();
     const sliceConfig = computed(() =>
       curImageID.value !== null
-        ? view2DConfigStore.getSliceConfig(viewID, curImageID.value)
+        ? viewConfigStore.getSliceConfig(viewID, curImageID.value)
         : null
     );
     const currentSlice = computed(() =>
@@ -258,7 +260,7 @@ export default defineComponent({
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
       curImageID.value !== null
-        ? view2DConfigStore.getWindowConfig(viewID, curImageID.value)
+        ? viewConfigStore.getWindowConfig(viewID, curImageID.value)
         : null
     );
     const windowWidth = computed(() =>
@@ -305,7 +307,7 @@ export default defineComponent({
 
     onUnmounted(() => {
       view2DStore.removeView(viewID);
-      view2DConfigStore.removeViewConfig(viewID);
+      viewConfigStore.removeViewConfig(viewID);
     });
 
     // do this before mounting
@@ -356,16 +358,16 @@ export default defineComponent({
           // dimMax is upper bound of slices, exclusive.
           if (
             curImageID.value !== null &&
-            view2DConfigStore.getSliceConfig(viewID, curImageID.value) === null
+            viewConfigStore.getSliceConfig(viewID, curImageID.value) === null
           ) {
-            view2DConfigStore.updateSliceDomain(viewID, curImageID.value, [
+            viewConfigStore.updateSliceDomain(viewID, curImageID.value, [
               0,
               dimMax - 1,
             ]);
             // move slice to center when image metadata changes.
             // TODO what if new slices are added to the same image?
             //      do we still reset the slicing?
-            view2DConfigStore.setSlice(
+            viewConfigStore.setSlice(
               viewID,
               curImageID.value,
               Math.floor((dimMax - 1) / 2)
@@ -390,10 +392,10 @@ export default defineComponent({
           const range = imageData.getPointData().getScalars().getRange();
           if (
             curImageID.value !== null &&
-            view2DConfigStore.getWindowConfig(viewID, curImageID.value) === null
+            viewConfigStore.getWindowConfig(viewID, curImageID.value) === null
           ) {
-            view2DConfigStore.updateWLDomain(viewID, curImageID.value, range);
-            view2DConfigStore.resetWindowLevel(viewID, curImageID.value);
+            viewConfigStore.updateWLDomain(viewID, curImageID.value, range);
+            viewConfigStore.resetWindowLevel(viewID, curImageID.value);
           }
         }
       },
@@ -482,10 +484,37 @@ export default defineComponent({
       }
     });
 
+    const { restoreCameraConfig } = usePersistCameraConfig(
+      viewID,
+      curImageID,
+      viewProxy,
+      'parallelScale',
+      'position',
+      'focalPoint',
+      'viewUp'
+    );
+
     watch(
       [curImageID, cameraDirVec, cameraUpVec],
       () => {
-        if (resizeToFit.value) {
+        let cameraConfig: CameraConfig | null = null;
+        if (curImageID.value !== null) {
+          cameraConfig = viewConfigStore.getCameraConfig(
+            viewID,
+            curImageID.value
+          );
+        }
+
+        // If we have a save camera configuration restore it
+        if (cameraConfig) {
+          restoreCameraConfig(cameraConfig);
+
+          viewProxy.getRenderer().resetCameraClippingRange();
+          viewProxy.render();
+
+          // Prevent resize
+          resizeToFit.value = false;
+        } else if (resizeToFit.value) {
           resetCamera();
         } else {
           // this will trigger a resetCamera() call
@@ -548,7 +577,7 @@ export default defineComponent({
       isImageLoading,
       setSlice: (slice: number) => {
         if (curImageID.value !== null) {
-          view2DConfigStore.setSlice(viewID, curImageID.value, slice);
+          viewConfigStore.setSlice(viewID, curImageID.value, slice);
         }
       },
       widgetManager,

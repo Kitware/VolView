@@ -5,7 +5,7 @@ import { removeFromArray } from '@/src/utils';
 import { RulerStateUpdate } from '@/src/core/tools/ruler';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
-import { useView2DConfigStore } from '@/src/store/view-2D-configs';
+import { useViewConfigStore } from '@/src/store/view-configs';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '../../utils/lps';
@@ -119,7 +119,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
       }
 
       const view2DStore = useView2DStore();
-      const view2DConfigStore = useView2DConfigStore();
+      const viewConfigStore = useViewConfigStore();
       const currentImage = useCurrentImage();
 
       const imageID = currentImage.currentImageID.value;
@@ -133,7 +133,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
         return;
       }
 
-      const sliceConfig = view2DConfigStore.getSliceConfig(viewID, imageID);
+      const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
       if (!sliceConfig) {
         return;
       }
