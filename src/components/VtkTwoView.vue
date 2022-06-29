@@ -306,7 +306,6 @@ export default defineComponent({
     // --- view proxy setup --- //
 
     onUnmounted(() => {
-      view2DStore.removeView(viewID);
       viewConfigStore.removeViewConfig(viewID);
     });
 
@@ -320,6 +319,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       viewProxy.setContainer(null);
+      view2DStore.removeView(viewID);
     });
 
     // updates slicing mode based on the IJK index
