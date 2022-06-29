@@ -77,7 +77,7 @@ export default defineComponent({
 
         if (sampleFile) {
           const [loadResult] = await datasetStore.loadFiles([sampleFile]);
-          if (loadResult.loaded) {
+          if (loadResult?.loaded) {
             const selection = convertSuccessResultToDataSelection(loadResult);
             datasetStore.setPrimarySelection(selection);
           }

@@ -1,0 +1,41 @@
+diff --git a/node_modules/vue-toastification/src/types/index.ts b/node_modules/vue-toastification/src/types/index.ts
+index 1e27d73..4d9da87 100644
+--- a/node_modules/vue-toastification/src/types/index.ts
++++ b/node_modules/vue-toastification/src/types/index.ts
+@@ -236,16 +236,6 @@ export type ToastOptionsAndRequiredContent = ToastOptions & {
+   content: ToastContent;
+ };
+ 
+-export interface NuxtModuleOptions extends PluginOptions {
+-  /**
+-   * Path to the CSS file containing styles for the toasts.
+-   * By default it is original Vue Toastification CSS file.
+-   *
+-   * If set to false, no CSS file is injected.
+-   */
+-  cssFile?: string | false;
+-}
+-
+ declare module "vue/types/vue" {
+   interface Vue {
+     $toast: ReturnType<typeof ToastInterface>;
+@@ -255,19 +245,3 @@ declare module "vue/types/vue" {
+     $toast: ReturnType<typeof ToastInterface>;
+   }
+ }
+-
+-declare module "@nuxt/types" {
+-  interface NuxtAppOptions {
+-    $toast: ReturnType<typeof ToastInterface>;
+-  }
+-
+-  interface NuxtOptions {
+-    toast?: NuxtModuleOptions;
+-  }
+-}
+-
+-declare module "vuex/types/index" {
+-  interface Store<S> {
+-    $toast: ReturnType<typeof ToastInterface>;
+-  }
+-}

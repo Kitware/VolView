@@ -4,75 +4,69 @@ import Vue from 'vue';
 export enum MessageType {
   Error,
   Warning,
-  Pending,
   Info,
+  Success,
 }
 
-export interface RegularMessage {
-  type: MessageType.Warning | MessageType.Info;
-  contents: string;
+export interface Message {
+  id: string;
+  type: MessageType;
+  title: string;
+  details?: string;
 }
-
-export interface ErrorMessage {
-  type: MessageType.Error;
-  contents: string;
-  error: Error | null;
-}
-
-export interface PendingMessage {
-  type: MessageType.Pending;
-  contents: string;
-  progress: number;
-}
-
-export type Message = RegularMessage | ErrorMessage | PendingMessage;
 
 export type UpdateProgressFunction = (progress: number) => void;
 export type TaskFunction = (updateProgress?: UpdateProgressFunction) => any;
 
+interface State {
+  _nextID: number;
+  byID: Record<string, Message>;
+  msgList: string[];
+}
+
 export const useMessageStore = defineStore('message', {
-  state: () => ({
+  state: (): State => ({
     _nextID: 1,
-    byID: {} as Record<string, Message>,
-    msgList: [] as string[],
+    byID: {},
+    msgList: [],
   }),
   getters: {
     messages(): Array<Message> {
       return this.msgList.map((id: string) => this.byID[id]);
     },
+    // only info, error, warn
+    importantMessages(): Array<Message> {
+      return this.messages.filter((msg) => msg.type !== MessageType.Success);
+    },
   },
   actions: {
-    addError(contents: string, error: Error | null = null) {
+    addError(title: string, error?: Error | string) {
       return this._addMessage({
         type: MessageType.Error,
-        contents,
-        error,
-      } as ErrorMessage);
+        title,
+        details: error ? String(error) : undefined,
+      });
     },
-    addPending(contents: string, progress: number = -1) {
-      return this._addMessage({
-        type: MessageType.Pending,
-        contents,
-        progress,
-      } as PendingMessage);
-    },
-    updatePendingProgress(id: string, progress: number) {
-      const msg = this.byID[id];
-      if (msg?.type === MessageType.Pending) {
-        msg.progress = progress;
-      }
-    },
-    addWarning(contents: string) {
+    addWarning(title: string, details?: string) {
       return this._addMessage({
         type: MessageType.Warning,
-        contents,
-      } as RegularMessage);
+        title,
+        details,
+      });
     },
-    addInfo(contents: string) {
+    addInfo(title: string, details?: string) {
       return this._addMessage({
         type: MessageType.Info,
-        contents,
-      } as RegularMessage);
+        title,
+        details,
+      });
+    },
+    addSuccess(title: string, details?: string) {
+      return this._addMessage({
+        type: MessageType.Success,
+        title,
+        details,
+      });
     },
     clearOne(id: string) {
       if (id in this.byID) {
@@ -85,35 +79,12 @@ export const useMessageStore = defineStore('message', {
       this.byID = {};
       this.msgList = [];
     },
-    async runTaskWithMessage<T extends (...args: any) => any>(
-      contents: string,
-      taskFn: T
-    ): Promise<ReturnType<T>> {
-      const id = this.addPending(contents);
-      const updateProgress = (progress: number) =>
-        this.updatePendingProgress(id, progress);
-      try {
-        const result = await taskFn(updateProgress);
-        this.clearOne(id);
-        return result;
-      } catch (err) {
-        let error: Error | null = null;
-        if (err instanceof Error) {
-          error = err;
-        } else {
-          error = new Error(String(err));
-        }
-        this.byID[id] = {
-          type: MessageType.Error,
-          contents,
-          error,
-        };
-        throw err;
-      }
-    },
-    _addMessage(msg: Message) {
+    _addMessage(msg: Omit<Message, 'id'>) {
       const id = String(this._nextID++);
-      Vue.set(this.byID, id, msg);
+      Vue.set(this.byID, id, {
+        ...msg,
+        id,
+      });
       this.msgList.push(id);
       return id;
     },
