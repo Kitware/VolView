@@ -1,7 +1,7 @@
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { expect } from 'chai';
-import { PaintToolManager } from '../paint';
+import { PaintTool } from '../paint';
 import CirclePaintBrush from '../paint/circle-brush';
 
 describe('Paint Tool', () => {
@@ -41,12 +41,12 @@ describe('Paint Tool', () => {
     });
   });
 
-  describe('PaintToolManager', () => {
+  describe('PaintTool', () => {
     describe('setBrushSize', () => {
       it('should set the widget stamp', () => {
-        const manager = new PaintToolManager();
-        manager.setBrushSize(5);
-        const state = manager.factory.getWidgetState();
+        const tool = new PaintTool();
+        tool.setBrushSize(5);
+        const state = tool.factory.getWidgetState();
         expect(state.getStamp()).to.not.be.null;
       });
     });
@@ -63,13 +63,13 @@ describe('Paint Tool', () => {
         );
 
         const brushValue = 8;
-        const manager = new PaintToolManager();
-        manager.setBrushValue(brushValue);
-        manager.setBrushSize(2);
+        const tool = new PaintTool();
+        tool.setBrushValue(brushValue);
+        tool.setBrushSize(2);
 
-        manager.paintLabelmap(labelmap, 0, [5, 5, 5]);
+        tool.paintLabelmap(labelmap, 0, [5, 5, 5]);
         expect(points.every((value) => !value)).to.be.true;
-        manager.paintLabelmap(labelmap, 0, [2, 2, 2]);
+        tool.paintLabelmap(labelmap, 0, [2, 2, 2]);
         // only checks some of the brush, not the entire brush.
         expect(points[2 + 4 * 2 + 16 * 2]).to.equal(brushValue);
         expect(points[2 + 4 * 3 + 16 * 3]).to.equal(brushValue);
@@ -88,11 +88,11 @@ describe('Paint Tool', () => {
         );
 
         const brushValue = 8;
-        const manager = new PaintToolManager();
-        manager.setBrushValue(brushValue);
-        manager.setBrushSize(1);
+        const tool = new PaintTool();
+        tool.setBrushValue(brushValue);
+        tool.setBrushSize(1);
 
-        manager.paintLabelmap(labelmap, 2, [0, 0, 0], [3, 3, 0]);
+        tool.paintLabelmap(labelmap, 2, [0, 0, 0], [3, 3, 0]);
         for (let i = 0; i <= 3; i++) {
           const offset = i + 4 * i;
           expect(points[offset]).to.equal(brushValue);
@@ -112,7 +112,7 @@ describe('Paint Tool', () => {
         );
 
         const brushValue = 8;
-        const manager = new PaintToolManager();
+        const manager = new PaintTool();
         manager.setBrushValue(brushValue);
         manager.setBrushSize(3);
 

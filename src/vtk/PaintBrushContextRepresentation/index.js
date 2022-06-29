@@ -9,7 +9,7 @@ import { Coordinate } from '@kitware/vtk.js/Rendering/Core/Coordinate/Constants'
 import { Representation } from '@kitware/vtk.js/Rendering/Core/Property/Constants';
 import { DisplayLocation } from '@kitware/vtk.js/Rendering/Core/Property2D/Constants';
 import { vec3 } from 'gl-matrix';
-import { rescaleStamp } from '@/src/core/tools/paint/manager';
+import { rescaleStamp } from '@/src/core/tools/paint';
 
 function generateContour({
   stamp: initialStamp,

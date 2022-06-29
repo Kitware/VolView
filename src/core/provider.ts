@@ -1,12 +1,12 @@
 import IDManager from './id';
 import ProxyManager from './proxies';
-import PaintToolManager from './tools/paint/manager';
+import { PaintTool } from './tools/paint';
 import RulerToolManager from './tools/ruler';
 
 export function provideToolManagers() {
   return {
     ruler: new RulerToolManager(),
-    paint: new PaintToolManager(),
+    paint: new PaintTool(),
   };
 }
 
