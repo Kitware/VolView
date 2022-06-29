@@ -167,7 +167,7 @@ export default defineComponent({
       viewProxyRef.value!.getInteractor().onMouseLeave(() => {
         const widget = widgetRef.value;
         if (widget) {
-          widget.setVisibility(true);
+          widget.setVisibility(false);
         }
       })
     );
