@@ -1,3 +1,7 @@
+import HeadMRAThumbnail from '@/src/assets/samples/head-mra.jpg';
+import LiverCTThumbnail from '@/src/assets/samples/liver-ct.jpg';
+import AbdomenMRIThumbnail from '@/src/assets/samples/abdomen-mri.jpg';
+
 export const NO_PROXY = -1;
 export const NO_SELECTION = -1;
 export const NO_WIDGET = -1;
@@ -39,23 +43,23 @@ export const SAMPLE_DATA = [
   {
     name: 'HEAD-MRA',
     filename: 'HEAD-MRA.mha',
-    description: '',
+    description: 'A head scanned using magnetic resonance angiography (MRA).',
     url: 'https://data.kitware.com/api/v1/item/620db46f4acac99f42e753f9/download',
-    image: '',
+    image: HeadMRAThumbnail,
   },
   {
     name: 'LIVER-CT',
     filename: 'LIVER-CT.mha',
-    description: '',
+    description: 'A computerized tomography (CT) scan of a liver.',
     url: 'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
-    image: '',
+    image: LiverCTThumbnail,
   },
   {
     name: 'ABDOMEN-MRI',
     filename: 'ABDOMEN-MRI.zip',
-    description: '',
+    description: 'A DICOM dataset of an abdomen MRI scan.',
     url: 'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
-    image: '',
+    image: AbdomenMRIThumbnail,
   },
 ];
 
