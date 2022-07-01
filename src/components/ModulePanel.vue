@@ -1,5 +1,5 @@
 <template>
-  <div class="height-100 d-flex flex-column">
+  <div class="fill-height d-flex flex-column">
     <div id="module-switcher" class="mt-1 mb-2">
       <v-tabs
         id="module-switcher-tabs"

@@ -28,7 +28,7 @@
           <module-panel />
         </resizable-nav-drawer>
         <v-main id="content-wrapper">
-          <div class="height-100 d-flex flex-row flex-grow-1 grey darken-3">
+          <div class="fill-height d-flex flex-row flex-grow-1 grey darken-3">
             <div
               id="tools-strip"
               class="grey darken-4 d-flex flex-column align-center"
@@ -124,7 +124,7 @@
         <v-dialog
           v-model="messageDialog"
           width="75%"
-          content-class="height-100"
+          content-class="fill-height"
         >
           <message-center @close="messageDialog = false" />
         </v-dialog>

@@ -1,5 +1,5 @@
 <template>
-  <div id="ai-module" class="mx-2 height-100">
+  <div id="ai-module" class="mx-2 fill-height">
     <div id="submodule-select">
       <v-select
         v-model="currentSubModule"
