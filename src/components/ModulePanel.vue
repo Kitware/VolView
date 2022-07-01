@@ -16,8 +16,8 @@
       </v-tabs>
     </div>
     <div id="module-container">
-      <v-tabs-items v-model="selectedModuleIndex">
-        <v-tab-item v-for="mod in Modules" :key="mod.name">
+      <v-tabs-items v-model="selectedModuleIndex" class="fill-height">
+        <v-tab-item v-for="mod in Modules" :key="mod.name" class="fill-height">
           <component
             :key="mod.name"
             v-show="Modules[selectedModuleIndex] === mod"
