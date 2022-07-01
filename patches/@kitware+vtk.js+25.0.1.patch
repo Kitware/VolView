@@ -1,0 +1,37 @@
+diff --git a/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts b/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
+index df11d61..b6b1469 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
++++ b/node_modules/@kitware/vtk.js/Rendering/Core/VolumeProperty.d.ts
+@@ -255,7 +255,7 @@ export interface vtkVolumeProperty extends vtkObject {
+ 	 * @param {Boolean} index 
+ 	 * @param {Number} value
+ 	 */
+-	setUseGradientOpacity(index: boolean, value: number): boolean;
++	setUseGradientOpacity(index: number, value: boolean): boolean;
+ 
+ 	/**
+ 	 *
+diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
+index f990caa..5262698 100644
+--- a/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
++++ b/node_modules/@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory.js
+@@ -189,17 +189,16 @@ function vtkAbstractWidgetFactory(publicAPI, model) {
+     return unsubscribe();
+   }); // Defer after object instantiation so model.widgetState actually exist
+ 
+-  setTimeout(function () {
+     if (model.widgetState) {
+       unsubscribe = model.widgetState.onModified(function () {
+         return publicAPI.invokeWidgetChange(model.widgetState);
+       }).unsubscribe;
+     }
+-  }, 0);
+ } // ----------------------------------------------------------------------------
+ 
+ 
+-function extend(publicAPI, model) {
++function extend(publicAPI, model, initialValues = {}) {
++  Object.assign(model, initialValues);
+   macro.obj(publicAPI, model);
+   macro.get(publicAPI, model, ['widgetState']);
+   macro.event(publicAPI, model, 'WidgetChange');
