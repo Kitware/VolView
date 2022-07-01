@@ -33,12 +33,18 @@
 import { defineComponent, ref } from '@vue/composition-api';
 
 import PatientBrowser from './PatientBrowser.vue';
+import DataBrowser from './DataBrowser.vue';
 import VolumeRendering from './VolumeRendering.vue';
 import SampleData from './SampleData.vue';
 import Settings from './Settings.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 
 export const Modules = [
+  {
+    name: 'Data',
+    icon: 'database',
+    component: DataBrowser,
+  },
   {
     name: 'Sample\nData',
     icon: 'database',
