@@ -35,8 +35,6 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
 
-    const selected = ref<string[]>([]);
-
     const primarySelection = computed(() => dataStore.primarySelection);
 
     const nonDICOMImages = computed(() =>
@@ -94,8 +92,38 @@ export default defineComponent({
       { immediate: true, deep: true }
     );
 
+    // --- selection --- //
+
+    const selected = ref<string[]>([]);
+    const selectedAll = ref(false);
+    const selectedSome = computed(() => selected.value.length > 0);
+
+    watch(selected, () => {
+      selectedAll.value =
+        selected.value.length > 0 &&
+        selected.value.length === images.value.length;
+    });
+
+    watch(selectedAll, (yn) => {
+      if (yn) {
+        selected.value = images.value.map((image) => image.id);
+      } else {
+        selected.value = [];
+      }
+    });
+
+    function removeSelection() {
+      selected.value.forEach((id) => {
+        imageStore.deleteData(id);
+      });
+      selected.value = [];
+    }
+
     return {
       selected,
+      selectedAll,
+      selectedSome,
+      removeSelection,
       images,
       thumbnails,
       primarySelection,
@@ -110,12 +138,43 @@ export default defineComponent({
 
 <template>
   <div>
+    <div v-if="images.length === 0" class="text-center">No images loaded</div>
+    <v-container v-show="images.length" class="pa-0">
+      <v-row no-gutters justify="space-between">
+        <v-col cols="6" id="left-controls" align-self="center">
+          <v-row no-gutters justify="start">
+            <v-checkbox
+              class="ml-3 align-center justify-center"
+              :indeterminate="selectedSome && !selectedAll"
+              v-model="selectedAll"
+            ></v-checkbox>
+          </v-row>
+        </v-col>
+        <v-col cols="6" id="right-controls" align-self="center">
+          <v-row no-gutters justify="end">
+            <v-tooltip left>
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  :disabled="!selectedSome"
+                  @click.stop="removeSelection"
+                  v-bind="attrs"
+                  v-on="on"
+                >
+                  <v-icon>mdi-delete</v-icon>
+                </v-btn>
+              </template>
+              Delete selected
+            </v-tooltip>
+          </v-row>
+        </v-col>
+      </v-row>
+    </v-container>
     <item-group
       :value="primarySelection"
       :testFunction="selectionEquals"
       @change="setPrimarySelection"
     >
-      <div v-if="images.length === 0" class="text-center">No images loaded</div>
       <groupable-item
         v-for="image in images"
         :key="image.id"
