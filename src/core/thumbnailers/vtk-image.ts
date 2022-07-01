@@ -96,6 +96,14 @@ function generateThumbnail(
 
 export function createVTKImageThumbnailer() {
   const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const resizeCanvas = document.createElement('canvas');
+  const resizeContext = resizeCanvas.getContext('2d');
+
+  if (!ctx || !resizeContext) {
+    throw new Error('[thumbnailer] Failed to create a 2D context');
+  }
   return {
     generate(
       imageData: vtkImageData,
@@ -104,15 +112,31 @@ export function createVTKImageThumbnailer() {
     ) {
       return generateThumbnail(imageData, axis, whichSlice);
     },
-    imageDataToDataURI(im: ImageData) {
+    imageDataToDataURI(
+      im: ImageData,
+      resizeWidth: number,
+      resizeHeight: number
+    ) {
       canvas.width = im.width;
       canvas.height = im.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.putImageData(im, 0, 0);
-        return canvas.toDataURL('image/png');
+      ctx.putImageData(im, 0, 0);
+
+      let { width, height } = im;
+      if (im.width > im.height) {
+        width = resizeWidth;
+        height *= resizeWidth / im.width;
+      } else {
+        height = resizeHeight;
+        width *= resizeHeight / im.height;
       }
-      return '';
+
+      resizeCanvas.width = width;
+      resizeCanvas.height = height;
+      resizeContext.clearRect(0, 0, width, height);
+      resizeContext.scale(width / im.width, height / im.height);
+      resizeContext.drawImage(canvas, 0, 0);
+      // jpegs are smaller than pngs
+      return resizeCanvas.toDataURL('image/jpeg');
     },
   };
 }

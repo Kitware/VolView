@@ -76,7 +76,7 @@ export default defineComponent({
           if (!(cacheKey in thumbnails)) {
             const imageData = imageStore.dataIndex[id];
             const canvasIM = thumbnailer.generate(imageData);
-            const imageURI = thumbnailer.imageDataToDataURI(canvasIM);
+            const imageURI = thumbnailer.imageDataToDataURI(canvasIM, 100, 100);
             const dims = imageData.getDimensions();
             const aspectRatio = dims[0] / dims[1];
             set(thumbnails, cacheKey, { imageURI, aspectRatio });
