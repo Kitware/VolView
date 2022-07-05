@@ -1,5 +1,14 @@
 <script lang="ts">
-import { computed, defineComponent, ref, toRefs } from '@vue/composition-api';
+import {
+  computed,
+  defineComponent,
+  del,
+  reactive,
+  set,
+  toRefs,
+  watch,
+} from '@vue/composition-api';
+import Image from 'itk/Image';
 import type { PropType } from '@vue/composition-api';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -10,8 +19,55 @@ import {
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 
+const canvas = document.createElement('canvas');
+
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
+}
+
+// Assume itkImage type is Uint8Array
+function itkImageToURI(itkImage: Image) {
+  const [width, height] = itkImage.size;
+  const im = new ImageData(width, height);
+  const arr32 = new Uint32Array(im.data.buffer);
+  const itkBuf = itkImage.data;
+  if (!itkBuf) {
+    return '';
+  }
+
+  for (let i = 0; i < itkBuf.length; i += 1) {
+    const byte = itkBuf[i];
+    // ABGR order
+    // eslint-disable-next-line no-bitwise
+    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.putImageData(im, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+  return '';
+}
+
+async function generateDICOMThumbnail(
+  dicomStore: ReturnType<typeof useDICOMStore>,
+  volumeKey: string
+) {
+  if (volumeKey in dicomStore.volumeInfo) {
+    const info = dicomStore.volumeInfo[volumeKey];
+    const middleSlice = Math.round(Number(info.NumberOfSlices));
+    const thumb = (await dicomStore.getVolumeSlice(
+      volumeKey,
+      middleSlice,
+      true
+    )) as Image;
+
+    return thumb;
+  }
+  return null;
 }
 
 export default defineComponent({
@@ -47,39 +103,34 @@ export default defineComponent({
 
     // --- thumbnails --- //
 
-    const thumbnailCacheRef = ref<Record<string, string>>({});
+    const thumbnailCache = reactive<Record<string, string>>({});
 
-    /*
     watch(
-      studiesAndVolumesRef,
-      () => {
-        const thumbnailCache = thumbnailCacheRef.value;
-        const studiesAndVolumes = studiesAndVolumesRef.value;
+      volumeKeys,
+      (keys) => {
+        keys.forEach(async (key) => {
+          const cacheKey = dicomCacheKey(key);
+          if (cacheKey in thumbnailCache) {
+            return;
+          }
 
-        studiesAndVolumes.forEach(({ volumes }) => {
-          volumes.forEach(async (volumeInfo) => {
-            const cacheKey = dicomCacheKey(volumeInfo.info.VolumeID);
-            if (!(cacheKey in thumbnailCache)) {
-              const thumb = await generateDICOMThumbnail(
-                dicomStore,
-                volumeInfo.info.VolumeID
-              );
-
-              if (thumb !== null) {
-                const encodedImage = itkImageToURI(thumb);
-                const aspectRatio = thumb.size[0] / thumb.size[1];
-
-                set(thumbnailCache, cacheKey, { encodedImage, aspectRatio });
-              }
-            }
-          });
+          const thumb = await generateDICOMThumbnail(dicomStore, key);
+          if (thumb !== null) {
+            const encodedImage = itkImageToURI(thumb);
+            set(thumbnailCache, cacheKey, encodedImage);
+          }
         });
 
-        // TODO deletion
+        // deletion case
+        const lookup = new Set(keys.map((key) => dicomCacheKey(key)));
+        Object.keys(thumbnailCache).forEach((key) => {
+          if (!lookup.has(key)) {
+            del(thumbnailCache, key);
+          }
+        });
       },
       { immediate: true, deep: true }
     );
-    */
 
     // --- selection --- //
 
@@ -120,7 +171,7 @@ export default defineComponent({
       selected,
       selectedAll,
       selectedSome,
-      thumbnailCache: thumbnailCacheRef,
+      thumbnailCache,
       volumes,
       removeSelectedDICOMVolumes,
       selectionEquals,
@@ -181,7 +232,12 @@ export default defineComponent({
             >
               <v-row no-gutters class="pa-0" justify="center">
                 <div>
-                  <v-img contain height="100px" width="100px" :src="''">
+                  <v-img
+                    contain
+                    height="100px"
+                    width="100px"
+                    :src="(thumbnailCache || {})[volume.cacheKey] || ''"
+                  >
                     <v-overlay
                       absolute
                       class="thumbnail-overlay"
