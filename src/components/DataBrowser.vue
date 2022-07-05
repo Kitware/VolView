@@ -2,6 +2,7 @@
 import { computed, defineComponent, ref } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
+import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 
 type Collection =
@@ -45,6 +46,7 @@ export default defineComponent({
   components: {
     SampleDataBrowser,
     ImageDataBrowser,
+    PatientBrowser,
   },
   setup() {
     const dicomStore = useDICOMStore();
@@ -143,7 +145,9 @@ export default defineComponent({
             <v-expansion-panel-header>
               <div class="patient-header">
                 <v-icon class="collection-header-icon">mdi-account</v-icon>
-                <span>{{ patient.name }}</span>
+                <span class="patient-header-name" :title="patient.name">
+                  {{ patient.name }}
+                </span>
                 <v-spacer />
                 <v-btn icon small class="mr-3" @click.stop>
                   <v-icon small>mdi-dots-vertical</v-icon>
@@ -151,7 +155,7 @@ export default defineComponent({
               </div>
             </v-expansion-panel-header>
             <v-expansion-panel-content>
-              <!--patient-data-browser :patient-key="patient.key" /-->
+              <patient-browser :patient-key="patient.key" />
             </v-expansion-panel-content>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -163,7 +167,7 @@ export default defineComponent({
         <image-data-browser />
       </template>
       <template v-else>
-        <!--patient-data-browser :patient-key="selectedCollection" /-->
+        <patient-browser :patient-key="selectedCollection" />
       </template>
     </div>
   </div>
@@ -194,5 +198,13 @@ export default defineComponent({
   display: flex;
   flex-flow: row;
   align-items: center;
+  /* 24px accomodates the open/close icon indicator */
+  max-width: calc(100% - 24px);
+}
+
+.patient-header-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
