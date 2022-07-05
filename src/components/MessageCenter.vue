@@ -94,7 +94,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-card class="height-100 message-center">
+  <v-card class="fill-height message-center">
     <v-card-title>
       <span>Notifications</span>
       <v-spacer />

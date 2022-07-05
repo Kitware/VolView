@@ -15,12 +15,23 @@ export default defineComponent({
 <template>
   <v-container>
     <v-list dense>
-      <v-subheader>Measurements</v-subheader>
+      <v-subheader class="annot-subheader">Measurements</v-subheader>
       <measurements-list />
-      <v-subheader>Labelmaps</v-subheader>
+      <v-subheader class="annot-subheader">Labelmaps</v-subheader>
       <labelmap-list />
     </v-list>
   </v-container>
 </template>
 
-<style scoped></style>
+<style scoped>
+.annot-subheader {
+  margin: 8px 0;
+}
+.theme--dark.annot-subheader {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.theme--light.annot-subheader {
+  background: rgba(0, 0, 0, 0.08);
+}
+</style>

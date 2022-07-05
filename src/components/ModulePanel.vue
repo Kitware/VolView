@@ -1,5 +1,5 @@
 <template>
-  <div class="height-100 d-flex flex-column">
+  <div class="fill-height d-flex flex-column">
     <div id="module-switcher" class="mt-1 mb-2">
       <v-tabs
         id="module-switcher-tabs"
@@ -16,8 +16,8 @@
       </v-tabs>
     </div>
     <div id="module-container">
-      <v-tabs-items v-model="selectedModuleIndex">
-        <v-tab-item v-for="mod in Modules" :key="mod.name">
+      <v-tabs-items v-model="selectedModuleIndex" class="fill-height">
+        <v-tab-item v-for="mod in Modules" :key="mod.name" class="fill-height">
           <component
             :key="mod.name"
             v-show="Modules[selectedModuleIndex] === mod"

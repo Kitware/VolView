@@ -1,5 +1,5 @@
 <template>
-  <div id="volume-rendering-module" class="mx-2 height-100">
+  <div id="volume-rendering-module" class="mx-2 fill-height">
     <template v-if="hasPrimaryDataset">
       <div id="volume-transfer-func-editor" ref="editorContainerRef">
         <div ref="pwfEditorRef" />
