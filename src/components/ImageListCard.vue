@@ -32,9 +32,9 @@
               :width="`${imageSize}px`"
               :src="imageUrl"
             />
-            <div v-if="$slots['image-overlay']" class="image-overlay">
+            <v-overlay absolute :value="$slots['image-overlay']">
               <slot name="image-overlay" />
-            </div>
+            </v-overlay>
           </v-col>
           <v-col :cols="7">
             <div class="ml-2">
@@ -73,14 +73,6 @@
 .image-container {
   position: relative;
   margin-right: 20px;
-}
-
-.image-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
 }
 </style>
 

@@ -138,14 +138,17 @@ export default defineComponent({
       <template v-slot:image-overlay v-if="sample.isDownloading">
         <v-row class="fill-height ma-0" align="center" justify="center">
           <v-progress-circular
+            color="white"
             :indeterminate="sample.indeterminate && !sample.isDone"
             :value="sample.progress"
           >
-            <v-icon v-if="sample.isDone">mdi-check</v-icon>
-            <v-icon v-else-if="sample.isError">mdi-alert-circle</v-icon>
-            <span v-else-if="!sample.indeterminate" class="caption">{{
-              sample.progress
-            }}</span>
+            <v-icon v-if="sample.isDone" small color="white">mdi-check</v-icon>
+            <v-icon v-else-if="sample.isError" small color="white">
+              mdi-alert-circle
+            </v-icon>
+            <span v-else-if="!sample.indeterminate" class="caption text--white">
+              {{ sample.progress }}
+            </span>
           </v-progress-circular>
         </v-row>
       </template>
