@@ -930,3 +930,8 @@ declare module '@kitware/vtk.js/Widgets/Core/StateBuilder' {
     createBuilder: typeof createBuilder;
   };
 }
+
+declare module '@kitware/vtk.js/Common/DataModel/BoundingBox' {
+  import { Bounds } from '@kitware/vtk.js/types';
+  export function inflate(bounds: Bounds, delta: number);
+}

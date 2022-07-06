@@ -29,6 +29,7 @@ import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
 import { Tools, useToolStore } from '@/src/store/tools';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { clampValue } from '@/src/utils';
 import CrosshairsWidget2D from './crosshairs/CrosshairsWidget2D.vue';
 import CrosshairSVG2D from './crosshairs/CrosshairSVG2D.vue';
 
@@ -60,14 +61,22 @@ export default defineComponent({
     const { viewDirection, slice } = toRefs(props);
 
     const toolStore = useToolStore();
-    const { position } = storeToRefs(useCrosshairsToolStore());
+    const { position, imagePosition } = storeToRefs(useCrosshairsToolStore());
 
     const { currentImageMetadata } = useCurrentImage();
     const active = computed(() => toolStore.currentTool === Tools.Crosshairs);
     const isVisible = computed(() => {
+      const { lpsOrientation, dimensions } = currentImageMetadata.value;
       const axis = getLPSAxisFromDir(viewDirection.value);
-      const index = currentImageMetadata.value.lpsOrientation[axis];
-      return Math.round(position.value[index]) === slice.value;
+      const index = lpsOrientation[axis];
+      // Since the image rectangle is inflated by 0.5,
+      // clamp to the allowed range for the slice.
+      const crosshairsSlice = clampValue(
+        imagePosition.value[index],
+        0,
+        dimensions[index] - 1
+      );
+      return Math.round(crosshairsSlice) === slice.value;
     });
 
     return {
