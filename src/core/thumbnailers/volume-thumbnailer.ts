@@ -42,6 +42,7 @@ export function createVolumeThumbnailer(size: number) {
 
   const scene = vtkGenericRenderWindow.newInstance({
     listenWindowResize: false,
+    background: [0.2, 0.3, 0.4],
   });
   scene.setContainer(container);
 

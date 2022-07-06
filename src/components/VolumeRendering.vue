@@ -15,7 +15,6 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import AvatarListCard from '@/src/components/AvatarListCard.vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
@@ -72,7 +71,6 @@ export default defineComponent({
   components: {
     ItemGroup,
     GroupableItem,
-    AvatarListCard,
   },
   setup() {
     const view3DStore = useView3DStore();
@@ -360,36 +358,66 @@ export default defineComponent({
 </script>
 
 <template>
-  <div id="volume-rendering-module" class="mx-2 fill-height">
+  <div class="overflow-y-auto mx-2 fill-height">
     <template v-if="hasPrimaryDataset">
-      <div id="volume-transfer-func-editor" ref="editorContainerRef">
+      <div class="mt-4" ref="editorContainerRef">
         <div ref="pwfEditorRef" />
       </div>
-      <div id="preset-list">
-        <item-group :value="colorTransferFunctionName" @change="selectPreset">
+      <item-group
+        class="container"
+        :value="colorTransferFunctionName"
+        @change="selectPreset"
+      >
+        <v-row no-gutters justify="center">
           <groupable-item
             v-for="preset in presetList"
             :key="preset.name"
             v-slot="{ active, select }"
             :value="preset.name"
           >
-            <avatar-list-card
-              :active="active"
-              :image-size="size"
-              :image-url="thumbnailCache[preset.thumbnailKey] || ''"
-              :title="preset.name"
+            <v-col
+              cols="4"
+              :class="{
+                'thumbnail-container': true,
+                blue: active,
+              }"
               @click="select"
             >
-              <div class="text-truncate">
-                {{ preset.name }}
-              </div>
-            </avatar-list-card>
+              <v-img
+                :src="thumbnailCache[preset.thumbnailKey] || ''"
+                contain
+                aspect-ratio="1"
+              >
+                <v-overlay
+                  absolute
+                  :value="true"
+                  opacity="0.3"
+                  class="thumbnail-overlay"
+                >
+                  {{ preset.name.replace(/-/g, ' ') }}
+                </v-overlay>
+              </v-img>
+            </v-col>
           </groupable-item>
-        </item-group>
-      </div>
+        </v-row>
+      </item-group>
     </template>
     <template v-else>
-      <div>No image selected</div>
+      <div class="text-center pt-12 text-subtitle-1">No image selected</div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.thumbnail-container {
+  cursor: pointer;
+  padding: 6px !important;
+}
+
+.thumbnail-overlay {
+  top: 70%;
+  height: 30%;
+  font-size: 0.75em;
+  text-align: center;
+}
+</style>
