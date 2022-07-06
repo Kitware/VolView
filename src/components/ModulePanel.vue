@@ -32,10 +32,8 @@
 <script lang="ts">
 import { defineComponent, ref } from '@vue/composition-api';
 
-import PatientBrowser from './PatientBrowser.vue';
 import DataBrowser from './DataBrowser.vue';
 import VolumeRendering from './VolumeRendering.vue';
-import SampleData from './SampleData.vue';
 import Settings from './Settings.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 
@@ -46,16 +44,6 @@ export const Modules = [
     component: DataBrowser,
   },
   {
-    name: 'Sample\nData',
-    icon: 'database',
-    component: SampleData,
-  },
-  {
-    name: 'Patients &\nImages',
-    icon: 'account',
-    component: PatientBrowser,
-  },
-  {
     name: 'Annotations',
     icon: 'pencil',
     component: AnnotationsModule,
@@ -64,11 +52,6 @@ export const Modules = [
     name: 'Volume\nRendering',
     icon: 'cube',
     component: VolumeRendering,
-  },
-  {
-    name: 'Measurements',
-    icon: 'pencil-ruler',
-    component: null,
   },
   {
     name: 'AI',
