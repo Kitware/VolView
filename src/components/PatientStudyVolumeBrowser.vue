@@ -227,6 +227,8 @@ export default defineComponent({
                 'volume-card': true,
                 'volume-card-active': active,
               }"
+              min-height="180px"
+              min-width="180px"
               :title="volume.info.SeriesDescription"
               @click="select"
             >
@@ -234,14 +236,14 @@ export default defineComponent({
                 <div>
                   <v-img
                     contain
-                    height="100px"
-                    width="100px"
+                    max-height="150px"
+                    max-width="150px"
                     :src="(thumbnailCache || {})[volume.cacheKey] || ''"
                   >
                     <v-overlay
                       absolute
                       class="thumbnail-overlay"
-                      value="true"
+                      :value="true"
                       opacity="0"
                     >
                       <div class="d-flex flex-column fill-height">
@@ -254,9 +256,9 @@ export default defineComponent({
                             dense
                           />
                         </v-row>
-                        <div class="flex-grow-1" />
+                        <v-spacer />
                         <v-row no-gutters justify="start" align="end">
-                          <div class="mb-2 ml-2">
+                          <div class="mb-1 ml-1 text-caption">
                             [{{ volume.info.NumberOfSlices }}]
                           </div>
                         </v-row>
@@ -283,7 +285,7 @@ export default defineComponent({
 <style scoped>
 .volume-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   grid-auto-rows: 200px;
   justify-content: center;
 }
