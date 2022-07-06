@@ -2,7 +2,9 @@
 import {
   computed,
   defineComponent,
+  del,
   onBeforeUnmount,
+  reactive,
   ref,
   set,
   watch,
@@ -26,13 +28,10 @@ import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { LPSAxisDir } from '../utils/lps';
+import { useImageStore } from '../store/datasets-images';
 
 const WIDGET_HEIGHT = 150;
 const THUMBNAIL_SIZE = 80;
-
-function makeCacheKey(presetName: string, imageID: string) {
-  return `cache-${presetName}-${imageID}`;
-}
 
 function resetOpacityFunction(
   pwfProxy: vtkPiecewiseFunctionProxy,
@@ -75,6 +74,7 @@ export default defineComponent({
   setup() {
     const view3DStore = useView3DStore();
     const dataStore = useDatasetStore();
+    const imageStore = useImageStore();
     const proxyManager = useProxyManager();
     const mapOpacityRangeToLutRangeRef = ref(false);
     const editorContainerRef = ref<HTMLElement | null>(null);
@@ -240,7 +240,7 @@ export default defineComponent({
 
     // -- thumbnailing -- //
 
-    const thumbnailCacheRef = ref<Record<string, string>>({});
+    const thumbnails = reactive<Record<string, Record<string, string>>>({});
     const thumbnailer = createVolumeThumbnailer(THUMBNAIL_SIZE);
     const { currentImageMetadata } = useCurrentImage();
 
@@ -275,11 +275,11 @@ export default defineComponent({
           return;
         }
 
-        const thumbnailCache = thumbnailCacheRef.value;
-        const cacheKey = makeCacheKey(presetName, imageID);
-        // don't thumbnail something that has been thumbnailed
-        // FIXME (?) doesn't account for if the dataset changes
-        if (cacheKey in thumbnailCache) {
+        if (!(imageID in thumbnails)) {
+          set(thumbnails, imageID, {});
+        }
+
+        if (presetName in thumbnails[imageID]) {
           return;
         }
 
@@ -302,7 +302,7 @@ export default defineComponent({
         renWin.render();
         const imageURL = await renWin.captureImages()[0];
         if (imageURL) {
-          set(thumbnailCache, cacheKey, imageURL);
+          set(thumbnails[imageID], presetName, imageURL);
         }
       }
 
@@ -311,6 +311,20 @@ export default defineComponent({
         Promise.resolve()
       );
     }
+
+    const currentThumbnails = ref<Record<string, string>>({});
+
+    // workaround for computed not properly working on deeply reactive objects
+    // in vue 2.
+    watch(
+      thumbnails,
+      () => {
+        if (currentImageID.value) {
+          currentThumbnails.value = thumbnails[currentImageID.value];
+        }
+      },
+      { deep: true }
+    );
 
     // force thumbnailing to stop
     onBeforeUnmount(() => {
@@ -332,22 +346,23 @@ export default defineComponent({
       { immediate: true }
     );
 
-    const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
-    const presetList = computed(() => {
-      const id = currentImageID.value || '';
-      return PresetNameList.map((name) => ({
-        name,
-        thumbnailKey: makeCacheKey(name, id),
-      }));
+    // delete thumbnails if an image is deleted
+    imageStore.$onAction(({ name, args, after }) => {
+      const [id] = args;
+      if (name === 'deleteData' && id in thumbnails) {
+        after(() => del(thumbnails, id));
+      }
     });
+
+    const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
 
     return {
       editorContainerRef,
       pwfEditorRef,
-      thumbnailCache: thumbnailCacheRef,
+      thumbnails: currentThumbnails,
       hasPrimaryDataset,
       colorTransferFunctionName: colorTransferFunctionRef,
-      presetList,
+      presetList: PresetNameList,
       selectPreset: (name: string) => {
         view3DStore.setColorTransferFunction(name);
       },
@@ -371,9 +386,9 @@ export default defineComponent({
         <v-row no-gutters justify="center">
           <groupable-item
             v-for="preset in presetList"
-            :key="preset.name"
+            :key="preset"
             v-slot="{ active, select }"
-            :value="preset.name"
+            :value="preset"
           >
             <v-col
               cols="4"
@@ -383,18 +398,14 @@ export default defineComponent({
               }"
               @click="select"
             >
-              <v-img
-                :src="thumbnailCache[preset.thumbnailKey] || ''"
-                contain
-                aspect-ratio="1"
-              >
+              <v-img :src="thumbnails[preset] || ''" contain aspect-ratio="1">
                 <v-overlay
                   absolute
                   :value="true"
                   opacity="0.3"
                   class="thumbnail-overlay"
                 >
-                  {{ preset.name.replace(/-/g, ' ') }}
+                  {{ preset.replace(/-/g, ' ') }}
                 </v-overlay>
               </v-img>
             </v-col>
