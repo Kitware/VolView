@@ -272,7 +272,7 @@ export default defineComponent({
           onOpacityChange();
         }
       },
-      { deep: true }
+      { immediate: true, deep: true }
     );
 
     // -- thumbnailing -- //
@@ -355,15 +355,19 @@ export default defineComponent({
     });
 
     // trigger thumbnailing
-    watch(currentImageID, (imageID) => {
-      if (imageID) {
-        // set the thumbnailer's camera
-        // set ofun via pwfWidget, since it should have been
-        // reset prior to this code
-        // trigger thumbnailing
-        doThumbnailing(imageID, primaryDatasetRef.value!);
-      }
-    });
+    watch(
+      currentImageID,
+      (imageID) => {
+        if (imageID) {
+          // set the thumbnailer's camera
+          // set ofun via pwfWidget, since it should have been
+          // reset prior to this code
+          // trigger thumbnailing
+          doThumbnailing(imageID, primaryDatasetRef.value!);
+        }
+      },
+      { immediate: true }
+    );
 
     const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
     const presetList = computed(() => {
