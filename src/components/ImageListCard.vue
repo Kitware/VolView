@@ -1,6 +1,7 @@
 <template>
   <v-hover v-slot="{ hover }">
     <v-card
+      :disabled="disabled"
       outlined
       ripple
       :class="{
@@ -22,8 +23,8 @@
           </v-col>
           <v-col
             cols="4"
-            class="flex-grow-0"
-            :style="{ width: `${imageSize}px` }"
+            class="image-container flex-grow-0"
+            :style="{ maxWidth: `${imageSize}px` }"
           >
             <v-img
               contain
@@ -31,6 +32,9 @@
               :width="`${imageSize}px`"
               :src="imageUrl"
             />
+            <div v-if="$slots['image-overlay']" class="image-overlay">
+              <slot name="image-overlay" />
+            </div>
           </v-col>
           <v-col :cols="7">
             <div class="ml-2">
@@ -65,6 +69,19 @@
   background-color: #01579b;
   border-color: #01579b;
 }
+
+.image-container {
+  position: relative;
+  margin-right: 20px;
+}
+
+.image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
 </style>
 
 <script lang="ts">
@@ -88,11 +105,12 @@ export default defineComponent({
     id: String,
     value: Array,
     inputValue: String,
+    disabled: Boolean,
   },
 
-  setup(props, context) {
+  setup(props, { emit }) {
     const onChange = (event: any) => {
-      context.emit('input', event);
+      emit('input', event);
     };
 
     return {

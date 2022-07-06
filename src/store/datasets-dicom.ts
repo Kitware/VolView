@@ -288,7 +288,10 @@ export const useDICOMStore = defineStore('dicom', {
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
 
       const cacheKey = imageCacheMultiKey(sliceIndex, asThumbnail);
-      if (cacheKey in this.sliceData?.[volumeKey]) {
+      if (
+        volumeKey in this.sliceData &&
+        cacheKey in this.sliceData[volumeKey]
+      ) {
         return this.sliceData[volumeKey][cacheKey];
       }
 

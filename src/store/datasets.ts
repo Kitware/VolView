@@ -2,7 +2,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import { defineStore } from 'pinia';
-
+import { computed, ref } from '@vue/composition-api';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
@@ -102,127 +102,159 @@ export function convertSuccessResultToDataSelection(
   throw new Error('Did not receive a valid LoadResult');
 }
 
-interface State {
-  primarySelection: DataSelection | null;
-}
+export const useDatasetStore = defineStore('dataset', () => {
+  type _This = ReturnType<typeof useDatasetStore>;
 
-export const useDatasetStore = defineStore('dataset', {
-  state: (): State => ({
-    primarySelection: null,
-  }),
-  getters: {
-    primaryDataset(state): vtkImageData | null {
-      const imageStore = useImageStore();
-      const dicomStore = useDICOMStore();
-      const sel = state.primarySelection;
-      const { dataIndex } = imageStore;
-      const { volumeToImageID } = dicomStore;
+  const imageStore = useImageStore();
+  const modelStore = useModelStore();
+  const dicomStore = useDICOMStore();
 
-      if (sel?.type === 'dicom') {
-        const id = volumeToImageID[sel.volumeKey];
-        return dataIndex[id] || null;
-      }
-      if (sel?.type === 'image') {
-        return dataIndex[sel.dataID] || null;
-      }
-      return null;
-    },
-    allDataIDs(): string[] {
-      const imageStore = useImageStore();
-      const modelStore = useModelStore();
-      return [...imageStore.idList, ...modelStore.idList];
-    },
-    getDataProxyByID() {
-      return <T extends vtkObject>(id: string) => {
-        return this.$proxies.getData<T>(id);
-      };
-    },
-  },
-  actions: {
-    async setPrimarySelection(sel: DataSelection | null) {
-      this.primarySelection = sel;
+  // --- state --- //
 
-      if (sel === null) {
-        return;
-      }
+  const primarySelection = ref<DataSelection | null>(null);
 
-      let imageID: string = '';
+  // --- getters --- //
 
-      // if selection is dicom, call buildVolume
-      if (sel.type === 'image') {
-        imageID = sel.dataID;
-      } else if (sel.type === 'dicom') {
-        // trigger dicom dataset building
-        const dicomStore = useDICOMStore();
-        await dicomStore.buildVolume(sel.volumeKey);
-        imageID = dicomStore.volumeToImageID[sel.volumeKey];
-      }
+  const primaryDataset = computed<vtkImageData | null>(() => {
+    const sel = primarySelection.value;
+    const { dataIndex } = imageStore;
+    const { volumeToImageID } = dicomStore;
 
-      // set 3D view's colorBy
-      if (imageID) {
-        const view3DStore = useView3DStore();
-        const imageStore = useImageStore();
-        view3DStore.setDefaultColorByFromImage(imageStore.dataIndex[imageID]);
-      }
-    },
-    async loadFiles(files: File[]): Promise<LoadResult[]> {
-      const imageStore = useImageStore();
-      const modelStore = useModelStore();
-      const dicomStore = useDICOMStore();
+    if (sel?.type === 'dicom') {
+      const id = volumeToImageID[sel.volumeKey];
+      return dataIndex[id] || null;
+    }
+    if (sel?.type === 'image') {
+      return dataIndex[sel.dataID] || null;
+    }
+    return null;
+  });
 
-      const typedFiles = await Promise.all(files.map((f) => retypeFile(f)));
+  const allDataIDs = computed(() => {
+    return [...imageStore.idList, ...modelStore.idList];
+  });
 
-      // process archives
-      const allFiles = await extractArchivesRecursively(typedFiles);
+  function getDataProxyByID<T extends vtkObject>(this: _This, id: string) {
+    return this.$proxies.getData<T>(id);
+  }
 
-      const dicoms = allFiles.filter(({ type }) => type === 'dcm');
-      const otherFiles = allFiles.filter(({ type }) => type !== 'dcm');
+  // --- actions --- //
 
-      const dicomStatus = dicomStore
-        .importFiles(dicoms)
-        .then((volumeKeys) =>
-          volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
-        )
-        .catch((err) => [makeDICOMFailureStatus(err)]);
+  async function setPrimarySelection(sel: DataSelection | null) {
+    primarySelection.value = sel;
 
-      const otherStatuses = Promise.all([
-        ...otherFiles.map(async (file) => {
-          const reader = FILE_READERS.get(file.type);
-          if (reader) {
-            try {
-              const dataObj = await reader(file);
-              if (dataObj.isA('vtkImageData')) {
-                const id = imageStore.addVTKImageData(
-                  file.name,
-                  dataObj as vtkImageData
-                );
-                return makeFileSuccessStatus(file, 'image', id);
-              }
-              if (dataObj.isA('vtkPolyData')) {
-                const id = modelStore.addVTKPolyData(
-                  file.name,
-                  dataObj as vtkPolyData
-                );
-                return makeFileSuccessStatus(file, 'model', id);
-              }
-              return makeFileFailureStatus(
-                file,
-                `${file.name} did not result in a valid dataset`
+    if (sel === null) {
+      return;
+    }
+
+    let imageID: string = '';
+
+    // if selection is dicom, call buildVolume
+    if (sel.type === 'image') {
+      imageID = sel.dataID;
+    } else if (sel.type === 'dicom') {
+      // trigger dicom dataset building
+      await dicomStore.buildVolume(sel.volumeKey);
+      imageID = dicomStore.volumeToImageID[sel.volumeKey];
+    }
+
+    // set 3D view's colorBy
+    if (imageID) {
+      const view3DStore = useView3DStore();
+      view3DStore.setDefaultColorByFromImage(imageStore.dataIndex[imageID]);
+    }
+  }
+
+  async function loadFiles(files: File[]): Promise<LoadResult[]> {
+    const typedFiles = await Promise.all(files.map((f) => retypeFile(f)));
+
+    // process archives
+    const allFiles = await extractArchivesRecursively(typedFiles);
+
+    const dicoms = allFiles.filter(({ type }) => type === 'dcm');
+    const otherFiles = allFiles.filter(({ type }) => type !== 'dcm');
+
+    const dicomStatus = dicomStore
+      .importFiles(dicoms)
+      .then((volumeKeys) =>
+        volumeKeys.map((volKey) => makeDICOMSuccessStatus(volKey.volumeKey))
+      )
+      .catch((err) => [makeDICOMFailureStatus(err)]);
+
+    const otherStatuses = Promise.all([
+      ...otherFiles.map(async (file) => {
+        const reader = FILE_READERS.get(file.type);
+        if (reader) {
+          try {
+            const dataObj = await reader(file);
+            if (dataObj.isA('vtkImageData')) {
+              const id = imageStore.addVTKImageData(
+                file.name,
+                dataObj as vtkImageData
               );
-            } catch (e) {
-              return makeFileFailureStatus(
-                file,
-                `Reading ${file.name} gave an error: ${e}`
-              );
+              return makeFileSuccessStatus(file, 'image', id);
             }
+            if (dataObj.isA('vtkPolyData')) {
+              const id = modelStore.addVTKPolyData(
+                file.name,
+                dataObj as vtkPolyData
+              );
+              return makeFileSuccessStatus(file, 'model', id);
+            }
+            return makeFileFailureStatus(
+              file,
+              `${file.name} did not result in a valid dataset`
+            );
+          } catch (e) {
+            return makeFileFailureStatus(
+              file,
+              `Reading ${file.name} gave an error: ${e}`
+            );
           }
-          // indicate an error has occurred
-          return makeFileFailureStatus(file, `No reader for ${file.name}`);
-        }),
-      ]);
+        }
+        // indicate an error has occurred
+        return makeFileFailureStatus(file, `No reader for ${file.name}`);
+      }),
+    ]);
 
-      const statuses = [...(await dicomStatus), ...(await otherStatuses)];
-      return statuses;
-    },
-  },
+    const statuses = [...(await dicomStatus), ...(await otherStatuses)];
+    return statuses;
+  }
+
+  // --- watch for deletion --- //
+
+  imageStore.$onAction(({ name, args, after }) => {
+    if (name !== 'deleteData') {
+      return;
+    }
+    after(() => {
+      const [id] = args;
+      const sel = primarySelection.value;
+      if (sel?.type === 'image' && sel.dataID === id) {
+        primarySelection.value = null;
+      }
+    });
+  });
+
+  dicomStore.$onAction(({ name, args, after }) => {
+    if (name !== 'deleteVolume') {
+      return;
+    }
+    after(() => {
+      const [volumeKey] = args;
+      const sel = primarySelection.value;
+      if (sel?.type === 'dicom' && volumeKey === sel.volumeKey) {
+        primarySelection.value = null;
+      }
+    });
+  });
+
+  return {
+    primarySelection,
+    primaryDataset,
+    allDataIDs,
+    getDataProxyByID,
+    setPrimarySelection,
+    loadFiles,
+  };
 });
