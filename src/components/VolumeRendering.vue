@@ -58,7 +58,7 @@ import { manageVTKSubscription } from '../composables/manageVTKSubscription';
 import { useView3DStore } from '../store/views-3D';
 import { useProxyManager } from '../composables/proxyManager';
 import { useDatasetStore } from '../store/datasets';
-import { createVolumeThumbnailer } from '../utils/volume-thumbnailer';
+import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { LPSAxisDir } from '../utils/lps';
