@@ -1,6 +1,7 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkCrosshairsWidget from '@/src/vtk/CrosshairsWidget';
 import { Bounds, Vector3 } from '@kitware/vtk.js/types';
+import { inflate } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { computed, ref, unref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
@@ -78,7 +79,9 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
       widgetState.setWorldToIndex(metadata.worldToIndex);
       const [xDim, yDim, zDim] = metadata.dimensions;
       const imageBounds: Bounds = [0, xDim - 1, 0, yDim - 1, 0, zDim - 1];
-      handle.setBounds(imageBounds);
+      // inflate by 0.5, since the image slice rendering is inflated
+      // by 0.5.
+      handle.setBounds(inflate(imageBounds, 0.5));
     },
     { immediate: true }
   );
@@ -105,6 +108,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     getWidgetFactory,
     setPosition,
     position,
+    imagePosition,
     setup,
     teardown,
   };
