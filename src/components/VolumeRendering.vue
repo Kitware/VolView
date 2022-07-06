@@ -1,38 +1,3 @@
-<template>
-  <div id="volume-rendering-module" class="mx-2 fill-height">
-    <template v-if="hasPrimaryDataset">
-      <div id="volume-transfer-func-editor" ref="editorContainerRef">
-        <div ref="pwfEditorRef" />
-      </div>
-      <div id="preset-list">
-        <item-group :value="colorTransferFunctionName" @change="selectPreset">
-          <groupable-item
-            v-for="preset in presetList"
-            :key="preset.name"
-            v-slot="{ active, select }"
-            :value="preset.name"
-          >
-            <avatar-list-card
-              :active="active"
-              :image-size="size"
-              :image-url="thumbnailCache[preset.thumbnailKey] || ''"
-              :title="preset.name"
-              @click="select"
-            >
-              <div class="text-truncate">
-                {{ preset.name }}
-              </div>
-            </avatar-list-card>
-          </groupable-item>
-        </item-group>
-      </div>
-    </template>
-    <template v-else>
-      <div>No image selected</div>
-    </template>
-  </div>
-</template>
-
 <script lang="ts">
 import {
   computed,
@@ -393,3 +358,38 @@ export default defineComponent({
   },
 });
 </script>
+
+<template>
+  <div id="volume-rendering-module" class="mx-2 fill-height">
+    <template v-if="hasPrimaryDataset">
+      <div id="volume-transfer-func-editor" ref="editorContainerRef">
+        <div ref="pwfEditorRef" />
+      </div>
+      <div id="preset-list">
+        <item-group :value="colorTransferFunctionName" @change="selectPreset">
+          <groupable-item
+            v-for="preset in presetList"
+            :key="preset.name"
+            v-slot="{ active, select }"
+            :value="preset.name"
+          >
+            <avatar-list-card
+              :active="active"
+              :image-size="size"
+              :image-url="thumbnailCache[preset.thumbnailKey] || ''"
+              :title="preset.name"
+              @click="select"
+            >
+              <div class="text-truncate">
+                {{ preset.name }}
+              </div>
+            </avatar-list-card>
+          </groupable-item>
+        </item-group>
+      </div>
+    </template>
+    <template v-else>
+      <div>No image selected</div>
+    </template>
+  </div>
+</template>
