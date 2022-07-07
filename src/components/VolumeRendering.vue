@@ -1,43 +1,10 @@
-<template>
-  <div id="volume-rendering-module" class="mx-2 fill-height">
-    <template v-if="hasPrimaryDataset">
-      <div id="volume-transfer-func-editor" ref="editorContainerRef">
-        <div ref="pwfEditorRef" />
-      </div>
-      <div id="preset-list">
-        <item-group :value="colorTransferFunctionName" @change="selectPreset">
-          <groupable-item
-            v-for="preset in presetList"
-            :key="preset.name"
-            v-slot="{ active, select }"
-            :value="preset.name"
-          >
-            <avatar-list-card
-              :active="active"
-              :image-size="size"
-              :image-url="thumbnailCache[preset.thumbnailKey] || ''"
-              :title="preset.name"
-              @click="select"
-            >
-              <div class="text-truncate">
-                {{ preset.name }}
-              </div>
-            </avatar-list-card>
-          </groupable-item>
-        </item-group>
-      </div>
-    </template>
-    <template v-else>
-      <div>No image selected</div>
-    </template>
-  </div>
-</template>
-
 <script lang="ts">
 import {
   computed,
   defineComponent,
+  del,
   onBeforeUnmount,
+  reactive,
   ref,
   set,
   watch,
@@ -50,7 +17,6 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import AvatarListCard from '@/src/components/AvatarListCard.vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
@@ -58,17 +24,14 @@ import { manageVTKSubscription } from '../composables/manageVTKSubscription';
 import { useView3DStore } from '../store/views-3D';
 import { useProxyManager } from '../composables/proxyManager';
 import { useDatasetStore } from '../store/datasets';
-import { createVolumeThumbnailer } from '../utils/volume-thumbnailer';
+import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { LPSAxisDir } from '../utils/lps';
+import { useImageStore } from '../store/datasets-images';
 
 const WIDGET_HEIGHT = 150;
 const THUMBNAIL_SIZE = 80;
-
-function makeCacheKey(presetName: string, imageID: string) {
-  return `cache-${presetName}-${imageID}`;
-}
 
 function resetOpacityFunction(
   pwfProxy: vtkPiecewiseFunctionProxy,
@@ -107,11 +70,11 @@ export default defineComponent({
   components: {
     ItemGroup,
     GroupableItem,
-    AvatarListCard,
   },
   setup() {
     const view3DStore = useView3DStore();
     const dataStore = useDatasetStore();
+    const imageStore = useImageStore();
     const proxyManager = useProxyManager();
     const mapOpacityRangeToLutRangeRef = ref(false);
     const editorContainerRef = ref<HTMLElement | null>(null);
@@ -272,12 +235,12 @@ export default defineComponent({
           onOpacityChange();
         }
       },
-      { deep: true }
+      { immediate: true, deep: true }
     );
 
     // -- thumbnailing -- //
 
-    const thumbnailCacheRef = ref<Record<string, string>>({});
+    const thumbnails = reactive<Record<string, Record<string, string>>>({});
     const thumbnailer = createVolumeThumbnailer(THUMBNAIL_SIZE);
     const { currentImageMetadata } = useCurrentImage();
 
@@ -312,11 +275,11 @@ export default defineComponent({
           return;
         }
 
-        const thumbnailCache = thumbnailCacheRef.value;
-        const cacheKey = makeCacheKey(presetName, imageID);
-        // don't thumbnail something that has been thumbnailed
-        // FIXME (?) doesn't account for if the dataset changes
-        if (cacheKey in thumbnailCache) {
+        if (!(imageID in thumbnails)) {
+          set(thumbnails, imageID, {});
+        }
+
+        if (presetName in thumbnails[imageID]) {
           return;
         }
 
@@ -339,7 +302,7 @@ export default defineComponent({
         renWin.render();
         const imageURL = await renWin.captureImages()[0];
         if (imageURL) {
-          set(thumbnailCache, cacheKey, imageURL);
+          set(thumbnails[imageID], presetName, imageURL);
         }
       }
 
@@ -349,38 +312,57 @@ export default defineComponent({
       );
     }
 
+    const currentThumbnails = ref<Record<string, string>>({});
+
+    // workaround for computed not properly working on deeply reactive objects
+    // in vue 2.
+    watch(
+      thumbnails,
+      () => {
+        if (currentImageID.value) {
+          currentThumbnails.value = thumbnails[currentImageID.value];
+        }
+      },
+      { deep: true }
+    );
+
     // force thumbnailing to stop
     onBeforeUnmount(() => {
       interruptSentinel = Symbol('unmount');
     });
 
     // trigger thumbnailing
-    watch(currentImageID, (imageID) => {
-      if (imageID) {
-        // set the thumbnailer's camera
-        // set ofun via pwfWidget, since it should have been
-        // reset prior to this code
-        // trigger thumbnailing
-        doThumbnailing(imageID, primaryDatasetRef.value!);
+    watch(
+      currentImageID,
+      (imageID) => {
+        if (imageID) {
+          // set the thumbnailer's camera
+          // set ofun via pwfWidget, since it should have been
+          // reset prior to this code
+          // trigger thumbnailing
+          doThumbnailing(imageID, primaryDatasetRef.value!);
+        }
+      },
+      { immediate: true }
+    );
+
+    // delete thumbnails if an image is deleted
+    imageStore.$onAction(({ name, args, after }) => {
+      const [id] = args;
+      if (name === 'deleteData' && id in thumbnails) {
+        after(() => del(thumbnails, id));
       }
     });
 
     const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
-    const presetList = computed(() => {
-      const id = currentImageID.value || '';
-      return PresetNameList.map((name) => ({
-        name,
-        thumbnailKey: makeCacheKey(name, id),
-      }));
-    });
 
     return {
       editorContainerRef,
       pwfEditorRef,
-      thumbnailCache: thumbnailCacheRef,
+      thumbnails: currentThumbnails,
       hasPrimaryDataset,
       colorTransferFunctionName: colorTransferFunctionRef,
-      presetList,
+      presetList: PresetNameList,
       selectPreset: (name: string) => {
         view3DStore.setColorTransferFunction(name);
       },
@@ -389,3 +371,64 @@ export default defineComponent({
   },
 });
 </script>
+
+<template>
+  <div class="overflow-y-auto mx-2 fill-height">
+    <template v-if="hasPrimaryDataset">
+      <div class="mt-4" ref="editorContainerRef">
+        <div ref="pwfEditorRef" />
+      </div>
+      <item-group
+        class="container"
+        :value="colorTransferFunctionName"
+        @change="selectPreset"
+      >
+        <v-row no-gutters justify="center">
+          <groupable-item
+            v-for="preset in presetList"
+            :key="preset"
+            v-slot="{ active, select }"
+            :value="preset"
+          >
+            <v-col
+              cols="4"
+              :class="{
+                'thumbnail-container': true,
+                blue: active,
+              }"
+              @click="select"
+            >
+              <v-img :src="thumbnails[preset] || ''" contain aspect-ratio="1">
+                <v-overlay
+                  absolute
+                  :value="true"
+                  opacity="0.3"
+                  class="thumbnail-overlay"
+                >
+                  {{ preset.replace(/-/g, ' ') }}
+                </v-overlay>
+              </v-img>
+            </v-col>
+          </groupable-item>
+        </v-row>
+      </item-group>
+    </template>
+    <template v-else>
+      <div class="text-center pt-12 text-subtitle-1">No image selected</div>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.thumbnail-container {
+  cursor: pointer;
+  padding: 6px !important;
+}
+
+.thumbnail-overlay {
+  top: 70%;
+  height: 30%;
+  font-size: 0.75em;
+  text-align: center;
+}
+</style>

@@ -49,7 +49,7 @@ export const Modules = [
     component: AnnotationsModule,
   },
   {
-    name: 'Volume\nRendering',
+    name: 'Rendering',
     icon: 'cube',
     component: VolumeRendering,
   },
@@ -96,7 +96,7 @@ export default defineComponent({
 
 .tab-content {
   display: flex;
-  padding-top: 10px;
+  padding-top: 14px;
   justify-content: flex-end;
   flex-direction: column-reverse;
   height: 100%;

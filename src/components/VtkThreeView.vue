@@ -213,7 +213,9 @@ export default defineComponent({
     return {
       vtkContainerRef,
       active: false,
-      topLeftLabel: colorTransferFuncName,
+      topLeftLabel: computed(() =>
+        colorTransferFuncName.value.replace(/-/g, ' ')
+      ),
       isImageLoading,
     };
   },
