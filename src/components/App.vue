@@ -3,7 +3,9 @@
     <template v-slot="{ dragHover }">
       <v-app>
         <v-app-bar app dense clipped-left>
-          <v-toolbar-title>VolView</v-toolbar-title>
+          <v-toolbar-title class="d-flex flex-row align-center mt-1">
+            <vol-view-full-logo />
+          </v-toolbar-title>
           <v-spacer />
           <v-btn
             text
@@ -169,6 +171,7 @@ import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
+import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,
@@ -318,6 +321,7 @@ export default defineComponent({
     ModulePanel,
     MessageCenter,
     MessageNotifications,
+    VolViewFullLogo,
   },
 
   setup() {
