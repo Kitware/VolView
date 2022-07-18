@@ -1,6 +1,15 @@
 <template>
   <div class="vtk-container-wrapper">
-    <div class="vtk-gutter"></div>
+    <div class="vtk-gutter">
+      <v-tooltip right transition="slide-x-transition">
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn x-small icon @click="resetCamera" v-bind="attrs" v-on="on">
+            <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
+          </v-btn>
+        </template>
+        <span>Reset camera</span>
+      </v-tooltip>
+    </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
@@ -217,6 +226,7 @@ export default defineComponent({
         colorTransferFuncName.value.replace(/-/g, ' ')
       ),
       isImageLoading,
+      resetCamera,
     };
   },
 });

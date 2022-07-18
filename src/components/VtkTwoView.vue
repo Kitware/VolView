@@ -1,6 +1,20 @@
 <template>
   <div class="vtk-container-wrapper">
     <div class="vtk-gutter">
+      <v-tooltip right transition="slide-x-transition">
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            x-small
+            icon
+            @click="enableResizeToFit"
+            v-bind="attrs"
+            v-on="on"
+          >
+            <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
+          </v-btn>
+        </template>
+        <span>Reset camera</span>
+      </v-tooltip>
       <slice-slider
         class="slice-slider"
         :slice="slice"
@@ -582,6 +596,9 @@ export default defineComponent({
       },
       widgetManager,
       dicomInfo,
+      enableResizeToFit() {
+        resizeToFit.value = true;
+      },
     };
   },
 });
