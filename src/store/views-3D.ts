@@ -55,5 +55,9 @@ export const useView3DStore = defineStore('view3D', {
     setColorTransferFunction(name: string) {
       this.coloringConfig.transferFunction = name;
     },
+    resetToDefaultColoring(image: vtkImageData) {
+      this.setDefaultColorByFromImage(image);
+      this.setColorTransferFunction(DEFAULT_PRESET);
+    },
   },
 });

@@ -97,6 +97,7 @@ export default defineComponent({
     const {
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
+      currentImageData,
       isImageLoading,
     } = useCurrentImage();
 
@@ -214,6 +215,36 @@ export default defineComponent({
       lut.setPresetName(colorTransferFuncName.value);
       if (rep) {
         rep.setColorBy(arrayName, location);
+      }
+    });
+
+    // --- persistent coloring setup --- //
+
+    // restore volume coloring configuration
+    // must run before the save watcher
+    watch(curImageID, (imageID) => {
+      if (imageID && currentImageData.value) {
+        const config = viewConfigStore.getVolumeColorConfig(viewID, imageID);
+        if (config) {
+          view3DStore.setColorBy(
+            config.colorBy.arrayName,
+            config.colorBy.location
+          );
+          view3DStore.setColorTransferFunction(config.transferFunction);
+        } else {
+          view3DStore.resetToDefaultColoring(currentImageData.value);
+        }
+      }
+    });
+
+    // save volume coloring
+    watch([colorBy, colorTransferFuncName], () => {
+      const imageID = curImageID.value;
+      if (imageID) {
+        viewConfigStore.setVolumeColoring(viewID, imageID, {
+          colorBy: colorBy.value,
+          transferFunction: colorTransferFuncName.value,
+        });
       }
     });
 
