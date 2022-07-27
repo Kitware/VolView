@@ -30,6 +30,7 @@ import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { LPSAxisDir } from '../utils/lps';
 import { useImageStore } from '../store/datasets-images';
 
+const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
 const THUMBNAIL_SIZE = 80;
 
@@ -80,14 +81,15 @@ export default defineComponent({
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
 
-    let recurseGuard = false;
-
     const { currentImageID } = useCurrentImage();
     const primaryDatasetRef = computed(() => dataStore.primaryDataset);
     const colorTransferFunctionRef = computed(
       () => view3DStore.coloringConfig.transferFunction
     );
     const colorByRef = computed(() => view3DStore.coloringConfig.colorBy);
+
+    // --- piecewise function and color transfer function --- //
+
     const pwfProxyRef = computed(() => {
       const { arrayName } = colorByRef.value;
       if (arrayName) {
@@ -99,17 +101,11 @@ export default defineComponent({
       return pwfProxyRef.value?.getLookupTableProxy();
     });
 
-    const pwfSubscriptions: vtkSubscription[] = [];
-
-    onBeforeUnmount(() => {
-      while (pwfSubscriptions.length) {
-        pwfSubscriptions.pop()!.unsubscribe();
-      }
-    });
+    // --- piecewise color function editor --- //
 
     const pwfWidget = vtkPiecewiseWidget.newInstance({
       numberOfBins: 256,
-      size: [250, WIDGET_HEIGHT],
+      size: [WIDGET_WIDTH, WIDGET_HEIGHT],
     });
     pwfWidget.updateStyle({
       backgroundColor: 'rgba(255, 255, 255, 0.6)',
@@ -129,14 +125,23 @@ export default defineComponent({
       padding: 10,
     });
 
-    function onOpacityChange() {
+    const pwfSubscriptions: vtkSubscription[] = [];
+
+    onBeforeUnmount(() => {
+      while (pwfSubscriptions.length) {
+        pwfSubscriptions.pop()!.unsubscribe();
+      }
+    });
+
+    let recurseGuard = false;
+    function updateOpacityFunc() {
+      if (recurseGuard) {
+        return;
+      }
+      recurseGuard = true;
+
       const pwfProxy = pwfProxyRef.value;
       if (pwfProxy) {
-        if (recurseGuard) {
-          return;
-        }
-        recurseGuard = true;
-
         if (pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
           pwfProxy.setGaussians(pwfWidget.getReferenceByName('gaussians'));
         } else if (
@@ -149,9 +154,9 @@ export default defineComponent({
           pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
         }
         pwfWidget.render();
-
-        recurseGuard = false;
       }
+
+      recurseGuard = false;
     }
 
     function resetPwfWidget() {
@@ -187,31 +192,22 @@ export default defineComponent({
         pwfWidget.setColorTransferFunction(lut);
         pwfWidget.setDataArray(scalars.getData());
 
-        pwfSubscriptions.push(
-          pwf.onModified(() => {
-            onOpacityChange();
-          })
-        );
-
-        pwfSubscriptions.push(
-          lut.onModified(() => {
-            onOpacityChange();
-          })
-        );
+        pwfSubscriptions.push(pwf.onModified(updateOpacityFunc));
+        pwfSubscriptions.push(lut.onModified(updateOpacityFunc));
       }
 
       pwfWidget.render();
     }
+
+    manageVTKSubscription(pwfWidget.onOpacityChange(updateOpacityFunc));
 
     useResizeObserver(editorContainerRef, (entry) => {
       const { width } = entry.contentRect;
       if (width > 0) {
         pwfWidget.setSize(width, WIDGET_HEIGHT);
       }
-      onOpacityChange();
+      updateOpacityFunc();
     });
-
-    manageVTKSubscription(pwfWidget.onOpacityChange(onOpacityChange));
 
     // mounted the pwf widget container
     watchEffect(() => {
@@ -226,14 +222,13 @@ export default defineComponent({
       pwfWidget.setContainer(null);
     });
 
-    // update pwf widget on selection change
+    // update pwf widget if dataset changes,
+    // colorBy changes, or colorTF changes
     watch(
       [primaryDatasetRef, colorByRef, colorTransferFunctionRef],
-      ([primaryDataset], [oldPrimaryDataset]) => {
-        if (primaryDataset && primaryDataset !== oldPrimaryDataset) {
-          resetPwfWidget();
-          onOpacityChange();
-        }
+      () => {
+        resetPwfWidget();
+        updateOpacityFunc();
       },
       { immediate: true, deep: true }
     );
