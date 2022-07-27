@@ -6,7 +6,6 @@ import { computed, ref } from '@vue/composition-api';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
-import { useView3DStore } from './views-3D';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 
 export const DataType = {
@@ -147,22 +146,17 @@ export const useDatasetStore = defineStore('dataset', () => {
       return;
     }
 
-    let imageID: string = '';
-
     // if selection is dicom, call buildVolume
-    if (sel.type === 'image') {
-      imageID = sel.dataID;
-    } else if (sel.type === 'dicom') {
+    if (sel.type === 'dicom') {
       // trigger dicom dataset building
       await dicomStore.buildVolume(sel.volumeKey);
-      imageID = dicomStore.volumeToImageID[sel.volumeKey];
     }
 
     // set 3D view's colorBy
-    if (imageID) {
-      const view3DStore = useView3DStore();
-      view3DStore.setDefaultColorByFromImage(imageStore.dataIndex[imageID]);
-    }
+    // if (imageID) {
+    //   const view3DStore = useView3DStore();
+    //   view3DStore.setDefaultColorByFromImage(imageStore.dataIndex[imageID]);
+    // }
   }
 
   async function loadFiles(files: File[]): Promise<LoadResult[]> {

@@ -209,7 +209,6 @@ export default defineComponent({
       const rep = baseImageRep.value;
       const { arrayName, location } = colorBy.value;
 
-      // TODO move lut stuff to proxymanager sync code
       const lut = proxyManager.getLookupTable(arrayName);
       lut.setMode(vtkLookupTableProxy.Mode.Preset);
       lut.setPresetName(colorTransferFuncName.value);
