@@ -15,6 +15,7 @@ import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -59,7 +60,6 @@ function resetOpacityFunction(
 
     pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
     pwfProxy.setPoints(pointsNormalized);
-    pwfProxy.setDataRange(xmin, xmax);
   } else {
     pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Gaussians);
     pwfProxy.setGaussians(vtkPiecewiseFunctionProxy.Defaults.Gaussians);
@@ -278,16 +278,18 @@ export default defineComponent({
           return;
         }
 
-        const preset = vtkColorMaps.getPresetByName(presetName);
         resetOpacityFunction(
           thumbnailer.opacityFuncProxy,
           dataRange,
           presetName
         );
-        thumbnailer.colorTransferFuncProxy
-          .getLookupTable()
-          .applyColorMap(preset);
+
         thumbnailer.colorTransferFuncProxy.setDataRange(...dataRange);
+        thumbnailer.colorTransferFuncProxy.setMode(
+          vtkLookupTableProxy.Mode.Preset
+        );
+        thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
+
         thumbnailer.resetCameraWithOrientation(
           cameraDirVec.value as Vector3,
           cameraUpVec.value as Vector3
