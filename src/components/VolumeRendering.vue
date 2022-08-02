@@ -22,7 +22,11 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { manageVTKSubscription } from '../composables/manageVTKSubscription';
-import { useView3DStore } from '../store/views-3D';
+import {
+  useView3DStore,
+  getOpacityFunctionFromPreset,
+  getShiftedOpacityFromPreset,
+} from '../store/views-3D';
 import { useProxyManager } from '../composables/proxyManager';
 import { useDatasetStore } from '../store/datasets';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
@@ -77,7 +81,6 @@ export default defineComponent({
     const dataStore = useDatasetStore();
     const imageStore = useImageStore();
     const proxyManager = useProxyManager();
-    const mapOpacityRangeToLutRangeRef = ref(false);
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
 
@@ -87,6 +90,9 @@ export default defineComponent({
       () => view3DStore.coloringConfig.transferFunction
     );
     const colorByRef = computed(() => view3DStore.coloringConfig.colorBy);
+    const opacityFunction = computed(
+      () => view3DStore.coloringConfig.opacityFunction
+    );
 
     // --- piecewise function and color transfer function --- //
 
@@ -140,63 +146,23 @@ export default defineComponent({
       }
       recurseGuard = true;
 
-      const pwfProxy = pwfProxyRef.value;
-      if (pwfProxy) {
-        if (pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
-          pwfProxy.setGaussians(pwfWidget.getReferenceByName('gaussians'));
-        } else if (
-          pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Points
-        ) {
-          pwfProxy.setPoints(pwfWidget.getEffectiveOpacityPoints());
-        }
-        if (mapOpacityRangeToLutRangeRef.value) {
-          const newColorRange = pwfWidget.getOpacityRange() as [number, number];
-          pwfProxy.getLookupTableProxy().setDataRange(...newColorRange);
-        }
-        pwfWidget.render();
-      }
-
-      recurseGuard = false;
-    }
-
-    function resetPwfWidget() {
-      while (pwfSubscriptions.length) {
-        pwfSubscriptions.pop()!.unsubscribe();
-      }
-
-      const pwfProxy = pwfProxyRef.value;
-      const lutProxy = lutProxyRef.value;
-      const image = primaryDatasetRef.value;
-      const colorTFName = colorTransferFunctionRef.value;
-
-      if (image && pwfProxy && lutProxy) {
-        const scalars = image.getPointData().getScalars();
-        const dataRange = scalars.getRange();
-
-        resetOpacityFunction(pwfProxy, dataRange, colorTFName);
-        lutProxy.setDataRange(...dataRange);
-
-        if (pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Points) {
-          pwfWidget.setPointsMode();
-          pwfWidget.setOpacityPoints(pwfProxy.getPoints());
-        } else if (
-          pwfProxy.getMode() === vtkPiecewiseFunctionProxy.Mode.Gaussians
-        ) {
-          pwfWidget.setGaussiansMode();
-          pwfWidget.setGaussians(pwfProxy.getGaussians());
-        }
-
-        const pwf = pwfProxy.getPiecewiseFunction();
-        const lut = lutProxy.getLookupTable();
-
-        pwfWidget.setColorTransferFunction(lut);
-        pwfWidget.setDataArray(scalars.getData());
-
-        pwfSubscriptions.push(pwf.onModified(updateOpacityFunc));
-        pwfSubscriptions.push(lut.onModified(updateOpacityFunc));
+      const { mode } = opacityFunction.value;
+      if (mode === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
+        view3DStore.setOpacityFunction({
+          mode,
+          gaussians: pwfWidget.getGaussians(),
+        });
+      } else if (mode === vtkPiecewiseFunctionProxy.Mode.Points) {
+        view3DStore.setOpacityFunction({
+          mode,
+          name: opacityFunction.value.name,
+          shift: pwfWidget.getOpacityPointShift(),
+        });
       }
 
       pwfWidget.render();
+
+      recurseGuard = false;
     }
 
     manageVTKSubscription(pwfWidget.onOpacityChange(updateOpacityFunc));
@@ -206,7 +172,7 @@ export default defineComponent({
       if (width > 0) {
         pwfWidget.setSize(width, WIDGET_HEIGHT);
       }
-      updateOpacityFunc();
+      pwfWidget.render();
     });
 
     // mounted the pwf widget container
@@ -222,15 +188,45 @@ export default defineComponent({
       pwfWidget.setContainer(null);
     });
 
-    // update pwf widget if dataset changes,
-    // colorBy changes, or colorTF changes
+    // update pwf widget when lut changes
     watch(
-      [primaryDatasetRef, colorByRef, colorTransferFunctionRef],
+      colorTransferFunctionRef,
       () => {
-        resetPwfWidget();
-        updateOpacityFunc();
+        const lutProxy = lutProxyRef.value;
+        const image = primaryDatasetRef.value;
+        if (!lutProxy || !image) {
+          return;
+        }
+
+        lutProxy.setDataRange(...image.getPointData().getScalars().getRange());
+        const lut = lutProxy.getLookupTable();
+        pwfWidget.setColorTransferFunction(lut);
+
+        const scalars = image.getPointData().getScalars();
+        pwfWidget.setDataArray(scalars.getData());
+
+        pwfWidget.render();
       },
-      { immediate: true, deep: true }
+      { immediate: true }
+    );
+
+    // update pwf widget when opacity function changes
+    watch(
+      opacityFunction,
+      (opFunc) => {
+        if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
+          pwfWidget.setGaussiansMode();
+          pwfWidget.setGaussians(opFunc.gaussians);
+        } else if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Points) {
+          pwfWidget.setPointsMode();
+          // get non-shifted points for the widget
+          const points = getShiftedOpacityFromPreset(opFunc.name, 0);
+          pwfWidget.setOpacityPoints(points, opFunc.shift);
+        }
+
+        pwfWidget.render();
+      },
+      { immediate: true }
     );
 
     // -- thumbnailing -- //
@@ -333,10 +329,6 @@ export default defineComponent({
       currentImageID,
       (imageID) => {
         if (imageID) {
-          // set the thumbnailer's camera
-          // set ofun via pwfWidget, since it should have been
-          // reset prior to this code
-          // trigger thumbnailing
           doThumbnailing(imageID, primaryDatasetRef.value!);
         }
       },
@@ -353,6 +345,12 @@ export default defineComponent({
 
     const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
 
+    const selectPreset = (name: string) => {
+      view3DStore.setColorTransferFunction(name);
+      const opFunc = getOpacityFunctionFromPreset(name);
+      view3DStore.setOpacityFunction(opFunc);
+    };
+
     return {
       editorContainerRef,
       pwfEditorRef,
@@ -360,9 +358,7 @@ export default defineComponent({
       hasPrimaryDataset,
       colorTransferFunctionName: colorTransferFunctionRef,
       presetList: PresetNameList,
-      selectPreset: (name: string) => {
-        view3DStore.setColorTransferFunction(name);
-      },
+      selectPreset,
       size: THUMBNAIL_SIZE,
     };
   },

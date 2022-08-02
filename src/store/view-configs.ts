@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import { clampValue } from '@src/utils';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useView2DStore } from './views-2D';
+import { OpacityFunction } from './views-3D';
 
 export interface SliceConfig {
   slice: number;
@@ -32,6 +33,7 @@ export interface VolumeColorConfig {
     location: string;
   };
   transferFunction: string;
+  opacityFunction: OpacityFunction;
 }
 
 export const defaultSliceConfig = (): SliceConfig => ({
@@ -141,6 +143,7 @@ export const useViewConfigStore = defineStore('viewConfig', {
           del(this.sliceConfigs, key);
           del(this.wlConfigs, key);
           del(this.cameraConfigs, key);
+          del(this.volumeColorConfigs, key);
 
           if (viewID in this.viewConfigs) {
             this.viewConfigs[viewID].delete(key);

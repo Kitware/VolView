@@ -151,12 +151,6 @@ export const useDatasetStore = defineStore('dataset', () => {
       // trigger dicom dataset building
       await dicomStore.buildVolume(sel.volumeKey);
     }
-
-    // set 3D view's colorBy
-    // if (imageID) {
-    //   const view3DStore = useView3DStore();
-    //   view3DStore.setDefaultColorByFromImage(imageStore.dataIndex[imageID]);
-    // }
   }
 
   async function loadFiles(files: File[]): Promise<LoadResult[]> {

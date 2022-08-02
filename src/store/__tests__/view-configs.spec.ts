@@ -1,3 +1,4 @@
+import { IPiecewiseFunctionProxyMode } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
@@ -20,6 +21,10 @@ describe('View Config Store', () => {
         location: 'pointData',
       },
       transferFunction: 'Hot',
+      opacityFunction: {
+        mode: IPiecewiseFunctionProxyMode.Gaussians,
+        gaussians: [],
+      },
     });
 
     expect(Object.values(configStore.volumeColorConfigs)).to.have.length(1);
