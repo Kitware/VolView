@@ -39,7 +39,7 @@ export default {
   watch: {
     value(v) {
       if (v !== this.internalValue) {
-        this.selectItem(v);
+        this.internalValue = v;
       }
     },
   },
