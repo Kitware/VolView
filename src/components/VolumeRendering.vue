@@ -28,12 +28,12 @@ import {
   getShiftedOpacityFromPreset,
 } from '../store/views-3D';
 import { useProxyManager } from '../composables/proxyManager';
-import { useDatasetStore } from '../store/datasets';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { LPSAxisDir } from '../utils/lps';
 import { useImageStore } from '../store/datasets-images';
+import ColorFunctionSlider from './ColorFunctionSlider.vue';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -75,17 +75,16 @@ export default defineComponent({
   components: {
     ItemGroup,
     GroupableItem,
+    ColorFunctionSlider,
   },
   setup() {
     const view3DStore = useView3DStore();
-    const dataStore = useDatasetStore();
     const imageStore = useImageStore();
     const proxyManager = useProxyManager();
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
 
-    const { currentImageID } = useCurrentImage();
-    const primaryDatasetRef = computed(() => dataStore.primaryDataset);
+    const { currentImageID, currentImageData } = useCurrentImage();
     const colorTransferFunctionRef = computed(
       () => view3DStore.coloringConfig.transferFunction
     );
@@ -148,14 +147,13 @@ export default defineComponent({
 
       const { mode } = opacityFunction.value;
       if (mode === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
-        view3DStore.setOpacityFunction({
+        view3DStore.updateOpacityFunction({
           mode,
           gaussians: pwfWidget.getGaussians(),
         });
       } else if (mode === vtkPiecewiseFunctionProxy.Mode.Points) {
-        view3DStore.setOpacityFunction({
+        view3DStore.updateOpacityFunction({
           mode,
-          name: opacityFunction.value.name,
           shift: pwfWidget.getOpacityPointShift(),
         });
       }
@@ -188,24 +186,28 @@ export default defineComponent({
       pwfWidget.setContainer(null);
     });
 
+    watch(
+      currentImageData,
+      (image) => {
+        if (image) {
+          const scalars = image.getPointData().getScalars();
+          pwfWidget.setDataArray(scalars.getData());
+          pwfWidget.render();
+        }
+      },
+      { immediate: true }
+    );
+
     // update pwf widget when lut changes
     watch(
       colorTransferFunctionRef,
       () => {
         const lutProxy = lutProxyRef.value;
-        const image = primaryDatasetRef.value;
-        if (!lutProxy || !image) {
-          return;
+        if (lutProxy) {
+          const lut = lutProxy.getLookupTable();
+          pwfWidget.setColorTransferFunction(lut);
+          pwfWidget.render();
         }
-
-        lutProxy.setDataRange(...image.getPointData().getScalars().getRange());
-        const lut = lutProxy.getLookupTable();
-        pwfWidget.setColorTransferFunction(lut);
-
-        const scalars = image.getPointData().getScalars();
-        pwfWidget.setDataArray(scalars.getData());
-
-        pwfWidget.render();
       },
       { immediate: true }
     );
@@ -220,7 +222,7 @@ export default defineComponent({
         } else if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Points) {
           pwfWidget.setPointsMode();
           // get non-shifted points for the widget
-          const points = getShiftedOpacityFromPreset(opFunc.name, 0);
+          const points = getShiftedOpacityFromPreset(opFunc.preset, 0);
           pwfWidget.setOpacityPoints(points, opFunc.shift);
         }
 
@@ -329,7 +331,7 @@ export default defineComponent({
       currentImageID,
       (imageID) => {
         if (imageID) {
-          doThumbnailing(imageID, primaryDatasetRef.value!);
+          doThumbnailing(imageID, currentImageData.value!);
         }
       },
       { immediate: true }
@@ -343,23 +345,59 @@ export default defineComponent({
       }
     });
 
-    const hasPrimaryDataset = computed(() => !!primaryDatasetRef.value);
+    const hasCurrentImage = computed(() => !!currentImageData.value);
 
     const selectPreset = (name: string) => {
-      view3DStore.setColorTransferFunction(name);
+      view3DStore.updateColorTransferFunction({
+        preset: name,
+      });
       const opFunc = getOpacityFunctionFromPreset(name);
-      view3DStore.setOpacityFunction(opFunc);
+      view3DStore.updateOpacityFunction(opFunc);
+    };
+
+    const rgbPoints = computed(
+      () =>
+        vtkColorMaps.getPresetByName(colorTransferFunctionRef.value.preset)
+          ?.RGBPoints
+    );
+
+    const updateColorMappingRange = (range: [number, number]) => {
+      const { mappingRange } = colorTransferFunctionRef.value;
+      // guard against infinite loops
+      if (
+        Math.abs(range[0] - mappingRange[0]) > 1e-6 ||
+        Math.abs(range[1] - mappingRange[1]) > 1e-6
+      ) {
+        view3DStore.updateColorTransferFunction({
+          mappingRange: range,
+        });
+      }
     };
 
     return {
       editorContainerRef,
       pwfEditorRef,
       thumbnails: currentThumbnails,
-      hasPrimaryDataset,
-      colorTransferFunctionName: colorTransferFunctionRef,
+      hasCurrentImage,
+      preset: computed(() => colorTransferFunctionRef.value.preset),
+      mappingRange: computed(() => colorTransferFunctionRef.value.mappingRange),
+      fullMappingRange: computed(() => {
+        const image = currentImageData.value;
+        if (image) {
+          return image.getPointData().getScalars().getRange();
+        }
+        return [0, 1];
+      }),
+      colorSliderStep: computed(() => {
+        const { mappingRange } = colorTransferFunctionRef.value;
+        const width = mappingRange[1] - mappingRange[0];
+        return Math.min(1, width / 256);
+      }),
       presetList: PresetNameList,
-      selectPreset,
       size: THUMBNAIL_SIZE,
+      rgbPoints,
+      selectPreset,
+      updateColorMappingRange,
     };
   },
 });
@@ -367,15 +405,23 @@ export default defineComponent({
 
 <template>
   <div class="overflow-y-auto mx-2 fill-height">
-    <template v-if="hasPrimaryDataset">
+    <template v-if="hasCurrentImage">
       <div class="mt-4" ref="editorContainerRef">
         <div ref="pwfEditorRef" />
       </div>
-      <item-group
-        class="container"
-        :value="colorTransferFunctionName"
-        @change="selectPreset"
-      >
+      <div>
+        <color-function-slider
+          dense
+          hide-details
+          :min="fullMappingRange[0]"
+          :max="fullMappingRange[1]"
+          :step="colorSliderStep"
+          :rgb-points="rgbPoints"
+          :value="mappingRange"
+          @input="updateColorMappingRange"
+        />
+      </div>
+      <item-group class="container" :value="preset" @change="selectPreset">
         <v-row no-gutters justify="center">
           <groupable-item
             v-for="preset in presetList"

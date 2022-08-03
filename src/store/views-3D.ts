@@ -18,24 +18,32 @@ export interface ColorBy {
 export interface OpacityGaussians {
   mode: IPiecewiseFunctionProxyMode.Gaussians;
   gaussians: PiecewiseGaussian[];
+  mappingRange: [number, number];
 }
 
 export interface OpacityPoints {
   mode: IPiecewiseFunctionProxyMode.Points;
-  // name of preset that has the points
-  name: string;
+  // base preset that has the opacity points
+  preset: string;
   shift: number;
+  mappingRange: [number, number];
 }
 
 export interface OpacityNodes {
   mode: IPiecewiseFunctionProxyMode.Nodes;
   nodes: PiecewiseNode[];
+  mappingRange: [number, number];
 }
 
 export type OpacityFunction = OpacityGaussians | OpacityPoints | OpacityNodes;
+
+export interface ColorTransferFunction {
+  preset: string;
+  mappingRange: [number, number];
+}
 export interface ColoringConfig {
   colorBy: ColorBy;
-  transferFunction: string;
+  transferFunction: ColorTransferFunction;
   opacityFunction: OpacityFunction;
 }
 
@@ -65,13 +73,14 @@ export function getShiftedOpacityFromPreset(presetName: string, shift: number) {
 
 export function getOpacityFunctionFromPreset(
   presetName: string
-): OpacityFunction {
+): Partial<OpacityFunction> {
   const preset = vtkColorMaps.getPresetByName(presetName);
   if (preset.OpacityPoints) {
     return {
       mode: vtkPiecewiseFunctionProxy.Mode.Points,
-      name: presetName,
+      preset: presetName,
       shift: 0,
+      mappingRange: [0, 1],
     };
   }
   return {
@@ -91,10 +100,14 @@ export const useView3DStore = defineStore('view3D', {
         arrayName: '',
         location: '',
       },
-      transferFunction: DEFAULT_PRESET,
+      transferFunction: {
+        preset: '',
+        mappingRange: [0, 1],
+      },
       opacityFunction: {
         mode: vtkPiecewiseFunctionProxy.Mode.Gaussians,
         gaussians: [],
+        mappingRange: [0, 1],
       },
     },
   }),
@@ -128,16 +141,33 @@ export const useView3DStore = defineStore('view3D', {
       const scalars = image.getPointData().getScalars();
       this.setColorBy(scalars.getName(), 'pointData');
     },
-    setColorTransferFunction(name: string) {
-      this.coloringConfig.transferFunction = name;
+    updateColorTransferFunction(tf: Partial<ColorTransferFunction>) {
+      // eslint-disable-next-line prefer-object-spread
+      this.coloringConfig.transferFunction = Object.assign(
+        {},
+        this.coloringConfig.transferFunction,
+        tf
+      );
     },
     resetToDefaultColoring(image: vtkImageData) {
+      const mappingRange = image.getPointData().getScalars().getRange();
       this.setDefaultColorByFromImage(image);
-      this.setColorTransferFunction(DEFAULT_PRESET);
-      this.setOpacityFunction(getOpacityFunctionFromPreset(DEFAULT_PRESET));
+      this.updateColorTransferFunction({
+        preset: DEFAULT_PRESET,
+        mappingRange,
+      });
+      this.updateOpacityFunction({
+        ...getOpacityFunctionFromPreset(DEFAULT_PRESET),
+        mappingRange,
+      });
     },
-    setOpacityFunction(opacityFunc: OpacityFunction) {
-      this.coloringConfig.opacityFunction = opacityFunc;
+    updateOpacityFunction(opacityFunc: Partial<OpacityFunction>) {
+      // eslint-disable-next-line prefer-object-spread
+      this.coloringConfig.opacityFunction = Object.assign(
+        {},
+        this.coloringConfig.opacityFunction,
+        opacityFunc
+      );
     },
   },
 });

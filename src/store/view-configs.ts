@@ -4,7 +4,7 @@ import { defineStore } from 'pinia';
 import { clampValue } from '@src/utils';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useView2DStore } from './views-2D';
-import { OpacityFunction } from './views-3D';
+import { ColorTransferFunction, OpacityFunction } from './views-3D';
 
 export interface SliceConfig {
   slice: number;
@@ -32,7 +32,7 @@ export interface VolumeColorConfig {
     arrayName: string;
     location: string;
   };
-  transferFunction: string;
+  transferFunction: ColorTransferFunction;
   opacityFunction: OpacityFunction;
 }
 

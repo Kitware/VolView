@@ -36,6 +36,7 @@ export function useSceneBuilder<
         );
         baseImageRep.value = rep;
         if (rep) {
+          rep.setRescaleOnColorBy(false);
           viewProxy.addRepresentation(rep);
         }
       }

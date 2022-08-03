@@ -159,6 +159,8 @@ declare module '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy' {
       arrayLocation: string,
       componentIndex: number = -1
     );
+    setRescaleOnColorBy(rescale: boolean): boolean;
+    getRescaleOnColorBy(): boolean;
   }
 
   export default vtkAbstractRepresentationProxy;

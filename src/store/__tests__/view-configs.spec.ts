@@ -20,10 +20,14 @@ describe('View Config Store', () => {
         arrayName: 'Scalars',
         location: 'pointData',
       },
-      transferFunction: 'Hot',
+      transferFunction: {
+        preset: 'Hot',
+        mappingRange: [0, 1],
+      },
       opacityFunction: {
         mode: IPiecewiseFunctionProxyMode.Gaussians,
         gaussians: [],
+        mappingRange: [0, 1],
       },
     });
 
