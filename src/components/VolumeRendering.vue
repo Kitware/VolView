@@ -34,6 +34,7 @@ import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { LPSAxisDir } from '../utils/lps';
 import { useImageStore } from '../store/datasets-images';
 import ColorFunctionSlider from './ColorFunctionSlider.vue';
+import { useVTKCallback } from '../composables/useVTKCallback';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -206,11 +207,18 @@ export default defineComponent({
         if (lutProxy) {
           const lut = lutProxy.getLookupTable();
           pwfWidget.setColorTransferFunction(lut);
-          pwfWidget.render();
         }
       },
       { immediate: true }
     );
+
+    const onLUTModified = useVTKCallback(
+      computed(() => lutProxyRef.value?.getLookupTable().onModified)
+    );
+
+    onLUTModified(() => {
+      pwfWidget.render();
+    });
 
     // update pwf widget when opacity function changes
     watch(
@@ -225,8 +233,6 @@ export default defineComponent({
           const points = getShiftedOpacityFromPreset(opFunc.preset, 0);
           pwfWidget.setOpacityPoints(points, opFunc.shift);
         }
-
-        pwfWidget.render();
       },
       { immediate: true }
     );
