@@ -60,12 +60,6 @@ export default defineComponent({
 
     const scrollVal = ref(0);
 
-    watch(scrollVal, (slice) => {
-      if (currentImageID.value !== null) {
-        viewConfigStore.setSlice(viewID.value, currentImageID.value, slice);
-      }
-    });
-
     const rangeManipulator = vtkMouseRangeManipulator.newInstance({
       button: -1, // don't bind to any buttons
       scrollEnabled: true,
@@ -95,8 +89,10 @@ export default defineComponent({
         range.max,
         range.step,
         () => scrollVal.value,
-        (v) => {
-          scrollVal.value = v;
+        (slice) => {
+          if (currentImageID.value !== null) {
+            viewConfigStore.setSlice(viewID.value, currentImageID.value, slice);
+          }
         }
       );
     }
