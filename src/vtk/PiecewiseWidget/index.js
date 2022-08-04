@@ -67,6 +67,8 @@ function vtkPiecewiseWidget(publicAPI, model) {
   };
 
   publicAPI.setPointsMode = () => {
+    // clear gaussians so we don't keep this ref around
+    model.gaussians = [];
     model.pwMode = Mode.Points;
   };
 
@@ -142,11 +144,11 @@ function vtkPiecewiseWidget(publicAPI, model) {
     return true;
   };
 
-  publicAPI.setOpacityPoints = (points) => {
+  publicAPI.setOpacityPoints = (points, shift = 0) => {
     if (publicAPI.isModePoints()) {
       // deep copy
       model.opacityPoints = points.map((p) => [p[0], p[1]]);
-      model.opacityPointShift = 0;
+      model.opacityPointShift = shift;
 
       model.opacities = samplePiecewiseLinear(
         model.opacityPoints,

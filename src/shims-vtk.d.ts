@@ -159,6 +159,8 @@ declare module '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy' {
       arrayLocation: string,
       componentIndex: number = -1
     );
+    setRescaleOnColorBy(rescale: boolean): boolean;
+    getRescaleOnColorBy(): boolean;
   }
 
   export default vtkAbstractRepresentationProxy;
@@ -394,10 +396,10 @@ declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
     sharpness: number;
   }
 
-  export interface IPiecewiseFunctionProxyMode {
-    Gaussians: number = 0;
-    Points: number = 1;
-    Nodes: number = 2;
+  export enum IPiecewiseFunctionProxyMode {
+    Gaussians = 0,
+    Points = 1,
+    Nodes = 2,
   }
 
   export interface IPiecewiseFunctionProxyDefaults {
@@ -432,7 +434,7 @@ declare module '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy' {
 
   export declare const vtkPiecewiseFunctionProxy: {
     newInstance: typeof newInstance;
-    Mode: IPiecewiseFunctionProxyMode;
+    Mode: typeof IPiecewiseFunctionProxyMode;
     Defaults: IPiecewiseFunctionProxyDefaults;
   };
   export default vtkPiecewiseFunctionProxy;

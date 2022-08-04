@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import { clampValue } from '@src/utils';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useView2DStore } from './views-2D';
+import { ColorTransferFunction, OpacityFunction } from './views-3D';
 
 export interface SliceConfig {
   slice: number;
@@ -26,6 +27,15 @@ export interface CameraConfig {
   viewUp?: Vector3;
 }
 
+export interface VolumeColorConfig {
+  colorBy: {
+    arrayName: string;
+    location: string;
+  };
+  transferFunction: ColorTransferFunction;
+  opacityFunction: OpacityFunction;
+}
+
 export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
   min: 0,
@@ -43,6 +53,7 @@ interface State {
   sliceConfigs: Record<string, SliceConfig>;
   wlConfigs: Record<string, WindowLevelConfig>;
   cameraConfigs: Record<string, CameraConfig>;
+  volumeColorConfigs: Record<string, VolumeColorConfig>;
   // viewID -> configurations keys associate with the view
   viewConfigs: Record<string, Set<string>>;
 }
@@ -86,6 +97,18 @@ const setCameraConfig = (
   }
 };
 
+const configGetter =
+  <T>(config: Record<string, T>) =>
+  (viewID: string, dataID: string) => {
+    const key = genSynViewConfigKey(viewID, dataID);
+
+    if (key in config) {
+      return config[key];
+    }
+
+    return null;
+  };
+
 /**
  * The data view store saves view configuration that is associated with a specific
  * view. The key is a synthetic id generated from the view ID and data ID.
@@ -95,42 +118,14 @@ export const useViewConfigStore = defineStore('viewConfig', {
     sliceConfigs: {},
     wlConfigs: {},
     cameraConfigs: {},
+    volumeColorConfigs: {},
     viewConfigs: {},
   }),
   getters: {
-    getSliceConfig: (state) => {
-      return (viewID: string, dataID: string) => {
-        const key = genSynViewConfigKey(viewID, dataID);
-
-        if (key in state.sliceConfigs) {
-          return state.sliceConfigs[key];
-        }
-
-        return null;
-      };
-    },
-    getWindowConfig: (state) => {
-      return (viewID: string, dataID: string) => {
-        const key = genSynViewConfigKey(viewID, dataID);
-
-        if (key in state.wlConfigs) {
-          return state.wlConfigs[key];
-        }
-
-        return null;
-      };
-    },
-    getCameraConfig: (state) => {
-      return (viewID: string, dataID: string) => {
-        const key = genSynViewConfigKey(viewID, dataID);
-
-        if (key in state.cameraConfigs) {
-          return state.cameraConfigs[key];
-        }
-
-        return null;
-      };
-    },
+    getSliceConfig: (state) => configGetter(state.sliceConfigs),
+    getWindowConfig: (state) => configGetter(state.wlConfigs),
+    getCameraConfig: (state) => configGetter(state.cameraConfigs),
+    getVolumeColorConfig: (state) => configGetter(state.volumeColorConfigs),
   },
   actions: {
     removeViewConfig(viewID: string, dataID?: string) {
@@ -148,6 +143,7 @@ export const useViewConfigStore = defineStore('viewConfig', {
           del(this.sliceConfigs, key);
           del(this.wlConfigs, key);
           del(this.cameraConfigs, key);
+          del(this.volumeColorConfigs, key);
 
           if (viewID in this.viewConfigs) {
             this.viewConfigs[viewID].delete(key);
@@ -312,6 +308,15 @@ export const useViewConfigStore = defineStore('viewConfig', {
     },
     setViewUp(viewID: string, dataID: string, viewUp: Vector3) {
       setCameraConfig(this, viewID, dataID, 'viewUp', viewUp);
+    },
+    setVolumeColoring(
+      viewID: string,
+      dataID: string,
+      config: VolumeColorConfig
+    ) {
+      const key = genSynViewConfigKey(viewID, dataID);
+      set(this.volumeColorConfigs, key, config);
+      addViewConfigKey(this.viewConfigs, viewID, key);
     },
   },
 });

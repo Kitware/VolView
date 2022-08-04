@@ -49,10 +49,13 @@ import { vec3 } from 'gl-matrix';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-import { useView3DStore } from '@/src/store/views-3D';
+import {
+  getShiftedOpacityFromPreset,
+  useView3DStore,
+} from '@/src/store/views-3D';
 import { useProxyManager } from '@/src/composables/proxyManager';
-
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { LPSAxisDir } from '../utils/lps';
@@ -97,14 +100,9 @@ export default defineComponent({
     const {
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
+      currentImageData,
       isImageLoading,
     } = useCurrentImage();
-
-    const coloringConfig = computed(() => view3DStore.coloringConfig);
-    const colorBy = computed(() => coloringConfig.value.colorBy);
-    const colorTransferFuncName = computed(
-      () => coloringConfig.value.transferFunction
-    );
 
     // --- view proxy setup --- //
 
@@ -204,16 +202,84 @@ export default defineComponent({
 
     // --- coloring --- //
 
+    const coloringConfig = computed(() => view3DStore.coloringConfig);
+    const colorBy = computed(() => coloringConfig.value.colorBy);
+    const colorTransferFunction = computed(
+      () => coloringConfig.value.transferFunction
+    );
+    const opacityFunction = computed(
+      () => coloringConfig.value.opacityFunction
+    );
+
     watchEffect(() => {
       const rep = baseImageRep.value;
       const { arrayName, location } = colorBy.value;
+      const { mappingRange, preset } = colorTransferFunction.value;
 
-      // TODO move lut stuff to proxymanager sync code
       const lut = proxyManager.getLookupTable(arrayName);
       lut.setMode(vtkLookupTableProxy.Mode.Preset);
-      lut.setPresetName(colorTransferFuncName.value);
+      lut.setPresetName(preset);
+      lut.setDataRange(...mappingRange);
+
+      const pwf = proxyManager.getPiecewiseFunction(arrayName);
+      const opFunc = opacityFunction.value;
+      pwf.setMode(opFunc.mode);
+      pwf.setDataRange(...mappingRange);
+
+      switch (opFunc.mode) {
+        case vtkPiecewiseFunctionProxy.Mode.Gaussians:
+          pwf.setGaussians(opFunc.gaussians);
+          break;
+        case vtkPiecewiseFunctionProxy.Mode.Points: {
+          const opacityPoints = getShiftedOpacityFromPreset(
+            opFunc.preset,
+            opFunc.shift
+          );
+          if (opacityPoints) {
+            pwf.setPoints(opacityPoints);
+          }
+          break;
+        }
+        case vtkPiecewiseFunctionProxy.Mode.Nodes:
+          pwf.setNodes(opFunc.nodes);
+          break;
+        default:
+      }
+
       if (rep) {
         rep.setColorBy(arrayName, location);
+      }
+    });
+
+    // --- persistent coloring setup --- //
+
+    // restore volume coloring configuration
+    // must run before the save watcher
+    watch(curImageID, (imageID) => {
+      if (imageID && currentImageData.value) {
+        const config = viewConfigStore.getVolumeColorConfig(viewID, imageID);
+        if (config) {
+          view3DStore.setColorBy(
+            config.colorBy.arrayName,
+            config.colorBy.location
+          );
+          view3DStore.updateColorTransferFunction(config.transferFunction);
+          view3DStore.updateOpacityFunction(config.opacityFunction);
+        } else {
+          view3DStore.resetToDefaultColoring(currentImageData.value);
+        }
+      }
+    });
+
+    // save volume coloring
+    watch([colorBy, colorTransferFunction, opacityFunction], () => {
+      const imageID = curImageID.value;
+      if (imageID) {
+        viewConfigStore.setVolumeColoring(viewID, imageID, {
+          colorBy: colorBy.value,
+          transferFunction: colorTransferFunction.value,
+          opacityFunction: opacityFunction.value,
+        });
       }
     });
 
@@ -223,7 +289,7 @@ export default defineComponent({
       vtkContainerRef,
       active: false,
       topLeftLabel: computed(() =>
-        colorTransferFuncName.value.replace(/-/g, ' ')
+        colorTransferFunction.value.preset.replace(/-/g, ' ')
       ),
       isImageLoading,
       resetCamera,
