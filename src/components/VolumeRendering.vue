@@ -351,6 +351,8 @@ export default defineComponent({
       }
     });
 
+    // --- rendering --- //
+
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
     const selectPreset = (name: string) => {
@@ -380,6 +382,14 @@ export default defineComponent({
       }
     };
 
+    const fullMappingRange = computed(() => {
+      const image = currentImageData.value;
+      if (image) {
+        return image.getPointData().getScalars().getRange();
+      }
+      return [0, 1];
+    });
+
     return {
       editorContainerRef,
       pwfEditorRef,
@@ -387,17 +397,12 @@ export default defineComponent({
       hasCurrentImage,
       preset: computed(() => colorTransferFunctionRef.value.preset),
       mappingRange: computed(() => colorTransferFunctionRef.value.mappingRange),
-      fullMappingRange: computed(() => {
-        const image = currentImageData.value;
-        if (image) {
-          return image.getPointData().getScalars().getRange();
-        }
-        return [0, 1];
-      }),
+      fullMappingRange,
       colorSliderStep: computed(() => {
-        const { mappingRange } = colorTransferFunctionRef.value;
-        const width = mappingRange[1] - mappingRange[0];
-        return Math.min(1, width / 256);
+        const [low, high] = fullMappingRange.value;
+        const width = high - low;
+        const step = Math.min(1, width / 256);
+        return step > 1 ? Math.round(step) : step;
       }),
       presetList: PresetNameList,
       size: THUMBNAIL_SIZE,
