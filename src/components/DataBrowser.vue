@@ -90,6 +90,7 @@ export default defineComponent({
     return {
       collections,
       patients,
+      deletePatient: dicomStore.deletePatient,
       hasAnonymousImages,
     };
   },
@@ -117,9 +118,25 @@ export default defineComponent({
                 {{ patient.name }}
               </span>
               <v-spacer />
-              <v-btn icon small class="mr-3" @click.stop>
-                <v-icon small>mdi-dots-vertical</v-icon>
-              </v-btn>
+              <v-menu offset-x>
+                <template v-slot:activator="{ on, attrs }">
+                  <v-btn
+                    icon
+                    small
+                    class="mr-3"
+                    @click.stop
+                    v-bind="attrs"
+                    v-on="on"
+                  >
+                    <v-icon small>mdi-dots-vertical</v-icon>
+                  </v-btn>
+                </template>
+                <v-list dense>
+                  <v-list-item @click.stop="deletePatient(patient.key)">
+                    <v-list-item-title>Delete Patient</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
             </div>
           </v-expansion-panel-header>
           <v-expansion-panel-content>
