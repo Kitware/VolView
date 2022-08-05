@@ -1,9 +1,10 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
+import { useImageStore } from '../store/datasets-images';
 
 type Collection =
   | {
@@ -17,8 +18,6 @@ type Collection =
   | {
       header: string;
     };
-
-const DEFAULT_SELECTED_COLLECTION = 'all';
 
 const DEFAULT_COLLECTIONS: Collection[] = [
   {
@@ -50,6 +49,7 @@ export default defineComponent({
   },
   setup() {
     const dicomStore = useDICOMStore();
+    const imageStore = useImageStore();
 
     // TODO show patient ID in parens if there is a name conflict
     const patients = computed(() =>
@@ -63,17 +63,6 @@ export default defineComponent({
     );
 
     // --- collection handling --- //
-
-    const selectedCollectionModel = ref<string>(DEFAULT_SELECTED_COLLECTION);
-
-    // strips off key namespace that was used to avoid key collisions
-    // with the "magic" keys ("all", "images")
-    const selectedCollection = computed(() => {
-      if (selectedCollectionModel.value?.startsWith('#')) {
-        return selectedCollectionModel.value.slice(1);
-      }
-      return selectedCollectionModel.value;
-    });
 
     const collections = computed(() => {
       const patientItems: Collection[] = patients.value.map((patient) => ({
@@ -92,11 +81,16 @@ export default defineComponent({
       return [...DEFAULT_COLLECTIONS, ...patientItems];
     });
 
+    const hasAnonymousImages = computed(
+      () =>
+        imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
+          .length > 0
+    );
+
     return {
-      selectedCollectionModel,
-      selectedCollection,
       collections,
       patients,
+      hasAnonymousImages,
     };
   },
 });
@@ -104,71 +98,44 @@ export default defineComponent({
 
 <template>
   <div id="data-module" class="mx-2 py-2 fill-height">
-    <div id="data-collection-selector">
-      <v-select
-        v-model="selectedCollectionModel"
-        :items="collections"
-        item-text="name"
-        item-value="key"
-        dense
-        filled
-        single-line
-        hide-details
-        label="Select a collection"
-        prepend-icon="mdi-database"
-        placeholder="Select a collection"
-        class="no-select"
-      />
-    </div>
     <div id="data-panels">
-      <template v-if="selectedCollection === 'all'">
-        <v-expansion-panels multiple accordion>
-          <v-expansion-panel>
-            <v-expansion-panel-header>
-              <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
-              <span>Sample Data</span>
-            </v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <sample-data-browser />
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-          <v-expansion-panel>
-            <v-expansion-panel-header>
-              <v-icon class="collection-header-icon">mdi-image</v-icon>
-              <span>Anonymous/Other Images</span>
-            </v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <image-data-browser />
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-          <v-expansion-panel v-for="patient in patients" :key="patient.key">
-            <v-expansion-panel-header>
-              <div class="patient-header">
-                <v-icon class="collection-header-icon">mdi-account</v-icon>
-                <span class="patient-header-name" :title="patient.name">
-                  {{ patient.name }}
-                </span>
-                <v-spacer />
-                <v-btn icon small class="mr-3" @click.stop>
-                  <v-icon small>mdi-dots-vertical</v-icon>
-                </v-btn>
-              </div>
-            </v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <patient-browser :patient-key="patient.key" />
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-        </v-expansion-panels>
-      </template>
-      <template v-else-if="selectedCollection === 'samples'">
-        <sample-data-browser />
-      </template>
-      <template v-else-if="selectedCollection === 'images'">
-        <image-data-browser />
-      </template>
-      <template v-else>
-        <patient-browser :patient-key="selectedCollection" />
-      </template>
+      <v-expansion-panels multiple accordion>
+        <v-expansion-panel v-if="hasAnonymousImages">
+          <v-expansion-panel-header>
+            <v-icon class="collection-header-icon">mdi-image</v-icon>
+            <span>Anonymous</span>
+          </v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <image-data-browser />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+        <v-expansion-panel v-for="patient in patients" :key="patient.key">
+          <v-expansion-panel-header>
+            <div class="patient-header">
+              <v-icon class="collection-header-icon">mdi-account</v-icon>
+              <span class="patient-header-name" :title="patient.name">
+                {{ patient.name }}
+              </span>
+              <v-spacer />
+              <v-btn icon small class="mr-3" @click.stop>
+                <v-icon small>mdi-dots-vertical</v-icon>
+              </v-btn>
+            </div>
+          </v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <patient-browser :patient-key="patient.key" />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+        <v-expansion-panel>
+          <v-expansion-panel-header>
+            <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
+            <span>Sample Data</span>
+          </v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <sample-data-browser />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+      </v-expansion-panels>
     </div>
   </div>
 </template>
@@ -177,11 +144,6 @@ export default defineComponent({
 #data-module {
   display: flex;
   flex-flow: column;
-}
-
-#data-collection-selector {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-  padding-bottom: 12px;
 }
 
 #data-panels {
