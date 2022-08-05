@@ -85,6 +85,12 @@
                   @click="messageDialog = true"
                 />
               </v-badge>
+              <tool-button
+                size="40"
+                icon="mdi-cog"
+                name="Settings"
+                @click="settingsDialog = true"
+              />
             </div>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
@@ -133,6 +139,10 @@
 
         <message-notifications @open-notifications="messageDialog = true" />
 
+        <v-dialog v-model="settingsDialog" width="30%">
+          <settings @close="settingsDialog = false" />
+        </v-dialog>
+
         <v-overlay
           :value="dragHover"
           color="#fff"
@@ -165,12 +175,12 @@ import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
 import DragAndDrop from './DragAndDrop.vue';
 import AboutBox from './AboutBox.vue';
-// import AiModule from './AiModule.vue';
 import ToolStrip from './ToolStrip.vue';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
+import Settings from './Settings.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import {
   useDatasetStore,
@@ -322,6 +332,7 @@ export default defineComponent({
     MessageCenter,
     MessageNotifications,
     VolViewFullLogo,
+    Settings,
   },
 
   setup() {
@@ -330,10 +341,6 @@ export default defineComponent({
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
     const viewStore = useViewStore();
-
-    // dialogs
-    const aboutBoxDialog = ref(false);
-    const messageDialog = ref(false);
 
     // --- auto-animate views whenever a proxy is modified --- //
 
@@ -445,8 +452,9 @@ export default defineComponent({
     const messageCount = computed(() => messageStore.importantMessages.length);
 
     return {
-      aboutBoxDialog,
-      messageDialog,
+      aboutBoxDialog: ref(false),
+      messageDialog: ref(false),
+      settingsDialog: ref(false),
       messageCount,
       layout: layoutGrid,
       layoutName,

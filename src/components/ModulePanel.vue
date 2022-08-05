@@ -34,7 +34,6 @@ import { defineComponent, ref } from '@vue/composition-api';
 
 import DataBrowser from './DataBrowser.vue';
 import VolumeRendering from './VolumeRendering.vue';
-import Settings from './Settings.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 
 export const Modules = [
@@ -57,11 +56,6 @@ export const Modules = [
     name: 'AI',
     icon: 'robot-outline',
     component: null,
-  },
-  {
-    name: 'Settings',
-    icon: 'cog',
-    component: Settings,
   },
 ];
 
