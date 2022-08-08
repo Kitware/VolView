@@ -5,15 +5,19 @@ const webpack = require('webpack');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const ITK_WASM_INCLUDE = [
-  'itkNrrd',
-  'itkJPEG',
-  'itkPNG',
-  'itkMeta',
-  'itkNifti',
-  'itkJSON',
-  'itkVTK',
-  'itkBMP',
+  'Nrrd',
+  'JPEG',
+  'PNG',
+  'Meta',
+  'Nifti',
+  'VTK',
+  'BMP',
+  'GDCM',
+  'ReadDICOMTags',
+  'ReadImageDICOMFileSeries'
 ];
+
+const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js')
 
 module.exports = {
   lintOnSave: false,
@@ -26,7 +30,9 @@ module.exports = {
         '@src': path.join(__dirname, 'src'),
         // Use lite colormap
         '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.json':
-          '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
+        '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
+        '../itkConfig.js': itkConfig,
+        '../../itkConfig.js': itkConfig,
       },
     },
     plugins: [
@@ -41,12 +47,12 @@ module.exports = {
       new CopyWebpackPlugin({
         patterns: [
           {
-            from: './node_modules/itk/WebWorkers',
-            to: 'itk/WebWorkers/[name][ext]',
+            from: path.join(__dirname, 'node_modules', 'itk-wasm', 'dist', 'web-workers'),
+            to: path.join(__dirname, 'dist', 'itk', 'web-workers')
           },
           {
-            from: './node_modules/itk/ImageIOs',
-            to: 'itk/ImageIOs/[name][ext]',
+            from: path.join(__dirname, 'node_modules', 'itk-image-io'),
+            to: path.join(__dirname, 'dist', 'itk', 'image-io'),
             filter: (resourcePath) => {
               return ITK_WASM_INCLUDE.some((prefix) =>
                 path.basename(resourcePath).startsWith(prefix)
@@ -54,9 +60,9 @@ module.exports = {
             },
           },
           {
-            from: './src/io/itk-dicom/web-build/dicom*',
-            to: 'itk/Pipelines/[name][ext]',
-          },
+            from: path.join(__dirname, 'src', 'io', 'itk-dicom','web-build', 'dicom*'),
+            to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]')
+          }
         ],
       }),
     ],

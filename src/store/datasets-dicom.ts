@@ -6,6 +6,7 @@ import { getCurrentInstance } from '../instances';
 import { DICOMIO } from '../io/dicom';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
+import { useFileStore } from './datasets-files';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -117,85 +118,104 @@ export const useDICOMStore = defineStore('dicom', {
   }),
   actions: {
     async importFiles(files: File[]) {
+      const fileStore = useFileStore();
+
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
 
       if (!files.length) {
         return [];
       }
 
-      const updatedVolumes = await dicomIO.importFiles(files);
-      const updatedVolumeKeys: VolumeKeys[] = []; // to be returned to caller
+      const nameToFileMap = new Map(files.map((f) => [f.name, f]));
+
+      const volumesToFilesMap = await dicomIO.categorizeFiles(files);
+      const updatedVolumeKeys: VolumeKeys[] = [];
 
       await Promise.all(
-        updatedVolumes.map(async (volumeKey) => {
-          const numberOfSlices = await dicomIO.buildVolumeList(volumeKey);
-
-          if (!(volumeKey in this.volumeInfo)) {
-            const info = await dicomIO.readTags(volumeKey, [
-              { name: 'PatientName', tag: '0010|0010', strconv: true },
-              { name: 'PatientID', tag: '0010|0020', strconv: true },
-              { name: 'PatientBirthDate', tag: '0010|0030' },
-              { name: 'PatientSex', tag: '0010|0040' },
-              { name: 'StudyInstanceUID', tag: '0020|000d' },
-              { name: 'StudyDate', tag: '0008|0020' },
-              { name: 'StudyTime', tag: '0008|0030' },
-              { name: 'StudyID', tag: '0020|0010', strconv: true },
-              { name: 'AccessionNumber', tag: '0008|0050' },
-              { name: 'StudyDescription', tag: '0008|1030', strconv: true },
-              { name: 'Modality', tag: '0008|0060' },
-              { name: 'SeriesInstanceUID', tag: '0020|000e' },
-              { name: 'SeriesNumber', tag: '0020|0011' },
-              { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
-            ]);
-
-            // TODO parse the raw string values
-            const patient = {
-              PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
-              PatientName: info.PatientName || ANONYMOUS_PATIENT,
-              PatientBirthDate: info.PatientBirthDate || '',
-              PatientSex: info.PatientSex || '',
-            };
-            const patientKey = genSynPatientKey(patient);
-
-            const studyKey = info.StudyInstanceUID;
-            const study = pick(
-              info,
-              'StudyID',
-              'StudyInstanceUID',
-              'StudyDate',
-              'StudyTime',
-              'AccessionNumber',
-              'StudyDescription'
-            );
-
-            const volumeInfo = {
-              ...pick(
-                info,
-                'Modality',
-                'SeriesInstanceUID',
-                'SeriesNumber',
-                'SeriesDescription'
-              ),
-              NumberOfSlices: numberOfSlices,
-              VolumeID: volumeKey,
-            };
-
-            updatedVolumeKeys.push({
-              patientKey,
-              studyKey,
-              volumeKey,
+        Object.entries(volumesToFilesMap).map(
+          async ([volumeKey, fileNames]) => {
+            const volumeFiles: File[] = [];
+            fileNames.forEach((fileName) => {
+              const file = nameToFileMap.get(fileName);
+              if (file) {
+                volumeFiles.push(file);
+              }
             });
 
-            this._updateDatabase(patient, study, volumeInfo);
-          }
+            // Add file entries to the file store
+            fileStore.add(volumeKey, volumeFiles);
 
-          // invalidate any existing volume
-          if (volumeKey in this.volumeToImageID) {
-            // buildVolume requestor uses this as a rebuild hint
-            set(this.needsRebuild, volumeKey, true);
+            // Now read the tags
+            const numberOfSlices = volumeFiles.length;
+
+            if (!(volumeKey in this.volumeInfo)) {
+              const info = await dicomIO.readTags(volumeFiles[0], [
+                { name: 'PatientName', tag: '0010|0010', strconv: true },
+                { name: 'PatientID', tag: '0010|0020', strconv: true },
+                { name: 'PatientBirthDate', tag: '0010|0030' },
+                { name: 'PatientSex', tag: '0010|0040' },
+                { name: 'StudyInstanceUID', tag: '0020|000d' },
+                { name: 'StudyDate', tag: '0008|0020' },
+                { name: 'StudyTime', tag: '0008|0030' },
+                { name: 'StudyID', tag: '0020|0010', strconv: true },
+                { name: 'AccessionNumber', tag: '0008|0050' },
+                { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+                { name: 'Modality', tag: '0008|0060' },
+                { name: 'SeriesInstanceUID', tag: '0020|000e' },
+                { name: 'SeriesNumber', tag: '0020|0011' },
+                { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+              ]);
+
+              // TODO parse the raw string values
+              const patient = {
+                PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
+                PatientName: info.PatientName || ANONYMOUS_PATIENT,
+                PatientBirthDate: info.PatientBirthDate || '',
+                PatientSex: info.PatientSex || '',
+              };
+              const patientKey = genSynPatientKey(patient);
+
+              const studyKey = info.StudyInstanceUID;
+              const study = pick(
+                info,
+                'StudyID',
+                'StudyInstanceUID',
+                'StudyDate',
+                'StudyTime',
+                'AccessionNumber',
+                'StudyDescription'
+              );
+
+              const volumeInfo = {
+                ...pick(
+                  info,
+                  'Modality',
+                  'SeriesInstanceUID',
+                  'SeriesNumber',
+                  'SeriesDescription'
+                ),
+                NumberOfSlices: numberOfSlices,
+                VolumeID: volumeKey,
+              };
+
+              updatedVolumeKeys.push({
+                patientKey,
+                studyKey,
+                volumeKey,
+              });
+
+              this._updateDatabase(patient, study, volumeInfo);
+            }
+
+            // invalidate any existing volume
+            if (volumeKey in this.volumeToImageID) {
+              // buildVolume requestor uses this as a rebuild hint
+              set(this.needsRebuild, volumeKey, true);
+            }
           }
-        })
+        )
       );
+
       return updatedVolumeKeys;
     },
 
@@ -284,8 +304,9 @@ export const useDICOMStore = defineStore('dicom', {
       volumeKey: string,
       sliceIndex: number,
       asThumbnail = false
-    ): Promise<object> {
+    ) {
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
+      const fileStore = useFileStore();
 
       const cacheKey = imageCacheMultiKey(sliceIndex, asThumbnail);
       if (
@@ -305,11 +326,15 @@ export const useDICOMStore = defineStore('dicom', {
         throw new Error(`Slice ${sliceIndex} is out of bounds`);
       }
 
-      const itkImage = dicomIO.getVolumeSlice(
-        volumeKey,
-        sliceIndex,
-        asThumbnail
-      );
+      const volumeFiles = fileStore.getFiles(volumeKey);
+
+      if (!volumeFiles) {
+        throw new Error(`No files found for volume key: ${volumeKey}`);
+      }
+
+      const sliceFile = volumeFiles[sliceIndex - 1];
+
+      const itkImage = dicomIO.getVolumeSlice(sliceFile, asThumbnail);
 
       set(this.sliceData[volumeKey], cacheKey, itkImage);
       return itkImage;
@@ -317,6 +342,7 @@ export const useDICOMStore = defineStore('dicom', {
 
     async buildVolume(volumeKey: string, forceRebuild: boolean = false) {
       const imageStore = useImageStore();
+      const fileStore = useFileStore();
       const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
 
       const rebuild = forceRebuild || this.needsRebuild[volumeKey];
@@ -329,7 +355,12 @@ export const useDICOMStore = defineStore('dicom', {
         throw new Error(`Cannot find given volume key: ${volumeKey}`);
       }
 
-      const itkImage = await dicomIO.buildVolume(volumeKey);
+      const volumeFiles = fileStore.getFiles(volumeKey);
+      if (!volumeFiles) {
+        throw new Error(`No files found for volume key: ${volumeKey}`);
+      }
+
+      const itkImage = await dicomIO.buildVolume(volumeFiles);
       const vtkImage = vtkITKHelper.convertItkToVtkImage(itkImage);
 
       if (volumeKey in this.volumeToImageID) {

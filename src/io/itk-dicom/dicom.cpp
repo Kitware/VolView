@@ -8,7 +8,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -27,43 +26,39 @@ namespace fs = std::experimental::filesystem;
 #include <emscripten.h>
 #endif
 
+#include <fstream>
+#include <iostream>
 #include <nlohmann/json.hpp>
 
 #include "itkCastImageFilter.h"
-#include "itkCommonEnums.h"
 #include "itkGDCMImageIO.h"
 #include "itkGDCMSeriesFileNames.h"
 #include "itkImage.h"
 #include "itkImageFileReader.h"
-#include "itkImageFileWriter.h"
 #include "itkImageIOBase.h"
 #include "itkImageSeriesReader.h"
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkVectorImage.h"
 
+#include "itkOutputImage.h"
+#include "itkOutputTextStream.h"
+#include "itkPipeline.h"
+
 #include "gdcmImageHelper.h"
 #include "gdcmReader.h"
-
-#include "charset.hpp"
-#include "readTRE.hpp"
 
 using json = nlohmann::json;
 using ImageType = itk::Image<float, 3>;
 using ReaderType = itk::ImageFileReader<ImageType>;
 using SeriesReaderType = itk::ImageSeriesReader<ImageType>;
 using FileNamesContainer = std::vector<std::string>;
-using DictionaryType = itk::MetaDataDictionary;
 using DicomIO = itk::GDCMImageIO;
-using MetaDataStringType = itk::MetaDataObject<std::string>;
-using TagList = std::vector<std::string>;
 // volumeID -> filenames[]
 using VolumeMapType = std::unordered_map<std::string, std::vector<std::string>>;
 // VolumeID[]
 using VolumeIDList = std::vector<std::string>;
 
-static int rc = 0;
 static const double EPSILON = 10e-5;
-static VolumeMapType VolumeMap;
 
 #ifdef WEB_BUILD
 extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
@@ -72,58 +67,11 @@ extern "C" const char *EMSCRIPTEN_KEEPALIVE unpack_error_what(intptr_t ptr) {
 }
 #endif
 
-void list_dir(const char *path) {
-  struct dirent *entry;
-  DIR *dir = opendir(path);
-
-  if (dir == NULL) {
-    return;
-  }
-  while ((entry = readdir(dir)) != NULL) {
-    std::cerr << entry->d_name << std::endl;
-  }
-  closedir(dir);
-}
-
-bool dirExists(std::string path) {
-  struct stat buf;
-  return 0 == stat(path.c_str(), &buf);
-}
-
 void replaceChars(std::string &str, char search, char replaceChar) {
   int pos;
   std::string replace(1, replaceChar);
   while ((pos = str.find(search)) != std::string::npos) {
     str.replace(pos, 1, replace);
-  }
-}
-
-std::string
-unpackMetaAsString(const itk::MetaDataObjectBase::Pointer &metaValue) {
-  using MetaDataStringType = itk::MetaDataObject<std::string>;
-  MetaDataStringType::Pointer value =
-      dynamic_cast<MetaDataStringType *>(metaValue.GetPointer());
-  if (value != nullptr) {
-    return value->GetMetaDataObjectValue();
-  }
-  return {};
-}
-
-// convenience method for making world-writable dirs
-void makedir(const std::string &dirName) {
-  if (-1 == mkdir(dirName.c_str(), 0777)) {
-    if (errno != EEXIST) {
-      throw std::runtime_error(std::string("makedir error: ") +
-                               std::strerror(errno));
-    }
-  }
-}
-
-// convenience method for moving files
-void movefile(const std::string &src, const std::string &dst) {
-  if (0 != std::rename(src.c_str(), dst.c_str())) {
-    throw std::runtime_error("Failed to move file: " + src + " to " + dst +
-                             ": " + std::strerror(errno));
   }
 }
 
@@ -172,7 +120,8 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
   std::vector<std::pair<std::vector<double>, std::string>> cosinesToID;
 
   // append unique ID part to the volume ID, based on cosines
-  // The format replaces non-alphanumeric chars to be semi-consistent with DICOM UID spec,
+  // The format replaces non-alphanumeric chars to be semi-consistent with DICOM
+  // UID spec,
   //   and to make debugging easier when looking at the full volume IDs.
   // Format: COSINE || "S" || COSINE || "S" || ...
   //   COSINE: A decimal number -DD.DDDD gets reformatted into NDDSDDDD
@@ -190,7 +139,6 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
 
     return concatenated;
   };
-
 
   for (const auto &[volumeID, names] : volumeMap) {
     for (const auto &filename : names) {
@@ -217,22 +165,37 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
   return newVolumeMap;
 }
 
-const json import(FileNamesContainer &files) {
-  // make tmp dir
-  std::string tmpdir("tmp");
-  makedir(tmpdir);
+/**
+ * categorizeFiles extracts out the volumes contained within a set of DICOM
+ * files.
+ *
+ * Return a mapping of volume ID to the files containing the volume.
+ */
+int categorizeFiles(itk::wasm::Pipeline &pipeline) {
 
-  // move all files to tmp
-  for (auto file : files) {
-    auto dst = tmpdir + "/" + file;
-    movefile(file, dst);
-  }
+  // inputs
+  FileNamesContainer files;
+  pipeline.add_option("-f,--files", files, "File names to categorize")
+      ->required()
+      ->check(CLI::ExistingFile)
+      ->expected(1, -1);
+
+  // outputs
+  itk::wasm::OutputTextStream volumeMapJSONStream;
+  pipeline
+      .add_option("volumeMap", volumeMapJSONStream,
+                  "JSON object encoding volumeID => filenames.")
+      ->required();
+
+  ITK_WASM_PARSE(pipeline);
+
+  std::string path = "./";
 
   // parse out series
   typedef itk::GDCMSeriesFileNames SeriesFileNames;
   SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
   // files are all default dumped to cwd
-  seriesFileNames->SetDirectory(tmpdir);
+  seriesFileNames->SetDirectory(path);
   seriesFileNames->SetUseSeriesDetails(true);
   seriesFileNames->SetGlobalWarningDisplay(false);
   seriesFileNames->AddSeriesRestriction("0008|0021");
@@ -244,313 +207,113 @@ const json import(FileNamesContainer &files) {
   auto &gdcmSeriesUIDs = seriesFileNames->GetSeriesUIDs();
 
   // The initial series UIDs are used as the basis for our volume IDs.
-  VolumeMapType curVolumeMap;
+  VolumeMapType volumeMap;
   for (auto seriesUID : gdcmSeriesUIDs) {
-    curVolumeMap[seriesUID] =
-        seriesFileNames->GetFileNames(seriesUID.c_str());
+    volumeMap[seriesUID] = seriesFileNames->GetFileNames(seriesUID.c_str());
   }
 
   // further restrict on orientation
-  curVolumeMap = SeparateOnImageOrientation(curVolumeMap);
+  volumeMap = SeparateOnImageOrientation(volumeMap);
 
-  VolumeIDList allVolumeIDs;
-  for (const auto &entry : curVolumeMap) {
-    const std::string &volumeID = entry.first;
-    const FileNamesContainer &fileNames = entry.second;
-
-    // move files to volume dir
-    // assume there will be no filename conflicts within a volume
-    makedir(volumeID);
-    for (auto filename : fileNames) {
-      auto dst = volumeID + "/" + filename.substr(tmpdir.size() + 1);
-      movefile(filename, dst);
+  // strip off tmp prefix
+  for (auto &entry : volumeMap) {
+    auto &fileNames = entry.second;
+    for (auto &f : fileNames) {
+      f = f.substr(path.size());
     }
-
-    allVolumeIDs.push_back(volumeID);
   }
-  return json(allVolumeIDs);
+
+  // Generate the JSON and add to output stream
+  auto volumeMapJSON = json(volumeMap);
+  volumeMapJSONStream.Get() << volumeMapJSON;
+
+  return EXIT_SUCCESS;
 }
 
 /**
- * buildVolumeList exists to support multiple import() calls prior to building a
- * volume.
- *
- * This solves the issues
+ * Reads an image slice and returns the optionally thumbnailed image.
  */
-int buildVolumeList(const std::string &volumeID) {
-  if (dirExists(volumeID)) {
-    typedef itk::GDCMSeriesFileNames SeriesFileNames;
-    SeriesFileNames::Pointer seriesFileNames = SeriesFileNames::New();
-    seriesFileNames->SetDirectory(volumeID);
-    seriesFileNames->SetUseSeriesDetails(true);
-    seriesFileNames->SetGlobalWarningDisplay(false);
-    seriesFileNames->AddSeriesRestriction("0008|0021");
-    seriesFileNames->SetRecursive(false);
-    seriesFileNames->SetLoadPrivateTags(false);
+int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
-    VolumeIDList uids = seriesFileNames->GetSeriesUIDs();
+  // inputs
+  std::string fileName;
+  pipeline.add_option("-f,--file", fileName, "File name generate image for")
+      ->required()
+      ->check(CLI::ExistingFile)
+      ->expected(1);
 
-    if (uids.size() != 1) {
-      throw std::runtime_error("why are there more than 1 series/volume in this dir");
-    }
+  bool asThumbnail = false;
+  pipeline.add_option("-t,--thumbnail", asThumbnail,
+                      "Generate thumbnail image");
 
-    VolumeMap[volumeID] = seriesFileNames->GetFileNames(uids[0].c_str());
-    auto &map = VolumeMap[volumeID];
-    for (auto &filename : map) {
-      // trim off dir + "/"
-      filename = filename.substr(volumeID.size() + 1);
-    }
-    return map.size();
-  }
-  std::cerr << "Could not build volume " << volumeID << std::endl;
-  return 0;
-}
+  ITK_WASM_PRE_PARSE(pipeline);
 
-const json readTags(const std::string &volumeID, unsigned long slice,
-                    const TagList &tags) {
-  json tagJson;
+  // Setup reader
+  typename DicomIO::Pointer dicomIO = DicomIO::New();
+  dicomIO->LoadPrivateTagsOff();
+  typename ReaderType::Pointer reader = ReaderType::New();
+  reader->SetFileName(fileName);
 
-  if (VolumeMap.find(volumeID) != VolumeMap.end()) {
-    FileNamesContainer fileList = VolumeMap.at(volumeID);
+  if (asThumbnail) {
+    using InputImageType = ImageType;
+    using OutputPixelType = uint8_t;
+    using OutputImageType = itk::Image<OutputPixelType, 3>;
+    using RescaleFilter =
+        itk::RescaleIntensityImageFilter<InputImageType, InputImageType>;
+    using CastImageFilter =
+        itk::CastImageFilter<InputImageType, OutputImageType>;
 
-    if (slice >= 0 && slice < fileList.size()) {
-      auto filename = fileList.at(slice);
+    // outputs
+    using WasmOutputImageType = itk::wasm::OutputImage<OutputImageType>;
+    WasmOutputImageType outputImage;
+    pipeline.add_option("OutputImage", outputImage, "The slice")->required();
 
-      typename DicomIO::Pointer dicomIO = DicomIO::New();
-      dicomIO->LoadPrivateTagsOff();
-      typename ReaderType::Pointer reader = ReaderType::New();
-      reader->UseStreamingOn();
-      reader->SetImageIO(dicomIO);
+    ITK_WASM_PARSE(pipeline);
 
-      auto fullFilename = volumeID + "/" + filename;
-      dicomIO->SetFileName(fullFilename);
-      reader->SetFileName(fullFilename);
-      reader->UpdateOutputInformation();
+    auto rescaleFilter = RescaleFilter::New();
+    rescaleFilter->SetInput(reader->GetOutput());
+    rescaleFilter->SetOutputMinimum(0);
+    rescaleFilter->SetOutputMaximum(itk::NumericTraits<OutputPixelType>::max());
 
-      DictionaryType tagsDict = reader->GetMetaDataDictionary();
+    auto castFilter = CastImageFilter::New();
+    castFilter->SetInput(rescaleFilter->GetOutput());
+    castFilter->Update();
 
-      std::string specificCharacterSet =
-          unpackMetaAsString(tagsDict["0008|0005"]);
-      CharStringToUTF8Converter conv(specificCharacterSet);
-
-      for (auto it = tags.begin(); it != tags.end(); ++it) {
-        auto tag = *it;
-        bool doConvert = false;
-        if (tag[0] == '@') {
-          doConvert = true;
-          tag = tag.substr(1);
-        }
-
-        auto value = unpackMetaAsString(tagsDict[tag]);
-        if (doConvert) {
-          value = conv.convertCharStringToUTF8(value);
-        }
-
-        tagJson[tag] = value;
-      }
-    }
-  }
-
-  return tagJson;
-}
-
-void getSliceImage(const std::string &volumeID, unsigned long slice,
-                   const std::string &outFileName, bool asThumbnail) {
-  VolumeMapType::const_iterator found = VolumeMap.find(volumeID);
-  if (found != VolumeMap.end()) {
-    FileNamesContainer fileList = VolumeMap.at(volumeID);
-    std::string filename = volumeID + "/" + fileList.at(slice - 1);
-
-    typename DicomIO::Pointer dicomIO = DicomIO::New();
-    dicomIO->LoadPrivateTagsOff();
-    typename ReaderType::Pointer reader = ReaderType::New();
-    reader->SetFileName(filename);
-
-    // cast images to unsigned char for easier thumbnailing to canvas ImageData
-    // if asThumbnail is specified.
-    if (asThumbnail) {
-      using InputImageType = ImageType;
-      using OutputPixelType = unsigned char;
-      using OutputImageType = itk::Image<OutputPixelType, 3>;
-      using RescaleFilter =
-          itk::RescaleIntensityImageFilter<InputImageType, InputImageType>;
-      using CastImageFilter =
-          itk::CastImageFilter<InputImageType, OutputImageType>;
-
-      auto rescaleFilter = RescaleFilter::New();
-      rescaleFilter->SetInput(reader->GetOutput());
-      rescaleFilter->SetOutputMinimum(0);
-      rescaleFilter->SetOutputMaximum(
-          itk::NumericTraits<OutputPixelType>::max());
-
-      auto castFilter = CastImageFilter::New();
-      castFilter->SetInput(rescaleFilter->GetOutput());
-
-      using WriterType = itk::ImageFileWriter<OutputImageType>;
-      auto writer = WriterType::New();
-      writer->SetInput(castFilter->GetOutput());
-      writer->SetFileName(outFileName);
-      writer->Update();
-    } else {
-      using WriterType = itk::ImageFileWriter<ImageType>;
-      auto writer = WriterType::New();
-      writer->SetInput(reader->GetOutput());
-      writer->SetFileName(outFileName);
-      writer->Update();
-    }
+    // Set the output image
+    outputImage.Set(castFilter->GetOutput());
   } else {
-    throw std::runtime_error("No thumbnail for volume ID: " + volumeID);
-    std::ofstream empty(outFileName);
+    // outputs
+    using WasmOutputImageType = itk::wasm::OutputImage<ImageType>;
+    WasmOutputImageType outputImage;
+    pipeline.add_option("OutputImage", outputImage, "The slice")->required();
+
+    ITK_WASM_PARSE(pipeline);
+
+    reader->Update();
+    outputImage.Set(reader->GetOutput());
   }
+
+  return EXIT_SUCCESS;
 }
-
-void buildVolume(const std::string &volumeID,
-                 const std::string &outFileName) {
-  VolumeMapType::const_iterator found = VolumeMap.find(volumeID);
-  if (found != VolumeMap.end()) {
-    FileNamesContainer fileList = VolumeMap.at(volumeID);
-    FileNamesContainer fileNames(fileList);
-
-    for (FileNamesContainer::iterator it = fileNames.begin();
-         it != fileNames.end(); ++it) {
-      *it = volumeID + "/" + *it;
-    }
-
-    DicomIO::Pointer dicomIO = DicomIO::New();
-    dicomIO->LoadPrivateTagsOff();
-    SeriesReaderType::Pointer reader = SeriesReaderType::New();
-    // this should be ordered from import
-    reader->SetFileNames(fileNames);
-    // reader->ForceOrthogonalDirectionOn();
-    // hopefully this makes things faster?
-    reader->MetaDataDictionaryArrayUpdateOff();
-    reader->UseStreamingOn();
-
-    using WriterType = itk::ImageFileWriter<ImageType>;
-    auto writer = WriterType::New();
-    writer->SetInput(reader->GetOutput());
-    writer->SetFileName(outFileName);
-    writer->Update();
-  }
-}
-
-void deleteVolume(const std::string &volumeID) { fs::remove_all(volumeID); }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " [import|clear|remove]" << std::endl;
-    return 1;
+  std::string action;
+  itk::wasm::Pipeline pipeline("VolView pipeline to access DICOM data", argc,
+                               argv);
+  pipeline.add_option("-a,--action", action, "The action to run")
+      ->check(CLI::IsMember({"categorize", "getSliceImage"}));
+
+  // Pre parse so we can get the action
+  ITK_WASM_PRE_PARSE(pipeline)
+
+  if (action == "categorize") {
+
+    ITK_WASM_CATCH_EXCEPTION(pipeline, categorizeFiles(pipeline));
+
+  } else if (action == "getSliceImage") {
+
+    ITK_WASM_CATCH_EXCEPTION(pipeline, getSliceImage(pipeline));
   }
 
-  std::string action(argv[1]);
-
-  // need some IO so emscripten will import FS module
-  // otherwise, you'll get an "FS not found" error at runtime
-  // https://github.com/emscripten-core/emscripten/issues/854
-  std::cerr << "Action: " << action << ", runcount: " << ++rc
-            << ", argc: " << argc << std::endl;
-
-  if (action == "import" && argc > 2) {
-    // dicom import output.json <FILES>
-    std::string outFileName = argv[2];
-    std::vector<std::string> rest(argv + 3, argv + argc);
-
-    json importInfo;
-    try {
-      importInfo = import(rest);
-    } catch (const std::runtime_error &e) {
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << std::endl;
-    }
-
-    std::ofstream outfile;
-    outfile.open(outFileName);
-    outfile << importInfo.dump(-1, true, ' ', json::error_handler_t::ignore);
-    outfile.close();
-  } else if (action == "buildVolumeList") {
-    // dicom buildVolumeList output.json volumeID
-    std::string outFileName(argv[2]);
-    std::string volumeID(argv[3]);
-    json numSlices;
-    try {
-      numSlices = buildVolumeList(volumeID);
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << std::endl;
-    } catch (const std::runtime_error &e) {
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    }
-
-    std::ofstream outfile;
-    outfile.open(outFileName);
-    outfile << numSlices.dump(-1, true, ' ', json::error_handler_t::ignore);
-    outfile.close();
-  } else if (action == "readTags" && argc > 4) {
-    // dicom readTags output.json volumeID, slicenum [...tags]
-    std::string outputFilename(argv[2]);
-    std::string volumeID(argv[3]);
-    unsigned long sliceNum = std::stoul(argv[4]);
-    std::vector<std::string> rest(argv + 5, argv + argc);
-
-    json tags;
-    try {
-      tags = readTags(volumeID, sliceNum, rest);
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << std::endl;
-    } catch (const std::runtime_error &e) {
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    }
-
-    std::ofstream outfile;
-    outfile.open(outputFilename);
-    outfile << tags.dump(-1, true, ' ', json::error_handler_t::ignore);
-    outfile.close();
-  } else if (action == "getSliceImage" && argc == 6) {
-    // dicom getSliceImage outputImage.json volumeID SLICENUM
-    std::string outFileName = argv[2];
-    std::string volumeID = argv[3];
-    unsigned long sliceNum = std::stoul(argv[4]);
-    bool asThumbnail = std::string(argv[5]) == "1";
-
-    try {
-      getSliceImage(volumeID, sliceNum, outFileName, asThumbnail);
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << '\n';
-    } catch (const std::runtime_error &e) {
-      std::cerr << "Runtime error: " << e.what() << std::endl;
-    }
-  } else if (action == "buildVolume" && argc == 4) {
-    // dicom buildVolume outputImage.json volumeID
-    std::string outFileName = argv[2];
-    std::string volumeID = argv[3];
-
-    try {
-      buildVolume(volumeID, outFileName);
-    } catch (const itk::ExceptionObject &e) {
-      std::cerr << "ITK error: " << e.what() << '\n';
-    } catch (const std::runtime_error &e) {
-      std::cerr << e.what() << std::endl;
-    }
-  } else if (action == "deleteVolume" && argc == 3) {
-    // dicom deleteVolume volumeID
-    std::string volumeID(argv[3]);
-
-    try {
-      deleteVolume(volumeID);
-    } catch (const std::runtime_error &e) {
-      std::cerr << e.what() << std::endl;
-    }
-  } else if (action == "readTRE" && argc == 4) {
-    // dicom readTRE points.json TRE_FILE
-    std::string outFilename = argv[2];
-    std::string filename = argv[3];
-    json tre = readTRE(filename);
-
-    std::ofstream outfile;
-    outfile.open(outFilename);
-    outfile << tre.dump();
-    outfile.close();
-  }
-
-  return 0;
+  return EXIT_SUCCESS;
 }

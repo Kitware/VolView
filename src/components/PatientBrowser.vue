@@ -44,7 +44,7 @@ export default defineComponent({
           key: studyKey,
           title:
             info.StudyDescription || info.StudyDate || info.StudyInstanceUID,
-          volumeKeys: studyVolumes[studyKey],
+          volumeKeys: studyVolumes[studyKey].sort(),
         };
       });
     });
