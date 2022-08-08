@@ -224,7 +224,6 @@ export default defineComponent({
       const pwf = proxyManager.getPiecewiseFunction(arrayName);
       const opFunc = opacityFunction.value;
       pwf.setMode(opFunc.mode);
-      pwf.setDataRange(...mappingRange);
 
       switch (opFunc.mode) {
         case vtkPiecewiseFunctionProxy.Mode.Gaussians:
