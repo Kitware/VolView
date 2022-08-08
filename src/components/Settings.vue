@@ -1,7 +1,14 @@
 <template>
-  <v-container>
-    <v-switch label="Enable Dark Theme" v-model="dark"></v-switch>
-  </v-container>
+  <v-card>
+    <v-card-title>
+      Settings
+      <v-spacer />
+      <v-btn icon @click="$emit('close')"><v-icon>mdi-close</v-icon></v-btn>
+    </v-card-title>
+    <v-card-text>
+      <v-switch label="Enable Dark Theme" v-model="dark"></v-switch>
+    </v-card-text>
+  </v-card>
 </template>
 
 <script lang="ts">
