@@ -4,6 +4,7 @@ import {
   onBeforeUnmount,
   onMounted,
   toRefs,
+  watch,
 } from '@vue/composition-api';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { useViewStore } from '@/src/store/views';
@@ -40,6 +41,14 @@ export default defineComponent({
       ? viewProxy.getInteractorStyle2D()
       : viewProxy.getInteractorStyle3D();
     const manipulator = manipulatorClass.value.newInstance(options.value);
+
+    watch(options, (newOptions) => {
+      if (props.name === 'PanTool') {
+        manipulator.setShift(!newOptions.shift.value);
+      } else if (props.name === 'ZoomTool') {
+        manipulator.setControl(!newOptions.control.value);
+      }
+    });
 
     onMounted(() => {
       if (manipulator.isA('vtkCompositeMouseManipulator')) {
