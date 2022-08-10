@@ -110,7 +110,6 @@ export default VRangeSlider.extend({
         },
         {
           class: `v-slider__track-background ${CLASS_COLOR_FUNCTION}`,
-          color: this.computedTrackColor,
           styles: [
             this.inputWidth[1],
             Math.abs(100 - this.inputWidth[1]),
