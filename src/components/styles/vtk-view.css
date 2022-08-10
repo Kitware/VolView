@@ -112,7 +112,3 @@
 .loading-enter-to {
   opacity: 1;
 }
-
-.info-button {
-  pointer-events: all;
-}

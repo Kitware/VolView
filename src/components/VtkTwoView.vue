@@ -83,7 +83,7 @@
               nudge-left="10"
               dark
               v-if="dicomInfo !== null"
-              max-width="200px"
+              max-width="300px"
             >
               <template v-slot:activator="{ on, attrs }">
                 <v-btn
@@ -92,7 +92,7 @@
                   icon
                   v-bind="attrs"
                   v-on="on"
-                  class="info-button"
+                  class="pointer-events-all"
                 >
                   <v-icon dark> mdi-information </v-icon>
                 </v-btn>
@@ -100,37 +100,41 @@
               <v-list class="grey darken-3">
                 <v-list-item>
                   <v-list-item-content>
-                    <v-list-item-title class=".font-color"
-                      >PATIENT / CASE</v-list-item-title
-                    >
+                    <v-list-item-title class="font-weight-bold">
+                      PATIENT / CASE
+                    </v-list-item-title>
                     <v-divider />
-                    <v-list-item-title
-                      >ID: {{ dicomInfo.patientID }}</v-list-item-title
-                    >
+                    <v-list-item-title>
+                      ID: {{ dicomInfo.patientID }}
+                    </v-list-item-title>
                   </v-list-item-content>
                 </v-list-item>
                 <v-list-item>
                   <v-list-item-content>
-                    <v-list-item-title>STUDY</v-list-item-title>
+                    <v-list-item-title class="font-weight-bold">
+                      STUDY
+                    </v-list-item-title>
                     <v-divider />
-                    <v-list-item-title
-                      >ID: {{ dicomInfo.studyID }}</v-list-item-title
-                    >
-                    <v-list-item-title>{{
-                      dicomInfo.studyDescription
-                    }}</v-list-item-title>
+                    <v-list-item-title>
+                      ID: {{ dicomInfo.studyID }}
+                    </v-list-item-title>
+                    <v-list-item-title>
+                      {{ dicomInfo.studyDescription }}
+                    </v-list-item-title>
                   </v-list-item-content>
                 </v-list-item>
                 <v-list-item>
                   <v-list-item-content>
-                    <v-list-item-title>SERIES</v-list-item-title>
+                    <v-list-item-title class="font-weight-bold">
+                      SERIES
+                    </v-list-item-title>
                     <v-divider />
-                    <v-list-item-title
-                      >SERIES #: {{ dicomInfo.seriesNumber }}</v-list-item-title
-                    >
-                    <v-list-item-title>{{
-                      dicomInfo.seriesDescription
-                    }}</v-list-item-title>
+                    <v-list-item-title>
+                      Series #: {{ dicomInfo.seriesNumber }}
+                    </v-list-item-title>
+                    <v-list-item-title>
+                      {{ dicomInfo.seriesDescription }}
+                    </v-list-item-title>
                   </v-list-item-content>
                 </v-list-item>
               </v-list>
@@ -606,3 +610,4 @@ export default defineComponent({
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
+<style scoped src="@/src/components/styles/utils.css"></style>
