@@ -52,7 +52,7 @@ declare module '@kitware/vtk.js/Proxy/Core/ViewProxy' {
   import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
   import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
   import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-  import { Vector3 } from '@kitware/vtk.js/types';
+  import { Vector3, Vector4 } from '@kitware/vtk.js/types';
   import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
   import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
   import vtkInteractorStyle from '@kitware/vtk.js/Rendering/Core/InteractorStyle';
@@ -88,8 +88,8 @@ declare module '@kitware/vtk.js/Proxy/Core/ViewProxy' {
 
     // TODO corner annotations
 
-    setBackground(color: Vector3): void;
-    getBackground(): Vector3;
+    setBackground(color: Vector3 | Vector4): void;
+    getBackground(): Vector3 | Vector4;
 
     setAnimation(enable: boolean, requester?: vtkObject);
 

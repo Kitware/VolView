@@ -1,6 +1,6 @@
 <template>
-  <div class="layout-container" :class="flexFlow">
-    <div v-for="(item, i) in items" :key="i" class="d-flex flex-grow-1">
+  <div class="layout-container flex-equal" :class="flexFlow">
+    <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
       <layout-grid v-if="Array.isArray(item)" :layout="item" />
       <div v-else-if="item" class="layout-item">
         <component :is="item.comp" v-bind="item.props" />
@@ -27,16 +27,17 @@ export default {
 };
 </script>
 
+<style scoped src="@/src/components/styles/utils.css"></style>
+
 <style scoped>
 .layout-container {
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
 }
 
 .layout-item {
   display: flex;
-  flex: 1 1;
+  flex: 1;
   border: 1px solid #222;
 }
 </style>
