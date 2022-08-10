@@ -1,5 +1,6 @@
 <template>
   <div class="slice-slider" ref="handleContainer" @mousedown="onDragStart">
+    <div class="slice-slider-track" />
     <div
       class="slice-slider-handle"
       ref="handle"
@@ -147,8 +148,23 @@ export default {
 
 <style scoped>
 .slice-slider-handle {
-  position: absolute;
+  position: relative;
   width: 100%;
-  background: pink;
+  background: #ccc;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1px solid #999;
+}
+
+.slice-slider-track {
+  position: absolute;
+  margin: 0 auto;
+  top: 8px;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  width: 1px;
+  border: 1px solid #888;
+  border-radius: 2px;
 }
 </style>

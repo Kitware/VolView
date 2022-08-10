@@ -4,6 +4,7 @@
       <v-tooltip right transition="slide-x-transition">
         <template v-slot:activator="{ on, attrs }">
           <v-btn
+            dark
             x-small
             icon
             @click="enableResizeToFit"
