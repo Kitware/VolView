@@ -1,6 +1,6 @@
 <template>
   <div class="fill-height d-flex flex-column">
-    <div id="module-switcher" class="mt-1 mb-2">
+    <div id="module-switcher">
       <v-tabs
         id="module-switcher-tabs"
         v-model="selectedModuleIndex"
@@ -75,6 +75,16 @@ export default defineComponent({
 <style scoped>
 #module-switcher {
   flex: 0 2;
+  /* roughly match vuetify's dark/light transition */
+  transition: border-bottom 0.3s;
+}
+
+.theme--light #module-switcher {
+  border-bottom: 2px solid #efefef;
+}
+
+.theme--dark #module-switcher {
+  border-bottom: 2px solid #2f2f2f;
 }
 
 #module-container {
@@ -95,6 +105,10 @@ export default defineComponent({
   flex-direction: column-reverse;
   height: 100%;
   align-items: center;
+}
+
+#module-switcher-tabs >>> .v-tabs-bar__content {
+  justify-content: center;
 }
 
 #module-switcher-tabs >>> .v-slide-group__prev.v-slide-group__prev--disabled {
