@@ -45,6 +45,13 @@ export function commonViewCustomizations(publicAPI, model) {
     model.camera.setDirectionOfProjection(...directionOfProjection);
     model.camera.setViewUp(...viewUp);
   };
+
+  // disable the built-in corner annotations
+  const { setContainer } = publicAPI;
+  publicAPI.setContainer = (el) => {
+    setContainer(el);
+    model.cornerAnnotation.setContainer(null);
+  };
 }
 
 function vtkLPSView3DProxy(publicAPI, model) {

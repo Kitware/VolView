@@ -30,7 +30,7 @@
           <module-panel />
         </resizable-nav-drawer>
         <v-main id="content-wrapper">
-          <div class="fill-height d-flex flex-row flex-grow-1 grey darken-3">
+          <div class="fill-height d-flex flex-row flex-grow-1">
             <div
               id="tools-strip"
               class="grey darken-4 d-flex flex-column align-center"
@@ -98,7 +98,7 @@
                 v-show="!hasData"
                 no-gutters
                 align="center"
-                class="clickable"
+                class="clickable grey darken-3"
                 @click="userPromptFiles"
               >
                 <v-col>

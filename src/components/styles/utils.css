@@ -1,0 +1,8 @@
+.flex-equal {
+    flex: 1;
+    min-width: 0;
+}
+
+.pointer-events-all {
+    pointer-events: all;
+}

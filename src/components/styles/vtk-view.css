@@ -38,12 +38,14 @@
 .vtk-gutter {
   display: flex;
   flex-flow: column;
+  background: black;
 }
 
 .slice-slider {
   position: relative;
   flex: 1 1;
-  width: 20px;
+  width: 100%;
+  padding: 0 3px;
 }
 
 .overlay-no-events {
@@ -109,8 +111,4 @@
 
 .loading-enter-to {
   opacity: 1;
-}
-
-.info-button {
-  pointer-events: all;
 }

@@ -1,15 +1,5 @@
 <template>
-  <div class="vtk-container-wrapper">
-    <div class="vtk-gutter">
-      <v-tooltip right transition="slide-x-transition">
-        <template v-slot:activator="{ on, attrs }">
-          <v-btn x-small icon @click="resetCamera" v-bind="attrs" v-on="on">
-            <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
-          </v-btn>
-        </template>
-        <span>Reset camera</span>
-      </v-tooltip>
-    </div>
+  <div class="vtk-container-wrapper vtk-three-container">
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
@@ -17,7 +7,23 @@
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
           <div class="annotation-cell">
-            <span>{{ topLeftLabel }}</span>
+            <v-tooltip bottom transition="slide-x-transition">
+              <template v-slot:activator="{ on, attrs }">
+                <v-btn
+                  class="pointer-events-all"
+                  dark
+                  x-small
+                  icon
+                  @click="resetCamera"
+                  v-bind="attrs"
+                  v-on="on"
+                >
+                  <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>Reset camera</span>
+            </v-tooltip>
+            <span class="ml-3">{{ topLeftLabel }}</span>
           </div>
         </template>
       </view-overlay-grid>
@@ -109,7 +115,7 @@ export default defineComponent({
     onMounted(() => {
       viewProxy.setOrientationAxesVisibility(true);
       viewProxy.setOrientationAxesType('cube');
-      viewProxy.setBackground([0.1, 0.2, 0.3]);
+      viewProxy.setBackground([0, 0, 0, 0]);
       viewProxy.setContainer(vtkContainerRef.value ?? null);
     });
 
@@ -298,3 +304,11 @@ export default defineComponent({
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
+<style scoped src="@/src/components/styles/utils.css"></style>
+
+<style scoped>
+.vtk-three-container {
+  background-color: black;
+  grid-template-columns: auto;
+}
+</style>
