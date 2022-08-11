@@ -13,6 +13,26 @@
         @click="toggle"
       />
     </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
+      <tool-button
+        size="40"
+        icon="mdi-cursor-move"
+        name="Pan"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      />
+    </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Zoom">
+      <tool-button
+        size="40"
+        icon="mdi-magnify-plus-outline"
+        name="Zoom"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      />
+    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
       <v-menu
         v-model="paintMenu"

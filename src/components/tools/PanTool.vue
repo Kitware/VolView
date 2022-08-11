@@ -2,6 +2,7 @@
 import { CreateElement, RenderContext } from 'vue';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
+import { Tools, useToolStore } from '@/src/store/tools';
 import ManipulatorTool from './ManipulatorTool.vue';
 
 interface Props {
@@ -11,6 +12,10 @@ interface Props {
 export default {
   functional: true,
   render(h: CreateElement, ctx: RenderContext<Props>) {
+    const toolStore = useToolStore();
+    // only enable shift if Pan tool is not active
+    const shift = toolStore.currentTool !== Tools.Pan;
+
     return h(ManipulatorTool, {
       props: {
         ...ctx.props,
@@ -18,7 +23,7 @@ export default {
         manipulatorClass: vtkMouseCameraTrackballPanManipulator,
         options: {
           button: 1,
-          shift: true,
+          shift,
         },
       },
     });
