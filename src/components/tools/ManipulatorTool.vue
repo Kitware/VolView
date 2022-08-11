@@ -43,10 +43,14 @@ export default defineComponent({
     const manipulator = manipulatorClass.value.newInstance(options.value);
 
     watch(options, (newOptions) => {
-      if (props.name === 'PanTool') {
-        manipulator.setShift(!newOptions.shift.value);
-      } else if (props.name === 'ZoomTool') {
-        manipulator.setControl(!newOptions.control.value);
+      if ('button' in newOptions) {
+        manipulator.setButton(newOptions.button);
+      }
+      if ('shift' in newOptions) {
+        manipulator.setShift(newOptions.shift);
+      }
+      if ('control' in newOptions) {
+        manipulator.setControl(newOptions.control);
       }
     });
 

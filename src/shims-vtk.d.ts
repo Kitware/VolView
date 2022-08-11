@@ -626,6 +626,33 @@ declare module '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoo
   export default vtkMouseCameraTrackballZoomManipulator;
 }
 
+declare module '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator' {
+  import vtkMouseCameraTrackballZoomManipulator, {
+    IMouseCameraTrackballZoomManipulatorInitialValues,
+  } from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator';
+  export interface IMouseCameraTrackballZoomToMouseManipulator
+    extends IMouseCameraTrackballZoomManipulatorInitialValues {}
+
+  export interface vtkMouseCameraTrackballZoomToMouseManipulator
+    extends vtkMouseCameraTrackballZoomManipulator {}
+
+  export function extend(
+    publicAPI: object,
+    model: object,
+    initialValues?: IMouseCameraTrackballZoomToMouseManipulatorInitialValues
+  ): void;
+  export function newInstance(
+    initialValues?: IMouseCameraTrackballZoomToMouseManipulatorInitialValues
+  ): vtkMouseCameraTrackballZoomToMouseManipulator;
+
+  export declare const vtkMouseCameraTrackballZoomToMouseManipulator: {
+    newInstance: typeof newInstance;
+    extend: typeof extend;
+  };
+
+  export default vtkMouseCameraTrackballZoomToMouseManipulator;
+}
+
 declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Presets' {
   export default any;
 }

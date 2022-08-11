@@ -1,5 +1,4 @@
 <script lang="ts">
-import { computed } from '@vue/composition-api';
 import { CreateElement, RenderContext } from 'vue';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
@@ -14,7 +13,8 @@ export default {
   functional: true,
   render(h: CreateElement, ctx: RenderContext<Props>) {
     const toolStore = useToolStore();
-    const active = computed(() => toolStore.currentTool === Tools.Pan);
+    // only enable shift if Pan tool is not active
+    const shift = toolStore.currentTool !== Tools.Pan;
 
     return h(ManipulatorTool, {
       props: {
@@ -23,7 +23,7 @@ export default {
         manipulatorClass: vtkMouseCameraTrackballPanManipulator,
         options: {
           button: 1,
-          shift: active,
+          shift,
         },
       },
     });
