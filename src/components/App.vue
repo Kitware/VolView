@@ -489,6 +489,8 @@ export default defineComponent({
 }
 </style>
 
+<style src="@/src/components/styles/utils.css"></style>
+
 <style scoped>
 #left-nav {
   display: flex;
@@ -498,14 +500,6 @@ export default defineComponent({
 #tools-strip {
   border-left: 1px solid #212121;
   flex: 0 0 40px;
-}
-
-.view-box {
-  box-sizing: border-box;
-}
-
-.clickable {
-  cursor: pointer;
 }
 
 .tool-separator {

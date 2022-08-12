@@ -8,6 +8,7 @@
         :view-id="viewId"
         :point1="ruler.firstPoint"
         :point2="ruler.secondPoint"
+        :color="ruler.color"
         :length="ruler.length"
       />
     </svg>
@@ -178,6 +179,7 @@ export default defineComponent({
             id,
             firstPoint: ruler.firstPoint,
             secondPoint: ruler.secondPoint,
+            color: ruler.color,
             slice: ruler.slice,
             length: lengthByID[id],
             focused: isToolActive && curActiveRulerID === id,

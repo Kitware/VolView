@@ -6,3 +6,11 @@
 .pointer-events-all {
     pointer-events: all;
 }
+
+.view-box {
+  box-sizing: border-box;
+}
+
+.clickable {
+  cursor: pointer;
+}

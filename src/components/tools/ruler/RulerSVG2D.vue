@@ -6,7 +6,7 @@
       :y1="first.y"
       :x2="second.x"
       :y2="second.y"
-      stroke="yellow"
+      :stroke="color"
       stroke-width="1"
     />
     <!-- radius is related to the vtkRulerWidget scale, specified in state -->
@@ -14,7 +14,7 @@
       v-if="first"
       :cx="first.x"
       :cy="first.y"
-      stroke="yellow"
+      :stroke="color"
       stroke-width="1"
       fill="transparent"
       :r="10 / devicePixelRatio"
@@ -23,7 +23,7 @@
       v-if="second"
       :cx="second.x"
       :cy="second.y"
-      stroke="yellow"
+      :stroke="color"
       stroke-width="1"
       fill="transparent"
       :r="10 / devicePixelRatio"
@@ -37,7 +37,7 @@
       :dy="textdy"
       :text-anchor="anchor"
       stroke-width="0"
-      fill="yellow"
+      :fill="color"
       :font-size="`${textSize}px`"
     >
       {{ rulerLength }}
@@ -70,6 +70,7 @@ export default defineComponent({
   props: {
     point1: Array as PropType<Array<number>>,
     point2: Array as PropType<Array<number>>,
+    color: String,
     length: Number,
     viewId: {
       type: String,

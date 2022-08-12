@@ -3,6 +3,7 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { removeFromArray } from '@/src/utils';
 import { RulerStateUpdate } from '@/src/core/tools/ruler';
+import { TOOL_COLORS } from '@/src/constants';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { useViewConfigStore } from '@/src/store/view-configs';
@@ -40,6 +41,10 @@ export interface RulerTool {
    * The current interaction state.
    */
   interactionState: InteractionState;
+  /**
+   * Ruler metadata
+   */
+  color: string;
 }
 
 const emptyRulerTool = (): RulerTool => ({
@@ -50,6 +55,7 @@ const emptyRulerTool = (): RulerTool => ({
   slice: null,
   imageID: '',
   interactionState: InteractionState.PlacingFirst,
+  color: TOOL_COLORS[0],
 });
 
 export type RulerPatch = Partial<RulerTool> & RulerStateUpdate;
@@ -58,6 +64,7 @@ interface State {
   rulerIDs: string[];
   rulers: Record<string, RulerTool>;
   activeRulerID: string | null;
+  colorIndex: number;
 }
 
 export const useRulerToolStore = defineStore('rulerTool', {
@@ -65,6 +72,7 @@ export const useRulerToolStore = defineStore('rulerTool', {
     rulerIDs: [],
     rulers: Object.create(null),
     activeRulerID: null,
+    colorIndex: 0,
   }),
   getters: {
     lengths(state) {
@@ -101,15 +109,23 @@ export const useRulerToolStore = defineStore('rulerTool', {
         this.activeRulerID = null;
       }
     },
-    addNewRuler(ruler: Partial<RulerTool>) {
+    addNewRuler(rulerState: Partial<RulerTool>) {
       const id = this.$id.nextID();
 
       set(this.rulers, id, emptyRulerTool());
       this.rulerIDs.push(id);
 
       this.$tools.ruler.createRuler(id);
+
+      const patch = { ...rulerState };
+      // set color if necessary
+      if (!('color' in patch)) {
+        patch.color = TOOL_COLORS[this.colorIndex];
+        this.colorIndex = (this.colorIndex + 1) % TOOL_COLORS.length;
+      }
+
       // triggers a sync from store to widget state
-      this.updateRuler(id, ruler);
+      this.updateRuler(id, patch);
 
       return id;
     },

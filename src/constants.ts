@@ -64,3 +64,12 @@ export const SAMPLE_DATA = [
 ];
 
 export type Sample = typeof SAMPLE_DATA[0];
+
+export const TOOL_COLORS = [
+  '#8de4d3',
+  '#f0a4b1',
+  '#58f24c',
+  '#a3c9fe',
+  '#c8f251',
+  '#fea53b',
+];
