@@ -96,7 +96,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   // --- setup and teardown --- //
 
-  function setup(this: _This) {
+  function activateTool(this: _This) {
     const imageID = currentImageID.value;
     if (!imageID) {
       return false;
@@ -108,7 +108,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     return true;
   }
 
-  function teardown() {
+  function deactivateTool() {
     activeLabelmapID.value = null;
     isActive.value = false;
   }
@@ -130,10 +130,11 @@ export const usePaintToolStore = defineStore('paint', () => {
     labelmapOpacity,
     isActive,
 
-    // actions and getters
     getWidgetFactory,
-    setup,
-    teardown,
+
+    activateTool,
+    deactivateTool,
+
     selectOrCreateLabelmap,
     setBrushSize,
     setBrushValue,

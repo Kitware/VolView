@@ -266,11 +266,11 @@ export const useRulerStore = defineStore('ruler', () => {
 
   // --- tool activation --- //
 
-  function setup() {
+  function activateTool() {
     return true;
   }
 
-  function teardown(this: _This) {
+  function deactivateTool(this: _This) {
     removeActiveRuler.call(this);
   }
 
@@ -284,9 +284,8 @@ export const useRulerStore = defineStore('ruler', () => {
     initialize,
     uninitialize,
 
-    // TODO rename to activateTool/deactivateTool
-    setup,
-    teardown,
+    activateTool,
+    deactivateTool,
 
     addNewRuler,
     addNewRulerFromViewEvent,

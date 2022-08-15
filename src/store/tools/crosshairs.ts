@@ -94,13 +94,13 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     }
   });
 
-  function setup() {
+  function activateTool() {
     widgetState.setPlaced(false);
     active.value = true;
     return true;
   }
 
-  function teardown() {
+  function deactivateTool() {
     active.value = false;
   }
 
@@ -109,7 +109,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     setPosition,
     position,
     imagePosition,
-    setup,
-    teardown,
+    activateTool,
+    deactivateTool,
   };
 });
