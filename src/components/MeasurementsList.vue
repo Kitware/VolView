@@ -1,27 +1,51 @@
 <template>
   <v-list dense v-if="measurements.length">
     <v-list-item v-for="mm in measurements" :key="mm.id" two-line>
-      <v-list-item-content>
-        <template v-if="mm.type === 'ruler'">
+      <template v-if="mm.type === 'ruler'">
+        <v-menu offset-x :close-on-content-click="false">
+          <template v-slot:activator="{ on, attrs }">
+            <div
+              class="color-dot clickable mr-3"
+              :style="{ backgroundColor: mm.data.color }"
+              v-on="on"
+              v-bind="attrs"
+            />
+          </template>
+          <v-color-picker
+            :value="mm.data.color"
+            @input="updateColor(mm.type, mm.id, $event)"
+            hide-inputs
+          />
+        </v-menu>
+        <v-list-item-content>
           <v-list-item-title>Ruler (ID = {{ mm.id }})</v-list-item-title>
           <v-list-item-subtitle>
             Length: {{ mm.data.length.toFixed(2) }}mm
           </v-list-item-subtitle>
-        </template>
-      </v-list-item-content>
-      <v-list-item-action>
-        <v-btn icon @click="remove(mm.type, mm.id)">
-          <v-icon>mdi-delete</v-icon>
-        </v-btn>
-      </v-list-item-action>
+        </v-list-item-content>
+        <v-list-item-action>
+          <v-btn icon @click="remove(mm.type, mm.id)">
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
+        </v-list-item-action>
+      </template>
     </v-list-item>
   </v-list>
   <div v-else class="caption empty-state">No measurements yet</div>
 </template>
 
+<style src="@/src/components/styles/utils.css"></style>
+
 <style scoped>
 .empty-state {
   text-align: center;
+}
+
+.color-dot {
+  width: 24px;
+  height: 24px;
+  background: yellow;
+  border-radius: 16px;
 }
 </style>
 
@@ -42,16 +66,17 @@ export default defineComponent({
 
     const measurements = computed(() => {
       const mms = [
-        ...rulerStore.rulerIDs.map(
-          (id) =>
-            ({
-              id,
-              type: 'ruler',
-              data: {
-                length: rulerStore.lengths[id],
-              },
-            } as Measurement)
-        ),
+        ...rulerStore.rulerIDs.map((id) => {
+          const ruler = rulerStore.rulers[id];
+          return {
+            id,
+            type: 'ruler',
+            data: {
+              length: rulerStore.lengths[id],
+              color: ruler.color,
+            },
+          } as Measurement;
+        }),
       ];
       return mms;
     });
@@ -62,9 +87,16 @@ export default defineComponent({
       }
     }
 
+    function updateColor(type: Measurement['type'], id: string, color: string) {
+      if (type === 'ruler') {
+        rulerStore.updateRuler(id, { color });
+      }
+    }
+
     return {
       measurements,
       remove,
+      updateColor,
     };
   },
 });

@@ -29,6 +29,10 @@ export interface SerializedRulerV1 {
    * the measurement is located in the world.
    */
   imageMetadata: Omit<ImageMetadata, 'name'>;
+  /**
+   * Ruler metadata
+   */
+  color: string;
 }
 
 export interface RulerStateUpdate {
