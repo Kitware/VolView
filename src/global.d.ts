@@ -1,12 +1,15 @@
 import 'pinia';
-import IDManager from './core/id';
-import ProxyManager from './core/proxies';
-import { ToolManagers } from './core/provider';
+import IDGenerator from './core/id';
+import ProxyWrapper from './core/proxies';
+import PaintTool from './core/tools/paint';
+import RulerTool from './core/tools/ruler';
 
 declare module 'pinia' {
   export interface PiniaCustomProperties {
-    $tools: ToolManagers;
-    $proxies: ProxyManager;
-    $id: IDManager;
+    // from CorePiniaProviderPlugin
+    $rulers: RulerTool;
+    $paint: PaintTool;
+    $proxies: ProxyWrapper;
+    $id: IDGenerator;
   }
 }

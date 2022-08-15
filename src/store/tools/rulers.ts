@@ -1,4 +1,4 @@
-import { del, set } from '@vue/composition-api';
+import { computed, del, ref, set } from '@vue/composition-api';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { removeFromArray } from '@/src/utils';
@@ -12,7 +12,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '../../utils/lps';
 import { useView2DStore } from '../views-2D';
 
-export interface RulerTool {
+export interface Ruler {
   name: string;
   /**
    * Point is in image index space.
@@ -47,7 +47,7 @@ export interface RulerTool {
   color: string;
 }
 
-const emptyRulerTool = (): RulerTool => ({
+const emptyRuler = (): Ruler => ({
   name: '',
   firstPoint: null,
   secondPoint: null,
@@ -58,202 +58,240 @@ const emptyRulerTool = (): RulerTool => ({
   color: TOOL_COLORS[0],
 });
 
-export type RulerPatch = Partial<RulerTool> & RulerStateUpdate;
+export type RulerPatch = Partial<Ruler> & RulerStateUpdate;
 
-interface State {
-  rulerIDs: string[];
-  rulers: Record<string, RulerTool>;
-  activeRulerID: string | null;
-  colorIndex: number;
-}
+export const useRulerStore = defineStore('ruler', () => {
+  type _This = ReturnType<typeof useRulerStore>;
 
-export const useRulerToolStore = defineStore('rulerTool', {
-  state: (): State => ({
-    rulerIDs: [],
-    rulers: Object.create(null),
-    activeRulerID: null,
-    colorIndex: 0,
-  }),
-  getters: {
-    lengths(state) {
-      return state.rulerIDs.reduce((lengths, id) => {
-        const { firstPoint, secondPoint } = state.rulers[id];
-        return Object.assign(lengths, {
-          [id]:
-            firstPoint && secondPoint
-              ? Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint))
-              : 0,
-        });
-      }, {} as Record<string, number>);
-    },
-  },
-  actions: {
-    setup() {
-      return true;
-    },
-    teardown() {
-      if (this.activeRulerID) {
-        this.removeRuler(this.activeRulerID);
-      }
-    },
-    activateRuler(rulerID: string) {
-      if (this.activeRulerID) {
-        this.deactivateRuler(this.activeRulerID);
-      }
-      if (rulerID in this.rulers) {
-        this.activeRulerID = rulerID;
-      }
-    },
-    deactivateRuler(rulerID: string) {
-      if (rulerID in this.rulers) {
-        this.activeRulerID = null;
-      }
-    },
-    addNewRuler(rulerState: Partial<RulerTool>) {
-      const id = this.$id.nextID();
+  // --- state --- //
 
-      set(this.rulers, id, emptyRulerTool());
-      this.rulerIDs.push(id);
+  const rulerIDs = ref<string[]>([]);
+  const rulers = ref<Record<string, Ruler>>(Object.create(null));
+  const activeRulerID = ref<string | null>(null);
 
-      this.$tools.ruler.createRuler(id);
+  let colorIndex = 0;
 
-      const patch = { ...rulerState };
-      // set color if necessary
-      if (!('color' in patch)) {
-        patch.color = TOOL_COLORS[this.colorIndex];
-        this.colorIndex = (this.colorIndex + 1) % TOOL_COLORS.length;
-      }
+  // --- getters --- //
 
-      // triggers a sync from store to widget state
-      this.updateRuler(id, patch);
-
-      return id;
-    },
-    addNewRulerFromViewEvent(eventData: any, viewID: string) {
-      if (this.activeRulerID) {
-        return;
-      }
-
-      const view2DStore = useView2DStore();
-      const viewConfigStore = useViewConfigStore();
-      const currentImage = useCurrentImage();
-
-      const imageID = currentImage.currentImageID.value;
-      const imageMetadata = currentImage.currentImageMetadata.value;
-
-      if (!imageID) {
-        return;
-      }
-
-      if (!(viewID in view2DStore.orientationConfigs)) {
-        return;
-      }
-
-      const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
-      if (!sliceConfig) {
-        return;
-      }
-
-      const { slice } = sliceConfig;
-      const { axis: viewAxis, direction: viewDirection } =
-        view2DStore.orientationConfigs[viewID];
-
-      const viewProxy = this.$proxies.getView(viewID);
-      if (!viewProxy) {
-        return;
-      }
-
-      const id = this.addNewRuler({
-        name: 'Ruler',
-        imageID,
+  const lengthByID = computed(() => {
+    const rulersIndex = rulers.value;
+    return rulerIDs.value.reduce((lengths, id) => {
+      const { firstPoint, secondPoint } = rulersIndex[id];
+      return Object.assign(lengths, {
+        [id]:
+          firstPoint && secondPoint
+            ? Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint))
+            : 0,
       });
-      const manipulator = createPlaneManipulatorFor2DView(
-        viewDirection,
+    }, {} as Record<string, number>);
+  });
+
+  function getVTKFactory(this: _This, id: string) {
+    return this.$rulers.getFactory(id);
+  }
+
+  // --- actions --- //
+
+  function deactivateRuler(rulerID: string) {
+    if (rulerID in rulers.value) {
+      activeRulerID.value = null;
+    }
+  }
+
+  function activateRuler(rulerID: string) {
+    if (activeRulerID.value) {
+      deactivateRuler(activeRulerID.value);
+    }
+    if (rulerID in rulers.value) {
+      activeRulerID.value = rulerID;
+    }
+  }
+
+  function updateRulerInternal(this: _This, id: string, patch: Partial<Ruler>) {
+    if (id in rulers.value) {
+      const ruler = rulers.value[id];
+      Object.assign(ruler, patch);
+
+      if (
+        id === activeRulerID.value &&
+        ruler.interactionState === InteractionState.Settled
+      ) {
+        deactivateRuler(id);
+      }
+    }
+  }
+
+  function updateRuler(this: _This, id: string, patch: Partial<Ruler>) {
+    updateRulerInternal.call(this, id, patch);
+    if (id in rulers.value) {
+      const ruler = rulers.value[id];
+      const update: RulerStateUpdate = {
+        firstPoint: ruler.firstPoint,
+        secondPoint: ruler.secondPoint,
+        interactionState: ruler.interactionState,
+      };
+      this.$rulers.updateRuler(id, update);
+    }
+  }
+
+  function addNewRuler(this: _This, rulerState: Partial<Ruler>) {
+    const id = this.$id.nextID();
+
+    set(rulers.value, id, emptyRuler());
+    rulerIDs.value.push(id);
+
+    this.$rulers.createRuler(id);
+
+    const patch = { ...rulerState };
+    // set color if necessary
+    if (!('color' in patch)) {
+      patch.color = TOOL_COLORS[colorIndex];
+      colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
+    }
+
+    updateRuler.call(this, id, patch);
+
+    return id;
+  }
+
+  function removeRuler(this: _This, id: string) {
+    deactivateRuler(id);
+    removeFromArray(rulerIDs.value, id);
+    del(rulers.value, id);
+    this.$rulers.removeRuler(id);
+  }
+
+  function removeActiveRuler(this: _This) {
+    if (activeRulerID.value) {
+      removeRuler.call(this, activeRulerID.value);
+    }
+  }
+
+  function addNewRulerFromViewEvent(
+    this: _This,
+    eventData: any,
+    viewID: string
+  ) {
+    if (activeRulerID.value) {
+      return;
+    }
+
+    const view2DStore = useView2DStore();
+    const viewConfigStore = useViewConfigStore();
+    const currentImage = useCurrentImage();
+
+    const imageID = currentImage.currentImageID.value;
+    const imageMetadata = currentImage.currentImageMetadata.value;
+
+    if (!imageID) {
+      return;
+    }
+
+    if (!(viewID in view2DStore.orientationConfigs)) {
+      return;
+    }
+
+    const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
+    if (!sliceConfig) {
+      return;
+    }
+
+    const { slice } = sliceConfig;
+    const { axis: viewAxis, direction: viewDirection } =
+      view2DStore.orientationConfigs[viewID];
+
+    const viewProxy = this.$proxies.getView(viewID);
+    if (!viewProxy) {
+      return;
+    }
+
+    const id = addNewRuler.call(this, {
+      name: 'Ruler',
+      imageID,
+    });
+    const manipulator = createPlaneManipulatorFor2DView(
+      viewDirection,
+      slice,
+      imageMetadata
+    );
+    const coords = manipulator.handleEvent(
+      eventData,
+      viewProxy.getOpenglRenderWindow()
+    );
+    if (coords.length) {
+      updateRuler.call(this, id, {
+        firstPoint: coords as Vector3,
         slice,
-        imageMetadata
-      );
-      const coords = manipulator.handleEvent(
-        eventData,
-        viewProxy.getOpenglRenderWindow()
-      );
-      if (coords.length) {
-        this.updateRuler(id, {
-          firstPoint: coords as Vector3,
-          slice,
-          imageID,
-          viewAxis,
-          interactionState: InteractionState.PlacingSecond,
-        });
-      }
+        imageID,
+        viewAxis,
+        interactionState: InteractionState.PlacingSecond,
+      });
+    }
 
-      this.activateRuler(id);
-    },
-    removeActiveRuler() {
-      if (this.activeRulerID) {
-        this.removeRuler(this.activeRulerID);
-      }
-    },
-    removeRuler(id: string) {
-      this.deactivateRuler(id);
-      this.$tools.ruler.removeRuler(id);
-      removeFromArray(this.rulerIDs, id);
-      del(this.rulers, id);
-    },
-    /**
-     * Updates a ruler.
-     *
-     * @param id
-     * @param patch {RulerPatch}
-     * @param updateManager should we update the manager/widget state. This is a recursion guard.
-     */
-    updateRuler(id: string, patch: Partial<RulerTool>, updateManager = true) {
-      if (id in this.rulers) {
-        const ruler = this.rulers[id];
-        Object.assign(ruler, patch);
+    activateRuler(id);
+  }
 
-        if (
-          id === this.activeRulerID &&
-          ruler.interactionState === InteractionState.Settled
-        ) {
-          this.deactivateRuler(id);
-        }
+  // --- watch RulerTool for changes to apply --- //
 
-        if (updateManager) {
-          const update: RulerStateUpdate = {
-            firstPoint: ruler.firstPoint,
-            secondPoint: ruler.secondPoint,
-            interactionState: ruler.interactionState,
-          };
-          this.$tools.ruler.updateRuler(id, update);
-        }
-      }
-    },
-  },
+  function updateFromWidgetState(
+    this: _This,
+    event: {
+      id: string;
+      update: RulerStateUpdate;
+    }
+  ) {
+    const { id, update } = event;
+    const patch: Partial<Ruler> = {};
+
+    if ('firstPoint' in update) {
+      patch.firstPoint = update.firstPoint;
+    }
+    if ('secondPoint' in update) {
+      patch.secondPoint = update.secondPoint;
+    }
+    if ('interactionState' in update) {
+      patch.interactionState = update.interactionState;
+    }
+
+    updateRulerInternal.call(this, id, patch);
+  }
+
+  function initialize(this: _This) {
+    this.$rulers.events.on('widgetUpdate', updateFromWidgetState.bind(this));
+  }
+
+  function uninitialize(this: _This) {
+    this.$rulers.events.off('widgetUpdate', updateFromWidgetState.bind(this));
+  }
+
+  // --- tool activation --- //
+
+  function setup() {
+    return true;
+  }
+
+  function teardown(this: _This) {
+    removeActiveRuler.call(this);
+  }
+
+  return {
+    rulerIDs,
+    rulers,
+    activeRulerID,
+    lengthByID,
+    getVTKFactory,
+
+    initialize,
+    uninitialize,
+
+    // TODO rename to activateTool/deactivateTool
+    setup,
+    teardown,
+
+    addNewRuler,
+    addNewRulerFromViewEvent,
+    removeActiveRuler,
+    removeRuler,
+    updateRuler,
+  };
 });
-
-export type RulerToolStore = ReturnType<typeof useRulerToolStore>;
-
-/**
- * When a tool manager emits a widget update, it calls this entrypoint.
- *
- * It is expected that the pinia instance is active by the time this is called.
- */
-export const updateRulerFromWidgetStateEvent = (event: {
-  id: string;
-  update: RulerStateUpdate;
-}) => {
-  const { id, update } = event;
-  const rulerStore = useRulerToolStore();
-  const patch: Partial<RulerTool> = {};
-
-  if ('firstPoint' in update) {
-    patch.firstPoint = update.firstPoint;
-  }
-  if ('secondPoint' in update) {
-    patch.secondPoint = update.secondPoint;
-  }
-  if ('interactionState' in update) {
-    patch.interactionState = update.interactionState;
-  }
-  rulerStore.updateRuler(id, patch, false);
-};

@@ -1,7 +1,7 @@
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { expect } from 'chai';
-import { PaintTool } from '../paint';
+import PaintTool from '../paint';
 import CirclePaintBrush from '../paint/circle-brush';
 
 describe('Paint Tool', () => {

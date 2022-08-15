@@ -1,6 +1,6 @@
 const START_ID = 0;
 
-export default class IDManager {
+export default class IDGenerator {
   private id: number;
 
   constructor() {

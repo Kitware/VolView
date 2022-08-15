@@ -54,7 +54,7 @@ import {
 } from '@vue/composition-api';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Tools, useToolStore } from '@/src/store/tools';
-import { useRulerToolStore } from '@/src/store/tools/rulers';
+import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
@@ -94,7 +94,7 @@ export default defineComponent({
     const { viewId: viewID, viewDirection } = toRefs(props);
     const viewStore = useViewStore();
     const toolStore = useToolStore();
-    const rulerStore = useRulerToolStore();
+    const rulerStore = useRulerStore();
 
     const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
     if (!viewProxy) {
@@ -158,12 +158,11 @@ export default defineComponent({
     // --- ruler data --- //
 
     const currentRulers = computed(() => {
-      const rulerByID = rulerStore.rulers;
+      const { rulers: rulerByID, lengthByID } = rulerStore;
       const curImageID = currentImageID.value;
       const isToolActive = active.value;
       const curViewAxis = viewAxis.value;
       const curActiveRulerID = activeRulerID.value;
-      const lengthByID = rulerStore.lengths;
 
       return rulerStore.rulerIDs
         .map((id) => ({ id, ruler: rulerByID[id] }))

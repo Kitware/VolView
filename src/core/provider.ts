@@ -1,32 +1,27 @@
-import IDManager from './id';
-import ProxyManager from './proxies';
-import { PaintTool } from './tools/paint';
-import RulerToolManager from './tools/ruler';
-
-export function provideToolManagers() {
-  return {
-    ruler: new RulerToolManager(),
-    paint: new PaintTool(),
-  };
-}
-
-export type ToolManagers = ReturnType<typeof provideToolManagers>;
+import IDGenerator from './id';
+import ProxyWrapper from './proxies';
+import PaintTool from './tools/paint';
+import RulerTool from './tools/ruler';
 
 /**
  * Pinia plugin for injecting tool services.
  */
 export function CorePiniaProviderPlugin({
-  toolManagers,
-  proxyManager,
-  idManager,
+  rulers,
+  paint,
+  proxies,
+  id,
 }: {
-  toolManagers?: ReturnType<typeof provideToolManagers>;
-  proxyManager: ProxyManager;
-  idManager?: IDManager;
-}) {
-  return () => ({
-    $tools: toolManagers ?? provideToolManagers(),
-    $proxies: proxyManager,
-    $id: idManager ?? new IDManager(),
-  });
+  rulers?: RulerTool;
+  paint?: PaintTool;
+  proxies?: ProxyWrapper;
+  id?: IDGenerator;
+} = {}) {
+  const dependencies = {
+    $rulers: rulers ?? new RulerTool(),
+    $paint: paint ?? new PaintTool(),
+    $proxies: proxies,
+    $id: id ?? new IDGenerator(),
+  };
+  return () => dependencies;
 }

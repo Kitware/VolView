@@ -164,6 +164,7 @@ import {
   computed,
   ComputedRef,
   defineComponent,
+  onBeforeUnmount,
   Ref,
   ref,
   watch,
@@ -207,6 +208,7 @@ import {
 import { LPSAxisDir } from '../utils/lps';
 import { useMessageStore } from '../store/messages';
 import { plural } from '../utils';
+import { useRulerStore } from '../store/tools/rulers';
 
 export const Views: Record<string, ViewConfig> = {
   Coronal: {
@@ -445,6 +447,13 @@ export default defineComponent({
       fileEl.value = '';
       fileEl.click();
     }
+
+    // --- store initialization -- //
+
+    const rulerStore = useRulerStore();
+    rulerStore.initialize();
+
+    onBeforeUnmount(() => rulerStore.uninitialize());
 
     // --- template vars --- //
 

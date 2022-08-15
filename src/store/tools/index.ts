@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
-import { useRulerToolStore } from './rulers';
+import { useRulerStore } from './rulers';
 
 export enum Tools {
   WindowLevel = 'WindowLevel',
@@ -23,7 +23,7 @@ export interface IToolStore {
 
 function getStore(tool: Tools): IToolStore | null {
   if (tool === Tools.Ruler) {
-    return useRulerToolStore();
+    return useRulerStore();
   }
   if (tool === Tools.Paint) {
     return usePaintToolStore();
