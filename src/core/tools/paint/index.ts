@@ -1,3 +1,4 @@
+import { clampValue } from '@/src/utils';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import { vec3 } from 'gl-matrix';
@@ -95,7 +96,11 @@ export default class PaintTool {
     scale.splice(sliceAxis, 1);
     const stamp = rescaleStamp(this.brush.getStamp(), scale, true);
 
-    const start = [...startPoint.map((val) => Math.floor(val))];
+    const start = [
+      // transforms + floating point errors can make zero values occasionally
+      // turn into really tiny negative values
+      ...startPoint.map((val) => Math.floor(clampValue(val, 0, Infinity))),
+    ];
     // Assumption: startPoint and endPoint are on the same slice axis.
     const ijkSlice = start[sliceAxis];
     start.splice(sliceAxis, 1);
