@@ -8,21 +8,21 @@ import { useDatasetStore } from '@src/store/datasets';
 import { makeEmptyFile } from '@/tests/testUtils';
 import { FILE_READERS } from '@/src/io';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import ProxyManager from '@/src/core/proxies';
+import ProxyWrapper from '@/src/core/proxies';
 import Sinon from 'sinon';
 
 chai.use(chaiSubset);
 
 describe('Dataset store', () => {
-  let proxyManager = Sinon.createStubInstance(ProxyManager);
+  let proxies = Sinon.createStubInstance(ProxyWrapper);
 
   beforeEach(() => {
-    proxyManager = Sinon.createStubInstance(ProxyManager);
+    proxies = Sinon.createStubInstance(ProxyWrapper);
 
     const pinia = createPinia();
     pinia.use(
       CorePiniaProviderPlugin({
-        proxyManager,
+        proxies,
       })
     );
 

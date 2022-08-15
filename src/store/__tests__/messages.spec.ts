@@ -31,14 +31,16 @@ describe('Message store', () => {
       {
         type: MessageType.Warning,
         title: 'warning',
+        details: undefined,
       },
       {
         type: MessageType.Info,
         title: 'info',
+        details: undefined,
       },
     ].map((ex, i) => ({ ...ex, id: String(i + 1) }));
 
-    expect(messageStore.messages).to.have.length(5);
+    expect(messageStore.messages).to.have.length(3);
 
     ids.forEach((id, index) => {
       expect(messageStore.byID[id]).to.deep.equal(expected[index]);

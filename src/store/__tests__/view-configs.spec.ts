@@ -1,4 +1,4 @@
-import { IPiecewiseFunctionProxyMode } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
@@ -25,7 +25,7 @@ describe('View Config Store', () => {
         mappingRange: [0, 1],
       },
       opacityFunction: {
-        mode: IPiecewiseFunctionProxyMode.Gaussians,
+        mode: vtkPiecewiseFunctionProxy.Mode.Gaussians,
         gaussians: [],
         mappingRange: [0, 1],
       },
