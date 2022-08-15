@@ -256,12 +256,16 @@ export const useRulerStore = defineStore('ruler', () => {
     updateRulerInternal.call(this, id, patch);
   }
 
+  let cleanup: Function;
+
   function initialize(this: _This) {
-    this.$rulers.events.on('widgetUpdate', updateFromWidgetState.bind(this));
+    const update = updateFromWidgetState.bind(this);
+    this.$rulers.events.on('widgetUpdate', update);
+    cleanup = () => this.$rulers.events.off('widgetUpdate', update);
   }
 
   function uninitialize(this: _This) {
-    this.$rulers.events.off('widgetUpdate', updateFromWidgetState.bind(this));
+    cleanup();
   }
 
   // --- tool activation --- //

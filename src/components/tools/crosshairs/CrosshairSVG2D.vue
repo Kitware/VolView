@@ -1,5 +1,5 @@
 <template>
-  <g>
+  <g ref="containerEl">
     <line
       v-if="x != null && y != null"
       :x1="x"
@@ -41,6 +41,7 @@
 
 <script lang="ts">
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
+import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -97,10 +98,19 @@ export default defineComponent({
 
     watchEffect(updatePoints);
 
+    // --- resize --- //
+
+    const containerEl = ref<Element | null>(null);
+
+    useResizeObserver(containerEl, () => {
+      updatePoints();
+    });
+
     return {
       devicePixelRatio,
       x: computed(() => position2D.value?.x),
       y: computed(() => position2D.value?.y),
+      containerEl,
     };
   },
 });
