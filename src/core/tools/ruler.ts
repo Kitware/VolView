@@ -48,10 +48,12 @@ type RulerToolManagerEvents = {
   };
 };
 
-export default class RulerToolManager {
+export default class RulerTool {
   private listeners: Map<string, Function>;
 
   private factories: Map<string, vtkRulerWidget>;
+
+  private recurseGuard: boolean = false;
 
   public events: Emitter<RulerToolManagerEvents>;
 
@@ -102,6 +104,10 @@ export default class RulerToolManager {
 
   private createStoreUpdater(id: string, state: RulerWidgetState) {
     const sub = state.onModified(() => {
+      if (this.recurseGuard) {
+        return;
+      }
+
       const update: RulerStateUpdate = {
         firstPoint: state.getFirstPoint().getOrigin(),
         secondPoint: state.getSecondPoint().getOrigin(),
@@ -119,6 +125,8 @@ export default class RulerToolManager {
   updateRuler(id: string, update: RulerStateUpdate) {
     const factory = this.factories.get(id);
     if (factory) {
+      this.recurseGuard = true;
+
       const state = factory.getWidgetState();
       const first = state.getFirstPoint();
       const second = state.getSecondPoint();
@@ -134,6 +142,8 @@ export default class RulerToolManager {
       if (Number.isInteger(update.interactionState)) {
         state.setInteractionState(update.interactionState!);
       }
+
+      this.recurseGuard = false;
     }
   }
 }

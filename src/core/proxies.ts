@@ -17,7 +17,7 @@ export enum ViewProxyType {
  * Wrapper around the vtkProxyManager, since we don't need some of
  * its complexities.
  */
-export default class ProxyManager {
+export default class ProxyWrapper {
   private viewProxies: Map<string, vtkViewProxy>;
   private dataProxies: Map<string, vtkSourceProxy<vtkObject>>;
   private proxyManager: vtkProxyManager;

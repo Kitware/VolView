@@ -19,10 +19,8 @@ import { registerAllReaders } from './io/readers';
 import { setCurrentInstance } from './instances';
 import proxyConfiguration from './vtk/proxy';
 import { DICOMIOInst, ProxyManagerInst } from './constants';
-import { updateRulerFromWidgetStateEvent } from './store/tools/rulers';
-import ProxyManager from './core/proxies';
-import { provideToolManagers, CorePiniaProviderPlugin } from './core/provider';
-import IDManager from './core/id';
+import { CorePiniaProviderPlugin } from './core/provider';
+import ProxyWrapper from './core/proxies';
 
 Vue.config.productionTip = false;
 
@@ -49,20 +47,12 @@ const dicomIO = new DICOMIO();
 dicomIO.initialize();
 setCurrentInstance(DICOMIOInst, dicomIO);
 
-const toolManagers = provideToolManagers();
-const coreProxyManager = new ProxyManager(proxyManager);
-const idManager = new IDManager();
-
 const pinia = createPinia();
 pinia.use(
   CorePiniaProviderPlugin({
-    toolManagers,
-    idManager,
-    proxyManager: coreProxyManager,
+    proxies: new ProxyWrapper(proxyManager),
   })
 );
-
-toolManagers.ruler.events.on('widgetUpdate', updateRulerFromWidgetStateEvent);
 
 const app = new Vue({
   vuetify,

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { useRulerToolStore } from '@/src/store/tools/rulers';
+import { useRulerStore } from '@/src/store/tools/rulers';
 import { vtkRulerViewWidget } from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
@@ -53,9 +53,9 @@ export default defineComponent({
       focused,
       slice,
     } = toRefs(props);
-    const rulerStore = useRulerToolStore();
+    const rulerStore = useRulerStore();
     const factoryRef = computed(() =>
-      rulerStore.$tools.ruler.getFactory(rulerIDRef.value)
+      rulerStore.getVTKFactory(rulerIDRef.value)
     );
     const widgetRef = ref<vtkRulerViewWidget | null>(null);
     const rulerRef = computed(() => rulerStore.rulers[rulerIDRef.value]);

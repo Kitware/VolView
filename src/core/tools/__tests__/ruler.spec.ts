@@ -1,7 +1,7 @@
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { expect } from 'chai';
-import RulerToolManager, { RulerStateUpdate } from '../ruler';
+import RulerTool, { RulerStateUpdate } from '../ruler';
 
 type EventData = {
   id: string;
@@ -11,14 +11,14 @@ type EventData = {
 describe('Ruler Tool Manager', () => {
   describe('createRuler', () => {
     it('should create a ruler', () => {
-      const manager = new RulerToolManager();
+      const manager = new RulerTool();
       const factory = manager.createRuler('1');
       expect(factory!.getClassName()).to.equal('vtkRulerWidget');
 
       manager.teardown();
     });
     it('should register an event emitter for when state is updated', async () => {
-      const manager = new RulerToolManager();
+      const manager = new RulerTool();
       const factory = manager.createRuler('1');
       const state = factory.getWidgetState();
 
@@ -40,7 +40,7 @@ describe('Ruler Tool Manager', () => {
 
   describe('updateRuler', () => {
     it('should update the internal widget state', () => {
-      const manager = new RulerToolManager();
+      const manager = new RulerTool();
       const factory = manager.createRuler('1');
       const state = factory.getWidgetState();
 
@@ -63,7 +63,7 @@ describe('Ruler Tool Manager', () => {
 
   describe('removeRuler', () => {
     it('should delete a ruler', () => {
-      const manager = new RulerToolManager();
+      const manager = new RulerTool();
       manager.createRuler('1');
       manager.removeRuler('1');
 

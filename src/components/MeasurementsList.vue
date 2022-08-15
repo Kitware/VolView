@@ -51,7 +51,7 @@
 
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
-import { useRulerToolStore } from '../store/tools/rulers';
+import { useRulerStore } from '../store/tools/rulers';
 
 interface Measurement {
   id: string;
@@ -62,7 +62,7 @@ interface Measurement {
 export default defineComponent({
   name: 'MeasurementsList',
   setup() {
-    const rulerStore = useRulerToolStore();
+    const rulerStore = useRulerStore();
 
     const measurements = computed(() => {
       const mms = [
@@ -72,7 +72,7 @@ export default defineComponent({
             id,
             type: 'ruler',
             data: {
-              length: rulerStore.lengths[id],
+              length: rulerStore.lengthByID[id],
               color: ruler.color,
             },
           } as Measurement;

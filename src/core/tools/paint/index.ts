@@ -50,7 +50,7 @@ export function rescaleStamp(
   };
 }
 
-export class PaintTool {
+export default class PaintTool {
   readonly factory: vtkPaintWidget;
   private brush: IPaintBrush;
   private brushValue: number;

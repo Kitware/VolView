@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
-import { useRulerToolStore } from './rulers';
+import { useRulerStore } from './rulers';
 
 export enum Tools {
   WindowLevel = 'WindowLevel',
@@ -17,13 +17,13 @@ interface State {
 }
 
 export interface IToolStore {
-  setup: () => boolean;
-  teardown: () => void;
+  activateTool: () => boolean;
+  deactivateTool: () => void;
 }
 
 function getStore(tool: Tools): IToolStore | null {
   if (tool === Tools.Ruler) {
-    return useRulerToolStore();
+    return useRulerStore();
   }
   if (tool === Tools.Paint) {
     return usePaintToolStore();
@@ -42,7 +42,7 @@ function getStore(tool: Tools): IToolStore | null {
 function setupTool(tool: Tools) {
   const store = getStore(tool);
   if (store) {
-    return store.setup();
+    return store.activateTool();
   }
   return true;
 }
@@ -50,7 +50,7 @@ function setupTool(tool: Tools) {
 function teardownTool(tool: Tools) {
   const store = getStore(tool);
   if (store) {
-    store.teardown();
+    store.deactivateTool();
   }
 }
 

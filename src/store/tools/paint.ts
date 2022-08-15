@@ -17,7 +17,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const { currentImageID } = useCurrentImage();
 
   function getWidgetFactory(this: _This) {
-    return this.$tools.paint.factory;
+    return this.$paint.factory;
   }
 
   // --- actions --- //
@@ -41,12 +41,12 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function setBrushSize(this: _This, size: number) {
     brushSize.value = Math.round(size);
-    this.$tools.paint.setBrushSize(size);
+    this.$paint.setBrushSize(size);
   }
 
   function setBrushValue(this: _This, value: number) {
     brushValue.value = value;
-    this.$tools.paint.setBrushValue(value);
+    this.$paint.setBrushValue(value);
   }
 
   function setLabelmapOpacity(opacity: number) {
@@ -71,12 +71,7 @@ export const usePaintToolStore = defineStore('paint', () => {
       const lastPoint = strokePoints.value[lastIndex];
       const prevPoint =
         lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
-      this.$tools.paint.paintLabelmap(
-        labelmap,
-        axisIndex,
-        lastPoint,
-        prevPoint
-      );
+      this.$paint.paintLabelmap(labelmap, axisIndex, lastPoint, prevPoint);
     }
   }
 
@@ -101,19 +96,19 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   // --- setup and teardown --- //
 
-  function setup(this: _This) {
+  function activateTool(this: _This) {
     const imageID = currentImageID.value;
     if (!imageID) {
       return false;
     }
     selectOrCreateLabelmap(imageID);
-    this.$tools.paint.setBrushSize(this.brushSize);
+    this.$paint.setBrushSize(this.brushSize);
 
     isActive.value = true;
     return true;
   }
 
-  function teardown() {
+  function deactivateTool() {
     activeLabelmapID.value = null;
     isActive.value = false;
   }
@@ -135,10 +130,11 @@ export const usePaintToolStore = defineStore('paint', () => {
     labelmapOpacity,
     isActive,
 
-    // actions and getters
     getWidgetFactory,
-    setup,
-    teardown,
+
+    activateTool,
+    deactivateTool,
+
     selectOrCreateLabelmap,
     setBrushSize,
     setBrushValue,
