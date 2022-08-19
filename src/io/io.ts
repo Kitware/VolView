@@ -1,4 +1,4 @@
-import extensionToImageIO from 'itk/extensionToImageIO';
+import { extensionToImageIO } from 'itk-wasm';
 import { extractFilesFromZip } from './zip';
 
 export const ARCHIVE_FILE_TYPES = new Set(['zip']);

@@ -1,5 +1,5 @@
 import vtkITKImageReader from '@kitware/vtk.js/IO/Misc/ITKImageReader';
-import readImageArrayBuffer from 'itk/readImageArrayBuffer';
+import { readImageArrayBuffer } from 'itk-wasm';
 import { FileReaderMap } from '.';
 
 import { readFileAsArrayBuffer, ITK_IMAGE_EXTENSIONS } from './io';
