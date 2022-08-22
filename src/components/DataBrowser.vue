@@ -98,7 +98,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div id="data-module" class="mx-2 py-2 fill-height">
+  <div id="data-module" class="mx-2 fill-height">
     <div id="data-panels">
       <v-expansion-panels multiple accordion>
         <v-expansion-panel v-if="hasAnonymousImages">
@@ -170,7 +170,7 @@ export default defineComponent({
 
 .collection-header-icon {
   flex: 0;
-  margin-right: 8px;
+  margin-right: 16px;
 }
 
 .patient-header {
