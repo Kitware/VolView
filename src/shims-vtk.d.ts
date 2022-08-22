@@ -151,6 +151,10 @@ declare module '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
   import vtkProxyObject from '@kitware/vtk.js/types/ProxyObject';
   import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
+  import vtkAbstractMapper from '@kitware/vtk.js/Rendering/Core/AbstractMapper';
+  import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
+  import vtkVolume from '@kitware/vtk.js/Rendering/Core/Volume';
+
   export interface vtkAbstractRepresentationProxy extends vtkProxyObject {
     setInput(source: vtkSourceProxy): void;
     getInputDataSet(): vtkObject | null;
@@ -161,6 +165,10 @@ declare module '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy' {
     );
     setRescaleOnColorBy(rescale: boolean): boolean;
     getRescaleOnColorBy(): boolean;
+    getInput(): vtkProxyObject;
+    getMapper(): vtkAbstractMapper;
+    getActors(): vtkActor[];
+    getVolumes(): vtkVolume[];
   }
 
   export default vtkAbstractRepresentationProxy;
@@ -963,4 +971,5 @@ declare module '@kitware/vtk.js/Widgets/Core/StateBuilder' {
 declare module '@kitware/vtk.js/Common/DataModel/BoundingBox' {
   import { Bounds } from '@kitware/vtk.js/types';
   export function inflate(bounds: Bounds, delta: number);
+  export function getDiagonalLength(bounds: Bounds): number;
 }

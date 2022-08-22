@@ -47,8 +47,23 @@ export interface ColoringConfig {
   opacityFunction: OpacityFunction;
 }
 
+export interface CVRConfig {
+  enabled: boolean;
+
+  useVolumetricScatteringBlending: boolean;
+  volumetricScatteringBlending: number;
+
+  useLocalAmbientOcclusion: boolean;
+  laoKernelSize: number;
+  laoKernelRadius: number;
+  ambient: number;
+  diffuse: number;
+  specular: number;
+}
+
 interface State {
   coloringConfig: ColoringConfig;
+  cvrConfig: CVRConfig;
   views: string[];
 }
 
@@ -110,6 +125,17 @@ export const useView3DStore = defineStore('view3D', {
         mappingRange: [0, 1],
       },
     },
+    cvrConfig: {
+      enabled: false,
+      useVolumetricScatteringBlending: false,
+      volumetricScatteringBlending: 0.5,
+      useLocalAmbientOcclusion: false,
+      laoKernelSize: 5,
+      laoKernelRadius: 10,
+      ambient: 0.3,
+      diffuse: 1,
+      specular: 0,
+    },
   }),
   actions: {
     createView<T extends vtkViewProxy>() {
@@ -168,6 +194,12 @@ export const useView3DStore = defineStore('view3D', {
         this.coloringConfig.opacityFunction,
         opacityFunc
       );
+    },
+    updateCVRParameters(params: Partial<CVRConfig>) {
+      this.cvrConfig = {
+        ...this.cvrConfig,
+        ...params,
+      };
     },
   },
 });

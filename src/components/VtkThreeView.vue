@@ -56,6 +56,11 @@ import { vec3 } from 'gl-matrix';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import vtkLight from '@kitware/vtk.js/Rendering/Core/Light';
+import { Vector3 } from '@kitware/vtk.js/types';
 
 import {
   getShiftedOpacityFromPreset,
@@ -205,6 +210,115 @@ export default defineComponent({
         viewProxy.render();
       }
     });
+
+    // --- CVR parameters --- //
+
+    const cvrParams = computed(() => view3DStore.cvrConfig);
+    const cvrEnabled = computed(() => cvrParams.value.enabled);
+
+    watch(
+      cvrEnabled,
+      (enabled) => {
+        const renderer = viewProxy.getRenderer();
+        renderer.removeAllLights();
+        if (enabled) {
+          const light = vtkLight.newInstance();
+          light.setPositional(true);
+          light.setLightTypeToSceneLight();
+          light.setColor(1, 1, 1);
+          light.setIntensity(1);
+          light.setConeAngle(90);
+          renderer.addLight(light);
+          renderer.setTwoSidedLighting(false);
+        } else {
+          renderer.createLight();
+          renderer.setTwoSidedLighting(true);
+        }
+      },
+      { immediate: true }
+    );
+
+    watch(
+      [cvrParams, baseImageRep],
+      ([params, rep]) => {
+        const image = rep?.getInputDataSet() as vtkImageData | null | undefined;
+        if (!rep || !image) {
+          return;
+        }
+
+        const renderer = viewProxy.getRenderer();
+        const mapper = rep.getMapper() as vtkVolumeMapper;
+        const volume = rep.getVolumes()[0];
+        const property = volume.getProperty();
+
+        const volumeBounds = volume.getBounds();
+        const center = [
+          (volumeBounds[0] + volumeBounds[1]) / 2,
+          (volumeBounds[2] + volumeBounds[3]) / 2,
+          (volumeBounds[4] + volumeBounds[5]) / 2,
+        ] as Vector3;
+
+        if (params.enabled) {
+          // set positional light position
+          const light = renderer.getLights()[0];
+          // TODO base this on DOP
+          light.setPosition(center[0], center[1] + 200, center[2]);
+          light.setFocalPoint(...center);
+        }
+
+        const sampleDistance =
+          0.7 *
+          Math.sqrt(
+            image
+              .getSpacing()
+              .map((v) => v * v)
+              .reduce((sum, v) => sum + v, 0)
+          );
+
+        mapper.setSampleDistance(sampleDistance / 2);
+
+        mapper.setGlobalIlluminationReach(params.enabled ? 0.5 : 0);
+        property.setShade(true);
+        property.setScalarOpacityUnitDistance(
+          0,
+          getDiagonalLength(image.getBounds()) /
+            Math.max(...image.getDimensions())
+        );
+        property.setUseGradientOpacity(0, !params.enabled);
+        property.setGradientOpacityMinimumValue(0, 0.0);
+        const dataRange = image.getPointData().getScalars().getRange();
+        property.setGradientOpacityMaximumValue(
+          0,
+          (dataRange[1] - dataRange[0]) * 0.01
+        );
+        property.setGradientOpacityMinimumOpacity(0, 0.0);
+        property.setGradientOpacityMinimumOpacity(0, 1.0);
+
+        if (params.enabled && params.useVolumetricScatteringBlending) {
+          mapper.setVolumetricScatteringBlending(
+            params.volumetricScatteringBlending
+          );
+        } else {
+          mapper.setVolumetricScatteringBlending(0);
+        }
+
+        // Local ambient occlusion
+        if (params.enabled && params.useLocalAmbientOcclusion) {
+          mapper.setLocalAmbientOcclusion(true);
+          mapper.setLAOKernelSize(params.laoKernelSize);
+          mapper.setLAOKernelRadius(params.laoKernelRadius);
+        } else {
+          mapper.setLocalAmbientOcclusion(false);
+          mapper.setLAOKernelSize(0);
+          mapper.setLAOKernelRadius(0);
+        }
+
+        property.setAmbient(params.ambient);
+        property.setDiffuse(params.diffuse);
+        property.setSpecular(params.specular);
+      },
+      { deep: true, immediate: true }
+    );
 
     // --- coloring --- //
 
