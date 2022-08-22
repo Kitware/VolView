@@ -1,7 +1,8 @@
 import { extensionToImageIO } from 'itk-wasm';
 import { extractFilesFromZip } from './zip';
+import { FileEntry } from './types';
 
-export const ARCHIVE_FILE_TYPES = new Set(['zip']);
+export const ARCHIVE_FILE_TYPES = new Set(['zip', 'application/zip']);
 
 export const ITK_IMAGE_EXTENSIONS = Array.from(
   new Set(Array.from(extensionToImageIO.keys()).map((ext) => ext.toLowerCase()))
@@ -89,27 +90,33 @@ export async function retypeFile(file: File): Promise<File> {
 
 export async function extractArchivesRecursively(
   files: File[]
-): Promise<File[]> {
+): Promise<FileEntry[]> {
   const results = await Promise.all(
     files.map(async (file) => {
-      if (file.type === 'zip') {
+      if (ARCHIVE_FILE_TYPES.has(file.type)) {
         return extractFilesFromZip(file);
       }
-      return [file];
+
+      return [{ file, path: '' }];
     })
   );
 
-  const archivedFiles = await Promise.all(
-    results.flat().map((f) => retypeFile(f))
+  const archivedEntries = await Promise.all(
+    results.flat().map(async (entry) => {
+      return { file: await retypeFile(entry.file), path: entry.path };
+    })
   );
-  const archives = archivedFiles.filter(({ type }) =>
-    ARCHIVE_FILE_TYPES.has(type)
-  );
+
+  const archives = archivedEntries
+    .filter(({ file }) => ARCHIVE_FILE_TYPES.has(file.type))
+    .map(({ file }) => file);
+
   if (archives.length > 0) {
-    const moreFiles = await extractArchivesRecursively(archives);
-    return [...archivedFiles, ...moreFiles];
+    const moreEntries = await extractArchivesRecursively(archives);
+    return [...archivedEntries, ...moreEntries];
   }
-  return archivedFiles;
+
+  return archivedEntries;
 }
 
 export type ReadAsType = 'ArrayBuffer' | 'Text';

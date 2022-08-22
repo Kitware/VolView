@@ -1,6 +1,10 @@
-import { runPipeline, TextStream } from 'itk-wasm';
-import { InterfaceTypes } from 'itk-wasm';
-import { readDICOMTags, readImageDICOMFileSeries } from 'itk-wasm';
+import {
+  runPipeline,
+  TextStream,
+  InterfaceTypes,
+  readDICOMTags,
+  readImageDICOMFileSeries,
+} from 'itk-wasm';
 
 export interface TagSpec {
   name: string;
