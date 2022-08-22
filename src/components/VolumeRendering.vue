@@ -31,10 +31,10 @@ import { useProxyManager } from '../composables/proxyManager';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
-import { LPSAxisDir } from '../utils/lps';
 import { useImageStore } from '../store/datasets-images';
 import ColorFunctionSlider from './ColorFunctionSlider.vue';
 import { useVTKCallback } from '../composables/useVTKCallback';
+import { Views } from '../config';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -244,11 +244,9 @@ export default defineComponent({
     const { currentImageMetadata } = useCurrentImage();
 
     // same as 3D view
-    const viewDirection = ref<LPSAxisDir>('Inferior');
-    const viewUp = ref<LPSAxisDir>('Anterior');
     const { cameraDirVec, cameraUpVec } = useCameraOrientation(
-      viewDirection,
-      viewUp,
+      Views.Three.viewDirection,
+      Views.Three.viewUp,
       currentImageMetadata
     );
 
