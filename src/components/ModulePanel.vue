@@ -33,7 +33,7 @@
 import { defineComponent, ref } from '@vue/composition-api';
 
 import DataBrowser from './DataBrowser.vue';
-import VolumeRendering from './VolumeRendering.vue';
+import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 
 export const Modules = [
@@ -50,7 +50,7 @@ export const Modules = [
   {
     name: 'Rendering',
     icon: 'cube',
-    component: VolumeRendering,
+    component: RenderingModule,
   },
   {
     name: 'AI',
