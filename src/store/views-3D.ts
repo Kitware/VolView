@@ -50,6 +50,8 @@ export interface ColoringConfig {
 export interface CVRConfig {
   enabled: boolean;
 
+  flipLightPosition: boolean;
+
   useVolumetricScatteringBlending: boolean;
   volumetricScatteringBlending: number;
 
@@ -127,6 +129,7 @@ export const useView3DStore = defineStore('view3D', {
     },
     cvrConfig: {
       enabled: false,
+      flipLightPosition: false,
       useVolumetricScatteringBlending: false,
       volumetricScatteringBlending: 0.5,
       useLocalAmbientOcclusion: false,

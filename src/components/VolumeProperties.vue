@@ -54,6 +54,14 @@ export default defineComponent({
       />
       <v-divider class="my-4" />
       <v-switch
+        label="Flip Light Position"
+        dense
+        hide-details
+        :disabled="!enabled"
+        :value="cvrParams.flipLightPosition"
+        @change="setCVRParam('flipLightPosition', $event)"
+      />
+      <v-switch
         label="Enable Volumetric Scattering"
         dense
         :disabled="!enabled || laoEnabled"

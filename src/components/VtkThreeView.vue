@@ -51,7 +51,7 @@ import {
   watch,
   watchEffect,
 } from '@vue/composition-api';
-import { vec3 } from 'gl-matrix';
+import { mat3, vec3 } from 'gl-matrix';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
@@ -69,13 +69,14 @@ import {
 import { useProxyManager } from '@/src/composables/proxyManager';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { LPSAxisDir } from '../utils/lps';
+import { getLPSAxisFromDir, getLPSDirections, LPSAxisDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useViewConfigStore } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
+import { Views } from '../config';
 
 export default defineComponent({
   props: {
@@ -238,6 +239,19 @@ export default defineComponent({
       { immediate: true }
     );
 
+    const cvrLightOffset = computed(() => {
+      const image = currentImageData.value;
+      const lps = getLPSDirections(curImageMetadata.value.orientation as mat3);
+      const dir = lps[Views.Three.viewDirection];
+      const axisIndex = lps[getLPSAxisFromDir(Views.Three.viewDirection)];
+      const lightFlip = cvrParams.value.flipLightPosition ? 1 : -1;
+      if (image) {
+        const dim = image.getDimensions()[axisIndex];
+        return dir.map((v) => v * lightFlip * dim);
+      }
+      return dir;
+    });
+
     watch(
       [cvrParams, baseImageRep],
       ([params, rep]) => {
@@ -261,8 +275,11 @@ export default defineComponent({
         if (params.enabled) {
           // set positional light position
           const light = renderer.getLights()[0];
-          // TODO base this on DOP
-          light.setPosition(center[0], center[1] + 200, center[2]);
+          light.setPosition(
+            center[0] + cvrLightOffset.value[0],
+            center[1] + cvrLightOffset.value[1],
+            center[2] + cvrLightOffset.value[2]
+          );
           light.setFocalPoint(...center);
         }
 
