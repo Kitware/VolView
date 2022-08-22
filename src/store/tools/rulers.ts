@@ -3,7 +3,7 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { removeFromArray } from '@/src/utils';
 import { RulerStateUpdate } from '@/src/core/tools/ruler';
-import { TOOL_COLORS } from '@/src/constants';
+import { TOOL_COLORS } from '@/src/config';
 import { defineStore } from 'pinia';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { useViewConfigStore } from '@/src/store/view-configs';

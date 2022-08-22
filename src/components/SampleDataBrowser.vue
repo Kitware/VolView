@@ -8,7 +8,7 @@ import {
   ref,
 } from '@vue/composition-api';
 import ImageListCard from '@/src/components/ImageListCard.vue';
-import { Sample, SAMPLE_DATA } from '../constants';
+import { Sample, SAMPLE_DATA } from '../config';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,

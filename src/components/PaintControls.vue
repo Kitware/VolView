@@ -87,7 +87,7 @@
 
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
-import { LABELMAP_PALETTE } from '../constants';
+import { LABELMAP_PALETTE } from '../config';
 import { usePaintToolStore } from '../store/tools/paint';
 import { rgbaToHexa } from '../utils/color';
 

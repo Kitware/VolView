@@ -198,75 +198,12 @@ import {
   ProxyManagerEvent,
 } from '../composables/onProxyManagerEvent';
 import { useProxyManager } from '../composables/proxyManager';
-import {
-  useViewStore,
-  Layout,
-  ViewKey,
-  ViewConfig,
-  LayoutDirection,
-} from '../store/views';
+import { useViewStore, Layout, ViewKey, LayoutDirection } from '../store/views';
 import { LPSAxisDir } from '../utils/lps';
 import { useMessageStore } from '../store/messages';
 import { plural } from '../utils';
 import { useRulerStore } from '../store/tools/rulers';
-
-export const Views: Record<string, ViewConfig> = {
-  Coronal: {
-    objType: 'View2D',
-    key: ViewKey.CoronalView,
-    viewDirection: 'Left',
-    viewUp: 'Superior',
-  },
-  Sagittal: {
-    objType: 'View2D',
-    key: ViewKey.SagittalView,
-    viewDirection: 'Anterior',
-    viewUp: 'Superior',
-  },
-  Axial: {
-    objType: 'View2D',
-    key: ViewKey.AxialView,
-    viewDirection: 'Inferior',
-    viewUp: 'Anterior',
-  },
-  Three: {
-    objType: 'View3D',
-    key: ViewKey.ThreeDView,
-    viewDirection: 'Inferior',
-    viewUp: 'Anterior',
-  },
-};
-
-export const Layouts: Record<string, Layout> = {
-  AxialPrimary: {
-    objType: 'Layout',
-    direction: LayoutDirection.V,
-    items: [
-      Views.Axial,
-      {
-        objType: 'Layout',
-        direction: LayoutDirection.H,
-        items: [Views.Coronal, Views.Sagittal, Views.Three],
-      },
-    ],
-  },
-  QuadView: {
-    objType: 'Layout',
-    direction: LayoutDirection.H,
-    items: [
-      {
-        objType: 'Layout',
-        direction: LayoutDirection.V,
-        items: [Views.Coronal, Views.Three],
-      },
-      {
-        objType: 'Layout',
-        direction: LayoutDirection.V,
-        items: [Views.Sagittal, Views.Axial],
-      },
-    ],
-  },
-};
+import { Layouts } from '../config';
 
 interface LayoutGridItemProps {
   key: ViewKey;
