@@ -4,7 +4,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import vtkLabelMap from '../vtk/LabelMap';
-import { LABELMAP_PALETTE } from '../constants';
+import { LABELMAP_PALETTE } from '../config';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
