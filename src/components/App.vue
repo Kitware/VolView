@@ -68,6 +68,7 @@
                     >
                       <v-radio label="Axial Primary" value="AxialPrimary" />
                       <v-radio label="Quad View" value="QuadView" />
+                      <v-radio label="3D Only" value="ThreeOnly" />
                     </v-radio-group>
                   </v-card-text>
                 </v-card>
