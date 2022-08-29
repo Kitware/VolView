@@ -343,9 +343,11 @@ export default defineComponent({
 
     // delete thumbnails if an image is deleted
     imageStore.$onAction(({ name, args, after }) => {
-      const [id] = args;
-      if (name === 'deleteData' && id in thumbnails) {
-        after(() => del(thumbnails, id));
+      if (name === 'deleteData') {
+        const [id] = args;
+        if (id in thumbnails) {
+          after(() => del(thumbnails, id));
+        }
       }
     });
 

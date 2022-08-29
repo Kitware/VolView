@@ -11,6 +11,10 @@ import {
 import { removeFromArray } from '../utils';
 import { useViewConfigStore } from './view-configs';
 import { useView2DStore } from './views-2D';
+import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
+import { serializeData } from '../io/state-file/utils';
+import { FILE_READERS } from '../io';
+import { useFileStore } from './datasets-files';
 
 export interface ImageMetadata {
   name: string;
@@ -94,6 +98,33 @@ export const useImageStore = defineStore('images', {
           viewConfigStore.removeViewConfig(viewID, id);
         });
       }
+    },
+
+    async serialize(stateFile: StateFile) {
+      const fileStore = useFileStore();
+      // We want to filter out volume data (which is generated so don't have
+      // associated files).
+      const dataIDs = this.idList.filter((id) => {
+        return id in fileStore.byDataID;
+      });
+
+      await serializeData(stateFile, dataIDs, DataSetType.IMAGE);
+    },
+
+    async deserialize(dataSet: DataSet, file: File) {
+      const reader = FILE_READERS.get(file.type);
+      if (reader) {
+        const dataObj = await reader(
+          new File([file], file.name, { type: file.type })
+        );
+        if (dataObj.isA('vtkImageData')) {
+          const id = this.addVTKImageData(file.name, dataObj as vtkImageData);
+
+          return id;
+        }
+      }
+
+      throw new Error(`No reader for ${file.name}`);
     },
   },
 });

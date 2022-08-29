@@ -41,6 +41,12 @@
                 name="Open files"
                 @click="userPromptFiles"
               />
+              <tool-button
+                size="40"
+                icon="mdi-content-save-all"
+                name="Save session"
+                @click="saveDialog = true"
+              />
               <v-menu offset-x>
                 <template v-slot:activator="{ on, attrs }">
                   <div>
@@ -143,6 +149,10 @@
           <settings @close="settingsDialog = false" />
         </v-dialog>
 
+        <v-dialog v-model="saveDialog" width="30%">
+          <save-session @close="saveDialog = false" />
+        </v-dialog>
+
         <v-overlay
           :value="dragHover"
           color="#fff"
@@ -204,6 +214,8 @@ import { useMessageStore } from '../store/messages';
 import { plural } from '../utils';
 import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
+import { isStateFile, loadState } from '../io/state-file';
+import SaveSession from './SaveSession.vue';
 
 interface LayoutGridItemProps {
   key: ViewKey;
@@ -272,6 +284,7 @@ export default defineComponent({
     MessageNotifications,
     VolViewFullLogo,
     Settings,
+    SaveSession,
   },
 
   setup() {
@@ -316,7 +329,6 @@ export default defineComponent({
     );
 
     // --- file handling --- //
-
     async function openFiles(files: FileList | null) {
       if (!files) {
         return;
@@ -331,8 +343,15 @@ export default defineComponent({
 
       let statuses: LoadResult[] = [];
 
+      // For now only support restoring from a single state files.
+      const stateFile = nFiles === 1 && (await isStateFile(files[0]));
+
       try {
-        statuses = await dataStore.loadFiles(Array.from(files));
+        if (stateFile) {
+          statuses = await loadState(files[0]);
+        } else {
+          statuses = await dataStore.loadFiles(Array.from(files));
+        }
       } catch (error) {
         messageStore.addError('Failed to load files', error as Error);
       } finally {
@@ -348,7 +367,11 @@ export default defineComponent({
         | DICOMLoadFailure
       )[];
 
-      if (loaded.length && (loadFirstDataset || loaded.length === 1)) {
+      if (
+        loaded.length &&
+        !stateFile &&
+        (loadFirstDataset || loaded.length === 1)
+      ) {
         const selection = convertSuccessResultToDataSelection(loaded[0]);
         dataStore.setPrimarySelection(selection);
       }
@@ -401,6 +424,7 @@ export default defineComponent({
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
       settingsDialog: ref(false),
+      saveDialog: ref(false),
       messageCount,
       layout: layoutGrid,
       layoutName,

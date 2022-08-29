@@ -8,6 +8,7 @@ import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 import { useFileStore } from './datasets-files';
+import { DataSet, StateFile, DataSetType } from '../io/state-file/schema';
 
 export const DataType = {
   Image: 'Image',
@@ -29,11 +30,11 @@ const makeFileSuccessStatus = (
 
 export type FileLoadSuccess = ReturnType<typeof makeFileSuccessStatus>;
 
-const makeFileFailureStatus = (file: File, reason: string) =>
+export const makeFileFailureStatus = (file: File | string, reason: string) =>
   ({
     type: 'file',
     loaded: false,
-    filename: file.name,
+    filename: typeof file === 'string' ? file : file.name,
     error: new Error(reason),
   } as const);
 
@@ -159,7 +160,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     const typedFiles = await Promise.all(files.map((f) => retypeFile(f)));
 
     // process archives
-    const allFiles = await extractArchivesRecursively(typedFiles);
+    const fileEntries = await extractArchivesRecursively(typedFiles);
+    const allFiles = fileEntries.map((entry) => entry.file);
 
     const dicoms = allFiles.filter(({ type }) => type === 'dcm');
     const otherFiles = allFiles.filter(({ type }) => type !== 'dcm');
@@ -215,6 +217,49 @@ export const useDatasetStore = defineStore('dataset', () => {
     return statuses;
   }
 
+  async function serialize(stateFile: StateFile) {
+    await dicomStore.serialize(stateFile);
+    await imageStore.serialize(stateFile);
+
+    if (primarySelection.value !== null) {
+      let id = null;
+      if (primarySelection.value.type === 'dicom') {
+        id = primarySelection.value.volumeKey;
+      } else {
+        id = primarySelection.value.dataID;
+      }
+
+      const { manifest } = stateFile;
+      manifest.primarySelection = id;
+    }
+  }
+
+  async function deserialize(dataSet: DataSet, files: File[]) {
+    // dicom
+    if (dataSet.type === DataSetType.DICOM) {
+      return dicomStore
+        .deserialize(dataSet, files)
+        .then((volumeKey) => makeDICOMSuccessStatus(volumeKey))
+        .catch((err) => makeDICOMFailureStatus(err));
+    }
+
+    // image
+    if (files.length !== 1) {
+      throw new Error('Invalid state file.');
+    }
+    const file = files[0];
+
+    return imageStore
+      .deserialize(dataSet, file)
+      .then((dataID) => makeFileSuccessStatus(file, 'image', dataID))
+      .catch((err) =>
+        makeFileFailureStatus(
+          file.name,
+          `Reading ${file.name} gave an error: ${err}`
+        )
+      );
+  }
+
   // --- watch for deletion --- //
 
   imageStore.$onAction(({ name, args, after }) => {
@@ -255,5 +300,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     getDataProxyByID,
     setPrimarySelection,
     loadFiles,
+    serialize,
+    deserialize,
   };
 });
