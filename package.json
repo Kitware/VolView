@@ -14,7 +14,7 @@
     "prettify": "prettier --write src tests"
   },
   "dependencies": {
-    "@kitware/vtk.js": "^25.0.1",
+    "@kitware/vtk.js": "^25.7.2",
     "@vue/composition-api": "1.6.3",
     "@vueuse/core": "^8.5.0",
     "core-js": "3.22.5",

@@ -59,6 +59,11 @@ export const Layouts: Record<string, Layout> = {
       },
     ],
   },
+  ThreeOnly: {
+    objType: 'Layout',
+    direction: LayoutDirection.H,
+    items: [Views.Three],
+  },
 };
 
 export const LABELMAP_PALETTE = {

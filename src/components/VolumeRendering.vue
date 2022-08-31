@@ -415,57 +415,50 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="overflow-y-auto mx-2 fill-height">
-    <template v-if="hasCurrentImage">
-      <div class="mt-4" ref="editorContainerRef">
-        <div ref="pwfEditorRef" />
-      </div>
-      <div>
-        <color-function-slider
-          dense
-          hide-details
-          :min="fullMappingRange[0]"
-          :max="fullMappingRange[1]"
-          :step="colorSliderStep"
-          :rgb-points="rgbPoints"
-          :value="mappingRange"
-          @input="updateColorMappingRange"
-        />
-      </div>
-      <item-group class="container" :value="preset" @change="selectPreset">
-        <v-row no-gutters justify="center">
-          <groupable-item
-            v-for="preset in presetList"
-            :key="preset"
-            v-slot="{ active, select }"
-            :value="preset"
+  <div class="overflow-x-hidden mx-2">
+    <div class="mt-4" ref="editorContainerRef">
+      <div ref="pwfEditorRef" />
+    </div>
+    <color-function-slider
+      dense
+      hide-details
+      :min="fullMappingRange[0]"
+      :max="fullMappingRange[1]"
+      :step="colorSliderStep"
+      :rgb-points="rgbPoints"
+      :value="mappingRange"
+      @input="updateColorMappingRange"
+    />
+    <item-group class="container" :value="preset" @change="selectPreset">
+      <v-row no-gutters justify="center">
+        <groupable-item
+          v-for="preset in presetList"
+          :key="preset"
+          v-slot="{ active, select }"
+          :value="preset"
+        >
+          <v-col
+            cols="4"
+            :class="{
+              'thumbnail-container': true,
+              blue: active,
+            }"
+            @click="select"
           >
-            <v-col
-              cols="4"
-              :class="{
-                'thumbnail-container': true,
-                blue: active,
-              }"
-              @click="select"
-            >
-              <v-img :src="thumbnails[preset] || ''" contain aspect-ratio="1">
-                <v-overlay
-                  absolute
-                  :value="true"
-                  opacity="0.3"
-                  class="thumbnail-overlay"
-                >
-                  {{ preset.replace(/-/g, ' ') }}
-                </v-overlay>
-              </v-img>
-            </v-col>
-          </groupable-item>
-        </v-row>
-      </item-group>
-    </template>
-    <template v-else>
-      <div class="text-center pt-12 text-subtitle-1">No image selected</div>
-    </template>
+            <v-img :src="thumbnails[preset] || ''" contain aspect-ratio="1">
+              <v-overlay
+                absolute
+                :value="true"
+                opacity="0.3"
+                class="thumbnail-overlay"
+              >
+                {{ preset.replace(/-/g, ' ') }}
+              </v-overlay>
+            </v-img>
+          </v-col>
+        </groupable-item>
+      </v-row>
+    </item-group>
   </div>
 </template>
 
