@@ -98,9 +98,11 @@ export function convertSuccessResultToDataSelection(
     return makeDICOMSelection(result.dataID);
   }
   if (result.type === 'file') {
-    return makeImageSelection(result.dataID);
+    if (result.dataType === 'image') {
+      return makeImageSelection(result.dataID);
+    }
   }
-  throw new Error('Did not receive a valid LoadResult');
+  return null;
 }
 
 export const useDatasetStore = defineStore('dataset', () => {

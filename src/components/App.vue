@@ -374,7 +374,9 @@ export default defineComponent({
         (loadFirstDataset || loaded.length === 1)
       ) {
         const selection = convertSuccessResultToDataSelection(loaded[0]);
-        dataStore.setPrimarySelection(selection);
+        if (selection) {
+          dataStore.setPrimarySelection(selection);
+        }
       }
 
       const failedFilenames = errored.map((result) => {

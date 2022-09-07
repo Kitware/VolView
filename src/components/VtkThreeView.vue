@@ -77,6 +77,7 @@ import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useViewConfigStore } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import { Views } from '../config';
+import { useModelStore } from '../store/datasets-models';
 
 export default defineComponent({
   props: {
@@ -94,6 +95,7 @@ export default defineComponent({
   },
   setup(props) {
     const view3DStore = useView3DStore();
+    const modelStore = useModelStore();
     const proxyManager = useProxyManager()!;
     const viewConfigStore = useViewConfigStore();
 
@@ -138,6 +140,7 @@ export default defineComponent({
       viewID,
       {
         baseImage: curImageID,
+        models: computed(() => modelStore.idList),
       }
     );
 
