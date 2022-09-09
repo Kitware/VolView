@@ -22,6 +22,7 @@ export interface View2DConfig {
   key: ViewKey;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
+  name?: string;
 }
 
 export interface View3DConfig {
@@ -29,6 +30,7 @@ export interface View3DConfig {
   key: ViewKey;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
+  name?: string;
 }
 
 export type ViewConfig = View2DConfig | View3DConfig;
@@ -38,6 +40,7 @@ export type Layout =
       objType: 'Layout';
       direction: LayoutDirection;
       items: Array<Layout | ViewConfig>;
+      name?: string;
     }
   | ViewConfig;
 

@@ -66,9 +66,12 @@
                       class="mt-0"
                       hide-details
                     >
-                      <v-radio label="Axial Primary" value="AxialPrimary" />
-                      <v-radio label="Quad View" value="QuadView" />
-                      <v-radio label="3D Only" value="ThreeOnly" />
+                      <v-radio
+                        v-for="(value, key) in Layouts"
+                        :key="key"
+                        :label="value.name"
+                        :value="key"
+                      />
                     </v-radio-group>
                   </v-card-text>
                 </v-card>
@@ -303,20 +306,12 @@ export default defineComponent({
 
     // --- layout --- //
 
-    const layoutName: Ref<'QuadView' | 'AxialPrimary'> = ref('QuadView');
+    const layoutName: Ref<keyof typeof Layouts> = ref('QuadView');
 
     const layoutGrid: ComputedRef<any> = computed(() => {
       const { layout } = viewStore;
       return toLayoutGridArray(layout);
     });
-
-    function relayoutAxial() {
-      layoutName.value = 'AxialPrimary';
-    }
-
-    function relayoutQuad() {
-      layoutName.value = 'QuadView';
-    }
 
     watch(
       layoutName,
@@ -431,8 +426,7 @@ export default defineComponent({
       messageCount,
       layout: layoutGrid,
       layoutName,
-      relayoutAxial,
-      relayoutQuad,
+      Layouts,
       userPromptFiles,
       openFiles,
       hasData,

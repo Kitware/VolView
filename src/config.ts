@@ -42,6 +42,7 @@ export const Layouts: Record<string, Layout> = {
         items: [Views.Coronal, Views.Sagittal, Views.Three],
       },
     ],
+    name: 'Axial Primary',
   },
   QuadView: {
     objType: 'Layout',
@@ -58,11 +59,13 @@ export const Layouts: Record<string, Layout> = {
         items: [Views.Sagittal, Views.Axial],
       },
     ],
+    name: 'Quad View',
   },
   ThreeOnly: {
     objType: 'Layout',
     direction: LayoutDirection.H,
     items: [Views.Three],
+    name: '3D Only',
   },
 };
 
