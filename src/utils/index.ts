@@ -1,3 +1,5 @@
+import { api } from 'dicomweb-client';
+
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */
@@ -85,4 +87,25 @@ export function pick<T, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
 
 export function plural(n: number, word: string, pluralWord?: string) {
   return n > 1 ? pluralWord ?? `${word}s` : word;
+}
+
+interface DicomWebFetchOptions {
+  studyInstanceUID: string;
+  seriesInstanceUID: string;
+  sopInstanceUID: string;
+}
+
+export async function fetchDicomWeb(
+  dicomWebServer: string,
+  options: DicomWebFetchOptions
+): Promise<File | null> {
+  const client = new api.DICOMwebClient({
+    url: dicomWebServer,
+    retrieveRendered: false,
+  });
+
+  const instance = await client.retrieveInstance(options);
+  const blob = new Blob([instance]);
+
+  return new File([blob], 'asdf.dcm');
 }

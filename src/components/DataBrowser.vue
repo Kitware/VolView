@@ -1,6 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
+import DicomWebLoader from './DicomWebLoader.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -44,6 +45,7 @@ export default defineComponent({
   name: 'DataBrowser',
   components: {
     SampleDataBrowser,
+    DicomWebLoader,
     ImageDataBrowser,
     PatientBrowser,
   },
@@ -150,6 +152,16 @@ export default defineComponent({
           </v-expansion-panel-header>
           <v-expansion-panel-content>
             <sample-data-browser />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+        
+        <v-expansion-panel>
+          <v-expansion-panel-header>
+            <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
+            <span>DICOMWeb</span>
+          </v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <dicom-web-loader />
           </v-expansion-panel-content>
         </v-expansion-panel>
       </v-expansion-panels>

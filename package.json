@@ -19,6 +19,7 @@
     "@vueuse/core": "^8.5.0",
     "core-js": "3.22.5",
     "deep-equal": "^2.0.5",
+    "dicomweb-client": "^0.8.4",
     "file-saver": "^2.0.5",
     "gl-matrix": "3.4.3",
     "itk-image-io": "^1.0.0-b.19",
