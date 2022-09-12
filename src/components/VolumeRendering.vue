@@ -245,8 +245,8 @@ export default defineComponent({
 
     // same as 3D view
     const { cameraDirVec, cameraUpVec } = useCameraOrientation(
-      Views.Three.viewDirection,
-      Views.Three.viewUp,
+      Views.Three.props.viewDirection,
+      Views.Three.props.viewUp,
       currentImageMetadata
     );
 
@@ -344,7 +344,7 @@ export default defineComponent({
     // delete thumbnails if an image is deleted
     imageStore.$onAction(({ name, args, after }) => {
       if (name === 'deleteData') {
-        const [id] = args;
+        const [id] = args as [string];
         if (id in thumbnails) {
           after(() => del(thumbnails, id));
         }

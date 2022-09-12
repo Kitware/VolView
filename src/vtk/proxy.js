@@ -55,6 +55,8 @@ export default {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
     },
     Representations: {
+      ImageSlice: createProxyDefinition(vtkIJKSliceRepresentationProxy),
+      LabelMapSlice: createProxyDefinition(vtkLabelMapSliceRepProxy),
       CoronalSlice: createSyncedSliceRepDefinition(
         vtkIJKSliceRepresentationProxy,
         'X'
@@ -85,6 +87,7 @@ export default {
     },
     Views: {
       View3D: createDefaultView(vtkLPSView3DProxy),
+      View2D: createDefaultView(vtkLPSView2DProxy),
       CoronalView: createDefaultView(vtkLPSView2DProxy, null, { axis: 0 }),
       SagittalView: createDefaultView(vtkLPSView2DProxy, null, { axis: 1 }),
       AxialView: createDefaultView(vtkLPSView2DProxy, null, { axis: 2 }),
@@ -94,6 +97,10 @@ export default {
     View3D: {
       vtkImageData: { name: 'Volume' },
       vtkPolyData: { name: 'Geometry' },
+    },
+    View2D: {
+      vtkImageData: { name: 'ImageSlice' },
+      vtkLabelMap: { name: 'LabelMapSlice' },
     },
     CoronalView: {
       vtkImageData: { name: 'CoronalSlice' },

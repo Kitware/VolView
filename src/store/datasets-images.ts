@@ -3,18 +3,15 @@ import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import {
-  defaultLPSDirections,
-  getLPSDirections,
-  LPSDirections,
-} from '../utils/lps';
+import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
 import { useViewConfigStore } from './view-configs';
-import { useView2DStore } from './views-2D';
 import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { FILE_READERS } from '../io';
 import { useFileStore } from './datasets-files';
+import { useViewStore } from './views';
+import { LPSDirections } from '../types/lps';
 
 export interface ImageMetadata {
   name: string;
@@ -91,10 +88,10 @@ export const useImageStore = defineStore('images', {
         removeFromArray(this.idList, id);
 
         // Remove the data views
-        const view2DStore = useView2DStore();
+        const viewStore = useViewStore();
         const viewConfigStore = useViewConfigStore();
 
-        view2DStore.allViewIDs.forEach((viewID: string) => {
+        viewStore.views.forEach((viewID: string) => {
           viewConfigStore.removeViewConfig(viewID, id);
         });
       }

@@ -2,7 +2,8 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { vec3 } from 'gl-matrix';
 import { ImageMetadata } from '../store/datasets-images';
-import { getLPSAxisFromDir, LPSAxisDir } from './lps';
+import { LPSAxisDir } from '../types/lps';
+import { getLPSAxisFromDir } from './lps';
 
 export function updatePlaneManipulatorFor2DView(
   manipulator: vtkPlaneManipulator,

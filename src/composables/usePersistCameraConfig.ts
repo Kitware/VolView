@@ -4,9 +4,9 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { useViewConfigStore, CameraConfig } from '../store/view-configs';
 
 export function usePersistCameraConfig(
-  viewID: string,
+  viewID: Ref<string>,
   dataID: Ref<string | null>,
-  viewProxy: vtkViewProxy,
+  viewProxy: Ref<vtkViewProxy>,
   ...toPersist: (keyof CameraConfig)[]
 ) {
   const viewConfigStore = useViewConfigStore();
@@ -20,9 +20,9 @@ export function usePersistCameraConfig(
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
         viewConfigStore.setPosition(
-          viewID,
+          viewID.value,
           dataID.value,
-          viewProxy.getCamera().getPosition()
+          viewProxy.value.getCamera().getPosition()
         );
       }
     });
@@ -31,9 +31,9 @@ export function usePersistCameraConfig(
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
         viewConfigStore.setViewUp(
-          viewID,
+          viewID.value,
           dataID.value,
-          viewProxy.getCamera().getViewUp()
+          viewProxy.value.getCamera().getViewUp()
         );
       }
     });
@@ -42,9 +42,9 @@ export function usePersistCameraConfig(
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
         viewConfigStore.setFocalPoint(
-          viewID,
+          viewID.value,
           dataID.value,
-          viewProxy.getCamera().getFocalPoint()
+          viewProxy.value.getCamera().getFocalPoint()
         );
       }
     });
@@ -53,9 +53,9 @@ export function usePersistCameraConfig(
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
         viewConfigStore.setDirectionOfProjection(
-          viewID,
+          viewID.value,
           dataID.value,
-          viewProxy.getCamera().getDirectionOfProjection()
+          viewProxy.value.getCamera().getDirectionOfProjection()
         );
       }
     });
@@ -64,16 +64,16 @@ export function usePersistCameraConfig(
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
         viewConfigStore.setParallelScale(
-          viewID,
+          viewID.value,
           dataID.value,
-          viewProxy.getCamera().getParallelScale()
+          viewProxy.value.getCamera().getParallelScale()
         );
       }
     });
   }
 
   manageVTKSubscription(
-    viewProxy.getCamera().onModified(() => {
+    viewProxy.value.getCamera().onModified(() => {
       persist.forEach((persistFunc) => persistFunc());
     })
   );
@@ -92,23 +92,29 @@ export function usePersistCameraConfig(
       toPersist.forEach((key: keyof CameraConfig) => {
         // Parallel scale
         if (key === 'parallelScale' && cameraConfig.parallelScale) {
-          viewProxy.getCamera().setParallelScale(cameraConfig.parallelScale);
+          viewProxy.value
+            .getCamera()
+            .setParallelScale(cameraConfig.parallelScale);
         }
         // Position
         else if (key === 'position' && cameraConfig.position) {
           const { position } = cameraConfig;
-          viewProxy
+          viewProxy.value
             .getCamera()
             .setPosition(position[0], position[1], position[2]);
         }
         // Focal point
         else if (key === 'focalPoint' && cameraConfig.focalPoint) {
           const { focalPoint } = cameraConfig;
-          viewProxy
+          viewProxy.value
             .getCamera()
             .setFocalPoint(focalPoint[0], focalPoint[1], focalPoint[2]);
-          viewProxy.getInteractorStyle2D().setCenterOfRotation([...focalPoint]);
-          viewProxy.getInteractorStyle3D().setCenterOfRotation([...focalPoint]);
+          viewProxy.value
+            .getInteractorStyle2D()
+            .setCenterOfRotation([...focalPoint]);
+          viewProxy.value
+            .getInteractorStyle3D()
+            .setCenterOfRotation([...focalPoint]);
         }
         // Direction of projection
         else if (
@@ -116,7 +122,7 @@ export function usePersistCameraConfig(
           cameraConfig.directionOfProjection
         ) {
           const { directionOfProjection } = cameraConfig;
-          viewProxy
+          viewProxy.value
             .getCamera()
             .setDirectionOfProjection(
               directionOfProjection[0],
@@ -127,7 +133,9 @@ export function usePersistCameraConfig(
         // View up
         else if (key === 'viewUp' && cameraConfig.viewUp) {
           const { viewUp } = cameraConfig;
-          viewProxy.getCamera().setViewUp(viewUp[0], viewUp[1], viewUp[2]);
+          viewProxy.value
+            .getCamera()
+            .setViewUp(viewUp[0], viewUp[1], viewUp[2]);
         }
       });
     });

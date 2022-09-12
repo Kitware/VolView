@@ -1,51 +1,12 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { defineStore } from 'pinia';
-import { LPSAxisDir } from '../utils/lps';
-
-export type ViewType = '2D' | '3D';
-
-export enum LayoutDirection {
-  V = 'V',
-  H = 'H',
-}
-
-export enum ViewKey {
-  CoronalView = 'CoronalView',
-  SagittalView = 'SagittalView',
-  AxialView = 'AxialView',
-  ThreeDView = '3DView',
-}
-
-export interface View2DConfig {
-  objType: 'View2D';
-  key: ViewKey;
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-  name?: string;
-}
-
-export interface View3DConfig {
-  objType: 'View3D';
-  key: ViewKey;
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-  name?: string;
-}
-
-export type ViewConfig = View2DConfig | View3DConfig;
-
-export type Layout =
-  | {
-      objType: 'Layout';
-      direction: LayoutDirection;
-      items: Array<Layout | ViewConfig>;
-      name?: string;
-    }
-  | ViewConfig;
+import { ViewProxyType } from '../core/proxies';
+import { Layout, LayoutDirection } from '../types/layout';
 
 interface State {
   layout: Layout;
+  views: string[];
 }
 
 export const useViewStore = defineStore('view', {
@@ -55,6 +16,7 @@ export const useViewStore = defineStore('view', {
       direction: LayoutDirection.V,
       items: [],
     },
+    views: [],
   }),
   getters: {
     getViewProxy() {
@@ -74,6 +36,23 @@ export const useViewStore = defineStore('view', {
     },
   },
   actions: {
+    createOrGetViewProxy<T extends vtkViewProxy = vtkViewProxy>(
+      id: string,
+      type: ViewProxyType
+    ) {
+      if (this.views.indexOf(id) > -1) {
+        return this.getViewProxy<T>(id)!;
+      }
+      this.views.push(id);
+      return <T>this.$proxies.createView(id, type);
+    },
+    removeView(id: string) {
+      const idx = this.views.indexOf(id);
+      if (idx > -1) {
+        this.views.splice(idx, 1);
+      }
+      this.$proxies.removeView(id);
+    },
     setLayout(layout: Layout) {
       this.layout = layout;
     },

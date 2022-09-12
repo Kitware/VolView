@@ -10,7 +10,7 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { LPSAxisDir } from '@/src/utils/lps';
+import { LPSAxisDir } from '@/src/types/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';

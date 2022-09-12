@@ -3,13 +3,14 @@ import { defineStore } from 'pinia';
 
 import { clampValue } from '@src/utils';
 import { Vector3 } from '@kitware/vtk.js/types';
-import { useView2DStore } from './views-2D';
 import { ColorTransferFunction, OpacityFunction } from './views-3D';
+import { LPSAxisDir } from '../types/lps';
 
 export interface SliceConfig {
   slice: number;
   min: number;
   max: number;
+  axisDirection: LPSAxisDir;
 }
 
 export interface WindowLevelConfig {
@@ -40,6 +41,7 @@ export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
   min: 0,
   max: 1,
+  axisDirection: 'Inferior',
 });
 
 export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
@@ -60,41 +62,6 @@ interface State {
 
 const genSynViewConfigKey = (viewID: string, dataID: string) => {
   return [viewID, dataID].join('|');
-};
-
-const addViewConfigKey = (
-  viewConfigs: Record<string, Set<string>>,
-  viewID: string,
-  key: string
-) => {
-  const configs = viewConfigs;
-  if (!(viewID in configs)) {
-    configs[viewID] = new Set<string>();
-  }
-  configs[viewID].add(key);
-};
-
-const setCameraConfig = (
-  state: State,
-  viewID: string,
-  dataID: string,
-  key: keyof CameraConfig,
-  value: any
-) => {
-  const configKey = genSynViewConfigKey(viewID, dataID);
-
-  let config: CameraConfig = {};
-  if (configKey in state.cameraConfigs) {
-    config = state.cameraConfigs[configKey];
-  }
-
-  config[key as keyof CameraConfig] = value;
-
-  // New record
-  if (!(configKey in state.cameraConfigs)) {
-    set<CameraConfig>(state.cameraConfigs, configKey, config);
-    addViewConfigKey(state.viewConfigs, viewID, configKey);
-  }
 };
 
 const configGetter =
@@ -128,6 +95,12 @@ export const useViewConfigStore = defineStore('viewConfig', {
     getVolumeColorConfig: (state) => configGetter(state.volumeColorConfigs),
   },
   actions: {
+    addViewConfigKey(viewID: string, key: string) {
+      if (!(viewID in this.viewConfigs)) {
+        this.viewConfigs[viewID] = new Set<string>();
+      }
+      this.viewConfigs[viewID].add(key);
+    },
     removeViewConfig(viewID: string, dataID?: string) {
       // If we haven't been provided a dataID we will remove all view configs
       // associated with the view.
@@ -151,68 +124,37 @@ export const useViewConfigStore = defineStore('viewConfig', {
         }
       });
     },
-    setSlice(viewID: string, dataID: string, slice: number) {
-      const viewStore = useView2DStore();
-      const key = genSynViewConfigKey(viewID, dataID);
-
-      if (key in this.sliceConfigs) {
-        const viewsToUpdate = viewStore.syncSlices
-          ? Object.keys(viewStore.orientationConfigs)
-          : [viewID];
-
-        const { axis } = viewStore.orientationConfigs[viewID];
-
-        // sync slices across all views that share the same dataset and axis.
-        // Right now, all views share the same dataset by way of primarySelection.
-        viewsToUpdate.forEach((id) => {
-          if (viewStore.orientationConfigs[id].axis === axis) {
-            // Right now all views share the same dataset, so just use dataID to
-            // generate the key. This may change in the future.
-            const viewConfigKey = genSynViewConfigKey(id, dataID);
-
-            if (viewConfigKey in this.sliceConfigs) {
-              const config = this.sliceConfigs[viewConfigKey];
-              const { min, max } = config;
-              config.slice = clampValue(slice, min, max);
-            }
-          }
-        });
-      }
-    },
-    updateSliceDomain(
+    updateSliceConfig(
       viewID: string,
       dataID: string,
-      sliceDomain: [number, number]
+      update: Partial<SliceConfig>
     ) {
       const key = genSynViewConfigKey(viewID, dataID);
+      const config = {
+        ...defaultSliceConfig(),
+        ...this.sliceConfigs[key],
+        ...update,
+      };
 
-      let config = defaultSliceConfig();
-      if (key in this.sliceConfigs) {
-        config = this.sliceConfigs[key];
+      if ('min' in update || 'max' in update) {
+        config.slice = Math.floor((config.min + config.max) / 2);
       }
-      const [min, max] = sliceDomain;
-      config.min = min;
-      config.max = max;
-      if (config.slice < min || config.slice > max) {
-        config.slice = Math.floor((min + max) / 2);
-      }
+      config.slice = clampValue(config.slice, config.min, config.max);
 
-      // New record
-      if (!(key in this.sliceConfigs)) {
-        set<SliceConfig>(this.sliceConfigs, key, config);
-        addViewConfigKey(this.viewConfigs, viewID, key);
-      }
+      set(this.sliceConfigs, key, config);
+      this.addViewConfigKey(viewID, key);
     },
     resetSlice(viewID: string, dataID: string) {
       const key = genSynViewConfigKey(viewID, dataID);
 
       if (key in this.sliceConfigs) {
         const config = this.sliceConfigs[key];
-        this.setSlice(
-          viewID,
-          dataID,
-          Math.floor((config.min + config.max) / 2)
-        );
+        // Make this consistent with ImageMapper + SliceRepresentationProxy
+        // behavior. Setting this to floor() will affect images where the
+        // middle slice is fractional.
+        this.updateSliceConfig(viewID, dataID, {
+          slice: Math.ceil((config.min + config.max) / 2),
+        });
       }
     },
     setWindowLevel(
@@ -220,26 +162,19 @@ export const useViewConfigStore = defineStore('viewConfig', {
       dataID: string,
       wl: { width?: number; level?: number }
     ) {
-      const viewStore = useView2DStore();
+      // TODO sync window level
+      const viewConfigKey = genSynViewConfigKey(viewID, dataID);
+      if (viewConfigKey in this.wlConfigs) {
+        const config = this.wlConfigs[viewConfigKey];
 
-      const viewsToUpdate = viewStore.syncWindowing
-        ? viewStore.allViewIDs
-        : [viewID];
-
-      viewsToUpdate.forEach((id: string) => {
-        const viewConfigKey = genSynViewConfigKey(id, dataID);
-        if (viewConfigKey in this.wlConfigs) {
-          const config = this.wlConfigs[viewConfigKey];
-
-          // don't constrain w/l to min/max
-          if ('width' in wl) {
-            config.width = wl.width!;
-          }
-          if ('level' in wl) {
-            config.level = wl.level!;
-          }
+        // don't constrain w/l to min/max
+        if ('width' in wl) {
+          config.width = wl.width!;
         }
-      });
+        if ('level' in wl) {
+          config.level = wl.level!;
+        }
+      }
     },
     updateWLDomain(viewID: string, dataID: string, wlDomain: [number, number]) {
       const key = genSynViewConfigKey(viewID, dataID);
@@ -256,7 +191,7 @@ export const useViewConfigStore = defineStore('viewConfig', {
       // New record using the defaults
       if (!(key in this.wlConfigs)) {
         set<WindowLevelConfig>(this.wlConfigs, key, config);
-        addViewConfigKey(this.viewConfigs, viewID, key);
+        this.addViewConfigKey(viewID, key);
       }
     },
     resetWindowLevel(viewID: string, dataID: string) {
@@ -284,22 +219,43 @@ export const useViewConfigStore = defineStore('viewConfig', {
       // New record
       if (!(key in this.cameraConfigs)) {
         set<CameraConfig>(this.cameraConfigs, key, config);
-        addViewConfigKey(this.viewConfigs, viewID, key);
+        this.addViewConfigKey(viewID, key);
       }
     },
+    _setCameraConfig(
+      viewID: string,
+      dataID: string,
+      key: keyof CameraConfig,
+      value: any
+    ) {
+      const configKey = genSynViewConfigKey(viewID, dataID);
+
+      let config: CameraConfig = {};
+      if (configKey in this.cameraConfigs) {
+        config = this.cameraConfigs[configKey];
+      }
+
+      config[key as keyof CameraConfig] = value;
+
+      // New record
+      if (!(configKey in this.cameraConfigs)) {
+        set<CameraConfig>(this.cameraConfigs, configKey, config);
+        this.addViewConfigKey(viewID, configKey);
+      }
+    },
+
     setPosition(viewID: string, dataID: string, position: Vector3) {
-      setCameraConfig(this, viewID, dataID, 'position', position);
+      this._setCameraConfig(viewID, dataID, 'position', position);
     },
     setFocalPoint(viewID: string, dataID: string, focalPoint: Vector3) {
-      setCameraConfig(this, viewID, dataID, 'focalPoint', focalPoint);
+      this._setCameraConfig(viewID, dataID, 'focalPoint', focalPoint);
     },
     setDirectionOfProjection(
       viewID: string,
       dataID: string,
       directionOfProjection: Vector3
     ) {
-      setCameraConfig(
-        this,
+      this._setCameraConfig(
         viewID,
         dataID,
         'directionOfProjection',
@@ -307,7 +263,7 @@ export const useViewConfigStore = defineStore('viewConfig', {
       );
     },
     setViewUp(viewID: string, dataID: string, viewUp: Vector3) {
-      setCameraConfig(this, viewID, dataID, 'viewUp', viewUp);
+      this._setCameraConfig(viewID, dataID, 'viewUp', viewUp);
     },
     setVolumeColoring(
       viewID: string,
@@ -316,7 +272,7 @@ export const useViewConfigStore = defineStore('viewConfig', {
     ) {
       const key = genSynViewConfigKey(viewID, dataID);
       set(this.volumeColorConfigs, key, config);
-      addViewConfigKey(this.viewConfigs, viewID, key);
+      this.addViewConfigKey(viewID, key);
     },
   },
 });

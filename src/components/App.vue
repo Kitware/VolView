@@ -103,7 +103,7 @@
               />
             </div>
             <div class="d-flex flex-column flex-grow-1">
-              <layout-grid v-show="hasData" :layout="layout" />
+              <layout-grid v-show="hasData" :layout="currentLayout" />
               <v-row
                 v-show="!hasData"
                 no-gutters
@@ -176,7 +176,6 @@
 <script lang="ts">
 import {
   computed,
-  ComputedRef,
   defineComponent,
   onBeforeUnmount,
   Ref,
@@ -191,8 +190,6 @@ import ModulePanel from './ModulePanel.vue';
 import DragAndDrop from './DragAndDrop.vue';
 import AboutBox from './AboutBox.vue';
 import ToolStrip from './ToolStrip.vue';
-import VtkTwoView from './VtkTwoView.vue';
-import VtkThreeView from './VtkThreeView.vue';
 import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
@@ -212,66 +209,13 @@ import {
   ProxyManagerEvent,
 } from '../composables/onProxyManagerEvent';
 import { useProxyManager } from '../composables/proxyManager';
-import { useViewStore, Layout, ViewKey, LayoutDirection } from '../store/views';
-import { LPSAxisDir } from '../utils/lps';
+import { useViewStore } from '../store/views';
 import { useMessageStore } from '../store/messages';
 import { plural } from '../utils';
 import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
 import { isStateFile, loadState } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
-
-interface LayoutGridItemProps {
-  key: ViewKey;
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-}
-
-interface LayoutGridItem {
-  comp: typeof VtkTwoView | typeof VtkThreeView;
-  props: LayoutGridItemProps;
-}
-
-type LayoutGridArrayItem =
-  | LayoutDirection
-  | LayoutGridItem
-  | Array<LayoutGridArrayItem>;
-
-type LayoutGridArray = Array<LayoutGridArrayItem>;
-
-// Convert Layout to format LayoutGrid expects
-const toLayoutGridArray = (layout: Layout): LayoutGridArrayItem => {
-  if (layout.objType === 'Layout') {
-    const layoutArray: LayoutGridArray = [layout.direction];
-    layout.items.forEach((item) => {
-      layoutArray.push(toLayoutGridArray(item));
-    });
-
-    return layoutArray;
-  }
-  if (layout.objType === 'View2D') {
-    return {
-      comp: VtkTwoView,
-      props: {
-        key: layout.key,
-        viewDirection: layout.viewDirection,
-        viewUp: layout.viewUp,
-      },
-    };
-  }
-  if (layout.objType === 'View3D') {
-    return {
-      comp: VtkThreeView,
-      props: {
-        key: layout.key,
-        viewDirection: layout.viewDirection,
-        viewUp: layout.viewUp,
-      },
-    };
-  }
-  // Needed to keep compiler happy!
-  throw new Error('Unrecognized objType');
-};
 
 export default defineComponent({
   name: 'App',
@@ -307,11 +251,7 @@ export default defineComponent({
     // --- layout --- //
 
     const layoutName: Ref<keyof typeof Layouts> = ref('QuadView');
-
-    const layoutGrid: ComputedRef<any> = computed(() => {
-      const { layout } = viewStore;
-      return toLayoutGridArray(layout);
-    });
+    const currentLayout = computed(() => viewStore.layout);
 
     watch(
       layoutName,
@@ -424,7 +364,7 @@ export default defineComponent({
       settingsDialog: ref(false),
       saveDialog: ref(false),
       messageCount,
-      layout: layoutGrid,
+      currentLayout,
       layoutName,
       Layouts,
       userPromptFiles,

@@ -14,11 +14,11 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { LPSAxisDir } from '@/src/utils/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
+import { LPSAxisDir } from '@/src/types/lps';
 
 export default defineComponent({
   name: 'RulerWidget2D',

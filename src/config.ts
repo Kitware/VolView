@@ -1,32 +1,44 @@
 import HeadMRAThumbnail from '@/src/assets/samples/head-mra.jpg';
 import LiverCTThumbnail from '@/src/assets/samples/liver-ct.jpg';
 import AbdomenMRIThumbnail from '@/src/assets/samples/abdomen-mri.jpg';
-import { Layout, LayoutDirection, ViewConfig, ViewKey } from './store/views';
+import { Layout, LayoutDirection, LayoutView } from './types/layout';
 
-export const Views: Record<string, ViewConfig> = {
+export const Views: Record<string, LayoutView> = {
   Coronal: {
-    objType: 'View2D',
-    key: ViewKey.CoronalView,
-    viewDirection: 'Right',
-    viewUp: 'Superior',
+    objType: 'View',
+    viewType: 'View2D',
+    id: 'Coronal',
+    props: {
+      viewDirection: 'Right',
+      viewUp: 'Superior',
+    },
   },
   Sagittal: {
-    objType: 'View2D',
-    key: ViewKey.SagittalView,
-    viewDirection: 'Posterior',
-    viewUp: 'Superior',
+    objType: 'View',
+    viewType: 'View2D',
+    id: 'Sagittal',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
   },
   Axial: {
-    objType: 'View2D',
-    key: ViewKey.AxialView,
-    viewDirection: 'Superior',
-    viewUp: 'Anterior',
+    objType: 'View',
+    viewType: 'View2D',
+    id: 'Axial',
+    props: {
+      viewDirection: 'Superior',
+      viewUp: 'Anterior',
+    },
   },
   Three: {
-    objType: 'View3D',
-    key: ViewKey.ThreeDView,
-    viewDirection: 'Posterior',
-    viewUp: 'Superior',
+    objType: 'View',
+    viewType: 'View3D',
+    id: '3D',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
   },
 };
 
@@ -39,7 +51,7 @@ export const Layouts: Record<string, Layout> = {
       {
         objType: 'Layout',
         direction: LayoutDirection.H,
-        items: [Views.Coronal, Views.Sagittal, Views.Three],
+        items: [Views.Coronal, Views.Sagittal],
       },
     ],
     name: 'Axial Primary',

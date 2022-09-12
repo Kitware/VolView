@@ -5,8 +5,9 @@ import { inflate } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { computed, ref, unref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useViewConfigStore } from '../view-configs';
-import { useView2DStore } from '../views-2D';
+import { useViewStore } from '../views';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
@@ -32,12 +33,13 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   });
 
   const viewConfigStore = useViewConfigStore();
-  const view2DStore = useView2DStore();
+  const viewStore = useViewStore();
 
+  // only gets views that have a slicing config
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
     if (imageID) {
-      return view2DStore.allViewIDs.filter(
+      return viewStore.views.filter(
         (viewID) => !!viewConfigStore.getSliceConfig(viewID, imageID)
       );
     }
@@ -63,10 +65,11 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
       }
 
       currentViewIDs.value.forEach((viewID) => {
-        const { axis } = view2DStore.orientationConfigs[viewID];
+        const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
+        const axis = getLPSAxisFromDir(sliceConfig!.axisDirection);
         const index = lpsOrientation[axis];
         const slice = Math.round(indexPos[index]);
-        viewConfigStore.setSlice(viewID, imageID, slice);
+        viewConfigStore.updateSliceConfig(viewID, imageID, { slice });
       });
     }
   });

@@ -25,7 +25,8 @@ import {
   toRefs,
 } from '@vue/composition-api';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { LPSAxisDir } from '@/src/types/lps';
 import { Tools, useToolStore } from '@/src/store/tools';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';

@@ -2,7 +2,8 @@ import { computed, Ref, unref } from '@vue/composition-api';
 import { MaybeRef } from '@vueuse/core';
 import { mat3 } from 'gl-matrix';
 import { ImageMetadata } from '../store/datasets-images';
-import { getLPSDirections, LPSAxisDir } from '../utils/lps';
+import { LPSAxisDir } from '../types/lps';
+import { getLPSDirections } from '../utils/lps';
 
 /**
  *

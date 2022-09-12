@@ -31,10 +31,9 @@ export default defineComponent({
     const viewStore = useViewStore();
     const { currentImageID } = useCurrentImage();
 
-    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
-    if (!viewProxy) {
-      throw new Error('Cannot get the view proxy');
-    }
+    const viewProxy = computed(
+      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
+    );
 
     const sliceConfigDefault = defaultSliceConfig();
     const sliceConfig = computed(() =>
@@ -65,17 +64,18 @@ export default defineComponent({
       scrollEnabled: true,
     });
 
+    // TODO this should be based on if viewProxy changes
     onMounted(() => {
       // assumed to be vtkInteractorStyleManipulator
-      const istyle = viewProxy.getInteractorStyle2D();
+      const istyle = viewProxy.value.getInteractorStyle2D();
       istyle.addMouseManipulator(rangeManipulator);
     });
 
     onBeforeUnmount(() => {
       // for some reason, VtkTwoView.onBeforeUnmount is being
       // invoked before this onBeforeUnmount during HMR.
-      if (!viewProxy.isDeleted()) {
-        const istyle = viewProxy.getInteractorStyle2D();
+      if (!viewProxy.value.isDeleted()) {
+        const istyle = viewProxy.value.getInteractorStyle2D();
         istyle.removeMouseManipulator(rangeManipulator);
       }
     });
@@ -91,7 +91,11 @@ export default defineComponent({
         () => scrollVal.value,
         (slice) => {
           if (currentImageID.value !== null) {
-            viewConfigStore.setSlice(viewID.value, currentImageID.value, slice);
+            viewConfigStore.updateSliceConfig(
+              viewID.value,
+              currentImageID.value,
+              { slice }
+            );
           }
         }
       );
