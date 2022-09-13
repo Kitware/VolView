@@ -3,7 +3,6 @@ import {
   computed,
   defineComponent,
   onBeforeUnmount,
-  onMounted,
   ref,
   toRefs,
   watch,
@@ -103,11 +102,22 @@ const WindowLevelTool = defineComponent({
       scrollEnabled: false,
     });
 
-    onMounted(() => {
-      // assumed to be vtkInteractorStyleManipulator
-      const istyle = viewProxy.value.getInteractorStyle2D();
-      istyle.addMouseManipulator(rangeManipulator);
-    });
+    watch(
+      viewProxy,
+      (curViewProxy, oldViewProxy) => {
+        if (oldViewProxy) {
+          const istyle = oldViewProxy.getInteractorStyle2D();
+          istyle.removeMouseManipulator(rangeManipulator);
+        }
+
+        if (curViewProxy) {
+          // assumed to be vtkInteractorStyleManipulator
+          const istyle = viewProxy.value.getInteractorStyle2D();
+          istyle.addMouseManipulator(rangeManipulator);
+        }
+      },
+      { immediate: true }
+    );
 
     onBeforeUnmount(() => {
       // for some reason, VtkTwoView.onBeforeUnmount is being

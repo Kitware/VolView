@@ -3,7 +3,6 @@ import {
   computed,
   defineComponent,
   onBeforeUnmount,
-  onMounted,
   toRefs,
   watch,
 } from '@vue/composition-api';
@@ -53,11 +52,18 @@ export default defineComponent({
       }
     });
 
-    onMounted(() => {
-      if (manipulator.isA('vtkCompositeMouseManipulator')) {
-        intStyle.value.addMouseManipulator(manipulator);
-      }
-    });
+    watch(
+      intStyle,
+      (curIntStyle, oldIntStyle) => {
+        if (oldIntStyle && manipulator.isA('vtkCompositeMouseManipulator')) {
+          oldIntStyle.removeMouseManipulator(manipulator);
+        }
+        if (curIntStyle && manipulator.isA('vtkCompositeMouseManipulator')) {
+          curIntStyle.addMouseManipulator(manipulator);
+        }
+      },
+      { immediate: true }
+    );
 
     onBeforeUnmount(() => {
       if (!viewProxy.value.isDeleted()) {
