@@ -29,18 +29,6 @@ function createDefaultView(classFactory, options = [], props = {}) {
   return createProxyDefinition(classFactory, [], [], options, props);
 }
 
-function createSyncedSliceRepDefinition(proxyClass, axis, ui = [], links = []) {
-  return createProxyDefinition(proxyClass, ui, [
-    {
-      link: `Slice${axis}`,
-      property: 'slice',
-      updateOnBind: false,
-      type: 'application',
-    },
-    ...links,
-  ]);
-}
-
 // ----------------------------------------------------------------------------
 
 export default {
@@ -57,40 +45,12 @@ export default {
     Representations: {
       ImageSlice: createProxyDefinition(vtkIJKSliceRepresentationProxy),
       LabelMapSlice: createProxyDefinition(vtkLabelMapSliceRepProxy),
-      CoronalSlice: createSyncedSliceRepDefinition(
-        vtkIJKSliceRepresentationProxy,
-        'X'
-      ),
-      SagittalSlice: createSyncedSliceRepDefinition(
-        vtkIJKSliceRepresentationProxy,
-        'Y'
-      ),
-      AxialSlice: createSyncedSliceRepDefinition(
-        vtkIJKSliceRepresentationProxy,
-        'Z'
-      ),
-
       Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
-      LabelMapSliceX: createSyncedSliceRepDefinition(
-        vtkLabelMapSliceRepProxy,
-        'X'
-      ),
-      LabelMapSliceY: createSyncedSliceRepDefinition(
-        vtkLabelMapSliceRepProxy,
-        'Y'
-      ),
-      LabelMapSliceZ: createSyncedSliceRepDefinition(
-        vtkLabelMapSliceRepProxy,
-        'Z'
-      ),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
     },
     Views: {
       View3D: createDefaultView(vtkLPSView3DProxy),
       View2D: createDefaultView(vtkLPSView2DProxy),
-      CoronalView: createDefaultView(vtkLPSView2DProxy, null, { axis: 0 }),
-      SagittalView: createDefaultView(vtkLPSView2DProxy, null, { axis: 1 }),
-      AxialView: createDefaultView(vtkLPSView2DProxy, null, { axis: 2 }),
     },
   },
   representations: {
@@ -101,18 +61,6 @@ export default {
     View2D: {
       vtkImageData: { name: 'ImageSlice' },
       vtkLabelMap: { name: 'LabelMapSlice' },
-    },
-    CoronalView: {
-      vtkImageData: { name: 'CoronalSlice' },
-      vtkLabelMap: { name: 'LabelMapSliceX' },
-    },
-    SagittalView: {
-      vtkImageData: { name: 'SagittalSlice' },
-      vtkLabelMap: { name: 'LabelMapSliceY' },
-    },
-    AxialView: {
-      vtkImageData: { name: 'AxialSlice' },
-      vtkLabelMap: { name: 'LabelMapSliceZ' },
     },
   },
 };
