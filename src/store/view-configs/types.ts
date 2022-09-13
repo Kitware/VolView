@@ -1,0 +1,39 @@
+import { Vector3 } from '@kitware/vtk.js/types';
+import { LPSAxisDir } from '@/src/types/lps';
+import {
+  ColorTransferFunction,
+  CVRConfig,
+  OpacityFunction,
+} from '@/src/types/views';
+
+export interface CameraConfig {
+  parallelScale?: number;
+  position?: Vector3;
+  focalPoint?: Vector3;
+  directionOfProjection?: Vector3;
+  viewUp?: Vector3;
+}
+
+export interface SliceConfig {
+  slice: number;
+  min: number;
+  max: number;
+  axisDirection: LPSAxisDir;
+}
+
+export interface VolumeColorConfig {
+  colorBy: {
+    arrayName: string;
+    location: string;
+  };
+  transferFunction: ColorTransferFunction;
+  opacityFunction: OpacityFunction;
+  cvr: CVRConfig;
+}
+
+export interface WindowLevelConfig {
+  width: number;
+  level: number;
+  min: number; // data range min
+  max: number; // data range max
+}

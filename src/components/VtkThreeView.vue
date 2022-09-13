@@ -75,7 +75,7 @@ import { useModelStore } from '../store/datasets-models';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
-import { CameraConfig } from '../store/view-configs/camera';
+import { CameraConfig } from '../store/view-configs/types';
 import {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
@@ -430,6 +430,9 @@ export default defineComponent({
         if (rep) {
           rep.setColorBy(arrayName, location);
         }
+
+        // Need to trigger a render for when we are restoring from a state file
+        viewProxy.value.render();
       },
       { immediate: true, deep: true }
     );

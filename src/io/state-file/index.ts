@@ -1,6 +1,8 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { useFileStore } from '@/src/store/datasets-files';
+import { LayoutDirection } from '@/src/types/layout';
+import { useViewStore } from '@/src/store/views';
 import {
   useDatasetStore,
   makeFileFailureStatus,
@@ -23,10 +25,17 @@ const VERSION = '0.0.1';
 
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();
+  const viewStore = useViewStore();
+
   const zip = new JSZip();
   const manifest: Manifest = {
     version: VERSION,
     dataSets: [],
+    layout: {
+      direction: LayoutDirection.H,
+      items: [],
+    },
+    views: [],
   };
 
   const stateFile = {
@@ -35,6 +44,7 @@ export async function save(fileName: string) {
   };
 
   await datasetStore.serialize(stateFile);
+  await viewStore.serialize(stateFile);
 
   zip.file(MANIFEST, JSON.stringify(manifest));
   const content = await zip.generateAsync({ type: 'blob' });
@@ -45,6 +55,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const datasetStore = useDatasetStore();
   const dicomStore = useDICOMStore();
   const fileStore = useFileStore();
+  const viewStore = useViewStore();
 
   // First load the manifest
   const manifestFile = state.filter((entry) => entry.file.name === MANIFEST);
@@ -56,6 +67,10 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const manifest = ManifestSchema.parse(JSON.parse(manifestString));
   const { dataSets } = manifest;
 
+  // We restore the view first, so that the appropriate watchers are triggered
+  // in the views as the data is loaded
+  viewStore.setLayout(manifest.layout);
+
   // Build up a map of path to DataSet
   const pathToDataSet: { [path: string]: DataSet } = {};
   dataSets.forEach((dataSet: DataSet) => {
@@ -64,7 +79,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   });
 
   // Mapping of the state file ID => new store ID
-  const stateIDToStoreID: { [id: string]: string } = {};
+  const stateIDToStoreID: Record<string, string> = {};
 
   const statuses: LoadResult[] = [];
 
@@ -101,6 +116,9 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
     datasetStore.setPrimarySelection(dataSelection);
   }
+
+  // Now restore the views
+  viewStore.deserialize(manifest.views, stateIDToStoreID);
 
   return new Promise<LoadResult[]>((resolve) => {
     resolve(statuses);

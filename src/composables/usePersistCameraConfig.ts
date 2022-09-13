@@ -2,7 +2,7 @@ import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import { Ref } from '@vue/composition-api';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { useViewConfigStore } from '../store/view-configs';
-import { CameraConfig } from '../store/view-configs/camera';
+import { CameraConfig } from '../store/view-configs/types';
 
 export function usePersistCameraConfig(
   viewID: Ref<string>,

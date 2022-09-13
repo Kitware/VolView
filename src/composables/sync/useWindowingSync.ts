@@ -1,4 +1,4 @@
-import { WindowLevelConfig } from '@/src/store/view-configs/windowing';
+import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import {
   computed,
   Ref,

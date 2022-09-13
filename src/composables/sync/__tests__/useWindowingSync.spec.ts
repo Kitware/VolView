@@ -1,6 +1,6 @@
 import Vue from 'vue';
 import VueCompositionApi, { computed, ref } from '@vue/composition-api';
-import { WindowLevelConfig } from '@/src/store/view-configs/windowing';
+import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import Sinon from 'sinon';
 import chai, { expect } from 'chai';
 import SinonChai from 'sinon-chai';

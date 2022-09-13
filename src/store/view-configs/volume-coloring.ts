@@ -1,25 +1,16 @@
 import { MaybeRef } from '@vueuse/core';
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
-import {
-  ColorTransferFunction,
-  CVRConfig,
-  OpacityFunction,
-} from '@/src/types/views';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import { getOpacityFunctionFromPreset } from '@/src/utils/vtk-helpers';
-import { removeDataFromConfig, removeViewFromConfig } from './common';
+import {
+  removeDataFromConfig,
+  removeViewFromConfig,
+  serializeViewConfig,
+} from './common';
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
-
-export interface VolumeColorConfig {
-  colorBy: {
-    arrayName: string;
-    location: string;
-  };
-  transferFunction: ColorTransferFunction;
-  opacityFunction: OpacityFunction;
-  cvr: CVRConfig;
-}
+import { StateFile, ViewConfig } from '../../io/state-file/schema';
+import { VolumeColorConfig } from './types';
 
 export const DEFAULT_AMBIENT = 0.2;
 export const DEFAULT_DIFFUSE = 0.7;
@@ -122,9 +113,23 @@ export const setupVolumeColorConfig = () => {
     });
   };
 
+  const serialize = (stateFile: StateFile) => {
+    serializeViewConfig(stateFile, getVolumeColorConfig, 'volumeColorConfig');
+  };
+
+  const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
+    Object.entries(config).forEach(([dataID, viewConfig]) => {
+      if (viewConfig.volumeColorConfig) {
+        volumeColorConfigs.set(viewID, dataID, viewConfig.volumeColorConfig);
+      }
+    });
+  };
+
   return {
     removeView: removeViewFromConfig(volumeColorConfigs),
     removeData: removeDataFromConfig(volumeColorConfigs),
+    serialize,
+    deserialize,
     actions: {
       getVolumeColorConfig,
       getComputedVolumeColorConfig,
