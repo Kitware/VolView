@@ -137,23 +137,4 @@ export function wrapInArray<T>(maybeArray: T | T[]): T[] {
  */
 export function getURLBasename(url: string) {
   return new URL(url).pathname.split('/').at(-1) ?? '';
-interface DicomWebFetchOptions {
-  studyInstanceUID: string;
-  seriesInstanceUID: string;
-  sopInstanceUID: string;
-}
-
-export async function fetchDicomWeb(
-  dicomWebServer: string,
-  options: DicomWebFetchOptions
-): Promise<File | null> {
-  const client = new api.DICOMwebClient({
-    url: dicomWebServer,
-    retrieveRendered: false,
-  });
-
-  const instance = await client.retrieveInstance(options);
-  const blob = new Blob([instance]);
-
-  return new File([blob], 'asdf.dcm');
 }

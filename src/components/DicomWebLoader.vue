@@ -1,42 +1,37 @@
 <script lang="ts">
 import { defineComponent, ref, Ref } from '@vue/composition-api';
+import ImageListCard from '@/src/components/ImageListCard.vue';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../store/datasets';
-import { fetchDicomWeb } from '../utils';
+import { GetSeriesOptions, getAllSeries, getSeries } from '../utils/dicomWeb';
 import { useMessageStore } from '../store/messages';
+import { pick } from '../utils';
 
 export default defineComponent({
+  components: {
+    ImageListCard,
+  },
   setup() {
     const datasetStore = useDatasetStore();
     const dicomWebServer: Ref<string> = ref('http://localhost:5173/dicom-web');
-    const studyInstanceUID: Ref<string> = ref(
-      '1.3.6.1.4.1.14519.5.2.1.2744.7002.271803936741289691489150315969'
-    );
-    const seriesInstanceUID: Ref<string> = ref(
-      '1.3.6.1.4.1.14519.5.2.1.2744.7002.117357550898198415937979788256'
-    );
-    const sopInstanceUID: Ref<string> = ref(
-      '1.3.6.1.4.1.14519.5.2.1.2744.7002.325971588264730726076978589153'
-    );
 
-    async function downloadDicom() {
+    async function downloadDicom(options: GetSeriesOptions) {
       try {
-        const loadedFile = await fetchDicomWeb(dicomWebServer.value, {
-          studyInstanceUID: studyInstanceUID.value,
-          seriesInstanceUID: seriesInstanceUID.value,
-          sopInstanceUID: sopInstanceUID.value,
-        });
-
-        if (loadedFile) {
-          const [loadResult] = await datasetStore.loadFiles([loadedFile]);
+        const files = await getSeries(dicomWebServer.value,
+          pick(options, 'seriesInstanceUID', 'studyInstanceUID')
+        );
+        if (files) {
+          const [loadResult] = await datasetStore.loadFiles(files);
           if (loadResult?.loaded) {
             const selection = convertSuccessResultToDataSelection(loadResult);
             datasetStore.setPrimarySelection(selection);
+          } else {
+            throw new Error('Failed to load DICOM.');
           }
         } else {
-          throw new Error('Fetch came back falsy.')
+          throw new Error('Fetch came back falsy.');
         }
       } catch (error) {
         const messageStore = useMessageStore();
@@ -44,12 +39,18 @@ export default defineComponent({
       }
     }
 
+    const dicoms: Ref<any[] | undefined> = ref();
+
+    async function fetchDicomList() {
+      dicoms.value = await getAllSeries(dicomWebServer.value)
+    }
+
     return {
       downloadDicom,
+      fetchDicomList,
+      dicoms,
       dicomWebServer,
-      studyInstanceUID,
-      seriesInstanceUID,
-      sopInstanceUID
+      pick
     };
   },
 });
@@ -57,35 +58,39 @@ export default defineComponent({
 
 <template>
   <div>
-    <label for="dicomWebServer" class="label">DICOMWeb Server
+    <label for="dicomWebServer" class="form-label">DICOMWeb Server Address
       <input v-model="dicomWebServer" id="dicomWebServer" class="server-param" />
     </label>
-    <label for="studyInstanceUID" class="label">Study Instance UID
-      <input v-model="studyInstanceUID" id="studyInstanceUID" class="server-param" />
-    </label>
-    <label for="seriesInstanceUID" class="label">Series Instance UID
-      <input v-model="seriesInstanceUID" id="seriesInstanceUID" class="server-param" />
-    </label>
-    <label for="sopInstanceUID" class="label">SOP Instance UID
-      <input v-model="sopInstanceUID" id="sopInstanceUID" class="server-param" />
-    </label>
-    <button @click="downloadDicom()" class="load-button">Load</button>
+    <button @click="fetchDicomList()" class="login-button">Get DICOMS</button>
+    <div v-if="dicoms && dicoms.length > 0">
+      <image-list-card v-for="dicom in dicoms" :key="dicom.seriesInstanceUID" :title="dicom.seriesDescription"
+        @click="downloadDicom(dicom)">
+        <h4>
+          {{dicom.seriesDescription}}
+        </h4>
+      </image-list-card>
+    </div>
+    <p v-if="dicoms && dicoms.length === 0">Found no DICOMS</p>
   </div>
 </template>
 
-<style>
+<style scoped>
 .server-param {
   width: 100%;
   color: white;
 }
 
-.label {
+.form-label {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.load-button {
-  margin-top: 1em;
+.login-button {
+  margin: 1em 0;
   padding: .5em;
   border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.instance {
+  margin: 1em;
 }
 </style>

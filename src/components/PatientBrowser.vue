@@ -40,6 +40,7 @@ export default defineComponent({
       const { patientStudies, studyInfo, studyVolumes } = dicomStore;
       return patientStudies[selPatient].map((studyKey) => {
         const info = studyInfo[studyKey];
+        console.log(studies);
         return {
           ...info,
           key: studyKey,
@@ -105,16 +106,13 @@ export default defineComponent({
             :indeterminate="selectedSome && !selectedAll"
             label="Select All Studies"
             v-model="selectedAll"
-            dense
-            hide-details
-          />
+          ></v-checkbox>
         </v-col>
         <v-col cols="6" align-self="center" class="d-flex justify-end mt-2">
           <v-tooltip left>
             <template v-slot:activator="{ on, attrs }">
               <v-btn
                 icon
-                small
                 :disabled="!selectedSome"
                 @click.stop="removeSelectedStudies"
                 v-bind="attrs"
