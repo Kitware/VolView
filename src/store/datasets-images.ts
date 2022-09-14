@@ -91,7 +91,7 @@ export const useImageStore = defineStore('images', {
         const viewStore = useViewStore();
         const viewConfigStore = useViewConfigStore();
 
-        viewStore.views.forEach((viewID: string) => {
+        viewStore.viewIDs.forEach((viewID: string) => {
           viewConfigStore.removeViewConfig(viewID, id);
         });
       }

@@ -182,6 +182,7 @@ import {
   ref,
   watch,
 } from '@vue/composition-api';
+import { storeToRefs } from 'pinia';
 
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
@@ -251,7 +252,7 @@ export default defineComponent({
     // --- layout --- //
 
     const layoutName: Ref<keyof typeof Layouts> = ref('QuadView');
-    const currentLayout = computed(() => viewStore.layout);
+    const { layout: currentLayout } = storeToRefs(viewStore);
 
     watch(
       layoutName,
@@ -364,8 +365,8 @@ export default defineComponent({
       settingsDialog: ref(false),
       saveDialog: ref(false),
       messageCount,
-      currentLayout,
       layoutName,
+      currentLayout,
       Layouts,
       userPromptFiles,
       openFiles,

@@ -1,24 +1,29 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
+import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
+import { DefaultViewSpec, InitViewSpecs } from '../config';
 import { ViewProxyType } from '../core/proxies';
 import { Layout, LayoutDirection } from '../types/layout';
+import { ViewSpec } from '../types/views';
 
 interface State {
   layout: Layout;
-  views: string[];
+  viewSpecs: Record<string, ViewSpec>;
 }
 
 export const useViewStore = defineStore('view', {
   state: (): State => ({
     layout: {
-      objType: 'Layout',
       direction: LayoutDirection.V,
       items: [],
     },
-    views: [],
+    viewSpecs: structuredClone(InitViewSpecs),
   }),
   getters: {
+    viewIDs(state) {
+      return Object.keys(state.viewSpecs);
+    },
     getViewProxy() {
       return <T extends vtkViewProxy>(id: string) => {
         return this.$proxies.getView<T>(id);
@@ -40,21 +45,36 @@ export const useViewStore = defineStore('view', {
       id: string,
       type: ViewProxyType
     ) {
-      if (this.views.indexOf(id) > -1) {
-        return this.getViewProxy<T>(id)!;
+      return (
+        this.$proxies.getView<T>(id) ?? <T>this.$proxies.createView(id, type)
+      );
+    },
+    addView(id: string) {
+      if (!(id in this.viewSpecs)) {
+        set(this.viewSpecs, id, structuredClone(DefaultViewSpec));
       }
-      this.views.push(id);
-      return <T>this.$proxies.createView(id, type);
     },
     removeView(id: string) {
-      const idx = this.views.indexOf(id);
-      if (idx > -1) {
-        this.views.splice(idx, 1);
+      if (id in this.viewSpecs) {
+        del(this.viewSpecs, id);
+        this.$proxies.removeView(id);
       }
-      this.$proxies.removeView(id);
     },
     setLayout(layout: Layout) {
       this.layout = layout;
+
+      const layoutsToProcess = [layout];
+      while (layoutsToProcess.length) {
+        const ly = layoutsToProcess.shift()!;
+        ly.items.forEach((item) => {
+          if (typeof item === 'string') {
+            // item is a view ID
+            this.addView(item);
+          } else {
+            layoutsToProcess.push(item);
+          }
+        });
+      }
     },
   },
 });

@@ -39,7 +39,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
     if (imageID) {
-      return viewStore.views.filter(
+      return viewStore.viewIDs.filter(
         (viewID) => !!viewConfigStore.getSliceConfig(viewID, imageID)
       );
     }

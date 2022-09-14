@@ -34,7 +34,7 @@ import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';
 import ColorFunctionSlider from './ColorFunctionSlider.vue';
 import { useVTKCallback } from '../composables/useVTKCallback';
-import { Views } from '../config';
+import { InitViewIDs, InitViewSpecs } from '../config';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -245,8 +245,8 @@ export default defineComponent({
 
     // same as 3D view
     const { cameraDirVec, cameraUpVec } = useCameraOrientation(
-      Views.Three.props.viewDirection,
-      Views.Three.props.viewUp,
+      InitViewSpecs[InitViewIDs.Three].props.viewDirection,
+      InitViewSpecs[InitViewIDs.Three].props.viewUp,
       currentImageMetadata
     );
 

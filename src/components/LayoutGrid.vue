@@ -1,8 +1,8 @@
 <template>
   <div class="layout-container flex-equal" :class="flexFlow">
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
-      <layout-grid v-if="item.objType === 'Layout'" :layout="item" />
-      <div v-else-if="item.objType === 'View'" class="layout-item">
+      <layout-grid v-if="item.type === 'layout'" :layout="item" />
+      <div v-else class="layout-item">
         <component
           :is="item.component"
           :key="item.id"
@@ -18,28 +18,35 @@
 import {
   computed,
   defineComponent,
-  toRefs,
   PropType,
+  toRefs,
 } from '@vue/composition-api';
+import { Component } from 'vue';
+import { storeToRefs } from 'pinia';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import { Layout, LayoutDirection } from '../types/layout';
+import { useViewStore } from '../store/views';
+import { ViewType } from '../types/views';
 
-const TYPE_TO_COMPONENT = {
-  View2D: VtkTwoView,
-  View3D: VtkThreeView,
+const TYPE_TO_COMPONENT: Record<ViewType, Component> = {
+  '2D': VtkTwoView,
+  '3D': VtkThreeView,
 };
 
 export default defineComponent({
   name: 'LayoutGrid',
   props: {
     layout: {
-      required: true,
       type: Object as PropType<Layout>,
+      required: true,
     },
   },
   setup(props) {
     const { layout } = toRefs(props);
+    const viewStore = useViewStore();
+    const { viewSpecs } = storeToRefs(viewStore);
+
     const flexFlow = computed(() => {
       return layout.value.direction === LayoutDirection.H
         ? 'flex-column'
@@ -47,16 +54,21 @@ export default defineComponent({
     });
 
     const items = computed(() => {
+      const viewIDToSpecs = viewSpecs.value;
       return layout.value.items.map((item) => {
-        if (item.objType === 'View') {
+        if (typeof item === 'string') {
+          const spec = viewIDToSpecs[item];
           return {
-            objType: 'View',
-            id: item.id,
-            component: TYPE_TO_COMPONENT[item.viewType],
-            props: item.props,
+            type: 'view',
+            id: item,
+            component: TYPE_TO_COMPONENT[spec.viewType],
+            props: spec.props,
           };
         }
-        return item;
+        return {
+          type: 'layout',
+          ...item,
+        };
       });
     });
 
