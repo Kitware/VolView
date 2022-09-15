@@ -158,9 +158,9 @@
 import {
   computed,
   defineComponent,
+  onBeforeMount,
   onBeforeUnmount,
   onMounted,
-  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -169,9 +169,6 @@ import {
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-
-import { useView2DStore } from '@/src/store/views-2D';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
@@ -180,7 +177,7 @@ import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
-import { getLPSAxisFromDir, LPSAxisDir } from '../utils/lps';
+import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import WindowLevelTool from './tools/WindowLevelTool.vue';
@@ -202,10 +199,18 @@ import {
 } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
+import { LPSAxisDir } from '../types/lps';
+import { ViewProxyType } from '../core/proxies';
+import { useViewProxy } from '../composables/useViewProxy';
+import { useWidgetManager } from '../composables/useWidgetManager';
 
 export default defineComponent({
   name: 'VtkTwoView',
   props: {
+    id: {
+      type: String,
+      required: true,
+    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
@@ -227,21 +232,14 @@ export default defineComponent({
     CrosshairsTool,
   },
   setup(props) {
-    const view2DStore = useView2DStore();
     const viewConfigStore = useViewConfigStore();
     const paintStore = usePaintToolStore();
 
-    const { viewDirection, viewUp } = toRefs(props);
+    const { id: viewID, viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
 
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
-
-    // --- view creation --- //
-
-    // TODO changing the viewDirection prop is not supported at this time.
-    const { id: viewID, proxy: viewProxy } =
-      view2DStore.createView<vtkLPSView2DProxy>(viewDirection.value);
 
     // --- computed vars --- //
 
@@ -257,7 +255,7 @@ export default defineComponent({
     const sliceConfigDefaults = defaultSliceConfig();
     const sliceConfig = computed(() =>
       curImageID.value !== null
-        ? viewConfigStore.getSliceConfig(viewID, curImageID.value)
+        ? viewConfigStore.getSliceConfig(viewID.value, curImageID.value)
         : null
     );
     const currentSlice = computed(() =>
@@ -279,7 +277,7 @@ export default defineComponent({
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
       curImageID.value !== null
-        ? viewConfigStore.getWindowConfig(viewID, curImageID.value)
+        ? viewConfigStore.getWindowConfig(viewID.value, curImageID.value)
         : null
     );
     const windowWidth = computed(() =>
@@ -322,43 +320,62 @@ export default defineComponent({
       return null;
     });
 
+    // --- setters --- //
+
+    const setSlice = (slice: number) => {
+      if (curImageID.value !== null) {
+        viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+          slice,
+        });
+      }
+    };
+
     // --- view proxy setup --- //
 
-    onUnmounted(() => {
-      viewConfigStore.removeViewConfig(viewID);
+    const { viewProxy, setContainer: setViewProxyContainer } =
+      useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Slice);
+
+    onBeforeMount(() => {
+      // do this before mount, as the ManipulatorTools run onMounted
+      // before this component does.
+      viewProxy.value.getInteractorStyle2D().removeAllManipulators();
     });
 
-    // do this before mounting
-    viewProxy.getInteractorStyle2D().removeAllManipulators();
-
     onMounted(() => {
-      viewProxy.setContainer(vtkContainerRef.value ?? null);
-      viewProxy.setOrientationAxesVisibility(false);
+      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setOrientationAxesVisibility(false);
     });
 
     onBeforeUnmount(() => {
-      viewProxy.setContainer(null);
-      view2DStore.removeView(viewID);
+      setViewProxyContainer(null);
     });
 
-    // updates slicing mode based on the IJK index
+    // --- Slicing setup --- //
+
     watchEffect(() => {
       const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
-      viewProxy.setSlicingMode('IJK'[ijkIndex]);
+      viewProxy.value.setSlicingMode('IJK'[ijkIndex]);
     });
 
-    useResizeObserver(vtkContainerRef, () => viewProxy.resize());
+    watch(
+      [viewID, curImageID, viewDirection],
+      () => {
+        if (curImageID.value) {
+          viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+            axisDirection: viewDirection.value,
+          });
+        }
+      },
+      { immediate: true, deep: true }
+    );
+
+    // --- resizing --- //
+
+    useResizeObserver(vtkContainerRef, () => viewProxy.value.resize());
 
     // --- widget manager --- //
 
-    const widgetManager = vtkWidgetManager.newInstance({
-      useSvgLayer: false,
-    });
-    widgetManager.setRenderer(viewProxy.getRenderer());
-
-    onUnmounted(() => {
-      widgetManager.delete();
-    });
+    const { widgetManager } = useWidgetManager(viewProxy);
 
     // --- resetting slice properties --- //
 
@@ -375,29 +392,16 @@ export default defineComponent({
 
           // update dimensions
           // dimMax is upper bound of slices, exclusive.
-          if (
-            curImageID.value !== null &&
-            viewConfigStore.getSliceConfig(viewID, curImageID.value) === null
-          ) {
-            viewConfigStore.updateSliceDomain(viewID, curImageID.value, [
-              0,
-              dimMax - 1,
-            ]);
+          if (curImageID.value !== null) {
+            viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+              min: 0,
+              max: dimMax - 1,
+            });
             // move slice to center when image metadata changes.
-            // TODO what if new slices are added to the same image?
-            //      do we still reset the slicing?
-            viewConfigStore.setSlice(
-              viewID,
-              curImageID.value,
-              Math.floor((dimMax - 1) / 2)
-            );
+            viewConfigStore.resetSlice(viewID.value, curImageID.value);
           }
         }
       },
-
-      // we don't use watchEffect, since I think
-      // accessing the actions on view2DStore cause it
-      // to trigger when any view2DStore state is modified.
       { immediate: true }
     );
 
@@ -411,10 +415,15 @@ export default defineComponent({
           const range = imageData.getPointData().getScalars().getRange();
           if (
             curImageID.value !== null &&
-            viewConfigStore.getWindowConfig(viewID, curImageID.value) === null
+            viewConfigStore.getWindowConfig(viewID.value, curImageID.value) ===
+              null
           ) {
-            viewConfigStore.updateWLDomain(viewID, curImageID.value, range);
-            viewConfigStore.resetWindowLevel(viewID, curImageID.value);
+            viewConfigStore.updateWLDomain(
+              viewID.value,
+              curImageID.value,
+              range
+            );
+            viewConfigStore.resetWindowLevel(viewID.value, curImageID.value);
           }
         }
       },
@@ -449,7 +458,7 @@ export default defineComponent({
       curImageMetadata
     );
     const { resizeToFit, ignoreResizeToFitTracking, resetResizeToFitTracking } =
-      useResizeToFit(viewProxy.getCamera(), false);
+      useResizeToFit(viewProxy.value.getCamera(), false);
 
     const resizeToFitScene = () =>
       ignoreResizeToFitTracking(() => {
@@ -465,7 +474,7 @@ export default defineComponent({
         const dimsWithSpacing = curImageMetadata.value.dimensions.map(
           (d, i) => d * curImageMetadata.value.spacing[i]
         );
-        viewProxy.resizeToFit(lookAxis, upAxis, dimsWithSpacing);
+        viewProxy.value.resizeToFit(lookAxis, upAxis, dimsWithSpacing);
         resetResizeToFitTracking();
       });
 
@@ -479,17 +488,21 @@ export default defineComponent({
 
       // do not track resizeToFit state
       ignoreResizeToFitTracking(() => {
-        viewProxy.updateCamera(cameraDirVec.value, cameraUpVec.value, center);
-        viewProxy.resetCamera(bounds);
+        viewProxy.value.updateCamera(
+          cameraDirVec.value,
+          cameraUpVec.value,
+          center
+        );
+        viewProxy.value.resetCamera(bounds);
       });
 
       resizeToFitScene();
 
-      viewProxy.render();
+      viewProxy.value.render();
     };
 
     manageVTKSubscription(
-      viewProxy.onResize(() => {
+      viewProxy.value.onResize(() => {
         if (resizeToFit.value) {
           resizeToFitScene();
         }
@@ -519,7 +532,7 @@ export default defineComponent({
         let cameraConfig: CameraConfig | null = null;
         if (curImageID.value !== null) {
           cameraConfig = viewConfigStore.getCameraConfig(
-            viewID,
+            viewID.value,
             curImageID.value
           );
         }
@@ -528,8 +541,8 @@ export default defineComponent({
         if (cameraConfig) {
           restoreCameraConfig(cameraConfig);
 
-          viewProxy.getRenderer().resetCameraClippingRange();
-          viewProxy.render();
+          viewProxy.value.getRenderer().resetCameraClippingRange();
+          viewProxy.value.render();
 
           // Prevent resize
           resizeToFit.value = false;
@@ -566,7 +579,7 @@ export default defineComponent({
         lmRep.setSlice(slice);
       });
 
-      viewProxy.render();
+      viewProxy.value.render();
     });
 
     // --- apply labelmap opacity --- //
@@ -594,11 +607,7 @@ export default defineComponent({
       topLabel,
       leftLabel,
       isImageLoading,
-      setSlice: (slice: number) => {
-        if (curImageID.value !== null) {
-          viewConfigStore.setSlice(viewID, curImageID.value, slice);
-        }
-      },
+      setSlice,
       widgetManager,
       dicomInfo,
       enableResizeToFit() {

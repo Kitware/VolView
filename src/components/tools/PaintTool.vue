@@ -13,8 +13,8 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from '@vue/composition-api';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { LPSAxisDir } from '@/src/utils/lps';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { LPSAxisDir } from '@/src/types/lps';
 import PaintWidget2D from './paint/PaintWidget2D.vue';
 
 export default defineComponent({

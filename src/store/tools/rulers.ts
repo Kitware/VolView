@@ -9,8 +9,8 @@ import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { LPSAxis } from '../../utils/lps';
-import { useView2DStore } from '../views-2D';
+import { LPSAxis } from '@/src/types/lps';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 
 export interface Ruler {
   name: string;
@@ -176,7 +176,6 @@ export const useRulerStore = defineStore('ruler', () => {
       return;
     }
 
-    const view2DStore = useView2DStore();
     const viewConfigStore = useViewConfigStore();
     const currentImage = useCurrentImage();
 
@@ -187,18 +186,13 @@ export const useRulerStore = defineStore('ruler', () => {
       return;
     }
 
-    if (!(viewID in view2DStore.orientationConfigs)) {
-      return;
-    }
-
     const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
     if (!sliceConfig) {
       return;
     }
 
-    const { slice } = sliceConfig;
-    const { axis: viewAxis, direction: viewDirection } =
-      view2DStore.orientationConfigs[viewID];
+    const { slice, axisDirection: viewDirection } = sliceConfig;
+    const viewAxis = getLPSAxisFromDir(viewDirection);
 
     const viewProxy = this.$proxies.getView(viewID);
     if (!viewProxy) {

@@ -55,16 +55,17 @@ import {
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Tools, useToolStore } from '@/src/store/tools';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
 import { shouldIgnoreEvent } from '@/src/vtk/RulerWidget';
 import { useViewStore } from '@/src/store/views';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Vector2 } from '@kitware/vtk.js/types';
+import { LPSAxisDir } from '@/src/types/lps';
+import { useVTKCallback } from '@/src/composables/useVTKCallback';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -96,10 +97,9 @@ export default defineComponent({
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
 
-    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
-    if (!viewProxy) {
-      throw new Error('Cannot get the view proxy');
-    }
+    const viewProxy = computed(
+      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
+    );
 
     const { currentImageID } = useCurrentImage();
     const active = computed(() => toolStore.currentTool === Tools.Ruler);
@@ -144,8 +144,10 @@ export default defineComponent({
     // the widget itself.
     // We may support configuring which mouse button triggers this tool
     // in the future.
-    const interactor = viewProxy.getInteractor();
-    manageVTKSubscription(interactor.onLeftButtonPress(startNewRuler));
+    const onLeftButtonPress = useVTKCallback(
+      computed(() => viewProxy.value.getInteractor().onLeftButtonPress)
+    );
+    onLeftButtonPress(startNewRuler);
 
     // delete active ruler if slice changes
     watch(

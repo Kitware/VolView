@@ -1,71 +1,102 @@
 import HeadMRAThumbnail from '@/src/assets/samples/head-mra.jpg';
 import LiverCTThumbnail from '@/src/assets/samples/liver-ct.jpg';
 import AbdomenMRIThumbnail from '@/src/assets/samples/abdomen-mri.jpg';
-import { Layout, LayoutDirection, ViewConfig, ViewKey } from './store/views';
+import { Layout, LayoutDirection } from './types/layout';
+import { ViewSpec } from './types/views';
 
-export const Views: Record<string, ViewConfig> = {
-  Coronal: {
-    objType: 'View2D',
-    key: ViewKey.CoronalView,
-    viewDirection: 'Right',
-    viewUp: 'Superior',
+/**
+ * These are the initial view IDs.
+ */
+export const InitViewIDs: Record<string, string> = {
+  Coronal: 'Coronal',
+  Sagittal: 'Sagittal',
+  Axial: 'Axial',
+  Three: '3D',
+};
+
+/**
+ * View spec for the initial view IDs.
+ */
+export const InitViewSpecs: Record<string, ViewSpec> = {
+  [InitViewIDs.Coronal]: {
+    viewType: '2D',
+    props: {
+      viewDirection: 'Right',
+      viewUp: 'Superior',
+    },
   },
-  Sagittal: {
-    objType: 'View2D',
-    key: ViewKey.SagittalView,
-    viewDirection: 'Posterior',
-    viewUp: 'Superior',
+  [InitViewIDs.Sagittal]: {
+    viewType: '2D',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
   },
-  Axial: {
-    objType: 'View2D',
-    key: ViewKey.AxialView,
-    viewDirection: 'Superior',
-    viewUp: 'Anterior',
+  [InitViewIDs.Axial]: {
+    viewType: '2D',
+    props: {
+      viewDirection: 'Superior',
+      viewUp: 'Anterior',
+    },
   },
-  Three: {
-    objType: 'View3D',
-    key: ViewKey.ThreeDView,
-    viewDirection: 'Posterior',
-    viewUp: 'Superior',
+  [InitViewIDs.Three]: {
+    viewType: '3D',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
   },
 };
 
+/**
+ * The default view spec.
+ */
+export const DefaultViewSpec = InitViewSpecs[InitViewIDs.Axial];
+
+/**
+ * Defines the default layouts.
+ */
 export const Layouts: Record<string, Layout> = {
   AxialPrimary: {
-    objType: 'Layout',
+    name: 'Axial Primary',
     direction: LayoutDirection.V,
     items: [
-      Views.Axial,
+      InitViewIDs.Axial,
       {
-        objType: 'Layout',
         direction: LayoutDirection.H,
-        items: [Views.Coronal, Views.Sagittal, Views.Three],
+        items: [InitViewIDs.Three, InitViewIDs.Coronal, InitViewIDs.Sagittal],
       },
     ],
-    name: 'Axial Primary',
+  },
+  '3DPrimary': {
+    name: '3D Primary',
+    direction: LayoutDirection.V,
+    items: [
+      InitViewIDs.Three,
+      {
+        direction: LayoutDirection.H,
+        items: [InitViewIDs.Coronal, InitViewIDs.Sagittal, InitViewIDs.Axial],
+      },
+    ],
   },
   QuadView: {
-    objType: 'Layout',
+    name: 'Quad View',
     direction: LayoutDirection.H,
     items: [
       {
-        objType: 'Layout',
         direction: LayoutDirection.V,
-        items: [Views.Coronal, Views.Three],
+        items: [InitViewIDs.Coronal, InitViewIDs.Three],
       },
       {
-        objType: 'Layout',
         direction: LayoutDirection.V,
-        items: [Views.Sagittal, Views.Axial],
+        items: [InitViewIDs.Sagittal, InitViewIDs.Axial],
       },
     ],
-    name: 'Quad View',
   },
   ThreeOnly: {
-    objType: 'Layout',
-    direction: LayoutDirection.H,
-    items: [Views.Three],
     name: '3D Only',
+    direction: LayoutDirection.H,
+    items: [InitViewIDs.Three],
   },
 };
 

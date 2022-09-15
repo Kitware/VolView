@@ -69,18 +69,24 @@ import {
 import { useProxyManager } from '@/src/composables/proxyManager';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { getLPSAxisFromDir, getLPSDirections, LPSAxisDir } from '../utils/lps';
+import { getLPSAxisFromDir, getLPSDirections } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useViewConfigStore } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
-import { Views } from '../config';
 import { useModelStore } from '../store/datasets-models';
+import { LPSAxisDir } from '../types/lps';
+import { useViewProxy } from '../composables/useViewProxy';
+import { ViewProxyType } from '../core/proxies';
 
 export default defineComponent({
   props: {
+    id: {
+      type: String,
+      required: true,
+    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
@@ -99,15 +105,9 @@ export default defineComponent({
     const proxyManager = useProxyManager()!;
     const viewConfigStore = useViewConfigStore();
 
-    const { viewDirection, viewUp } = toRefs(props);
+    const { id: viewID, viewDirection, viewUp } = toRefs(props);
 
     const vtkContainerRef = ref<HTMLElement>();
-
-    // --- view creation --- //
-
-    // TODO changing the viewDirection prop is not supported at this time.
-    const { id: viewID, proxy: viewProxy } =
-      view3DStore.createView<vtkLPSView3DProxy>();
 
     // --- computed vars --- //
 
@@ -120,19 +120,22 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
+    const { viewProxy, setContainer: setViewProxyContainer } =
+      useViewProxy<vtkLPSView3DProxy>(viewID, ViewProxyType.Volume);
+
     onMounted(() => {
-      viewProxy.setOrientationAxesVisibility(true);
-      viewProxy.setOrientationAxesType('cube');
-      viewProxy.setBackground([0, 0, 0, 0]);
-      viewProxy.setContainer(vtkContainerRef.value ?? null);
+      viewProxy.value.setOrientationAxesVisibility(true);
+      viewProxy.value.setOrientationAxesType('cube');
+      viewProxy.value.setBackground([0, 0, 0, 0]);
+      setViewProxyContainer(vtkContainerRef.value);
     });
 
     onBeforeUnmount(() => {
-      viewProxy.setContainer(null);
-      view3DStore.removeView(viewID);
+      setViewProxyContainer(null);
+      viewProxy.value.setContainer(null);
     });
 
-    useResizeObserver(vtkContainerRef, () => viewProxy.resize());
+    useResizeObserver(vtkContainerRef, () => viewProxy.value.resize());
 
     // --- scene setup --- //
 
@@ -160,9 +163,13 @@ export default defineComponent({
         (bounds[4] + bounds[5]) / 2,
       ] as vec3;
 
-      viewProxy.updateCamera(cameraDirVec.value, cameraUpVec.value, center);
-      viewProxy.resetCamera();
-      viewProxy.render();
+      viewProxy.value.updateCamera(
+        cameraDirVec.value,
+        cameraUpVec.value,
+        center
+      );
+      viewProxy.value.resetCamera();
+      viewProxy.value.render();
     };
 
     watch(
@@ -171,7 +178,7 @@ export default defineComponent({
         let cameraConfig = null;
         if (curImageID.value !== null) {
           cameraConfig = viewConfigStore.getCameraConfig(
-            viewID,
+            viewID.value,
             curImageID.value
           );
         }
@@ -202,7 +209,7 @@ export default defineComponent({
       let cameraConfig = null;
       if (curImageID.value !== null) {
         cameraConfig = viewConfigStore.getCameraConfig(
-          viewID,
+          viewID.value,
           curImageID.value
         );
       }
@@ -210,8 +217,8 @@ export default defineComponent({
       if (cameraConfig) {
         restoreCameraConfig(cameraConfig);
 
-        viewProxy.getRenderer().resetCameraClippingRange();
-        viewProxy.render();
+        viewProxy.value.getRenderer().resetCameraClippingRange();
+        viewProxy.value.render();
       }
     });
 
@@ -223,7 +230,7 @@ export default defineComponent({
     watch(
       cvrEnabled,
       (enabled) => {
-        const renderer = viewProxy.getRenderer();
+        const renderer = viewProxy.value.getRenderer();
         renderer.removeAllLights();
         if (enabled) {
           const light = vtkLight.newInstance();
@@ -245,8 +252,8 @@ export default defineComponent({
     const cvrLightOffset = computed(() => {
       const image = currentImageData.value;
       const lps = getLPSDirections(curImageMetadata.value.orientation as mat3);
-      const dir = lps[Views.Three.viewDirection];
-      const axisIndex = lps[getLPSAxisFromDir(Views.Three.viewDirection)];
+      const dir = lps[viewDirection.value];
+      const axisIndex = lps[getLPSAxisFromDir(viewDirection.value)];
       const lightFlip = cvrParams.value.flipLightPosition ? 1 : -1;
       if (image) {
         const dim = image.getDimensions()[axisIndex];
@@ -263,7 +270,7 @@ export default defineComponent({
           return;
         }
 
-        const renderer = viewProxy.getRenderer();
+        const renderer = viewProxy.value.getRenderer();
         const mapper = rep.getMapper() as vtkVolumeMapper;
         const volume = rep.getVolumes()[0];
         const property = volume.getProperty();
@@ -396,7 +403,10 @@ export default defineComponent({
     // must run before the save watcher
     watch(curImageID, (imageID) => {
       if (imageID && currentImageData.value) {
-        const config = viewConfigStore.getVolumeColorConfig(viewID, imageID);
+        const config = viewConfigStore.getVolumeColorConfig(
+          viewID.value,
+          imageID
+        );
         if (config) {
           view3DStore.setColorBy(
             config.colorBy.arrayName,
@@ -414,7 +424,7 @@ export default defineComponent({
     watch([colorBy, colorTransferFunction, opacityFunction], () => {
       const imageID = curImageID.value;
       if (imageID) {
-        viewConfigStore.setVolumeColoring(viewID, imageID, {
+        viewConfigStore.setVolumeColoring(viewID.value, imageID, {
           colorBy: colorBy.value,
           transferFunction: colorTransferFunction.value,
           opacityFunction: opacityFunction.value,

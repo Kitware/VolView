@@ -1,62 +1,29 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
+import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
-import { LPSAxisDir } from '../utils/lps';
-
-export type ViewType = '2D' | '3D';
-
-export enum LayoutDirection {
-  V = 'V',
-  H = 'H',
-}
-
-export enum ViewKey {
-  CoronalView = 'CoronalView',
-  SagittalView = 'SagittalView',
-  AxialView = 'AxialView',
-  ThreeDView = '3DView',
-}
-
-export interface View2DConfig {
-  objType: 'View2D';
-  key: ViewKey;
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-  name?: string;
-}
-
-export interface View3DConfig {
-  objType: 'View3D';
-  key: ViewKey;
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
-  name?: string;
-}
-
-export type ViewConfig = View2DConfig | View3DConfig;
-
-export type Layout =
-  | {
-      objType: 'Layout';
-      direction: LayoutDirection;
-      items: Array<Layout | ViewConfig>;
-      name?: string;
-    }
-  | ViewConfig;
+import { DefaultViewSpec, InitViewSpecs } from '../config';
+import { ViewProxyType } from '../core/proxies';
+import { Layout, LayoutDirection } from '../types/layout';
+import { ViewSpec } from '../types/views';
 
 interface State {
   layout: Layout;
+  viewSpecs: Record<string, ViewSpec>;
 }
 
 export const useViewStore = defineStore('view', {
   state: (): State => ({
     layout: {
-      objType: 'Layout',
       direction: LayoutDirection.V,
       items: [],
     },
+    viewSpecs: structuredClone(InitViewSpecs),
   }),
   getters: {
+    viewIDs(state) {
+      return Object.keys(state.viewSpecs);
+    },
     getViewProxy() {
       return <T extends vtkViewProxy>(id: string) => {
         return this.$proxies.getView<T>(id);
@@ -74,8 +41,40 @@ export const useViewStore = defineStore('view', {
     },
   },
   actions: {
+    createOrGetViewProxy<T extends vtkViewProxy = vtkViewProxy>(
+      id: string,
+      type: ViewProxyType
+    ) {
+      return (
+        this.$proxies.getView<T>(id) ?? <T>this.$proxies.createView(id, type)
+      );
+    },
+    addView(id: string) {
+      if (!(id in this.viewSpecs)) {
+        set(this.viewSpecs, id, structuredClone(DefaultViewSpec));
+      }
+    },
+    removeView(id: string) {
+      if (id in this.viewSpecs) {
+        del(this.viewSpecs, id);
+        this.$proxies.removeView(id);
+      }
+    },
     setLayout(layout: Layout) {
       this.layout = layout;
+
+      const layoutsToProcess = [layout];
+      while (layoutsToProcess.length) {
+        const ly = layoutsToProcess.shift()!;
+        ly.items.forEach((item) => {
+          if (typeof item === 'string') {
+            // item is a view ID
+            this.addView(item);
+          } else {
+            layoutsToProcess.push(item);
+          }
+        });
+      }
     },
   },
 });

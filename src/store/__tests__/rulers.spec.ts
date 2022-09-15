@@ -7,7 +7,7 @@ import RulerTool from '@/src/core/tools/ruler';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { Vector3 } from '@kitware/vtk.js/types';
-import { LPSAxis } from '@/src/utils/lps';
+import { LPSAxis } from '@/src/types/lps';
 
 chai.use(chaiSubset);
 

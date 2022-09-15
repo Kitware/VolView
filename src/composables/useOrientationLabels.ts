@@ -1,10 +1,9 @@
-import { ref } from '@vue/composition-api';
+import { computed, Ref, ref } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { Vector3 } from '@kitware/vtk.js/types';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-
-import { manageVTKSubscription } from './manageVTKSubscription';
 import { EPSILON } from '../constants';
+import { useVTKCallback } from './useVTKCallback';
 
 export function toOrderedLabels(vec: Vector3) {
   return (
@@ -28,8 +27,8 @@ export function toOrderedLabels(vec: Vector3) {
  * vtk.js coordinate coordinate is implied to be LPS, so orientation labels
  * are determined solely from the camera' direction and view-up.
  */
-export function useOrientationLabels(view: vtkViewProxy) {
-  const camera = view.getCamera();
+export function useOrientationLabels(view: Ref<vtkViewProxy>) {
+  const camera = computed(() => view.value.getCamera());
 
   const top = ref('');
   const left = ref('');
@@ -37,8 +36,8 @@ export function useOrientationLabels(view: vtkViewProxy) {
   const right = ref('');
 
   function updateAxes() {
-    const vup = camera.getViewUp();
-    const vdir = camera.getDirectionOfProjection();
+    const vup = camera.value.getViewUp();
+    const vdir = camera.value.getDirectionOfProjection();
     const vright = [0, 0, 0] as Vector3;
 
     // vup and vdir should not be parallel for cameras
@@ -53,7 +52,10 @@ export function useOrientationLabels(view: vtkViewProxy) {
     left.value = toOrderedLabels(vleft);
   }
 
-  manageVTKSubscription(camera.onModified(updateAxes));
+  const cameraOnModified = useVTKCallback(
+    computed(() => camera.value.onModified)
+  );
+  cameraOnModified(updateAxes);
   updateAxes();
 
   return { top, right, bottom, left };

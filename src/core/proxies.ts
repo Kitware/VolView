@@ -7,10 +7,8 @@ import vtkProxyObject from '../types/vtk-types';
 
 // mapped in proxy.js
 export enum ViewProxyType {
-  Axial = 'AxialView',
-  Sagittal = 'SagittalView',
-  Coronal = 'CoronalView',
   Volume = 'View3D',
+  Slice = 'View2D',
 }
 
 /**

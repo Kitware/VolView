@@ -1,12 +1,11 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   onBeforeUnmount,
-  onMounted,
   toRefs,
   watch,
 } from '@vue/composition-api';
-import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
@@ -28,19 +27,18 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { viewId: viewID, manipulatorClass, options } = toRefs(props);
+    const { viewId: viewID, options } = toRefs(props);
 
     const viewStore = useViewStore();
-    const viewProxy = viewStore.getViewProxy<vtkViewProxy>(viewID.value);
-    if (!viewProxy) {
-      throw new Error('Cannot get the view proxy');
-    }
+    const viewProxy = computed(() => viewStore.getViewProxy(viewID.value)!);
 
-    const is2D = viewProxy.isA('vtkView2DProxy');
-    const istyle = is2D
-      ? viewProxy.getInteractorStyle2D()
-      : viewProxy.getInteractorStyle3D();
-    const manipulator = manipulatorClass.value.newInstance(options.value);
+    const intStyle = computed(() => {
+      return viewProxy.value.isA('vtkView2DProxy')
+        ? viewProxy.value.getInteractorStyle2D()
+        : viewProxy.value.getInteractorStyle3D();
+    });
+
+    const manipulator = props.manipulatorClass.newInstance(options.value);
 
     watch(options, (newOptions) => {
       if ('button' in newOptions) {
@@ -54,16 +52,23 @@ export default defineComponent({
       }
     });
 
-    onMounted(() => {
-      if (manipulator.isA('vtkCompositeMouseManipulator')) {
-        istyle.addMouseManipulator(manipulator);
-      }
-    });
+    watch(
+      intStyle,
+      (curIntStyle, oldIntStyle) => {
+        if (oldIntStyle && manipulator.isA('vtkCompositeMouseManipulator')) {
+          oldIntStyle.removeMouseManipulator(manipulator);
+        }
+        if (curIntStyle && manipulator.isA('vtkCompositeMouseManipulator')) {
+          curIntStyle.addMouseManipulator(manipulator);
+        }
+      },
+      { immediate: true }
+    );
 
     onBeforeUnmount(() => {
-      if (!viewProxy.isDeleted()) {
+      if (!viewProxy.value.isDeleted()) {
         if (manipulator.isA('vtkCompositeMouseManipulator')) {
-          istyle.removeMouseManipulator(manipulator);
+          intStyle.value.removeMouseManipulator(manipulator);
         }
       }
     });

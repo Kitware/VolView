@@ -1,12 +1,12 @@
 import { Vector3 } from '@kitware/vtk.js/types';
 import { ImageMetadata } from '@/src/store/datasets-images';
-import { LPSAxis } from '@/src/utils/lps';
 import {
   InteractionState,
   RulerWidgetState,
 } from '@/src/vtk/RulerWidget/state';
 import vtkRulerWidget from '@/src/vtk/RulerWidget';
 import mitt, { Emitter } from 'mitt';
+import { LPSAxis } from '@/src/types/lps';
 
 export interface SerializedRulerV1 {
   version: '1.0';

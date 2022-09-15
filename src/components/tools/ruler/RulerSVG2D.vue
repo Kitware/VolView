@@ -36,9 +36,11 @@
       :dx="textdx"
       :dy="textdy"
       :text-anchor="anchor"
-      stroke-width="0"
+      stroke-width="0.75"
+      stroke="black"
       :fill="color"
       :font-size="`${textSize}px`"
+      font-weight="bold"
     >
       {{ rulerLength }}
     </text>
@@ -46,8 +48,8 @@
 </template>
 
 <script lang="ts">
-import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
+import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -59,7 +61,7 @@ import {
   toRefs,
   unref,
   ref,
-  watchEffect,
+  watch,
 } from '@vue/composition-api';
 
 type SVGPoint = {
@@ -83,7 +85,7 @@ export default defineComponent({
     },
     textSize: {
       type: Number,
-      default: 12,
+      default: 14,
     },
   },
   setup(props) {
@@ -99,16 +101,14 @@ export default defineComponent({
 
     const viewStore = useViewStore();
 
-    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
-    if (!viewProxy) {
-      throw new Error('[RulerSVG2D] Could not get view proxy');
-    }
-    const viewRenderer = viewProxy.getRenderer();
+    const viewProxy = computed(
+      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
+    );
 
     const updatePoints = () => {
+      const viewRenderer = viewProxy.value.getRenderer();
       const pt1 = unref(point1) as Vector3 | undefined;
       const pt2 = unref(point2) as Vector3 | undefined;
-
       if (pt1) {
         const point2D = worldToSVG(pt1, viewRenderer);
         if (point2D) {
@@ -129,9 +129,15 @@ export default defineComponent({
       }
     };
 
-    manageVTKSubscription(viewProxy.getCamera().onModified(updatePoints));
+    const cameraOnModified = useVTKCallback(
+      computed(() => viewProxy.value.getCamera().onModified)
+    );
+    cameraOnModified(updatePoints);
 
-    watchEffect(updatePoints);
+    watch([viewProxy, point1, point2], updatePoints, {
+      deep: true,
+      immediate: true,
+    });
 
     const textProperties = computed(() => {
       const first = unref(firstPoint);

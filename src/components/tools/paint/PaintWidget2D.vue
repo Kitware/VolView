@@ -12,7 +12,7 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { getLPSAxisFromDir, LPSAxisDir } from '@/src/utils/lps';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
@@ -22,6 +22,7 @@ import { useViewStore } from '@/src/store/views';
 import { PaintWidgetState } from '@/src/vtk/PaintWidget/state';
 import { vec3 } from 'gl-matrix';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
+import { LPSAxisDir } from '@/src/types/lps';
 
 export default defineComponent({
   name: 'PaintWidget2D',

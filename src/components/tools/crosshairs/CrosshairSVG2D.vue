@@ -40,8 +40,8 @@
 </template>
 
 <script lang="ts">
-import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
+import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -75,13 +75,12 @@ export default defineComponent({
 
     const viewStore = useViewStore();
 
-    const viewProxy = viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value);
-    if (!viewProxy) {
-      throw new Error('[RulerSVG2D] Could not get view proxy');
-    }
-    const viewRenderer = viewProxy.getRenderer();
+    const viewProxy = computed(
+      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
+    );
 
     const updatePoints = () => {
+      const viewRenderer = viewProxy.value.getRenderer();
       const pt = unref(position) as Vector3 | undefined;
       if (pt) {
         const point2D = worldToSVG(pt, viewRenderer);
@@ -94,7 +93,10 @@ export default defineComponent({
       }
     };
 
-    manageVTKSubscription(viewProxy.getCamera().onModified(updatePoints));
+    const cameraOnModified = useVTKCallback(
+      computed(() => viewProxy.value.getCamera().onModified)
+    );
+    cameraOnModified(updatePoints);
 
     watchEffect(updatePoints);
 
