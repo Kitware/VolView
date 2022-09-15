@@ -9,14 +9,12 @@ import {
 } from '@vue/composition-api';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { Tools, useToolStore } from '@/src/store/tools';
-import {
-  useViewConfigStore,
-  defaultWindowLevelConfig,
-} from '@/src/store/view-configs';
+import { useViewConfigStore } from '@/src/store/view-configs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { CreateElement, RenderContext } from 'vue';
 import { useViewStore } from '@/src/store/views';
+import { defaultWindowLevelConfig } from '@/src/store/view-configs/windowing';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -45,7 +43,10 @@ const WindowLevelTool = defineComponent({
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
       currentImageID.value !== null
-        ? viewConfigStore.getWindowConfig(viewID.value, currentImageID.value)
+        ? viewConfigStore.getWindowingConfig(
+            viewID.value,
+            currentImageID.value
+          )!
         : null
     );
 
@@ -84,16 +85,24 @@ const WindowLevelTool = defineComponent({
 
     watch(vertVal, (ww) => {
       if (currentImageID.value !== null) {
-        viewConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
-          width: ww,
-        });
+        viewConfigStore.updateWindowingConfig(
+          viewID.value,
+          currentImageID.value,
+          {
+            width: ww,
+          }
+        );
       }
     });
     watch(horizVal, (wl) => {
       if (currentImageID.value !== null) {
-        viewConfigStore.setWindowLevel(viewID.value, currentImageID.value, {
-          level: wl,
-        });
+        viewConfigStore.updateWindowingConfig(
+          viewID.value,
+          currentImageID.value,
+          {
+            level: wl,
+          }
+        );
       }
     });
 

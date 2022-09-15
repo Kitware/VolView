@@ -80,6 +80,7 @@ import { useModelStore } from '../store/datasets-models';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
+import { CameraConfig } from '../store/view-configs/camera';
 
 export default defineComponent({
   props: {
@@ -175,7 +176,7 @@ export default defineComponent({
     watch(
       [baseImageRep, cameraDirVec, cameraUpVec],
       () => {
-        let cameraConfig = null;
+        let cameraConfig: CameraConfig | undefined;
         if (curImageID.value !== null) {
           cameraConfig = viewConfigStore.getCameraConfig(
             viewID.value,
@@ -184,7 +185,7 @@ export default defineComponent({
         }
 
         // We don't want to reset the camera if we have a config we are restoring
-        if (cameraConfig === null) {
+        if (!cameraConfig) {
           resetCamera();
         }
       },
@@ -424,7 +425,7 @@ export default defineComponent({
     watch([colorBy, colorTransferFunction, opacityFunction], () => {
       const imageID = curImageID.value;
       if (imageID) {
-        viewConfigStore.setVolumeColoring(viewID.value, imageID, {
+        viewConfigStore.updateVolumeColorConfig(viewID.value, imageID, {
           colorBy: colorBy.value,
           transferFunction: colorTransferFunction.value,
           opacityFunction: opacityFunction.value,
