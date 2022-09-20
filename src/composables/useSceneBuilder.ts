@@ -1,5 +1,5 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-import { computed, Ref, shallowRef, watch } from '@vue/composition-api';
+import { computed, Ref, watch } from '@vue/composition-api';
 import { useViewStore } from '../store/views';
 import { vtkLPSViewProxy } from '../types/vtk-types';
 
@@ -21,80 +21,52 @@ export function useSceneBuilder<
     viewStore.getViewProxy<vtkLPSViewProxy>(viewID.value)
   );
 
-  const baseImageRep = shallowRef<BaseImageType | null>(null);
-  const labelmapReps = shallowRef<LabelMapType[]>([]);
-  const modelReps = shallowRef<ModelType[]>([]);
+  const baseImageRep = computed(() => {
+    const _viewID = viewID.value;
+    if (sceneIDs.baseImage) {
+      const imageID = sceneIDs.baseImage.value;
+      if (imageID) {
+        return viewStore.getDataRepresentationForView<BaseImageType>(
+          imageID,
+          _viewID
+        );
+      }
+    }
+    return null;
+  });
 
-  if (sceneIDs.baseImage) {
-    watch(
-      sceneIDs.baseImage,
-      (baseImageID) => {
-        baseImageRep.value = null;
-        if (baseImageID) {
-          const rep = viewStore.getDataRepresentationForView<BaseImageType>(
-            baseImageID,
-            viewID.value
-          );
-          baseImageRep.value = rep;
-          if (rep) {
-            rep.setRescaleOnColorBy(false);
-          }
-        }
-      },
-      { immediate: true }
-    );
-  }
+  const labelmapReps = computed(() => {
+    const _viewID = viewID.value;
+    if (sceneIDs.labelmaps) {
+      const labelmapIDs = sceneIDs.labelmaps.value;
+      if (labelmapIDs) {
+        return labelmapIDs
+          .map((id) =>
+            viewStore.getDataRepresentationForView<LabelMapType>(id, _viewID)
+          )
+          .filter(Boolean) as LabelMapType[];
+      }
+    }
+    return [];
+  });
 
-  if (sceneIDs.labelmaps) {
-    watch(
-      sceneIDs.labelmaps,
-      (labelmapIDs) => {
-        labelmapReps.value = [];
-        if (labelmapIDs) {
-          labelmapIDs
-            .map((id) =>
-              viewStore.getDataRepresentationForView<LabelMapType>(
-                id,
-                viewID.value
-              )
-            )
-            .filter(Boolean)
-            .forEach((rep) => labelmapReps.value.push(rep!));
-        }
-      },
-      { immediate: true }
-    );
-  }
-
-  if (sceneIDs.models) {
-    watch(
-      sceneIDs.models,
-      (modelIDs) => {
-        modelReps.value = [];
-        if (modelIDs) {
-          modelIDs
-            .map((id) =>
-              viewStore.getDataRepresentationForView<ModelType>(
-                id,
-                viewID.value
-              )
-            )
-            .filter(Boolean)
-            .forEach((rep) => modelReps.value.push(rep!));
-        }
-      },
-      { immediate: true }
-    );
-  }
+  const modelReps = computed(() => {
+    const _viewID = viewID.value;
+    if (sceneIDs.models) {
+      const modelIDs = sceneIDs.models.value;
+      if (modelIDs) {
+        return modelIDs
+          .map((id) =>
+            viewStore.getDataRepresentationForView<ModelType>(id, _viewID)
+          )
+          .filter(Boolean) as ModelType[];
+      }
+    }
+    return [];
+  });
 
   watch(
-    () =>
-      [
-        viewProxy.value,
-        baseImageRep.value,
-        labelmapReps.value,
-        modelReps.value,
-      ] as const,
+    [viewProxy, baseImageRep, labelmapReps, modelReps],
     ([view, baseRep, lmReps, mReps]) => {
       if (!view) {
         throw new Error('[useSceneBuilder] No view available');
@@ -105,14 +77,8 @@ export function useSceneBuilder<
       if (baseRep) {
         view.addRepresentation(baseRep);
       }
-
-      if (lmReps?.length) {
-        lmReps.forEach((rep) => view.addRepresentation(rep));
-      }
-
-      if (mReps?.length) {
-        mReps.forEach((rep) => view.addRepresentation(rep));
-      }
+      lmReps.forEach((rep) => view.addRepresentation(rep));
+      mReps.forEach((rep) => view.addRepresentation(rep));
 
       // TODO not sure why I need this, but might as well keep
       // the renderer up to date.
@@ -124,5 +90,5 @@ export function useSceneBuilder<
     { deep: true, immediate: true }
   );
 
-  return { baseImageRep, labelmapReps };
+  return { baseImageRep, labelmapReps, modelReps };
 }
