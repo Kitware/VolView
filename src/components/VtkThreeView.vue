@@ -49,7 +49,6 @@ import {
   ref,
   toRefs,
   watch,
-  watchEffect,
 } from '@vue/composition-api';
 import { mat3, vec3 } from 'gl-matrix';
 
@@ -62,10 +61,6 @@ import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox'
 import vtkLight from '@kitware/vtk.js/Rendering/Core/Light';
 import { Vector3 } from '@kitware/vtk.js/types';
 
-import {
-  getShiftedOpacityFromPreset,
-  useView3DStore,
-} from '@/src/store/views-3D';
 import { useProxyManager } from '@/src/composables/proxyManager';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
@@ -81,6 +76,12 @@ import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
 import { CameraConfig } from '../store/view-configs/camera';
+import {
+  DEFAULT_AMBIENT,
+  DEFAULT_DIFFUSE,
+  DEFAULT_SPECULAR,
+} from '../store/view-configs/volume-coloring';
+import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 
 export default defineComponent({
   props: {
@@ -101,7 +102,6 @@ export default defineComponent({
     ViewOverlayGrid,
   },
   setup(props) {
-    const view3DStore = useView3DStore();
     const modelStore = useModelStore();
     const proxyManager = useProxyManager()!;
     const viewConfigStore = useViewConfigStore();
@@ -205,7 +205,7 @@ export default defineComponent({
       'viewUp'
     );
 
-    watch([curImageID], () => {
+    watch(curImageID, () => {
       // See if we have a camera configuration to restore
       let cameraConfig = null;
       if (curImageID.value !== null) {
@@ -223,10 +223,31 @@ export default defineComponent({
       }
     });
 
+    // --- coloring setup --- //
+
+    const volumeColorConfig = viewConfigStore.getComputedVolumeColorConfig(
+      viewID,
+      curImageID
+    );
+
+    watch([viewID, curImageID], () => {
+      if (
+        curImageID.value &&
+        currentImageData.value &&
+        !volumeColorConfig.value
+      ) {
+        viewConfigStore.resetToDefaultColoring(
+          viewID.value,
+          curImageID.value,
+          currentImageData.value
+        );
+      }
+    });
+
     // --- CVR parameters --- //
 
-    const cvrParams = computed(() => view3DStore.cvrConfig);
-    const cvrEnabled = computed(() => cvrParams.value.enabled);
+    const cvrParams = computed(() => volumeColorConfig.value?.cvr);
+    const cvrEnabled = computed(() => !!cvrParams.value?.enabled);
 
     watch(
       cvrEnabled,
@@ -255,7 +276,7 @@ export default defineComponent({
       const lps = getLPSDirections(curImageMetadata.value.orientation as mat3);
       const dir = lps[viewDirection.value];
       const axisIndex = lps[getLPSAxisFromDir(viewDirection.value)];
-      const lightFlip = cvrParams.value.flipLightPosition ? 1 : -1;
+      const lightFlip = cvrParams.value?.flipLightPosition ? 1 : -1;
       if (image) {
         const dim = image.getDimensions()[axisIndex];
         return dir.map((v) => v * lightFlip * dim);
@@ -267,7 +288,7 @@ export default defineComponent({
       [cvrParams, baseImageRep],
       ([params, rep]) => {
         const image = rep?.getInputDataSet() as vtkImageData | null | undefined;
-        if (!rep || !image) {
+        if (!rep || !image || !params) {
           return;
         }
 
@@ -295,7 +316,7 @@ export default defineComponent({
         }
 
         const sampleDistance =
-          0.7 *
+          1.5 *
           Math.sqrt(
             image
               .getSpacing()
@@ -341,105 +362,85 @@ export default defineComponent({
           mapper.setLAOKernelRadius(0);
         }
 
-        property.setAmbient(params.ambient);
-        property.setDiffuse(params.diffuse);
-        property.setSpecular(params.specular);
+        property.setAmbient(params.enabled ? params.ambient : DEFAULT_AMBIENT);
+        property.setDiffuse(params.enabled ? params.diffuse : DEFAULT_DIFFUSE);
+        property.setSpecular(
+          params.enabled ? params.specular : DEFAULT_SPECULAR
+        );
       },
       { deep: true, immediate: true }
     );
 
     // --- coloring --- //
 
-    const coloringConfig = computed(() => view3DStore.coloringConfig);
-    const colorBy = computed(() => coloringConfig.value.colorBy);
+    const colorBy = computed(() => volumeColorConfig.value?.colorBy);
     const colorTransferFunction = computed(
-      () => coloringConfig.value.transferFunction
+      () => volumeColorConfig.value?.transferFunction
     );
     const opacityFunction = computed(
-      () => coloringConfig.value.opacityFunction
+      () => volumeColorConfig.value?.opacityFunction
     );
 
-    watchEffect(() => {
-      const rep = baseImageRep.value;
-      const { arrayName, location } = colorBy.value;
-      const { mappingRange, preset } = colorTransferFunction.value;
+    watch(
+      [baseImageRep, colorBy, colorTransferFunction, opacityFunction],
+      () => {
+        if (
+          !baseImageRep.value ||
+          !colorBy.value ||
+          !colorTransferFunction.value ||
+          !opacityFunction.value
+        ) {
+          return;
+        }
 
-      const lut = proxyManager.getLookupTable(arrayName);
-      lut.setMode(vtkLookupTableProxy.Mode.Preset);
-      lut.setPresetName(preset);
-      lut.setDataRange(...mappingRange);
+        const rep = baseImageRep.value;
 
-      const pwf = proxyManager.getPiecewiseFunction(arrayName);
-      const opFunc = opacityFunction.value;
-      pwf.setMode(opFunc.mode);
+        const { arrayName, location } = colorBy.value;
+        const { mappingRange, preset } = colorTransferFunction.value;
 
-      switch (opFunc.mode) {
-        case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-          pwf.setGaussians(opFunc.gaussians);
-          break;
-        case vtkPiecewiseFunctionProxy.Mode.Points: {
-          const opacityPoints = getShiftedOpacityFromPreset(
-            opFunc.preset,
-            opFunc.shift
-          );
-          if (opacityPoints) {
-            pwf.setPoints(opacityPoints);
+        const lut = proxyManager.getLookupTable(arrayName);
+        lut.setMode(vtkLookupTableProxy.Mode.Preset);
+        lut.setPresetName(preset);
+        lut.setDataRange(...mappingRange);
+
+        const pwf = proxyManager.getPiecewiseFunction(arrayName);
+        const opFunc = opacityFunction.value;
+        pwf.setMode(opFunc.mode);
+
+        switch (opFunc.mode) {
+          case vtkPiecewiseFunctionProxy.Mode.Gaussians:
+            pwf.setGaussians(opFunc.gaussians);
+            break;
+          case vtkPiecewiseFunctionProxy.Mode.Points: {
+            const opacityPoints = getShiftedOpacityFromPreset(
+              opFunc.preset,
+              opFunc.shift
+            );
+            if (opacityPoints) {
+              pwf.setPoints(opacityPoints);
+            }
+            break;
           }
-          break;
+          case vtkPiecewiseFunctionProxy.Mode.Nodes:
+            pwf.setNodes(opFunc.nodes);
+            break;
+          default:
         }
-        case vtkPiecewiseFunctionProxy.Mode.Nodes:
-          pwf.setNodes(opFunc.nodes);
-          break;
-        default:
-      }
 
-      if (rep) {
-        rep.setColorBy(arrayName, location);
-      }
-    });
-
-    // --- persistent coloring setup --- //
-
-    // restore volume coloring configuration
-    // must run before the save watcher
-    watch(curImageID, (imageID) => {
-      if (imageID && currentImageData.value) {
-        const config = viewConfigStore.getVolumeColorConfig(
-          viewID.value,
-          imageID
-        );
-        if (config) {
-          view3DStore.setColorBy(
-            config.colorBy.arrayName,
-            config.colorBy.location
-          );
-          view3DStore.updateColorTransferFunction(config.transferFunction);
-          view3DStore.updateOpacityFunction(config.opacityFunction);
-        } else {
-          view3DStore.resetToDefaultColoring(currentImageData.value);
+        if (rep) {
+          rep.setColorBy(arrayName, location);
         }
-      }
-    });
-
-    // save volume coloring
-    watch([colorBy, colorTransferFunction, opacityFunction], () => {
-      const imageID = curImageID.value;
-      if (imageID) {
-        viewConfigStore.updateVolumeColorConfig(viewID.value, imageID, {
-          colorBy: colorBy.value,
-          transferFunction: colorTransferFunction.value,
-          opacityFunction: opacityFunction.value,
-        });
-      }
-    });
+      },
+      { immediate: true, deep: true }
+    );
 
     // --- template vars --- //
 
     return {
       vtkContainerRef,
       active: false,
-      topLeftLabel: computed(() =>
-        colorTransferFunction.value.preset.replace(/-/g, ' ')
+      topLeftLabel: computed(
+        () => colorTransferFunction.value?.preset.replace(/-/g, ' ') ?? ''
       ),
       isImageLoading,
       resetCamera,
