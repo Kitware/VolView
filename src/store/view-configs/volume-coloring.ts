@@ -1,27 +1,15 @@
 import { MaybeRef } from '@vueuse/core';
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
-import { ColorTransferFunction, OpacityFunction } from '@/src/types/views';
+import {
+  ColorTransferFunction,
+  CVRConfig,
+  OpacityFunction,
+} from '@/src/types/views';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import { getOpacityFunctionFromPreset } from '@/src/utils/vtk-helpers';
 import { removeDataFromConfig, removeViewFromConfig } from './common';
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
-
-export interface CVRConfig {
-  enabled: boolean;
-
-  flipLightPosition: boolean;
-
-  useVolumetricScatteringBlending: boolean;
-  volumetricScatteringBlending: number;
-
-  useLocalAmbientOcclusion: boolean;
-  laoKernelSize: number;
-  laoKernelRadius: number;
-  ambient: number;
-  diffuse: number;
-  specular: number;
-}
 
 export interface VolumeColorConfig {
   colorBy: {

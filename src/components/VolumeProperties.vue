@@ -2,7 +2,7 @@
 import { computed, defineComponent, watch } from '@vue/composition-api';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useViewConfigStore } from '../store/view-configs';
-import { CVRConfig } from '../store/view-configs/volume-coloring';
+import { CVRConfig } from '../types/views';
 
 const TARGET_VIEW_ID = '3D';
 
