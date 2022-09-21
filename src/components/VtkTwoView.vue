@@ -69,7 +69,12 @@
         <template v-slot:bottom-left>
           <div class="annotation-cell">
             <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
-            <div>
+            <div
+              v-if="
+                typeof windowWidth === 'number' &&
+                typeof windowLevel === 'number'
+              "
+            >
               W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
             </div>
           </div>
@@ -200,7 +205,7 @@ import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { CameraConfig } from '../store/view-configs/camera';
 import { defaultSliceConfig } from '../store/view-configs/slicing';
-import { defaultWindowLevelConfig } from '../store/view-configs/windowing';
+import { useWindowingSync } from '../composables/sync/useWindowingSync';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -272,22 +277,29 @@ export default defineComponent({
         : sliceConfigDefaults.max
     );
 
-    const windowConfigDefaults = defaultWindowLevelConfig();
-    const wlConfig = computed(() =>
-      curImageID.value !== null
-        ? viewConfigStore.getWindowingConfig(viewID.value, curImageID.value)!
-        : null
-    );
-    const windowWidth = computed(() =>
-      wlConfig.value !== null
-        ? wlConfig.value.width
-        : windowConfigDefaults.width
-    );
-    const windowLevel = computed(() =>
-      wlConfig.value !== null
-        ? wlConfig.value.level
-        : windowConfigDefaults.level
-    );
+    const wlConfig = computed({
+      get: () => {
+        const _viewID = viewID.value;
+        const imageID = curImageID.value;
+        if (imageID !== null) {
+          return viewConfigStore.getWindowingConfig(_viewID, imageID) ?? null;
+        }
+        return null;
+      },
+      set: (newValue) => {
+        const imageID = curImageID.value;
+        if (imageID !== null && newValue != null) {
+          viewConfigStore.updateWindowingConfig(
+            viewID.value,
+            imageID,
+            newValue
+          );
+        }
+      },
+    });
+
+    const windowWidth = computed(() => wlConfig.value?.width);
+    const windowLevel = computed(() => wlConfig.value?.level);
     const dicomInfo = computed(() => {
       if (
         curImageID.value !== null &&
@@ -431,6 +443,10 @@ export default defineComponent({
         immediate: true,
       }
     );
+
+    // --- sync windowing parameters --- //
+
+    useWindowingSync(curImageID, wlConfig);
 
     // --- scene setup --- //
 
