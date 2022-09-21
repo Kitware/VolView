@@ -1,6 +1,9 @@
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import { OpacityFunction } from '../types/views';
 
 export function computeWorldToDisplay(
   xyz: Vector3,
@@ -65,4 +68,50 @@ export function getCSSCoordinatesFromEvent(eventData: any) {
     bbox.left + eventData.position.x / devicePixelRatio,
     bbox.top + bbox.height - eventData.position.y / devicePixelRatio,
   ] as Vector2;
+}
+
+/**
+ * Shifts the opacity points from a preset.
+ */
+export function getShiftedOpacityFromPreset(presetName: string, shift: number) {
+  const preset = vtkColorMaps.getPresetByName(presetName);
+  if (preset.OpacityPoints) {
+    const OpacityPoints = preset.OpacityPoints as number[];
+    const points = [];
+    let xmin = Infinity;
+    let xmax = -Infinity;
+    for (let i = 0; i < OpacityPoints.length; i += 2) {
+      xmin = Math.min(xmin, OpacityPoints[i]);
+      xmax = Math.max(xmax, OpacityPoints[i]);
+      points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
+    }
+
+    const width = xmax - xmin;
+    return points.map(([x, y]) => [(x - xmin) / width + shift, y]);
+  }
+  return null;
+}
+
+/**
+ * Retrieves an OpacityFunction from a preset.
+ */
+export function getOpacityFunctionFromPreset(
+  presetName: string
+): Partial<OpacityFunction> {
+  const preset = vtkColorMaps.getPresetByName(presetName);
+  if (preset.OpacityPoints) {
+    return {
+      mode: vtkPiecewiseFunctionProxy.Mode.Points,
+      preset: presetName,
+      shift: 0,
+      mappingRange: [0, 1],
+    };
+  }
+  return {
+    mode: vtkPiecewiseFunctionProxy.Mode.Gaussians,
+    // deep-copy necessary
+    gaussians: JSON.parse(
+      JSON.stringify(vtkPiecewiseFunctionProxy.Defaults.Gaussians)
+    ),
+  };
 }

@@ -10,11 +10,9 @@ import {
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import {
-  useViewConfigStore,
-  defaultSliceConfig,
-} from '@/src/store/view-configs';
+import { useViewConfigStore } from '@/src/store/view-configs';
 import { useViewStore } from '@/src/store/views';
+import { defaultSliceConfig } from '@/src/store/view-configs/slicing';
 
 export default defineComponent({
   name: 'SliceScrollTool',
@@ -37,7 +35,7 @@ export default defineComponent({
     const sliceConfigDefault = defaultSliceConfig();
     const sliceConfig = computed(() =>
       currentImageID.value !== null
-        ? viewConfigStore.getSliceConfig(viewID.value, currentImageID.value)
+        ? viewConfigStore.getSliceConfig(viewID.value, currentImageID.value)!
         : null
     );
     const sliceRange = computed(() => ({

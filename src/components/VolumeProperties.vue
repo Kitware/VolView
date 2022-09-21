@@ -1,30 +1,63 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
-import { useView3DStore, CVRConfig } from '../store/views-3D';
+import { computed, defineComponent, watch } from '@vue/composition-api';
+import { useCurrentImage } from '../composables/useCurrentImage';
+import { useViewConfigStore } from '../store/view-configs';
+import { CVRConfig } from '../types/views';
+
+const TARGET_VIEW_ID = '3D';
 
 export default defineComponent({
   name: 'VolumeRendering',
   setup() {
-    const view3DStore = useView3DStore();
+    const viewConfigStore = useViewConfigStore();
+
+    const { currentImageID } = useCurrentImage();
+
+    const volumeColorConfig = viewConfigStore.getComputedVolumeColorConfig(
+      TARGET_VIEW_ID,
+      currentImageID
+    );
+
+    watch(volumeColorConfig, () => {
+      const imageID = currentImageID.value;
+      if (imageID && !volumeColorConfig.value) {
+        // creates a default color config
+        viewConfigStore.updateVolumeColorConfig(TARGET_VIEW_ID, imageID, {});
+      }
+    });
 
     // --- CVR --- //
 
-    const cvrParams = computed(() => view3DStore.cvrConfig);
+    const cvrParams = computed(() => volumeColorConfig.value?.cvr);
+
     const setCVREnabled = (enabled: boolean) => {
-      view3DStore.updateCVRParameters({
-        enabled,
-      });
-    };
-    const setCVRParam = (key: keyof CVRConfig, value: any) => {
-      view3DStore.updateCVRParameters({
-        [key]: value,
-      });
+      if (!currentImageID.value) return;
+      viewConfigStore.updateVolumeCVRParameters(
+        TARGET_VIEW_ID,
+        currentImageID.value,
+        {
+          enabled,
+        }
+      );
     };
 
-    const enabled = computed(() => cvrParams.value.enabled);
-    const laoEnabled = computed(() => cvrParams.value.useLocalAmbientOcclusion);
+    const setCVRParam = (key: keyof CVRConfig, value: any) => {
+      if (!currentImageID.value) return;
+      viewConfigStore.updateVolumeCVRParameters(
+        TARGET_VIEW_ID,
+        currentImageID.value,
+        {
+          [key]: value,
+        }
+      );
+    };
+
+    const enabled = computed(() => !!cvrParams.value?.enabled);
+    const laoEnabled = computed(
+      () => !!cvrParams.value?.useLocalAmbientOcclusion
+    );
     const vsbEnabled = computed(
-      () => cvrParams.value.useVolumetricScatteringBlending
+      () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
     return {
@@ -44,7 +77,7 @@ export default defineComponent({
     <div class="mt-4" ref="editorContainerRef">
       <div ref="pwfEditorRef" />
     </div>
-    <div>
+    <div v-if="!!cvrParams">
       <v-switch
         label="Enable Cinematic Volume Rendering"
         dense

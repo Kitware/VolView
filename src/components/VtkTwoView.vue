@@ -191,18 +191,16 @@ import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
-import {
-  useViewConfigStore,
-  defaultSliceConfig,
-  defaultWindowLevelConfig,
-  CameraConfig,
-} from '../store/view-configs';
+import { useViewConfigStore } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
+import { CameraConfig } from '../store/view-configs/camera';
+import { defaultSliceConfig } from '../store/view-configs/slicing';
+import { defaultWindowLevelConfig } from '../store/view-configs/windowing';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -255,7 +253,7 @@ export default defineComponent({
     const sliceConfigDefaults = defaultSliceConfig();
     const sliceConfig = computed(() =>
       curImageID.value !== null
-        ? viewConfigStore.getSliceConfig(viewID.value, curImageID.value)
+        ? viewConfigStore.getSliceConfig(viewID.value, curImageID.value)!
         : null
     );
     const currentSlice = computed(() =>
@@ -277,7 +275,7 @@ export default defineComponent({
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
       curImageID.value !== null
-        ? viewConfigStore.getWindowConfig(viewID.value, curImageID.value)
+        ? viewConfigStore.getWindowingConfig(viewID.value, curImageID.value)!
         : null
     );
     const windowWidth = computed(() =>
@@ -415,13 +413,15 @@ export default defineComponent({
           const range = imageData.getPointData().getScalars().getRange();
           if (
             curImageID.value !== null &&
-            viewConfigStore.getWindowConfig(viewID.value, curImageID.value) ===
-              null
+            !viewConfigStore.getWindowingConfig(viewID.value, curImageID.value)
           ) {
-            viewConfigStore.updateWLDomain(
+            viewConfigStore.updateWindowingConfig(
               viewID.value,
               curImageID.value,
-              range
+              {
+                min: range[0],
+                max: range[1],
+              }
             );
             viewConfigStore.resetWindowLevel(viewID.value, curImageID.value);
           }
@@ -529,7 +529,7 @@ export default defineComponent({
     watch(
       [curImageID, cameraDirVec, cameraUpVec],
       () => {
-        let cameraConfig: CameraConfig | null = null;
+        let cameraConfig: CameraConfig | undefined;
         if (curImageID.value !== null) {
           cameraConfig = viewConfigStore.getCameraConfig(
             viewID.value,

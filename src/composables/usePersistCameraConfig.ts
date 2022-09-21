@@ -1,7 +1,8 @@
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import { Ref } from '@vue/composition-api';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { useViewConfigStore, CameraConfig } from '../store/view-configs';
+import { useViewConfigStore } from '../store/view-configs';
+import { CameraConfig } from '../store/view-configs/camera';
 
 export function usePersistCameraConfig(
   viewID: Ref<string>,
@@ -19,55 +20,47 @@ export function usePersistCameraConfig(
   if (toPersist.indexOf('position') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.setPosition(
-          viewID.value,
-          dataID.value,
-          viewProxy.value.getCamera().getPosition()
-        );
+        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+          position: viewProxy.value.getCamera().getPosition(),
+        });
       }
     });
   }
   if (toPersist.indexOf('viewUp') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.setViewUp(
-          viewID.value,
-          dataID.value,
-          viewProxy.value.getCamera().getViewUp()
-        );
+        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+          viewUp: viewProxy.value.getCamera().getViewUp(),
+        });
       }
     });
   }
   if (toPersist.indexOf('focalPoint') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.setFocalPoint(
-          viewID.value,
-          dataID.value,
-          viewProxy.value.getCamera().getFocalPoint()
-        );
+        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+          focalPoint: viewProxy.value.getCamera().getFocalPoint(),
+        });
       }
     });
   }
   if (toPersist.indexOf('directionOfProjection') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.setDirectionOfProjection(
-          viewID.value,
-          dataID.value,
-          viewProxy.value.getCamera().getDirectionOfProjection()
-        );
+        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+          directionOfProjection: viewProxy.value
+            .getCamera()
+            .getDirectionOfProjection(),
+        });
       }
     });
   }
   if (toPersist.indexOf('parallelScale') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.setParallelScale(
-          viewID.value,
-          dataID.value,
-          viewProxy.value.getCamera().getParallelScale()
-        );
+        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+          parallelScale: viewProxy.value.getCamera().getParallelScale(),
+        });
       }
     });
   }

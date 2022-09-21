@@ -15,7 +15,7 @@ describe('View Config Store', () => {
   it('supports setting and getting volume coloring configs', () => {
     const configStore = useViewConfigStore();
 
-    configStore.setVolumeColoring('1', '2', {
+    configStore.updateVolumeColorConfig('1', '2', {
       colorBy: {
         arrayName: 'Scalars',
         location: 'pointData',
@@ -31,7 +31,7 @@ describe('View Config Store', () => {
       },
     });
 
-    expect(Object.values(configStore.volumeColorConfigs)).to.have.length(1);
-    expect(configStore.viewConfigs['1'].size).to.equal(1);
+    const config = configStore.getVolumeColorConfig('1', '2');
+    expect(config).to.not.be.undefined;
   });
 });
