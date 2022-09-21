@@ -29,7 +29,7 @@
     "pinia": "^2.0.14",
     "vue": "2.6.14",
     "vue-toastification": "^1.7.14",
-    "vuetify": "2.6.7",
+    "vuetify": "2.6.10",
     "wslink": "^1.6.4",
     "zod": "^3.18.0"
   },
