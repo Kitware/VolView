@@ -330,6 +330,17 @@ export default defineComponent({
       return null;
     });
 
+    const sliceDomain = computed(() => {
+      const { lpsOrientation, dimensions } = curImageMetadata.value;
+      const ijkIndex = lpsOrientation[viewAxis.value];
+      const dimMax = dimensions[ijkIndex];
+
+      return {
+        min: 0,
+        max: dimMax - 1,
+      };
+    });
+
     // --- setters --- //
 
     const setSlice = (slice: number) => {
@@ -370,10 +381,15 @@ export default defineComponent({
     watch(
       [viewID, curImageID, viewDirection],
       () => {
-        if (curImageID.value) {
+        if (
+          curImageID.value &&
+          !viewConfigStore.getSliceConfig(viewID.value, curImageID.value)
+        ) {
           viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+            ...sliceDomain.value,
             axisDirection: viewDirection.value,
           });
+          viewConfigStore.resetSlice(viewID.value, curImageID.value);
         }
       },
       { immediate: true, deep: true }
@@ -386,34 +402,6 @@ export default defineComponent({
     // --- widget manager --- //
 
     const { widgetManager } = useWidgetManager(viewProxy);
-
-    // --- resetting slice properties --- //
-
-    watch(
-      curImageData,
-      (imageData, oldImageData) => {
-        // FIXME the old check is to workaround a vue bug/quirk where
-        // the curImageData dependencies trigger, but the ref value is
-        // equivalent, yet this watcher still runs.
-        if (imageData && imageData !== oldImageData) {
-          const { lpsOrientation, dimensions } = curImageMetadata.value;
-          const ijkIndex = lpsOrientation[viewAxis.value];
-          const dimMax = dimensions[ijkIndex];
-
-          // update dimensions
-          // dimMax is upper bound of slices, exclusive.
-          if (curImageID.value !== null) {
-            viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
-              min: 0,
-              max: dimMax - 1,
-            });
-            // move slice to center when image metadata changes.
-            viewConfigStore.resetSlice(viewID.value, curImageID.value);
-          }
-        }
-      },
-      { immediate: true }
-    );
 
     // --- window/level setup --- //
 
