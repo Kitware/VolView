@@ -17,6 +17,7 @@
     "@kitware/vtk.js": "^25.7.2",
     "@vue/composition-api": "1.6.3",
     "@vueuse/core": "^8.5.0",
+    "@vueuse/shared": "^9.2.0",
     "core-js": "3.22.5",
     "deep-equal": "^2.0.5",
     "file-saver": "^2.0.5",

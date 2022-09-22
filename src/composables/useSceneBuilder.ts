@@ -75,6 +75,8 @@ export function useSceneBuilder<
       view.removeAllRepresentations();
 
       if (baseRep) {
+        // we control the color mapping range manually
+        baseRep.setRescaleOnColorBy(false);
         view.addRepresentation(baseRep);
       }
       lmReps.forEach((rep) => view.addRepresentation(rep));
