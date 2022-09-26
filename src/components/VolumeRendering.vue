@@ -10,6 +10,7 @@ import {
   watch,
   watchEffect,
 } from '@vue/composition-api';
+import { computedWithControl } from '@vueuse/shared';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
@@ -113,8 +114,10 @@ export default defineComponent({
 
     // --- piecewise function and color transfer function --- //
 
-    const pwfProxyRef = computed(() => {
-      const { arrayName } = colorByRef.value ?? {};
+    const getColorByArray = () => colorByRef.value?.arrayName ?? null;
+
+    const pwfProxyRef = computedWithControl(getColorByArray, () => {
+      const arrayName = getColorByArray();
       if (arrayName) {
         return proxyManager?.getPiecewiseFunction(arrayName);
       }
