@@ -1,12 +1,13 @@
 import JSZip from 'jszip';
 import { z } from 'zod';
 import { Vector3 } from '@kitware/vtk.js/types';
-import {
+import vtkPiecewiseFunctionProxy, {
   PiecewiseGaussian,
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import { Ruler, Tools as ToolsEnum } from '@/src/store/tools/types';
+import { InteractionState } from '@/src/vtk/RulerWidget/state';
 
 import {
   CameraConfig,
@@ -14,7 +15,7 @@ import {
   WindowLevelConfig,
   VolumeColorConfig,
 } from '../../store/view-configs/types';
-import { LPSAxisDir } from '../../types/lps';
+import { LPSAxisDir, LPSAxis } from '../../types/lps';
 import { LayoutDirection } from '../../types/layout';
 import {
   ViewType,
@@ -194,13 +195,67 @@ const View = z.object({
 
 export type View = z.infer<typeof View>;
 
+export const LabelMap = z.object({
+  id: z.string(),
+  parent: z.string(),
+  path: z.string(),
+});
+
+export type LabelMap = z.infer<typeof LabelMap>;
+
+const LPSAxis: z.ZodType<LPSAxis> = z.union([
+  z.literal('Axial'),
+  z.literal('Sagittal'),
+  z.literal('Coronal'),
+]);
+
+const InteractionStateNative = z.nativeEnum(InteractionState);
+
+const Ruler: z.ZodType<Ruler> = z.object({
+  name: z.string(),
+  firstPoint: Vector3.nullable(),
+  secondPoint: Vector3.nullable(),
+  viewAxis: LPSAxis.nullable(),
+  slice: z.number().nullable(),
+  imageID: z.string(),
+  interactionState: InteractionStateNative,
+  color: z.string(),
+});
+
+const Crosshairs = z.object({
+  position: Vector3,
+});
+
+export type Crosshairs = z.infer<typeof Crosshairs>;
+
+const ToolsEnumNative = z.nativeEnum(ToolsEnum);
+
+const Paint = z.object({
+  activeLabelmapID: z.string().nullable(),
+  brushSize: z.number(),
+  brushValue: z.number(),
+  labelmapOpacity: z.number(),
+});
+
+const Tools = z.object({
+  rulers: Ruler.array(),
+  crosshairs: Crosshairs,
+  paint: Paint,
+  current: ToolsEnumNative,
+});
+
+export type Tools = z.infer<typeof Tools>;
+
 export const ManifestSchema = z.object({
   version: z.string(),
   dataSets: DataSet.array(),
+  labelMaps: LabelMap.array(),
+  tools: Tools,
   views: View.array(),
   primarySelection: z.string().optional(),
   layout: Layout,
 });
+
 export type Manifest = z.infer<typeof ManifestSchema>;
 
 export interface StateFile {

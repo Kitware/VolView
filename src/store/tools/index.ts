@@ -1,16 +1,9 @@
+import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { defineStore } from 'pinia';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
-
-export enum Tools {
-  WindowLevel = 'WindowLevel',
-  Pan = 'Pan',
-  Zoom = 'Zoom',
-  Ruler = 'Ruler',
-  Paint = 'Paint',
-  Crosshairs = 'Crosshairs',
-}
+import { Tools } from './types';
 
 interface State {
   currentTool: Tools;
@@ -65,6 +58,29 @@ export const useToolStore = defineStore('tool', {
       }
       teardownTool(this.currentTool);
       this.currentTool = tool;
+    },
+    serialize(state: StateFile) {
+      const { tools } = state.manifest;
+      const rulerStore = useRulerStore();
+      const crosshairsStore = useCrosshairsToolStore();
+      const paintStore = usePaintToolStore();
+
+      rulerStore.serialize(state);
+      crosshairsStore.serialize(state);
+      paintStore.serialize(state);
+
+      tools.current = this.currentTool;
+    },
+    deserialize(manifest: Manifest, labelmapIDMap: Record<string, string>) {
+      const { tools } = manifest;
+      const rulerStore = useRulerStore();
+      const crosshairsStore = useCrosshairsToolStore();
+      const paintStore = usePaintToolStore();
+
+      rulerStore.deserialize(manifest);
+      crosshairsStore.deserialize(manifest);
+      paintStore.deserialize(manifest, labelmapIDMap);
+      this.currentTool = tools.current;
     },
   },
 });

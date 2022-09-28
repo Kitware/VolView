@@ -8,7 +8,8 @@ import {
   watch,
 } from '@vue/composition-api';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
-import { Tools, useToolStore } from '@/src/store/tools';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';

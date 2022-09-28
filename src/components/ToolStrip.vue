@@ -90,11 +90,12 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from '@vue/composition-api';
 import { onKeyDown } from '@vueuse/core';
+import { Tools } from '@/src/store/tools/types';
 import ToolButton from './ToolButton.vue';
 import ItemGroup from './ItemGroup.vue';
 import GroupableItem from './GroupableItem.vue';
 import { useDatasetStore } from '../store/datasets';
-import { Tools, useToolStore } from '../store/tools';
+import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 
 export default defineComponent({

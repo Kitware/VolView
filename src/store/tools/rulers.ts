@@ -9,43 +9,9 @@ import { InteractionState } from '@/src/vtk/RulerWidget/state';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { LPSAxis } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-
-export interface Ruler {
-  name: string;
-  /**
-   * Point is in image index space.
-   */
-  firstPoint: Vector3 | null;
-  /**
-   * Point is in image index space.
-   */
-  secondPoint: Vector3 | null;
-  /**
-   * The associated view slicing axis.
-   */
-  viewAxis: LPSAxis | null;
-  /**
-   * The associated slice along the axis.
-   */
-  slice: number | null;
-  /**
-   * The associated image dataset.
-   *
-   * The ruler currently does not store orientation info,
-   * and so depends on the associated image space.
-   */
-  imageID: string;
-  /**
-   * The current interaction state.
-   */
-  interactionState: InteractionState;
-  /**
-   * Ruler metadata
-   */
-  color: string;
-}
+import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import { Ruler } from './types';
 
 const emptyRuler = (): Ruler => ({
   name: '',
@@ -272,6 +238,23 @@ export const useRulerStore = defineStore('ruler', () => {
     removeActiveRuler.call(this);
   }
 
+  function serialize(state: StateFile) {
+    const rulersInState = state.manifest.tools.rulers;
+
+    rulerIDs.value.forEach((rulerID) => {
+      const ruler = rulers.value[rulerID];
+      rulersInState.push(ruler);
+    });
+  }
+
+  function deserialize(this: _This, manifest: Manifest) {
+    const rulersInState = manifest.tools.rulers;
+
+    rulersInState.forEach((ruler) => {
+      addNewRuler.call(this, ruler);
+    });
+  }
+
   return {
     rulerIDs,
     rulers,
@@ -290,5 +273,7 @@ export const useRulerStore = defineStore('ruler', () => {
     removeActiveRuler,
     removeRuler,
     updateRuler,
+    serialize,
+    deserialize,
   };
 });

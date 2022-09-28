@@ -1,7 +1,10 @@
 declare module '@kitware/vtk.js/vtk' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
 
-  export default (obj: any): vtkObject => {};
+  const vtk = (obj: any): vtkObject => {};
+  vtk.register = (vtkClassName: string, constructor: unknown): void => {};
+
+  export default vtk;
 }
 
 declare module '@kitware/vtk.js/interfaces-additions' {
@@ -972,4 +975,13 @@ declare module '@kitware/vtk.js/Common/DataModel/BoundingBox' {
   import { Bounds } from '@kitware/vtk.js/types';
   export function inflate(bounds: Bounds, delta: number);
   export function getDiagonalLength(bounds: Bounds): number;
+}
+
+declare module '@kitware/vtk.js/IO/XML/XMLImageDataWriter' {
+  export declare const vtkXMLImageDataWriter: {
+    newInstance: typeof newInstance;
+    extend: typeof extend;
+  };
+
+  export default vtkXMLImageDataWriter;
 }

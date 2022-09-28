@@ -3,6 +3,9 @@ import { saveAs } from 'file-saver';
 import { useFileStore } from '@/src/store/datasets-files';
 import { LayoutDirection } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
+import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import {
   useDatasetStore,
   makeFileFailureStatus,
@@ -18,7 +21,7 @@ import {
   retypeFile,
 } from '../io';
 import { FileEntry } from '../types';
-import { Manifest, ManifestSchema, DataSet } from './schema';
+import { Manifest, ManifestSchema } from './schema';
 
 const MANIFEST = 'manifest.json';
 const VERSION = '0.0.1';
@@ -26,11 +29,27 @@ const VERSION = '0.0.1';
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
+  const labelStore = useLabelmapStore();
+  const toolStore = useToolStore();
 
   const zip = new JSZip();
   const manifest: Manifest = {
     version: VERSION,
     dataSets: [],
+    labelMaps: [],
+    tools: {
+      rulers: [],
+      crosshairs: {
+        position: [0, 0, 0],
+      },
+      paint: {
+        activeLabelmapID: null,
+        brushSize: 8,
+        brushValue: 1,
+        labelmapOpacity: 1,
+      },
+      current: Tools.WindowLevel,
+    },
     layout: {
       direction: LayoutDirection.H,
       items: [],
@@ -44,7 +63,9 @@ export async function save(fileName: string) {
   };
 
   await datasetStore.serialize(stateFile);
-  await viewStore.serialize(stateFile);
+  viewStore.serialize(stateFile);
+  await labelStore.serialize(stateFile);
+  toolStore.serialize(stateFile);
 
   zip.file(MANIFEST, JSON.stringify(manifest));
   const content = await zip.generateAsync({ type: 'blob' });
@@ -56,6 +77,8 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const dicomStore = useDICOMStore();
   const fileStore = useFileStore();
   const viewStore = useViewStore();
+  const labelStore = useLabelmapStore();
+  const toolStore = useToolStore();
 
   // First load the manifest
   const manifestFile = state.filter((entry) => entry.file.name === MANIFEST);
@@ -70,13 +93,6 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   // We restore the view first, so that the appropriate watchers are triggered
   // in the views as the data is loaded
   viewStore.setLayout(manifest.layout);
-
-  // Build up a map of path to DataSet
-  const pathToDataSet: { [path: string]: DataSet } = {};
-  dataSets.forEach((dataSet: DataSet) => {
-    const { path } = dataSet;
-    pathToDataSet[path] = dataSet;
-  });
 
   // Mapping of the state file ID => new store ID
   const stateIDToStoreID: Record<string, string> = {};
@@ -117,8 +133,18 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
     datasetStore.setPrimarySelection(dataSelection);
   }
 
-  // Now restore the views
+  // Restore the views
   viewStore.deserialize(manifest.views, stateIDToStoreID);
+
+  // Restore the labelmaps
+  const labelmapIDMap = await labelStore.deserialize(
+    manifest,
+    state,
+    stateIDToStoreID
+  );
+
+  // Restore the tools
+  toolStore.deserialize(manifest, labelmapIDMap);
 
   return new Promise<LoadResult[]>((resolve) => {
     resolve(statuses);
