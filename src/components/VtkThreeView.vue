@@ -89,6 +89,7 @@ import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import CropTool from './tools/CropTool.vue';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { VTKThreeViewWidgetManager } from '../constants';
+import { useCropStore } from '../store/tools/crop';
 
 export default defineComponent({
   props: {
@@ -448,6 +449,24 @@ export default defineComponent({
         viewProxy.value.render();
       },
       { immediate: true, deep: true }
+    );
+
+    // --- cropping planes --- //
+
+    const cropStore = useCropStore();
+    const croppingPlanes = cropStore.getComputedVTKPlanes(curImageID);
+
+    watch(
+      croppingPlanes,
+      (planes) => {
+        const mapper = baseImageRep.value?.getMapper();
+        if (planes && mapper) {
+          mapper.removeAllClippingPlanes();
+          planes.forEach((plane) => mapper.addClippingPlane(plane));
+          mapper.modified();
+        }
+      },
+      { immediate: true }
     );
 
     // --- template vars --- //
