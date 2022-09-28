@@ -86,3 +86,11 @@ export function pick<T, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
 export function plural(n: number, word: string, pluralWord?: string) {
   return n > 1 ? pluralWord ?? `${word}s` : word;
 }
+
+export function arrayEquals<T>(a: T[], b: T[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}

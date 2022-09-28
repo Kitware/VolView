@@ -2,6 +2,26 @@ import { computed } from '@vue/composition-api';
 import { useDatasetStore } from '../store/datasets';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { defaultImageMetadata, useImageStore } from '../store/datasets-images';
+import { createLPSBounds, getAxisBounds } from '../utils/lps';
+
+// Returns a spatially inflated image extent
+export function getImageSpatialExtent(imageID: string | null) {
+  const imageStore = useImageStore();
+
+  if (imageID && imageID in imageStore.metadata) {
+    const { lpsOrientation } = imageStore.metadata[imageID];
+    const image = imageStore.dataIndex[imageID];
+    if (image) {
+      const extent = image.getSpatialExtent();
+      return {
+        Sagittal: getAxisBounds(extent, 'Sagittal', lpsOrientation),
+        Coronal: getAxisBounds(extent, 'Coronal', lpsOrientation),
+        Axial: getAxisBounds(extent, 'Axial', lpsOrientation),
+      };
+    }
+  }
+  return createLPSBounds();
+}
 
 export function useCurrentImage() {
   const dataStore = useDatasetStore();
@@ -36,6 +56,10 @@ export function useCurrentImage() {
     return dataStore.primaryDataset;
   });
 
+  const currentImageExtent = computed(() =>
+    getImageSpatialExtent(currentImageID.value)
+  );
+
   const isImageLoading = computed(() => {
     return !!dataStore.primarySelection && !dataStore.primaryDataset;
   });
@@ -44,6 +68,7 @@ export function useCurrentImage() {
     currentImageData,
     currentImageID,
     currentImageMetadata,
+    currentImageExtent,
     isImageLoading,
   };
 }

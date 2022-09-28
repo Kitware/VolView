@@ -1,3 +1,4 @@
+import { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 
 export type LPSAxis = 'Axial' | 'Sagittal' | 'Coronal';
@@ -24,4 +25,16 @@ export interface LPSDirections {
   Coronal: 0 | 1 | 2;
   Sagittal: 0 | 1 | 2;
   Axial: 0 | 1 | 2;
+}
+
+export interface LPSPoint {
+  Sagittal: number;
+  Coronal: number;
+  Axial: number;
+}
+
+export interface LPSBounds {
+  Sagittal: Vector2;
+  Coronal: Vector2;
+  Axial: Vector2;
 }

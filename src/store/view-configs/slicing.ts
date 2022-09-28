@@ -1,6 +1,7 @@
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import { LPSAxisDir } from '@/src/types/lps';
 import { clampValue } from '@/src/utils';
+import { MaybeRef } from '@vueuse/core';
 import { removeDataFromConfig, removeViewFromConfig } from './common';
 
 interface SliceConfig {
@@ -23,6 +24,11 @@ export const setupSlicingConfig = () => {
 
   const getSliceConfig = (viewID: string, dataID: string) =>
     sliceConfigs.get(viewID, dataID);
+
+  const getComputedSliceConfig = (
+    viewID: MaybeRef<string | null>,
+    dataID: MaybeRef<string | null>
+  ) => sliceConfigs.getComputed(viewID, dataID);
 
   const updateSliceConfig = (
     viewID: string,
@@ -60,6 +66,7 @@ export const setupSlicingConfig = () => {
     removeData: removeDataFromConfig(sliceConfigs),
     actions: {
       getSliceConfig,
+      getComputedSliceConfig,
       updateSliceConfig,
       resetSlice,
     },

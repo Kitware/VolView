@@ -3,12 +3,13 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import { intersectDisplayWithPlane } from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { OpacityFunction } from '../types/views';
 
 export function computeWorldToDisplay(
   xyz: Vector3,
   renderer: vtkRenderer
-): Vector3 | null {
+): Vector2 | null {
   const view = renderer.getRenderWindow()?.getViews()?.[0];
   if (view) {
     const [x, y, z] = xyz;
@@ -20,14 +21,54 @@ export function computeWorldToDisplay(
 export function computeDisplayToWorld(
   xy: Vector2,
   renderer: vtkRenderer
-): Vector2 | null {
+): Vector3 | null {
   const view = renderer.getRenderWindow()?.getViews()?.[0];
   if (view) {
     const [x, y] = xy;
-    const coords: Vector3 = view.displayToWorld(x, y, 0, renderer);
-    return [coords[0], coords[1]] as Vector2;
+    return view.displayToWorld(x, y, 0, renderer);
   }
   return null;
+}
+
+export function normalizeMouseEventPosition(
+  ev: MouseEvent,
+  view: vtkOpenGLRenderWindow
+) {
+  // TODO fix typing in vtk.js
+  const canvas = (view as any).getCanvas() as HTMLCanvasElement | null;
+  if (!canvas) return null;
+
+  const bounds = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / bounds.width;
+  const scaleY = canvas.height / bounds.height;
+  return [
+    scaleX * (ev.clientX - bounds.left),
+    scaleY * (bounds.height - ev.clientY + bounds.top),
+  ] as Vector2;
+}
+
+export function intersectMouseEventWithPlane(
+  ev: MouseEvent,
+  renderer: vtkRenderer,
+  origin: Vector3,
+  normal: Vector3
+) {
+  const view = renderer
+    .getRenderWindow()
+    ?.getViews()[0] as vtkOpenGLRenderWindow;
+  if (!view) return null;
+
+  const position = normalizeMouseEventPosition(ev, view);
+  if (!position) return null;
+
+  return intersectDisplayWithPlane(
+    position[0],
+    position[1],
+    origin,
+    normal,
+    renderer,
+    view
+  );
 }
 
 /**
@@ -114,4 +155,15 @@ export function getOpacityFunctionFromPreset(
       JSON.stringify(vtkPiecewiseFunctionProxy.Defaults.Gaussians)
     ),
   };
+}
+
+/**
+ * Inflate an axis bounds defined as [min, max] by some delta.
+ *
+ * @param bounds Must be [number, number]. (Typed number[] for convenience.)
+ * @param delta
+ * @returns
+ */
+export function inflateAxisBounds(bounds: number[], delta: number) {
+  return [bounds[0] + delta, bounds[1] + delta];
 }
