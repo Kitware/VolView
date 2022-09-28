@@ -985,3 +985,54 @@ declare module '@kitware/vtk.js/IO/XML/XMLImageDataWriter' {
 
   export default vtkXMLImageDataWriter;
 }
+
+declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
+  import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
+  import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
+  import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
+  import vtkLineManipulator from '@kitware/vtk.js/Widgets/Manipulators/LineManipulator';
+  import { mat4, vec3 } from 'gl-matrix';
+  import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+
+  export interface ImageCroppingPlanesState extends vtkWidgetState {
+    getPlanes(): [number, number, number, number, number, number];
+    setPlanes(
+      planes: [number, number, number, number, number, number]
+    ): boolean;
+  }
+
+  export interface ImageCroppingWidgetState extends vtkWidgetState {
+    getIndexToWorldT(): mat4;
+    setIndexToWorldT(transform: mat4): boolean;
+    getWorldToIndexT(): mat4;
+    setWorldToIndexT(transform: mat4): boolean;
+    getCroppingPlanes(): ImageCroppingPlanesState;
+  }
+
+  export interface vtkImageCroppingViewWidget extends vtkAbstractWidget {
+    setManipulator(manipulator: vtkPlaneManipulator): boolean;
+    getManipulator(): vtkPlaneManipulator;
+  }
+
+  export interface vtkImageCroppingWidget extends vtkAbstractWidgetFactory {
+    getWidgetState(): ImageCroppingWidgetState;
+    getCornerManipulator(): vtkPlaneManipulator;
+    getEdgeManipulator(): vtkPlaneManipulator;
+    getFaceManipulator(): vtkLineManipulator;
+    setCornerManipulator(manip: vtkPlaneManipulator): boolean;
+    setEdgeManipulator(manip: vtkPlaneManipulator): boolean;
+    setFaceManipulator(manip: vtkLineManipulator): boolean;
+    copyImageDataDescription(image: vtkImageData);
+    setFaceHandlesEnabled(enabled: boolean): void;
+    setCornerHandlesEnabled(enabled: boolean): void;
+    setEdgeHandlesEnabled(enabled: boolean): void;
+  }
+
+  export function newInstance(): vtkImageCroppingWidget;
+
+  export declare const vtkImageCroppingWidget: {
+    newInstance: typeof newInstance;
+  };
+  export default vtkImageCroppingWidget;
+}

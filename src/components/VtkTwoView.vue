@@ -54,6 +54,7 @@
           :widget-manager="widgetManager"
           :slice="slice"
         />
+        <crop-tool :view-id="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-middle>
@@ -168,6 +169,7 @@ import {
   onUnmounted,
   onMounted,
   PropType,
+  provide,
   ref,
   toRefs,
   watch,
@@ -207,6 +209,8 @@ import { useWidgetManager } from '../composables/useWidgetManager';
 import { CameraConfig } from '../store/view-configs/types';
 import { defaultSliceConfig } from '../store/view-configs/slicing';
 import { useWindowingSync } from '../composables/sync/useWindowingSync';
+import CropTool from './tools/CropTool.vue';
+import { VTKTwoViewWidgetManager } from '../constants';
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -234,6 +238,7 @@ export default defineComponent({
     RulerTool,
     PaintTool,
     CrosshairsTool,
+    CropTool,
   },
   setup(props) {
     const viewConfigStore = useViewConfigStore();
@@ -403,6 +408,7 @@ export default defineComponent({
     // --- widget manager --- //
 
     const { widgetManager } = useWidgetManager(viewProxy);
+    provide(VTKTwoViewWidgetManager, widgetManager);
 
     // --- window/level setup --- //
 

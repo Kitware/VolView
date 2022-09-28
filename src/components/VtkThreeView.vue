@@ -4,6 +4,9 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
+      <div class="overlay-no-events tool-layer">
+        <crop-tool :view-id="viewID" />
+      </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
           <div class="annotation-cell">
@@ -46,6 +49,7 @@ import {
   onBeforeUnmount,
   onMounted,
   PropType,
+  provide,
   ref,
   toRefs,
   watch,
@@ -82,6 +86,9 @@ import {
   DEFAULT_SPECULAR,
 } from '../store/view-configs/volume-coloring';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
+import CropTool from './tools/CropTool.vue';
+import { useWidgetManager } from '../composables/useWidgetManager';
+import { VTKThreeViewWidgetManager } from '../constants';
 
 export default defineComponent({
   props: {
@@ -100,6 +107,7 @@ export default defineComponent({
   },
   components: {
     ViewOverlayGrid,
+    CropTool,
   },
   setup(props) {
     const modelStore = useModelStore();
@@ -147,6 +155,11 @@ export default defineComponent({
         models: computed(() => modelStore.idList),
       }
     );
+
+    // --- widget manager --- //
+
+    const { widgetManager } = useWidgetManager(viewProxy);
+    provide(VTKThreeViewWidgetManager, widgetManager);
 
     // --- camera setup --- //
 
@@ -441,6 +454,7 @@ export default defineComponent({
 
     return {
       vtkContainerRef,
+      viewID,
       active: false,
       topLeftLabel: computed(
         () => colorTransferFunction.value?.preset.replace(/-/g, ' ') ?? ''

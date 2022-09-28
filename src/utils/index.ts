@@ -93,8 +93,17 @@ export const ensureDefault = <T>(
   default_: T
 ) => {
   if (!(key in records)) {
+    // eslint-disable-next-line no-param-reassign
     records[key] = default_;
   }
 
   return records[key];
 };
+
+export function arrayEquals<T>(a: T[], b: T[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}

@@ -1,5 +1,39 @@
+import { Bounds } from '@kitware/vtk.js/types';
 import { vec3, mat3 } from 'gl-matrix';
-import { LPSAxis, LPSAxisDir, LPSDirections } from '../types/lps';
+import {
+  LPSAxis,
+  LPSAxisDir,
+  LPSBounds,
+  LPSDirections,
+  LPSPoint,
+} from '../types/lps';
+
+export const LPSAxes: LPSAxis[] = ['Sagittal', 'Coronal', 'Axial'];
+
+export function createLPSPoint(): LPSPoint {
+  return {
+    Sagittal: 0,
+    Coronal: 0,
+    Axial: 0,
+  };
+}
+
+export function createLPSBounds(): LPSBounds {
+  return {
+    Sagittal: [0, 0],
+    Coronal: [0, 0],
+    Axial: [0, 0],
+  };
+}
+
+export function getAxisBounds(
+  bounds: Bounds,
+  axis: LPSAxis,
+  directions: LPSDirections
+) {
+  const index = 2 * directions[axis];
+  return bounds.slice(index, index + 2) as [number, number];
+}
 
 export function getLPSAxisFromDir(dir: LPSAxisDir): LPSAxis {
   switch (dir) {
