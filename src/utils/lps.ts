@@ -51,6 +51,27 @@ export function getLPSAxisFromDir(dir: LPSAxisDir): LPSAxis {
   }
 }
 
+/**
+ * Returns the two directions associated with an axis.
+ *
+ * The order corresponds to the positive/negative vector handling from
+ * getLPSDirections, respectively.
+ * @param axis
+ * @returns
+ */
+export function getLPSDirsFromAxis(axis: LPSAxis): [LPSAxisDir, LPSAxisDir] {
+  switch (axis) {
+    case 'Axial':
+      return ['Superior', 'Inferior'];
+    case 'Coronal':
+      return ['Left', 'Right'];
+    case 'Sagittal':
+      return ['Posterior', 'Anterior'];
+    default:
+      throw new Error(`Invalid LPS axis: ${axis}`);
+  }
+}
+
 export const defaultLPSDirections = () => ({
   Left: vec3.fromValues(1, 0, 0),
   Right: vec3.fromValues(-1, 0, 0),
