@@ -3,6 +3,7 @@ import { useViewStore } from '@/src/store/views';
 import { computed, defineComponent, toRefs, watch } from '@vue/composition-api';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';
+import { Tools, useToolStore } from '@/src/store/tools';
 import CropSVG2D from './crop/CropSVG2D.vue';
 import Crop3D from './crop/Crop3D.vue';
 
@@ -22,6 +23,9 @@ export default defineComponent({
 
     const { currentImageID } = useCurrentImage();
     const cropStore = useCropStore();
+    const toolStore = useToolStore();
+
+    const active = computed(() => toolStore.currentTool === Tools.Crop);
 
     watch(
       currentImageID,
@@ -39,6 +43,7 @@ export default defineComponent({
     });
 
     return {
+      active,
       viewType,
     };
   },
@@ -47,8 +52,8 @@ export default defineComponent({
 
 <template>
   <svg class="overlay-no-events">
-    <CropSVG2D v-if="viewType === '2D'" :view-id="viewId" />
-    <Crop3D v-if="viewType === '3D'" :view-id="viewId" />
+    <CropSVG2D v-if="active && viewType === '2D'" :view-id="viewId" />
+    <Crop3D v-if="active && viewType === '3D'" :view-id="viewId" />
   </svg>
 </template>
 
