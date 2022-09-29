@@ -157,6 +157,15 @@ export default defineComponent({
       }
     );
 
+    // --- picking --- //
+
+    // disables picking for crop control and more
+    watch(baseImageRep, (rep) => {
+      if (rep) {
+        rep.getVolumes().forEach((volume) => volume.setPickable(false));
+      }
+    });
+
     // --- widget manager --- //
 
     const { widgetManager } = useWidgetManager(viewProxy);
