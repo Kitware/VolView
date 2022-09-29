@@ -86,6 +86,14 @@ export default defineComponent({
         widget.value = widgetManager.value.addWidget(
           factory
         ) as vtkImageCroppingViewWidget;
+
+        // update representation to not be as 3D
+        widget.value.getRepresentations().forEach((rep) => {
+          rep.getActors().forEach((actor) => {
+            actor.getProperty().setAmbient(1);
+          });
+        });
+
         // show widget
         viewProxy.value.render();
       }
