@@ -86,6 +86,8 @@ export default defineComponent({
         widget.value = widgetManager.value.addWidget(
           factory
         ) as vtkImageCroppingViewWidget;
+        // show widget
+        viewProxy.value.render();
       }
     });
 
@@ -115,8 +117,9 @@ export default defineComponent({
       // prevent infinite loops
       if (!arrayEquals(planes, state.getCroppingPlanes().getPlanes())) {
         state.getCroppingPlanes().setPlanes(planes);
-        viewProxy.value.render();
       }
+      // render any changes
+      viewProxy.value.render();
     };
 
     watch(
