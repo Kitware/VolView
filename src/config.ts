@@ -56,8 +56,8 @@ export const DefaultViewSpec = InitViewSpecs[InitViewIDs.Axial];
 /**
  * Defines the default layouts.
  */
-export const Layouts: Record<string, Layout> = {
-  AxialPrimary: {
+export const Layouts: Record<string, Layout> = [
+  {
     name: 'Axial Primary',
     direction: LayoutDirection.V,
     items: [
@@ -68,7 +68,7 @@ export const Layouts: Record<string, Layout> = {
       },
     ],
   },
-  '3DPrimary': {
+  {
     name: '3D Primary',
     direction: LayoutDirection.V,
     items: [
@@ -79,7 +79,7 @@ export const Layouts: Record<string, Layout> = {
       },
     ],
   },
-  QuadView: {
+  {
     name: 'Quad View',
     direction: LayoutDirection.H,
     items: [
@@ -93,12 +93,14 @@ export const Layouts: Record<string, Layout> = {
       },
     ],
   },
-  ThreeOnly: {
+  {
     name: '3D Only',
     direction: LayoutDirection.H,
     items: [InitViewIDs.Three],
   },
-};
+].reduce((layouts, layout) => {
+  return { ...layouts, [layout.name]: layout };
+}, {});
 
 export const LABELMAP_PALETTE = {
   0: [0, 0, 0, 0], // eraser

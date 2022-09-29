@@ -251,7 +251,7 @@ export default defineComponent({
 
     // --- layout --- //
 
-    const layoutName: Ref<keyof typeof Layouts> = ref('QuadView');
+    const layoutName: Ref<string> = ref('Quad View');
     const { layout: currentLayout } = storeToRefs(viewStore);
 
     watch(
@@ -264,6 +264,15 @@ export default defineComponent({
         immediate: true,
       }
     );
+
+    watch(currentLayout, () => {
+      if (
+        currentLayout.value?.name &&
+        currentLayout.value.name !== layoutName.value
+      ) {
+        layoutName.value = currentLayout.value.name;
+      }
+    });
 
     // --- file handling --- //
     async function openFiles(files: FileList | null) {
