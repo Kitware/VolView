@@ -227,6 +227,11 @@ int categorizeFiles(itk::wasm::Pipeline &pipeline) {
   auto volumeMapJSON = json(volumeMap);
   volumeMapJSONStream.Get() << volumeMapJSON;
 
+  // Clean up files
+  for (auto &file : files) {
+    remove(file.c_str());
+  }
+
   return EXIT_SUCCESS;
 }
 
@@ -292,6 +297,9 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
     reader->Update();
     outputImage.Set(reader->GetOutput());
   }
+
+  // Clean up the file
+  remove(fileName.c_str());
 
   return EXIT_SUCCESS;
 }
