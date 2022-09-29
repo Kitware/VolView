@@ -282,19 +282,22 @@ export default defineComponent({
         const sliceInfo = currentSlice.value;
         if (!sliceInfo) return null;
 
-        const { lpsOrientation } = currentImageMetadata.value;
-        const worldCoord = intersectMouseEventWithPlane(
+        const { lpsOrientation, worldToIndex } = currentImageMetadata.value;
+        const coord = intersectMouseEventWithPlane(
           ev,
           ren,
           sliceInfo.planeOrigin,
           sliceInfo.planeNormal
         );
-        if (!worldCoord) return null;
+        if (!coord) return null;
+
+        // convert from world to index
+        vec3.transformMat4(coord, coord, worldToIndex);
 
         const point = createLPSPoint();
-        point.Sagittal = worldCoord[lpsOrientation.Sagittal];
-        point.Coronal = worldCoord[lpsOrientation.Coronal];
-        point.Axial = worldCoord[lpsOrientation.Axial];
+        point.Sagittal = coord[lpsOrientation.Sagittal];
+        point.Coronal = coord[lpsOrientation.Coronal];
+        point.Axial = coord[lpsOrientation.Axial];
 
         return point;
       },

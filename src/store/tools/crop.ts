@@ -1,11 +1,11 @@
 import { getImageSpatialExtent } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '@/src/types/lps';
-import { getAxisBounds, getLPSDirsFromAxis } from '@/src/utils/lps';
+import { getAxisBounds } from '@/src/utils/lps';
 import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
 import { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { computed, reactive, readonly, set, unref } from '@vue/composition-api';
 import { MaybeRef } from '@vueuse/core';
-import { mat4, quat, vec3 } from 'gl-matrix';
+import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { ImageMetadata, useImageStore } from '../datasets-images';
 
@@ -28,18 +28,20 @@ function convertCropBoundsToVTKPlane(
   axis: LPSAxis,
   lowerUpper: 0 | 1
 ) {
-  const { indexToWorld, lpsOrientation: lpsDirs } = metadata;
+  const { indexToWorld, orientation, lpsOrientation: lpsDirs } = metadata;
 
   const origin = [0, 0, 0] as Vector3;
   const axisIndex = lpsDirs[axis];
   origin[axisIndex] = cropBounds[axis][lowerUpper];
   vec3.transformMat4(origin, origin, indexToWorld);
 
-  const lpsNormal = getLPSDirsFromAxis(axis)[lowerUpper];
-  const normal = [...lpsDirs[lpsNormal]] as Vector3;
-  const rotation = quat.create();
-  mat4.getRotation(rotation, indexToWorld);
-  vec3.transformQuat(normal, normal, rotation);
+  // The lower bound normal is the associated column in the
+  // image orientation matrix. The upper bound normal is the
+  // lower bound normal, but negated.
+  const neg = -(lowerUpper * 2 - 1);
+  const normal = [
+    ...orientation.slice(axisIndex * 3, axisIndex * 3 + 3).map((c) => c * neg),
+  ] as Vector3;
 
   return vtkPlane.newInstance({ origin, normal });
 }
