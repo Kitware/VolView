@@ -10,6 +10,7 @@ export enum Tools {
   Ruler = 'Ruler',
   Paint = 'Paint',
   Crosshairs = 'Crosshairs',
+  Crop = 'Crop',
 }
 
 interface State {
