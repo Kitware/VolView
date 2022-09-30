@@ -4,7 +4,7 @@ import { computed, defineComponent, toRefs, watch } from '@vue/composition-api';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';
 import { Tools, useToolStore } from '@/src/store/tools';
-import CropSVG2D from './crop/CropSVG2D.vue';
+import Crop2D from './crop/Crop2D.vue';
 import Crop3D from './crop/Crop3D.vue';
 
 export default defineComponent({
@@ -15,7 +15,7 @@ export default defineComponent({
     },
   },
   components: {
-    CropSVG2D,
+    Crop2D,
     Crop3D,
   },
   setup(props) {
@@ -52,8 +52,8 @@ export default defineComponent({
 
 <template>
   <svg class="overlay-no-events">
-    <CropSVG2D v-if="active && viewType === '2D'" :view-id="viewId" />
-    <Crop3D v-if="active && viewType === '3D'" :view-id="viewId" />
+    <crop-2D v-if="active && viewType === '2D'" :view-id="viewId" />
+    <crop-3D v-if="active && viewType === '3D'" :view-id="viewId" />
   </svg>
 </template>
 

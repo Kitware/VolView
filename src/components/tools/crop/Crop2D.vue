@@ -21,7 +21,7 @@ import {
   toRefs,
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
-import CropLineHandle from './CropLineHandle.vue';
+import Crop2DLineHandle from './Crop2DLineHandle.vue';
 import { CropLines } from './types';
 
 function computeCropLines(
@@ -208,7 +208,7 @@ export default defineComponent({
     },
   },
   components: {
-    CropLineHandle,
+    Crop2DLineHandle,
   },
   setup(props) {
     const { viewId: viewID } = toRefs(props);
@@ -330,14 +330,14 @@ export default defineComponent({
 <template>
   <g>
     <template v-if="ax1.lines != null">
-      <crop-line-handle
+      <crop-2D-line-handle
         :line="ax1.lines.lowerLine"
         :out-of-bounds="ax1.lines.outOfBounds"
         @pointerdown="onPointerDown(ax1.name, 0, $event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
       />
-      <crop-line-handle
+      <crop-2D-line-handle
         :line="ax1.lines.upperLine"
         :out-of-bounds="ax1.lines.outOfBounds"
         @pointerdown="onPointerDown(ax1.name, 1, $event)"
@@ -346,14 +346,14 @@ export default defineComponent({
       />
     </template>
     <template v-if="ax2.lines != null">
-      <crop-line-handle
+      <crop-2D-line-handle
         :line="ax2.lines.lowerLine"
         :out-of-bounds="ax2.lines.outOfBounds"
         @pointerdown="onPointerDown(ax2.name, 0, $event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
       />
-      <crop-line-handle
+      <crop-2D-line-handle
         :line="ax2.lines.upperLine"
         :out-of-bounds="ax2.lines.outOfBounds"
         @pointerdown="onPointerDown(ax2.name, 1, $event)"
