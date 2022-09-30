@@ -62,12 +62,7 @@
       </v-menu>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <v-menu
-        v-model="cropMenu"
-        offset-x
-        close-on-content-click
-        :disabled="!active"
-      >
+      <v-menu v-model="cropMenu" offset-x open-on-hover close-on-content-click>
         <template v-slot:activator="{ attrs, on }">
           <div>
             <tool-button
