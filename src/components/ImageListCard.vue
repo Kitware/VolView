@@ -11,7 +11,7 @@
       v-on="$listeners"
     >
       <v-container>
-        <v-row no-gutters>
+        <v-row no-gutters class="flex-nowrap">
           <v-col v-if="selectable" cols="1" class="d-flex align-center">
             <v-checkbox
               @click.stop
