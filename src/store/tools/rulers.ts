@@ -11,7 +11,9 @@ import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import { LPSAxisDir } from '@/src/types/lps';
 import { Ruler } from './types';
+import { useViewStore } from '../views';
 
 const emptyRuler = (): Ruler => ({
   name: '',
@@ -191,6 +193,29 @@ export const useRulerStore = defineStore('ruler', () => {
     activateRuler(id);
   }
 
+  function jumpToRuler(rulerID: string) {
+    const ruler = rulers.value[rulerID];
+    if (!ruler?.viewAxis || ruler?.slice == null) return;
+
+    const { currentImageID } = useCurrentImage();
+    const imageID = currentImageID.value;
+    if (!imageID || ruler.imageID !== imageID) return;
+
+    const viewStore = useViewStore();
+    const relevantViewIDs = viewStore.viewIDs.filter((viewID) => {
+      const viewSpec = viewStore.viewSpecs[viewID];
+      const viewDir = viewSpec.props.viewDirection as LPSAxisDir | undefined;
+      return viewDir && getLPSAxisFromDir(viewDir) === ruler.viewAxis;
+    });
+
+    const viewConfigStore = useViewConfigStore();
+    relevantViewIDs.forEach((viewID) => {
+      viewConfigStore.updateSliceConfig(viewID, imageID, {
+        slice: ruler.slice!,
+      });
+    });
+  }
+
   // --- watch RulerTool for changes to apply --- //
 
   function updateFromWidgetState(
@@ -275,5 +300,6 @@ export const useRulerStore = defineStore('ruler', () => {
     updateRuler,
     serialize,
     deserialize,
+    jumpToRuler,
   };
 });
