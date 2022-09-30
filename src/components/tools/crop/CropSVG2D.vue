@@ -25,63 +25,58 @@ import CropLineHandle from './CropLineHandle.vue';
 import { CropLines } from './types';
 
 function computeCropLines(
+  viewID: Ref<string | null>,
   cropAxis: Ref<LPSAxis | null>,
-  lookAxis: Ref<LPSAxis | null>,
   cropPlanes: DeepReadonly<Ref<Record<LPSAxis, number[]>>>,
   boundary: Ref<Record<LPSAxis, number[]>>
 ): ComputedRef<CropLines<LPSPoint> | null> {
-  const perpAxis = computed(() => {
-    if (!cropAxis.value || !lookAxis.value) {
-      return null;
-    }
-    return LPSAxes.filter(
-      (ax) => ax !== cropAxis.value && ax !== lookAxis.value
-    )[0];
-  });
-
-  const cropRange = computed(
-    () => cropAxis.value && cropPlanes.value[cropAxis.value]
-  );
-  const perpRange = computed(
-    () => perpAxis.value && cropPlanes.value[perpAxis.value]
-  );
-  const perpBoundary = computed(
-    () => perpAxis.value && boundary.value[perpAxis.value]
-  );
-
-  // assumption: all used vars are non-null/undefined
-  const getLineSegments = (index: number) => {
-    const startEdge = createLPSPoint();
-    const startCrop = createLPSPoint();
-    const endCrop = createLPSPoint();
-    const endEdge = createLPSPoint();
-
-    startEdge[cropAxis.value!] = cropRange.value![index];
-    startCrop[cropAxis.value!] = cropRange.value![index];
-    endCrop[cropAxis.value!] = cropRange.value![index];
-    endEdge[cropAxis.value!] = cropRange.value![index];
-
-    [startEdge[perpAxis.value!], endEdge[perpAxis.value!]] =
-      perpBoundary.value!;
-    [startCrop[perpAxis.value!], endCrop[perpAxis.value!]] = perpRange.value!;
-
-    return { startEdge, startCrop, endCrop, endEdge };
-  };
+  const currentSlice = useCurrentSlice(viewID);
 
   return computed(() => {
-    if (
-      !cropAxis.value ||
-      !perpAxis.value ||
-      !cropRange.value ||
-      !perpBoundary.value ||
-      !perpRange.value
-    ) {
+    // pre-check reactivity
+    const viewIDVal = viewID.value;
+    const cropAxisVal = cropAxis.value;
+    const cropPlanesVal = cropPlanes.value;
+    const boundaryVal = boundary.value;
+    const sliceInfo = currentSlice.value;
+
+    if (!viewIDVal || !cropAxisVal || !sliceInfo) {
       return null;
     }
+
+    const sliceAxis = sliceInfo.axisName;
+    const [perpAxis] = LPSAxes.filter(
+      (ax) => ax !== cropAxisVal && ax !== sliceAxis
+    );
+    const cropRange = cropPlanesVal[cropAxisVal];
+    const perpRange = cropPlanesVal[perpAxis];
+    const perpBoundary = boundaryVal[perpAxis];
+
+    const sliceCropRange = cropPlanesVal[sliceAxis];
+    const slice = sliceInfo.number;
+    const outOfBounds = slice < sliceCropRange[0] || sliceCropRange[1] < slice;
+
+    const getLineSegments = (index: number) => {
+      const startEdge = createLPSPoint();
+      const startCrop = createLPSPoint();
+      const endCrop = createLPSPoint();
+      const endEdge = createLPSPoint();
+
+      startEdge[cropAxisVal] = cropRange[index];
+      startCrop[cropAxisVal] = cropRange[index];
+      endCrop[cropAxisVal] = cropRange[index];
+      endEdge[cropAxisVal] = cropRange[index];
+
+      [startEdge[perpAxis], endEdge[perpAxis]] = perpBoundary;
+      [startCrop[perpAxis], endCrop[perpAxis]] = perpRange;
+
+      return { startEdge, startCrop, endCrop, endEdge };
+    };
 
     return {
       lowerLine: getLineSegments(0),
       upperLine: getLineSegments(1),
+      outOfBounds,
     };
   });
 }
@@ -90,7 +85,7 @@ function cropLinesToSVGDisplay(
   cropLines: Ref<CropLines<LPSPoint> | null>,
   imageMetadata: Ref<ImageMetadata>,
   renderer: Ref<vtkRenderer>
-) {
+): ComputedRef<CropLines<number[]> | null> {
   // gather points
   const worldPoints = computed(() => {
     const lines = cropLines.value;
@@ -124,8 +119,9 @@ function cropLinesToSVGDisplay(
 
   // create a new CropLines with SVG points
   return computed(() => {
+    const lines = cropLines.value;
     const points = svgPoints.value;
-    if (!points?.length) {
+    if (!lines || !points?.length) {
       return null;
     }
 
@@ -142,7 +138,8 @@ function cropLinesToSVGDisplay(
         endCrop: points[6],
         endEdge: points[7],
       },
-    } as CropLines<Vector2>;
+      outOfBounds: lines.outOfBounds,
+    };
   });
 }
 
@@ -249,20 +246,11 @@ export default defineComponent({
     const ax1 = computed(() => inPlaneAxes.value[0] ?? null);
     const ax2 = computed(() => inPlaneAxes.value[1] ?? null);
 
-    const ax1Lines = computeCropLines(
-      ax1,
-      currentSlicingAxis,
-      cropPlanes,
-      imageExtent
-    );
+    // crop lines in image space
+    const ax1Lines = computeCropLines(viewID, ax1, cropPlanes, imageExtent);
+    const ax2Lines = computeCropLines(viewID, ax2, cropPlanes, imageExtent);
 
-    const ax2Lines = computeCropLines(
-      ax2,
-      currentSlicingAxis,
-      cropPlanes,
-      imageExtent
-    );
-
+    // crop lines in display space
     const ax1SVGLines = cropLinesToSVGDisplay(
       ax1Lines,
       currentImageMetadata,
@@ -344,12 +332,14 @@ export default defineComponent({
     <template v-if="ax1.lines != null">
       <crop-line-handle
         :line="ax1.lines.lowerLine"
+        :out-of-bounds="ax1.lines.outOfBounds"
         @pointerdown="onPointerDown(ax1.name, 0, $event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
       />
       <crop-line-handle
         :line="ax1.lines.upperLine"
+        :out-of-bounds="ax1.lines.outOfBounds"
         @pointerdown="onPointerDown(ax1.name, 1, $event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
@@ -358,12 +348,14 @@ export default defineComponent({
     <template v-if="ax2.lines != null">
       <crop-line-handle
         :line="ax2.lines.lowerLine"
+        :out-of-bounds="ax2.lines.outOfBounds"
         @pointerdown="onPointerDown(ax2.name, 0, $event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
       />
       <crop-line-handle
         :line="ax2.lines.upperLine"
+        :out-of-bounds="ax2.lines.outOfBounds"
         @pointerdown="onPointerDown(ax2.name, 1, $event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"

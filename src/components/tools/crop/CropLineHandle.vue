@@ -13,6 +13,10 @@ export default defineComponent({
       default: 20,
       type: Number,
     },
+    outOfBounds: {
+      default: false,
+      type: Boolean,
+    },
   },
   setup() {
     const cursor = ref('grab');
@@ -61,7 +65,7 @@ export default defineComponent({
       :x2="line.endCrop[0]"
       :y2="line.endCrop[1]"
       :stroke-width="2 + focusWidth"
-      stroke-dasharray="none"
+      :stroke-dasharray="outOfBounds ? 6 : 'none'"
       stroke-linecap="butt"
       stroke="rgb(200, 255, 0)"
     />

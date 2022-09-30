@@ -8,4 +8,5 @@ export interface CropLine<T> {
 export interface CropLines<T> {
   lowerLine: CropLine<T>;
   upperLine: CropLine<T>;
+  outOfBounds: boolean;
 }
