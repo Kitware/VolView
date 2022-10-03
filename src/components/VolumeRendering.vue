@@ -33,9 +33,12 @@ import { useVTKCallback } from '../composables/useVTKCallback';
 import { InitViewIDs, InitViewSpecs } from '../config';
 import { useViewConfigStore } from '../store/view-configs';
 import {
+  getColorFunctionRangeFromPreset,
   getOpacityFunctionFromPreset,
+  getOpacityRangeFromPreset,
   getShiftedOpacityFromPreset,
 } from '../utils/vtk-helpers';
+import { ColorTransferFunction } from '../types/views';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -259,7 +262,11 @@ export default defineComponent({
         } else if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Points) {
           pwfWidget.setPointsMode();
           // get non-shifted points for the widget
-          const points = getShiftedOpacityFromPreset(opFunc.preset, 0);
+          const points = getShiftedOpacityFromPreset(
+            opFunc.preset,
+            opFunc.mappingRange,
+            0
+          );
           pwfWidget.setOpacityPoints(points, opFunc.shift);
         }
       },
@@ -380,19 +387,36 @@ export default defineComponent({
       }
     });
 
-    // --- rendering --- //
+    // --- selection and updates --- //
 
     const hasCurrentImage = computed(() => !!currentImageData.value);
+
+    // the data range, if any
+    const fullMappingRange = computed((): [number, number] => {
+      const image = currentImageData.value;
+      if (image) {
+        return image.getPointData().getScalars().getRange();
+      }
+      return [0, 1];
+    });
 
     const selectPreset = (name: string) => {
       if (!currentImageID.value) return;
 
-      const opFunc = getOpacityFunctionFromPreset(name);
+      const ctRange = getColorFunctionRangeFromPreset(name);
+      const ctFunc: Partial<ColorTransferFunction> = {
+        preset: name,
+        mappingRange: ctRange || fullMappingRange.value,
+      };
       viewConfigStore.updateVolumeColorTransferFunction(
         TARGET_VIEW_ID,
         currentImageID.value,
-        { preset: name }
+        ctFunc
       );
+
+      const opFunc = getOpacityFunctionFromPreset(name);
+      const opRange = getOpacityRangeFromPreset(name);
+      opFunc.mappingRange = opRange || fullMappingRange.value;
       viewConfigStore.updateVolumeOpacityFunction(
         TARGET_VIEW_ID,
         currentImageID.value,
@@ -424,14 +448,6 @@ export default defineComponent({
         );
       }
     };
-
-    const fullMappingRange = computed(() => {
-      const image = currentImageData.value;
-      if (image) {
-        return image.getPointData().getScalars().getRange();
-      }
-      return [0, 1];
-    });
 
     return {
       editorContainerRef,
@@ -472,7 +488,6 @@ export default defineComponent({
       :step="colorSliderStep"
       :rgb-points="rgbPoints"
       :value="mappingRange"
-      @input="updateColorMappingRange"
     />
     <item-group class="container" :value="preset" @change="selectPreset">
       <v-row no-gutters justify="center">
