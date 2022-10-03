@@ -40,6 +40,8 @@ const GroupedPresets = [
       'CT-Muscle',
       'CT-Pulmonary-Arteries',
       'CT-Soft-Tissue',
+      'CT-Air',
+      'CT-X-ray',
     ],
   },
   {
@@ -55,6 +57,12 @@ const GroupedPresets = [
     group: 'DTI',
     presets: [
       'DTI-FA-Brain',
+    ],
+  },
+  {
+    group: 'US',
+    presets: [
+      'US-Fetal',
     ],
   },
 ];
