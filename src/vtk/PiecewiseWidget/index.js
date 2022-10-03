@@ -17,10 +17,10 @@ export const ADJUST_POSITION_CURSOR = '-webkit-grab';
  */
 
 export function samplePiecewiseLinear(points, shift = 0, samples = 256) {
-  // set endpoints to 0 and 1 if needed
   const filledPoints = [...points];
-  if (points[0][0] > 0) filledPoints.unshift([0, 0]);
-  if (points[points.length - 1][0] < 1) filledPoints.push([1, 1]);
+  // set endpoints to drop to 0
+  filledPoints.push([points[0][0], 0]);
+  filledPoints.push([points[points.length - 1][0], 0]);
 
   const sampledPoints = [];
   let pi = 0;
@@ -29,21 +29,26 @@ export function samplePiecewiseLinear(points, shift = 0, samples = 256) {
   let slope = (p2[1] - p1[1]) / (p2[0] - p1[0]);
   for (let i = 0; i < samples; i += 1) {
     const sx = i / (samples - 1) - shift; // sample x
-    if (i < samples - 1 && sx <= 1) {
+    if (i < samples - 1) {
       while (sx > p2[0] && pi < filledPoints.length - 2) {
         pi += 1;
         // extraneous work if this loop goes over more than once,
         // which only happens if sx > 0 on first iteration (aka shift < 0)
         p1 = filledPoints[pi];
         p2 = filledPoints[pi + 1];
-        slope = (p2[1] - p1[1]) / (p2[0] - p1[0]);
+        if (Math.abs(p2[0] - p1[0]) < 1e-8) {
+          slope = Infinity * Math.sign(p2[1] - p1[1]);
+        } else {
+          slope = (p2[1] - p1[1]) / (p2[0] - p1[0]);
+        }
       }
-      sampledPoints.push(slope * (sx - p1[0]) + p1[1]);
-      if (sampledPoints[sampledPoints.length - 1] > 1) {
-        debugger;
+      if (slope === Infinity) {
+        sampledPoints.push(1);
+      } else if (slope === -Infinity) {
+        sampledPoints.push(0);
+      } else {
+        sampledPoints.push(slope * (sx - p1[0]) + p1[1]);
       }
-    } else {
-      sampledPoints.push(0);
     }
   }
   return sampledPoints;
