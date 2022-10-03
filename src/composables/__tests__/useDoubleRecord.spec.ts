@@ -49,5 +49,9 @@ describe('useDoubleRecord', () => {
     dr.deleteFirstKey('a');
 
     expect(hasAB.value).to.be.false;
+
+    expect(() => {
+      dr.delete('nonexistent', 'nonexistent');
+    }).to.not.throw;
   });
 });

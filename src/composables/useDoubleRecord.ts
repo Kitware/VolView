@@ -51,7 +51,9 @@ export function useDoubleRecord<V>() {
   };
 
   const _delete = (k1: string, k2: string) => {
-    del(reactiveRoot.map[k1], k2);
+    if (k1 in reactiveRoot.map) {
+      del(reactiveRoot.map[k1], k2);
+    }
   };
 
   const deleteFirstKey = (k1: string) => {
