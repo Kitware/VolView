@@ -86,3 +86,15 @@ export function pick<T, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
 export function plural(n: number, word: string, pluralWord?: string) {
   return n > 1 ? pluralWord ?? `${word}s` : word;
 }
+
+export const ensureDefault = <T>(
+  key: string,
+  records: Record<string, T>,
+  default_: T
+) => {
+  if (!(key in records)) {
+    records[key] = default_;
+  }
+
+  return records[key];
+};

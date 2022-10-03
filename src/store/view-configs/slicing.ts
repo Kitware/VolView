@@ -1,14 +1,12 @@
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
-import { LPSAxisDir } from '@/src/types/lps';
 import { clampValue } from '@/src/utils';
-import { removeDataFromConfig, removeViewFromConfig } from './common';
-
-interface SliceConfig {
-  slice: number;
-  min: number;
-  max: number;
-  axisDirection: LPSAxisDir;
-}
+import {
+  removeDataFromConfig,
+  removeViewFromConfig,
+  serializeViewConfig,
+} from './common';
+import { StateFile, ViewConfig } from '../../io/state-file/schema';
+import { SliceConfig } from './types';
 
 export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
@@ -55,9 +53,23 @@ export const setupSlicingConfig = () => {
     }
   };
 
+  const serialize = (stateFile: StateFile) => {
+    serializeViewConfig(stateFile, getSliceConfig, 'slice');
+  };
+
+  const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
+    Object.entries(config).forEach(([dataID, viewConfig]) => {
+      if (viewConfig.slice) {
+        sliceConfigs.set(viewID, dataID, viewConfig.slice);
+      }
+    });
+  };
+
   return {
     removeView: removeViewFromConfig(sliceConfigs),
     removeData: removeDataFromConfig(sliceConfigs),
+    serialize,
+    deserialize,
     actions: {
       getSliceConfig,
       updateSliceConfig,

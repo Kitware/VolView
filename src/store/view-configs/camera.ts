@@ -1,14 +1,11 @@
-import { Vector3 } from '@kitware/vtk.js/types';
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
-import { removeDataFromConfig, removeViewFromConfig } from './common';
-
-export interface CameraConfig {
-  parallelScale?: number;
-  position?: Vector3;
-  focalPoint?: Vector3;
-  directionOfProjection?: Vector3;
-  viewUp?: Vector3;
-}
+import {
+  removeDataFromConfig,
+  removeViewFromConfig,
+  serializeViewConfig,
+} from './common';
+import { StateFile, ViewConfig } from '../../io/state-file/schema';
+import { CameraConfig } from './types';
 
 export const setupCameraConfig = () => {
   // (viewID, dataID) -> CameraConfig
@@ -29,9 +26,23 @@ export const setupCameraConfig = () => {
     cameraConfigs.set(viewID, dataID, config);
   };
 
+  const serialize = (stateFile: StateFile) => {
+    serializeViewConfig(stateFile, getCameraConfig, 'camera');
+  };
+
+  const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
+    Object.entries(config).forEach(([dataID, viewConfig]) => {
+      if (viewConfig.camera) {
+        cameraConfigs.set(viewID, dataID, viewConfig.camera);
+      }
+    });
+  };
+
   return {
     removeView: removeViewFromConfig(cameraConfigs),
     removeData: removeDataFromConfig(cameraConfigs),
+    serialize,
+    deserialize,
     actions: {
       getCameraConfig,
       updateCameraConfig,

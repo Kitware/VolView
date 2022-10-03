@@ -1,12 +1,11 @@
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
-import { removeDataFromConfig, removeViewFromConfig } from './common';
-
-export interface WindowLevelConfig {
-  width: number;
-  level: number;
-  min: number; // data range min
-  max: number; // data range max
-}
+import {
+  removeDataFromConfig,
+  removeViewFromConfig,
+  serializeViewConfig,
+} from './common';
+import { StateFile, ViewConfig } from '../../io/state-file/schema';
+import { WindowLevelConfig } from './types';
 
 export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   width: 1,
@@ -44,9 +43,23 @@ export const setupWindowingConfig = () => {
     }
   };
 
+  const serialize = (stateFile: StateFile) => {
+    serializeViewConfig(stateFile, getWindowingConfig, 'window');
+  };
+
+  const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
+    Object.entries(config).forEach(([dataID, viewConfig]) => {
+      if (viewConfig.window) {
+        windowLevelConfigs.set(viewID, dataID, viewConfig.window);
+      }
+    });
+  };
+
   return {
     removeView: removeViewFromConfig(windowLevelConfigs),
     removeData: removeDataFromConfig(windowLevelConfigs),
+    serialize,
+    deserialize,
     actions: {
       getWindowingConfig,
       updateWindowingConfig,

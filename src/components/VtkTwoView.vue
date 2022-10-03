@@ -165,6 +165,7 @@ import {
   defineComponent,
   onBeforeMount,
   onBeforeUnmount,
+  onUnmounted,
   onMounted,
   PropType,
   ref,
@@ -203,7 +204,7 @@ import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
-import { CameraConfig } from '../store/view-configs/camera';
+import { CameraConfig } from '../store/view-configs/types';
 import { defaultSliceConfig } from '../store/view-configs/slicing';
 import { useWindowingSync } from '../composables/sync/useWindowingSync';
 
