@@ -389,16 +389,24 @@ export default defineComponent({
 
     // --- selection and updates --- //
 
+    const selectedPreset = computed(
+      () => colorTransferFunctionRef.value?.preset || null
+    );
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
     // the data range, if any
-    const fullMappingRange = computed((): [number, number] => {
+    const imageDataRange = computed((): [number, number] => {
       const image = currentImageData.value;
       if (image) {
         return image.getPointData().getScalars().getRange();
       }
       return [0, 1];
     });
+    const effectiveMappingRange = computed(
+      () =>
+        getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
+        imageDataRange.value
+    );
 
     const selectPreset = (name: string) => {
       if (!currentImageID.value) return;
@@ -406,7 +414,7 @@ export default defineComponent({
       const ctRange = getColorFunctionRangeFromPreset(name);
       const ctFunc: Partial<ColorTransferFunction> = {
         preset: name,
-        mappingRange: ctRange || fullMappingRange.value,
+        mappingRange: ctRange || imageDataRange.value,
       };
       viewConfigStore.updateVolumeColorTransferFunction(
         TARGET_VIEW_ID,
@@ -416,7 +424,7 @@ export default defineComponent({
 
       const opFunc = getOpacityFunctionFromPreset(name);
       const opRange = getOpacityRangeFromPreset(name);
-      opFunc.mappingRange = opRange || fullMappingRange.value;
+      opFunc.mappingRange = opRange || imageDataRange.value;
       viewConfigStore.updateVolumeOpacityFunction(
         TARGET_VIEW_ID,
         currentImageID.value,
@@ -454,13 +462,13 @@ export default defineComponent({
       pwfEditorRef,
       thumbnails: currentThumbnails,
       hasCurrentImage,
-      preset: computed(() => colorTransferFunctionRef.value!.preset),
+      preset: selectedPreset,
+      fullMappingRange: effectiveMappingRange,
       mappingRange: computed(
         () => colorTransferFunctionRef.value!.mappingRange
       ),
-      fullMappingRange,
       colorSliderStep: computed(() => {
-        const [low, high] = fullMappingRange.value;
+        const [low, high] = imageDataRange.value;
         const width = high - low;
         const step = Math.min(1, width / 256);
         return step > 1 ? Math.round(step) : step;
@@ -488,6 +496,7 @@ export default defineComponent({
       :step="colorSliderStep"
       :rgb-points="rgbPoints"
       :value="mappingRange"
+      @input="updateColorMappingRange"
     />
     <item-group class="container" :value="preset" @change="selectPreset">
       <v-row no-gutters justify="center">
