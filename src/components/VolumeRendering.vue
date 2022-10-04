@@ -57,14 +57,11 @@ function resetOpacityFunction(
   if (preset.OpacityPoints) {
     const OpacityPoints = preset.OpacityPoints as number[];
     const points = [];
-    let xmin = Infinity;
-    let xmax = -Infinity;
     for (let i = 0; i < OpacityPoints.length; i += 2) {
-      xmin = Math.min(xmin, OpacityPoints[i]);
-      xmax = Math.max(xmax, OpacityPoints[i]);
       points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
     }
 
+    const [xmin, xmax] = dataRange;
     const width = xmax - xmin;
     const pointsNormalized = points.map(([x, y]) => [(x - xmin) / width, y]);
 
@@ -100,7 +97,7 @@ function useThumbnailing() {
     interruptSentinel = localSentinel;
 
     thumbnailer.setInputImage(image);
-    const dataRange = image.getPointData().getScalars().getRange();
+    const imageDataRange = image.getPointData().getScalars().getRange();
 
     async function helper(presetName: string) {
       // bail if a new thumbnail process has started
@@ -121,13 +118,21 @@ function useThumbnailing() {
         return;
       }
 
-      resetOpacityFunction(thumbnailer.opacityFuncProxy, dataRange, presetName);
+      const opRange = getOpacityRangeFromPreset(presetName);
+      resetOpacityFunction(
+        thumbnailer.opacityFuncProxy,
+        opRange || imageDataRange,
+        presetName
+      );
 
-      thumbnailer.colorTransferFuncProxy.setDataRange(...dataRange);
       thumbnailer.colorTransferFuncProxy.setMode(
         vtkLookupTableProxy.Mode.Preset
       );
       thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
+      const ctRange = getColorFunctionRangeFromPreset(presetName);
+      thumbnailer.colorTransferFuncProxy.setDataRange(
+        ...(ctRange || imageDataRange)
+      );
 
       thumbnailer.resetCameraWithOrientation(
         cameraDirVec.value as Vector3,
