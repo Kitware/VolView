@@ -76,6 +76,120 @@ function resetOpacityFunction(
   }
 }
 
+function useThumbnailing() {
+  const thumbnails = reactive<Record<string, Record<string, string>>>({});
+  const thumbnailer = createVolumeThumbnailer(THUMBNAIL_SIZE);
+  const currentThumbnails = ref<Record<string, string>>({});
+
+  const { currentImageMetadata, currentImageID, currentImageData } =
+    useCurrentImage();
+
+  // same as 3D view
+  const { cameraDirVec, cameraUpVec } = useCameraOrientation(
+    InitViewSpecs[InitViewIDs.Three].props.viewDirection,
+    InitViewSpecs[InitViewIDs.Three].props.viewUp,
+    currentImageMetadata
+  );
+
+  // used to interrupt a thumbnailing cycle if
+  // doThumbnailing is called again
+  let interruptSentinel = Symbol('interrupt');
+
+  async function doThumbnailing(imageID: string, image: vtkImageData) {
+    const localSentinel = Symbol('interrupt');
+    interruptSentinel = localSentinel;
+
+    thumbnailer.setInputImage(image);
+    const dataRange = image.getPointData().getScalars().getRange();
+
+    async function helper(presetName: string) {
+      // bail if a new thumbnail process has started
+      if (interruptSentinel !== localSentinel) {
+        return;
+      }
+
+      // sanity check; did the current image change
+      if (imageID !== currentImageID.value) {
+        return;
+      }
+
+      if (!(imageID in thumbnails)) {
+        set(thumbnails, imageID, {});
+      }
+
+      if (presetName in thumbnails[imageID]) {
+        return;
+      }
+
+      resetOpacityFunction(thumbnailer.opacityFuncProxy, dataRange, presetName);
+
+      thumbnailer.colorTransferFuncProxy.setDataRange(...dataRange);
+      thumbnailer.colorTransferFuncProxy.setMode(
+        vtkLookupTableProxy.Mode.Preset
+      );
+      thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
+
+      thumbnailer.resetCameraWithOrientation(
+        cameraDirVec.value as Vector3,
+        cameraUpVec.value as Vector3
+      );
+
+      const renWin = thumbnailer.scene.getRenderWindow();
+      renWin.render();
+      const imageURL = await renWin.captureImages()[0];
+      if (imageURL) {
+        set(thumbnails[imageID], presetName, imageURL);
+      }
+    }
+
+    PresetNameList.reduce(
+      (promise, presetName) => promise.then(() => helper(presetName)),
+      Promise.resolve()
+    );
+  }
+
+  // workaround for computed not properly working on deeply reactive objects
+  // in vue 2.
+  watch(
+    thumbnails,
+    () => {
+      if (currentImageID.value) {
+        currentThumbnails.value = thumbnails[currentImageID.value];
+      }
+    },
+    { deep: true }
+  );
+
+  // force thumbnailing to stop
+  onBeforeUnmount(() => {
+    interruptSentinel = Symbol('unmount');
+  });
+
+  // trigger thumbnailing
+  watch(
+    currentImageID,
+    (imageID) => {
+      if (imageID) {
+        doThumbnailing(imageID, currentImageData.value!);
+      }
+    },
+    { immediate: true }
+  );
+
+  // delete thumbnails if an image is deleted
+  const imageStore = useImageStore();
+  imageStore.$onAction(({ name, args, after }) => {
+    if (name === 'deleteData') {
+      const [id] = args as [string];
+      if (id in thumbnails) {
+        after(() => del(thumbnails, id));
+      }
+    }
+  });
+
+  return { currentThumbnails };
+}
+
 export default defineComponent({
   name: 'VolumeRendering',
   components: {
@@ -85,7 +199,6 @@ export default defineComponent({
   },
   setup() {
     const viewConfigStore = useViewConfigStore();
-    const imageStore = useImageStore();
     const proxyManager = useProxyManager();
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
@@ -275,117 +388,7 @@ export default defineComponent({
 
     // -- thumbnailing -- //
 
-    const thumbnails = reactive<Record<string, Record<string, string>>>({});
-    const thumbnailer = createVolumeThumbnailer(THUMBNAIL_SIZE);
-    const { currentImageMetadata } = useCurrentImage();
-
-    // same as 3D view
-    const { cameraDirVec, cameraUpVec } = useCameraOrientation(
-      InitViewSpecs[InitViewIDs.Three].props.viewDirection,
-      InitViewSpecs[InitViewIDs.Three].props.viewUp,
-      currentImageMetadata
-    );
-
-    // used to interrupt a thumbnailing cycle if
-    // doThumbnailing is called again
-    let interruptSentinel = Symbol('interrupt');
-
-    async function doThumbnailing(imageID: string, image: vtkImageData) {
-      const localSentinel = Symbol('interrupt');
-      interruptSentinel = localSentinel;
-
-      thumbnailer.setInputImage(image);
-      const dataRange = image.getPointData().getScalars().getRange();
-
-      async function helper(presetName: string) {
-        // bail if a new thumbnail process has started
-        if (interruptSentinel !== localSentinel) {
-          return;
-        }
-
-        // sanity check; did the current image change
-        if (imageID !== currentImageID.value) {
-          return;
-        }
-
-        if (!(imageID in thumbnails)) {
-          set(thumbnails, imageID, {});
-        }
-
-        if (presetName in thumbnails[imageID]) {
-          return;
-        }
-
-        resetOpacityFunction(
-          thumbnailer.opacityFuncProxy,
-          dataRange,
-          presetName
-        );
-
-        thumbnailer.colorTransferFuncProxy.setDataRange(...dataRange);
-        thumbnailer.colorTransferFuncProxy.setMode(
-          vtkLookupTableProxy.Mode.Preset
-        );
-        thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
-
-        thumbnailer.resetCameraWithOrientation(
-          cameraDirVec.value as Vector3,
-          cameraUpVec.value as Vector3
-        );
-
-        const renWin = thumbnailer.scene.getRenderWindow();
-        renWin.render();
-        const imageURL = await renWin.captureImages()[0];
-        if (imageURL) {
-          set(thumbnails[imageID], presetName, imageURL);
-        }
-      }
-
-      PresetNameList.reduce(
-        (promise, presetName) => promise.then(() => helper(presetName)),
-        Promise.resolve()
-      );
-    }
-
-    const currentThumbnails = ref<Record<string, string>>({});
-
-    // workaround for computed not properly working on deeply reactive objects
-    // in vue 2.
-    watch(
-      thumbnails,
-      () => {
-        if (currentImageID.value) {
-          currentThumbnails.value = thumbnails[currentImageID.value];
-        }
-      },
-      { deep: true }
-    );
-
-    // force thumbnailing to stop
-    onBeforeUnmount(() => {
-      interruptSentinel = Symbol('unmount');
-    });
-
-    // trigger thumbnailing
-    watch(
-      currentImageID,
-      (imageID) => {
-        if (imageID) {
-          doThumbnailing(imageID, currentImageData.value!);
-        }
-      },
-      { immediate: true }
-    );
-
-    // delete thumbnails if an image is deleted
-    imageStore.$onAction(({ name, args, after }) => {
-      if (name === 'deleteData') {
-        const [id] = args as [string];
-        if (id in thumbnails) {
-          after(() => del(thumbnails, id));
-        }
-      }
-    });
+    const { currentThumbnails } = useThumbnailing();
 
     // --- selection and updates --- //
 
