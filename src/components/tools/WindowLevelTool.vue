@@ -51,7 +51,7 @@ const WindowLevelTool = defineComponent({
     );
 
     const wwRange = computed(() => ({
-      min: 0,
+      min: 1e-12, // ensure we don't hit zero and jump to white
       max:
         wlConfig.value !== null
           ? wlConfig.value.max - wlConfig.value.min
@@ -187,21 +187,4 @@ export default {
     return active.value ? h(WindowLevelTool, { props: ctx.props }) : [];
   },
 };
-
-// export default defineComponent({
-//     name: 'WindowLevelToolContainer',
-//   props: PROPS,
-//   setup(props) {
-//     const toolStore = useToolStore();
-//     const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
-//     return () =>
-//       active.value
-//         ? h(WindowLevelTool, {
-//             // TODO vue 3 does away with VNodeData, so
-//             // remove the props key
-//             props,
-//           })
-//         : null;
-//   },
-// });
 </script>
