@@ -8,6 +8,8 @@ import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunct
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import { vec3 } from 'gl-matrix';
 import { Vector3 } from '@kitware/vtk.js/types';
+import vtkVolumeProperty from '@kitware/vtk.js/Rendering/Core/VolumeProperty';
+import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 
 export function createRenderingPipeline() {
   const actor = vtkVolume.newInstance();
@@ -17,14 +19,6 @@ export function createRenderingPipeline() {
   const ofun = vtkPiecewiseFunction.newInstance();
   property.setRGBTransferFunction(0, cfun);
   property.setScalarOpacity(0, ofun);
-  property.setUseGradientOpacity(0, true);
-  property.setScalarOpacityUnitDistance(0, 3);
-  property.setInterpolationTypeToLinear();
-  property.setGradientOpacityMinimumValue(0, 2);
-  property.setGradientOpacityMaximumValue(0, 20);
-  property.setGradientOpacityMinimumOpacity(0, 0);
-  property.setGradientOpacityMaximumOpacity(0, 1);
-  mapper.setSampleDistance(1);
   actor.setMapper(mapper);
   return {
     actor,
@@ -33,6 +27,42 @@ export function createRenderingPipeline() {
     cfun,
     ofun,
   };
+}
+
+function updateRenderingProperty(
+  prop: vtkVolumeProperty,
+  mapper: vtkVolumeMapper,
+  image: vtkImageData
+) {
+  const scalars = image.getPointData().getScalars();
+  const dataRange = scalars.getRange();
+
+  const sampleDistance =
+    0.7 *
+    Math.sqrt(
+      image
+        .getSpacing()
+        .map((v) => v * v)
+        .reduce((a, b) => a + b, 0)
+    );
+  mapper.setSampleDistance(sampleDistance * 2 ** (0.4 * 3.0 - 1.5));
+
+  prop.setScalarOpacityUnitDistance(
+    0,
+    getDiagonalLength(image.getBounds()) / Math.max(...image.getDimensions())
+  );
+  prop.setGradientOpacityMinimumValue(0, 0);
+  prop.setGradientOpacityMaximumValue(0, (dataRange[1] - dataRange[0]) * 0.05);
+  // - Use shading based on gradient
+  prop.setShade(true);
+  prop.setUseGradientOpacity(0, true);
+  // - generic good default
+  prop.setGradientOpacityMinimumOpacity(0, 0.0);
+  prop.setGradientOpacityMaximumOpacity(0, 1.0);
+  prop.setAmbient(0.2);
+  prop.setDiffuse(0.7);
+  prop.setSpecular(0.3);
+  prop.setSpecularPower(8.0);
 }
 
 export function createVolumeThumbnailer(size: number) {
@@ -66,6 +96,7 @@ export function createVolumeThumbnailer(size: number) {
     setInputImage(image: vtkImageData | null) {
       if (image) {
         mapper.setInputData(image);
+        updateRenderingProperty(actor.getProperty(), mapper, image);
         if (!renderer.hasViewProp(actor)) {
           renderer.addVolume(actor);
         }
@@ -76,8 +107,7 @@ export function createVolumeThumbnailer(size: number) {
     resetCameraWithOrientation(direction: Vector3, up: Vector3) {
       const image = mapper.getInputData() as vtkImageData | null;
       if (image) {
-        const ren = scene.getRenderer();
-        const camera = ren.getActiveCamera();
+        const camera = renderer.getActiveCamera();
         const bounds = image.getBounds();
         const center = [
           (bounds[0] + bounds[1]) / 2,
@@ -91,7 +121,9 @@ export function createVolumeThumbnailer(size: number) {
         camera.setPosition(...position);
         camera.setDirectionOfProjection(...direction);
         camera.setViewUp(...up);
-        ren.resetCamera();
+        renderer.resetCamera();
+        // ensure correct lighting post camera manip
+        renderer.updateLightsGeometryToFollowCamera();
       }
     },
   };

@@ -419,16 +419,17 @@ export default defineComponent({
         const rep = baseImageRep.value;
 
         const { arrayName, location } = colorBy.value;
-        const { mappingRange, preset } = colorTransferFunction.value;
+        const ctFunc = colorTransferFunction.value;
+        const opFunc = opacityFunction.value;
 
         const lut = proxyManager.getLookupTable(arrayName);
         lut.setMode(vtkLookupTableProxy.Mode.Preset);
-        lut.setPresetName(preset);
-        lut.setDataRange(...mappingRange);
+        lut.setPresetName(ctFunc.preset);
+        lut.setDataRange(...ctFunc.mappingRange);
 
         const pwf = proxyManager.getPiecewiseFunction(arrayName);
-        const opFunc = opacityFunction.value;
         pwf.setMode(opFunc.mode);
+        pwf.setDataRange(...opFunc.mappingRange);
 
         switch (opFunc.mode) {
           case vtkPiecewiseFunctionProxy.Mode.Gaussians:
@@ -437,6 +438,7 @@ export default defineComponent({
           case vtkPiecewiseFunctionProxy.Mode.Points: {
             const opacityPoints = getShiftedOpacityFromPreset(
               opFunc.preset,
+              opFunc.mappingRange,
               opFunc.shift
             );
             if (opacityPoints) {

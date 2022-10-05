@@ -2,76 +2,38 @@
 import {
   computed,
   defineComponent,
-  del,
   onBeforeUnmount,
-  reactive,
   ref,
-  set,
   watch,
   watchEffect,
 } from '@vue/composition-api';
-import { computedWithControl } from '@vueuse/shared';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { Vector3 } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { manageVTKSubscription } from '../composables/manageVTKSubscription';
-import { useProxyManager } from '../composables/proxyManager';
-import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCurrentImage } from '../composables/useCurrentImage';
-import { useCameraOrientation } from '../composables/useCameraOrientation';
-import { useImageStore } from '../store/datasets-images';
 import ColorFunctionSlider from './ColorFunctionSlider.vue';
 import { useVTKCallback } from '../composables/useVTKCallback';
-import { InitViewIDs, InitViewSpecs } from '../config';
 import { useViewConfigStore } from '../store/view-configs';
 import {
+  getColorFunctionRangeFromPreset,
   getOpacityFunctionFromPreset,
+  getOpacityRangeFromPreset,
   getShiftedOpacityFromPreset,
 } from '../utils/vtk-helpers';
+import { ColorTransferFunction } from '../types/views';
+import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
 const THUMBNAIL_SIZE = 80;
 const TARGET_VIEW_ID = '3D';
-
-function resetOpacityFunction(
-  pwfProxy: vtkPiecewiseFunctionProxy,
-  dataRange: [number, number],
-  presetName: string
-) {
-  // reset pwf proxy range
-  pwfProxy.setDataRange(...dataRange);
-
-  const preset = vtkColorMaps.getPresetByName(presetName);
-  if (preset.OpacityPoints) {
-    const OpacityPoints = preset.OpacityPoints as number[];
-    const points = [];
-    let xmin = Infinity;
-    let xmax = -Infinity;
-    for (let i = 0; i < OpacityPoints.length; i += 2) {
-      xmin = Math.min(xmin, OpacityPoints[i]);
-      xmax = Math.max(xmax, OpacityPoints[i]);
-      points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
-    }
-
-    const width = xmax - xmin;
-    const pointsNormalized = points.map(([x, y]) => [(x - xmin) / width, y]);
-
-    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
-    pwfProxy.setPoints(pointsNormalized);
-  } else {
-    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Gaussians);
-    pwfProxy.setGaussians(vtkPiecewiseFunctionProxy.Defaults.Gaussians);
-  }
-}
 
 export default defineComponent({
   name: 'VolumeRendering',
@@ -82,8 +44,6 @@ export default defineComponent({
   },
   setup() {
     const viewConfigStore = useViewConfigStore();
-    const imageStore = useImageStore();
-    const proxyManager = useProxyManager();
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
 
@@ -107,25 +67,9 @@ export default defineComponent({
     const colorTransferFunctionRef = computed(
       () => volumeColorConfig.value?.transferFunction
     );
-    const colorByRef = computed(() => volumeColorConfig.value?.colorBy);
     const opacityFunction = computed(
       () => volumeColorConfig.value?.opacityFunction
     );
-
-    // --- piecewise function and color transfer function --- //
-
-    const getColorByArray = () => colorByRef.value?.arrayName ?? null;
-
-    const pwfProxyRef = computedWithControl(getColorByArray, () => {
-      const arrayName = getColorByArray();
-      if (arrayName) {
-        return proxyManager?.getPiecewiseFunction(arrayName);
-      }
-      return null;
-    });
-    const lutProxyRef = computed(() => {
-      return pwfProxyRef.value?.getLookupTableProxy();
-    });
 
     // --- piecewise color function editor --- //
 
@@ -150,6 +94,9 @@ export default defineComponent({
       iconSize: 0,
       padding: 10,
     });
+
+    const colorTransferFunc = vtkColorTransferFunction.newInstance();
+    pwfWidget.setColorTransferFunction(colorTransferFunc);
 
     const pwfSubscriptions: vtkSubscription[] = [];
 
@@ -229,23 +176,21 @@ export default defineComponent({
     // update pwf widget when lut changes
     watch(
       colorTransferFunctionRef,
-      () => {
-        const lutProxy = lutProxyRef.value;
-        if (lutProxy) {
-          const lut = lutProxy.getLookupTable();
-          pwfWidget.setColorTransferFunction(lut);
+      (func) => {
+        if (func) {
+          const { preset: name, mappingRange } = func;
+          const preset = vtkColorMaps.getPresetByName(name);
+          colorTransferFunc.applyColorMap(preset);
+          colorTransferFunc.setMappingRange(...mappingRange);
+          // force modification when mapping range is the same
+          colorTransferFunc.modified();
         }
       },
       { immediate: true }
     );
 
-    const onLUTModified = useVTKCallback(
-      computed(() => lutProxyRef.value?.getLookupTable().onModified)
-    );
-
-    onLUTModified(() => {
-      pwfWidget.render();
-    });
+    const onTFModified = useVTKCallback(colorTransferFunc.onModified);
+    onTFModified(() => pwfWidget.render());
 
     // update pwf widget when opacity function changes
     watch(
@@ -259,7 +204,11 @@ export default defineComponent({
         } else if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Points) {
           pwfWidget.setPointsMode();
           // get non-shifted points for the widget
-          const points = getShiftedOpacityFromPreset(opFunc.preset, 0);
+          const points = getShiftedOpacityFromPreset(
+            opFunc.preset,
+            opFunc.mappingRange,
+            0
+          );
           pwfWidget.setOpacityPoints(points, opFunc.shift);
         }
       },
@@ -268,131 +217,46 @@ export default defineComponent({
 
     // -- thumbnailing -- //
 
-    const thumbnails = reactive<Record<string, Record<string, string>>>({});
-    const thumbnailer = createVolumeThumbnailer(THUMBNAIL_SIZE);
-    const { currentImageMetadata } = useCurrentImage();
+    const { currentThumbnails } = useVolumeThumbnailing(THUMBNAIL_SIZE);
 
-    // same as 3D view
-    const { cameraDirVec, cameraUpVec } = useCameraOrientation(
-      InitViewSpecs[InitViewIDs.Three].props.viewDirection,
-      InitViewSpecs[InitViewIDs.Three].props.viewUp,
-      currentImageMetadata
+    // --- selection and updates --- //
+
+    const selectedPreset = computed(
+      () => colorTransferFunctionRef.value?.preset || null
     );
-
-    // used to interrupt a thumbnailing cycle if
-    // doThumbnailing is called again
-    let interruptSentinel = Symbol('interrupt');
-
-    async function doThumbnailing(imageID: string, image: vtkImageData) {
-      const localSentinel = Symbol('interrupt');
-      interruptSentinel = localSentinel;
-
-      thumbnailer.setInputImage(image);
-      const dataRange = image.getPointData().getScalars().getRange();
-
-      async function helper(presetName: string) {
-        // bail if a new thumbnail process has started
-        if (interruptSentinel !== localSentinel) {
-          return;
-        }
-
-        // sanity check; did the current image change
-        if (imageID !== currentImageID.value) {
-          return;
-        }
-
-        if (!(imageID in thumbnails)) {
-          set(thumbnails, imageID, {});
-        }
-
-        if (presetName in thumbnails[imageID]) {
-          return;
-        }
-
-        resetOpacityFunction(
-          thumbnailer.opacityFuncProxy,
-          dataRange,
-          presetName
-        );
-
-        thumbnailer.colorTransferFuncProxy.setDataRange(...dataRange);
-        thumbnailer.colorTransferFuncProxy.setMode(
-          vtkLookupTableProxy.Mode.Preset
-        );
-        thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
-
-        thumbnailer.resetCameraWithOrientation(
-          cameraDirVec.value as Vector3,
-          cameraUpVec.value as Vector3
-        );
-
-        const renWin = thumbnailer.scene.getRenderWindow();
-        renWin.render();
-        const imageURL = await renWin.captureImages()[0];
-        if (imageURL) {
-          set(thumbnails[imageID], presetName, imageURL);
-        }
-      }
-
-      PresetNameList.reduce(
-        (promise, presetName) => promise.then(() => helper(presetName)),
-        Promise.resolve()
-      );
-    }
-
-    const currentThumbnails = ref<Record<string, string>>({});
-
-    // workaround for computed not properly working on deeply reactive objects
-    // in vue 2.
-    watch(
-      thumbnails,
-      () => {
-        if (currentImageID.value) {
-          currentThumbnails.value = thumbnails[currentImageID.value];
-        }
-      },
-      { deep: true }
-    );
-
-    // force thumbnailing to stop
-    onBeforeUnmount(() => {
-      interruptSentinel = Symbol('unmount');
-    });
-
-    // trigger thumbnailing
-    watch(
-      currentImageID,
-      (imageID) => {
-        if (imageID) {
-          doThumbnailing(imageID, currentImageData.value!);
-        }
-      },
-      { immediate: true }
-    );
-
-    // delete thumbnails if an image is deleted
-    imageStore.$onAction(({ name, args, after }) => {
-      if (name === 'deleteData') {
-        const [id] = args as [string];
-        if (id in thumbnails) {
-          after(() => del(thumbnails, id));
-        }
-      }
-    });
-
-    // --- rendering --- //
-
     const hasCurrentImage = computed(() => !!currentImageData.value);
+
+    // the data range, if any
+    const imageDataRange = computed((): [number, number] => {
+      const image = currentImageData.value;
+      if (image) {
+        return image.getPointData().getScalars().getRange();
+      }
+      return [0, 1];
+    });
+    const effectiveMappingRange = computed(
+      () =>
+        getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
+        imageDataRange.value
+    );
 
     const selectPreset = (name: string) => {
       if (!currentImageID.value) return;
 
-      const opFunc = getOpacityFunctionFromPreset(name);
+      const ctRange = getColorFunctionRangeFromPreset(name);
+      const ctFunc: Partial<ColorTransferFunction> = {
+        preset: name,
+        mappingRange: ctRange || imageDataRange.value,
+      };
       viewConfigStore.updateVolumeColorTransferFunction(
         TARGET_VIEW_ID,
         currentImageID.value,
-        { preset: name }
+        ctFunc
       );
+
+      const opFunc = getOpacityFunctionFromPreset(name);
+      const opRange = getOpacityRangeFromPreset(name);
+      opFunc.mappingRange = opRange || imageDataRange.value;
       viewConfigStore.updateVolumeOpacityFunction(
         TARGET_VIEW_ID,
         currentImageID.value,
@@ -425,26 +289,18 @@ export default defineComponent({
       }
     };
 
-    const fullMappingRange = computed(() => {
-      const image = currentImageData.value;
-      if (image) {
-        return image.getPointData().getScalars().getRange();
-      }
-      return [0, 1];
-    });
-
     return {
       editorContainerRef,
       pwfEditorRef,
       thumbnails: currentThumbnails,
       hasCurrentImage,
-      preset: computed(() => colorTransferFunctionRef.value!.preset),
+      preset: selectedPreset,
+      fullMappingRange: effectiveMappingRange,
       mappingRange: computed(
         () => colorTransferFunctionRef.value!.mappingRange
       ),
-      fullMappingRange,
       colorSliderStep: computed(() => {
-        const [low, high] = fullMappingRange.value;
+        const [low, high] = imageDataRange.value;
         const width = high - low;
         const step = Math.min(1, width / 256);
         return step > 1 ? Math.round(step) : step;

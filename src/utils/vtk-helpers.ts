@@ -114,19 +114,20 @@ export function getCSSCoordinatesFromEvent(eventData: any) {
 /**
  * Shifts the opacity points from a preset.
  */
-export function getShiftedOpacityFromPreset(presetName: string, shift: number) {
+export function getShiftedOpacityFromPreset(
+  presetName: string,
+  effectiveRange: [number, number],
+  shift: number
+) {
   const preset = vtkColorMaps.getPresetByName(presetName);
   if (preset.OpacityPoints) {
     const OpacityPoints = preset.OpacityPoints as number[];
     const points = [];
-    let xmin = Infinity;
-    let xmax = -Infinity;
     for (let i = 0; i < OpacityPoints.length; i += 2) {
-      xmin = Math.min(xmin, OpacityPoints[i]);
-      xmax = Math.max(xmax, OpacityPoints[i]);
       points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
     }
 
+    const [xmin, xmax] = effectiveRange;
     const width = xmax - xmin;
     return points.map(([x, y]) => [(x - xmin) / width + shift, y]);
   }
@@ -140,12 +141,12 @@ export function getOpacityFunctionFromPreset(
   presetName: string
 ): Partial<OpacityFunction> {
   const preset = vtkColorMaps.getPresetByName(presetName);
+
   if (preset.OpacityPoints) {
     return {
       mode: vtkPiecewiseFunctionProxy.Mode.Points,
       preset: presetName,
       shift: 0,
-      mappingRange: [0, 1],
     };
   }
   return {
@@ -166,4 +167,47 @@ export function getOpacityFunctionFromPreset(
  */
 export function inflateAxisBounds(bounds: number[], delta: number) {
   return [bounds[0] + delta, bounds[1] + delta];
+}
+
+/**
+ * Retrieves the color function range, if any.
+ *
+ * Will only return the color function range if the preset
+ * has AbsoluteRange specified as true. For medical presets,
+ * the range is defined by the transfer function point range,
+ * rather than the dataset data range.
+ * @param presetName
+ * @returns
+ */
+export function getColorFunctionRangeFromPreset(
+  presetName: string
+): [number, number] | null {
+  const preset = vtkColorMaps.getPresetByName(presetName);
+  const { AbsoluteRange, RGBPoints } = preset;
+  if (AbsoluteRange && RGBPoints) {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < RGBPoints.length; i += 4) {
+      min = Math.min(min, RGBPoints[i]);
+      max = Math.max(max, RGBPoints[i]);
+    }
+    return [min, max];
+  }
+  return null;
+}
+
+/**
+ * Retrieves the effective opacity mapping range, if any.
+ *
+ * Presets may specify an effective range for the scalar opacity
+ * mapping range.
+ * @param presetName
+ * @returns
+ */
+export function getOpacityRangeFromPreset(presetName: string) {
+  const preset = vtkColorMaps.getPresetByName(presetName);
+  if (preset.EffectiveRange) {
+    return [...preset.EffectiveRange] as [number, number];
+  }
+  return null;
 }
