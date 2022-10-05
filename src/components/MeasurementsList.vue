@@ -24,9 +24,29 @@
           </v-list-item-subtitle>
         </v-list-item-content>
         <v-list-item-action>
-          <v-btn icon @click="remove(mm.type, mm.id)">
-            <v-icon>mdi-delete</v-icon>
-          </v-btn>
+          <v-row no-gutters>
+            <v-tooltip top>
+              Reveal slice
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  class="mr-2"
+                  icon
+                  @click="jumpTo(mm.type, mm.id)"
+                  v-on="on"
+                >
+                  <v-icon>mdi-target</v-icon>
+                </v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip top>
+              Delete
+              <template v-slot:activator="{ on }">
+                <v-btn icon @click="remove(mm.type, mm.id)" v-on="on">
+                  <v-icon>mdi-delete</v-icon>
+                </v-btn>
+              </template>
+            </v-tooltip>
+          </v-row>
         </v-list-item-action>
       </template>
     </v-list-item>
@@ -51,11 +71,13 @@
 
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
+import { useCurrentImage } from '../composables/useCurrentImage';
 import { useRulerStore } from '../store/tools/rulers';
 
 interface Measurement {
   id: string;
   type: 'ruler';
+  imageID: string | null;
   data: any;
 }
 
@@ -63,27 +85,35 @@ export default defineComponent({
   name: 'MeasurementsList',
   setup() {
     const rulerStore = useRulerStore();
+    const { currentImageID } = useCurrentImage();
 
     const measurements = computed(() => {
-      const mms = [
-        ...rulerStore.rulerIDs.map((id) => {
+      const imageID = currentImageID.value;
+      return rulerStore.rulerIDs
+        .map((id) => {
           const ruler = rulerStore.rulers[id];
           return {
             id,
             type: 'ruler',
+            imageID: ruler.imageID,
             data: {
               length: rulerStore.lengthByID[id],
               color: ruler.color,
             },
           } as Measurement;
-        }),
-      ];
-      return mms;
+        })
+        .filter((mm) => mm.imageID === imageID);
     });
 
     function remove(type: Measurement['type'], id: string) {
       if (type === 'ruler') {
         rulerStore.removeRuler(id);
+      }
+    }
+
+    function jumpTo(type: Measurement['type'], id: string) {
+      if (type === 'ruler') {
+        rulerStore.jumpToRuler(id);
       }
     }
 
@@ -96,6 +126,7 @@ export default defineComponent({
     return {
       measurements,
       remove,
+      jumpTo,
       updateColor,
     };
   },

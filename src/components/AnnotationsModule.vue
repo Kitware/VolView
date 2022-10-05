@@ -13,14 +13,14 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container>
+  <div class="overflow-y-auto mx-2 fill-height">
     <v-list dense>
       <v-subheader class="annot-subheader">Measurements</v-subheader>
       <measurements-list />
       <v-subheader class="annot-subheader">Labelmaps</v-subheader>
       <labelmap-list />
     </v-list>
-  </v-container>
+  </div>
 </template>
 
 <style scoped>
