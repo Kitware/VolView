@@ -10,20 +10,19 @@ import {
   watch,
   watchEffect,
 } from '@vue/composition-api';
-import { computedWithControl } from '@vueuse/shared';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { manageVTKSubscription } from '../composables/manageVTKSubscription';
-import { useProxyManager } from '../composables/proxyManager';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
@@ -204,7 +203,6 @@ export default defineComponent({
   },
   setup() {
     const viewConfigStore = useViewConfigStore();
-    const proxyManager = useProxyManager();
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
 
@@ -228,25 +226,9 @@ export default defineComponent({
     const colorTransferFunctionRef = computed(
       () => volumeColorConfig.value?.transferFunction
     );
-    const colorByRef = computed(() => volumeColorConfig.value?.colorBy);
     const opacityFunction = computed(
       () => volumeColorConfig.value?.opacityFunction
     );
-
-    // --- piecewise function and color transfer function --- //
-
-    const getColorByArray = () => colorByRef.value?.arrayName ?? null;
-
-    const pwfProxyRef = computedWithControl(getColorByArray, () => {
-      const arrayName = getColorByArray();
-      if (arrayName) {
-        return proxyManager?.getPiecewiseFunction(arrayName);
-      }
-      return null;
-    });
-    const lutProxyRef = computed(() => {
-      return pwfProxyRef.value?.getLookupTableProxy();
-    });
 
     // --- piecewise color function editor --- //
 
@@ -271,6 +253,9 @@ export default defineComponent({
       iconSize: 0,
       padding: 10,
     });
+
+    const colorTransferFunc = vtkColorTransferFunction.newInstance();
+    pwfWidget.setColorTransferFunction(colorTransferFunc);
 
     const pwfSubscriptions: vtkSubscription[] = [];
 
@@ -350,23 +335,21 @@ export default defineComponent({
     // update pwf widget when lut changes
     watch(
       colorTransferFunctionRef,
-      () => {
-        const lutProxy = lutProxyRef.value;
-        if (lutProxy) {
-          const lut = lutProxy.getLookupTable();
-          pwfWidget.setColorTransferFunction(lut);
+      (func) => {
+        if (func) {
+          const { preset: name, mappingRange } = func;
+          const preset = vtkColorMaps.getPresetByName(name);
+          colorTransferFunc.applyColorMap(preset);
+          colorTransferFunc.setMappingRange(...mappingRange);
+          // force modification when mapping range is the same
+          colorTransferFunc.modified();
         }
       },
       { immediate: true }
     );
 
-    const onLUTModified = useVTKCallback(
-      computed(() => lutProxyRef.value?.getLookupTable().onModified)
-    );
-
-    onLUTModified(() => {
-      pwfWidget.render();
-    });
+    const onTFModified = useVTKCallback(colorTransferFunc.onModified);
+    onTFModified(() => pwfWidget.render());
 
     // update pwf widget when opacity function changes
     watch(

@@ -354,7 +354,7 @@ declare module '@kitware/vtk.js/Proxy/Core/LookupTableProxy' {
 
   export interface vtkLookupTableProxy extends vtkProxyObject {
     setPresetName(name: string): void;
-    getPresetName(name): string;
+    getPresetName(): string;
     setRGBPoints(points: RGBHSVPoint[]): void;
     getRGBPoints(): RGBHSVPoint[];
     setHSVPoints(points: RGBHSVPoint[]): void;
