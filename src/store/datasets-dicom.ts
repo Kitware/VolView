@@ -1,9 +1,6 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { set, del } from '@vue/composition-api';
 import { defineStore } from 'pinia';
-import { DICOMIOInst } from '../constants';
-import { getCurrentInstance } from '../instances';
-import { DICOMIO } from '../io/dicom';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
@@ -122,7 +119,7 @@ export const useDICOMStore = defineStore('dicom', {
     async importFiles(files: File[]) {
       const fileStore = useFileStore();
 
-      const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
+      const dicomIO = this.$dicomIO;
 
       if (!files.length) {
         return [];
@@ -323,7 +320,7 @@ export const useDICOMStore = defineStore('dicom', {
       sliceIndex: number,
       asThumbnail = false
     ) {
-      const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
+      const dicomIO = this.$dicomIO;
       const fileStore = useFileStore();
 
       const cacheKey = imageCacheMultiKey(sliceIndex, asThumbnail);
@@ -361,7 +358,7 @@ export const useDICOMStore = defineStore('dicom', {
     async buildVolume(volumeKey: string, forceRebuild: boolean = false) {
       const imageStore = useImageStore();
       const fileStore = useFileStore();
-      const dicomIO = getCurrentInstance<DICOMIO>(DICOMIOInst);
+      const dicomIO = this.$dicomIO;
 
       const rebuild = forceRebuild || this.needsRebuild[volumeKey];
 
