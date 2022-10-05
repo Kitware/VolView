@@ -5,7 +5,7 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "test:unit": "vue-cli-service test:unit -- ./src/**/__tests__/*.[jt]s ./tests/unit/**/*.spec.ts",
+    "test:unit": "vue-cli-service test:unit -- ./src/**/__tests__/*.spec.[jt]s",
     "lint": "vue-cli-service lint",
     "build:all": "npm run build:dicom && npm run build",
     "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",
