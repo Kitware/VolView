@@ -61,6 +61,29 @@
         <paint-controls />
       </v-menu>
     </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
+      <v-menu v-model="cropMenu" offset-x open-on-hover close-on-content-click>
+        <template v-slot:activator="{ attrs, on }">
+          <div>
+            <tool-button
+              size="40"
+              icon="mdi-crop"
+              name="Crop"
+              :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+              :disabled="noCurrentImage"
+              @click.stop="toggle"
+              v-on="on"
+              v-bind="attrs"
+            >
+              <v-icon v-if="active" class="menu-more" size="18">
+                mdi-menu-right
+              </v-icon>
+            </tool-button>
+          </div>
+        </template>
+        <crop-controls />
+      </v-menu>
+    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
       <tool-button
         size="40"
@@ -97,6 +120,7 @@ import GroupableItem from './GroupableItem.vue';
 import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
+import CropControls from './tools/crop/CropControls.vue';
 
 export default defineComponent({
   components: {
@@ -104,6 +128,7 @@ export default defineComponent({
     ItemGroup,
     GroupableItem,
     PaintControls,
+    CropControls,
   },
   setup() {
     const dataStore = useDatasetStore();
@@ -113,8 +138,11 @@ export default defineComponent({
     const currentTool = computed(() => toolStore.currentTool);
 
     const paintMenu = ref(false);
+    const cropMenu = ref(false);
+
     onKeyDown('Escape', () => {
       paintMenu.value = false;
+      cropMenu.value = false;
     });
 
     return {
@@ -123,6 +151,7 @@ export default defineComponent({
       noCurrentImage,
       Tools,
       paintMenu,
+      cropMenu,
     };
   },
 });

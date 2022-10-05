@@ -1,3 +1,4 @@
+import { MaybeRef } from '@vueuse/core';
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import { clampValue } from '@/src/utils';
 import {
@@ -21,6 +22,11 @@ export const setupSlicingConfig = () => {
 
   const getSliceConfig = (viewID: string, dataID: string) =>
     sliceConfigs.get(viewID, dataID);
+
+  const getComputedSliceConfig = (
+    viewID: MaybeRef<string | null>,
+    dataID: MaybeRef<string | null>
+  ) => sliceConfigs.getComputed(viewID, dataID);
 
   const updateSliceConfig = (
     viewID: string,
@@ -72,6 +78,7 @@ export const setupSlicingConfig = () => {
     deserialize,
     actions: {
       getSliceConfig,
+      getComputedSliceConfig,
       updateSliceConfig,
       resetSlice,
     },

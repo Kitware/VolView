@@ -4,6 +4,9 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
+      <div class="overlay-no-events tool-layer">
+        <crop-tool :view-id="viewID" />
+      </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
           <div class="annotation-cell">
@@ -46,6 +49,7 @@ import {
   onBeforeUnmount,
   onMounted,
   PropType,
+  provide,
   ref,
   toRefs,
   watch,
@@ -82,6 +86,10 @@ import {
   DEFAULT_SPECULAR,
 } from '../store/view-configs/volume-coloring';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
+import CropTool from './tools/CropTool.vue';
+import { useWidgetManager } from '../composables/useWidgetManager';
+import { VTKThreeViewWidgetManager } from '../constants';
+import { useCropStore } from '../store/tools/crop';
 
 export default defineComponent({
   props: {
@@ -100,6 +108,7 @@ export default defineComponent({
   },
   components: {
     ViewOverlayGrid,
+    CropTool,
   },
   setup(props) {
     const modelStore = useModelStore();
@@ -147,6 +156,20 @@ export default defineComponent({
         models: computed(() => modelStore.idList),
       }
     );
+
+    // --- picking --- //
+
+    // disables picking for crop control and more
+    watch(baseImageRep, (rep) => {
+      if (rep) {
+        rep.getVolumes().forEach((volume) => volume.setPickable(false));
+      }
+    });
+
+    // --- widget manager --- //
+
+    const { widgetManager } = useWidgetManager(viewProxy);
+    provide(VTKThreeViewWidgetManager, widgetManager);
 
     // --- camera setup --- //
 
@@ -437,10 +460,29 @@ export default defineComponent({
       { immediate: true, deep: true }
     );
 
+    // --- cropping planes --- //
+
+    const cropStore = useCropStore();
+    const croppingPlanes = cropStore.getComputedVTKPlanes(curImageID);
+
+    watch(
+      croppingPlanes,
+      (planes) => {
+        const mapper = baseImageRep.value?.getMapper();
+        if (planes && mapper) {
+          mapper.removeAllClippingPlanes();
+          planes.forEach((plane) => mapper.addClippingPlane(plane));
+          mapper.modified();
+        }
+      },
+      { immediate: true }
+    );
+
     // --- template vars --- //
 
     return {
       vtkContainerRef,
+      viewID,
       active: false,
       topLeftLabel: computed(
         () => colorTransferFunction.value?.preset.replace(/-/g, ' ') ?? ''
