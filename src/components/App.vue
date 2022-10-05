@@ -8,13 +8,12 @@
           </v-toolbar-title>
           <v-spacer />
           <v-btn
-            text
             tile
+            icon
             class="toolbar-button"
             @click="aboutBoxDialog = !aboutBoxDialog"
           >
-            <v-icon left size="32">$kitwareMark</v-icon>
-            About
+            <v-icon>mdi-help-circle-outline</v-icon>
           </v-btn>
         </v-app-bar>
         <resizable-nav-drawer
@@ -135,7 +134,7 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="aboutBoxDialog" width="50%">
+        <v-dialog v-model="aboutBoxDialog" width="25%">
           <about-box />
         </v-dialog>
 

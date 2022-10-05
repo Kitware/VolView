@@ -4,10 +4,56 @@
       <vol-view-full-logo />
     </v-card-title>
     <v-card-text>
-      VolView is an open-source web application developed at
-      <a>Kitware</a> for visualizing and annotating medical images stored in
-      DICOM, NRRD, NIFTI, and other file formats. It is built as a custom
-      application on top of the <a>itk.js</a> and <a>vtk.js</a> toolkits.
+      <p>
+        VolView is an open-source web application developed at
+        <a
+          rel="noopener noreferrer"
+          target="_blank"
+          href="https://kitware.com/"
+        >
+          Kitware
+        </a>
+        for visualizing and annotating medical images stored in DICOM, NRRD,
+        NIFTI, and other file formats. It is an application built on top of the
+        <a
+          rel="noopener noreferrer"
+          target="_blank"
+          href="https://github.com/InsightSoftwareConsortium/itk-wasm/"
+        >
+          itk-wasm
+        </a>
+        and
+        <a
+          rel="noopener noreferrer"
+          target="_blank"
+          href="https://github.com/Kitware/vtk-js"
+        >
+          vtk.js
+        </a>
+        toolkits.
+      </p>
+      <ul class="mt-3">
+        <li>
+          Source code:
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://github.com/KitwareMedical/VolView"
+          >
+            https://github.com/KitwareMedical/VolView
+          </a>
+        </li>
+        <li>
+          Bug reports and feature requests:
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://github.com/KitwareMedical/VolView/issues"
+          >
+            https://github.com/KitwareMedical/VolView/issues
+          </a>
+        </li>
+      </ul>
     </v-card-text>
   </v-card>
 </template>
