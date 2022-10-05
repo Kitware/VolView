@@ -84,7 +84,6 @@ export const useLabelmapStore = defineStore('labelmap', {
       const { labelMaps } = state.manifest;
       const { zip } = state;
 
-      // const serializer = vtkXMLImageDataWriter.newInstance();
       await Promise.all(
         Object.entries(this.labelmaps).map(async ([id, labelMap]) => {
           const labelPath = `labels/${id}.vti`;
