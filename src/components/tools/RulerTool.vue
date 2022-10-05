@@ -53,7 +53,8 @@ import {
   watch,
 } from '@vue/composition-api';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { Tools, useToolStore } from '@/src/store/tools';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';

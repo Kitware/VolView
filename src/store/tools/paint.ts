@@ -1,7 +1,9 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
+import { Tools } from './types';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
 export const usePaintToolStore = defineStore('paint', () => {
@@ -113,6 +115,31 @@ export const usePaintToolStore = defineStore('paint', () => {
     isActive.value = false;
   }
 
+  function serialize(state: StateFile) {
+    const { paint } = state.manifest.tools;
+
+    paint.activeLabelmapID = activeLabelmapID.value;
+    paint.brushSize = brushSize.value;
+    paint.brushValue = brushValue.value;
+    paint.labelmapOpacity = labelmapOpacity.value;
+  }
+
+  function deserialize(
+    this: _This,
+    manifest: Manifest,
+    labelmapIDMap: Record<string, string>
+  ) {
+    const { paint } = manifest.tools;
+    this.setBrushSize(paint.brushSize);
+    this.setBrushValue(paint.brushValue);
+    this.setLabelmapOpacity(paint.labelmapOpacity);
+    isActive.value = manifest.tools.current === Tools.Paint;
+
+    if (paint.activeLabelmapID !== null) {
+      activeLabelmapID.value = labelmapIDMap[paint.activeLabelmapID];
+    }
+  }
+
   // --- change labelmap if paint is active --- //
 
   watch(currentImageID, (imageID) => {
@@ -142,5 +169,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     startStroke,
     placeStrokePoint,
     endStroke,
+    serialize,
+    deserialize,
   };
 });

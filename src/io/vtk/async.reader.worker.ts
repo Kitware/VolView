@@ -3,7 +3,7 @@ import vtkXMLImageDataReader from '@kitware/vtk.js/IO/XML/XMLImageDataReader';
 import vtkXMLPolyDataReader from '@kitware/vtk.js/IO/XML/XMLPolyDataReader';
 
 import workerHandler from '@/src/utils/workerHandler';
-import readFile from './common';
+import { readFile } from './common';
 
 const Readers = {
   stl: {
@@ -20,12 +20,12 @@ const Readers = {
   },
 };
 
-export interface WorkerInput {
+export interface ReaderWorkerInput {
   file: File;
   readerName: keyof typeof Readers;
 }
 
-workerHandler.registerHandler(async (data: WorkerInput) => {
+workerHandler.registerHandler(async (data: ReaderWorkerInput) => {
   try {
     const { file, readerName } = data;
     if (!file) {

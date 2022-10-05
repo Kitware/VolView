@@ -6,6 +6,7 @@ import { computed, ref, unref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { useViewConfigStore } from '../view-configs';
 import { useViewStore } from '../views';
 
@@ -107,6 +108,16 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     active.value = false;
   }
 
+  function serialize(state: StateFile) {
+    const { crosshairs } = state.manifest.tools;
+    crosshairs.position = position.value;
+  }
+
+  function deserialize(manifest: Manifest) {
+    const { crosshairs } = manifest.tools;
+    position.value = crosshairs.position;
+  }
+
   return {
     getWidgetFactory,
     setPosition,
@@ -114,5 +125,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     imagePosition,
     activateTool,
     deactivateTool,
+    serialize,
+    deserialize,
   };
 });

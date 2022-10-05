@@ -27,7 +27,8 @@ import {
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
-import { Tools, useToolStore } from '@/src/store/tools';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { clampValue } from '@/src/utils';

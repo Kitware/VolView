@@ -1,7 +1,8 @@
-import { vtkReader, vtkClass } from '@/src/types/vtk-types';
+import { vtkReader, vtkWriter, vtkClass } from '@/src/types/vtk-types';
 import { readFileAsArrayBuffer, readFileAsUTF8Text } from '@/src/io';
+import vtkDataSet from '@kitware/vtk.js/Common/DataModel/DataSet';
 
-export default async function readFile(
+export async function readFile(
   file: File,
   vtkReaderClass: vtkClass,
   asBinary = true
@@ -15,4 +16,15 @@ export default async function readFile(
     reader.parseAsText(buffer);
   }
   return reader.getOutputData();
+}
+
+export async function writeData(vtkWriterClass: vtkClass, data: vtkDataSet) {
+  const writer: vtkWriter = vtkWriterClass.newInstance() as vtkWriter;
+
+  return writer.write(data);
+}
+
+export interface StateObject {
+  vtkClass: string;
+  [attrName: string]: unknown;
 }

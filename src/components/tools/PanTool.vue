@@ -2,7 +2,8 @@
 import { CreateElement, RenderContext } from 'vue';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
-import { Tools, useToolStore } from '@/src/store/tools';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import ManipulatorTool from './ManipulatorTool.vue';
 
 interface Props {
