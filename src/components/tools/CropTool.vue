@@ -3,7 +3,8 @@ import { useViewStore } from '@/src/store/views';
 import { computed, defineComponent, toRefs, watch } from '@vue/composition-api';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';
-import { Tools, useToolStore } from '@/src/store/tools';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import Crop2D from './crop/Crop2D.vue';
 import Crop3D from './crop/Crop3D.vue';
 
