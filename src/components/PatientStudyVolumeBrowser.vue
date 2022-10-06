@@ -8,7 +8,7 @@ import {
   toRefs,
   watch,
 } from '@vue/composition-api';
-import Image from 'itk/Image';
+import Image from 'itk-wasm/dist/core/Image';
 import type { PropType } from '@vue/composition-api';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -36,7 +36,7 @@ function itkImageToURI(itkImage: Image) {
   }
 
   for (let i = 0; i < itkBuf.length; i += 1) {
-    const byte = itkBuf[i];
+    const byte = itkBuf[i] as number;
     // ABGR order
     // eslint-disable-next-line no-bitwise
     arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
@@ -192,13 +192,16 @@ export default defineComponent({
           :indeterminate="selectedSome && !selectedAll"
           label="Select All"
           v-model="selectedAll"
-        ></v-checkbox>
+          dense
+          hide-details
+        />
       </v-col>
-      <v-col cols="6" align-self="center" class="d-flex justify-end">
+      <v-col cols="6" align-self="center" class="d-flex justify-end mt-2">
         <v-tooltip left>
           <template v-slot:activator="{ on, attrs }">
             <v-btn
               icon
+              small
               :disabled="!selectedSome"
               @click.stop="removeSelectedDICOMVolumes"
               v-bind="attrs"
