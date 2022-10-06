@@ -154,3 +154,8 @@ export const TOOL_COLORS = [
   '#c8f251',
   '#fea53b',
 ];
+
+export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
+  CT: 'CT-AAA',
+  MR: 'MR-Default',
+};

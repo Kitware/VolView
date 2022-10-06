@@ -23,11 +23,8 @@ import { useVTKCallback } from '../composables/useVTKCallback';
 import { useViewConfigStore } from '../store/view-configs';
 import {
   getColorFunctionRangeFromPreset,
-  getOpacityFunctionFromPreset,
-  getOpacityRangeFromPreset,
   getShiftedOpacityFromPreset,
 } from '../utils/vtk-helpers';
-import { ColorTransferFunction } from '../types/views';
 import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
 
 const WIDGET_WIDTH = 250;
@@ -242,25 +239,10 @@ export default defineComponent({
 
     const selectPreset = (name: string) => {
       if (!currentImageID.value) return;
-
-      const ctRange = getColorFunctionRangeFromPreset(name);
-      const ctFunc: Partial<ColorTransferFunction> = {
-        preset: name,
-        mappingRange: ctRange || imageDataRange.value,
-      };
-      viewConfigStore.updateVolumeColorTransferFunction(
+      viewConfigStore.setVolumeColorPreset(
         TARGET_VIEW_ID,
         currentImageID.value,
-        ctFunc
-      );
-
-      const opFunc = getOpacityFunctionFromPreset(name);
-      const opRange = getOpacityRangeFromPreset(name);
-      opFunc.mappingRange = opRange || imageDataRange.value;
-      viewConfigStore.updateVolumeOpacityFunction(
-        TARGET_VIEW_ID,
-        currentImageID.value,
-        opFunc
+        name
       );
     };
 
