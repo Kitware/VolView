@@ -142,28 +142,6 @@ export default defineComponent({
         dicomStore.deleteVolume(volumeKey);
       });
 
-      // Handle the case where we are deleting the selected volume
-      // if (primarySelection.value?.type === 'dicom') {
-      //   const { volumeKey } = primarySelection.value;
-
-      //   // If we are deleting the selected volume, just reset the primary selection
-      //   if (
-      //     selectedSeries.value
-      //       .map((series: DICOMSelection) => series.volumeKey)
-      //       .indexOf(volumeKey) !== -1
-      //   ) {
-      //     const volumes = dicomStore.studyVolumes[selectedStudy.value];
-      //     if (volumes.length > 0) {
-      //       dataStore.setPrimarySelection({
-      //         type: 'dicom',
-      //         volumeKey: volumes[0],
-      //       });
-      //     } else {
-      //       dataStore.setPrimarySelection(null);
-      //     }
-      //   }
-      // }
-
       selected.value = [];
     };
 
