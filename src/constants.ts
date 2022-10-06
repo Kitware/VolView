@@ -22,11 +22,6 @@ export const VTKThreeViewWidgetManager: InjectionKey<
   ComputedRef<vtkWidgetManager>
 > = Symbol('VTKThreeViewWidgetManager');
 
-// instances
-export const FileIOInst = Symbol('FileIO');
-export const DICOMIOInst = Symbol('DICOMIO');
-export const ProxyManagerInst = Symbol('ProxyManager');
-
 export const DataTypes = {
   Image: 'Image',
   Labelmap: 'Labelmap',
