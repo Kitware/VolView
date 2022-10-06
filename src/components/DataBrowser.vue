@@ -100,7 +100,9 @@ export default defineComponent({
 <template>
   <div id="data-module" class="mx-2 fill-height">
     <div id="data-panels">
-      <v-expansion-panels multiple accordion>
+      <!-- Expand the first panel. If just sample data, then
+           this will expand samples. -->
+      <v-expansion-panels multiple accordion :value="[0]">
         <v-expansion-panel v-if="hasAnonymousImages">
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-image</v-icon>
