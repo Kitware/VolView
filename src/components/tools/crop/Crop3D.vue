@@ -2,7 +2,8 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { VTKThreeViewWidgetManager } from '@/src/constants';
-import { LPSCroppingPlanes, useCropStore } from '@/src/store/tools/crop';
+import { useCropStore } from '@/src/store/tools/crop';
+import { LPSCroppingPlanes } from '@/src/store/tools/types';
 import { useViewStore } from '@/src/store/views';
 import { arrayEquals } from '@/src/utils';
 import { getAxisBounds, LPSAxes } from '@/src/utils/lps';
