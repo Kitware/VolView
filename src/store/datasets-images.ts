@@ -5,12 +5,10 @@ import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
-import { useViewConfigStore } from './view-configs';
 import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { FILE_READERS } from '../io';
 import { useFileStore } from './datasets-files';
-import { useViewStore } from './views';
 import { LPSDirections } from '../types/lps';
 
 export interface ImageMetadata {
@@ -86,14 +84,6 @@ export const useImageStore = defineStore('images', {
         del(this.dataIndex, id);
         del(this.metadata, id);
         removeFromArray(this.idList, id);
-
-        // Remove the data views
-        const viewStore = useViewStore();
-        const viewConfigStore = useViewConfigStore();
-
-        viewStore.viewIDs.forEach((viewID: string) => {
-          viewConfigStore.removeData(id, viewID);
-        });
       }
     },
 

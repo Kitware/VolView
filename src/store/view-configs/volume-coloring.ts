@@ -2,7 +2,13 @@ import { MaybeRef } from '@vueuse/core';
 import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import { getOpacityFunctionFromPreset } from '@/src/utils/vtk-helpers';
+import {
+  getColorFunctionRangeFromPreset,
+  getOpacityFunctionFromPreset,
+  getOpacityRangeFromPreset,
+} from '@/src/utils/vtk-helpers';
+import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
+import { ColorTransferFunction } from '@/src/types/views';
 import {
   removeDataFromConfig,
   removeViewFromConfig,
@@ -11,10 +17,24 @@ import {
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
 import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import { VolumeColorConfig } from './types';
+import { useDICOMStore } from '../datasets-dicom';
+import { useImageStore } from '../datasets-images';
 
 export const DEFAULT_AMBIENT = 0.2;
 export const DEFAULT_DIFFUSE = 0.7;
 export const DEFAULT_SPECULAR = 0.3;
+
+function getPresetFromImageModality(imageID: string) {
+  const dicomStore = useDICOMStore();
+  if (imageID in dicomStore.imageIDToVolumeKey) {
+    const volKey = dicomStore.imageIDToVolumeKey[imageID];
+    const { Modality } = dicomStore.volumeInfo[volKey];
+    if (Modality in DEFAULT_PRESET_BY_MODALITY) {
+      return DEFAULT_PRESET_BY_MODALITY[Modality];
+    }
+  }
+  return DEFAULT_PRESET;
+}
 
 export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   colorBy: {
@@ -91,26 +111,41 @@ export const setupVolumeColorConfig = () => {
   const updateVolumeOpacityFunction = createUpdateFunc('opacityFunction');
   const updateVolumeCVRParameters = createUpdateFunc('cvr');
 
+  const setVolumeColorPreset = (
+    viewID: string,
+    imageID: string,
+    preset: string
+  ) => {
+    const imageStore = useImageStore();
+    const image = imageStore.dataIndex[imageID];
+    if (!image) return;
+    const imageDataRange = image.getPointData().getScalars().getRange();
+
+    const ctRange = getColorFunctionRangeFromPreset(preset);
+    const ctFunc: Partial<ColorTransferFunction> = {
+      preset,
+      mappingRange: ctRange || imageDataRange,
+    };
+    updateVolumeColorTransferFunction(viewID, imageID, ctFunc);
+
+    const opFunc = getOpacityFunctionFromPreset(preset);
+    const opRange = getOpacityRangeFromPreset(preset);
+    opFunc.mappingRange = opRange || imageDataRange;
+    updateVolumeOpacityFunction(viewID, imageID, opFunc);
+  };
+
   const resetToDefaultColoring = (
     viewID: string,
     dataID: string,
     image: vtkImageData
   ) => {
-    const mappingRange = image.getPointData().getScalars().getRange();
     const scalars = image.getPointData().getScalars();
 
     updateVolumeColorBy(viewID, dataID, {
       arrayName: scalars.getName(),
       location: 'pointData',
     });
-    updateVolumeColorTransferFunction(viewID, dataID, {
-      preset: DEFAULT_PRESET,
-      mappingRange,
-    });
-    updateVolumeOpacityFunction(viewID, dataID, {
-      ...getOpacityFunctionFromPreset(DEFAULT_PRESET),
-      mappingRange,
-    });
+    setVolumeColorPreset(viewID, dataID, getPresetFromImageModality(dataID));
   };
 
   const serialize = (stateFile: StateFile) => {
@@ -139,6 +174,7 @@ export const setupVolumeColorConfig = () => {
       updateVolumeOpacityFunction,
       updateVolumeCVRParameters,
       resetToDefaultColoring,
+      setVolumeColorPreset,
     },
   };
 };
