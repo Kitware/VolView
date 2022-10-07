@@ -475,6 +475,7 @@ export default defineComponent({
           mapper.removeAllClippingPlanes();
           planes.forEach((plane) => mapper.addClippingPlane(plane));
           mapper.modified();
+          viewProxy.value.render();
         }
       },
       { immediate: true }
