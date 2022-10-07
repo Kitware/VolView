@@ -91,20 +91,23 @@ export default defineComponent({
     @change="setPrimarySelection"
   >
     <v-container class="pa-0">
-      <v-row no-gutters justify="space-between">
+      <v-row no-gutters justify="space-between" class="mb-2">
         <v-col cols="6" align-self="center">
           <v-checkbox
             class="ml-3 align-center justify-center"
             :indeterminate="selectedSome && !selectedAll"
             label="Select All Studies"
             v-model="selectedAll"
-          ></v-checkbox>
+            dense
+            hide-details
+          />
         </v-col>
-        <v-col cols="6" align-self="center" class="d-flex justify-end">
+        <v-col cols="6" align-self="center" class="d-flex justify-end mt-2">
           <v-tooltip left>
             <template v-slot:activator="{ on, attrs }">
               <v-btn
                 icon
+                small
                 :disabled="!selectedSome"
                 @click.stop="removeSelectedStudies"
                 v-bind="attrs"
