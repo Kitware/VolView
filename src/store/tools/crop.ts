@@ -8,12 +8,8 @@ import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { ImageMetadata, useImageStore } from '../datasets-images';
-
-export type LPSCroppingPlanes = {
-  Sagittal: [number, number];
-  Coronal: [number, number];
-  Axial: [number, number];
-};
+import { LPSCroppingPlanes } from './types';
+import { StateFile, Manifest } from '../../io/state-file/schema';
 
 function clampRangeToBounds(range: Vector2, bounds: Vector2) {
   return [
@@ -114,11 +110,27 @@ export const useCropStore = defineStore('crop', () => {
     });
   };
 
+  function serialize(stateFile: StateFile) {
+    const tools = stateFile.manifest.tools;
+    tools.crop = state.croppingByImageID;
+  }
+
+  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+    const cropping = manifest.tools.crop;
+
+    Object.entries(cropping).forEach(([imageID, planes]) => {
+      const newImageID = dataIDMap[imageID];
+      setCropping(newImageID, planes);
+    });
+  }
+
   return {
     croppingByImageID: readonly(state.croppingByImageID),
     getComputedVTKPlanes,
     setCropping,
     setCroppingForAxis,
     resetCropping,
+    serialize,
+    deserialize,
   };
 });

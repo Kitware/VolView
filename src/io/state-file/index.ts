@@ -48,6 +48,7 @@ export async function save(fileName: string) {
         brushValue: 1,
         labelmapOpacity: 1,
       },
+      crop: {},
       current: Tools.WindowLevel,
     },
     layout: {
@@ -144,7 +145,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   );
 
   // Restore the tools
-  toolStore.deserialize(manifest, labelmapIDMap);
+  toolStore.deserialize(manifest, labelmapIDMap, stateIDToStoreID);
 
   return new Promise<LoadResult[]>((resolve) => {
     resolve(statuses);

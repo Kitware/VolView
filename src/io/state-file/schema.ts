@@ -6,7 +6,11 @@ import vtkPiecewiseFunctionProxy, {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-import { Ruler, Tools as ToolsEnum } from '@/src/store/tools/types';
+import {
+  Ruler,
+  Tools as ToolsEnum,
+  LPSCroppingPlanes,
+} from '@/src/store/tools/types';
 import { InteractionState } from '@/src/vtk/RulerWidget/state';
 
 import {
@@ -237,10 +241,19 @@ const Paint = z.object({
   labelmapOpacity: z.number(),
 });
 
+const LPSCroppingPlanes: z.ZodType<LPSCroppingPlanes> = z.object({
+  Sagittal: z.tuple([z.number(), z.number()]),
+  Coronal: z.tuple([z.number(), z.number()]),
+  Axial: z.tuple([z.number(), z.number()]),
+});
+
+const Cropping = z.record(LPSCroppingPlanes);
+
 const Tools = z.object({
   rulers: Ruler.array(),
   crosshairs: Crosshairs,
   paint: Paint,
+  crop: Cropping,
   current: ToolsEnumNative,
 });
 
