@@ -1,18 +1,18 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
 import ServerParameters from './ServerParameters.vue';
-import DicomWebInfos from './DicomWebInfos.vue';
+import PatientList from './PatientList.vue';
 
 export default defineComponent({
   components: {
     ServerParameters,
-    DicomWebInfos,
+    PatientList,
   },
 });
 </script>
 
 <template>
-  <div><server-parameters /> <dicom-web-infos /></div>
+  <div><server-parameters /> <patient-list /></div>
 </template>
 
 <style scoped></style>

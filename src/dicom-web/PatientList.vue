@@ -1,0 +1,48 @@
+<script lang="ts">
+import { computed, defineComponent } from '@vue/composition-api';
+
+import PatientDetails from './PatientDetails.vue';
+import { useDicomWebStore } from './dicom-web.store';
+
+export default defineComponent({
+  components: {
+    PatientDetails,
+  },
+  setup() {
+    const dicomWeb = useDicomWebStore();
+
+    const patients = computed(() =>
+      dicomWeb.patients
+        .map((info) => ({
+          key: info.PatientID,
+          name: info.PatientName,
+        }))
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
+    );
+
+    return {
+      patients,
+    };
+  },
+});
+</script>
+
+<template>
+  <v-container v-if="patients.length > 0">
+    <v-expansion-panel v-for="patient in patients" :key="patient.key">
+      <v-expansion-panel-header>
+        <div class="patient-header">
+          <v-icon class="collection-header-icon">mdi-account</v-icon>
+          <span class="patient-header-name" :title="patient.name">
+            {{ patient.name }}
+          </span>
+        </div>
+      </v-expansion-panel-header>
+      <v-expansion-panel-content>
+        <patient-details :patient-key="patient.key" />
+      </v-expansion-panel-content>
+    </v-expansion-panel>
+  </v-container>
+</template>
+
+<style scoped></style>
