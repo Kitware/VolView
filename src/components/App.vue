@@ -288,10 +288,10 @@ export default defineComponent({
 
       let statuses: LoadResult[] = [];
 
-      // For now only support restoring from a single state files.
-      const stateFile = nFiles === 1 && (await isStateFile(files[0]));
-
+      let stateFile = false;
       try {
+        // For now only support restoring from a single state files.
+        stateFile = nFiles === 1 && (await isStateFile(files[0]));
         if (stateFile) {
           statuses = await loadState(files[0]);
         } else {
