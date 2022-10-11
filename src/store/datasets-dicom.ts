@@ -275,7 +275,7 @@ export const useDICOMStore = defineStore('dicom', {
         del(this.studyInfo, studyKey);
         del(this.studyPatient, studyKey);
 
-        this.studyVolumes[studyKey].forEach((volumeKey) =>
+        [...this.studyVolumes[studyKey]].forEach((volumeKey) =>
           this.deleteVolume(volumeKey)
         );
         del(this.studyVolumes, studyKey);
@@ -291,7 +291,7 @@ export const useDICOMStore = defineStore('dicom', {
       if (patientKey in this.patientInfo) {
         del(this.patientInfo, patientKey);
 
-        this.patientStudies[patientKey].forEach((studyKey) =>
+        [...this.patientStudies[patientKey]].forEach((studyKey) =>
           this.deleteStudy(studyKey)
         );
         del(this.patientStudies, patientKey);
