@@ -52,6 +52,12 @@ export function commonViewCustomizations(publicAPI, model) {
     setContainer(el);
     model.cornerAnnotation.setContainer(null);
   };
+
+  const { resetCamera } = publicAPI;
+  publicAPI.resetCamera = (...args) => {
+    resetCamera(args);
+    model.renderer.updateLightsGeometryToFollowCamera();
+  };
 }
 
 function vtkLPSView3DProxy(publicAPI, model) {
