@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
@@ -87,7 +87,10 @@ export default defineComponent({
           .length > 0
     );
 
+    const panels = ref<number[]>([0]);
+
     return {
+      panels,
       collections,
       patients,
       deletePatient: dicomStore.deletePatient,
@@ -100,9 +103,7 @@ export default defineComponent({
 <template>
   <div id="data-module" class="mx-2 fill-height">
     <div id="data-panels">
-      <!-- Expand the first panel. If just sample data, then
-           this will expand samples. -->
-      <v-expansion-panels multiple accordion :value="[0]">
+      <v-expansion-panels multiple accordion v-model="panels">
         <v-expansion-panel v-if="hasAnonymousImages">
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-image</v-icon>
