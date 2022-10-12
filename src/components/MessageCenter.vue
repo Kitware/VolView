@@ -157,7 +157,7 @@ export default defineComponent({
 }
 
 .message-list {
-  overflow-y: scroll;
+  overflow-y: auto;
   scroll-behavior: smooth;
 }
 

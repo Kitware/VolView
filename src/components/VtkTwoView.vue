@@ -166,7 +166,6 @@ import {
   defineComponent,
   onBeforeMount,
   onBeforeUnmount,
-  onUnmounted,
   onMounted,
   PropType,
   provide,
