@@ -1,6 +1,8 @@
 import HeadMRAThumbnail from '@/src/assets/samples/head-mra.jpg';
 import LiverCTThumbnail from '@/src/assets/samples/liver-ct.jpg';
 import AbdomenMRIThumbnail from '@/src/assets/samples/abdomen-mri.jpg';
+import CTNeckThumbnail from '@/src/assets/samples/ct-neck.jpg';
+import CTChestThumbnail from '@/src/assets/samples/ct-chest.jpg';
 import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
 
@@ -122,9 +124,30 @@ export const LABELMAP_PALETTE = {
 
 export const SAMPLE_DATA = [
   {
+    name: 'ABDOMEN-MRI',
+    filename: 'ABDOMEN-MRI.zip',
+    description: 'A DICOM dataset of an abdomen MRI scan. (16 MB)',
+    url: 'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
+    image: AbdomenMRIThumbnail,
+  },
+  {
+    name: 'CT-Neck',
+    filename: 'neck.zip',
+    description: 'A DICOM dataset of a CT scan of a neck. (85 MB)',
+    url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
+    image: CTNeckThumbnail,
+  },
+  {
+    name: 'CT-Chest',
+    filename: 'ct-chest.zip',
+    description: 'A DICOM dataset of a CT scan of a chest. (153 MB)',
+    url: 'https://data.kitware.com/api/v1/item/6347145311dab81428208e20/download',
+    image: CTChestThumbnail,
+  },
+  {
     name: 'HEAD-MRA',
     filename: 'HEAD-MRA.mha',
-    description: 'A head scanned using magnetic resonance angiography (MRA).',
+    description: 'A head scanned using Magnetic Resonance Angiography.',
     url: 'https://data.kitware.com/api/v1/item/620db46f4acac99f42e753f9/download',
     image: HeadMRAThumbnail,
   },
@@ -134,13 +157,6 @@ export const SAMPLE_DATA = [
     description: 'A computerized tomography (CT) scan of a liver.',
     url: 'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
     image: LiverCTThumbnail,
-  },
-  {
-    name: 'ABDOMEN-MRI',
-    filename: 'ABDOMEN-MRI.zip',
-    description: 'A DICOM dataset of an abdomen MRI scan.',
-    url: 'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
-    image: AbdomenMRIThumbnail,
   },
 ];
 
