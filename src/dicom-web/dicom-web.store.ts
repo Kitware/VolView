@@ -6,8 +6,8 @@ import { useDicomMetaStore } from './dicom-meta.store';
 import {
   fetchAllInstances,
   fetchSeries,
-  fetchSeriesThumbnail,
   FetchSeriesOptions,
+  fetchInstanceThumbnail,
 } from './dicomWeb';
 
 async function getAllPatients(host: string): Promise<PatientInfo[]> {
@@ -18,7 +18,7 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
 }
 
 /**
- * Fetch and list DICOM data with DICOMWeb
+ * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', {
   state: () => ({
@@ -42,8 +42,25 @@ export const useDicomWebStore = defineStore('dicom-web', {
       }
     },
 
-    async fetchSeriesThumbnail(seriesInfo: FetchSeriesOptions) {
-      return fetchSeriesThumbnail(this.host, seriesInfo);
+    async fetchVolumeThumbnail(volumeKey: string) {
+      const dicoms = useDicomMetaStore();
+      const volumeInfo = dicoms.volumeInfo[volumeKey];
+      const middleSlice = Math.floor(volumeInfo.NumberOfSlices / 2);
+      const middleInstance = dicoms.volumeInstances[volumeKey]
+        .map((instanceKey) => dicoms.instanceInfo[instanceKey])
+        .sort(
+          ({ InstanceNumber: a }, { InstanceNumber: b }) =>
+            Number(a) - Number(b)
+        )[middleSlice];
+
+      const studyKey = dicoms.volumeStudy[volumeKey];
+      const studyInfo = dicoms.studyInfo[studyKey];
+      const instance = {
+        studyInstanceUID: studyInfo.StudyInstanceUID,
+        seriesInstanceUID: volumeInfo.SeriesInstanceUID,
+        sopInstanceUID: middleInstance.SopInstanceUID,
+      };
+      return fetchInstanceThumbnail(this.host, instance);
     },
 
     async fetchSeries(seriesInfo: FetchSeriesOptions): Promise<File[]> {

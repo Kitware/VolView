@@ -1,36 +1,12 @@
 import { api } from 'dicomweb-client';
 
-let fileCounter = 0;
-
 export interface FetchSeriesOptions {
   studyInstanceUID: string;
   seriesInstanceUID: string;
 }
 
-function makeClient(dicomWebRoot: string) {
-  return new api.DICOMwebClient({
-    url: dicomWebRoot,
-    // retrieveRendered: false,
-    verbose: true,
-  });
-}
-
-function toFile(instance: ArrayBuffer) {
-  fileCounter++;
-  return new File([new Blob([instance])], `dicom-web.${fileCounter}.dcm`);
-}
-
 export interface FetchInstanceOptions extends FetchSeriesOptions {
   sopInstanceUID: string;
-}
-
-export async function getInstance(
-  dicomWebRoot: string,
-  options: FetchInstanceOptions
-): Promise<File | null> {
-  const client = makeClient(dicomWebRoot);
-  const instance = await client.retrieveInstance(options);
-  return toFile(instance);
 }
 
 const tags = {
@@ -50,10 +26,11 @@ const tags = {
   SeriesInstanceUID: '0020000E',
   SeriesNumber: '00200011',
   SeriesDescription: '0008103E',
+  Modality: '00080060',
 
   SopInstanceUID: '00080018',
-  SopInstanceName: '0008103E',
-  Modality: '00080060',
+  // SopInstanceName: '0008103E',
+  InstanceNumber: '00200013',
 };
 
 export type Instance = typeof tags;
@@ -72,6 +49,21 @@ function parseInstance(instance: any): Instance {
   ) as Instance;
 }
 
+let fileCounter = 0;
+
+function toFile(instance: ArrayBuffer) {
+  fileCounter++;
+  return new File([new Blob([instance])], `dicom-web.${fileCounter}.dcm`);
+}
+
+function makeClient(dicomWebRoot: string) {
+  return new api.DICOMwebClient({
+    url: dicomWebRoot,
+    // retrieveRendered: false,
+    verbose: true,
+  });
+}
+
 export async function fetchAllInstances(dicomWebRoot: string) {
   const client = makeClient(dicomWebRoot);
   const instances = await client.searchForInstances();
@@ -87,60 +79,13 @@ export async function fetchSeries(
   return series.map(toFile);
 }
 
-export async function getAllSeries(dicomWebRoot: string) {
-  const client = makeClient(dicomWebRoot);
-  const allSeries = await client.searchForSeries();
-  return allSeries.map((series) => ({
-    studyName: series['00100010'].Value[0].Alphabetic,
-    studyInstanceUID: series['0020000D'].Value[0],
-    seriesInstanceUID: series['0020000E'].Value[0],
-    seriesDescription: series['0008103E'].Value[0],
-    modality: series['00080060'].Value[0],
-    patientName: series['00100010'].Value[0].Alphabetic,
-  }));
-}
-
-export async function getAllSeriesWithThumbnail(dicomWebRoot: string) {
-  const allSeries = await getAllSeries(dicomWebRoot);
-  const client = makeClient(dicomWebRoot);
-  return Promise.all(
-    allSeries.map(async (series) => {
-      const firstInstance = parseInstance(
-        (await client.retrieveSeriesMetadata(series))[0]
-      );
-      const thumbnail = await client.retrieveInstanceFramesRendered({
-        ...firstInstance,
-        frameNumbers: [1],
-        mediaTypes: [{ mediaType: 'image/jpeg' }],
-      });
-      const arrayBufferView = new Uint8Array(thumbnail);
-      const blob = new Blob([arrayBufferView], { type: 'image/jpeg' });
-      const thumbnailUrl = URL.createObjectURL(blob);
-      return { ...series, thumbnailUrl };
-    })
-  );
-}
-
-function parseInstanceMeta(instance: any) {
-  return {
-    studyName: instance['00100010'].Value[0].Alphabetic,
-    studyInstanceUID: instance['0020000D'].Value[0],
-    seriesInstanceUID: instance['0020000E'].Value[0],
-    sopInstanceUID: instance['00080018'].Value[0],
-    sopInstanceName: instance['0008103E'].Value[0],
-  };
-}
-
-export async function fetchSeriesThumbnail(
+export async function fetchInstanceThumbnail(
   dicomWebRoot: string,
-  series: FetchSeriesOptions
+  instance: FetchInstanceOptions
 ) {
   const client = makeClient(dicomWebRoot);
-  const firstInstance = parseInstanceMeta(
-    (await client.retrieveSeriesMetadata(series))[0]
-  );
   const thumbnail = await client.retrieveInstanceFramesRendered({
-    ...firstInstance,
+    ...instance,
     frameNumbers: [1],
     mediaTypes: [{ mediaType: 'image/jpeg' }],
   });

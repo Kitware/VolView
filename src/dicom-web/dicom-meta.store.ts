@@ -10,10 +10,12 @@ import {
 import { pick } from '../utils';
 import { Instance } from './dicomWeb';
 
-interface State {
-  // volumeKey -> imageCacheMultiKey -> ITKImage
-  sliceData: Record<string, Record<string, object>>;
+interface InstanceInfo {
+  SopInstanceUID: string;
+  InstanceNumber: string;
+}
 
+interface State {
   // volumeKey -> imageID
   volumeToImageID: Record<string, string>;
   // imageID -> volumeKey
@@ -34,8 +36,15 @@ interface State {
 
   // volumeKey -> volume info
   volumeInfo: Record<string, VolumeInfo>;
+  // volumeKey -> array of instanceKeys
+  volumeInstances: Record<string, string[]>;
+
+  // instanceKey -> instance info
+  instanceInfo: Record<string, InstanceInfo>;
 
   // parent pointers
+  // instanceKey -> volumeKey
+  instanceVolume: Record<string, string>;
   // volumeKey -> studyKey
   volumeStudy: Record<string, string>;
   // studyKey -> patientKey
@@ -44,7 +53,6 @@ interface State {
 
 export const useDicomMetaStore = defineStore('dicom-meta', {
   state: (): State => ({
-    sliceData: {},
     volumeToImageID: {},
     imageIDToVolumeKey: {},
     patientInfo: {},
@@ -52,6 +60,9 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     studyInfo: {},
     studyVolumes: {},
     volumeInfo: {},
+    volumeInstances: {},
+    instanceInfo: {},
+    instanceVolume: {},
     volumeStudy: {},
     studyPatient: {},
     needsRebuild: {},
@@ -83,27 +94,28 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
           'SeriesNumber',
           'SeriesDescription'
         ),
-        NumberOfSlices: 1,
+        NumberOfSlices: 0, // incremented later
         VolumeID: info.SeriesInstanceUID,
       };
 
-      this._updateDatabase(patient, study, volumeInfo);
+      const instanceInfo = pick(info, 'SopInstanceUID', 'InstanceNumber');
+
+      this._updateDatabase(patient, study, volumeInfo, instanceInfo);
     },
 
     _updateDatabase(
       patient: PatientInfo,
       study: StudyInfo,
-      volume: VolumeInfo
+      volume: VolumeInfo,
+      instance: InstanceInfo
     ) {
       const patientKey = patient.PatientID;
-      const studyKey = study.StudyInstanceUID;
-      const volumeKey = volume.VolumeID;
-
       if (!(patientKey in this.patientInfo)) {
         set(this.patientInfo, patientKey, patient);
         set(this.patientStudies, patientKey, []);
       }
 
+      const studyKey = study.StudyInstanceUID;
       if (!(studyKey in this.studyInfo)) {
         set(this.studyInfo, studyKey, study);
         set(this.studyVolumes, studyKey, []);
@@ -111,11 +123,21 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         this.patientStudies[patientKey].push(studyKey);
       }
 
+      const volumeKey = volume.VolumeID;
       if (!(volumeKey in this.volumeInfo)) {
         set(this.volumeInfo, volumeKey, volume);
+        set(this.volumeInstances, volumeKey, []);
         set(this.volumeStudy, volumeKey, studyKey);
-        set(this.sliceData, volumeKey, {});
         this.studyVolumes[studyKey].push(volumeKey);
+      }
+
+      const instanceKey = instance.SopInstanceUID;
+      if (!(instanceKey in this.instanceInfo)) {
+        set(this.instanceInfo, instanceKey, instance);
+        set(this.instanceVolume, instanceKey, volumeKey);
+        this.volumeInstances[volumeKey].push(instanceKey);
+
+        this.volumeInfo[volumeKey].NumberOfSlices += 1;
       }
     },
   },

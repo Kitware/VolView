@@ -20,22 +20,6 @@ function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
 }
 
-async function generateThumbnail(
-  dicomStore: ReturnType<typeof useDicomMetaStore>,
-  dicomWebStore: ReturnType<typeof useDicomWebStore>,
-  volumeKey: string
-) {
-  const volumeInfo = dicomStore.volumeInfo[volumeKey];
-  const studyKey = dicomStore.volumeStudy[volumeKey];
-  const studyInfo = dicomStore.studyInfo[studyKey];
-  const seriesInfo = {
-    studyInstanceUID: studyInfo.StudyInstanceUID,
-    seriesInstanceUID: volumeInfo.SeriesInstanceUID,
-  };
-  const thumb = await dicomWebStore.fetchSeriesThumbnail(seriesInfo);
-  return thumb;
-}
-
 export default defineComponent({
   name: 'StudyVolumeDicomWeb',
   props: {
@@ -73,7 +57,7 @@ export default defineComponent({
           if (cacheKey in thumbnailCache) {
             return;
           }
-          const thumb = await generateThumbnail(dicomStore, dicomWebStore, key);
+          const thumb = await dicomWebStore.fetchVolumeThumbnail(key);
           if (thumb !== null) {
             set(thumbnailCache, cacheKey, thumb);
           }

@@ -3,6 +3,7 @@ declare module 'dicomweb-client' {
     url: string;
     retrieveRendered?: boolean;
     verbose?: boolean;
+    headers?: any;
   };
   class DICOMwebClient {
     constructor(options: DICOMwebClientOptions);
