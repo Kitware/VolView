@@ -1,10 +1,9 @@
-import HeadMRAThumbnail from '@/src/assets/samples/head-mra.jpg';
-import LiverCTThumbnail from '@/src/assets/samples/liver-ct.jpg';
 import AbdomenMRIThumbnail from '@/src/assets/samples/abdomen-mri.jpg';
 import CTNeckThumbnail from '@/src/assets/samples/ct-neck.jpg';
 import CTChestThumbnail from '@/src/assets/samples/ct-chest.jpg';
 import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
+import { SampleDataset } from './types';
 
 /**
  * These are the initial view IDs.
@@ -122,13 +121,15 @@ export const LABELMAP_PALETTE = {
   14: [0, 0, 153, 255],
 } as Record<number, number[]>;
 
-export const SAMPLE_DATA = [
+export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'ABDOMEN-MRI',
     filename: 'ABDOMEN-MRI.zip',
     description: 'A DICOM dataset of an abdomen MRI scan. (16 MB)',
     url: 'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
     image: AbdomenMRIThumbnail,
+    volumeKey:
+      '1.2.276.0.50.192168001099.7810872.14547392.458.6012.051251220070511.1D000000S0D000000S0D000000S0D000000S0D711030SN0D703161',
   },
   {
     name: 'CT-Neck',
@@ -136,6 +137,8 @@ export const SAMPLE_DATA = [
     description: 'A DICOM dataset of a CT scan of a neck. (85 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
     image: CTNeckThumbnail,
+    volumeKey:
+      '2.16.840.1.114362.1.11972228.22789312658.616067305.306.3.6151251220120507.1D000000S0D000000S0D000000S0D000000S1D000000S0D000000',
   },
   {
     name: 'CT-Chest',
@@ -143,24 +146,10 @@ export const SAMPLE_DATA = [
     description: 'A DICOM dataset of a CT scan of a chest. (153 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347145311dab81428208e20/download',
     image: CTChestThumbnail,
-  },
-  {
-    name: 'HEAD-MRA',
-    filename: 'HEAD-MRA.mha',
-    description: 'A head scanned using Magnetic Resonance Angiography.',
-    url: 'https://data.kitware.com/api/v1/item/620db46f4acac99f42e753f9/download',
-    image: HeadMRAThumbnail,
-  },
-  {
-    name: 'LIVER-CT',
-    filename: 'LIVER-CT.mha',
-    description: 'A computerized tomography (CT) scan of a liver.',
-    url: 'https://data.kitware.com/api/v1/item/620db4b74acac99f42e75418/download',
-    image: LiverCTThumbnail,
+    volumeKey:
+      '2.16.840.1.114362.1.11972228.22789312658.561585527.143.7.60.651251220200409.1D000000S0D000000S0D000000S0D000000S1D000000S0D000000',
   },
 ];
-
-export type Sample = typeof SAMPLE_DATA[0];
 
 export const TOOL_COLORS = [
   '#8de4d3',
