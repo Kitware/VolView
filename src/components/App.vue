@@ -211,7 +211,6 @@ import {
 import { useProxyManager } from '../composables/proxyManager';
 import { useViewStore } from '../store/views';
 import { useMessageStore } from '../store/messages';
-import { plural } from '../utils';
 import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
 import { isStateFile, loadState } from '../io/state-file';
@@ -273,25 +272,36 @@ export default defineComponent({
       }
     });
 
+    // --- loading tracker --- //
+
+    const loadingCount = ref(0);
+    const loadMsgID = ref('');
+
+    watch(loadingCount, (count) => {
+      if (count > 0 && loadMsgID.value === '') {
+        loadMsgID.value = messageStore.addInfo('Loading files...', {
+          persist: true,
+        });
+      } else if (count === 0 && loadMsgID.value !== '') {
+        messageStore.clearOne(loadMsgID.value);
+        loadMsgID.value = '';
+      }
+    });
+
     // --- file handling --- //
     async function openFiles(files: FileList | null) {
       if (!files) {
         return;
       }
 
-      const nFiles = files.length;
-
       const loadFirstDataset = !dataStore.primarySelection;
-      const msgID = messageStore.addInfo(
-        `Loading ${nFiles} ${plural(nFiles, 'file')}...`
-      );
+      loadingCount.value += 1;
 
       let statuses: LoadResult[] = [];
-
       let stateFile = false;
       try {
         // For now only support restoring from a single state files.
-        stateFile = nFiles === 1 && (await isStateFile(files[0]));
+        stateFile = files.length === 1 && (await isStateFile(files[0]));
         if (stateFile) {
           statuses = await loadState(files[0]);
         } else {
@@ -300,7 +310,7 @@ export default defineComponent({
       } catch (error) {
         messageStore.addError('Failed to load files', error as Error);
       } finally {
-        messageStore.clearOne(msgID);
+        loadingCount.value -= 1;
       }
 
       const loaded = statuses.filter((s) => s.loaded) as (
