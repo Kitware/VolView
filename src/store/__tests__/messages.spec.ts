@@ -20,27 +20,46 @@ describe('Message store', () => {
       messageStore.addError('an error', innerError),
       messageStore.addWarning('warning'),
       messageStore.addInfo('info'),
+      messageStore.addInfo('loading', {
+        details: 'Loading files',
+        persist: true,
+      }),
     ];
 
     const expected = [
       {
         type: MessageType.Error,
         title: 'an error',
-        details: String(innerError),
+        options: {
+          details: String(innerError),
+          persist: false,
+        },
       },
       {
         type: MessageType.Warning,
         title: 'warning',
-        details: undefined,
+        options: {
+          persist: false,
+        },
       },
       {
         type: MessageType.Info,
         title: 'info',
-        details: undefined,
+        options: {
+          persist: false,
+        },
+      },
+      {
+        type: MessageType.Info,
+        title: 'loading',
+        options: {
+          details: 'Loading files',
+          persist: true,
+        },
       },
     ].map((ex, i) => ({ ...ex, id: String(i + 1) }));
 
-    expect(messageStore.messages).to.have.length(3);
+    expect(messageStore.messages).to.have.length(4);
 
     ids.forEach((id, index) => {
       expect(messageStore.byID[id]).to.deep.equal(expected[index]);

@@ -1,9 +1,11 @@
 <script lang="ts">
-import { defineComponent, watch } from '@vue/composition-api';
+import { defineComponent, del, watch } from '@vue/composition-api';
 import { useToast } from '@/src/composables/useToast';
 import { storeToRefs } from 'pinia';
 import { ToastID } from 'vue-toastification/dist/types/src/types';
 import { Message, MessageType, useMessageStore } from '../store/messages';
+
+const TIMEOUT = 5000;
 
 export default defineComponent({
   setup(props, { emit }) {
@@ -14,9 +16,11 @@ export default defineComponent({
 
     const toast = useToast();
     const makeToastOptions = (msgID: string) => ({
+      timeout: byID.value[msgID].options.persist ? (false as const) : TIMEOUT,
+      closeOnClick: !byID.value[msgID].options.persist,
       onClick: () => emit('open-notifications'),
       onClose: () => {
-        delete toasts[msgID];
+        del(toasts, msgID);
       },
     });
 
@@ -25,7 +29,7 @@ export default defineComponent({
       Object.keys(toasts).forEach((msgID) => {
         if (!(msgID in msgLookup)) {
           toast.dismiss(toasts[msgID]);
-          delete toasts[msgID];
+          del(toasts, msgID);
         }
       });
     });
