@@ -347,7 +347,7 @@ export default defineComponent({
               .reduce((sum, v) => sum + v, 0)
           );
 
-        mapper.setSampleDistance(sampleDistance / 2);
+        mapper.setSampleDistance(sampleDistance / 10);
 
         mapper.setGlobalIlluminationReach(params.enabled ? 0.5 : 0);
         property.setShade(true);
