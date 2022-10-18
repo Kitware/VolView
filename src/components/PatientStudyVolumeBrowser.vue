@@ -18,6 +18,7 @@ import {
   useDatasetStore,
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
+import { useMessageStore } from '../store/messages';
 
 const canvas = document.createElement('canvas');
 
@@ -114,10 +115,19 @@ export default defineComponent({
             return;
           }
 
-          const thumb = await generateDICOMThumbnail(dicomStore, key);
-          if (thumb !== null) {
-            const encodedImage = itkImageToURI(thumb);
-            set(thumbnailCache, cacheKey, encodedImage);
+          try {
+            const thumb = await generateDICOMThumbnail(dicomStore, key);
+            if (thumb !== null) {
+              const encodedImage = itkImageToURI(thumb);
+              set(thumbnailCache, cacheKey, encodedImage);
+            }
+          } catch (err) {
+            if (err instanceof Error) {
+              const messageStore = useMessageStore();
+              messageStore.addError('Failed to generate thumbnails', {
+                details: `${err}. More details can be found in the developer's console.`,
+              });
+            }
           }
         });
 

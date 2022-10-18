@@ -9,6 +9,7 @@ import { useModelStore } from './datasets-models';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 import { useFileStore } from './datasets-files';
 import { DataSet, StateFile, DataSetType } from '../io/state-file/schema';
+import { useMessageStore } from './messages';
 
 export const DataType = {
   Image: 'Image',
@@ -153,8 +154,17 @@ export const useDatasetStore = defineStore('dataset', () => {
 
     // if selection is dicom, call buildVolume
     if (sel.type === 'dicom') {
-      // trigger dicom dataset building
-      await dicomStore.buildVolume(sel.volumeKey);
+      try {
+        // trigger dicom dataset building
+        await dicomStore.buildVolume(sel.volumeKey);
+      } catch (err) {
+        if (err instanceof Error) {
+          const messageStore = useMessageStore();
+          messageStore.addError('Failed to build volume(s)', {
+            details: `${err}. More details can be found in the developer's console.`,
+          });
+        }
+      }
     }
   }
 

@@ -32,6 +32,15 @@
         </a>
         toolkits.
       </p>
+      <!-- prettier-ignore -->
+      <p>
+        Want help in customizing VolView for your next application?
+        <a
+          rel-="noopener noreferrer"
+          target="_blank"
+          href="https://www.kitware.com/contact/project/"
+        >Contact us</a>!
+      </p>
       <ul class="mt-3">
         <li>
           Source code:

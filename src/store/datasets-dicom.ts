@@ -1,4 +1,5 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { set, del } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { pick, removeFromArray } from '../utils';
@@ -376,7 +377,8 @@ export const useDICOMStore = defineStore('dicom', {
       }
 
       const itkImage = await dicomIO.buildVolume(volumeFiles);
-      const vtkImage = vtkITKHelper.convertItkToVtkImage(itkImage);
+      const vtkImage: vtkImageData =
+        vtkITKHelper.convertItkToVtkImage(itkImage);
 
       if (volumeKey in this.volumeToImageID) {
         const imageID = this.volumeToImageID[volumeKey];
