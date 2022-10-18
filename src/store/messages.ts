@@ -8,16 +8,20 @@ export enum MessageType {
   Success,
 }
 
+export type MessageOptions = {
+  details?: string;
+  persist: boolean;
+};
+
 export interface Message {
   id: string;
   type: MessageType;
   title: string;
-  details?: string;
+  options: MessageOptions;
 }
 
 export type UpdateProgressFunction = (progress: number) => void;
 export type TaskFunction = (updateProgress?: UpdateProgressFunction) => any;
-
 interface State {
   _nextID: number;
   byID: Record<string, Message>;
@@ -40,33 +44,73 @@ export const useMessageStore = defineStore('message', {
     },
   },
   actions: {
-    addError(title: string, error?: Error | string) {
-      return this._addMessage({
-        type: MessageType.Error,
-        title,
-        details: error ? String(error) : undefined,
-      });
+    /**
+     * Adds an error message.
+     * @param title message title
+     * @param opts an Error, a string containing details, or a MessageOptions
+     */
+    addError(title: string, opts?: Error | string | MessageOptions) {
+      if (opts instanceof Error) {
+        return this._addMessage(
+          {
+            type: MessageType.Error,
+            title,
+          },
+          {
+            details: String(opts),
+            persist: false,
+          }
+        );
+      }
+      return this._addMessage(
+        {
+          type: MessageType.Error,
+          title,
+        },
+        opts
+      );
     },
-    addWarning(title: string, details?: string) {
-      return this._addMessage({
-        type: MessageType.Warning,
-        title,
-        details,
-      });
+    /**
+     * Adds a warning message.
+     * @param title message title
+     * @param opts a string containing details or a MessageOptions
+     */
+    addWarning(title: string, details?: string | MessageOptions) {
+      return this._addMessage(
+        {
+          type: MessageType.Warning,
+          title,
+        },
+        details
+      );
     },
-    addInfo(title: string, details?: string) {
-      return this._addMessage({
-        type: MessageType.Info,
-        title,
-        details,
-      });
+    /**
+     * Adds a success message.
+     * @param title message title
+     * @param opts a string containing details or a MessageOptions
+     */
+    addInfo(title: string, details?: string | MessageOptions) {
+      return this._addMessage(
+        {
+          type: MessageType.Info,
+          title,
+        },
+        details
+      );
     },
-    addSuccess(title: string, details?: string) {
-      return this._addMessage({
-        type: MessageType.Success,
-        title,
-        details,
-      });
+    /**
+     * Adds a success message.
+     * @param title message title
+     * @param opts a string containing details or a MessageOptions
+     */
+    addSuccess(title: string, details?: string | MessageOptions) {
+      return this._addMessage(
+        {
+          type: MessageType.Success,
+          title,
+        },
+        details
+      );
     },
     clearOne(id: string) {
       if (id in this.byID) {
@@ -79,10 +123,18 @@ export const useMessageStore = defineStore('message', {
       this.byID = {};
       this.msgList = [];
     },
-    _addMessage(msg: Omit<Message, 'id'>) {
+    _addMessage(
+      msg: Omit<Message, 'id' | 'options'>,
+      details?: string | MessageOptions
+    ) {
       const id = String(this._nextID++);
+      const options: MessageOptions = {
+        persist: false,
+        ...(typeof details === 'string' ? { details } : details),
+      };
       Vue.set(this.byID, id, {
         ...msg,
+        options,
         id,
       });
       this.msgList.push(id);
