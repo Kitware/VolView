@@ -13,8 +13,6 @@ import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
-import ItemGroup from '@/src/components/ItemGroup.vue';
-import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { manageVTKSubscription } from '../composables/manageVTKSubscription';
 import { useCurrentImage } from '../composables/useCurrentImage';
@@ -35,8 +33,6 @@ const TARGET_VIEW_ID = '3D';
 export default defineComponent({
   name: 'VolumeRendering',
   components: {
-    ItemGroup,
-    GroupableItem,
     ColorFunctionSlider,
   },
   setup() {
@@ -312,49 +308,5 @@ export default defineComponent({
       :value="mappingRange"
       @input="updateColorMappingRange"
     />
-    <item-group class="container" :value="preset" @change="selectPreset">
-      <v-row no-gutters justify="center">
-        <groupable-item
-          v-for="preset in presetList"
-          :key="preset"
-          v-slot="{ active, select }"
-          :value="preset"
-        >
-          <v-col
-            cols="4"
-            :class="{
-              'thumbnail-container': true,
-              blue: active,
-            }"
-            @click="select"
-          >
-            <v-img :src="thumbnails[preset] || ''" contain aspect-ratio="1">
-              <v-overlay
-                absolute
-                :value="true"
-                opacity="0.3"
-                class="thumbnail-overlay"
-              >
-                {{ preset.replace(/-/g, ' ') }}
-              </v-overlay>
-            </v-img>
-          </v-col>
-        </groupable-item>
-      </v-row>
-    </item-group>
   </div>
 </template>
-
-<style scoped>
-.thumbnail-container {
-  cursor: pointer;
-  padding: 6px !important;
-}
-
-.thumbnail-overlay {
-  top: 70%;
-  height: 30%;
-  font-size: 0.75em;
-  text-align: center;
-}
-</style>

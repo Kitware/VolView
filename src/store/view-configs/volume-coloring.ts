@@ -53,6 +53,7 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   cvr: {
     enabled: false,
     flipLightPosition: false,
+    fixedLightPosition: false,
     useVolumetricScatteringBlending: false,
     volumetricScatteringBlending: 0,
     useLocalAmbientOcclusion: false,

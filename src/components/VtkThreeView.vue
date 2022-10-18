@@ -330,12 +330,17 @@ export default defineComponent({
         if (params.enabled) {
           // set positional light position
           const light = renderer.getLights()[0];
-          light.setPosition(
-            center[0] + cvrLightOffset.value[0],
-            center[1] + cvrLightOffset.value[1],
-            center[2] + cvrLightOffset.value[2]
-          );
           light.setFocalPoint(...center);
+          if (params.fixedLightPosition) {
+            light.setLightTypeToHeadLight();
+          } else {
+            light.setLightTypeToSceneLight();
+            light.setPosition(
+              center[0] + cvrLightOffset.value[0],
+              center[1] + cvrLightOffset.value[1],
+              center[2] + cvrLightOffset.value[2]
+            );
+          }
         }
 
         const sampleDistance =
@@ -390,6 +395,7 @@ export default defineComponent({
         property.setSpecular(
           params.enabled ? params.specular : DEFAULT_SPECULAR
         );
+      viewProxy.value.render();
       },
       { deep: true, immediate: true }
     );

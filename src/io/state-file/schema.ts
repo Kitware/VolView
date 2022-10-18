@@ -159,6 +159,7 @@ const ColoringConfig: z.ZodType<ColoringConfig> = z.object({
 const CVRConfig: z.ZodType<CVRConfig> = z.object({
   enabled: z.boolean(),
   flipLightPosition: z.boolean(),
+  fixedLightPosition: z.boolean(),
   useVolumetricScatteringBlending: z.boolean(),
   volumetricScatteringBlending: z.number(),
   useLocalAmbientOcclusion: z.boolean(),
