@@ -3,12 +3,12 @@
     <v-card
       :disabled="disabled"
       outlined
-      ripple
+      :ripple="!disabled"
       :class="{
-        'image-list-card-hover': hover,
-        'image-list-card-active': active,
+        'image-list-card-hover': !disabled && hover,
+        'image-list-card-active': !disabled && active,
       }"
-      v-on="$listeners"
+      v-on="disabled ? {} : $listeners"
     >
       <v-container>
         <v-row no-gutters class="flex-nowrap">
@@ -18,6 +18,7 @@
               :key="id"
               :value="inputValue"
               :input-value="value"
+              :disabled="disabled"
               @change="onChange"
             />
           </v-col>
