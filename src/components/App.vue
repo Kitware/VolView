@@ -215,6 +215,7 @@ import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
 import { isStateFile, loadState } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
+import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 
 export default defineComponent({
   name: 'App',
@@ -240,6 +241,8 @@ export default defineComponent({
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
     const viewStore = useViewStore();
+
+    useGlobalErrorHook();
 
     // --- auto-animate views whenever a proxy is modified --- //
 

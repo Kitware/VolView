@@ -49,9 +49,9 @@ export default defineComponent({
         </v-btn>
       </div>
     </v-expansion-panel-header>
-    <v-expansion-panel-content v-if="message.details">
+    <v-expansion-panel-content v-if="message.options.details">
       <div class="mt-4">
-        <pre>{{ message.details }}</pre>
+        <pre class="details">{{ message.options.details }}</pre>
       </div>
     </v-expansion-panel-content>
   </v-expansion-panel>
@@ -75,5 +75,9 @@ export default defineComponent({
   flex-flow: row;
   justify-content: space-between;
   align-items: center;
+}
+
+.details {
+  white-space: break-spaces;
 }
 </style>
