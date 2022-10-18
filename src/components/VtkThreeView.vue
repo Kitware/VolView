@@ -395,7 +395,7 @@ export default defineComponent({
         property.setSpecular(
           params.enabled ? params.specular : DEFAULT_SPECULAR
         );
-      viewProxy.value.render();
+        viewProxy.value.render();
       },
       { deep: true, immediate: true }
     );
