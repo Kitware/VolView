@@ -53,6 +53,8 @@ export interface CVRConfig {
 
   flipLightPosition: boolean;
 
+  fixedLightPosition: boolean;
+
   useVolumetricScatteringBlending: boolean;
   volumetricScatteringBlending: number;
 
