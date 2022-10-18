@@ -294,7 +294,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="overflow-x-hidden mx-2">
+  <div class="overflow-hidden">
     <div class="mt-4" ref="editorContainerRef">
       <div ref="pwfEditorRef" />
     </div>
