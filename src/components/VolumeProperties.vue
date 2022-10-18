@@ -104,18 +104,11 @@ export default defineComponent({
         @input="setCVRParam('diffuse', $event)"
       />
       <v-switch
-        label="Fixed/Camera Light"
+        label="Light follows camera"
         dense
         hide-details
-        :value="cvrParams.fixedLightPosition"
-        @change="setCVRParam('fixedLightPosition', $event)"
-      />
-      <v-switch
-        label="Anterior/Posterior Light"
-        dense
-        hide-details
-        :value="cvrParams.flipLightPosition"
-        @change="setCVRParam('flipLightPosition', $event)"
+        :value="cvrParams.lightFollowsCamera"
+        @change="setCVRParam('lightFollowsCamera', $event)"
       />
       <v-switch
         label="Enable Volumetric Scattering"
