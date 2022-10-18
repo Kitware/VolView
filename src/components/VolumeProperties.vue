@@ -41,8 +41,6 @@ export default defineComponent({
       );
     };
 
-    setCVREnabled(true);
-
     const setCVRParam = (key: keyof CVRConfig, value: any) => {
       if (!currentImageID.value) return;
       viewConfigStore.updateVolumeCVRParameters(
@@ -138,8 +136,8 @@ export default defineComponent({
       />
       <v-slider
         label="LAO Kernel Size"
-        min="5"
-        max="32"
+        min="3"
+        max="10"
         step="1"
         dense
         hide-details
@@ -150,8 +148,8 @@ export default defineComponent({
       />
       <v-slider
         label="LAO Kernel Radius"
-        min="1"
-        max="15"
+        :min="cvrParams.laoKernelSize * 2"
+        :max="cvrParams.laoKernelSize * 2 + 10"
         step="1"
         dense
         hide-details
