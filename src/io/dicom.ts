@@ -40,7 +40,7 @@ export class DICOMIO {
    */
   private async initialize() {
     if (!this.initializeCheck) {
-      this.initializeCheck = new Promise<void>((resolve, reject) =>
+      this.initializeCheck = new Promise<void>((resolve, reject) => {
         this.runTask('dicom', [], [], [])
           .then((result) => {
             if (result.webWorker) {
@@ -50,8 +50,8 @@ export class DICOMIO {
               reject(new Error('Could not initialize webworker'));
             }
           })
-          .catch(reject)
-      );
+          .catch(reject);
+      });
     }
 
     return this.initializeCheck;
