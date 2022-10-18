@@ -134,7 +134,7 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="aboutBoxDialog" width="25%">
+        <v-dialog v-model="aboutBoxDialog" width="35%">
           <about-box />
         </v-dialog>
 
