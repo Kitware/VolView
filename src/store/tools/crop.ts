@@ -111,7 +111,7 @@ export const useCropStore = defineStore('crop', () => {
   };
 
   function serialize(stateFile: StateFile) {
-    const tools = stateFile.manifest.tools;
+    const { tools } = stateFile.manifest;
     tools.crop = state.croppingByImageID;
   }
 

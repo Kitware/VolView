@@ -51,7 +51,7 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
     mappingRange: [0, 1],
   },
   cvr: {
-    enabled: false,
+    enabled: true,
     lightFollowsCamera: true,
     useVolumetricScatteringBlending: false,
     volumetricScatteringBlending: 0,
@@ -89,7 +89,10 @@ export const setupVolumeColorConfig = () => {
     volumeColorConfigs.set(viewID, dataID, config);
   };
 
-  const createUpdateFunc = <K extends keyof VolumeColorConfig>(key: K) => {
+  const createUpdateFunc = <K extends keyof VolumeColorConfig>(
+    key: K,
+    validator: (config: VolumeColorConfig[K]) => VolumeColorConfig[K] = (i) => i
+  ) => {
     return (
       viewID: string,
       dataID: string,
@@ -97,10 +100,10 @@ export const setupVolumeColorConfig = () => {
     ) => {
       const config =
         volumeColorConfigs.get(viewID, dataID) ?? defaultVolumeColorConfig();
-      const updatedConfig = {
+      const updatedConfig = validator({
         ...config[key],
         ...update,
-      };
+      });
       updateVolumeColorConfig(viewID, dataID, { [key]: updatedConfig });
     };
   };
@@ -109,7 +112,17 @@ export const setupVolumeColorConfig = () => {
   const updateVolumeColorTransferFunction =
     createUpdateFunc('transferFunction');
   const updateVolumeOpacityFunction = createUpdateFunc('opacityFunction');
-  const updateVolumeCVRParameters = createUpdateFunc('cvr');
+  const updateVolumeCVRParameters = createUpdateFunc('cvr', (cvrConfig) => {
+    return {
+      ...cvrConfig,
+      // 2X kernel size minimizes flickering lighting
+      // Limit kernel radius to [2*size, 2*size+10]
+      laoKernelRadius: Math.max(
+        2 * cvrConfig.laoKernelSize,
+        Math.min(2 * cvrConfig.laoKernelSize + 10, cvrConfig.laoKernelRadius)
+      ),
+    };
+  });
 
   const setVolumeColorPreset = (
     viewID: string,
