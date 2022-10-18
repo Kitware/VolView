@@ -58,7 +58,7 @@ async function generateDICOMThumbnail(
 ) {
   if (volumeKey in dicomStore.volumeInfo) {
     const info = dicomStore.volumeInfo[volumeKey];
-    const middleSlice = Math.round(Number(info.NumberOfSlices));
+    const middleSlice = Math.ceil(Number(info.NumberOfSlices) / 2);
     const thumb = (await dicomStore.getVolumeSlice(
       volumeKey,
       middleSlice,
