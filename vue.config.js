@@ -60,8 +60,11 @@ module.exports = {
             },
           },
           {
-            from: path.join(__dirname, 'src', 'io', 'itk-dicom','web-build'),
-            to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]')
+            from: path.join(__dirname, 'src', 'io', 'itk-dicom','web-build',),
+            to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]'),
+            filter: (resourcePath) => {
+              return path.basename(resourcePath).startsWith('dicom')
+            },
           }
         ],
       }),
