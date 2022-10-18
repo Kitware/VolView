@@ -271,16 +271,39 @@ export default defineComponent({
 
     const cvrParams = computed(() => volumeColorConfig.value?.cvr);
     const cvrEnabled = computed(() => !!cvrParams.value?.enabled);
+    const cvrLightOffset = computed(() => {
+      const image = currentImageData.value;
+      const lps = getLPSDirections(curImageMetadata.value.orientation as mat3);
+      const dir = lps[viewDirection.value];
+      const axisIndex = lps[getLPSAxisFromDir(viewDirection.value)];
+      if (image) {
+        const dim = image.getDimensions()[axisIndex];
+        return dir.map((v) => v * dim);
+      }
+      return dir;
+    });
 
     watch(
-      cvrEnabled,
-      (enabled) => {
+      [cvrEnabled, baseImageRep],
+      ([enabled, rep]) => {
         const renderer = viewProxy.value.getRenderer();
         renderer.removeAllLights();
-        if (enabled) {
+        if (enabled && rep) {
+          const volume = rep.getVolumes()[0];
+          const volumeBounds = volume.getBounds();
+          const center = [
+            (volumeBounds[0] + volumeBounds[1]) / 2,
+            (volumeBounds[2] + volumeBounds[3]) / 2,
+            (volumeBounds[4] + volumeBounds[5]) / 2,
+          ] as Vector3;
           const light = vtkLight.newInstance();
           light.setPositional(true);
           light.setLightTypeToSceneLight();
+          light.setPosition(
+            center[0] + cvrLightOffset.value[0],
+            center[1] + cvrLightOffset.value[1],
+            center[2] + cvrLightOffset.value[2]
+          );
           light.setColor(1, 1, 1);
           light.setIntensity(1);
           light.setConeAngle(90);
@@ -293,19 +316,6 @@ export default defineComponent({
       },
       { immediate: true }
     );
-
-    const cvrLightOffset = computed(() => {
-      const image = currentImageData.value;
-      const lps = getLPSDirections(curImageMetadata.value.orientation as mat3);
-      const dir = lps[viewDirection.value];
-      const axisIndex = lps[getLPSAxisFromDir(viewDirection.value)];
-      const lightFlip = cvrParams.value?.flipLightPosition ? 1 : -1;
-      if (image) {
-        const dim = image.getDimensions()[axisIndex];
-        return dir.map((v) => v * lightFlip * dim);
-      }
-      return dir;
-    });
 
     watch(
       [cvrParams, baseImageRep],
@@ -328,18 +338,14 @@ export default defineComponent({
         ] as Vector3;
 
         if (params.enabled) {
-          // set positional light position
           const light = renderer.getLights()[0];
           light.setFocalPoint(...center);
-          if (params.fixedLightPosition) {
+          if (params.lightFollowsCamera) {
             light.setLightTypeToHeadLight();
+            renderer.updateLightsGeometryToFollowCamera();
           } else {
+            light.setPositional(true);
             light.setLightTypeToSceneLight();
-            light.setPosition(
-              center[0] + cvrLightOffset.value[0],
-              center[1] + cvrLightOffset.value[1],
-              center[2] + cvrLightOffset.value[2]
-            );
           }
         }
 
