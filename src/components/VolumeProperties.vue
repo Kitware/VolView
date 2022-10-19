@@ -105,15 +105,15 @@ export default defineComponent({
         label="Light follows camera"
         dense
         hide-details
-        :value="cvrParams.lightFollowsCamera"
-        @change="setCVRParam('lightFollowsCamera', $event)"
+        :input-value="cvrParams.lightFollowsCamera"
+        @change="setCVRParam('lightFollowsCamera', !!$event)"
       />
       <v-switch
         label="Enable Volumetric Scattering"
         dense
         :disabled="laoEnabled"
-        :value="vsbEnabled"
-        @change="setCVRParam('useVolumetricScatteringBlending', $event)"
+        :input-value="vsbEnabled"
+        @change="setCVRParam('useVolumetricScatteringBlending', !!$event)"
       />
       <v-slider
         label="Blending"
@@ -131,8 +131,8 @@ export default defineComponent({
         label="Enable Local Ambient Occlusion"
         dense
         :disabled="vsbEnabled"
-        :value="laoEnabled"
-        @change="setCVRParam('useLocalAmbientOcclusion', $event)"
+        :input-value="laoEnabled"
+        @change="setCVRParam('useLocalAmbientOcclusion', !!$event)"
       />
       <v-slider
         label="LAO Kernel Size"
