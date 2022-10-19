@@ -51,7 +51,7 @@ export interface ColoringConfig {
 export interface CVRConfig {
   enabled: boolean;
 
-  flipLightPosition: boolean;
+  lightFollowsCamera: boolean;
 
   useVolumetricScatteringBlending: boolean;
   volumetricScatteringBlending: number;

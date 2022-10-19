@@ -78,72 +78,7 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
-      <v-switch
-        label="Enable Cinematic Volume Rendering"
-        dense
-        hide-details
-        :value="enabled"
-        @change="setCVREnabled"
-      />
       <v-divider class="my-4" />
-      <v-switch
-        label="Flip Light Position"
-        dense
-        hide-details
-        :disabled="!enabled"
-        :value="cvrParams.flipLightPosition"
-        @change="setCVRParam('flipLightPosition', $event)"
-      />
-      <v-switch
-        label="Enable Volumetric Scattering"
-        dense
-        :disabled="!enabled || laoEnabled"
-        :value="vsbEnabled"
-        @change="setCVRParam('useVolumetricScatteringBlending', $event)"
-      />
-      <v-slider
-        label="Blending"
-        min="0"
-        max="1"
-        step="0.05"
-        dense
-        hide-details
-        thumb-label
-        :disabled="!enabled || !vsbEnabled"
-        :value="cvrParams.volumetricScatteringBlending"
-        @input="setCVRParam('volumetricScatteringBlending', $event)"
-      />
-      <v-switch
-        label="Enable Local Ambient Occlusion"
-        dense
-        :disabled="!enabled || vsbEnabled"
-        :value="laoEnabled"
-        @change="setCVRParam('useLocalAmbientOcclusion', $event)"
-      />
-      <v-slider
-        label="LAO Kernel Size"
-        min="5"
-        max="32"
-        step="1"
-        dense
-        hide-details
-        thumb-label
-        :disabled="!enabled || !laoEnabled"
-        :value="cvrParams.laoKernelSize"
-        @input="setCVRParam('laoKernelSize', $event)"
-      />
-      <v-slider
-        label="LAO Kernel Radius"
-        min="1"
-        max="15"
-        step="1"
-        dense
-        hide-details
-        thumb-label
-        :disabled="!enabled || !laoEnabled"
-        :value="cvrParams.laoKernelRadius"
-        @input="setCVRParam('laoKernelRadius', $event)"
-      />
       <v-slider
         label="Ambient"
         min="0"
@@ -152,7 +87,6 @@ export default defineComponent({
         dense
         hide-details
         thumb-label
-        :disabled="!enabled"
         :value="cvrParams.ambient"
         @input="setCVRParam('ambient', $event)"
       />
@@ -164,9 +98,65 @@ export default defineComponent({
         dense
         hide-details
         thumb-label
-        :disabled="!enabled"
         :value="cvrParams.diffuse"
         @input="setCVRParam('diffuse', $event)"
+      />
+      <v-switch
+        label="Light follows camera"
+        dense
+        hide-details
+        :value="cvrParams.lightFollowsCamera"
+        @change="setCVRParam('lightFollowsCamera', $event)"
+      />
+      <v-switch
+        label="Enable Volumetric Scattering"
+        dense
+        :disabled="laoEnabled"
+        :value="vsbEnabled"
+        @change="setCVRParam('useVolumetricScatteringBlending', $event)"
+      />
+      <v-slider
+        label="Blending"
+        min="0"
+        max="1"
+        step="0.05"
+        dense
+        hide-details
+        thumb-label
+        :disabled="!vsbEnabled"
+        :value="cvrParams.volumetricScatteringBlending"
+        @input="setCVRParam('volumetricScatteringBlending', $event)"
+      />
+      <v-switch
+        label="Enable Local Ambient Occlusion"
+        dense
+        :disabled="vsbEnabled"
+        :value="laoEnabled"
+        @change="setCVRParam('useLocalAmbientOcclusion', $event)"
+      />
+      <v-slider
+        label="LAO Kernel Size"
+        min="3"
+        max="10"
+        step="1"
+        dense
+        hide-details
+        thumb-label
+        :disabled="!laoEnabled"
+        :value="cvrParams.laoKernelSize"
+        @input="setCVRParam('laoKernelSize', $event)"
+      />
+      <v-slider
+        label="LAO Kernel Radius"
+        :min="cvrParams.laoKernelSize * 2"
+        :max="cvrParams.laoKernelSize * 2 + 10"
+        step="1"
+        dense
+        hide-details
+        thumb-label
+        :disabled="!laoEnabled"
+        :value="cvrParams.laoKernelRadius"
+        @input="setCVRParam('laoKernelRadius', $event)"
       />
     </div>
   </div>

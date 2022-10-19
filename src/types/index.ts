@@ -6,3 +6,12 @@ export type NullableValues<T> = {
 
 export type PiniaStoreState<S extends StoreDefinition> =
   ReturnType<S>['$state'];
+
+export type SampleDataset = {
+  name: string;
+  filename: string;
+  description: string;
+  url: string;
+  image: string;
+  volumeKey?: string;
+};

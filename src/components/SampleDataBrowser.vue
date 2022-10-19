@@ -4,17 +4,18 @@ import {
   del,
   defineComponent,
   reactive,
-  watch,
-  ref,
+  computed,
 } from '@vue/composition-api';
 import ImageListCard from '@/src/components/ImageListCard.vue';
-import { Sample, SAMPLE_DATA } from '../config';
+import { SAMPLE_DATA } from '../config';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../store/datasets';
 import { fetchFileWithProgress } from '../utils';
 import { useMessageStore } from '../store/messages';
+import { useDICOMStore } from '../store/datasets-dicom';
+import { SampleDataset } from '../types';
 
 enum ProgressState {
   Pending,
@@ -29,26 +30,21 @@ interface Progress {
   };
 }
 
-interface RenderedSample extends Sample {
-  isDownloading: boolean;
-  isDone: boolean;
-  isError: boolean;
-  indeterminate: boolean;
-  progress: number;
-}
-
 export default defineComponent({
   components: {
     ImageListCard,
   },
   setup() {
     const datasetStore = useDatasetStore();
-    const inProgress = reactive({} as Progress);
+    const dicomStore = useDICOMStore();
+    const status = reactive<{ progress: Progress }>({
+      progress: {},
+    });
 
-    async function downloadSample(sample: Sample) {
+    async function downloadSample(sample: SampleDataset) {
       const progress = (percent: number) => {
         // TODO set/del doesn't exist in vue 3
-        set(inProgress, sample.name, {
+        set(status.progress, sample.name, {
           state: ProgressState.Pending,
           progress: percent * 100,
         });
@@ -64,7 +60,7 @@ export default defineComponent({
             mode: 'cors',
           }
         );
-        inProgress[sample.name].state = ProgressState.Done;
+        status.progress[sample.name].state = ProgressState.Done;
 
         if (sampleFile) {
           const [loadResult] = await datasetStore.loadFiles([sampleFile]);
@@ -74,46 +70,42 @@ export default defineComponent({
           }
         }
       } catch (error) {
-        inProgress[sample.name].state = ProgressState.Error;
+        status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();
         messageStore.addError('Failed to load sample data', error as Error);
       } finally {
-        setTimeout(() => del(inProgress, sample.name), 2000);
+        del(status.progress, sample.name);
       }
     }
 
-    const samplesToRender = ref<RenderedSample[]>();
-
-    watch(
-      inProgress,
-      () => {
-        const samples: RenderedSample[] = [];
-        SAMPLE_DATA.forEach((sample) => {
-          const isDone = inProgress[sample.name]?.state === ProgressState.Done;
-          const isError =
-            inProgress[sample.name]?.state === ProgressState.Error;
-          const progress = isDone
+    const samples = computed(() =>
+      SAMPLE_DATA.map((sample) => {
+        const isDone =
+          status.progress[sample.name]?.state === ProgressState.Done;
+        const isError =
+          status.progress[sample.name]?.state === ProgressState.Error;
+        const isLoaded =
+          !!sample.volumeKey && sample.volumeKey in dicomStore.volumeInfo;
+        const progress =
+          isDone || isLoaded
             ? 100
-            : Math.floor(inProgress[sample.name]?.progress);
-          samples.push({
-            ...sample,
-            isDownloading: sample.name in inProgress,
-            isDone,
-            isError,
-            indeterminate: progress === Infinity,
-            progress,
-          });
-        });
-
-        samplesToRender.value = samples;
-      },
-      {
-        immediate: true,
-      }
+            : Math.floor(status.progress[sample.name]?.progress);
+        return {
+          ...sample,
+          isDownloading: sample.name in status.progress,
+          isDone,
+          isError,
+          isLoaded,
+          indeterminate: progress === Infinity,
+          progress,
+        };
+      })
     );
 
+    (window as any).asdf = dicomStore;
+
     return {
-      samples: samplesToRender,
+      samples,
       downloadSample,
     };
   },
@@ -124,7 +116,7 @@ export default defineComponent({
   <div>
     <image-list-card
       v-for="sample in samples"
-      :disabled="sample.isDownloading"
+      :disabled="sample.isDownloading || sample.isLoaded"
       :key="sample.name"
       :title="sample.name"
       :image-url="sample.image"
@@ -135,14 +127,19 @@ export default defineComponent({
         {{ sample.name }}
       </div>
       <div class="body-2 mt-2">{{ sample.description }}</div>
-      <template v-slot:image-overlay v-if="sample.isDownloading">
+      <template
+        v-slot:image-overlay
+        v-if="sample.isDownloading || sample.isLoaded"
+      >
         <v-row class="fill-height ma-0" align="center" justify="center">
           <v-progress-circular
             color="white"
             :indeterminate="sample.indeterminate && !sample.isDone"
             :value="sample.progress"
           >
-            <v-icon v-if="sample.isDone" small color="white">mdi-check</v-icon>
+            <v-icon v-if="sample.isDone || sample.isLoaded" small color="white"
+              >mdi-check</v-icon
+            >
             <v-icon v-else-if="sample.isError" small color="white">
               mdi-alert-circle
             </v-icon>

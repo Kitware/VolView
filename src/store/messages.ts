@@ -10,7 +10,7 @@ export enum MessageType {
 
 export type MessageOptions = {
   details?: string;
-  persist: boolean;
+  persist?: boolean;
 };
 
 export interface Message {
