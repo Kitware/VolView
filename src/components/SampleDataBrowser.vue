@@ -102,8 +102,6 @@ export default defineComponent({
       })
     );
 
-    (window as any).asdf = dicomStore;
-
     return {
       samples,
       downloadSample,
