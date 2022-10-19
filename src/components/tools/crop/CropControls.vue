@@ -27,7 +27,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-card>
+  <v-card dark>
     <tool-button
       size="40"
       icon="mdi-restore"
