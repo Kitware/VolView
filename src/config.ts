@@ -127,7 +127,8 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'CTA Head and Neck',
     filename: 'CTA-Head_and_Neck.zip',
-    description: 'CTA head and neck scan of elderly patient with tumor. (80 MB)',
+    description:
+      'CTA head and neck scan of elderly patient with tumor. (80 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
     image: CTAHeadThumbnail,
     volumeKey:
@@ -136,7 +137,8 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'CTA Chest',
     filename: 'CTA-Chest.zip',
-    description: 'High-resolution, large field-of-view chest CTA scan. (147 MB)',
+    description:
+      'High-resolution, large field-of-view chest CTA scan. (147 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347145311dab81428208e20/download',
     image: CTAChestThumbnail,
     volumeKey:
@@ -145,7 +147,8 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'MRA Head and Neck',
     filename: 'MRA-Head_and_Neck.zip',
-    description: 'MRA from Patient Contributed Image Repository. Click application help icon "(?)" for more info. (15 MB)',
+    description:
+      'MRA from Patient Contributed Image Repository. Click application help icon "(?)" for more info. (15 MB)',
     url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
     image: MRAHeadThumbnail,
     volumeKey:
@@ -154,7 +157,8 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'MRI Cardiac 3D and Cine',
     filename: 'MRI-Cardiac-3D_and_Cine.zip',
-    description: 'MRI scan with two series: 3D axial non-gated and 2 chamber cine. (4 MB)',
+    description:
+      'MRI scan with two series: 3D axial non-gated and 2 chamber cine. (4 MB)',
     url: 'https://data.kitware.com/api/v1/item/6350b28f11dab8142820949d/download',
     image: MRICardiacThumbnail,
     volumeKey:
@@ -163,7 +167,8 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'MRI PROSTATEx',
     filename: 'MRI-PROSTATEx-0004.zip',
-    description: 'MRI from the SPIE-AAPM-NCI PROSTATEx challenge. Click application help "(?)" icon for more info. (3 MB)',
+    description:
+      'MRI from the SPIE-AAPM-NCI PROSTATEx challenge. Click application help "(?)" icon for more info. (3 MB)',
     url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
     image: MRIPROSTATExThumbnail,
     volumeKey:

@@ -73,15 +73,19 @@
             rel="noopener noreferrer"
             target="_blank"
             href="https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=23691656"
-          >TCIA</a>)
-: Geert Litjens, Oscar Debats, Jelle Barentsz, Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge data", The Cancer Imaging Archive (2017). DOI: 10.7937/K9TCIA.2017.MURS5CL
+            >TCIA</a
+          >) : Geert Litjens, Oscar Debats, Jelle Barentsz, Nico Karssemeijer,
+          and Henkjan Huisman. "ProstateX Challenge data", The Cancer Imaging
+          Archive (2017). DOI: 10.7937/K9TCIA.2017.MURS5CL
         </li>
         <li>
-          MRA Head and Neck: Test case 98890234 from the "Patient Contributed Image Repository" (<a
+          MRA Head and Neck: Test case 98890234 from the "Patient Contributed
+          Image Repository" (<a
             rel="noopener noreferrer"
             target="_blank"
             href="http://www.pcir.org/researchers/98890234_20030505_MR.html"
-          >PCIR.org</a>)
+            >PCIR.org</a
+          >)
         </li>
       </ul>
     </v-card-text>
