@@ -1,6 +1,8 @@
-import AbdomenMRIThumbnail from '@/src/assets/samples/abdomen-mri.jpg';
-import CTNeckThumbnail from '@/src/assets/samples/ct-neck.jpg';
-import CTChestThumbnail from '@/src/assets/samples/ct-chest.jpg';
+import MRICardiacThumbnail from '@/src/assets/samples/MRI-Cardiac.jpg';
+import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
+import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
+import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
+import CTAChestThumbnail from '@/src/assets/samples/CTA-Chest.jpg';
 import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
 import { SampleDataset } from './types';
@@ -123,31 +125,49 @@ export const LABELMAP_PALETTE = {
 
 export const SAMPLE_DATA: SampleDataset[] = [
   {
-    name: 'ABDOMEN-MRI',
-    filename: 'ABDOMEN-MRI.zip',
-    description: 'A DICOM dataset of an abdomen MRI scan. (16 MB)',
-    url: 'https://data.kitware.com/api/v1/item/620db9154acac99f42e77867/download',
-    image: AbdomenMRIThumbnail,
-    volumeKey:
-      '1.2.276.0.50.192168001099.7810872.14547392.458.6012.051251220070511.1D000000S0D000000S0D000000S0D000000S0D711030SN0D703161',
-  },
-  {
-    name: 'CT-Neck',
-    filename: 'neck.zip',
-    description: 'A DICOM dataset of a CT scan of a neck. (85 MB)',
+    name: 'CTA Head and Neck',
+    filename: 'CTA-Head_and_Neck.zip',
+    description: 'CTA head and neck scan of elderly patient with tumor. (80 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
-    image: CTNeckThumbnail,
+    image: CTAHeadThumbnail,
     volumeKey:
       '2.16.840.1.114362.1.11972228.22789312658.616067305.306.3.6151251220120507.1D000000S0D000000S0D000000S0D000000S1D000000S0D000000',
   },
   {
-    name: 'CT-Chest',
-    filename: 'ct-chest.zip',
-    description: 'A DICOM dataset of a CT scan of a chest. (153 MB)',
+    name: 'CTA Chest',
+    filename: 'CTA-Chest.zip',
+    description: 'High-resolution, large field-of-view chest CTA scan. (147 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347145311dab81428208e20/download',
-    image: CTChestThumbnail,
+    image: CTAChestThumbnail,
     volumeKey:
       '2.16.840.1.114362.1.11972228.22789312658.561585527.143.7.60.651251220200409.1D000000S0D000000S0D000000S0D000000S1D000000S0D000000',
+  },
+  {
+    name: 'MRA Head and Neck',
+    filename: 'MRA-Head_and_Neck.zip',
+    description: 'MRA from Patient Contributed Image Repository. Click application help icon "(?)" for more info. (15 MB)',
+    url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
+    image: MRAHeadThumbnail,
+    volumeKey:
+      '1.2.276.0.50.192168001099.7810872.14547392.458.6012.051251220070511.1D000000S0D000000S0D000000S0D000000S0D711030SN0D703161',
+  },
+  {
+    name: 'MRI Cardiac 3D and Cine',
+    filename: 'MRI-Cardiac-3D_and_Cine.zip',
+    description: 'MRI scan with two series: 3D axial non-gated and 2 chamber cine. (4 MB)',
+    url: 'https://data.kitware.com/api/v1/item/6350b28f11dab8142820949d/download',
+    image: MRICardiacThumbnail,
+    volumeKey:
+      '1.2.276.0.50.192168001099.7810872.14547392.458.6012.051251220070511.1D000000S0D000000S0D000000S0D000000S0D711030SN0D703161',
+  },
+  {
+    name: 'MRI PROSTATEx',
+    filename: 'MRI-PROSTATEx-0004.zip',
+    description: 'MRI from the SPIE-AAPM-NCI PROSTATEx challenge. Click application help "(?)" icon for more info. (3 MB)',
+    url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
+    image: MRIPROSTATExThumbnail,
+    volumeKey:
+      '1.2.276.0.50.192168001099.7810872.14547392.458.6012.051251220070511.1D000000S0D000000S0D000000S0D000000S0D711030SN0D703161',
   },
 ];
 
