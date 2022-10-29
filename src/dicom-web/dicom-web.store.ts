@@ -1,19 +1,19 @@
 import { defineStore } from 'pinia';
 
-import { DICOM_WEB_HOST } from '../config';
 import { PatientInfo } from '../store/datasets-dicom';
 import { useDicomMetaStore } from './dicom-meta.store';
 import {
-  fetchAllInstances,
+  searchForStudies,
   fetchSeries,
   FetchSeriesOptions,
   fetchInstanceThumbnail,
+  retrieveStudyMetadata,
 } from './dicomWeb';
 
 async function getAllPatients(host: string): Promise<PatientInfo[]> {
-  const instances = await fetchAllInstances(host);
+  const instances = await searchForStudies(host);
   const dicoms = useDicomMetaStore();
-  instances.forEach((instance) => dicoms.importInstance(instance));
+  instances.forEach((instance) => dicoms.importMeta(instance));
   return Object.values(dicoms.patientInfo);
 }
 
@@ -22,7 +22,7 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
  */
 export const useDicomWebStore = defineStore('dicom-web', {
   state: () => ({
-    host: DICOM_WEB_HOST,
+    host: process.env.VUE_APP_DICOM_WEB_URL as string,
     message: '',
     patients: [] as PatientInfo[],
   }),
@@ -65,6 +65,20 @@ export const useDicomWebStore = defineStore('dicom-web', {
 
     async fetchSeries(seriesInfo: FetchSeriesOptions): Promise<File[]> {
       return fetchSeries(this.host, seriesInfo);
+    },
+
+    async fetchPatientMeta(patientKey: string) {
+      const dicoms = useDicomMetaStore();
+      const studies = await Promise.all(
+        dicoms.patientStudies[patientKey]
+          .map((studyKey) => dicoms.studyInfo[studyKey])
+          .map(({ StudyInstanceUID }) =>
+            retrieveStudyMetadata(this.host, {
+              studyInstanceUID: StudyInstanceUID,
+            })
+          )
+      );
+      studies.flat().forEach((instance) => dicoms.importMeta(instance));
     },
   },
 });

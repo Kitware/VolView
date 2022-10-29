@@ -45,4 +45,11 @@ export default defineComponent({
   </v-container>
 </template>
 
-<style scoped></style>
+<style scoped>
+.v-expansion-panel--active:not(:first-child):after {
+  opacity: 100;
+}
+.v-expansion-panel--active + .v-expansion-panel::after {
+  opacity: 100;
+}
+</style>

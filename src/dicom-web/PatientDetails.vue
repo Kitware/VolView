@@ -1,11 +1,12 @@
 <script lang="ts">
-import { computed, defineComponent, toRefs } from '@vue/composition-api';
+import { computed, defineComponent } from '@vue/composition-api';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import { useDicomMetaStore } from './dicom-meta.store';
 import StudyVolumeDicomWeb from './StudyVolumeDicomWeb.vue';
+import { useDicomWebStore } from './dicom-web.store';
 
 export default defineComponent({
-  name: 'PatientDicomWeb',
+  name: 'PatientDetails',
   props: {
     patientKey: {
       type: String,
@@ -16,15 +17,14 @@ export default defineComponent({
     ItemGroup,
     StudyVolumeDicomWeb,
   },
-  setup(props) {
-    const { patientKey } = toRefs(props);
-
+  setup({ patientKey }) {
     const dicomStore = useDicomMetaStore();
+    const dicomWebStore = useDicomWebStore();
+    dicomWebStore.fetchPatientMeta(patientKey);
 
     const studies = computed(() => {
-      const selPatient = patientKey.value;
       const { patientStudies, studyInfo, studyVolumes } = dicomStore;
-      return patientStudies[selPatient].map((studyKey) => {
+      return patientStudies[patientKey].map((studyKey) => {
         const info = studyInfo[studyKey];
         return {
           ...info,

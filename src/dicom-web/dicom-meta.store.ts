@@ -68,7 +68,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     needsRebuild: {},
   }),
   actions: {
-    async importInstance(info: Instance) {
+    async importMeta(info: Instance) {
       const patient = {
         PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
         PatientName: info.PatientName || ANONYMOUS_PATIENT,
@@ -110,13 +110,13 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
       instance: InstanceInfo
     ) {
       const patientKey = patient.PatientID;
-      if (!(patientKey in this.patientInfo)) {
+      if (patientKey && !(patientKey in this.patientInfo)) {
         set(this.patientInfo, patientKey, patient);
         set(this.patientStudies, patientKey, []);
       }
 
       const studyKey = study.StudyInstanceUID;
-      if (!(studyKey in this.studyInfo)) {
+      if (studyKey && !(studyKey in this.studyInfo)) {
         set(this.studyInfo, studyKey, study);
         set(this.studyVolumes, studyKey, []);
         set(this.studyPatient, studyKey, patientKey);
@@ -124,7 +124,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
       }
 
       const volumeKey = volume.VolumeID;
-      if (!(volumeKey in this.volumeInfo)) {
+      if (volumeKey && !(volumeKey in this.volumeInfo)) {
         set(this.volumeInfo, volumeKey, volume);
         set(this.volumeInstances, volumeKey, []);
         set(this.volumeStudy, volumeKey, studyKey);
@@ -132,7 +132,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
       }
 
       const instanceKey = instance.SopInstanceUID;
-      if (!(instanceKey in this.instanceInfo)) {
+      if (instanceKey && !(instanceKey in this.instanceInfo)) {
         set(this.instanceInfo, instanceKey, instance);
         set(this.instanceVolume, instanceKey, volumeKey);
         this.volumeInstances[volumeKey].push(instanceKey);

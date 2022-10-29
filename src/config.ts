@@ -180,5 +180,3 @@ export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   MR: 'CT-Coronary-Arteries-2',
   US: 'US-Fetal',
 };
-
-export const DICOM_WEB_HOST = 'http://localhost:5173/dicom-web';

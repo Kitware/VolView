@@ -1,7 +1,10 @@
-import { api } from 'dicomweb-client';
+import { api } from 'dicomweb-client-typed';
 
-export interface FetchSeriesOptions {
+export interface FetchStudyOptions {
   studyInstanceUID: string;
+}
+
+export interface FetchSeriesOptions extends FetchStudyOptions {
   seriesInstanceUID: string;
 }
 
@@ -59,14 +62,21 @@ function toFile(instance: ArrayBuffer) {
 function makeClient(dicomWebRoot: string) {
   return new api.DICOMwebClient({
     url: dicomWebRoot,
-    // retrieveRendered: false,
-    verbose: true,
   });
 }
 
-export async function fetchAllInstances(dicomWebRoot: string) {
+export async function searchForStudies(dicomWebRoot: string) {
   const client = makeClient(dicomWebRoot);
-  const instances = await client.searchForInstances();
+  const instances = await client.searchForStudies();
+  return instances.map(parseInstance);
+}
+
+export async function retrieveStudyMetadata(
+  dicomWebRoot: string,
+  options: FetchStudyOptions
+) {
+  const client = makeClient(dicomWebRoot);
+  const instances = await client.retrieveStudyMetadata(options);
   return instances.map(parseInstance);
 }
 
@@ -84,13 +94,12 @@ export async function fetchInstanceThumbnail(
   instance: FetchInstanceOptions
 ) {
   const client = makeClient(dicomWebRoot);
-  const thumbnail = await client.retrieveInstanceFramesRendered({
+  const thumbnail = await client.retrieveInstanceRendered({
     ...instance,
-    frameNumbers: [1],
-    mediaTypes: [{ mediaType: 'image/jpeg' }],
+    mediaType: ['image/jpeg'],
+    queryParams: [{ quality: '10' }],
   });
   const arrayBufferView = new Uint8Array(thumbnail);
   const blob = new Blob([arrayBufferView], { type: 'image/jpeg' });
-  const thumbnailUrl = URL.createObjectURL(blob);
-  return thumbnailUrl;
+  return URL.createObjectURL(blob);
 }
