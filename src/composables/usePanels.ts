@@ -15,7 +15,7 @@ export function usePanels(keys: Ref<Set<string>>) {
       panels.value = panels.value.filter(({ key }) => newKeys.has(key));
 
       const addedKeys = [...newKeys].filter((key) => !oldKeys?.has(key));
-      // order in  temporal created order, not template order.  See https://github.com/vuetifyjs/vuetify/issues/11225
+      // order in temporal created order, not template order.  See https://github.com/vuetifyjs/vuetify/issues/11225
       panels.value = [
         ...panels.value,
         ...addedKeys.map((key) => ({ key, isOpen: true })),
@@ -31,12 +31,12 @@ export function usePanels(keys: Ref<Set<string>>) {
     panel!.isOpen = !panel!.isOpen;
   };
 
-  const openPanels: Ref<number[]> = computed(() => {
-    return panels.value
+  const openPanels: Ref<number[]> = computed(() =>
+    panels.value
       .map(({ isOpen }, idx) => ({ isOpen, idx }))
       .filter(({ isOpen }) => isOpen)
-      .map(({ idx }) => idx);
-  });
+      .map(({ idx }) => idx)
+  );
 
   return { handlePanelChange, openPanels };
 }

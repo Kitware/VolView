@@ -2,6 +2,7 @@
 import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import DicomWebBrowser from '../dicom-web/DicomWebBrowser.vue';
+import { DICOM_WEB_CONFIGURED } from '../dicom-web/dicom-web.store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -10,6 +11,8 @@ import { usePanels } from '../composables/usePanels';
 
 const SAMPLE_DATA_KEY = 'sampleData';
 const ANONYMOUS_DATA_KEY = 'anonymousData';
+const DICOM_WEB_KEY = 'dicomWeb';
+const SAMPLE_DATA_PANEL_INDEX = DICOM_WEB_CONFIGURED ? 1 : 0;
 
 export default defineComponent({
   name: 'DataBrowser',
@@ -43,6 +46,7 @@ export default defineComponent({
     const panelKeys = computed(
       () =>
         new Set([
+          ...(DICOM_WEB_CONFIGURED ? [DICOM_WEB_KEY] : []),
           SAMPLE_DATA_KEY,
           ...(hasAnonymousImages.value ? [ANONYMOUS_DATA_KEY] : []),
           ...patients.value.map((study) => study.key),
@@ -53,8 +57,10 @@ export default defineComponent({
 
     // Collapse Sample Data after loading data
     watch(panelKeys, (newSet, oldSet) => {
-      // Sample Data panel index always 0
-      if (newSet.size > oldSet.size && openPanels.value.includes(0)) {
+      if (
+        newSet.size > oldSet.size &&
+        openPanels.value.includes(SAMPLE_DATA_PANEL_INDEX)
+      ) {
         handlePanelChange(SAMPLE_DATA_KEY);
       }
     });
@@ -64,9 +70,11 @@ export default defineComponent({
       patients,
       deletePatient: dicomStore.deletePatient,
       hasAnonymousImages,
+      DICOM_WEB_CONFIGURED,
       handlePanelChange,
       SAMPLE_DATA_KEY,
       ANONYMOUS_DATA_KEY,
+      DICOM_WEB_KEY,
     };
   },
 });
@@ -126,6 +134,21 @@ export default defineComponent({
             <patient-browser :patient-key="patient.key" />
           </v-expansion-panel-content>
         </v-expansion-panel>
+
+        <v-expansion-panel
+          v-if="DICOM_WEB_CONFIGURED"
+          key="dicomWeb"
+          @change="handlePanelChange(DICOM_WEB_KEY)"
+        >
+          <v-expansion-panel-header>
+            <v-icon class="collection-header-icon">mdi-cloud-download</v-icon>
+            <span>DICOMWeb</span>
+          </v-expansion-panel-header>
+          <v-expansion-panel-content>
+            <dicom-web-browser />
+          </v-expansion-panel-content>
+        </v-expansion-panel>
+
         <v-expansion-panel
           key="sampleData"
           @change="handlePanelChange(SAMPLE_DATA_KEY)"
@@ -136,16 +159,6 @@ export default defineComponent({
           </v-expansion-panel-header>
           <v-expansion-panel-content>
             <sample-data-browser />
-          </v-expansion-panel-content>
-        </v-expansion-panel>
-
-        <v-expansion-panel>
-          <v-expansion-panel-header>
-            <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
-            <span>DICOMWeb</span>
-          </v-expansion-panel-header>
-          <v-expansion-panel-content>
-            <dicom-web-browser />
           </v-expansion-panel-content>
         </v-expansion-panel>
       </v-expansion-panels>

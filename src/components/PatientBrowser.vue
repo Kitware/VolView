@@ -40,7 +40,6 @@ export default defineComponent({
       const { patientStudies, studyInfo, studyVolumes } = dicomStore;
       return patientStudies[selPatient].map((studyKey) => {
         const info = studyInfo[studyKey];
-        console.log(studies);
         return {
           ...info,
           key: studyKey,

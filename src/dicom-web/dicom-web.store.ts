@@ -10,6 +10,9 @@ import {
   retrieveStudyMetadata,
 } from './dicomWeb';
 
+export const DICOM_WEB_CONFIGURED =
+  process.env.VUE_APP_DICOM_WEB_URL !== undefined;
+
 async function getAllPatients(host: string): Promise<PatientInfo[]> {
   const instances = await searchForStudies(host);
   const dicoms = useDicomMetaStore();
@@ -23,6 +26,7 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
 export const useDicomWebStore = defineStore('dicom-web', {
   state: () => ({
     host: process.env.VUE_APP_DICOM_WEB_URL as string,
+    isSetup: false,
     message: '',
     patients: [] as PatientInfo[],
   }),
