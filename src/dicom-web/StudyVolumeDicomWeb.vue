@@ -8,17 +8,8 @@ import {
   watch,
 } from '@vue/composition-api';
 import type { PropType } from '@vue/composition-api';
-import {
-  convertSuccessResultToDataSelection,
-  useDatasetStore,
-} from '@/src/store/datasets';
-import { useMessageStore } from '@/src/store/messages';
 import { useDicomMetaStore } from './dicom-meta.store';
-import { useDicomWebStore } from './dicom-web.store';
-
-function dicomCacheKey(volKey: string) {
-  return `dicom-${volKey}`;
-}
+import { useDicomWebStore, isDownloadable } from './dicom-web.store';
 
 export default defineComponent({
   name: 'StudyVolumeDicomWeb',
@@ -39,60 +30,30 @@ export default defineComponent({
       const { volumeInfo } = dicomStore;
       return volumeKeys.value.map((volumeKey) => ({
         key: volumeKey,
-        // for thumbnailing
-        cacheKey: dicomCacheKey(volumeKey),
         info: volumeInfo[volumeKey],
+        isDisabled: !isDownloadable(dicomWebStore.volumes[volumeKey]),
       }));
     });
-
-    // --- thumbnails --- //
 
     const thumbnailCache = reactive<Record<string, string>>({});
 
     watch(
       volumeKeys,
       (keys) => {
-        keys.forEach(async (key) => {
-          const cacheKey = dicomCacheKey(key);
-          if (cacheKey in thumbnailCache) {
-            return;
-          }
-          const thumb = await dicomWebStore.fetchVolumeThumbnail(key);
-          if (thumb !== null) {
-            set(thumbnailCache, cacheKey, thumb);
-          }
-        });
+        keys
+          .filter((key) => !(key in thumbnailCache))
+          .forEach(async (key) => {
+            const thumb = await dicomWebStore.fetchVolumeThumbnail(key);
+            if (thumb !== null) {
+              set(thumbnailCache, key, thumb);
+            }
+          });
       },
       { immediate: true, deep: true }
     );
 
-    const datasetStore = useDatasetStore();
-
-    async function downloadDicom(volumeKey: string) {
-      const volumeInfo = dicomStore.volumeInfo[volumeKey];
-      const studyKey = dicomStore.volumeStudy[volumeKey];
-      const studyInfo = dicomStore.studyInfo[studyKey];
-      const seriesInfo = {
-        studyInstanceUID: studyInfo.StudyInstanceUID,
-        seriesInstanceUID: volumeInfo.SeriesInstanceUID,
-      };
-      try {
-        const files = await dicomWebStore.fetchSeries(seriesInfo);
-        if (files) {
-          const [loadResult] = await datasetStore.loadFiles(files);
-          if (loadResult?.loaded) {
-            const selection = convertSuccessResultToDataSelection(loadResult);
-            datasetStore.setPrimarySelection(selection);
-          } else {
-            throw new Error('Failed to load DICOM.');
-          }
-        } else {
-          throw new Error('Fetch came back falsy.');
-        }
-      } catch (error) {
-        const messageStore = useMessageStore();
-        messageStore.addError('Failed to load DICOM', error as Error);
-      }
+    function downloadDicom(volumeKey: string) {
+      dicomWebStore.downloadVolume(volumeKey);
     }
 
     return {
@@ -112,13 +73,14 @@ export default defineComponent({
           <v-container v-for="volume in volumes" :key="volume.info.VolumeID">
             <v-card
               outlined
-              ripple
               :class="{
                 'volume-card': true,
               }"
               min-height="180px"
               min-width="180px"
               :title="volume.info.SeriesDescription"
+              :disabled="volume.isDisabled"
+              :ripple="!volume.isDisabled"
               @click="downloadDicom(volume.info.VolumeID)"
             >
               <v-row no-gutters class="pa-0" justify="center">
@@ -127,7 +89,7 @@ export default defineComponent({
                     contain
                     max-height="150px"
                     max-width="150px"
-                    :src="(thumbnailCache || {})[volume.cacheKey] || ''"
+                    :src="(thumbnailCache || {})[volume.key] || ''"
                   >
                     <v-overlay
                       absolute

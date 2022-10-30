@@ -1,6 +1,12 @@
+import { set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
+import {
+  convertSuccessResultToDataSelection,
+  useDatasetStore,
+} from '../store/datasets';
 
 import { PatientInfo } from '../store/datasets-dicom';
+import { useMessageStore } from '../store/messages';
 import { useDicomMetaStore } from './dicom-meta.store';
 import {
   searchForStudies,
@@ -9,6 +15,28 @@ import {
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
 } from './dicomWeb';
+
+export enum ProgressState {
+  NotPending,
+  Pending,
+  Error,
+  Done,
+}
+
+interface VolumeProgress {
+  state: ProgressState;
+  progress: number;
+}
+
+interface Progress {
+  [name: string]: VolumeProgress;
+}
+
+export const isDownloadable = (progress?: VolumeProgress) =>
+  !progress ||
+  [ProgressState.Pending, ProgressState.Done].every(
+    (state) => state !== progress.state
+  );
 
 export const DICOM_WEB_CONFIGURED =
   process.env.VUE_APP_DICOM_WEB_URL !== undefined;
@@ -29,6 +57,7 @@ export const useDicomWebStore = defineStore('dicom-web', {
     isSetup: false,
     message: '',
     patients: [] as PatientInfo[],
+    volumes: {} as Progress,
   }),
   actions: {
     async fetchDicomList() {
@@ -83,6 +112,43 @@ export const useDicomWebStore = defineStore('dicom-web', {
           )
       );
       studies.flat().forEach((instance) => dicoms.importMeta(instance));
+    },
+
+    async downloadVolume(volumeKey: string) {
+      const datasets = useDatasetStore();
+      const dicoms = useDicomMetaStore();
+
+      if (!isDownloadable(this.volumes[volumeKey])) return;
+
+      set(this.volumes, volumeKey, {
+        ...this.volumes[volumeKey],
+        state: ProgressState.Pending,
+        progress: 0,
+      });
+
+      const { SeriesInstanceUID: seriesInstanceUID } =
+        dicoms.volumeInfo[volumeKey];
+      const studyKey = dicoms.volumeStudy[volumeKey];
+      const { StudyInstanceUID: studyInstanceUID } = dicoms.studyInfo[studyKey];
+      const seriesInfo = { studyInstanceUID, seriesInstanceUID };
+
+      try {
+        const files = await this.fetchSeries(seriesInfo);
+        if (files) {
+          const [loadResult] = await datasets.loadFiles(files);
+          if (loadResult?.loaded) {
+            const selection = convertSuccessResultToDataSelection(loadResult);
+            datasets.setPrimarySelection(selection);
+          } else {
+            throw new Error('Failed to load DICOM.');
+          }
+        } else {
+          throw new Error('Fetch came back falsy.');
+        }
+      } catch (error) {
+        const messageStore = useMessageStore();
+        messageStore.addError('Failed to load DICOM', error as Error);
+      }
     },
   },
 });
