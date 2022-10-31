@@ -28,23 +28,21 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-container v-if="patients.length > 0">
-    <v-expansion-panels multiple accordion>
-      <v-expansion-panel v-for="patient in patients" :key="patient.key">
-        <v-expansion-panel-header>
-          <div class="patient-header">
-            <v-icon class="collection-header-icon">mdi-account</v-icon>
-            <span class="patient-header-name" :title="patient.name">
-              {{ patient.name }}
-            </span>
-          </div>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
-          <patient-details :patient-key="patient.key" />
-        </v-expansion-panel-content>
-      </v-expansion-panel>
-    </v-expansion-panels>
-  </v-container>
+  <v-expansion-panels v-if="patients.length > 0" multiple accordion>
+    <v-expansion-panel v-for="patient in patients" :key="patient.key">
+      <v-expansion-panel-header>
+        <div class="patient-header">
+          <v-icon class="collection-header-icon">mdi-account</v-icon>
+          <span class="patient-header-name" :title="patient.name">
+            {{ patient.name }}
+          </span>
+        </div>
+      </v-expansion-panel-header>
+      <v-expansion-panel-content>
+        <patient-details :patient-key="patient.key" />
+      </v-expansion-panel-content>
+    </v-expansion-panel>
+  </v-expansion-panels>
 </template>
 
 <style scoped>

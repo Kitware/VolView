@@ -1,23 +1,23 @@
-import { set } from '@vue/composition-api';
+import { ref, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../store/datasets';
 
-import { PatientInfo } from '../store/datasets-dicom';
+import { PatientInfo, useDICOMStore } from '../store/datasets-dicom';
 import { useMessageStore } from '../store/messages';
 import { useDicomMetaStore } from './dicom-meta.store';
 import {
   searchForStudies,
-  fetchSeries,
+  fetchSeries as fetchSeriesFromServer,
   FetchSeriesOptions,
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
 } from './dicomWeb';
 
 export enum ProgressState {
-  NotPending,
+  Remote,
   Pending,
   Error,
   Done,
@@ -51,104 +51,142 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
 /**
  * Collect DICOM data from DICOMWeb
  */
-export const useDicomWebStore = defineStore('dicom-web', {
-  state: () => ({
-    host: process.env.VUE_APP_DICOM_WEB_URL as string,
-    isSetup: false,
-    message: '',
-    patients: [] as PatientInfo[],
-    volumes: {} as Progress,
-  }),
-  actions: {
-    async fetchDicomList() {
-      this.patients = [];
-      this.message = '';
-      try {
-        this.patients = await getAllPatients(this.host);
+export const useDicomWebStore = defineStore('dicom-web', () => {
+  const host = ref(process.env.VUE_APP_DICOM_WEB_URL as string);
+  const isSetup = ref(false);
+  const message = ref('');
 
-        if (this.patients.length === 0) {
-          this.message = 'Found zero dicoms';
-        }
-      } catch (e) {
-        this.message = 'Failed to fetch DICOM list';
-        console.error(e);
+  const patients = ref([] as PatientInfo[]);
+
+  const fetchDicomList = async () => {
+    patients.value = [];
+    message.value = '';
+    try {
+      patients.value = await getAllPatients(host.value);
+
+      if (patients.value.length === 0) {
+        message.value = 'Found zero dicoms';
       }
-    },
+    } catch (e) {
+      message.value = 'Failed to fetch list of DICOM metadata';
+      console.error(e);
+    }
+  };
 
-    async fetchVolumeThumbnail(volumeKey: string) {
-      const dicoms = useDicomMetaStore();
-      const volumeInfo = dicoms.volumeInfo[volumeKey];
-      const middleSlice = Math.floor(volumeInfo.NumberOfSlices / 2);
-      const middleInstance = dicoms.volumeInstances[volumeKey]
-        .map((instanceKey) => dicoms.instanceInfo[instanceKey])
-        .sort(
-          ({ InstanceNumber: a }, { InstanceNumber: b }) =>
-            Number(a) - Number(b)
-        )[middleSlice];
+  const fetchVolumeThumbnail = async (volumeKey: string) => {
+    const dicoms = useDicomMetaStore();
+    const volumeInfo = dicoms.volumeInfo[volumeKey];
+    const middleSlice = Math.floor(volumeInfo.NumberOfSlices / 2);
+    const middleInstance = dicoms.volumeInstances[volumeKey]
+      .map((instanceKey) => dicoms.instanceInfo[instanceKey])
+      .sort(
+        ({ InstanceNumber: a }, { InstanceNumber: b }) => Number(a) - Number(b)
+      )[middleSlice];
 
-      const studyKey = dicoms.volumeStudy[volumeKey];
-      const studyInfo = dicoms.studyInfo[studyKey];
-      const instance = {
-        studyInstanceUID: studyInfo.StudyInstanceUID,
-        seriesInstanceUID: volumeInfo.SeriesInstanceUID,
-        sopInstanceUID: middleInstance.SopInstanceUID,
-      };
-      return fetchInstanceThumbnail(this.host, instance);
-    },
+    const studyKey = dicoms.volumeStudy[volumeKey];
+    const studyInfo = dicoms.studyInfo[studyKey];
+    const instance = {
+      studyInstanceUID: studyInfo.StudyInstanceUID,
+      seriesInstanceUID: volumeInfo.SeriesInstanceUID,
+      sopInstanceUID: middleInstance.SopInstanceUID,
+    };
+    return fetchInstanceThumbnail(host.value, instance);
+  };
 
-    async fetchSeries(seriesInfo: FetchSeriesOptions): Promise<File[]> {
-      return fetchSeries(this.host, seriesInfo);
-    },
+  const fetchSeries = async (
+    seriesInfo: FetchSeriesOptions
+  ): Promise<File[]> => {
+    return fetchSeriesFromServer(host.value, seriesInfo);
+  };
 
-    async fetchPatientMeta(patientKey: string) {
-      const dicoms = useDicomMetaStore();
-      const studies = await Promise.all(
-        dicoms.patientStudies[patientKey]
-          .map((studyKey) => dicoms.studyInfo[studyKey])
-          .map(({ StudyInstanceUID }) =>
-            retrieveStudyMetadata(this.host, {
-              studyInstanceUID: StudyInstanceUID,
-            })
-          )
-      );
-      studies.flat().forEach((instance) => dicoms.importMeta(instance));
-    },
+  const fetchPatientMeta = async (patientKey: string) => {
+    const dicoms = useDicomMetaStore();
+    const studies = await Promise.all(
+      dicoms.patientStudies[patientKey]
+        .map((studyKey) => dicoms.studyInfo[studyKey])
+        .map(({ StudyInstanceUID }) =>
+          retrieveStudyMetadata(host.value, {
+            studyInstanceUID: StudyInstanceUID,
+          })
+        )
+    );
+    studies.flat().forEach((instance) => dicoms.importMeta(instance));
+  };
 
-    async downloadVolume(volumeKey: string) {
-      const datasets = useDatasetStore();
-      const dicoms = useDicomMetaStore();
+  const volumes = ref({} as Progress);
 
-      if (!isDownloadable(this.volumes[volumeKey])) return;
+  const downloadVolume = async (volumeKey: string) => {
+    const datasets = useDatasetStore();
+    const dicoms = useDicomMetaStore();
 
-      set(this.volumes, volumeKey, {
-        ...this.volumes[volumeKey],
-        state: ProgressState.Pending,
-        progress: 0,
-      });
+    if (!isDownloadable(volumes.value[volumeKey])) return;
 
-      const { SeriesInstanceUID: seriesInstanceUID } =
-        dicoms.volumeInfo[volumeKey];
-      const studyKey = dicoms.volumeStudy[volumeKey];
-      const { StudyInstanceUID: studyInstanceUID } = dicoms.studyInfo[studyKey];
-      const seriesInfo = { studyInstanceUID, seriesInstanceUID };
+    set(volumes.value, volumeKey, {
+      ...volumes.value[volumeKey],
+      state: ProgressState.Pending,
+      progress: 0,
+    });
 
-      try {
-        const files = await this.fetchSeries(seriesInfo);
-        if (files) {
-          const [loadResult] = await datasets.loadFiles(files);
-          if (loadResult?.loaded) {
-            const selection = convertSuccessResultToDataSelection(loadResult);
-            datasets.setPrimarySelection(selection);
-          } else {
-            throw new Error('Failed to load DICOM.');
-          }
+    const { SeriesInstanceUID: seriesInstanceUID } =
+      dicoms.volumeInfo[volumeKey];
+    const studyKey = dicoms.volumeStudy[volumeKey];
+    const { StudyInstanceUID: studyInstanceUID } = dicoms.studyInfo[studyKey];
+    const seriesInfo = { studyInstanceUID, seriesInstanceUID };
+
+    try {
+      const files = await fetchSeries(seriesInfo);
+      if (files) {
+        const [loadResult] = await datasets.loadFiles(files);
+        if (loadResult?.loaded) {
+          const selection = convertSuccessResultToDataSelection(loadResult);
+          datasets.setPrimarySelection(selection);
+          set(volumes.value, volumeKey, {
+            ...volumes.value[volumeKey],
+            state: ProgressState.Done,
+            progress: 100,
+          });
         } else {
-          throw new Error('Fetch came back falsy.');
+          throw new Error('Failed to load DICOM.');
         }
-      } catch (error) {
-        const messageStore = useMessageStore();
-        messageStore.addError('Failed to load DICOM', error as Error);
+      } else {
+        throw new Error('Fetch came back falsy.');
       }
-    },
-  },
+    } catch (error) {
+      const messageStore = useMessageStore();
+      messageStore.addError('Failed to load DICOM', error as Error);
+    }
+  };
+
+  const loadedDicoms = useDICOMStore();
+  loadedDicoms.$onAction(({ name, args, after }) => {
+    console.log(name);
+    if (name !== 'deleteVolume') {
+      return;
+    }
+    after(() => {
+      const [loadedVolumeKey] = args;
+      const volumeKey = Object.keys(volumes.value).find((key) =>
+        loadedVolumeKey.startsWith(key)
+      );
+      if (volumeKey)
+        set(volumes.value, volumeKey, {
+          ...volumes.value[volumeKey],
+          state: ProgressState.Remote,
+          progress: 0,
+        });
+    });
+  });
+
+  return {
+    host,
+    message,
+    isSetup,
+    patients,
+    volumes,
+    fetchDicomList,
+    fetchVolumeThumbnail,
+    fetchSeries,
+    fetchPatientMeta,
+    downloadVolume,
+  };
 });
