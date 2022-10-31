@@ -204,11 +204,6 @@ import {
   DICOMLoadFailure,
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
-import {
-  onProxyManagerEvent,
-  ProxyManagerEvent,
-} from '../composables/onProxyManagerEvent';
-import { useProxyManager } from '../composables/proxyManager';
 import { useViewStore } from '../store/views';
 import { useMessageStore } from '../store/messages';
 import { useRulerStore } from '../store/tools/rulers';
@@ -236,19 +231,12 @@ export default defineComponent({
   },
 
   setup() {
-    const proxyManager = useProxyManager();
     const dataStore = useDatasetStore();
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
     const viewStore = useViewStore();
 
     useGlobalErrorHook();
-
-    // --- auto-animate views whenever a proxy is modified --- //
-
-    onProxyManagerEvent(ProxyManagerEvent.ProxyModified, () => {
-      proxyManager?.autoAnimateViews();
-    });
 
     // --- layout --- //
 
