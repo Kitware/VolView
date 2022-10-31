@@ -97,6 +97,7 @@ export default defineComponent({
             <image-data-browser />
           </v-expansion-panel-content>
         </v-expansion-panel>
+
         <v-expansion-panel
           v-for="patient in patients"
           :key="patient.key"

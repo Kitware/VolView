@@ -10,8 +10,7 @@ import { useMessageStore } from '../store/messages';
 import { useDicomMetaStore } from './dicom-meta.store';
 import {
   searchForStudies,
-  fetchSeries as fetchSeriesFromServer,
-  FetchSeriesOptions,
+  fetchSeries,
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
 } from './dicomWeb';
@@ -23,9 +22,10 @@ export enum ProgressState {
   Done,
 }
 
-interface VolumeProgress {
+export interface VolumeProgress {
   state: ProgressState;
-  progress: number;
+  loaded: number;
+  total: number;
 }
 
 interface Progress {
@@ -93,12 +93,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     return fetchInstanceThumbnail(host.value, instance);
   };
 
-  const fetchSeries = async (
-    seriesInfo: FetchSeriesOptions
-  ): Promise<File[]> => {
-    return fetchSeriesFromServer(host.value, seriesInfo);
-  };
-
   const fetchPatientMeta = async (patientKey: string) => {
     const dicoms = useDicomMetaStore();
     const studies = await Promise.all(
@@ -124,7 +118,8 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     set(volumes.value, volumeKey, {
       ...volumes.value[volumeKey],
       state: ProgressState.Pending,
-      progress: 0,
+      loaded: 0,
+      total: 0,
     });
 
     const { SeriesInstanceUID: seriesInstanceUID } =
@@ -133,8 +128,16 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const { StudyInstanceUID: studyInstanceUID } = dicoms.studyInfo[studyKey];
     const seriesInfo = { studyInstanceUID, seriesInstanceUID };
 
+    const progressCallback = ({ loaded, total }: ProgressEvent) => {
+      set(volumes.value, volumeKey, {
+        ...volumes.value[volumeKey],
+        loaded,
+        total,
+      });
+    };
+
     try {
-      const files = await fetchSeries(seriesInfo);
+      const files = await fetchSeries(host.value, seriesInfo, progressCallback);
       if (files) {
         const [loadResult] = await datasets.loadFiles(files);
         if (loadResult?.loaded) {
@@ -143,7 +146,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
           set(volumes.value, volumeKey, {
             ...volumes.value[volumeKey],
             state: ProgressState.Done,
-            progress: 100,
           });
         } else {
           throw new Error('Failed to load DICOM.');
@@ -154,15 +156,18 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     } catch (error) {
       const messageStore = useMessageStore();
       messageStore.addError('Failed to load DICOM', error as Error);
+      set(volumes.value, volumeKey, {
+        ...volumes.value[volumeKey],
+        state: ProgressState.Error,
+        loaded: 0,
+      });
     }
   };
 
   const loadedDicoms = useDICOMStore();
   loadedDicoms.$onAction(({ name, args, after }) => {
-    console.log(name);
-    if (name !== 'deleteVolume') {
-      return;
-    }
+    if (name !== 'deleteVolume') return;
+
     after(() => {
       const [loadedVolumeKey] = args;
       const volumeKey = Object.keys(volumes.value).find((key) =>
@@ -172,7 +177,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         set(volumes.value, volumeKey, {
           ...volumes.value[volumeKey],
           state: ProgressState.Remote,
-          progress: 0,
+          loaded: 0,
         });
     });
   });
@@ -185,7 +190,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     volumes,
     fetchDicomList,
     fetchVolumeThumbnail,
-    fetchSeries,
     fetchPatientMeta,
     downloadVolume,
   };

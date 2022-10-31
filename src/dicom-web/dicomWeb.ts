@@ -32,7 +32,6 @@ const tags = {
   Modality: '00080060',
 
   SopInstanceUID: '00080018',
-  // SopInstanceName: '0008103E',
   InstanceNumber: '00200013',
 };
 
@@ -52,8 +51,8 @@ function parseInstance(instance: any): Instance {
   ) as Instance;
 }
 
+// Create unique file names so loader utils work
 let fileCounter = 0;
-
 function toFile(instance: ArrayBuffer) {
   fileCounter++;
   return new File([new Blob([instance])], `dicom-web.${fileCounter}.dcm`);
@@ -82,10 +81,14 @@ export async function retrieveStudyMetadata(
 
 export async function fetchSeries(
   dicomWebRoot: string,
-  options: FetchSeriesOptions
+  options: FetchSeriesOptions,
+  progressCallback: (n: ProgressEvent) => void
 ): Promise<File[]> {
   const client = makeClient(dicomWebRoot);
-  const series = (await client.retrieveSeries(options)) as ArrayBuffer[];
+  const series = (await client.retrieveSeries({
+    ...options,
+    progressCallback,
+  })) as ArrayBuffer[];
   return series.map(toFile);
 }
 
@@ -97,7 +100,7 @@ export async function fetchInstanceThumbnail(
   const thumbnail = await client.retrieveInstanceRendered({
     ...instance,
     mediaType: ['image/jpeg'],
-    queryParams: [{ quality: '10' }],
+    queryParams: { quality: '10' },
   });
   const arrayBufferView = new Uint8Array(thumbnail);
   const blob = new Blob([arrayBufferView], { type: 'image/jpeg' });

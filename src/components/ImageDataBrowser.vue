@@ -127,13 +127,23 @@ export default defineComponent({
     <v-container v-show="images.length" class="pa-0">
       <v-row no-gutters justify="space-between">
         <v-col cols="6" align-self="center">
-          <v-checkbox class="ml-3 align-center justify-center" :indeterminate="selectedSome && !selectedAll"
-            label="Select All" v-model="selectedAll"></v-checkbox>
+          <v-checkbox
+            class="ml-3 align-center justify-center"
+            :indeterminate="selectedSome && !selectedAll"
+            label="Select All"
+            v-model="selectedAll"
+          ></v-checkbox>
         </v-col>
         <v-col cols="6" align-self="center" class="d-flex justify-end">
           <v-tooltip left>
             <template v-slot:activator="{ on, attrs }">
-              <v-btn icon :disabled="!selectedSome" @click.stop="removeSelection" v-bind="attrs" v-on="on">
+              <v-btn
+                icon
+                :disabled="!selectedSome"
+                @click.stop="removeSelection"
+                v-bind="attrs"
+                v-on="on"
+              >
                 <v-icon>mdi-delete</v-icon>
               </v-btn>
             </template>
@@ -142,11 +152,28 @@ export default defineComponent({
         </v-col>
       </v-row>
     </v-container>
-    <item-group :value="primarySelection" :testFunction="selectionEquals" @change="setPrimarySelection">
-      <groupable-item v-for="image in images" :key="image.id" v-slot="{ active, select }" :value="image.selectionKey">
-        <image-list-card selectable :active="active" :title="image.name"
-          :image-url="(thumbnails[image.cacheKey] || {}).imageURI || ''" :image-size="100" @click="select"
-          :id="image.id" :inputValue="image.id" v-model="selected">
+    <item-group
+      :value="primarySelection"
+      :testFunction="selectionEquals"
+      @change="setPrimarySelection"
+    >
+      <groupable-item
+        v-for="image in images"
+        :key="image.id"
+        v-slot="{ active, select }"
+        :value="image.selectionKey"
+      >
+        <image-list-card
+          selectable
+          :active="active"
+          :title="image.name"
+          :image-url="(thumbnails[image.cacheKey] || {}).imageURI || ''"
+          :image-size="100"
+          @click="select"
+          :id="image.id"
+          :inputValue="image.id"
+          v-model="selected"
+        >
           <div class="text-body-2 font-weight-bold text-no-wrap text-truncate">
             {{ image.name }}
           </div>

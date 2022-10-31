@@ -105,13 +105,16 @@ export default defineComponent({
             :indeterminate="selectedSome && !selectedAll"
             label="Select All Studies"
             v-model="selectedAll"
-          ></v-checkbox>
+            dense
+            hide-details
+          />
         </v-col>
         <v-col cols="6" align-self="center" class="d-flex justify-end mt-2">
           <v-tooltip left>
             <template v-slot:activator="{ on, attrs }">
               <v-btn
                 icon
+                small
                 :disabled="!selectedSome"
                 @click.stop="removeSelectedStudies"
                 v-bind="attrs"
