@@ -13,5 +13,4 @@ export type SampleDataset = {
   description: string;
   url: string;
   image: string;
-  volumeKey?: string;
 };

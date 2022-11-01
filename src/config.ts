@@ -131,8 +131,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       'CTA head and neck scan of elderly patient with tumor. (80 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
     image: CTAHeadThumbnail,
-    volumeKey:
-      '2.16.840.1.114362.1.11972228.22789312658.616067305.306.3.6151251220120507.1D000000S0D000000S0D000000S0D000000S1D000000S0D000000',
   },
   {
     name: 'CTA Chest',
@@ -141,8 +139,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       'High-resolution, large field-of-view chest CTA scan. (147 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347145311dab81428208e20/download',
     image: CTAChestThumbnail,
-    volumeKey:
-      '2.16.840.1.114362.1.11972228.22789312658.561585527.143.7.60.651251220200409.1D000000S0D000000S0D000000S0D000000S1D000000S0D000000',
   },
   {
     name: 'MRA Head and Neck',
@@ -151,8 +147,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       'MRA from Patient Contributed Image Repository. Click application help icon "(?)" for more info. (15 MB)',
     url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
     image: MRAHeadThumbnail,
-    volumeKey:
-      '1.3.6.1.4.1.5962.1.1.0.0.0.1196533885.18148.0.21.31.200000e0051251220030505.1D000000S0D001152SN0D001332SN0D001144S1D000000S0D006144',
   },
   {
     name: 'MRI Cardiac 3D and Cine',
@@ -161,8 +155,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       'MRI scan with two series: 3D axial non-gated and 2 chamber cine. (4 MB)',
     url: 'https://data.kitware.com/api/v1/item/6350b28f11dab8142820949d/download',
     image: MRICardiacThumbnail,
-    volumeKey:
-      '1.3.6.1.4.1.5962.99.1.4055780784.1832156800.1666208157104.7.0.3825625620190430.1D000000SN0D000000S0D000000SN0D000000S1D000000S0D000000',
   },
   {
     name: 'MRI PROSTATEx',
@@ -171,8 +163,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       'MRI from the SPIE-AAPM-NCI PROSTATEx challenge. Click application help "(?)" icon for more info. (3 MB)',
     url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
     image: MRIPROSTATExThumbnail,
-    volumeKey:
-      '1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922',
   },
 ];
 
