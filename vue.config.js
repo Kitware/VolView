@@ -14,14 +14,21 @@ const ITK_WASM_INCLUDE = [
   'BMP',
   'GDCM',
   'ReadDICOMTags',
-  'ReadImageDICOMFileSeries'
+  'ReadImageDICOMFileSeries',
 ];
 
-const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js')
+const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js');
 
 module.exports = {
   lintOnSave: false,
   transpileDependencies: ['vuetify'],
+  chainWebpack: (config) => {
+    config.plugin('html').tap((args) => {
+      // eslint-disable-next-line no-param-reassign
+      args[0].ga = process.env.VOLVIEW_GA_ID || null;
+      return args;
+    });
+  },
   configureWebpack: {
     devtool: 'source-map',
     resolve: {
@@ -30,7 +37,7 @@ module.exports = {
         '@src': path.join(__dirname, 'src'),
         // Use lite colormap
         '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.json':
-        '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
+          '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/LiteColorMaps.json',
         '../itkConfig.js': itkConfig,
         '../../itkConfig.js': itkConfig,
       },
@@ -47,8 +54,14 @@ module.exports = {
       new CopyWebpackPlugin({
         patterns: [
           {
-            from: path.join(__dirname, 'node_modules', 'itk-wasm', 'dist', 'web-workers'),
-            to: path.join(__dirname, 'dist', 'itk', 'web-workers')
+            from: path.join(
+              __dirname,
+              'node_modules',
+              'itk-wasm',
+              'dist',
+              'web-workers'
+            ),
+            to: path.join(__dirname, 'dist', 'itk', 'web-workers'),
           },
           {
             from: path.join(__dirname, 'node_modules', 'itk-image-io'),
@@ -60,12 +73,12 @@ module.exports = {
             },
           },
           {
-            from: path.join(__dirname, 'src', 'io', 'itk-dicom','web-build'),
+            from: path.join(__dirname, 'src', 'io', 'itk-dicom', 'web-build'),
             to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]'),
             filter: (resourcePath) => {
-              return path.basename(resourcePath).startsWith('dicom')
+              return path.basename(resourcePath).startsWith('dicom');
             },
-          }
+          },
         ],
       }),
     ],
