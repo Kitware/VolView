@@ -52,11 +52,11 @@ export const Modules = [
     icon: 'cube',
     component: RenderingModule,
   },
-  {
-    name: 'AI',
-    icon: 'robot-outline',
-    component: null,
-  },
+  // {
+  //   name: 'AI',
+  //   icon: 'robot-outline',
+  //   component: null,
+  // },
 ];
 
 export default defineComponent({
