@@ -22,6 +22,13 @@ const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js')
 module.exports = {
   lintOnSave: false,
   transpileDependencies: ['vuetify'],
+  chainWebpack: (config) => {
+    config.plugin('html').tap((args) => {
+      // eslint-disable-next-line no-param-reassign
+      args[0].ga = process.env.VOLVIEW_GA_ID || null;
+      return args;
+    });
+  },
   configureWebpack: {
     devtool: 'source-map',
     resolve: {
