@@ -47,7 +47,11 @@ export default {
     this.internalValue = this.value;
   },
   render(h) {
-    return h('div', null, this.$slots.default);
+    return h(
+      'div',
+      { props: this.$attrs, on: this.$listeners },
+      this.$slots.default
+    );
   },
   methods: {
     selectItem(itemValue) {
