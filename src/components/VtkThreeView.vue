@@ -373,9 +373,12 @@ export default defineComponent({
           mapper.setLAOKernelRadius(0);
         }
 
-        property.setAmbient(enabled ? params.ambient : DEFAULT_AMBIENT);
-        property.setDiffuse(enabled ? params.diffuse : DEFAULT_DIFFUSE);
-        property.setSpecular(enabled ? params.specular : DEFAULT_SPECULAR);
+        // do not toggle these parameters when animating
+        property.setAmbient(params.enabled ? params.ambient : DEFAULT_AMBIENT);
+        property.setDiffuse(params.enabled ? params.diffuse : DEFAULT_DIFFUSE);
+        property.setSpecular(
+          params.enabled ? params.specular : DEFAULT_SPECULAR
+        );
 
         if (!animating) {
           viewProxy.value.render();
