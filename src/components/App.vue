@@ -125,7 +125,7 @@
                       <div class="mt-8">
                         <v-icon size="64">mdi-arrow-down-bold</v-icon>
                       </div>
-                      <div>Drag & drop your DICOM files.</div>
+                      <div>Drag &amp; drop your DICOM files.</div>
                       <div class="mt-16">
                         <v-icon size="64">mdi-cloud-off-outline</v-icon>
                       </div>
