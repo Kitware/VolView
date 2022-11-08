@@ -14,7 +14,6 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { manageVTKSubscription } from '../composables/manageVTKSubscription';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import ColorFunctionSlider from './ColorFunctionSlider.vue';
 import { useVTKCallback } from '../composables/useVTKCallback';
@@ -24,6 +23,8 @@ import {
   getShiftedOpacityFromPreset,
 } from '../utils/vtk-helpers';
 import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
+import { useViewProxy } from '../composables/useViewProxy';
+import { ViewProxyType } from '../core/proxies';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -131,7 +132,40 @@ export default defineComponent({
       recurseGuard = false;
     }
 
-    manageVTKSubscription(pwfWidget.onOpacityChange(updateOpacityFunc));
+    const onWidgetOpacityChange = useVTKCallback(pwfWidget.onOpacityChange);
+    onWidgetOpacityChange(updateOpacityFunc);
+
+    // trigger 3D view animations when updating the opacity widget
+    const { viewProxy } = useViewProxy(TARGET_VIEW_ID, ViewProxyType.Volume);
+    let animationRequested = false;
+
+    const request3DAnimation = () => {
+      if (!animationRequested) {
+        animationRequested = true;
+        viewProxy.value.getInteractor().requestAnimation(pwfWidget);
+      }
+    };
+
+    const cancel3DAnimation = () => {
+      animationRequested = false;
+      viewProxy.value
+        .getInteractor()
+        .cancelAnimation(pwfWidget, true /* skipWarning */);
+    };
+
+    const onWidgetAnimation = useVTKCallback(pwfWidget.onAnimation);
+    onWidgetAnimation((animating: boolean) => {
+      if (animating) {
+        request3DAnimation();
+      } else {
+        cancel3DAnimation();
+      }
+    });
+
+    // handles edge case where component unmounts while widget is animating
+    onBeforeUnmount(() => {
+      cancel3DAnimation();
+    });
 
     useResizeObserver(editorContainerRef, (entry) => {
       const { width } = entry.contentRect;
@@ -267,6 +301,15 @@ export default defineComponent({
       }
     };
 
+    const onColorMappingUpdate = (range: [number, number]) => {
+      request3DAnimation();
+      updateColorMappingRange(range);
+    };
+
+    const onColorMappingFinalize = () => {
+      cancel3DAnimation();
+    };
+
     return {
       editorContainerRef,
       pwfEditorRef,
@@ -287,7 +330,8 @@ export default defineComponent({
       size: THUMBNAIL_SIZE,
       rgbPoints,
       selectPreset,
-      updateColorMappingRange,
+      onColorMappingUpdate,
+      onColorMappingFinalize,
     };
   },
 });
@@ -298,15 +342,18 @@ export default defineComponent({
     <div class="mt-4" ref="editorContainerRef">
       <div ref="pwfEditorRef" />
     </div>
-    <color-function-slider
-      dense
-      hide-details
-      :min="fullMappingRange[0]"
-      :max="fullMappingRange[1]"
-      :step="colorSliderStep"
-      :rgb-points="rgbPoints"
-      :value="mappingRange"
-      @input="updateColorMappingRange"
-    />
+    <div>
+      <color-function-slider
+        dense
+        hide-details
+        :min="fullMappingRange[0]"
+        :max="fullMappingRange[1]"
+        :step="colorSliderStep"
+        :rgb-points="rgbPoints"
+        :value="mappingRange"
+        @input="onColorMappingUpdate"
+        @change="onColorMappingFinalize"
+      />
+    </div>
   </div>
 </template>

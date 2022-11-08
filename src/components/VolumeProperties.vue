@@ -88,7 +88,7 @@ export default defineComponent({
         hide-details
         thumb-label
         :value="cvrParams.ambient"
-        @input="setCVRParam('ambient', $event)"
+        @change="setCVRParam('ambient', $event)"
       />
       <v-slider
         label="Diffuse"
@@ -99,7 +99,7 @@ export default defineComponent({
         hide-details
         thumb-label
         :value="cvrParams.diffuse"
-        @input="setCVRParam('diffuse', $event)"
+        @change="setCVRParam('diffuse', $event)"
       />
       <v-switch
         label="Light follows camera"
@@ -125,7 +125,7 @@ export default defineComponent({
         thumb-label
         :disabled="!vsbEnabled"
         :value="cvrParams.volumetricScatteringBlending"
-        @input="setCVRParam('volumetricScatteringBlending', $event)"
+        @change="setCVRParam('volumetricScatteringBlending', $event)"
       />
       <v-switch
         label="Enable Local Ambient Occlusion"
@@ -144,7 +144,7 @@ export default defineComponent({
         thumb-label
         :disabled="!laoEnabled"
         :value="cvrParams.laoKernelSize"
-        @input="setCVRParam('laoKernelSize', $event)"
+        @change="setCVRParam('laoKernelSize', $event)"
       />
       <v-slider
         label="LAO Kernel Radius"
@@ -156,7 +156,7 @@ export default defineComponent({
         thumb-label
         :disabled="!laoEnabled"
         :value="cvrParams.laoKernelRadius"
-        @input="setCVRParam('laoKernelRadius', $event)"
+        @change="setCVRParam('laoKernelRadius', $event)"
       />
     </div>
   </div>

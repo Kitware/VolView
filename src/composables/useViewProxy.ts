@@ -1,12 +1,12 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { computed, ref, Ref, unref, watch } from '@vue/composition-api';
+import { computed, ref, unref, watch } from '@vue/composition-api';
 import { MaybeRef } from '@vueuse/core';
 import { ViewProxyType } from '../core/proxies';
 import { useViewStore } from '../store/views';
 import { useVTKCallback } from './useVTKCallback';
 
 export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
-  id: Ref<string>,
+  id: MaybeRef<string>,
   type: MaybeRef<ViewProxyType>
 ) {
   const viewStore = useViewStore();
@@ -18,7 +18,7 @@ export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   };
 
   const viewProxy = computed<T>(() =>
-    viewStore.createOrGetViewProxy(id.value, unref(type))
+    viewStore.createOrGetViewProxy(unref(id), unref(type))
   );
 
   watch(viewProxy, (curViewProxy, oldViewProxy) => {
