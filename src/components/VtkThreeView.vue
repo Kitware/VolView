@@ -54,7 +54,7 @@ import {
   toRefs,
   watch,
 } from '@vue/composition-api';
-import { mat3, vec3 } from 'gl-matrix';
+import { vec3 } from 'gl-matrix';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
@@ -62,13 +62,11 @@ import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunct
 import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import vtkLight from '@kitware/vtk.js/Rendering/Core/Light';
 import { Vector3 } from '@kitware/vtk.js/types';
 
 import { useProxyManager } from '@/src/composables/proxyManager';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { getLPSAxisFromDir, getLPSDirections } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
@@ -90,6 +88,7 @@ import CropTool from './tools/CropTool.vue';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { VTKThreeViewWidgetManager } from '../constants';
 import { useCropStore } from '../store/tools/crop';
+import { isViewAnimating } from '../composables/isViewAnimating';
 
 export default defineComponent({
   props: {
@@ -160,11 +159,15 @@ export default defineComponent({
     // --- picking --- //
 
     // disables picking for crop control and more
-    watch(baseImageRep, (rep) => {
-      if (rep) {
-        rep.getVolumes().forEach((volume) => volume.setPickable(false));
-      }
-    });
+    watch(
+      baseImageRep,
+      (rep) => {
+        if (rep) {
+          rep.getVolumes().forEach((volume) => volume.setPickable(false));
+        }
+      },
+      { immediate: true }
+    );
 
     // --- widget manager --- //
 
@@ -253,77 +256,39 @@ export default defineComponent({
       curImageID
     );
 
-    watch([viewID, curImageID], () => {
-      if (
-        curImageID.value &&
-        currentImageData.value &&
-        !volumeColorConfig.value
-      ) {
-        viewConfigStore.resetToDefaultColoring(
-          viewID.value,
-          curImageID.value,
-          currentImageData.value
-        );
-      }
-    });
-
-    // --- CVR parameters --- //
-
-    const cvrParams = computed(() => volumeColorConfig.value?.cvr);
-    const cvrEnabled = computed(() => !!cvrParams.value?.enabled);
-    const cvrLightOffset = computed(() => {
-      const image = currentImageData.value;
-      const lps = getLPSDirections(curImageMetadata.value.orientation as mat3);
-      const dir = lps[viewDirection.value];
-      const axisIndex = lps[getLPSAxisFromDir(viewDirection.value)];
-      if (image) {
-        const dim = image.getDimensions()[axisIndex];
-        return dir.map((v) => v * dim);
-      }
-      return dir;
-    });
-
     watch(
-      [cvrEnabled, baseImageRep],
-      ([enabled, rep]) => {
-        const renderer = viewProxy.value.getRenderer();
-        renderer.removeAllLights();
-        if (enabled && rep) {
-          const volume = rep.getVolumes()[0];
-          const volumeBounds = volume.getBounds();
-          const center = [
-            (volumeBounds[0] + volumeBounds[1]) / 2,
-            (volumeBounds[2] + volumeBounds[3]) / 2,
-            (volumeBounds[4] + volumeBounds[5]) / 2,
-          ] as Vector3;
-          const light = vtkLight.newInstance();
-          light.setPositional(true);
-          light.setLightTypeToSceneLight();
-          light.setPosition(
-            center[0] + cvrLightOffset.value[0],
-            center[1] + cvrLightOffset.value[1],
-            center[2] + cvrLightOffset.value[2]
+      [viewID, curImageID],
+      () => {
+        if (
+          curImageID.value &&
+          currentImageData.value &&
+          !volumeColorConfig.value
+        ) {
+          viewConfigStore.resetToDefaultColoring(
+            viewID.value,
+            curImageID.value,
+            currentImageData.value
           );
-          light.setColor(1, 1, 1);
-          light.setIntensity(1);
-          light.setConeAngle(90);
-          renderer.addLight(light);
-          renderer.setTwoSidedLighting(false);
-        } else {
-          renderer.createLight();
-          renderer.setTwoSidedLighting(true);
         }
       },
       { immediate: true }
     );
 
+    // --- CVR parameters --- //
+
+    const cvrParams = computed(() => volumeColorConfig.value?.cvr);
+    const isAnimating = isViewAnimating(viewProxy);
+
     watch(
-      [cvrParams, baseImageRep],
-      ([params, rep]) => {
+      [cvrParams, baseImageRep, isAnimating],
+      ([params, rep, animating]) => {
         const image = rep?.getInputDataSet() as vtkImageData | null | undefined;
         if (!rep || !image || !params) {
           return;
         }
+
+        // disable CVR while animating for smoother interaction
+        const enabled = params.enabled && !animating;
 
         const renderer = viewProxy.value.getRenderer();
         const mapper = rep.getMapper() as vtkVolumeMapper;
@@ -337,16 +302,25 @@ export default defineComponent({
           (volumeBounds[4] + volumeBounds[5]) / 2,
         ] as Vector3;
 
-        if (params.enabled) {
-          const light = renderer.getLights()[0];
+        if (renderer.getLights().length === 0) {
+          renderer.createLight();
+        }
+        const light = renderer.getLights()[0];
+        if (enabled) {
           light.setFocalPoint(...center);
+          light.setColor(1, 1, 1);
+          light.setIntensity(1);
+          light.setConeAngle(90);
+          light.setPositional(true);
+          renderer.setTwoSidedLighting(false);
           if (params.lightFollowsCamera) {
             light.setLightTypeToHeadLight();
             renderer.updateLightsGeometryToFollowCamera();
           } else {
-            light.setPositional(true);
             light.setLightTypeToSceneLight();
           }
+        } else {
+          light.setPositional(false);
         }
 
         const sampleDistance =
@@ -359,15 +333,15 @@ export default defineComponent({
           );
 
         mapper.setSampleDistance(sampleDistance / 10);
+        mapper.setGlobalIlluminationReach(enabled ? 0.5 : 0);
 
-        mapper.setGlobalIlluminationReach(params.enabled ? 0.5 : 0);
         property.setShade(true);
         property.setScalarOpacityUnitDistance(
           0,
           getDiagonalLength(image.getBounds()) /
             Math.max(...image.getDimensions())
         );
-        property.setUseGradientOpacity(0, !params.enabled);
+        property.setUseGradientOpacity(0, !enabled);
         property.setGradientOpacityMinimumValue(0, 0.0);
         const dataRange = image.getPointData().getScalars().getRange();
         property.setGradientOpacityMaximumValue(
@@ -377,7 +351,7 @@ export default defineComponent({
         property.setGradientOpacityMinimumOpacity(0, 0.0);
         property.setGradientOpacityMinimumOpacity(0, 1.0);
 
-        if (params.enabled && params.useVolumetricScatteringBlending) {
+        if (enabled && params.useVolumetricScatteringBlending) {
           mapper.setVolumetricScatteringBlending(
             params.volumetricScatteringBlending
           );
@@ -386,7 +360,7 @@ export default defineComponent({
         }
 
         // Local ambient occlusion
-        if (params.enabled && params.useLocalAmbientOcclusion) {
+        if (enabled && params.useLocalAmbientOcclusion) {
           mapper.setLocalAmbientOcclusion(true);
           mapper.setLAOKernelSize(params.laoKernelSize);
           mapper.setLAOKernelRadius(params.laoKernelRadius);
@@ -396,12 +370,16 @@ export default defineComponent({
           mapper.setLAOKernelRadius(0);
         }
 
+        // do not toggle these parameters when animating
         property.setAmbient(params.enabled ? params.ambient : DEFAULT_AMBIENT);
         property.setDiffuse(params.enabled ? params.diffuse : DEFAULT_DIFFUSE);
         property.setSpecular(
           params.enabled ? params.specular : DEFAULT_SPECULAR
         );
-        viewProxy.value.render();
+
+        if (!animating) {
+          viewProxy.value.render();
+        }
       },
       { deep: true, immediate: true }
     );
