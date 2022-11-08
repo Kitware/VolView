@@ -4,8 +4,18 @@
       <vol-view-full-logo />
     </v-card-title>
     <v-card-text>
+      <p align=center>
+        <img src="../assets/KitwareHeadAndNeck.jpg" alt="Head and neck CT rendering" style="width:200px" align=center><br>
+      </p>
       <p>
-        VolView is an open-source web application developed at
+        <a
+          rel="noopener noreferrer"
+          target="_blank"
+          href="https://volview.kitware.com/"
+        >
+          VolView
+        </a>
+        is an open-source web application developed at
         <a
           rel="noopener noreferrer"
           target="_blank"
@@ -13,8 +23,15 @@
         >
           Kitware
         </a>
-        for visualizing and annotating medical images stored in DICOM, NRRD,
-        NIFTI, and other file formats. It is an application built on top of the
+        for visualizing and annotating medical images.  It key features include:
+<ul>
+    <li>Drag-and-drop DICOM files for quick viewing</li>
+    <li>Cinematic volume rendering: generate high-quality 3D visualizations</li>
+    <li>Standard radiological image visualization and annotation tools</li>
+    <li>Secure: your data stays on your machine. No cloud services or data servers are used.</li>
+</ul>
+<br>
+        VolView is freely available for research and commercial applications, using the Apache 2.0 license.  It is built using a variety of open-source toolks created by Kitware, such as
         <a
           rel="noopener noreferrer"
           target="_blank"
@@ -22,7 +39,7 @@
         >
           itk-wasm
         </a>
-        and
+        for DICOM I/O and image processing, and
         <a
           rel="noopener noreferrer"
           target="_blank"
@@ -30,16 +47,16 @@
         >
           vtk.js
         </a>
-        toolkits.
+        for in-browser scientific visualization.
       </p>
       <!-- prettier-ignore -->
       <p>
-        Want help in customizing VolView for your next application?
+        Want help customizing VolView for your products or processes or to create a branded application?
         <a
           rel-="noopener noreferrer"
           target="_blank"
           href="https://www.kitware.com/contact/project/"
-        >Contact us</a>!
+        >Contact Kitware!</a>
       </p>
       <ul class="mt-3">
         <li>
@@ -69,14 +86,14 @@
       </p>
       <ul class="mt-3">
         <li>
-          PROSTATEx Challenge Data (<a
+          PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz, Nico Karssemeijer,
+          and Henkjan Huisman. "ProstateX Challenge data", The Cancer Imaging
+          Archive (2017). DOI: 10.7937/K9TCIA.2017.MURS5CL (<a
             rel="noopener noreferrer"
             target="_blank"
             href="https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=23691656"
             >TCIA</a
-          >) : Geert Litjens, Oscar Debats, Jelle Barentsz, Nico Karssemeijer,
-          and Henkjan Huisman. "ProstateX Challenge data", The Cancer Imaging
-          Archive (2017). DOI: 10.7937/K9TCIA.2017.MURS5CL
+          >)
         </li>
         <li>
           MRA Head and Neck: Test case 98890234 from the "Patient Contributed
@@ -86,6 +103,14 @@
             href="http://www.pcir.org/researchers/98890234_20030505_MR.html"
             >PCIR.org</a
           >)
+        </li>
+        <li>
+          3D ultrasound of a fetus: Sample data from <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="http://tomovision.comi"
+            >tomovision.com</a
+          >
         </li>
       </ul>
     </v-card-text>
