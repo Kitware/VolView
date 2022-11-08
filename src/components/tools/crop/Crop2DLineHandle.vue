@@ -1,5 +1,4 @@
 <script lang="ts">
-import { Vector2 } from '@kitware/vtk.js/types';
 import { defineComponent, PropType, ref } from '@vue/composition-api';
 import { CropLine } from './types';
 
@@ -7,7 +6,7 @@ export default defineComponent({
   props: {
     line: {
       required: true,
-      type: Object as PropType<CropLine<Vector2>>,
+      type: Object as PropType<CropLine<number[]>>,
     },
     clickWidth: {
       default: 20,
