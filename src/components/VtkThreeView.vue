@@ -159,11 +159,15 @@ export default defineComponent({
     // --- picking --- //
 
     // disables picking for crop control and more
-    watch(baseImageRep, (rep) => {
-      if (rep) {
-        rep.getVolumes().forEach((volume) => volume.setPickable(false));
-      }
-    });
+    watch(
+      baseImageRep,
+      (rep) => {
+        if (rep) {
+          rep.getVolumes().forEach((volume) => volume.setPickable(false));
+        }
+      },
+      { immediate: true }
+    );
 
     // --- widget manager --- //
 
@@ -252,19 +256,23 @@ export default defineComponent({
       curImageID
     );
 
-    watch([viewID, curImageID], () => {
-      if (
-        curImageID.value &&
-        currentImageData.value &&
-        !volumeColorConfig.value
-      ) {
-        viewConfigStore.resetToDefaultColoring(
-          viewID.value,
-          curImageID.value,
-          currentImageData.value
-        );
-      }
-    });
+    watch(
+      [viewID, curImageID],
+      () => {
+        if (
+          curImageID.value &&
+          currentImageData.value &&
+          !volumeColorConfig.value
+        ) {
+          viewConfigStore.resetToDefaultColoring(
+            viewID.value,
+            curImageID.value,
+            currentImageData.value
+          );
+        }
+      },
+      { immediate: true }
+    );
 
     // --- CVR parameters --- //
 
@@ -297,6 +305,9 @@ export default defineComponent({
         // only disable shading when animating for perf
         property.setShade(!animating);
 
+        if (renderer.getLights().length === 0) {
+          renderer.createLight();
+        }
         const light = renderer.getLights()[0];
         if (enabled) {
           light.setFocalPoint(...center);
