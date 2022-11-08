@@ -121,11 +121,18 @@
                       <div>
                         <v-icon size="64">mdi-folder-open</v-icon>
                       </div>
-                      <div>Click anywhere here to open files</div>
+                      <div>Click to open local files.</div>
+                      <br><br>
                       <div class="mt-8">
                         <v-icon size="64">mdi-arrow-down-bold</v-icon>
                       </div>
-                      <div>Drop your files anywhere here to open</div>
+                      <div>Drag & drop your DICOM files.</div>
+                      <br><br><br><br>
+                      <div class="mt-8">
+                        <v-icon size="64">mdi-cloud-off-outline</v-icon>
+                      </div>
+                      <div>Local mode.</div>
+                      <div>Data stays on your machine.</div>
                     </v-card>
                   </v-row>
                 </v-col>
