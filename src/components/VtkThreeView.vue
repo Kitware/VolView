@@ -302,9 +302,6 @@ export default defineComponent({
           (volumeBounds[4] + volumeBounds[5]) / 2,
         ] as Vector3;
 
-        // only disable shading when animating for perf
-        property.setShade(!animating);
-
         if (renderer.getLights().length === 0) {
           renderer.createLight();
         }
@@ -336,8 +333,8 @@ export default defineComponent({
           );
 
         mapper.setSampleDistance(sampleDistance / 10);
-
         mapper.setGlobalIlluminationReach(enabled ? 0.5 : 0);
+
         property.setShade(true);
         property.setScalarOpacityUnitDistance(
           0,
