@@ -183,6 +183,8 @@ export function getColorFunctionRangeFromPreset(
   presetName: string
 ): [number, number] | null {
   const preset = vtkColorMaps.getPresetByName(presetName);
+  if (!preset) return null;
+
   const { AbsoluteRange, RGBPoints } = preset;
   if (AbsoluteRange && RGBPoints) {
     let min = Infinity;
