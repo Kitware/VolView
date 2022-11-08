@@ -14,7 +14,6 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { manageVTKSubscription } from '../composables/manageVTKSubscription';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import ColorFunctionSlider from './ColorFunctionSlider.vue';
 import { useVTKCallback } from '../composables/useVTKCallback';
@@ -24,6 +23,8 @@ import {
   getShiftedOpacityFromPreset,
 } from '../utils/vtk-helpers';
 import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
+import { useViewProxy } from '../composables/useViewProxy';
+import { ViewProxyType } from '../core/proxies';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -131,7 +132,35 @@ export default defineComponent({
       recurseGuard = false;
     }
 
-    manageVTKSubscription(pwfWidget.onOpacityChange(updateOpacityFunc));
+    const onWidgetOpacityChange = useVTKCallback(pwfWidget.onOpacityChange);
+    onWidgetOpacityChange(updateOpacityFunc);
+
+    // trigger 3D view animations when updating the opacity widget
+    const { viewProxy } = useViewProxy(TARGET_VIEW_ID, ViewProxyType.Volume);
+
+    const request3DAnimation = () => {
+      viewProxy.value.getInteractor().requestAnimation(pwfWidget);
+    };
+
+    const cancel3DAnimation = () => {
+      viewProxy.value
+        .getInteractor()
+        .cancelAnimation(pwfWidget, true /* skipWarning */);
+    };
+
+    const onWidgetAnimation = useVTKCallback(pwfWidget.onAnimation);
+    onWidgetAnimation((animating: boolean) => {
+      if (animating) {
+        request3DAnimation();
+      } else {
+        cancel3DAnimation();
+      }
+    });
+
+    // handles edge case where component unmounts while widget is animating
+    onBeforeUnmount(() => {
+      cancel3DAnimation();
+    });
 
     useResizeObserver(editorContainerRef, (entry) => {
       const { width } = entry.contentRect;
