@@ -137,12 +137,17 @@ export default defineComponent({
 
     // trigger 3D view animations when updating the opacity widget
     const { viewProxy } = useViewProxy(TARGET_VIEW_ID, ViewProxyType.Volume);
+    let animationRequested = false;
 
     const request3DAnimation = () => {
-      viewProxy.value.getInteractor().requestAnimation(pwfWidget);
+      if (!animationRequested) {
+        animationRequested = true;
+        viewProxy.value.getInteractor().requestAnimation(pwfWidget);
+      }
     };
 
     const cancel3DAnimation = () => {
+      animationRequested = false;
       viewProxy.value
         .getInteractor()
         .cancelAnimation(pwfWidget, true /* skipWarning */);
@@ -296,6 +301,15 @@ export default defineComponent({
       }
     };
 
+    const onColorMappingUpdate = (range: [number, number]) => {
+      request3DAnimation();
+      updateColorMappingRange(range);
+    };
+
+    const onColorMappingFinalize = () => {
+      cancel3DAnimation();
+    };
+
     return {
       editorContainerRef,
       pwfEditorRef,
@@ -316,7 +330,8 @@ export default defineComponent({
       size: THUMBNAIL_SIZE,
       rgbPoints,
       selectPreset,
-      updateColorMappingRange,
+      onColorMappingUpdate,
+      onColorMappingFinalize,
     };
   },
 });
@@ -327,15 +342,18 @@ export default defineComponent({
     <div class="mt-4" ref="editorContainerRef">
       <div ref="pwfEditorRef" />
     </div>
-    <color-function-slider
-      dense
-      hide-details
-      :min="fullMappingRange[0]"
-      :max="fullMappingRange[1]"
-      :step="colorSliderStep"
-      :rgb-points="rgbPoints"
-      :value="mappingRange"
-      @input="updateColorMappingRange"
-    />
+    <div>
+      <color-function-slider
+        dense
+        hide-details
+        :min="fullMappingRange[0]"
+        :max="fullMappingRange[1]"
+        :step="colorSliderStep"
+        :rgb-points="rgbPoints"
+        :value="mappingRange"
+        @input="onColorMappingUpdate"
+        @change="onColorMappingFinalize"
+      />
+    </div>
   </div>
 </template>
