@@ -2,7 +2,6 @@ import MRICardiacThumbnail from '@/src/assets/samples/MRI-Cardiac.jpg';
 import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
 import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
-import CTAChestThumbnail from '@/src/assets/samples/CTA-Chest.jpg';
 import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
 import { SampleDataset } from './types';
@@ -131,14 +130,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       'CTA head and neck scan of elderly patient with tumor. (80 MB)',
     url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
     image: CTAHeadThumbnail,
-  },
-  {
-    name: 'CTA Chest',
-    filename: 'CTA-Chest.zip',
-    description:
-      'High-resolution, large field-of-view chest CTA scan. (147 MB)',
-    url: 'https://data.kitware.com/api/v1/item/6347145311dab81428208e20/download',
-    image: CTAChestThumbnail,
   },
   {
     name: 'MRA Head and Neck',
