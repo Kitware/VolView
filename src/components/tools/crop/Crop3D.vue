@@ -33,6 +33,17 @@ function isValidCroppingPlanes(planes: LPSCroppingPlanes) {
   );
 }
 
+function lpsPlanesEqual(a: LPSCroppingPlanes, b: LPSCroppingPlanes) {
+  return (
+    a.Axial[0] === b.Axial[0] &&
+    a.Axial[1] === b.Axial[1] &&
+    a.Sagittal[0] === b.Sagittal[0] &&
+    a.Sagittal[1] === b.Sagittal[1] &&
+    a.Coronal[0] === b.Coronal[0] &&
+    a.Coronal[1] === b.Coronal[1]
+  );
+}
+
 export default defineComponent({
   props: {
     viewId: {
@@ -158,10 +169,19 @@ export default defineComponent({
         Axial: getAxisBounds(planes, 'Axial', lpsOrientation),
       };
 
+      // avoid updates if equal
+      const planesFromStore = croppingPlanes.value;
+      if (
+        planesFromStore &&
+        lpsPlanesEqual(lpsPlanes, planesFromStore as LPSCroppingPlanes)
+      ) {
+        return;
+      }
+
       if (isValidCroppingPlanes(lpsPlanes)) {
         cropStore.setCropping(imageID, lpsPlanes);
-      } else if (croppingPlanes.value) {
-        applyPlanes(croppingPlanes.value);
+      } else if (planesFromStore) {
+        applyPlanes(planesFromStore);
       }
     });
 
