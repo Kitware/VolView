@@ -163,8 +163,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
       '3D ultrasound of a baby. Downloaded from tomovision.com.(8 MB)',
     url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
     image: USFetusThumbnail,
-    volumeKey:
-      '1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922',
   },
 ];
 
