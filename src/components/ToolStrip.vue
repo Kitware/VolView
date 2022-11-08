@@ -1,5 +1,11 @@
 <template>
-  <item-group mandatory :value="currentTool" @change="setCurrentTool($event)">
+  <item-group
+    mandatory
+    class="d-flex flex-column align-center"
+    :value="currentTool"
+    @change="setCurrentTool($event)"
+  >
+    <div class="my-1 tool-separator" />
     <groupable-item
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
@@ -33,6 +39,7 @@
         @click="toggle"
       />
     </groupable-item>
+    <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
       <v-menu
         v-model="paintMenu"
@@ -167,5 +174,12 @@ export default defineComponent({
 .menu-more {
   position: absolute;
   right: -50%;
+}
+
+.tool-separator {
+  width: 75%;
+  height: 1px;
+  border: none;
+  border-top: 1px solid rgb(112, 112, 112);
 }
 </style>

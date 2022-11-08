@@ -75,7 +75,6 @@
                   </v-card-text>
                 </v-card>
               </v-menu>
-              <div class="mt-2 mb-1 tool-separator" />
               <template v-if="hasData">
                 <tool-strip />
               </template>
@@ -417,13 +416,6 @@ export default defineComponent({
 #tools-strip {
   border-left: 1px solid #212121;
   flex: 0 0 40px;
-}
-
-.tool-separator {
-  width: 75%;
-  height: 1px;
-  border: none;
-  border-top: 1px solid rgb(112, 112, 112);
 }
 
 .toolbar-button {
