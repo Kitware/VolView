@@ -323,7 +323,7 @@ export default defineComponent({
           light.setPositional(false);
         }
 
-        mapper.setMaximumSamplesPerRay(1500);
+        mapper.setMaximumSamplesPerRay(2000);
 
         const dims = image.getDimensions();
         const spacing = image.getSpacing();
@@ -343,7 +343,7 @@ export default defineComponent({
           sampleDistance =
             spatialDiagonal / (mapper.getMaximumSamplesPerRay() - 1);
         }
-        mapper.setSampleDistance(sampleDistance);
+        mapper.setSampleDistance(animating ? 0.75 : sampleDistance);
         mapper.setGlobalIlluminationReach(enabled ? 0.5 : 0);
 
         property.setShade(true);
