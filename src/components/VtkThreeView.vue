@@ -323,16 +323,27 @@ export default defineComponent({
           light.setPositional(false);
         }
 
-        const sampleDistance =
-          1.5 *
-          Math.sqrt(
-            image
-              .getSpacing()
-              .map((v) => v * v)
-              .reduce((sum, v) => sum + v, 0)
-          );
+        mapper.setMaximumSamplesPerRay(1500);
 
-        mapper.setSampleDistance(sampleDistance / 10);
+        const dims = image.getDimensions();
+        const spacing = image.getSpacing();
+        const spatialDiagonal = vec3.length(
+          vec3.fromValues(
+            dims[0] * spacing[0],
+            dims[1] * spacing[1],
+            dims[2] * spacing[2]
+          )
+        );
+
+        let sampleDistance = (1.5 * vec3.length(spacing)) / 10;
+        if (
+          spatialDiagonal / sampleDistance >
+          mapper.getMaximumSamplesPerRay()
+        ) {
+          sampleDistance =
+            spatialDiagonal / (mapper.getMaximumSamplesPerRay() - 1);
+        }
+        mapper.setSampleDistance(sampleDistance);
         mapper.setGlobalIlluminationReach(enabled ? 0.5 : 0);
 
         property.setShade(true);
