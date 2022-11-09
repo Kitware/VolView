@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  PropType,
   onBeforeUnmount,
   toRefs,
   watch,
@@ -22,8 +23,8 @@ export default defineComponent({
       required: true,
     },
     options: {
-      type: Object,
-      default: () => ({}),
+      type: Array as PropType<Array<any>>,
+      default: () => [],
     },
   },
   setup(props) {
@@ -38,38 +39,66 @@ export default defineComponent({
         : viewProxy.value.getInteractorStyle3D();
     });
 
-    const manipulator = props.manipulatorClass.newInstance(options.value);
+    const manipulators: any[] = [];
 
-    watch(options, (newOptions) => {
-      if ('button' in newOptions) {
-        manipulator.setButton(newOptions.button);
+    function updateStyle(
+      style: any,
+      newManipulators: any[],
+      oldManipulators: any[]
+    ) {
+      if (style !== null) {
+        oldManipulators.forEach((m) => style.removeMouseManipulator(m));
+        newManipulators.forEach((m) => style.addMouseManipulator(m));
       }
-      if ('shift' in newOptions) {
-        manipulator.setShift(newOptions.shift);
-      }
-      if ('control' in newOptions) {
-        manipulator.setControl(newOptions.control);
-      }
-    });
+    }
+
+    watch(
+      options,
+      (newOptions) => {
+        // Maintain the size of manipulators array equal to options array.
+        while (manipulators.length > newOptions.length) {
+          const m = manipulators.pop();
+          intStyle.value.removeMouseManipulator(m);
+          m.delete();
+        }
+
+        const oldManipulators = Array.from(manipulators);
+
+        for (let i = manipulators.length; i < newOptions.length; ++i) {
+          manipulators.push(props.manipulatorClass.newInstance(newOptions[i]));
+        }
+
+        newOptions.forEach((opt, idx) => {
+          if ('button' in opt) {
+            manipulators[idx].setButton(opt.button);
+          }
+          manipulators[idx].setShift(!!opt.shift);
+          manipulators[idx].setControl(!!opt.control);
+        });
+
+        updateStyle(intStyle.value, manipulators, oldManipulators);
+      },
+      { immediate: true }
+    );
 
     watch(
       intStyle,
       (curIntStyle, oldIntStyle) => {
-        if (oldIntStyle && manipulator.isA('vtkCompositeMouseManipulator')) {
-          oldIntStyle.removeMouseManipulator(manipulator);
-        }
-        if (curIntStyle && manipulator.isA('vtkCompositeMouseManipulator')) {
-          curIntStyle.addMouseManipulator(manipulator);
-        }
+        manipulators.forEach((m) => {
+          if (oldIntStyle) {
+            oldIntStyle.removeMouseManipulator(m);
+          }
+          if (curIntStyle) {
+            curIntStyle.addMouseManipulator(m);
+          }
+        });
       },
       { immediate: true }
     );
 
     onBeforeUnmount(() => {
       if (!viewProxy.value.isDeleted()) {
-        if (manipulator.isA('vtkCompositeMouseManipulator')) {
-          intStyle.value.removeMouseManipulator(manipulator);
-        }
+        manipulators.forEach((m) => intStyle.value.removeMouseManipulator(m));
       }
     });
 

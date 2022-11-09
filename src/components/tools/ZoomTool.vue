@@ -14,18 +14,19 @@ export default {
   functional: true,
   render(h: CreateElement, ctx: RenderContext<Props>) {
     const toolStore = useToolStore();
-    // only enable control button if Zoom tool is not active
-    const control = toolStore.currentTool !== Tools.Zoom;
+    const toolOptions = [];
+    toolOptions.push({ button: 1, control: true });
+    if (toolStore.currentTool === Tools.Zoom) {
+      // Additionally enable left-button-only action if Zoom tool is active
+      toolOptions.push({ button: 1 });
+    }
 
     return h(ManipulatorTool, {
       props: {
         ...ctx.props,
         name: 'ZoomTool',
         manipulatorClass: vtkMouseCameraTrackballZoomToMouseManipulator,
-        options: {
-          button: 1,
-          control,
-        },
+        options: toolOptions,
       },
     });
   },
