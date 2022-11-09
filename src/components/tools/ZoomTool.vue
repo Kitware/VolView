@@ -15,10 +15,11 @@ export default {
   render(h: CreateElement, ctx: RenderContext<Props>) {
     const toolStore = useToolStore();
     const toolOptions = [];
-    toolOptions.push({ button: 1, control: true });
+    toolOptions.push({ button: 3, flipDirection: true });
+    toolOptions.push({ button: 1, control: true, flipDirection: true });
     if (toolStore.currentTool === Tools.Zoom) {
       // Additionally enable left-button-only action if Zoom tool is active
-      toolOptions.push({ button: 1 });
+      toolOptions.push({ button: 1, flipDirection: true });
     }
 
     return h(MouseManipulatorTool, {

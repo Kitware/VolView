@@ -15,6 +15,7 @@ export default {
   render(h: CreateElement, ctx: RenderContext<Props>) {
     const toolStore = useToolStore();
     const toolOptions = [];
+    toolOptions.push({ button: 2 });
     toolOptions.push({ button: 1, shift: true });
     if (toolStore.currentTool === Tools.Pan) {
       // Additionally enable left-button-only action if Pan tool is active
