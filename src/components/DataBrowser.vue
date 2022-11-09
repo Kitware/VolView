@@ -1,22 +1,14 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  Ref,
-  ref,
-  watch,
-} from '@vue/composition-api';
+import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
-import { Panel } from '../types/views';
+import { usePanels } from '../composables/usePanels';
 
-const ANONYMOUS_COLLECTION = {
-  key: 'anonymousData',
-  isOpen: true,
-};
+const SAMPLE_DATA_KEY = 'sampleData';
+const ANONYMOUS_DATA_KEY = 'anonymousData';
 
 export default defineComponent({
   name: 'DataBrowser',
@@ -46,62 +38,23 @@ export default defineComponent({
           .length > 0
     );
 
-    const sampleData = {
-      key: 'sampleData',
-      isOpen: true,
-    };
-
-    const panels = ref<Panel[]>([sampleData]);
-
-    watch(
-      hasAnonymousImages,
-      (showAnonymous) => {
-        if (showAnonymous) {
-          panels.value.push({ ...ANONYMOUS_COLLECTION });
-          sampleData.isOpen = false;
-        } else {
-          panels.value = panels.value.filter(
-            ({ key }) => key !== ANONYMOUS_COLLECTION.key
-          );
-        }
-      },
-      { flush: 'post' }
+    const panelKeys = computed(
+      () =>
+        new Set([
+          SAMPLE_DATA_KEY,
+          ...(hasAnonymousImages.value ? [ANONYMOUS_DATA_KEY] : []),
+          ...patients.value.map((study) => study.key),
+        ])
     );
 
-    watch(
-      patients,
-      (newPatients, oldPatients) => {
-        // remove deleted
-        panels.value = panels.value.filter(
-          ({ key: oldKey }) =>
-            newPatients.find(({ key }) => oldKey === key) ||
-            [sampleData, ANONYMOUS_COLLECTION].some(({ key }) => oldKey === key)
-        );
+    const { handlePanelChange, openPanels } = usePanels(panelKeys);
 
-        const addedPatients = newPatients.filter(
-          ({ key }) => !oldPatients.find(({ key: oldKey }) => oldKey === key)
-        );
-        // add to end because https://github.com/vuetifyjs/vuetify/issues/11225
-        addedPatients.forEach(({ key }) => {
-          panels.value.push({ key, isOpen: true });
-        });
-
-        // if loaded data, close sample data
-        if (addedPatients.length > 0) sampleData.isOpen = false;
-      },
-      { flush: 'post' } // keeps panels open when deleting patients
-    );
-
-    const handlePanelChange = (changeKey: string) => {
-      const panel = panels.value.find(({ key }) => key === changeKey);
-      panel!.isOpen = !panel!.isOpen;
-    };
-
-    const openPanels: Ref<number[]> = computed(() => {
-      return panels.value
-        .map(({ isOpen }, idx) => ({ isOpen, idx }))
-        .filter(({ isOpen }) => isOpen)
-        .map(({ idx }) => idx);
+    // Collapse Sample Data after loading data
+    watch(panelKeys, (newSet, oldSet) => {
+      // Sample Data panel index always 0
+      if (newSet.size > oldSet.size && openPanels.value.includes(0)) {
+        handlePanelChange(SAMPLE_DATA_KEY);
+      }
     });
 
     return {
@@ -110,7 +63,8 @@ export default defineComponent({
       deletePatient: dicomStore.deletePatient,
       hasAnonymousImages,
       handlePanelChange,
-      ANONYMOUS_COLLECTION,
+      SAMPLE_DATA_KEY,
+      ANONYMOUS_DATA_KEY,
     };
   },
 });
@@ -123,7 +77,7 @@ export default defineComponent({
         <v-expansion-panel
           v-if="hasAnonymousImages"
           key="anonymousImages"
-          @change="handlePanelChange(ANONYMOUS_COLLECTION.key)"
+          @change="handlePanelChange(ANONYMOUS_DATA_KEY)"
         >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-image</v-icon>
@@ -171,8 +125,8 @@ export default defineComponent({
           </v-expansion-panel-content>
         </v-expansion-panel>
         <v-expansion-panel
-          @change="handlePanelChange('sampleData')"
           key="sampleData"
+          @change="handlePanelChange(SAMPLE_DATA_KEY)"
         >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>

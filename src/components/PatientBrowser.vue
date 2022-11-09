@@ -1,11 +1,5 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  ref,
-  toRefs,
-  watch,
-} from '@vue/composition-api';
+import { computed, defineComponent, ref, toRefs } from '@vue/composition-api';
 import type { Ref } from '@vue/composition-api';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -17,7 +11,7 @@ import {
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import PatientStudyVolumeBrowser from './PatientStudyVolumeBrowser.vue';
-import { Panel } from '../types/views';
+import { usePanels } from '../composables/usePanels';
 
 export default defineComponent({
   name: 'PatientBrowser',
@@ -57,38 +51,9 @@ export default defineComponent({
     });
 
     const studyKeys = computed(() => studies.value.map((study) => study.key));
+    const studyKeysSet = computed(() => new Set(studyKeys.value));
 
-    const panels = ref<Panel[]>([]);
-    watch(
-      studyKeys,
-      (newStudies, oldStudies) => {
-        // remove deleted
-        panels.value = panels.value.filter(({ key: oldKey }) =>
-          newStudies.find((key) => oldKey === key)
-        );
-
-        const addedStudies = newStudies.filter(
-          (key) => !oldStudies?.find((oldKey) => oldKey === key)
-        );
-        // add to end because https://github.com/vuetifyjs/vuetify/issues/11225
-        addedStudies.forEach((key) => {
-          panels.value.push({ key, isOpen: true });
-        });
-      },
-      { flush: 'post', immediate: true }
-    );
-
-    const handlePanelChange = (changeKey: string) => {
-      const panel = panels.value.find(({ key }) => key === changeKey);
-      panel!.isOpen = !panel!.isOpen;
-    };
-
-    const openPanels: Ref<number[]> = computed(() => {
-      return panels.value
-        .map(({ isOpen }, idx) => ({ isOpen, idx }))
-        .filter(({ isOpen }) => isOpen)
-        .map(({ idx }) => idx);
-    });
+    const { handlePanelChange, openPanels } = usePanels(studyKeysSet);
 
     // --- selection --- //
 
@@ -173,7 +138,7 @@ export default defineComponent({
         v-for="study in studies"
         :key="study.StudyInstanceUID"
         class="patient-data-study-panel"
-        @change="() => handlePanelChange(study.StudyInstanceUID)"
+        @change="handlePanelChange(study.StudyInstanceUID)"
       >
         <v-expansion-panel-header
           color="#1976fa0a"
