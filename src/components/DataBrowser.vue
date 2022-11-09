@@ -1,44 +1,22 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import {
+  computed,
+  defineComponent,
+  Ref,
+  ref,
+  watch,
+} from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
+import { Panel } from '../types/views';
 
-type Collection =
-  | {
-      name: string;
-      key: string;
-      disabled?: boolean;
-    }
-  | {
-      divider: boolean;
-    }
-  | {
-      header: string;
-    };
-
-const DEFAULT_COLLECTIONS: Collection[] = [
-  {
-    name: 'All Data',
-    key: 'all',
-  },
-  {
-    name: 'Sample Data',
-    key: 'samples',
-  },
-  {
-    name: 'Anonymous/Misc. Images',
-    key: 'images',
-  },
-  {
-    divider: true,
-  },
-  {
-    header: 'Patients',
-  },
-];
+const ANONYMOUS_COLLECTION = {
+  key: 'anonymousData',
+  isOpen: true,
+};
 
 export default defineComponent({
   name: 'DataBrowser',
@@ -62,39 +40,77 @@ export default defineComponent({
         .sort((a, b) => (a.name < b.name ? -1 : 1))
     );
 
-    // --- collection handling --- //
-
-    const collections = computed(() => {
-      const patientItems: Collection[] = patients.value.map((patient) => ({
-        name: patient.name,
-        // namespace key so patient.key doesn't conflict with
-        // the keys from DEFAULT_COLLECTIONS
-        key: `#${patient.key}`,
-      }));
-      if (!patientItems.length) {
-        patientItems.push({
-          name: 'No Patients',
-          key: 'no-patients',
-          disabled: true,
-        });
-      }
-      return [...DEFAULT_COLLECTIONS, ...patientItems];
-    });
-
     const hasAnonymousImages = computed(
       () =>
         imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
           .length > 0
     );
 
-    const panels = ref<number[]>([0]);
+    const sampleData = {
+      key: 'sampleData',
+      isOpen: true,
+    };
+
+    const panels = ref<Panel[]>([sampleData]);
+
+    watch(
+      hasAnonymousImages,
+      (showAnonymous) => {
+        if (showAnonymous) {
+          panels.value.push({ ...ANONYMOUS_COLLECTION });
+          sampleData.isOpen = false;
+        } else {
+          panels.value = panels.value.filter(
+            ({ key }) => key !== ANONYMOUS_COLLECTION.key
+          );
+        }
+      },
+      { flush: 'post' }
+    );
+
+    watch(
+      patients,
+      (newPatients, oldPatients) => {
+        // remove deleted
+        panels.value = panels.value.filter(
+          ({ key: oldKey }) =>
+            newPatients.find(({ key }) => oldKey === key) ||
+            [sampleData, ANONYMOUS_COLLECTION].some(({ key }) => oldKey === key)
+        );
+
+        const addedPatients = newPatients.filter(
+          ({ key }) => !oldPatients.find(({ key: oldKey }) => oldKey === key)
+        );
+        // add to end because https://github.com/vuetifyjs/vuetify/issues/11225
+        addedPatients.forEach(({ key }) => {
+          panels.value.push({ key, isOpen: true });
+        });
+
+        // if loaded data, close sample data
+        if (addedPatients.length > 0) sampleData.isOpen = false;
+      },
+      { flush: 'post' } // keeps panels open when deleting patients
+    );
+
+    const handlePanelChange = (changeKey: string) => {
+      const panel = panels.value.find(({ key }) => key === changeKey);
+      panel!.isOpen = !panel!.isOpen;
+    };
+
+    const openPanels: Ref<number[]> = computed(() => {
+      return panels.value
+        .map(({ isOpen }, idx) => ({ isOpen, idx }))
+        .filter(({ isOpen }) => isOpen)
+        .map(({ idx }) => idx);
+    });
 
     return {
-      panels,
-      collections,
+      openPanels,
       patients,
       deletePatient: dicomStore.deletePatient,
       hasAnonymousImages,
+      handlePanelChange,
+      ANONYMOUS_COLLECTION,
     };
   },
 });
@@ -103,8 +119,12 @@ export default defineComponent({
 <template>
   <div id="data-module" class="mx-2 fill-height">
     <div id="data-panels">
-      <v-expansion-panels multiple accordion v-model="panels">
-        <v-expansion-panel v-if="hasAnonymousImages">
+      <v-expansion-panels multiple accordion :value="openPanels">
+        <v-expansion-panel
+          v-if="hasAnonymousImages"
+          key="anonymousImages"
+          @change="handlePanelChange(ANONYMOUS_COLLECTION.key)"
+        >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-image</v-icon>
             <span>Anonymous</span>
@@ -113,7 +133,11 @@ export default defineComponent({
             <image-data-browser />
           </v-expansion-panel-content>
         </v-expansion-panel>
-        <v-expansion-panel v-for="patient in patients" :key="patient.key">
+        <v-expansion-panel
+          v-for="patient in patients"
+          :key="patient.key"
+          @change="handlePanelChange(patient.key)"
+        >
           <v-expansion-panel-header>
             <div class="patient-header">
               <v-icon class="collection-header-icon">mdi-account</v-icon>
@@ -146,7 +170,10 @@ export default defineComponent({
             <patient-browser :patient-key="patient.key" />
           </v-expansion-panel-content>
         </v-expansion-panel>
-        <v-expansion-panel>
+        <v-expansion-panel
+          @change="handlePanelChange('sampleData')"
+          key="sampleData"
+        >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
             <span>Sample Data</span>

@@ -63,3 +63,8 @@ export interface CVRConfig {
   diffuse: number;
   specular: number;
 }
+
+export interface Panel {
+  key: string;
+  isOpen: boolean;
+}
