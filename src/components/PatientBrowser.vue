@@ -11,6 +11,7 @@ import {
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import PatientStudyVolumeBrowser from './PatientStudyVolumeBrowser.vue';
+import { usePanels } from '../composables/usePanels';
 
 export default defineComponent({
   name: 'PatientBrowser',
@@ -49,9 +50,13 @@ export default defineComponent({
       });
     });
 
+    const studyKeys = computed(() => studies.value.map((study) => study.key));
+    const studyKeysSet = computed(() => new Set(studyKeys.value));
+
+    const { handlePanelChange, openPanels } = usePanels(studyKeysSet);
+
     // --- selection --- //
 
-    const studyKeys = computed(() => studies.value.map((study) => study.key));
     const { selected, selectedAll, selectedSome } =
       useMultiSelection(studyKeys);
 
@@ -79,6 +84,8 @@ export default defineComponent({
       setPrimarySelection: (sel: DataSelection) => {
         dataStore.setPrimarySelection(sel);
       },
+      openPanels,
+      handlePanelChange,
     };
   },
 });
@@ -121,11 +128,17 @@ export default defineComponent({
         </v-col>
       </v-row>
     </v-container>
-    <v-expansion-panels id="patient-data-studies" accordion multiple>
+    <v-expansion-panels
+      id="patient-data-studies"
+      accordion
+      multiple
+      :value="openPanels"
+    >
       <v-expansion-panel
         v-for="study in studies"
         :key="study.StudyInstanceUID"
         class="patient-data-study-panel"
+        @change="handlePanelChange(study.StudyInstanceUID)"
       >
         <v-expansion-panel-header
           color="#1976fa0a"

@@ -1,44 +1,14 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
+import { usePanels } from '../composables/usePanels';
 
-type Collection =
-  | {
-      name: string;
-      key: string;
-      disabled?: boolean;
-    }
-  | {
-      divider: boolean;
-    }
-  | {
-      header: string;
-    };
-
-const DEFAULT_COLLECTIONS: Collection[] = [
-  {
-    name: 'All Data',
-    key: 'all',
-  },
-  {
-    name: 'Sample Data',
-    key: 'samples',
-  },
-  {
-    name: 'Anonymous/Misc. Images',
-    key: 'images',
-  },
-  {
-    divider: true,
-  },
-  {
-    header: 'Patients',
-  },
-];
+const SAMPLE_DATA_KEY = 'sampleData';
+const ANONYMOUS_DATA_KEY = 'anonymousData';
 
 export default defineComponent({
   name: 'DataBrowser',
@@ -62,39 +32,39 @@ export default defineComponent({
         .sort((a, b) => (a.name < b.name ? -1 : 1))
     );
 
-    // --- collection handling --- //
-
-    const collections = computed(() => {
-      const patientItems: Collection[] = patients.value.map((patient) => ({
-        name: patient.name,
-        // namespace key so patient.key doesn't conflict with
-        // the keys from DEFAULT_COLLECTIONS
-        key: `#${patient.key}`,
-      }));
-      if (!patientItems.length) {
-        patientItems.push({
-          name: 'No Patients',
-          key: 'no-patients',
-          disabled: true,
-        });
-      }
-      return [...DEFAULT_COLLECTIONS, ...patientItems];
-    });
-
     const hasAnonymousImages = computed(
       () =>
         imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
           .length > 0
     );
 
-    const panels = ref<number[]>([0]);
+    const panelKeys = computed(
+      () =>
+        new Set([
+          SAMPLE_DATA_KEY,
+          ...(hasAnonymousImages.value ? [ANONYMOUS_DATA_KEY] : []),
+          ...patients.value.map((study) => study.key),
+        ])
+    );
+
+    const { handlePanelChange, openPanels } = usePanels(panelKeys);
+
+    // Collapse Sample Data after loading data
+    watch(panelKeys, (newSet, oldSet) => {
+      // Sample Data panel index always 0
+      if (newSet.size > oldSet.size && openPanels.value.includes(0)) {
+        handlePanelChange(SAMPLE_DATA_KEY);
+      }
+    });
 
     return {
-      panels,
-      collections,
+      openPanels,
       patients,
       deletePatient: dicomStore.deletePatient,
       hasAnonymousImages,
+      handlePanelChange,
+      SAMPLE_DATA_KEY,
+      ANONYMOUS_DATA_KEY,
     };
   },
 });
@@ -103,8 +73,12 @@ export default defineComponent({
 <template>
   <div id="data-module" class="mx-2 fill-height">
     <div id="data-panels">
-      <v-expansion-panels multiple accordion v-model="panels">
-        <v-expansion-panel v-if="hasAnonymousImages">
+      <v-expansion-panels multiple accordion :value="openPanels">
+        <v-expansion-panel
+          v-if="hasAnonymousImages"
+          key="anonymousImages"
+          @change="handlePanelChange(ANONYMOUS_DATA_KEY)"
+        >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-image</v-icon>
             <span>Anonymous</span>
@@ -113,7 +87,11 @@ export default defineComponent({
             <image-data-browser />
           </v-expansion-panel-content>
         </v-expansion-panel>
-        <v-expansion-panel v-for="patient in patients" :key="patient.key">
+        <v-expansion-panel
+          v-for="patient in patients"
+          :key="patient.key"
+          @change="handlePanelChange(patient.key)"
+        >
           <v-expansion-panel-header>
             <div class="patient-header">
               <v-icon class="collection-header-icon">mdi-account</v-icon>
@@ -146,7 +124,10 @@ export default defineComponent({
             <patient-browser :patient-key="patient.key" />
           </v-expansion-panel-content>
         </v-expansion-panel>
-        <v-expansion-panel>
+        <v-expansion-panel
+          key="sampleData"
+          @change="handlePanelChange(SAMPLE_DATA_KEY)"
+        >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
             <span>Sample Data</span>
