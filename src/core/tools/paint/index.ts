@@ -5,15 +5,9 @@ import { vec3 } from 'gl-matrix';
 import { IPaintBrush, IBrushStamp } from './brush';
 import CirclePaintBrush from './circle-brush';
 
-function normalizeScale(scale: number[]) {
-  const min = Math.min(...scale);
-  return scale.map((val) => val / min);
-}
-
 /**
  * Rescales a 2D stamp.
  *
- * Scaling is done relative to the center of the stamp.
  * If inverse is supplied, then "undos" the scaling.
  *
  * @param stamp the stamp to rescale
@@ -25,9 +19,7 @@ export function rescaleStamp(
   scale: number[],
   inverse: boolean = false
 ): IBrushStamp {
-  const adjustedScale = normalizeScale(
-    inverse ? scale.map((v) => 1 / v) : scale
-  );
+  const adjustedScale = inverse ? scale.map((v) => 1 / v) : scale;
   const newSizeX = Math.ceil(stamp.size[0] * adjustedScale[0]);
   const newSizeY = Math.ceil(stamp.size[1] * adjustedScale[1]);
 
@@ -99,7 +91,7 @@ export default class PaintTool {
     const start = [
       // transforms + floating point errors can make zero values occasionally
       // turn into really tiny negative values
-      ...startPoint.map((val) => Math.floor(clampValue(val, 0, Infinity))),
+      ...startPoint.map((val) => Math.round(clampValue(val, 0, Infinity))),
     ];
     // Assumption: startPoint and endPoint are on the same slice axis.
     const ijkSlice = start[sliceAxis];
@@ -107,7 +99,7 @@ export default class PaintTool {
 
     let end = [...start];
     if (endPoint) {
-      end = [...endPoint.map((val) => Math.floor(val))];
+      end = [...endPoint.map((val) => Math.round(val))];
       end.splice(sliceAxis, 1);
     }
 

@@ -43,15 +43,16 @@ export default class CirclePaintBrush implements IPaintBrush {
   private size: number = 1;
 
   setSize(size: number) {
-    this.size = size;
+    this.size = Math.max(0, size);
   }
 
   getStamp() {
-    const size = (this.size - 1) * 2 + 1;
-    const stamp = rasterizeCircle(this.size);
+    const radius = this.size;
+    const stampSize = (this.size - 1) * 2 + 1;
+    const stamp = rasterizeCircle(radius);
     return {
       pixels: stamp,
-      size: [size, size] as [number, number],
+      size: [stampSize, stampSize] as [number, number],
     };
   }
 }
