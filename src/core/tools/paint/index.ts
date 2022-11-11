@@ -5,11 +5,6 @@ import { vec3 } from 'gl-matrix';
 import { IPaintBrush, IBrushStamp } from './brush';
 import CirclePaintBrush from './circle-brush';
 
-function normalizeScale(scale: number[]) {
-  const min = Math.min(...scale);
-  return scale.map((val) => val / min);
-}
-
 /**
  * Rescales a 2D stamp.
  *
@@ -24,9 +19,7 @@ export function rescaleStamp(
   scale: number[],
   inverse: boolean = false
 ): IBrushStamp {
-  const adjustedScale = normalizeScale(
-    inverse ? scale.map((v) => 1 / v) : scale
-  );
+  const adjustedScale = inverse ? scale.map((v) => 1 / v) : scale;
   const newSizeX = Math.ceil(stamp.size[0] * adjustedScale[0]);
   const newSizeY = Math.ceil(stamp.size[1] * adjustedScale[1]);
 
