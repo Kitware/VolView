@@ -1,10 +1,16 @@
 <script lang="ts">
-import { computed, defineComponent, watch } from '@vue/composition-api';
+import { computed, defineComponent, ref, watch } from '@vue/composition-api';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useViewConfigStore } from '../store/view-configs';
 import { CVRConfig } from '../types/views';
 
 const TARGET_VIEW_ID = '3D';
+
+const LIGHTING_MODELS = {
+  standard: 'Standard',
+  hybrid: 'Hybrid',
+  lao: 'Ambient Occlusion',
+};
 
 export default defineComponent({
   name: 'VolumeRendering',
@@ -30,17 +36,6 @@ export default defineComponent({
 
     const cvrParams = computed(() => volumeColorConfig.value?.cvr);
 
-    const setCVREnabled = (enabled: boolean) => {
-      if (!currentImageID.value) return;
-      viewConfigStore.updateVolumeCVRParameters(
-        TARGET_VIEW_ID,
-        currentImageID.value,
-        {
-          enabled,
-        }
-      );
-    };
-
     const setCVRParam = (key: keyof CVRConfig, value: any) => {
       if (!currentImageID.value) return;
       viewConfigStore.updateVolumeCVRParameters(
@@ -52,7 +47,6 @@ export default defineComponent({
       );
     };
 
-    const enabled = computed(() => !!cvrParams.value?.enabled);
     const laoEnabled = computed(
       () => !!cvrParams.value?.useLocalAmbientOcclusion
     );
@@ -60,13 +54,28 @@ export default defineComponent({
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
+    const lightingModel = ref(2); // LAO is default
+    const selectLightingMode = (buttonIdx: number) => {
+      if (buttonIdx === 0) {
+        setCVRParam('useVolumetricScatteringBlending', false);
+        setCVRParam('useLocalAmbientOcclusion', false);
+      } else if (buttonIdx === 1) {
+        setCVRParam('useVolumetricScatteringBlending', true);
+        setCVRParam('useLocalAmbientOcclusion', false);
+      } else if (buttonIdx === 2) {
+        setCVRParam('useVolumetricScatteringBlending', false);
+        setCVRParam('useLocalAmbientOcclusion', true);
+      }
+    };
+
     return {
       cvrParams,
-      enabled,
       laoEnabled,
       vsbEnabled,
-      setCVREnabled,
       setCVRParam,
+      LIGHTING_MODELS,
+      selectLightingMode,
+      lightingModel,
     };
   },
 });
@@ -78,7 +87,6 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
-      <v-divider class="my-4" />
       <v-slider
         label="Ambient"
         min="0"
@@ -108,41 +116,41 @@ export default defineComponent({
         :input-value="cvrParams.lightFollowsCamera"
         @change="setCVRParam('lightFollowsCamera', !!$event)"
       />
-      <v-switch
-        label="Enable Volumetric Scattering"
-        dense
-        :disabled="laoEnabled"
-        :input-value="vsbEnabled"
-        @change="setCVRParam('useVolumetricScatteringBlending', !!$event)"
-      />
+      <v-divider class="my-8" />
+
+      <v-row class="my-4">
+        <v-btn-toggle
+          v-model="lightingModel"
+          @change="selectLightingMode"
+          mandatory
+        >
+          <v-btn v-for="model in Object.values(LIGHTING_MODELS)" :key="model">
+            {{ model }}
+          </v-btn>
+        </v-btn-toggle>
+      </v-row>
+
       <v-slider
-        label="Blending"
+        label="Scatter Blending"
         min="0"
         max="1"
         step="0.05"
         dense
         hide-details
         thumb-label
-        :disabled="!vsbEnabled"
+        v-if="vsbEnabled"
         :value="cvrParams.volumetricScatteringBlending"
         @change="setCVRParam('volumetricScatteringBlending', $event)"
       />
-      <v-switch
-        label="Enable Local Ambient Occlusion"
-        dense
-        :disabled="vsbEnabled"
-        :input-value="laoEnabled"
-        @change="setCVRParam('useLocalAmbientOcclusion', !!$event)"
-      />
       <v-slider
         label="LAO Kernel Size"
-        min="3"
+        min="2"
         max="10"
         step="1"
         dense
         hide-details
         thumb-label
-        :disabled="!laoEnabled"
+        v-if="laoEnabled"
         :value="cvrParams.laoKernelSize"
         @change="setCVRParam('laoKernelSize', $event)"
       />
@@ -154,7 +162,7 @@ export default defineComponent({
         dense
         hide-details
         thumb-label
-        :disabled="!laoEnabled"
+        v-if="laoEnabled"
         :value="cvrParams.laoKernelRadius"
         @change="setCVRParam('laoKernelRadius', $event)"
       />
