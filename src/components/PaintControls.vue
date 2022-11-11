@@ -20,7 +20,7 @@
             @input="setBrushSize"
             dense
             hide-details
-            label="Radius"
+            label="Size"
             min="1"
             max="50"
           >
