@@ -13,7 +13,6 @@ function normalizeScale(scale: number[]) {
 /**
  * Rescales a 2D stamp.
  *
- * Scaling is done relative to the center of the stamp.
  * If inverse is supplied, then "undos" the scaling.
  *
  * @param stamp the stamp to rescale
@@ -99,7 +98,7 @@ export default class PaintTool {
     const start = [
       // transforms + floating point errors can make zero values occasionally
       // turn into really tiny negative values
-      ...startPoint.map((val) => Math.floor(clampValue(val, 0, Infinity))),
+      ...startPoint.map((val) => Math.round(clampValue(val, 0, Infinity))),
     ];
     // Assumption: startPoint and endPoint are on the same slice axis.
     const ijkSlice = start[sliceAxis];
@@ -107,7 +106,7 @@ export default class PaintTool {
 
     let end = [...start];
     if (endPoint) {
-      end = [...endPoint.map((val) => Math.floor(val))];
+      end = [...endPoint.map((val) => Math.round(val))];
       end.splice(sliceAxis, 1);
     }
 
