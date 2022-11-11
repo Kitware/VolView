@@ -1,5 +1,12 @@
 <template>
-  <div class="vtk-container-wrapper">
+  <div
+    class="vtk-container-wrapper"
+    tabindex="0"
+    @mouseenter="hover = true"
+    @mouseleave="hover = false"
+    @focusin="hover = true"
+    @focusout="hover = false"
+  >
     <div class="vtk-gutter">
       <v-tooltip right transition="slide-x-transition">
         <template v-slot:activator="{ on, attrs }">
@@ -400,6 +407,48 @@ export default defineComponent({
       { immediate: true, deep: true }
     );
 
+    // --- arrows change slice --- //
+
+    const { currentImageID } = useCurrentImage();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!currentImageID.value) return;
+
+      let sliceOffset = 0;
+      switch (event.key) {
+        case 'ArrowLeft':
+          sliceOffset = -1;
+          break;
+        case 'ArrowRight':
+          sliceOffset = 1;
+          break;
+        case 'ArrowUp':
+          sliceOffset = -1;
+          break;
+        case 'ArrowDown':
+          sliceOffset = 1;
+          break;
+        default:
+          break;
+      }
+      if (sliceOffset) {
+        viewConfigStore.updateSliceConfig(viewID.value, currentImageID.value, {
+          slice: currentSlice.value + sliceOffset,
+        });
+
+        event.stopPropagation();
+      }
+    };
+
+    const hover = ref(false);
+    const onDocumentKeyDown = (event: KeyboardEvent) => {
+      if (hover.value) onKeyDown(event);
+    };
+    document.addEventListener('keydown', onDocumentKeyDown);
+    onBeforeUnmount(() => {
+      document.removeEventListener('keydown', onDocumentKeyDown);
+    });
+
     // --- resizing --- //
 
     useResizeObserver(vtkContainerRef, () => viewProxy.value.resize());
@@ -601,8 +650,6 @@ export default defineComponent({
       });
     });
 
-    // --- template vars --- //
-
     return {
       vtkContainerRef,
       viewID,
@@ -623,6 +670,7 @@ export default defineComponent({
       enableResizeToFit() {
         resizeToFit.value = true;
       },
+      hover,
     };
   },
 });

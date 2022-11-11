@@ -3,6 +3,7 @@
   display: grid;
   grid-template-columns: 20px auto;
   grid-template-rows: auto;
+  z-index: 0; /* avoids partial obscuring of focus outline */
 }
 
 .vtk-container {
