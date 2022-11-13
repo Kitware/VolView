@@ -6,12 +6,15 @@ import { defineStore } from 'pinia';
 import { Tools } from './types';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
+const DEFAULT_BRUSH_SIZE = 4;
+const DEFAULT_BRUSH_VALUE = 1;
+
 export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
 
   const activeLabelmapID = ref<string | null>(null);
-  const brushSize = ref(8);
-  const brushValue = ref(1);
+  const brushSize = ref(DEFAULT_BRUSH_SIZE);
+  const brushValue = ref(DEFAULT_BRUSH_VALUE);
   const strokePoints = ref<vec3[]>([]);
   const labelmapOpacity = ref(1);
   const isActive = ref(false);

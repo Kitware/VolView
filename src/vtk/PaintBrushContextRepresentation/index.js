@@ -40,7 +40,7 @@ function generateContour({
       return vertexMap[key];
     }
 
-    const indexCoords = [...location].map((val) => Math.floor(val));
+    const indexCoords = [...location].map((val) => Math.round(val));
     if (slicingIndex === 0) {
       indexCoords[1] += x - xoffset - 0.5;
       indexCoords[2] += y - yoffset - 0.5;
