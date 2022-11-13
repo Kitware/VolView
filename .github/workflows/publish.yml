@@ -1,0 +1,44 @@
+name: Build and Publish
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate
+        run: npm run validate
+      - name: Build
+        run: npm run build:release
+      - name: Write version
+        run: npm run version
+      - name: Generate bundle
+        run: npm run bundle
+
+      - name: Set git config
+        run: |
+          git config --global user.name "Github Actions"
+          git config --global user.email "forrest.li@kitware.com"
+
+      - name: Publish website
+        env:
+          GIT_PUBLISH_URL: https://${{ secrets.GH_PUBLISH_CREDS }}@github.com/Kitwaremedical/VolView.git
+        run: npm run doc:publish
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run semantic-release
