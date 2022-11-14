@@ -128,7 +128,13 @@ export default defineComponent({
         </v-btn>
       </div>
       <div class="message-list ma-2" ref="messageListEl">
-        <v-expansion-panels accordion multiple hover @change="scrollIfLast">
+        <v-expansion-panels
+          accordion
+          multiple
+          hover
+          :value="filteredMessages.map((_, i) => i)"
+          @change="scrollIfLast"
+        >
           <message-item
             v-for="msg in filteredMessages"
             :key="msg.id"

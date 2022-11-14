@@ -1,5 +1,5 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { useEventListener } from '@vueuse/core';
+import { useEventListener, useThrottleFn } from '@vueuse/core';
 import { Messages } from '../constants';
 import { useMessageStore } from '../store/messages';
 import { onProxyManagerEvent, ProxyManagerEvent } from './onProxyManagerEvent';
@@ -7,10 +7,10 @@ import { onProxyManagerEvent, ProxyManagerEvent } from './onProxyManagerEvent';
 export function useWebGLWatchdog() {
   const watchdogs = new Map<string, () => void>();
 
-  const reportError = () => {
+  const reportError = useThrottleFn(() => {
     const messageStore = useMessageStore();
     messageStore.addError(Messages.WebGLLost.title, Messages.WebGLLost.details);
-  };
+  }, 100);
 
   onProxyManagerEvent(ProxyManagerEvent.ProxyCreated, (id, obj) => {
     if (!obj || !obj.isA('vtkViewProxy')) return;
