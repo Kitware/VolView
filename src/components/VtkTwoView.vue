@@ -1,5 +1,12 @@
 <template>
-  <div class="vtk-container-wrapper">
+  <div
+    class="vtk-container-wrapper"
+    tabindex="0"
+    @mouseenter="hover = true"
+    @mouseleave="hover = false"
+    @focusin="hover = true"
+    @focusout="hover = false"
+  >
     <div class="vtk-gutter">
       <v-tooltip right transition="slide-x-transition">
         <template v-slot:activator="{ on, attrs }">
@@ -175,6 +182,7 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
+import { onKeyStroke } from '@vueuse/core';
 
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
@@ -210,6 +218,13 @@ import { defaultSliceConfig } from '../store/view-configs/slicing';
 import { useWindowingSync } from '../composables/sync/useWindowingSync';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
+
+const SLICE_OFFSET_KEYS: Record<string, number> = {
+  ArrowLeft: -1,
+  ArrowRight: 1,
+  ArrowUp: -1,
+  ArrowDown: 1,
+} as const;
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -399,6 +414,25 @@ export default defineComponent({
       },
       { immediate: true, deep: true }
     );
+
+    // --- arrows change slice --- //
+
+    const { currentImageID } = useCurrentImage();
+
+    const hover = ref(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!currentImageID.value || !hover.value) return;
+
+      const sliceOffset = SLICE_OFFSET_KEYS[event.key] ?? 0;
+      if (sliceOffset) {
+        viewConfigStore.updateSliceConfig(viewID.value, currentImageID.value, {
+          slice: currentSlice.value + sliceOffset,
+        });
+
+        event.stopPropagation();
+      }
+    };
+    onKeyStroke(Object.keys(SLICE_OFFSET_KEYS), onKeyDown);
 
     // --- resizing --- //
 
@@ -601,8 +635,6 @@ export default defineComponent({
       });
     });
 
-    // --- template vars --- //
-
     return {
       vtkContainerRef,
       viewID,
@@ -623,6 +655,7 @@ export default defineComponent({
       enableResizeToFit() {
         resizeToFit.value = true;
       },
+      hover,
     };
   },
 });
