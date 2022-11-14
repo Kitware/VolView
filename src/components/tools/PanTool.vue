@@ -4,7 +4,7 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
-import ManipulatorTool from './ManipulatorTool.vue';
+import MouseManipulatorTool from './MouseManipulatorTool.vue';
 
 interface Props {
   viewProxy: vtkViewProxy;
@@ -14,18 +14,19 @@ export default {
   functional: true,
   render(h: CreateElement, ctx: RenderContext<Props>) {
     const toolStore = useToolStore();
-    // only enable shift if Pan tool is not active
-    const shift = toolStore.currentTool !== Tools.Pan;
+    const toolOptions = [];
+    toolOptions.push({ button: 1, shift: true });
+    if (toolStore.currentTool === Tools.Pan) {
+      // Additionally enable left-button-only action if Pan tool is active
+      toolOptions.push({ button: 1 });
+    }
 
-    return h(ManipulatorTool, {
+    return h(MouseManipulatorTool, {
       props: {
         ...ctx.props,
         name: 'PanTool',
         manipulatorClass: vtkMouseCameraTrackballPanManipulator,
-        options: {
-          button: 1,
-          shift,
-        },
+        options: toolOptions,
       },
     });
   },
