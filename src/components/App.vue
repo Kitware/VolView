@@ -214,6 +214,7 @@ import { Layouts } from '../config';
 import { isStateFile, loadState } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
+import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 
 export default defineComponent({
   name: 'App',
@@ -240,6 +241,7 @@ export default defineComponent({
     const viewStore = useViewStore();
 
     useGlobalErrorHook();
+    useWebGLWatchdog();
 
     // --- layout --- //
 

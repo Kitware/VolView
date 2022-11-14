@@ -28,3 +28,11 @@ export const DataTypes = {
   Dicom: 'DICOM',
   Model: 'Model',
 };
+
+export const Messages = {
+  WebGLLost: {
+    title: 'Viewer Error (click for details)',
+    details:
+      'Lost the WebGL context! Please reload the webpage. If the problem persists, you may need to restart your web browser.',
+  },
+} as const;

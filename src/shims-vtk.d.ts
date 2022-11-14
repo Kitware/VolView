@@ -61,6 +61,7 @@ declare module '@kitware/vtk.js/Proxy/Core/ViewProxy' {
   import { vtkSubscription } from '@kitware/vtk.js/interfaces';
   import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
   import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
+  import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 
   export interface vtkViewProxy extends vtkProxyObject {
     setPresetToInteractor3D(nameOrDefinitions: string | Object): boolean;
@@ -120,7 +121,7 @@ declare module '@kitware/vtk.js/Proxy/Core/ViewProxy' {
     getInteractor(): vtkRenderWindowInteractor;
     getInteractorStyle2D(): vtkInteractorStyle;
     getInteractorStyle3D(): vtkInteractorStyle;
-    getOpenglRenderWindow(): vtkObject;
+    getOpenglRenderWindow(): vtkOpenGLRenderWindow;
     getOrientationAxesType(): string;
     getPresetToOrientationAxes(): any;
     getRenderer(): vtkRenderer;
