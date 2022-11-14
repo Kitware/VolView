@@ -125,11 +125,10 @@
                         <v-icon size="64">mdi-arrow-down-bold</v-icon>
                       </div>
                       <div>Drag &amp; drop your DICOM files.</div>
-                      <div class="mt-16">
+                      <div class="vertical-offset-margin">
                         <v-icon size="64">mdi-cloud-off-outline</v-icon>
                       </div>
-                      <div>Local mode.</div>
-                      <div>Data stays on your machine.</div>
+                      <div>Secure: Your data never leaves your machine.</div>
                     </v-card>
                   </v-row>
                 </v-col>
@@ -425,5 +424,9 @@ export default defineComponent({
 
 .toolbar-button {
   min-height: 100%; /* fill toolbar height */
+}
+
+.vertical-offset-margin {
+  margin-top: 128px;
 }
 </style>
