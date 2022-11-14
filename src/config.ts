@@ -177,5 +177,6 @@ export const TOOL_COLORS = [
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
-  MR: 'MR-Default',
+  MR: 'CT-Coronary-Arteries-2',
+  US: 'US-Fetal',
 };
