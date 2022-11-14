@@ -994,6 +994,7 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
   import { mat4, vec3 } from 'gl-matrix';
   import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
   import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+  import { Bounds } from '@kitware/vtk.js/types';
 
   export interface ImageCroppingPlanesState extends vtkWidgetState {
     getPlanes(): [number, number, number, number, number, number];
@@ -1008,6 +1009,7 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
     getWorldToIndexT(): mat4;
     setWorldToIndexT(transform: mat4): boolean;
     getCroppingPlanes(): ImageCroppingPlanesState;
+    placeWidget(bounds: Bounds): void;
   }
 
   export interface vtkImageCroppingViewWidget extends vtkAbstractWidget {
