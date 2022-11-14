@@ -104,6 +104,10 @@
         </li>
       </ul>
       <br />
+      This work was funded, in part, by the NIH via NIBIB and NIGMS
+      R01EB021396, NIBIB R01EB014955, NCI R01CA220681, and NINDS R42NS086295
+      <br />
+      <br />
       Sample data provided by the following sources:
       <ul>
         <li>
