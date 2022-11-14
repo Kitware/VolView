@@ -9,6 +9,41 @@
 </template>
 
 <script>
+async function readAllDirEntries(dirEntry) {
+  const reader = dirEntry.createReader();
+  const allEntries = [];
+  let entries = [];
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    entries = await new Promise((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+    allEntries.push(...entries);
+  } while (entries.length);
+  return allEntries;
+}
+
+async function entryToFile(fileEntry) {
+  return new Promise((resolve, reject) => {
+    fileEntry.file(resolve, reject);
+  });
+}
+
+async function readAllFiles(entries) {
+  const toProcess = [...entries];
+  const fileEntries = [];
+  while (toProcess.length) {
+    const entry = toProcess.shift();
+    if (entry.isFile) {
+      fileEntries.push(entry);
+    } else {
+      // eslint-disable-next-line no-await-in-loop
+      toProcess.push(...(await readAllDirEntries(entry)));
+    }
+  }
+  return Promise.all(fileEntries.map(entryToFile));
+}
+
 export default {
   name: 'DragAndDrop',
   props: {
@@ -22,6 +57,8 @@ export default {
   methods: {
     onDragOver(ev) {
       if (this.enabled) {
+        ev.preventDefault();
+
         const { types } = ev.dataTransfer;
         if (
           types && types instanceof Array
@@ -44,10 +81,19 @@ export default {
         }, 50);
       }
     },
-    onDrop(ev) {
+    async onDrop(ev) {
       if (this.enabled) {
-        this.$emit('drop', Array.from(ev.dataTransfer.files));
         this.dragHover = false;
+        if (ev.dataTransfer.items) {
+          const entries = [...ev.dataTransfer.items].map((item) => {
+            const getAsEntry = item.webkitGetAsEntry || item.getAsEntry;
+            return getAsEntry.call(item);
+          });
+          const files = await readAllFiles(entries);
+          this.$emit('drop', files);
+        } else {
+          this.$emit('drop', Array.from(ev.dataTransfer.files));
+        }
       }
     },
   },
