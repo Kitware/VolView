@@ -182,6 +182,7 @@ import {
   watchEffect,
 } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
+import { onKeyStroke } from '@vueuse/core';
 
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
@@ -217,6 +218,13 @@ import { defaultSliceConfig } from '../store/view-configs/slicing';
 import { useWindowingSync } from '../composables/sync/useWindowingSync';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
+
+const SLICE_OFFSET_KEYS: Record<string, number> = {
+  ArrowLeft: -1,
+  ArrowRight: 1,
+  ArrowUp: -1,
+  ArrowDown: 1,
+} as const;
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -411,26 +419,11 @@ export default defineComponent({
 
     const { currentImageID } = useCurrentImage();
 
+    const hover = ref(false);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!currentImageID.value) return;
+      if (!currentImageID.value || !hover.value) return;
 
-      let sliceOffset = 0;
-      switch (event.key) {
-        case 'ArrowLeft':
-          sliceOffset = -1;
-          break;
-        case 'ArrowRight':
-          sliceOffset = 1;
-          break;
-        case 'ArrowUp':
-          sliceOffset = -1;
-          break;
-        case 'ArrowDown':
-          sliceOffset = 1;
-          break;
-        default:
-          break;
-      }
+      const sliceOffset = SLICE_OFFSET_KEYS[event.key] ?? 0;
       if (sliceOffset) {
         viewConfigStore.updateSliceConfig(viewID.value, currentImageID.value, {
           slice: currentSlice.value + sliceOffset,
@@ -439,15 +432,7 @@ export default defineComponent({
         event.stopPropagation();
       }
     };
-
-    const hover = ref(false);
-    const onDocumentKeyDown = (event: KeyboardEvent) => {
-      if (hover.value) onKeyDown(event);
-    };
-    document.addEventListener('keydown', onDocumentKeyDown);
-    onBeforeUnmount(() => {
-      document.removeEventListener('keydown', onDocumentKeyDown);
-    });
+    onKeyStroke(Object.keys(SLICE_OFFSET_KEYS), onKeyDown);
 
     // --- resizing --- //
 
