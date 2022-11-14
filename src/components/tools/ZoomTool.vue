@@ -4,7 +4,7 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
-import ManipulatorTool from './ManipulatorTool.vue';
+import MouseManipulatorTool from './MouseManipulatorTool.vue';
 
 interface Props {
   viewProxy: vtkViewProxy;
@@ -21,7 +21,7 @@ export default {
       toolOptions.push({ button: 1 });
     }
 
-    return h(ManipulatorTool, {
+    return h(MouseManipulatorTool, {
       props: {
         ...ctx.props,
         name: 'ZoomTool',

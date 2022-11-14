@@ -10,7 +10,7 @@ import {
 import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
-  name: 'ManipulatorTool',
+  name: 'MouseManipulatorTool',
   props: {
     // only useful for determining the kind of manipulator
     name: String,
