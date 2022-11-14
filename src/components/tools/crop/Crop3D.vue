@@ -122,6 +122,7 @@ export default defineComponent({
       (metadata) => {
         state.setWorldToIndexT(metadata.worldToIndex);
         state.setIndexToWorldT(metadata.indexToWorld);
+        state.placeWidget(metadata.worldBounds);
       },
       { immediate: true }
     );

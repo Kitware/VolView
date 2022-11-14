@@ -2,6 +2,7 @@ import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { Bounds } from '@kitware/vtk.js/types';
 
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
@@ -18,7 +19,7 @@ export interface ImageMetadata {
   spacing: vec3;
   origin: vec3;
   dimensions: vec3;
-  worldBounds: number[]; // length 6
+  worldBounds: Bounds;
   worldToIndex: mat4;
   indexToWorld: mat4;
 }
@@ -30,7 +31,7 @@ export const defaultImageMetadata = () => ({
   spacing: vec3.fromValues(1, 1, 1),
   origin: vec3.create(),
   dimensions: vec3.fromValues(1, 1, 1),
-  worldBounds: [0, 1, 0, 1, 0, 1],
+  worldBounds: [0, 1, 0, 1, 0, 1] as Bounds,
   worldToIndex: mat4.create(),
   indexToWorld: mat4.create(),
 });

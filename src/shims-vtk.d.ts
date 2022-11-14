@@ -10,7 +10,6 @@ declare module '@kitware/vtk.js/vtk' {
 declare module '@kitware/vtk.js/interfaces-additions' {
   import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
   export type EventHandler = (...any: args[]) => EVENT_ABORT | VOID | void;
-  export type vtkBounds = [number, number, number, number, number, number];
 }
 
 // This is replicated in vtk-types. I'm keeping this here for the types in this shim file.
@@ -754,9 +753,10 @@ declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget' {
     RenderingTypes,
   } from '@kitware/vtk.js/Widgets/Core/WidgetManager';
   import { EventHandler } from '@kitware/vtk.js/interfaces-additions';
+  import { Bounds } from '@kitware/vtk.js/types';
 
   export interface vtkAbstractWidget extends vtkProp, vtkInteractorObserver {
-    getBounds(): vtkBounds;
+    getBounds(): Bounds;
     getNestedProps(): vtkWidgetRepresentation[];
     activateHandle(locator: {
       selectedState: vtkWidgetState;
@@ -767,7 +767,7 @@ declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget' {
     grabFocus(): void;
     loseFocus(): void;
     hasFocus(): boolean;
-    placeWidget(bounds: vtkBounds): void;
+    placeWidget(bounds: Bounds): void;
     getPlaceFactor(): number;
     setPlaceFactor(factor: number): void;
     getRepresentationFromActor(actor: vtkProp): vtkWidgetRepresentation;
@@ -794,6 +794,7 @@ declare module '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory' {
   import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
   import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager';
   import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+  import { Bounds } from '@kitware/vtk.js/types';
 
   export interface vtkAbstractWidgetFactory extends vtkObject {
     getWidgetForView(locator: {
@@ -808,7 +809,7 @@ declare module '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory' {
     setDragable(dragable: boolean): void;
     setContextVisibility(visible: boolean): void;
     setHandleVisibility(visible: boolean): void;
-    placeWidget(bounds: vtkBounds);
+    placeWidget(bounds: Bounds);
     getPlaceFactor(): number;
     setPlaceFactor(factor: number): void;
     getWidgetState(): vtkWidgetState;
@@ -994,6 +995,7 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
   import { mat4, vec3 } from 'gl-matrix';
   import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
   import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+  import { Bounds } from '@kitware/vtk.js/types';
 
   export interface ImageCroppingPlanesState extends vtkWidgetState {
     getPlanes(): [number, number, number, number, number, number];
@@ -1008,6 +1010,7 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
     getWorldToIndexT(): mat4;
     setWorldToIndexT(transform: mat4): boolean;
     getCroppingPlanes(): ImageCroppingPlanesState;
+    placeWidget(bounds: Bounds): void;
   }
 
   export interface vtkImageCroppingViewWidget extends vtkAbstractWidget {
