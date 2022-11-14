@@ -6,6 +6,7 @@
       </div>
       <div class="overlay-no-events tool-layer">
         <crop-tool :view-id="viewID" />
+        <pan-tool :view-id="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
@@ -85,6 +86,7 @@ import {
 } from '../store/view-configs/volume-coloring';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import CropTool from './tools/CropTool.vue';
+import PanTool from './tools/PanTool.vue';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { VTKThreeViewWidgetManager } from '../constants';
 import { useCropStore } from '../store/tools/crop';
@@ -108,6 +110,7 @@ export default defineComponent({
   components: {
     ViewOverlayGrid,
     CropTool,
+    PanTool,
   },
   setup(props) {
     const modelStore = useModelStore();
