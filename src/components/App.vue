@@ -84,6 +84,7 @@
                 offset-x="20"
                 offset-y="20"
                 :content="messageCount"
+                :color="messageBadgeColor"
                 :value="messageCount > 0"
               >
                 <tool-button
@@ -208,12 +209,13 @@ import {
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
 import { useViewStore } from '../store/views';
-import { useMessageStore } from '../store/messages';
+import { MessageType, useMessageStore } from '../store/messages';
 import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
 import { isStateFile, loadState } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
+import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 
 export default defineComponent({
   name: 'App',
@@ -240,6 +242,7 @@ export default defineComponent({
     const viewStore = useViewStore();
 
     useGlobalErrorHook();
+    useWebGLWatchdog();
 
     // --- layout --- //
 
@@ -370,6 +373,23 @@ export default defineComponent({
 
     const hasData = computed(() => imageStore.idList.length > 0);
     const messageCount = computed(() => messageStore.importantMessages.length);
+    const messageBadgeColor = computed(() => {
+      if (
+        messageStore.importantMessages.find(
+          (msg) => msg.type === MessageType.Error
+        )
+      ) {
+        return 'error';
+      }
+      if (
+        messageStore.importantMessages.find(
+          (msg) => msg.type === MessageType.Warning
+        )
+      ) {
+        return 'warning';
+      }
+      return 'primary';
+    });
 
     return {
       aboutBoxDialog: ref(false),
@@ -377,6 +397,7 @@ export default defineComponent({
       settingsDialog: ref(false),
       saveDialog: ref(false),
       messageCount,
+      messageBadgeColor,
       layoutName,
       currentLayout,
       Layouts,
