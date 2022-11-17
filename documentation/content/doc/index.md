@@ -20,8 +20,22 @@ Major features of VolView include:
 
 For more information, contact [kitware@kitware.com](mailto:kitware@kitware.com).
 
-Learn more and see our related works at the following links:
+## Acknowledgements
+
+If you find VolView to be useful for your work, please cite our paper on cinematic rendering:
+
+[Jiayi Xu, Gaspard Thevenon, Timothee Chabat, Matthew McCormick, Forrest Li,Tom Birdsong,Ken Martin, Yueh Lee, and Stephen Aylward, "Interactive, in-browser cinematic volume rendering of medical images", MICCAI 2022 AE-CAI Workshop, Singapore, Sept 19, 2022, Journal version accepted for publication in Computer Methods in Computer Methods in Biomechanics and Biomedical Engineering](https://workshops.ap-lab.ca/aecai2022/wp-content/uploads/sites/10/2022/09/Paper48_IICVR_camera_ready_paper.pdf):
+
+To refer to this source code, please use this DOI:
+[![DOI](https://zenodo.org/badge/248073292.svg)](https://zenodo.org/badge/latestdoi/248073292)
+
+This work was funded, in part, by the NIH via NIBIB and NIGMS R01EB021396, NIBIB R01EB014955, NCI R01CA220681, and NINDS R42NS086295.
+
+## Learn more
+
+Learn about our related works at the following links:
 [VolView]: http://volview.kitware.com
 [Glance]: https://kitware.github.io/glance/index.html
+[3D Slicer]: https://slicer.org
 [vtk.js]: https://kitware.github.io/vtk-js/index.html
 [itk.wasm]: https://github.com/InsightSoftwareConsortium/itk-wasm
