@@ -7,7 +7,7 @@ module.exports = {
     subtitle: '"Enable cinematic volume rendering of DICOM data on any computer."',
     author: 'Kitware Inc.',
     timezone: 'UTC',
-    url: 'https://kitwaremedical.volview.io/VolView',
+    url: 'https://kitwaremedical.github.io/VolView',
     root: '/VolView/',
     github: 'kitwaremedical/VolView',
     google_analytics: 'UA-90338862-10',

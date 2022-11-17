@@ -21,6 +21,7 @@ sidebar:
   doc:
     getting_started: Getting Started
     overview: Overview
-    readers: Supported formats
-    keyboard: Keyboard shortcuts
-    loading: Loading/Saving Files
+    quick_start_guide: Quick Start Guide
+    loading_files: Loading/Saving Image Files
+    state_files: Loading/Saving State Files
+    mouse_and_keyboard_controls: Mouse and Keyboard Controls

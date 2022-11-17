@@ -1,8 +1,7 @@
 doc:
   getting_started:
     overview: index.html
-    loading: loading_files.html
-    readers: readers.html
-    keyboard: keyboard_shortcuts.html
-
-
+    quick_start_guide: quick_start_guide.html
+    loading_files: loading_files.html
+    state_files: loading_files.html
+    mouse_and_keyboard_controls: mouse_and_keyboard_controls.html
