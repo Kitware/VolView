@@ -1,6 +1,7 @@
+import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { ref, watch } from '@vue/composition-api';
+import { computed, ref, watch } from '@vue/composition-api';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { Tools } from './types';
@@ -24,6 +25,12 @@ export const usePaintToolStore = defineStore('paint', () => {
   function getWidgetFactory(this: _This) {
     return this.$paint.factory;
   }
+
+  const activeLabelmap = computed(() => {
+    if (!activeLabelmapID.value) return null;
+    const labelmapStore = useLabelmapStore();
+    return labelmapStore.labelmaps[activeLabelmapID.value] ?? null;
+  });
 
   // --- actions --- //
 
@@ -55,19 +62,11 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function setLabelmapOpacity(opacity: number) {
-    if (opacity >= 0 && opacity <= 1) {
-      labelmapOpacity.value = opacity;
-    }
+    labelmapOpacity.value = Math.min(1, Math.max(0, opacity));
   }
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2) {
-    if (!activeLabelmapID.value) {
-      return;
-    }
-
-    const labelmapStore = useLabelmapStore();
-    const labelmap = labelmapStore.labelmaps[activeLabelmapID.value];
-    if (!labelmap) {
+    if (!activeLabelmap.value) {
       return;
     }
 
@@ -76,8 +75,21 @@ export const usePaintToolStore = defineStore('paint', () => {
       const lastPoint = strokePoints.value[lastIndex];
       const prevPoint =
         lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
-      this.$paint.paintLabelmap(labelmap, axisIndex, lastPoint, prevPoint);
+      this.$paint.paintLabelmap(
+        activeLabelmap.value,
+        axisIndex,
+        lastPoint,
+        prevPoint
+      );
     }
+  }
+
+  function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2) {
+    if (!activeLabelmap.value) return;
+    const spacing = activeLabelmap.value.getSpacing();
+    spacing.splice(axisIndex, 1);
+    const scale: Vector2 = [1 / spacing[0], 1 / spacing[1]];
+    this.$paint.setBrushScale(scale);
   }
 
   function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
@@ -169,6 +181,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     setBrushSize,
     setBrushValue,
     setLabelmapOpacity,
+    setSliceAxis,
     startStroke,
     placeStrokePoint,
     endStroke,

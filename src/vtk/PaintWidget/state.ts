@@ -1,4 +1,4 @@
-import { IBrushStamp } from '@/src/core/tools/paint/brush';
+import { IBrushStencil } from '@/src/core/tools/paint/brush';
 import { Vector3 } from '@kitware/vtk.js/types';
 import vtkStateBuilder from '@kitware/vtk.js/Widgets/Core/StateBuilder';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
@@ -16,8 +16,8 @@ export interface PaintPointWidgetState extends vtkWidgetState {
 
 export interface PaintWidgetState extends vtkWidgetState {
   getBrush(): PaintPointWidgetState;
-  getStamp(): IBrushStamp;
-  setStamp(stamp: IBrushStamp): boolean;
+  getStencil(): IBrushStencil;
+  setStencil(stencil: IBrushStencil): boolean;
 }
 
 export default function generateState() {
@@ -34,7 +34,7 @@ export default function generateState() {
       },
     })
     .addField({
-      name: 'stamp',
+      name: 'stencil',
       initialValue: null,
     })
     .build() as PaintWidgetState;

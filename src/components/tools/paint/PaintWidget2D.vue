@@ -92,7 +92,6 @@ export default defineComponent({
         widget.setSlicingIndex(slicingIndex);
         widget.setIndexToWorld(metadata.indexToWorld);
         widget.setWorldToIndex(metadata.worldToIndex);
-        widget.setImageSpacing(metadata.spacing);
       }
     });
 
@@ -159,6 +158,7 @@ export default defineComponent({
       viewProxyRef.value!.getInteractor().onMouseEnter(() => {
         const widget = widgetRef.value;
         if (widget) {
+          paintStore.setSliceAxis(viewAxisIndex.value);
           widget.setVisibility(true);
         }
       })

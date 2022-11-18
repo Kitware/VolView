@@ -12,8 +12,6 @@ export interface vtkPaintViewWidget extends vtkAbstractWidget {
   getIndexToWorld(): mat4;
   setWorldToIndex(transform: mat4): boolean;
   getWorldToIndex(): mat4;
-  setImageSpacing(spacing: vec3): boolean;
-  getImageSpacing(): vec3;
 }
 
 export interface vtkPaintWidget extends vtkAbstractWidgetFactory {
