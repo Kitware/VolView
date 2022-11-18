@@ -13,7 +13,7 @@ title: Gallery
 </style>
 
 <div class="gallery">
-<a href="./01-glance-welcome.jpg"><img alt="Glance - Welcome page" src="./01-glance-welcome.jpg"></a>
+<a href="./01-volview-welcome.jpg"><img alt="Glance - Welcome page" src="./01-volview-welcome.jpg"></a>
 <a href="./02-glance-about.jpg"><img alt="Glance - About" src="./02-glance-about.jpg"></a>
 <a href="./03-glance-sample-datasets.jpg"><img alt="Glance - Sample Datasets" src="./03-glance-sample-datasets.jpg"></a>
 <a href="./04-glance-sample-datasets-hover.jpg"><img alt="Glance - Sample Datasets" src="./04-glance-sample-datasets-hover.jpg"></a>
