@@ -84,9 +84,9 @@
           <a
             rel="noopener noreferrer"
             target="_blank"
-            href="https://github.com/KitwareMedical/VolView"
+            href="https://github.com/Kitware/VolView"
           >
-            https://github.com/KitwareMedical/VolView
+            https://github.com/Kitware/VolView
           </a>
         </li>
       </ul>
@@ -97,9 +97,9 @@
           <a
             rel="noopener noreferrer"
             target="_blank"
-            href="https://github.com/KitwareMedical/VolView/issues"
+            href="https://github.com/Kitware/VolView/issues"
           >
-            https://github.com/KitwareMedical/VolView/issues
+            https://github.com/Kitware/VolView/issues
           </a>
         </li>
       </ul>
