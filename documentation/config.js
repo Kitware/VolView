@@ -3,14 +3,14 @@ module.exports = {
   work: './build-tmp',
   config: {
     title: 'VolView',
-    description: '"The cinematic Web Viewer for your medical data"',
-    subtitle: '"Enable cinematic volume rendering of DICOM data on any computer."',
+    subtitle: '"Cinematic volume rendering of DICOM data in your web browser."',
+    description: '"An open-source and freely available radiological workstation that runs in your web browser and provide advanced, interactive 3D visualizations."',
     author: 'Kitware Inc.',
     timezone: 'UTC',
-    url: 'https://kitwaremedical.github.io/VolView',
+    url: 'https://kitware.github.io/VolView',
     root: '/VolView/',
-    github: 'kitwaremedical/VolView',
-    google_analytics: 'UA-90338862-10',
+    github: 'kitware/VolView',
+    google_analytics: 'G-MH4N62W0Z9',
   },
   copy: [
     {
