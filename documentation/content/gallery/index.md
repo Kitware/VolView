@@ -3,9 +3,9 @@ title: Gallery
 
 <style>
   .gallery img {
-    width: 49%;
+    width: 32%;
     display: inline-block;
-    padding: 2px;
+    padding: 5px;
   }
   .gallery br {
     display: none;
@@ -50,5 +50,4 @@ title: Gallery
 <a href="./21-volview-hybrid0.5.jpg"><img alt="Hybrid @ 0.5" src="./21-volview-hybrid0.5.jpg"></a>
 <a href="./21-volview-hybrid1.0.jpg"><img alt="Hybrid @ 1.0" src="./21-volview-hybrid1.0.jpg"></a>
 <a href="./21-volview-hybrid-final.jpg"><img alt="Hybrid final" src="./21-volview-hybrid-final.jpg"></a>
-<a href="./LocalAmbientOcclusion.jpg"><img alt="Local ambient occlusion" src="./LocalAmbientOcclusion.jpg"></a>
 </div>
