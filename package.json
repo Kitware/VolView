@@ -1,6 +1,6 @@
 {
   "name": "VolView",
-  "version": "0.1.0",
+  "version": "4.0.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
@@ -11,7 +11,10 @@
     "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",
     "build:dicom:debug": "itk-wasm -s src/io/itk-dicom/ build -- -DCMAKE_BUILD_TYPE=Debug",
     "postinstall": "patch-package",
-    "prettify": "prettier --write src tests"
+    "prettify": "prettier --write src tests",
+    "doc": "kw-doc -c ./documentation/config.js",
+    "doc:www": "kw-doc -c ./documentation/config.js -s",
+    "doc:publish": "kw-doc -c ./documentation/config.js -mp"
   },
   "dependencies": {
     "@kitware/vtk.js": "^25.13.0",
@@ -67,6 +70,7 @@
     "eslint-plugin-import": "2.26.0",
     "eslint-plugin-vue": "^8.0.3",
     "eslint-plugin-vuejs-accessibility": "^1.1.0",
+    "kw-doc": "3.1.2",
     "lint-staged": "10.5.4",
     "null-loader": "4.0.1",
     "patch-package": "^6.4.7",

@@ -1,0 +1,30 @@
+name: Publish Docs
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set git config
+        run: |
+          git config --global user.name "Github Actions"
+          git config --global user.email "forrest.li@kitware.com"
+
+      - name: Publish website
+        env:
+          GIT_PUBLISH_URL: https://${{ secrets.GH_PUBLISH_CREDS }}@github.com/Kitware/VolView.git
+        run: npm run doc:publish
