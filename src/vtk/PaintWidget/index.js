@@ -15,12 +15,7 @@ export { shouldIgnoreEvent } from './behavior';
 function vtkPaintWidget(publicAPI, model) {
   model.classHierarchy.push('vtkPaintWidget');
 
-  model.methodsToLink = [
-    'slicingIndex',
-    'indexToWorld',
-    'worldToIndex',
-    'imageSpacing',
-  ];
+  model.methodsToLink = ['slicingIndex', 'indexToWorld', 'worldToIndex'];
 
   publicAPI.getRepresentationsForViewType = () => [
     {

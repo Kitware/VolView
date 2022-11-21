@@ -1,47 +1,10 @@
 import { clampValue } from '@/src/utils';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
+import { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
-import { IPaintBrush, IBrushStamp } from './brush';
-import CirclePaintBrush from './circle-brush';
-
-/**
- * Rescales a 2D stamp.
- *
- * If inverse is supplied, then "undos" the scaling.
- *
- * @param stamp the stamp to rescale
- * @param scale an X/Y scale
- * @param inverse should the scale operation be inverted
- */
-export function rescaleStamp(
-  stamp: IBrushStamp,
-  scale: number[],
-  inverse: boolean = false
-): IBrushStamp {
-  const adjustedScale = inverse ? scale.map((v) => 1 / v) : scale;
-  const newSizeX = Math.ceil(stamp.size[0] * adjustedScale[0]);
-  const newSizeY = Math.ceil(stamp.size[1] * adjustedScale[1]);
-
-  const pixels = new Uint8Array(newSizeX * newSizeY);
-
-  for (let y = 0; y < newSizeY; y++) {
-    const srcY = Math.floor(y / adjustedScale[1]);
-    const dstYOffset = y * newSizeX;
-    const srcYOffset = srcY * stamp.size[0];
-    for (let x = 0; x < newSizeX; x++) {
-      const srcX = Math.floor(x / adjustedScale[0]);
-      const dstOffset = dstYOffset + x;
-      const srcOffset = srcYOffset + srcX;
-      pixels[dstOffset] = stamp.pixels[srcOffset];
-    }
-  }
-
-  return {
-    pixels,
-    size: [newSizeX, newSizeY],
-  };
-}
+import { IPaintBrush } from './brush';
+import EllipsePaintBrush from './ellipse-brush';
 
 export default class PaintTool {
   readonly factory: vtkPaintWidget;
@@ -50,15 +13,25 @@ export default class PaintTool {
 
   constructor() {
     this.factory = vtkPaintWidget.newInstance();
-    this.brush = new CirclePaintBrush();
+    this.brush = new EllipsePaintBrush();
     this.brushValue = 1;
+  }
+
+  private updateWidgetStencil() {
+    // use unscaled stencil for paint outline
+    const stencil = this.brush.getStencil();
+    const widgetState = this.factory.getWidgetState();
+    widgetState.setStencil(stencil);
   }
 
   setBrushSize(size: number) {
     this.brush.setSize(size);
-    const stamp = this.brush.getStamp();
-    const widgetState = this.factory.getWidgetState();
-    widgetState.setStamp(stamp);
+    this.updateWidgetStencil();
+  }
+
+  setBrushScale(scale: Vector2) {
+    this.brush.setScale(scale);
+    this.updateWidgetStencil();
   }
 
   setBrushValue(value: number) {
@@ -84,9 +57,7 @@ export default class PaintTool {
     startPoint: vec3,
     endPoint?: vec3
   ) {
-    const scale = [...labelmap.getSpacing()];
-    scale.splice(sliceAxis, 1);
-    const stamp = rescaleStamp(this.brush.getStamp(), scale, true);
+    const stencil = this.brush.getStencil();
 
     const start = [
       // transforms + floating point errors can make zero values occasionally
@@ -116,7 +87,7 @@ export default class PaintTool {
       point[1] < labelmapDims[1] &&
       point[2] < labelmapDims[2];
 
-    const { pixels, size } = stamp;
+    const { pixels, size } = stencil;
     const centerX = Math.floor((size[0] - 1) / 2);
     const centerY = Math.floor((size[1] - 1) / 2);
 
