@@ -1,7 +1,7 @@
 menu:
   documentation: Documentation
   gallery: Gallery
-  app: Launch App
+  app: Try VolView
   nightly: Nightly
   news: News
   search: Search
@@ -19,9 +19,13 @@ page:
 
 sidebar:
   doc:
-    getting_started: Getting Started
-    overview: Overview
+    introduction: Introduction
+    what_is_volview: What is VolView?
     quick_start_guide: Quick Start Guide
-    loading_files: Loading/Saving Image Files
-    state_files: Loading/Saving State Files
-    mouse_and_keyboard_controls: Mouse and Keyboard Controls
+    details: Details
+    welcome_screen: Welcome Screen
+    loading_data: Loading Data
+    toolbar: Toolbar
+    mouse_controls: Mouse/Keyboard Controls
+    rendering: Cinematic Rendering
+    state_files: State Files

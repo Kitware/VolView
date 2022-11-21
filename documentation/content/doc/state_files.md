@@ -1,4 +1,11 @@
-## VolView State Files
+title: State Files
+----
+
+<style>
+table {
+  width: 100%;
+}
+</style>
 
 VolView state files are a great way to save your scene and data to either be used later, or for distributing to collaborators and other users. These files store all of the information you need to restore the state of VolView: your data, annotations, camera positions, background colors, colormaps, and more. 
 
