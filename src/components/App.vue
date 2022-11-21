@@ -46,6 +46,7 @@
                 name="Save session"
                 @click="saveDialog = true"
               />
+              <div class="my-1 tool-separator" />
               <v-menu offset-x>
                 <template v-slot:activator="{ on, attrs }">
                   <div>
@@ -445,6 +446,13 @@ export default defineComponent({
 
 .toolbar-button {
   min-height: 100%; /* fill toolbar height */
+}
+
+.tool-separator {
+  width: 75%;
+  height: 1px;
+  border: none;
+  border-top: 1px solid rgb(112, 112, 112);
 }
 
 .vertical-offset-margin {

@@ -39,6 +39,19 @@
         @click="toggle"
       />
     </groupable-item>
+    <groupable-item
+      v-slot:default="{ active, toggle }"
+      :value="Tools.Crosshairs"
+    >
+      <tool-button
+        size="40"
+        icon="mdi-crosshairs"
+        name="Crosshairs"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      />
+    </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
       <v-menu
@@ -68,6 +81,17 @@
         <paint-controls />
       </v-menu>
     </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
+      <tool-button
+        size="40"
+        icon="mdi-ruler"
+        name="Ruler"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      />
+    </groupable-item>
+    <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
       <v-menu v-model="cropMenu" offset-x open-on-hover close-on-content-click>
         <template v-slot:activator="{ attrs, on }">
@@ -90,29 +114,6 @@
         </template>
         <crop-controls />
       </v-menu>
-    </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <tool-button
-        size="40"
-        icon="mdi-ruler"
-        name="Ruler"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      />
-    </groupable-item>
-    <groupable-item
-      v-slot:default="{ active, toggle }"
-      :value="Tools.Crosshairs"
-    >
-      <tool-button
-        size="40"
-        icon="mdi-crosshairs"
-        name="Crosshairs"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      />
     </groupable-item>
   </item-group>
 </template>
