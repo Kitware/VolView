@@ -11,7 +11,6 @@ table {
 
 | Shortcut       | Action               |
 | -------------- | -------------------- |
-| Ctrl + O       | Open File Dialog     |
 
 
 ## Slice 

@@ -1,7 +1,7 @@
 title: Loading Data
 ----
 
-The most straightfoward way to load files into VolView is to drag-and-drop them onto the central window when viewing the "Data" tab.   You can also click within that centrol windows to open a file browser and select the files or folders the "Open" button on the top-right toolbar, or by typing "Ctrl+O" on the keyboard. To complement different use-cases, there are a few other ways to open files.
+The most straightfoward way to load files into VolView is to drag-and-drop them onto the central window when viewing the "Data" tab.   You can also click within the central window to open a file browser and select the files or folders the "Open" button on the top-right toolbar. To complement different use-cases, there are a few other ways to open files.
 
 ## File formats
 

@@ -12,10 +12,4 @@ module.exports = {
     github: 'kitware/VolView',
     google_analytics: 'G-MH4N62W0Z9',
   },
-  copy: [
-    {
-      src: '../dist/*',
-      dest: './build-tmp/public/app',
-    },
-  ],
 };

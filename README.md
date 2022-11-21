@@ -8,7 +8,7 @@ Try VolView online: https://volview.netlify.app/
 
 ## Introduction
 
-VolView is an open source radiological viewer developed for clinical professionals. With VolView, you can have a deeper visual understanding of your data through interactive, cinematic volume rendering and easily visualize your DICOM data in 3D. Since VolView runs in your browser, you don’t need to install software and your data stays securely on your machine.
+VolView is an open source radiological viewer developed for clinical professionals. With VolView, you can have a deeper visual understanding of your data through interactive, cinematic volume rendering and easily visualize your DICOM data in 3D. Since VolView runs in your browser, you donâ€™t need to install software and your data stays securely on your machine.
 
 Major features of VolView include:
 
@@ -16,7 +16,7 @@ Major features of VolView include:
 
 2. Cinematic Volume Rendering: Create beautiful renderings and gain new insights into your data with only a few clicks.  VolView provides three cinematic volume rendering modes and intuitive controls for each.  We've also provides simple ways to control lighting and multiple presets to get you started.
 
-3. Annotations and measures: We have provided a small set of tools for painting, measuring, and cropping, and that toolset will be rapidly expanding.  If you have suggestions for new tools or for improving VolView in general, please leave feedback at our [Issue Tracker](https://github.com/KitwareMedical/VolView/issues).
+3. Annotations and measures: We have provided a small set of tools for painting, measuring, and cropping, and that toolset will be rapidly expanding.  If you have suggestions for new tools or for improving VolView in general, please leave feedback at our [Issue Tracker](https://github.com/Kitware/VolView/issues).
 
 4. Simple, Scalable, and Secure: Simply visit a website to install VolView.  Once it is running, all data handling, processing, and visualization occurs on your machine.  Data you load into VolView never leaves your machine.  And VolView is designed to run on any web browser: from the one on your phone to the one running on your most powerful workstations.  It will take advantage of local GPU resources to accelerate its rendering processes, but if none is available, it will still generate the same high quality renderings, albeit a bit slower.
 
