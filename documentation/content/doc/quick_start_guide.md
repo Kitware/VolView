@@ -58,17 +58,17 @@ VolView reads the DICOM tags of your data to determine appropriate preset parame
     b. Then adjust the color transfer function by moving the blue dots on the colorbar beneath the graph.  ![Color](../gallery/17-volview-colormap-notes.jpg)
 
 2. You may decide that the colormaps and/or transfer function aren't suitable for your data.  Click on the "Presets" bar to expand and show the available presets that offer alternative opacity and color transfer functions. ![Presets](../gallery/18-volview-presets.jpg)
-[***Watch the video!***](https://youtu.be/eyrGd-meg6I)
-
 3. Next, the lighting can be controlled.  
     a. Ambient lighting is the general brightness of the scene.  
     b. Diffuse lighting controls how the light reflects off the data.  It is influenced by the position of the light relative to the orientation of the data's local surface.
     c. Light-follows-camera can be enabled / disabled to create shadows that highlights details within the data.  When enabled, the light will be positioned in-line with the camera.   When disabled, the last position of the light stays fixed relative to the data, even if the camera is moved. With light-follows-camera enabled, here is a view when the light is following the camera: ![Default Lighting](../gallery/20-volview-lightfollowcamera1.jpg)  By moving the camera (and thereby the light) to the front of the data and then disabling light-follows-camera, the view should look light this: ![Light Setup](../gallery/20-volview-lightfollowcamera2.jpg)  Then moving back to the side view will show shadows that emphasize depth and details: ![Shadows](../gallery/20-volview-lightfollowcamera3.jpg)
 
-4. Advanced, you can also explore alternative cinematic rendering methods.
+4. Advanced, you can also explore alternative cinematic rendering methods.  Detailed documentation will soon follow that describes these methods and demonstrates their utility for various types of medical data.
     a. Standard
     b. Hybrid
     c. Ambient Occlusion
+
+[***Watch the video!***](https://youtu.be/eyrGd-meg6I)
 
 ## 4. Saving / loading state
 
