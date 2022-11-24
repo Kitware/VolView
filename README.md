@@ -24,7 +24,7 @@ Major features of VolView include:
 
 ## Documentation
 
-Visit: https://kitwaremedical.github.io/VolView
+Visit: https://kitware.github.io/VolView to read the documentation.
 
 # Citation
 
