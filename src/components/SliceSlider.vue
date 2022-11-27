@@ -6,6 +6,7 @@
     @pointermove="onDragMove"
     @pointerup="onDragEnd"
     @pointercancel="onDragEnd"
+    @contextmenu="$event.preventDefault()"
   >
     <div class="slice-slider-track" />
     <div
