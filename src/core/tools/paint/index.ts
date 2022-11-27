@@ -1,4 +1,3 @@
-import { clampValue } from '@/src/utils';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import { Vector2 } from '@kitware/vtk.js/types';
@@ -62,7 +61,7 @@ export default class PaintTool {
     const start = [
       // transforms + floating point errors can make zero values occasionally
       // turn into really tiny negative values
-      ...startPoint.map((val) => Math.round(clampValue(val, 0, Infinity))),
+      ...startPoint.map((val) => Math.round(val)),
     ];
     // Assumption: startPoint and endPoint are on the same slice axis.
     const ijkSlice = start[sliceAxis];
