@@ -16,13 +16,22 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Starts painting
    */
   publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (
-      !model.manipulator ||
-      shouldIgnoreEvent(eventData) ||
-      !model.widgetState.getBrush().getOrigin()
-    ) {
+    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
       return macro.VOID;
     }
+
+    const worldCoords = model.manipulator.handleEvent(
+      eventData,
+      model._apiSpecificRenderWindow
+    );
+
+    if (!worldCoords) {
+      return macro.VOID;
+    }
+
+    const brush = model.widgetState.getBrush();
+    brush.setOrigin(...worldCoords);
+
     isPainting = true;
     publicAPI.invokeStartInteractionEvent();
     return macro.EVENT_ABORT;
