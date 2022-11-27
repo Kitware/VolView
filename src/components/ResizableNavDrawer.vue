@@ -72,6 +72,7 @@ export default {
       // NOTE: width is not reactive to handle size
       el.style.width = this.handleSizeCSS;
       el.style.backgroundColor = 'transparent';
+      el.style.touchAction = 'none';
       // NOTE: dynamically setting "right" won't update the border position
       if ('right' in this.$attrs) {
         el.style.borderLeft = '2px solid rgba(0, 0, 0, 0.24)';
@@ -82,38 +83,45 @@ export default {
     },
 
     setEvents() {
-      const el = this.$refs.infoPane.$el.querySelector(
+      this.drawerBorder = this.$refs.infoPane.$el.querySelector(
         '.v-navigation-drawer__border'
       );
-      el.addEventListener('mousedown', this.startResize);
+      this.drawerBorder.addEventListener('pointerdown', this.startResize);
+      this.drawerBorder.addEventListener('pointermove', this.handleResize);
+      this.drawerBorder.addEventListener('pointerup', this.stopResize);
     },
 
     clearEvents() {
-      const el = this.$refs.infoPane.$el.querySelector(
-        '.v-navigation-drawer__border'
-      );
-      el.removeEventListener('mousedown', this.startResize);
-      document.removeEventListener('mouseup', this.stopResize);
+      this.drawerBorder.removeEventListener('pointerdown', this.startResize);
+      this.drawerBorder.removeEventListener('pointermove', this.handleResize);
+      this.drawerBorder.removeEventListener('pointerup', this.stopResize);
     },
 
-    startResize() {
+    startResize(ev) {
+      if (this.drawerBorder.hasPointerCapture(ev.pointerId)) return;
+      this.drawerBorder.setPointerCapture(ev.pointerId);
+
       this.$refs.infoPane.$el.style.transition = 'initial';
 
       this.setCursor(RESIZE_CURSOR);
       this.disableSelection();
-      document.addEventListener('mousemove', this.handleResize);
-      document.addEventListener('mouseup', this.stopResize);
     },
 
-    stopResize() {
+    stopResize(ev) {
+      if (ev) {
+        if (!this.drawerBorder.hasPointerCapture(ev.pointerId)) return;
+        this.drawerBorder.releasePointerCapture(ev.pointerId);
+      }
+
       this.$refs.infoPane.$el.style.transition = '';
 
       this.resetCursor();
       this.resetSelection();
-      document.removeEventListener('mousemove', this.handleResize);
     },
 
     handleResize(evt) {
+      if (!this.drawerBorder.hasPointerCapture(evt.pointerId)) return;
+
       const width =
         'right' in this.$attrs
           ? document.body.scrollWidth - evt.clientX

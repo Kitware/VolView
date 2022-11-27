@@ -1,5 +1,13 @@
 <template>
-  <div class="slice-slider" ref="handleContainer" @mousedown="onDragStart">
+  <div
+    class="slice-slider"
+    ref="handleContainer"
+    @pointerdown="onDragStart"
+    @pointermove="onDragMove"
+    @pointerup="onDragEnd"
+    @pointercancel="onDragEnd"
+    @contextmenu="$event.preventDefault()"
+  >
     <div class="slice-slider-track" />
     <div
       class="slice-slider-handle"
@@ -115,11 +123,11 @@ export default {
 
       this.yOffset = 0;
 
-      document.addEventListener('mousemove', this.onDragMove);
-      document.addEventListener('mouseup', this.onDragEnd);
+      this.$refs.handleContainer.setPointerCapture(ev.pointerId);
     },
 
     onDragMove(ev) {
+      if (!this.$refs.handleContainer.hasPointerCapture(ev.pointerId)) return;
       ev.preventDefault();
 
       this.yOffset = ev.pageY - this.initialMousePosY;
@@ -128,11 +136,11 @@ export default {
     },
 
     onDragEnd(ev) {
+      if (!this.$refs.handleContainer.hasPointerCapture(ev.pointerId)) return;
       ev.preventDefault();
+      this.$refs.handleContainer.releasePointerCapture(ev.pointerId);
 
       this.dragging = false;
-      document.removeEventListener('mousemove', this.onDragMove);
-      document.removeEventListener('mouseup', this.onDragEnd);
       const slice = this.getNearestSlice(this.handlePosition);
       this.$emit('input', slice);
     },
@@ -147,6 +155,10 @@ export default {
 </script>
 
 <style scoped>
+.slice-slider {
+  touch-action: none;
+}
+
 .slice-slider-handle {
   position: relative;
   width: 100%;

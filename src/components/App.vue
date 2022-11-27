@@ -21,6 +21,7 @@
           app
           permanent
           clipped
+          touchless
           :min-width="450"
           :max-width="550"
           :width="450"
