@@ -94,6 +94,7 @@ export default class PaintTool {
     const point1 = [...start];
     const point2 = [...end];
     const rounded = [0, 0, 0];
+    const curPoint: number[] = [0, 0];
     for (let y = 0; y < size[1]; y++) {
       const ydelta = y - centerY;
       const yoffset = y * size[0];
@@ -105,8 +106,6 @@ export default class PaintTool {
           point1[1] = start[1] + ydelta;
           point2[0] = end[0] + xdelta;
           point2[1] = end[1] + ydelta;
-
-          const curPoint: number[] = [0, 0];
 
           // line between the two points
           const dx = point2[0] - point1[0];
