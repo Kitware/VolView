@@ -18,12 +18,16 @@ import { registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
 import { CorePiniaProviderPlugin } from './core/provider';
 import ProxyWrapper from './core/proxies';
+import { patchExitPointerLock } from './utils/hacks';
 
 Vue.config.productionTip = false;
 
 Vue.use(VueCompositionAPI);
 Vue.use(VueToast);
 Vue.use(PiniaVuePlugin);
+
+// patches
+patchExitPointerLock();
 
 // Initialize global mapper topologies
 // polys and lines in the front
