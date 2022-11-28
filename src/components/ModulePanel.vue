@@ -1,6 +1,14 @@
 <template>
   <div class="fill-height d-flex flex-column">
     <div id="module-switcher">
+      <v-btn
+        v-if="$vuetify.breakpoint.mobile"
+        icon
+        id="close-btn"
+        @click="$emit('close')"
+      >
+        <v-icon>mdi-arrow-left</v-icon>
+      </v-btn>
       <v-tabs
         id="module-switcher-tabs"
         v-model="selectedModuleIndex"
@@ -74,6 +82,7 @@ export default defineComponent({
 
 <style scoped>
 #module-switcher {
+  display: relative;
   flex: 0 2;
   /* roughly match vuetify's dark/light transition */
   transition: border-bottom 0.3s;
@@ -85,6 +94,13 @@ export default defineComponent({
 
 .theme--dark #module-switcher {
   border-bottom: 2px solid #2f2f2f;
+}
+
+#close-btn {
+  position: absolute;
+  top: 1.5em;
+  left: 0.5em;
+  z-index: 10;
 }
 
 #module-container {
