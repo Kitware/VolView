@@ -3,6 +3,8 @@
     v-on:dragover.prevent="onDragOver"
     v-on:dragleave="onDragLeave"
     v-on:drop.prevent="onDrop"
+    v-bind="$attrs"
+    v-on="$listeners"
   >
     <slot :dragHover="dragHover" />
   </div>

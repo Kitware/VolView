@@ -1,10 +1,18 @@
 <template>
-  <drag-and-drop enabled @drop="openFiles">
+  <drag-and-drop enabled @drop="openFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
         <v-app-bar app dense clipped-left>
+          <v-btn
+            v-if="$vuetify.breakpoint.mobile"
+            icon
+            @click="leftSideBar = !leftSideBar"
+          >
+            <v-icon>mdi-menu</v-icon>
+          </v-btn>
           <v-toolbar-title class="d-flex flex-row align-center mt-1">
-            <vol-view-full-logo />
+            <vol-view-logo v-if="$vuetify.breakpoint.mobile" />
+            <vol-view-full-logo v-else />
           </v-toolbar-title>
           <v-spacer />
           <v-btn
@@ -18,8 +26,8 @@
         </v-app-bar>
         <resizable-nav-drawer
           id="left-nav"
+          v-model="leftSideBar"
           app
-          permanent
           clipped
           touchless
           :min-width="450"
@@ -27,7 +35,7 @@
           :width="450"
           :handle-size="4"
         >
-          <module-panel />
+          <module-panel @close="leftSideBar = false" />
         </resizable-nav-drawer>
         <v-main id="content-wrapper">
           <div class="fill-height d-flex flex-row flex-grow-1">
@@ -154,7 +162,7 @@
 
         <message-notifications @open-notifications="messageDialog = true" />
 
-        <v-dialog v-model="settingsDialog" width="30%">
+        <v-dialog v-model="settingsDialog" width="50%">
           <settings @close="settingsDialog = false" />
         </v-dialog>
 
@@ -200,6 +208,7 @@ import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
+import VolViewLogo from './icons/VolViewLogo.vue';
 import {
   useDatasetStore,
   convertSuccessResultToDataSelection,
@@ -233,11 +242,12 @@ export default defineComponent({
     MessageCenter,
     MessageNotifications,
     VolViewFullLogo,
+    VolViewLogo,
     Settings,
     SaveSession,
   },
 
-  setup() {
+  setup(props: {}, { root }) {
     const dataStore = useDatasetStore();
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
@@ -398,6 +408,7 @@ export default defineComponent({
       messageDialog: ref(false),
       settingsDialog: ref(false),
       saveDialog: ref(false),
+      leftSideBar: ref(!root.$vuetify.breakpoint.mobile),
       messageCount,
       messageBadgeColor,
       layoutName,
@@ -435,6 +446,11 @@ export default defineComponent({
 <style src="@/src/components/styles/utils.css"></style>
 
 <style scoped>
+#app-container {
+  width: 100%;
+  height: 100%;
+}
+
 #left-nav {
   display: flex;
   flex-flow: column;

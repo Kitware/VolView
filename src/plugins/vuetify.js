@@ -19,4 +19,7 @@ export default new Vuetify({
   theme: {
     dark: store.value,
   },
+  breakpoint: {
+    mobileBreakpoint: 'sm',
+  },
 });
