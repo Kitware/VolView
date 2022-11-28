@@ -339,7 +339,7 @@ export default defineComponent({
 
 <template>
   <div class="overflow-hidden">
-    <div class="mt-4" ref="editorContainerRef">
+    <div class="mt-4 pwf-editor" ref="editorContainerRef">
       <div ref="pwfEditorRef" />
     </div>
     <div>
@@ -357,3 +357,9 @@ export default defineComponent({
     </div>
   </div>
 </template>
+
+<style scoped>
+.pwf-editor {
+  touch-action: none;
+}
+</style>
