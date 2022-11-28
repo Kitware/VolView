@@ -1,7 +1,11 @@
-html, body {
+html {
+    overflow: hidden !important;
+}
+
+body {
+    position: fixed;
     width: 100%;
     height: 100%;
-    overflow: hidden !important;
 }
 
 .no-select {
