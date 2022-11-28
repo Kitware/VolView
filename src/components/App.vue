@@ -37,7 +37,7 @@
         >
           <module-panel @close="leftSideBar = false" />
         </resizable-nav-drawer>
-        <v-main id="content-wrapper">
+        <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
             <div
               id="tools-strip"
@@ -423,12 +423,15 @@ export default defineComponent({
 </script>
 
 <style>
-#content-wrapper {
+#content-main {
   /* disable v-content transition when we resize our app drawer */
   transition: initial;
+  width: 100%;
+  height: 100%;
+  position: fixed;
 }
 
-#content-wrapper > .v-content__wrap {
+#content-main > .v-content__wrap {
   display: flex;
 }
 

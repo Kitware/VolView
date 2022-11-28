@@ -2,8 +2,8 @@
   <div
     class="vtk-container-wrapper"
     tabindex="0"
-    @mouseenter="hover = true"
-    @mouseleave="hover = false"
+    @pointerenter="hover = true"
+    @pointerleave="hover = false"
     @focusin="hover = true"
     @focusout="hover = false"
   >
