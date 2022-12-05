@@ -8,7 +8,7 @@ import {
   VolumeInfo,
 } from '../store/datasets-dicom';
 import { pick } from '../utils';
-import { Instance } from './dicomWeb';
+import { Instance } from './dicom-web-api';
 
 interface InstanceInfo {
   SopInstanceUID: string;

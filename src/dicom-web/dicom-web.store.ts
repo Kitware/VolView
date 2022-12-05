@@ -13,7 +13,7 @@ import {
   fetchSeries,
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
-} from './dicomWeb';
+} from './dicom-web-api';
 
 export enum ProgressState {
   Remote,
