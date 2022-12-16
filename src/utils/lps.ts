@@ -42,10 +42,10 @@ export function getLPSAxisFromDir(dir: LPSAxisDir): LPSAxis {
       return 'Axial';
     case 'Left':
     case 'Right':
-      return 'Coronal';
+      return 'Sagittal';
     case 'Posterior':
     case 'Anterior':
-      return 'Sagittal';
+      return 'Coronal';
     default:
       throw new Error(`Invalid LPS direction: ${dir}`);
   }
@@ -59,8 +59,8 @@ export const defaultLPSDirections = () => ({
   Superior: vec3.fromValues(0, 0, 1),
   Inferior: vec3.fromValues(0, 0, -1),
 
-  Coronal: 0 as const,
-  Sagittal: 1 as const,
+  Sagittal: 0 as const,
+  Coronal: 1 as const,
   Axial: 2 as const,
 });
 
@@ -105,15 +105,15 @@ export function getLPSDirections(direction: mat3): LPSDirections {
     const posVector = axisVector.map((c) => c * vecSign) as vec3;
     const negVector = axisVector.map((c) => c * -vecSign) as vec3;
     if (axis === 0) {
-      // Coronal
+      // Sagittal
       lpsDirs.Left = posVector;
       lpsDirs.Right = negVector;
-      lpsDirs.Coronal = col as 0 | 1 | 2;
+      lpsDirs.Sagittal = col as 0 | 1 | 2;
     } else if (axis === 1) {
-      // Sagittal
+      // Coronal
       lpsDirs.Posterior = posVector;
       lpsDirs.Anterior = negVector;
-      lpsDirs.Sagittal = col as 0 | 1 | 2;
+      lpsDirs.Coronal = col as 0 | 1 | 2;
     } else if (axis === 2) {
       // Axial
       lpsDirs.Superior = posVector;

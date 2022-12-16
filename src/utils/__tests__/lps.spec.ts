@@ -55,8 +55,8 @@ describe('getLPSDirections', () => {
         Left: [1, 0, 0],
         Posterior: [0, 1, 0],
         Superior: [0, 0, 1],
-        Coronal: 0,
-        Sagittal: 1,
+        Sagittal: 0,
+        Coronal: 1,
         Axial: 2,
       }
     );
@@ -72,8 +72,8 @@ describe('getLPSDirections', () => {
         Left: [1, 0, 0],
         Posterior: [0, 1, 0],
         Superior: [0, 0, 1],
-        Coronal: 1,
-        Sagittal: 2,
+        Sagittal: 1,
+        Coronal: 2,
         Axial: 0,
       }
     );
@@ -93,8 +93,8 @@ describe('getLPSDirections', () => {
         Superior: [
           -0.5986634492874146, -0.22716301679611206, 0.7681139707565308,
         ],
-        Coronal: 1,
-        Sagittal: 2,
+        Sagittal: 1,
+        Coronal: 2,
         Axial: 0,
       }
     );
