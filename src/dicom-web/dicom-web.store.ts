@@ -15,12 +15,7 @@ import {
   retrieveStudyMetadata,
 } from './dicom-web-api';
 
-export enum ProgressState {
-  Remote,
-  Pending,
-  Error,
-  Done,
-}
+export type ProgressState = 'Remote' | 'Pending' | 'Error' | 'Done';
 
 export interface VolumeProgress {
   state: ProgressState;
@@ -33,10 +28,7 @@ interface Progress {
 }
 
 export const isDownloadable = (progress?: VolumeProgress) =>
-  !progress ||
-  [ProgressState.Pending, ProgressState.Done].every(
-    (state) => state !== progress.state
-  );
+  !progress || ['Pending', 'Done'].every((state) => state !== progress.state);
 
 export const DICOM_WEB_CONFIGURED =
   process.env.VUE_APP_DICOM_WEB_URL !== undefined;
@@ -117,7 +109,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
     set(volumes.value, volumeKey, {
       ...volumes.value[volumeKey],
-      state: ProgressState.Pending,
+      state: 'Pending',
       loaded: 0,
       total: 0,
     });
@@ -145,7 +137,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
           datasets.setPrimarySelection(selection);
           set(volumes.value, volumeKey, {
             ...volumes.value[volumeKey],
-            state: ProgressState.Done,
+            state: 'Done',
           });
         } else {
           throw new Error('Failed to load DICOM.');
@@ -158,7 +150,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       messageStore.addError('Failed to load DICOM', error as Error);
       set(volumes.value, volumeKey, {
         ...volumes.value[volumeKey],
-        state: ProgressState.Error,
+        state: 'Error',
         loaded: 0,
       });
     }
@@ -176,7 +168,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       if (volumeKey)
         set(volumes.value, volumeKey, {
           ...volumes.value[volumeKey],
-          state: ProgressState.Remote,
+          state: 'Remote',
           loaded: 0,
         });
     });

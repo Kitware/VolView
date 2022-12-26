@@ -12,7 +12,6 @@ import { useDicomMetaStore } from './dicom-meta.store';
 import {
   useDicomWebStore,
   isDownloadable,
-  ProgressState,
   VolumeProgress,
 } from './dicom-web.store';
 
@@ -88,7 +87,6 @@ export default defineComponent({
       thumbnailCache,
       volumes,
       downloadDicom,
-      ProgressState,
       formatBytes,
     };
   },
@@ -141,7 +139,7 @@ export default defineComponent({
                       v-if="
                         volume.progress &&
                         volume.progress.state &&
-                        volume.progress.state !== ProgressState.Remote
+                        volume.progress.state !== 'Remote'
                       "
                       absolute
                       class="thumbnail-overlay"
@@ -154,22 +152,18 @@ export default defineComponent({
                             color="white"
                             :indeterminate="
                               volume.progress.percent === 0 &&
-                              volume.progress.state !== ProgressState.Done
+                              volume.progress.state !== 'Done'
                             "
                             :value="volume.progress.percent"
                           >
                             <v-icon
-                              v-if="
-                                volume.progress.state === ProgressState.Done
-                              "
+                              v-if="volume.progress.state === 'Done'"
                               small
                               color="white"
                               >mdi-check</v-icon
                             >
                             <v-icon
-                              v-else-if="
-                                volume.progress.state === ProgressState.Error
-                              "
+                              v-else-if="volume.progress.state === 'Error'"
                               small
                               color="white"
                             >
