@@ -22,13 +22,18 @@ export default defineComponent({
 
     return {
       patients,
+      dicomWeb,
     };
   },
 });
 </script>
 
 <template>
-  <v-expansion-panels v-if="patients.length > 0" multiple accordion>
+  <p v-if="dicomWeb.message.length > 0" class="error-message">
+    {{ dicomWeb.message }}
+  </p>
+
+  <v-expansion-panels v-else-if="patients.length > 0" multiple accordion>
     <v-expansion-panel v-for="patient in patients" :key="patient.key">
       <v-expansion-panel-header>
         <div class="patient-header">
@@ -49,7 +54,13 @@ export default defineComponent({
 .v-expansion-panel--active:not(:first-child):after {
   opacity: 100;
 }
+
 .v-expansion-panel--active + .v-expansion-panel::after {
   opacity: 100;
+}
+
+.error-message {
+  margin-top: 1em;
+  color: red;
 }
 </style>

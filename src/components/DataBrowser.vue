@@ -2,7 +2,7 @@
 import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import DicomWebBrowser from '../dicom-web/DicomWebBrowser.vue';
-import { DICOM_WEB_CONFIGURED } from '../dicom-web/dicom-web.store';
+import { useDicomWebStore } from '../dicom-web/dicom-web.store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -12,7 +12,6 @@ import { usePanels } from '../composables/usePanels';
 const SAMPLE_DATA_KEY = 'sampleData';
 const ANONYMOUS_DATA_KEY = 'anonymousData';
 const DICOM_WEB_KEY = 'dicomWeb';
-const SAMPLE_DATA_PANEL_INDEX = DICOM_WEB_CONFIGURED ? 1 : 0;
 
 export default defineComponent({
   name: 'DataBrowser',
@@ -25,6 +24,7 @@ export default defineComponent({
   setup() {
     const dicomStore = useDICOMStore();
     const imageStore = useImageStore();
+    const dicomWeb = useDicomWebStore();
 
     // TODO show patient ID in parens if there is a name conflict
     const patients = computed(() =>
@@ -46,7 +46,7 @@ export default defineComponent({
     const panelKeys = computed(
       () =>
         new Set([
-          ...(DICOM_WEB_CONFIGURED ? [DICOM_WEB_KEY] : []),
+          ...(dicomWeb.isConfigured ? [DICOM_WEB_KEY] : []),
           SAMPLE_DATA_KEY,
           ...(hasAnonymousImages.value ? [ANONYMOUS_DATA_KEY] : []),
           ...patients.value.map((study) => study.key),
@@ -56,10 +56,11 @@ export default defineComponent({
     const { handlePanelChange, openPanels } = usePanels(panelKeys);
 
     // Collapse Sample Data after loading data
+    const sampleDataPanelIndex = dicomWeb.isConfigured ? 1 : 0; // if DicomWeb Panel shown at start, bump index to 1
     watch(panelKeys, (newSet, oldSet) => {
       if (
         newSet.size > oldSet.size &&
-        openPanels.value.includes(SAMPLE_DATA_PANEL_INDEX)
+        openPanels.value.includes(sampleDataPanelIndex)
       ) {
         handlePanelChange(SAMPLE_DATA_KEY);
       }
@@ -70,7 +71,7 @@ export default defineComponent({
       patients,
       deletePatient: dicomStore.deletePatient,
       hasAnonymousImages,
-      DICOM_WEB_CONFIGURED,
+      dicomWeb,
       handlePanelChange,
       SAMPLE_DATA_KEY,
       ANONYMOUS_DATA_KEY,
@@ -137,7 +138,7 @@ export default defineComponent({
         </v-expansion-panel>
 
         <v-expansion-panel
-          v-if="DICOM_WEB_CONFIGURED"
+          v-if="dicomWeb.isConfigured"
           key="dicomWeb"
           @change="handlePanelChange(DICOM_WEB_KEY)"
         >

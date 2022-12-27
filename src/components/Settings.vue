@@ -7,6 +7,7 @@
     </v-card-title>
     <v-card-text>
       <v-switch label="Enable Dark Theme" v-model="dark"></v-switch>
+      <dicom-web-settings v-if="isOpen" />
     </v-card-text>
   </v-card>
 </template>
@@ -15,6 +16,8 @@
 import { defineComponent, watchEffect } from '@vue/composition-api';
 import { useLocalStorage } from '@vueuse/core';
 import vuetify from '../plugins/vuetify';
+
+import DicomWebSettings from '../dicom-web/DicomWebSettings.vue';
 
 export default defineComponent({
   setup() {
@@ -30,6 +33,12 @@ export default defineComponent({
     return {
       dark: store,
     };
+  },
+  components: {
+    DicomWebSettings,
+  },
+  props: {
+    isOpen: Boolean,
   },
 });
 </script>

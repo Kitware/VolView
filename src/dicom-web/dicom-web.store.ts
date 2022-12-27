@@ -1,10 +1,9 @@
-import { ref, set } from '@vue/composition-api';
+import { computed, ref, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../store/datasets';
-
 import { PatientInfo, useDICOMStore } from '../store/datasets-dicom';
 import { useMessageStore } from '../store/messages';
 import { useDicomMetaStore } from './dicom-meta.store';
@@ -30,9 +29,6 @@ interface Progress {
 export const isDownloadable = (progress?: VolumeProgress) =>
   !progress || ['Pending', 'Done'].every((state) => state !== progress.state);
 
-export const DICOM_WEB_CONFIGURED =
-  process.env.VUE_APP_DICOM_WEB_URL !== undefined;
-
 async function getAllPatients(host: string): Promise<PatientInfo[]> {
   const instances = await searchForStudies(host);
   const dicoms = useDicomMetaStore();
@@ -44,8 +40,7 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
-  const host = ref(process.env.VUE_APP_DICOM_WEB_URL as string);
-  const isSetup = ref(false);
+  const host = ref(process.env.VUE_APP_DICOM_WEB_URL);
   const message = ref('');
 
   const patients = ref([] as PatientInfo[]);
@@ -54,6 +49,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     patients.value = [];
     message.value = '';
     try {
+      if (host.value === undefined)
+        throw new Error('DICOMWeb server not specified');
+
+      if (host.value === null || host.value.length === 0) return;
+
       patients.value = await getAllPatients(host.value);
 
       if (patients.value.length === 0) {
@@ -64,6 +64,10 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       console.error(e);
     }
   };
+
+  if (host.value) fetchDicomList();
+
+  const isConfigured = computed(() => host.value !== undefined);
 
   const fetchVolumeThumbnail = async (volumeKey: string) => {
     const dicoms = useDicomMetaStore();
@@ -82,7 +86,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       seriesInstanceUID: volumeInfo.SeriesInstanceUID,
       sopInstanceUID: middleInstance.SopInstanceUID,
     };
-    return fetchInstanceThumbnail(host.value, instance);
+    return fetchInstanceThumbnail(host.value!, instance);
   };
 
   const fetchPatientMeta = async (patientKey: string) => {
@@ -91,7 +95,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       dicoms.patientStudies[patientKey]
         .map((studyKey) => dicoms.studyInfo[studyKey])
         .map(({ StudyInstanceUID }) =>
-          retrieveStudyMetadata(host.value, {
+          retrieveStudyMetadata(host.value!, {
             studyInstanceUID: StudyInstanceUID,
           })
         )
@@ -129,7 +133,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     };
 
     try {
-      const files = await fetchSeries(host.value, seriesInfo, progressCallback);
+      const files = await fetchSeries(
+        host.value!,
+        seriesInfo,
+        progressCallback
+      );
       if (files) {
         const [loadResult] = await datasets.loadFiles(files);
         if (loadResult?.loaded) {
@@ -176,8 +184,8 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
   return {
     host,
+    isConfigured,
     message,
-    isSetup,
     patients,
     volumes,
     fetchDicomList,
