@@ -1,10 +1,10 @@
 <script lang="ts">
 import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
-import DicomWebBrowser from '../dicom-web/DicomWebBrowser.vue';
 import { useDicomWebStore } from '../dicom-web/dicom-web.store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
+import PatientList from '../dicom-web/PatientList.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
 import { usePanels } from '../composables/usePanels';
@@ -17,9 +17,9 @@ export default defineComponent({
   name: 'DataBrowser',
   components: {
     SampleDataBrowser,
-    DicomWebBrowser,
     ImageDataBrowser,
     PatientBrowser,
+    PatientList,
   },
   setup() {
     const dicomStore = useDICOMStore();
@@ -147,7 +147,7 @@ export default defineComponent({
             <span>DICOMWeb</span>
           </v-expansion-panel-header>
           <v-expansion-panel-content>
-            <dicom-web-browser />
+            <patient-list />
           </v-expansion-panel-content>
         </v-expansion-panel>
 

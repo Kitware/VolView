@@ -12,13 +12,13 @@ export default defineComponent({
   setup() {
     const dicomWeb = useDicomWebStore();
 
-    // If host changed fetch metadata
-    const hostAtStart = ref<string | undefined>('');
+    // If host changed while mounted, fetch metadata
+    const hostAtStart = ref<typeof dicomWeb.host>();
     onMounted(() => {
       hostAtStart.value = dicomWeb.host;
     });
     onUnmounted(() => {
-      if (hostAtStart.value !== dicomWeb.host) dicomWeb.fetchDicomList();
+      if (hostAtStart.value !== dicomWeb.host) dicomWeb.fetchPatients();
     });
 
     return {

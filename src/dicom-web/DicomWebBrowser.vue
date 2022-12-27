@@ -1,12 +1,10 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
-import ServerParameters from './ServerParameters.vue';
 import PatientList from './PatientList.vue';
 import { useDicomWebStore } from './dicom-web.store';
 
 export default defineComponent({
   components: {
-    ServerParameters,
     PatientList,
   },
 
@@ -18,7 +16,5 @@ export default defineComponent({
 </script>
 
 <template>
-  <div><server-parameters v-if="dicomWeb.message" /> <patient-list /></div>
+  <patient-list />
 </template>
-
-<style scoped></style>

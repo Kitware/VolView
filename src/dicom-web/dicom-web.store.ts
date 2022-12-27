@@ -1,4 +1,5 @@
 import { computed, ref, set } from '@vue/composition-api';
+import { useLocalStorage } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import {
   convertSuccessResultToDataSelection,
@@ -40,34 +41,32 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
-  const host = ref(process.env.VUE_APP_DICOM_WEB_URL);
-  const message = ref('');
+  const host = process.env.VUE_APP_DICOM_WEB_URL
+    ? ref(process.env.VUE_APP_DICOM_WEB_URL)
+    : useLocalStorage<string>('dicomWebHost', '');
+  const isConfigured = computed(() => !!host.value);
 
+  const message = ref('');
   const patients = ref([] as PatientInfo[]);
 
-  const fetchDicomList = async () => {
+  const fetchPatients = async () => {
     patients.value = [];
     message.value = '';
+    if (!host.value) return;
     try {
-      if (host.value === undefined)
-        throw new Error('DICOMWeb server not specified');
-
-      if (host.value === null || host.value.length === 0) return;
-
       patients.value = await getAllPatients(host.value);
 
       if (patients.value.length === 0) {
         message.value = 'Found zero dicoms';
       }
     } catch (e) {
-      message.value = 'Failed to fetch list of DICOM metadata';
+      message.value =
+        'Failed to fetch list of DICOM metadata.  Check address in settings.';
       console.error(e);
     }
   };
 
-  if (host.value) fetchDicomList();
-
-  const isConfigured = computed(() => host.value !== undefined);
+  fetchPatients();
 
   const fetchVolumeThumbnail = async (volumeKey: string) => {
     const dicoms = useDicomMetaStore();
@@ -188,7 +187,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     message,
     patients,
     volumes,
-    fetchDicomList,
+    fetchPatients,
     fetchVolumeThumbnail,
     fetchPatientMeta,
     downloadVolume,
