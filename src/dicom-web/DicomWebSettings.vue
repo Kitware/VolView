@@ -18,7 +18,9 @@ export default defineComponent({
       hostAtStart.value = dicomWeb.host;
     });
     onUnmounted(() => {
-      if (hostAtStart.value !== dicomWeb.host) dicomWeb.fetchPatients();
+      // re-fetch if address changed or an error message exists
+      if (hostAtStart.value !== dicomWeb.host || dicomWeb.message)
+        dicomWeb.fetchPatients();
     });
 
     return {

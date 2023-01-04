@@ -87,7 +87,7 @@ export default defineComponent({
       <v-expansion-panels multiple accordion :value="openPanels">
         <v-expansion-panel
           v-if="hasAnonymousImages"
-          key="anonymousImages"
+          :key="ANONYMOUS_DATA_KEY"
           @change="handlePanelChange(ANONYMOUS_DATA_KEY)"
         >
           <v-expansion-panel-header>
@@ -139,12 +139,14 @@ export default defineComponent({
 
         <v-expansion-panel
           v-if="dicomWeb.isConfigured"
-          key="dicomWeb"
+          :key="DICOM_WEB_KEY"
           @change="handlePanelChange(DICOM_WEB_KEY)"
         >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-cloud-download</v-icon>
-            <span>DICOMWeb</span>
+            <span
+              >{{ `${dicomWeb.hostName || dicomWeb.host} | DICOMWeb` }}
+            </span>
           </v-expansion-panel-header>
           <v-expansion-panel-content>
             <patient-list />
@@ -152,7 +154,7 @@ export default defineComponent({
         </v-expansion-panel>
 
         <v-expansion-panel
-          key="sampleData"
+          :key="SAMPLE_DATA_KEY"
           @change="handlePanelChange(SAMPLE_DATA_KEY)"
         >
           <v-expansion-panel-header>

@@ -14,11 +14,18 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-text-field
-    v-model="dicomWeb.host"
-    id="host-input"
-    class="server-param"
-    label="DICOMWeb Host Address"
-    clearable
-  />
+  <div>
+    <v-text-field
+      v-model="dicomWeb.host"
+      class="server-param"
+      label="DICOMWeb Host Address"
+      clearable
+    />
+    <v-text-field
+      v-model="dicomWeb.hostName"
+      class="server-param"
+      label="DICOMWeb Host Display Name"
+      clearable
+    />
+  </div>
 </template>

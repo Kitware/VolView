@@ -46,6 +46,10 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     : useLocalStorage<string>('dicomWebHost', '');
   const isConfigured = computed(() => !!host.value);
 
+  const hostName = process.env.VUE_APP_DICOM_WEB_NAME
+    ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
+    : useLocalStorage<string>('dicomWebHostName', '');
+
   const message = ref('');
   const patients = ref([] as PatientInfo[]);
 
@@ -184,6 +188,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   return {
     host,
     isConfigured,
+    hostName,
     message,
     patients,
     volumes,
