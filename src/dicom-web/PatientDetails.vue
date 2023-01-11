@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent, ref } from '@vue/composition-api';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import { useDicomMetaStore } from './dicom-meta.store';
 import StudyVolumeDicomWeb from './StudyVolumeDicomWeb.vue';
@@ -20,7 +20,11 @@ export default defineComponent({
   setup({ patientKey }) {
     const dicomStore = useDicomMetaStore();
     const dicomWebStore = useDicomWebStore();
-    dicomWebStore.fetchPatientMeta(patientKey);
+
+    const isFetching = ref(true);
+    dicomWebStore.fetchPatientMeta(patientKey).then(() => {
+      isFetching.value = false;
+    });
 
     const studies = computed(() => {
       const { patientStudies, studyInfo, studyVolumes } = dicomStore;
@@ -38,6 +42,7 @@ export default defineComponent({
 
     return {
       studies,
+      isFetching,
     };
   },
 });
@@ -77,6 +82,14 @@ export default defineComponent({
                 Total series in study
                 <template v-slot:activator="{ on }">
                   <div class="d-flex flex-row align-center mr-2" v-on="on">
+                    <v-progress-circular
+                      v-if="isFetching"
+                      indeterminate
+                      :size="20"
+                      :width="2"
+                      class="mr-2"
+                    >
+                    </v-progress-circular>
                     <v-icon small>mdi-folder-open</v-icon>
                     <span class="text-caption text--secondary text-no-wrap">
                       : {{ study.volumeKeys.length }}
