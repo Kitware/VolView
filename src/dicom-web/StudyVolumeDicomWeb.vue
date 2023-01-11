@@ -50,16 +50,23 @@ export default defineComponent({
     const dicomWebStore = useDicomWebStore();
 
     const volumes = computed(() => {
-      const { volumeInfo } = dicomStore;
-      return volumeKeys.value.map((volumeKey) => ({
-        key: volumeKey,
-        info: volumeInfo[volumeKey],
-        isDisabled: !isDownloadable(dicomWebStore.volumes[volumeKey]),
-        progress: {
-          ...dicomWebStore.volumes[volumeKey],
-          percent: percentDone(dicomWebStore.volumes[volumeKey]),
-        },
-      }));
+      const { volumeInfo, volumeInstances, instanceInfo } = dicomStore;
+      return volumeKeys.value.map((volumeKey) => {
+        const { Rows: rows, Columns: columns } =
+          instanceInfo[volumeInstances[volumeKey][0]];
+
+        const info = volumeInfo[volumeKey];
+        return {
+          key: volumeKey,
+          info,
+          widthHeightFrames: `${columns} x ${rows} x ${info.NumberOfSlices}`,
+          isDisabled: !isDownloadable(dicomWebStore.volumes[volumeKey]),
+          progress: {
+            ...dicomWebStore.volumes[volumeKey],
+            percent: percentDone(dicomWebStore.volumes[volumeKey]),
+          },
+        };
+      });
     });
 
     const thumbnailCache = reactive<Record<string, string>>({});
@@ -125,14 +132,16 @@ export default defineComponent({
                       :value="true"
                       opacity="0"
                     >
-                      <div class="d-flex flex-column fill-height">
-                        <v-spacer />
-                        <v-row no-gutters justify="start" align="end">
-                          <div class="mb-1 ml-1 text-caption">
-                            [{{ volume.info.NumberOfSlices }}]
-                          </div>
-                        </v-row>
-                      </div>
+                      <v-tooltip top>
+                        <template v-slot:activator="{ on }">
+                          <v-row no-gutters>
+                            <div class="mb-1 ml-1 text-caption" v-on="on">
+                              {{ volume.widthHeightFrames }}
+                            </div>
+                          </v-row>
+                        </template>
+                        Width by height by frames
+                      </v-tooltip>
                     </v-overlay>
 
                     <v-overlay

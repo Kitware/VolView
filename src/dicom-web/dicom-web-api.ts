@@ -33,6 +33,9 @@ const tags = {
 
   SopInstanceUID: '00080018',
   InstanceNumber: '00200013',
+
+  Rows: '00280010',
+  Columns: '00280011',
 };
 
 export type Instance = typeof tags;

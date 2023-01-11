@@ -13,6 +13,8 @@ import { Instance } from './dicom-web-api';
 interface InstanceInfo {
   SopInstanceUID: string;
   InstanceNumber: string;
+  Rows: number;
+  Columns: number;
 }
 
 interface State {
@@ -98,7 +100,11 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         VolumeID: info.SeriesInstanceUID,
       };
 
-      const instanceInfo = pick(info, 'SopInstanceUID', 'InstanceNumber');
+      const instanceInfo = {
+        ...pick(info, 'SopInstanceUID', 'InstanceNumber'),
+        Rows: Number.parseInt(info.Rows, 10),
+        Columns: Number.parseInt(info.Columns, 10),
+      };
 
       this._updateDatabase(patient, study, volumeInfo, instanceInfo);
     },
