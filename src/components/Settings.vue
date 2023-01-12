@@ -7,7 +7,7 @@
     </v-card-title>
     <v-card-text>
       <v-switch label="Enable Dark Theme" v-model="dark"></v-switch>
-      <dicom-web-settings v-if="isOpen" />
+      <dicom-web-settings />
     </v-card-text>
   </v-card>
 </template>
@@ -36,9 +36,6 @@ export default defineComponent({
   },
   components: {
     DicomWebSettings,
-  },
-  props: {
-    isOpen: Boolean,
   },
 });
 </script>

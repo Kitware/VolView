@@ -7,7 +7,7 @@ import {
 } from '../store/datasets';
 import { PatientInfo, useDICOMStore } from '../store/datasets-dicom';
 import { useMessageStore } from '../store/messages';
-import { useDicomMetaStore } from './dicom-meta.store';
+import { useDicomMetaStore } from './dicom-meta-store';
 import {
   searchForStudies,
   fetchSeries,

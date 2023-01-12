@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from '@vue/composition-api';
-import { useDicomWebStore } from './dicom-web.store';
+import { useDicomWebStore } from './dicom-web-store';
 
 export default defineComponent({
   setup() {

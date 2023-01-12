@@ -1,9 +1,9 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from '@vue/composition-api';
 import ItemGroup from '@/src/components/ItemGroup.vue';
-import { useDicomMetaStore } from './dicom-meta.store';
+import { useDicomMetaStore } from './dicom-meta-store';
+import { useDicomWebStore } from './dicom-web-store';
 import StudyVolumeDicomWeb from './StudyVolumeDicomWeb.vue';
-import { useDicomWebStore } from './dicom-web.store';
 
 export default defineComponent({
   name: 'PatientDetails',

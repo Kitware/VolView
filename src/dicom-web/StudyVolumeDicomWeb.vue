@@ -8,31 +8,19 @@ import {
   watch,
 } from '@vue/composition-api';
 import type { PropType } from '@vue/composition-api';
-import { useDicomMetaStore } from './dicom-meta.store';
+import { useDicomMetaStore } from './dicom-meta-store';
 import {
   useDicomWebStore,
   isDownloadable,
   VolumeProgress,
-} from './dicom-web.store';
+} from './dicom-web-store';
+import { formatBytes } from '../utils';
 
 const percentDone = (progress: VolumeProgress): number => {
   if (!progress || progress.total === 0) return 0;
   const { total, loaded } = progress;
   return Math.round((100 * loaded) / total);
 };
-
-// from https://stackoverflow.com/a/18650828
-function formatBytes(bytes: number, decimals = 2) {
-  if (!+bytes) return '0 Bytes';
-
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / k ** i).toFixed(dm))} ${sizes[i]}`;
-}
 
 export default defineComponent({
   name: 'StudyVolumeDicomWeb',

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
-import { useDicomWebStore } from '../dicom-web/dicom-web.store';
+import { useDicomWebStore } from '../dicom-web/dicom-web-store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import PatientList from '../dicom-web/PatientList.vue';
@@ -56,7 +56,7 @@ export default defineComponent({
     const { handlePanelChange, openPanels } = usePanels(panelKeys);
 
     // Collapse Sample Data after loading data
-    const sampleDataPanelIndex = dicomWeb.isConfigured ? 1 : 0; // if DicomWeb Panel shown at start, bump index to 1
+    const sampleDataPanelIndex = dicomWeb.isConfigured ? 1 : 0; // if DicomWeb Panel exist at setup, bump index to 1
     watch(panelKeys, (newSet, oldSet) => {
       if (
         newSet.size > oldSet.size &&
@@ -144,8 +144,8 @@ export default defineComponent({
         >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-cloud-download</v-icon>
-            <span
-              >{{ `${dicomWeb.hostName || dicomWeb.host} | DICOMWeb` }}
+            <span>
+              {{ `${dicomWeb.hostName || dicomWeb.host} | DICOMWeb` }}
             </span>
           </v-expansion-panel-header>
           <v-expansion-panel-content>
