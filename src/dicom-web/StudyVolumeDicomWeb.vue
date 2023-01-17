@@ -3,6 +3,7 @@ import {
   computed,
   defineComponent,
   reactive,
+  ref,
   set,
   toRefs,
   watch,
@@ -37,12 +38,18 @@ export default defineComponent({
     const dicomStore = useDicomMetaStore();
     const dicomWebStore = useDicomWebStore();
 
+    const isFetching = ref(true);
+    dicomWebStore.fetchVolumesMeta(volumeKeys.value).then(() => {
+      isFetching.value = false;
+    });
+
     const volumes = computed(() => {
+      if (isFetching.value) return [];
+
       const { volumeInfo, volumeInstances, instanceInfo } = dicomStore;
       return volumeKeys.value.map((volumeKey) => {
         const { Rows: rows, Columns: columns } =
           instanceInfo[volumeInstances[volumeKey][0]];
-
         const info = volumeInfo[volumeKey];
         return {
           key: volumeKey,
@@ -60,8 +67,10 @@ export default defineComponent({
     const thumbnailCache = reactive<Record<string, string>>({});
 
     watch(
-      volumeKeys,
-      (keys) => {
+      [volumeKeys, isFetching],
+      ([keys, guard]) => {
+        if (guard) return;
+
         keys
           .filter((key) => !(key in thumbnailCache))
           .forEach(async (key) => {
@@ -83,6 +92,7 @@ export default defineComponent({
       volumes,
       downloadDicom,
       formatBytes,
+      isFetching,
     };
   },
 });
@@ -93,6 +103,9 @@ export default defineComponent({
     <v-row no-gutters>
       <v-col>
         <div class="my-2 volume-list">
+          <v-progress-circular v-if="isFetching" class="fetching" indeterminate>
+          </v-progress-circular>
+
           <v-container v-for="volume in volumes" :key="volume.info.VolumeID">
             <v-card
               outlined
@@ -110,8 +123,8 @@ export default defineComponent({
                 <div>
                   <v-img
                     contain
-                    max-height="150px"
-                    max-width="150px"
+                    height="150px"
+                    width="150px"
                     :src="(thumbnailCache || {})[volume.key] || ''"
                   >
                     <v-overlay
@@ -155,13 +168,11 @@ export default defineComponent({
                           >
                             <v-icon
                               v-if="volume.progress.state === 'Done'"
-                              small
                               color="white"
                               >mdi-check</v-icon
                             >
                             <v-icon
                               v-else-if="volume.progress.state === 'Error'"
-                              small
                               color="white"
                             >
                               mdi-alert-circle
@@ -230,5 +241,10 @@ export default defineComponent({
 
 .volume-list >>> .theme--light.v-sheet--outlined {
   border: none;
+}
+
+.fetching {
+  align-self: center;
+  justify-self: center;
 }
 </style>

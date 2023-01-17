@@ -13,6 +13,7 @@ import {
   fetchSeries,
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
+  retrieveSeriesMetadata,
 } from './dicom-web-api';
 
 export type ProgressState = 'Remote' | 'Pending' | 'Error' | 'Done';
@@ -106,6 +107,22 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     studies.flat().forEach((instance) => dicoms.importMeta(instance));
   };
 
+  const fetchVolumesMeta = async (volumeKeys: string[]) => {
+    const dicoms = useDicomMetaStore();
+    const studies = await Promise.all(
+      volumeKeys.map((volumeKey) => {
+        const { SeriesInstanceUID } = dicoms.volumeInfo[volumeKey];
+        const { StudyInstanceUID } =
+          dicoms.studyInfo[dicoms.volumeStudy[volumeKey]];
+        return retrieveSeriesMetadata(host.value!, {
+          studyInstanceUID: StudyInstanceUID,
+          seriesInstanceUID: SeriesInstanceUID,
+        });
+      })
+    );
+    studies.flat().forEach((instance) => dicoms.importMeta(instance));
+  };
+
   const volumes = ref({} as Progress);
 
   const downloadVolume = async (volumeKey: string) => {
@@ -193,8 +210,9 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     patients,
     volumes,
     fetchPatients,
-    fetchVolumeThumbnail,
     fetchPatientMeta,
+    fetchVolumesMeta,
+    fetchVolumeThumbnail,
     downloadVolume,
   };
 });

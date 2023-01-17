@@ -78,7 +78,16 @@ export async function retrieveStudyMetadata(
   options: FetchStudyOptions
 ) {
   const client = makeClient(dicomWebRoot);
-  const instances = await client.retrieveStudyMetadata(options);
+  const instances = await client.searchForSeries(options);
+  return instances.map(parseInstance);
+}
+
+export async function retrieveSeriesMetadata(
+  dicomWebRoot: string,
+  options: FetchSeriesOptions
+) {
+  const client = makeClient(dicomWebRoot);
+  const instances = await client.retrieveSeriesMetadata(options);
   return instances.map(parseInstance);
 }
 
