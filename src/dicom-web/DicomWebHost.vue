@@ -15,16 +15,17 @@ export default defineComponent({
 
 <template>
   <div>
+    <h3 class="mb-4">DICOMWeb</h3>
     <v-text-field
       v-model="dicomWeb.hostName"
       class="server-param"
-      label="DICOMWeb Host Display Name"
+      label="Host Display Name"
       clearable
     />
     <v-text-field
       v-model="dicomWeb.host"
       class="server-param"
-      label="DICOMWeb Host Address"
+      label="Host Address"
       clearable
     />
   </div>

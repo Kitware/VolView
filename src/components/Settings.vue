@@ -8,7 +8,7 @@
     <v-card-text>
       <v-switch label="Enable Dark Theme" v-model="dark"></v-switch>
 
-      <v-divider class="mt-2 mb-4"></v-divider>
+      <v-divider class="mt-2 mb-6"></v-divider>
       <dicom-web-settings />
     </v-card-text>
   </v-card>
