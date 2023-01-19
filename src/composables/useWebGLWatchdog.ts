@@ -16,8 +16,10 @@ export function useWebGLWatchdog() {
     if (!obj || !obj.isA('vtkViewProxy')) return;
     const view = obj as vtkViewProxy;
     // TODO getCanvas() typing
-    const rw = view.getOpenglRenderWindow() as any;
-    const canvas = rw.getCanvas() as HTMLCanvasElement;
+    const canvas = view
+      .getRenderWindow()
+      .getViews()[0]
+      .getCanvas() as HTMLCanvasElement;
 
     const cleanup = useEventListener(canvas, 'webglcontextlost', reportError);
     watchdogs.set(id, cleanup);
