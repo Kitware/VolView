@@ -6,7 +6,6 @@ import {
   ref,
 } from '@vue/composition-api';
 import { useDicomWebStore } from './dicom-web-store';
-import DicomWebHost from './DicomWebHost.vue';
 
 export default defineComponent({
   setup() {
@@ -18,7 +17,7 @@ export default defineComponent({
       hostAtStart.value = dicomWeb.host;
     });
     onUnmounted(() => {
-      // re-fetch if address changed or an error message exists
+      // Re-fetch if address changed or an error message exists
       if (hostAtStart.value !== dicomWeb.host || dicomWeb.message)
         dicomWeb.fetchPatients();
     });
@@ -27,12 +26,23 @@ export default defineComponent({
       dicomWeb,
     };
   },
-  components: {
-    DicomWebHost,
-  },
 });
 </script>
 
 <template>
-  <dicom-web-host />
+  <div>
+    <h3 class="mb-4">DICOMWeb</h3>
+    <v-text-field
+      v-model="dicomWeb.hostName"
+      class="server-param"
+      label="Host Display Name"
+      clearable
+    />
+    <v-text-field
+      v-model="dicomWeb.host"
+      class="server-param"
+      label="Host Address"
+      clearable
+    />
+  </div>
 </template>
