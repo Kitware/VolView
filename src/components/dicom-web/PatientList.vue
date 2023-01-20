@@ -2,7 +2,7 @@
 import { computed, defineComponent } from '@vue/composition-api';
 
 import PatientDetails from './PatientDetails.vue';
-import { useDicomWebStore } from './dicom-web-store';
+import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';
 
 export default defineComponent({
   components: {

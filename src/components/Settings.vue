@@ -19,7 +19,7 @@ import { defineComponent, watchEffect } from '@vue/composition-api';
 import { useLocalStorage } from '@vueuse/core';
 import vuetify from '../plugins/vuetify';
 
-import DicomWebSettings from '../dicom-web/DicomWebSettings.vue';
+import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 
 export default defineComponent({
   setup() {

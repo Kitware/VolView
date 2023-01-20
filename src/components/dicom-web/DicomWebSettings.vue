@@ -5,7 +5,7 @@ import {
   onUnmounted,
   ref,
 } from '@vue/composition-api';
-import { useDicomWebStore } from './dicom-web-store';
+import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';
 
 export default defineComponent({
   setup() {

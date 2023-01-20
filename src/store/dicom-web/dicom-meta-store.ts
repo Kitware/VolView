@@ -6,9 +6,9 @@ import {
   PatientInfo,
   StudyInfo,
   VolumeInfo,
-} from '../store/datasets-dicom';
-import { pick } from '../utils';
-import { Instance } from './dicom-web-api';
+} from '../datasets-dicom';
+import { pick } from '../../utils';
+import { Instance } from '../../core/dicom-web-api';
 
 interface InstanceInfo {
   SopInstanceUID: string;

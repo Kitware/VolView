@@ -9,13 +9,13 @@ import {
   watch,
 } from '@vue/composition-api';
 import type { PropType } from '@vue/composition-api';
-import { useDicomMetaStore } from './dicom-meta-store';
+import { useDicomMetaStore } from '../../store/dicom-web/dicom-meta-store';
 import {
   useDicomWebStore,
   isDownloadable,
   VolumeProgress,
-} from './dicom-web-store';
-import { formatBytes } from '../utils';
+} from '../../store/dicom-web/dicom-web-store';
+import { formatBytes } from '../../utils';
 
 const percentDone = (progress: VolumeProgress): number => {
   if (!progress || progress.total === 0) return 0;

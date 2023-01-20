@@ -4,9 +4,9 @@ import { defineStore } from 'pinia';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
-} from '../store/datasets';
-import { PatientInfo, useDICOMStore } from '../store/datasets-dicom';
-import { useMessageStore } from '../store/messages';
+} from '../datasets';
+import { PatientInfo, useDICOMStore } from '../datasets-dicom';
+import { useMessageStore } from '../messages';
 import { useDicomMetaStore } from './dicom-meta-store';
 import {
   searchForStudies,
@@ -14,7 +14,7 @@ import {
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
-} from './dicom-web-api';
+} from '../../core/dicom-web-api';
 
 export type ProgressState = 'Remote' | 'Pending' | 'Error' | 'Done';
 

@@ -1,10 +1,10 @@
 <script lang="ts">
 import { computed, defineComponent, watch } from '@vue/composition-api';
 import SampleDataBrowser from './SampleDataBrowser.vue';
-import { useDicomWebStore } from '../dicom-web/dicom-web-store';
+import { useDicomWebStore } from '../store/dicom-web/dicom-web-store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
-import PatientList from '../dicom-web/PatientList.vue';
+import PatientList from './dicom-web/PatientList.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
 import { usePanels } from '../composables/usePanels';
