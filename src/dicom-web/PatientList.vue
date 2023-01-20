@@ -10,6 +10,7 @@ export default defineComponent({
   },
   setup() {
     const dicomWeb = useDicomWebStore();
+    dicomWeb.fetchPatientsOnce();
 
     const patients = computed(() =>
       dicomWeb.patients

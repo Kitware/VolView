@@ -51,18 +51,22 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
     : useLocalStorage<string>('dicomWebHostName', '');
 
+  let hasFetchedPatients = false;
   const message = ref('');
   const patients = ref([] as PatientInfo[]);
 
   const fetchPatients = async () => {
+    hasFetchedPatients = true;
     patients.value = [];
     message.value = '';
+    const dicoms = useDicomMetaStore();
+    dicoms.$reset();
     if (!host.value) return;
     try {
       patients.value = await getAllPatients(host.value);
 
       if (patients.value.length === 0) {
-        message.value = 'Found zero dicoms';
+        message.value = 'Found zero dicoms.';
       }
     } catch (e) {
       message.value =
@@ -71,7 +75,12 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     }
   };
 
-  fetchPatients();
+  // Safe to call in ephemeral components' setup()
+  const fetchPatientsOnce = () => {
+    if (!hasFetchedPatients) {
+      fetchPatients();
+    }
+  };
 
   const fetchVolumeThumbnail = async (volumeKey: string) => {
     const dicoms = useDicomMetaStore();
@@ -210,6 +219,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     patients,
     volumes,
     fetchPatients,
+    fetchPatientsOnce,
     fetchPatientMeta,
     fetchVolumesMeta,
     fetchVolumeThumbnail,
