@@ -191,11 +191,14 @@ import {
   computed,
   defineComponent,
   onBeforeUnmount,
+  onMounted,
   Ref,
   ref,
   watch,
 } from '@vue/composition-api';
 import { storeToRefs } from 'pinia';
+import { UrlParams } from '@vueuse/core';
+import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
@@ -217,6 +220,7 @@ import {
   DICOMLoadSuccess,
   FileLoadFailure,
   DICOMLoadFailure,
+  DataSelection,
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
 import { useViewStore } from '../store/views';
@@ -227,6 +231,109 @@ import { isStateFile, loadState } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
+import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
+import { wrapInArray, fetchFile } from '../utils';
+
+async function loadFiles(files: FileList, setError: (err: Error) => void) {
+  const dataStore = useDatasetStore();
+
+  const loadFirstDataset = !dataStore.primarySelection;
+
+  let statuses: LoadResult[] = [];
+  let stateFile = false;
+  try {
+    // For now only support restoring from a single state files.
+    stateFile = files.length === 1 && (await isStateFile(files[0]));
+    if (stateFile) {
+      statuses = await loadState(files[0]);
+    } else {
+      statuses = await dataStore.loadFiles(Array.from(files));
+    }
+  } catch (error) {
+    setError(error as Error);
+    return;
+  }
+
+  const loaded = statuses.filter((s) => s.loaded) as (
+    | FileLoadSuccess
+    | DICOMLoadSuccess
+  )[];
+  const errored = statuses.filter((s) => !s.loaded) as (
+    | FileLoadFailure
+    | DICOMLoadFailure
+  )[];
+
+  if (
+    loaded.length &&
+    !stateFile &&
+    (loadFirstDataset || loaded.length === 1)
+  ) {
+    const selection = convertSuccessResultToDataSelection(loaded[0]);
+    if (selection) {
+      dataStore.setPrimarySelection(selection);
+    }
+  }
+
+  if (errored.length) {
+    const failedFilenames = errored.map((result) => {
+      if (result.type === 'file') {
+        return result.filename;
+      }
+      return 'DICOM files';
+    });
+    const failedError = new Error(
+      `These files failed to load:\n${failedFilenames.join('\n')}`
+    );
+
+    setError(failedError);
+  }
+}
+
+async function loadRemoteFilesFromURLParams(
+  params: UrlParams,
+  setError: (err: Error) => void
+) {
+  const dataStore = useDatasetStore();
+
+  const urls = wrapInArray(params.urls);
+  const names = wrapInArray(params.names ?? []);
+
+  const results = await Promise.allSettled(
+    urls.map(async (url, index) => {
+      const { pathname } = new URL(url);
+      const name = names[index] || pathname.split('/').at(-1) || '';
+
+      const file = await fetchFile(url, name, { mode: 'cors' });
+      const loadResults = await dataStore.loadFiles([file]);
+      const errored = loadResults.find((s) => !s.loaded);
+      if (errored) {
+        // force the promise to error out
+        throw new Error();
+      }
+      // only select the first dataset
+      return loadResults[0];
+    })
+  );
+
+  const failedURLs: string[] = [];
+  let selectDataID: DataSelection | null = null;
+
+  results.forEach((res, index) => {
+    if (res.status === 'fulfilled' && res.value.loaded && !selectDataID) {
+      selectDataID = convertSuccessResultToDataSelection(res.value);
+    } else if (res.status === 'rejected') {
+      failedURLs.push(urls[index]);
+    }
+  });
+
+  if (selectDataID) {
+    dataStore.setPrimarySelection(selectDataID);
+  }
+
+  if (failedURLs.length) {
+    setError(new Error(`These URLs failed to load:\n${failedURLs.join('\n')}`));
+  }
+}
 
 export default defineComponent({
   name: 'App',
@@ -248,13 +355,14 @@ export default defineComponent({
   },
 
   setup(props: {}, { root }) {
-    const dataStore = useDatasetStore();
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
     const viewStore = useViewStore();
 
     useGlobalErrorHook();
     useWebGLWatchdog();
+
+    const { runAsLoading } = useAppLoadingNotifications();
 
     // --- layout --- //
 
@@ -281,86 +389,14 @@ export default defineComponent({
       }
     });
 
-    // --- loading tracker --- //
-
-    const loadingCount = ref(0);
-    const loadMsgID = ref('');
-
-    watch(loadingCount, (count) => {
-      if (count > 0 && loadMsgID.value === '') {
-        loadMsgID.value = messageStore.addInfo('Loading files...', {
-          persist: true,
-        });
-      } else if (count === 0 && loadMsgID.value !== '') {
-        messageStore.clearOne(loadMsgID.value);
-        loadMsgID.value = '';
-      }
-    });
-
     // --- file handling --- //
+
     async function openFiles(files: FileList | null) {
       if (!files) {
         return;
       }
 
-      const loadFirstDataset = !dataStore.primarySelection;
-      loadingCount.value += 1;
-
-      let statuses: LoadResult[] = [];
-      let stateFile = false;
-      try {
-        // For now only support restoring from a single state files.
-        stateFile = files.length === 1 && (await isStateFile(files[0]));
-        if (stateFile) {
-          statuses = await loadState(files[0]);
-        } else {
-          statuses = await dataStore.loadFiles(Array.from(files));
-        }
-      } catch (error) {
-        messageStore.addError('Failed to load files', error as Error);
-      } finally {
-        loadingCount.value -= 1;
-      }
-
-      const loaded = statuses.filter((s) => s.loaded) as (
-        | FileLoadSuccess
-        | DICOMLoadSuccess
-      )[];
-      const errored = statuses.filter((s) => !s.loaded) as (
-        | FileLoadFailure
-        | DICOMLoadFailure
-      )[];
-
-      if (
-        loaded.length &&
-        !stateFile &&
-        (loadFirstDataset || loaded.length === 1)
-      ) {
-        const selection = convertSuccessResultToDataSelection(loaded[0]);
-        if (selection) {
-          dataStore.setPrimarySelection(selection);
-        }
-      }
-
-      const failedFilenames = errored.map((result) => {
-        if (result.type === 'file') {
-          return result.filename;
-        }
-        return 'DICOM files';
-      });
-      const failedFileMessage = `These files failed to load:\n${failedFilenames.join(
-        '\n'
-      )}`;
-
-      if (loaded.length && !errored.length) {
-        messageStore.addSuccess('Loaded files');
-      }
-      if (loaded.length && errored.length) {
-        messageStore.addWarning('Some files failed to load', failedFileMessage);
-      }
-      if (!loaded.length && errored.length) {
-        messageStore.addError('Files failed to load', failedFileMessage);
-      }
+      runAsLoading((setError) => loadFiles(files, setError));
     }
 
     const fileEl = document.createElement('input');
@@ -373,6 +409,19 @@ export default defineComponent({
       fileEl.value = '';
       fileEl.click();
     }
+
+    // --- parse URL -- //
+
+    const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+
+    onMounted(() => {
+      if (!urlParams.urls) {
+        return;
+      }
+      runAsLoading((setError) =>
+        loadRemoteFilesFromURLParams(urlParams, setError)
+      );
+    });
 
     // --- store initialization -- //
 
