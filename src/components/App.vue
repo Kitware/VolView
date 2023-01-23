@@ -232,7 +232,8 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { wrapInArray, fetchFile } from '../utils';
+import { wrapInArray } from '../utils';
+import { fetchFile } from '../utils/fetch';
 
 async function loadFiles(files: FileList, setError: (err: Error) => void) {
   const dataStore = useDatasetStore();
@@ -298,20 +299,28 @@ async function loadRemoteFilesFromURLParams(
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []);
 
-  const results = await Promise.allSettled(
+  const fileResults = await Promise.allSettled(
     urls.map(async (url, index) => {
       const { pathname } = new URL(url);
       const name = names[index] || pathname.split('/').at(-1) || '';
 
-      const file = await fetchFile(url, name, { mode: 'cors' });
-      const loadResults = await dataStore.loadFiles([file]);
-      const errored = loadResults.find((s) => !s.loaded);
-      if (errored) {
-        // force the promise to error out
-        throw new Error();
+      return fetchFile(url, name);
+    })
+  );
+
+  const results = await Promise.allSettled(
+    fileResults.map(async (fileResult) => {
+      if (fileResult.status === 'fulfilled') {
+        const loadResults = await dataStore.loadFiles([fileResult.value]);
+        const errored = loadResults.find((s) => !s.loaded);
+        if (errored) {
+          // force the promise to error out
+          throw new Error();
+        }
+        // only select the first dataset
+        return loadResults[0];
       }
-      // only select the first dataset
-      return loadResults[0];
+      throw fileResult.reason;
     })
   );
 
