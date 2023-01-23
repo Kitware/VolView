@@ -14,3 +14,17 @@ VolView includes links to a variety of sample data.  Clicking on those thumbnail
 ## DICOM Web
 
 DICOMWeb support is being added to VolView.  It will allow data from compliant DICOMWeb servers to be browsed, searched, and downloaded into VolView with only a few clicks.
+
+## Loading Remote Data via URLs
+
+VolView supports loading remote datasets at application start through URL parameters. An example of this integration in action can be viewed here: [VolView with sample data](https://volview.netlify.com/?names=[prostate-mri.zip,neck.mha]&urls=[https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download,https://data.kitware.com/api/v1/item/620db4b84acac99f42e75420/download])
+
+The URL is constructed with two parts, as shown below. The required parameter is the `urls` parameter, which specifies a list of URLs to download. An optional `names` parameter specifies the filename to go along with the file. If VolView cannot infer the file type, the filename's extension is used as a fallback. Loading multiple URLs is achieved by separating them with a comma.
+
+<pre>
+https://volview.netlify.com/?<strong>names=[prostate-mri.zip,neck.mha]</strong>&<strong>urls=[https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download,https://data.kitware.com/api/v1/item/620db4b84acac99f42e75420/download]</strong>
+</pre>
+
+### CORS
+
+In order for VolView to download and display your remote datasets, your server must be configured with the correct [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) configuration. CORS is a browser security mechanism that restricts how web applications can access remote resources. Without proper CORS configuration, VolView will be unable to download and display your datasets. Configuring your web server with CORS is beyond the scope of this documentation; please refer to your server's documentation.

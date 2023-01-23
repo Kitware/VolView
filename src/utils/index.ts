@@ -41,6 +41,20 @@ export async function fetchFileWithProgress(
   return new File([bytes], name);
 }
 
+/**
+ * Fetches a file.
+ * @returns a File instance
+ */
+export async function fetchFile(
+  url: string,
+  name: string,
+  options?: RequestInit
+) {
+  const response = await fetch(url, options);
+  const blob = await response.blob();
+  return new File([blob], name);
+}
+
 type PromiseResolveFunction<T> = (value: T) => void;
 type PromiseRejectFunction = (reason?: Error) => void;
 export interface Deferred<T> {
@@ -106,4 +120,12 @@ export function arrayEquals<T>(a: T[], b: T[]) {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+/**
+ * Wraps non-arrays in an array.
+ * @param maybeArray
+ */
+export function wrapInArray<T>(maybeArray: T | T[]): T[] {
+  return Array.isArray(maybeArray) ? maybeArray : [maybeArray];
 }
