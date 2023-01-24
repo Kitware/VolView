@@ -1,6 +1,6 @@
 [[redirects]]
   from = "/dicom-web/*"
-  to = "DICOM_WEB_ADDRESS"
+  to = "DICOM_WEB_ADDRESS/:splat"
   status = 200
   force = true
   headers = {apikey = "DICOM_WEB_API_KEY"}
