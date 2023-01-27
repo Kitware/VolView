@@ -12,11 +12,11 @@ import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../store/datasets';
-import { fetchFileWithProgress } from '../utils';
 import { useMessageStore } from '../store/messages';
 import { SampleDataset } from '../types';
 import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
+import { fetchFile } from '../utils/fetch';
 
 enum ProgressState {
   Pending,
@@ -88,14 +88,9 @@ export default defineComponent({
       try {
         progress(Infinity);
 
-        const sampleFile = await fetchFileWithProgress(
-          sample.url,
-          sample.filename,
+        const sampleFile = await fetchFile(sample.url, sample.filename, {
           progress,
-          {
-            mode: 'cors',
-          }
-        );
+        });
         status.progress[sample.name].state = ProgressState.Done;
 
         if (sampleFile) {
