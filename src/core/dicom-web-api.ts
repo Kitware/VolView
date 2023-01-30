@@ -111,7 +111,6 @@ export async function fetchInstanceThumbnail(
   const client = makeClient(dicomWebRoot);
   const thumbnail = await client.retrieveInstanceRendered({
     ...instance,
-    // @ts-ignore
     mediaTypes: [{ mediaType: 'image/jpeg' }],
     queryParams: { quality: '10' },
   });
