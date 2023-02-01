@@ -29,6 +29,7 @@ module.exports = {
       return args;
     });
   },
+  publicPath: '',
   configureWebpack: {
     devtool: 'source-map',
     resolve: {

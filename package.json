@@ -1,7 +1,6 @@
 {
-  "name": "VolView",
-  "version": "4.0.0",
-  "private": true,
+  "name": "volview",
+  "version": "4.0.1",
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
@@ -10,6 +9,7 @@
     "build:all": "npm run build:dicom && npm run build",
     "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",
     "build:dicom:debug": "itk-wasm -s src/io/itk-dicom/ build -- -DCMAKE_BUILD_TYPE=Debug",
+    "build:watch": "vue-cli-service build --watch",
     "postinstall": "patch-package",
     "prettify": "prettier --write src tests",
     "doc": "kw-doc -c ./documentation/config.js",
@@ -94,5 +94,6 @@
       "vue-cli-service lint",
       "git add"
     ]
-  }
+  },
+  "files": ["./dist/**/*"]
 }
