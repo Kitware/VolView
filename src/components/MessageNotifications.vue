@@ -4,6 +4,7 @@ import { useToast } from '@/src/composables/useToast';
 import { storeToRefs } from 'pinia';
 import { ToastID } from 'vue-toastification/dist/types/src/types';
 import { Message, MessageType, useMessageStore } from '../store/messages';
+import MessageNotificationContent from './MessageNotificationContent.vue';
 
 const TIMEOUT = 5000;
 
@@ -15,6 +16,12 @@ export default defineComponent({
     const toasts = {} as Record<string, ToastID>;
 
     const toast = useToast();
+    type ToastMethod =
+      | typeof toast.info
+      | typeof toast.success
+      | typeof toast.warning
+      | typeof toast.error;
+
     const makeToastOptions = (msgID: string) => ({
       timeout: byID.value[msgID].options.persist ? (false as const) : TIMEOUT,
       closeOnClick: !byID.value[msgID].options.persist,
@@ -42,20 +49,31 @@ export default defineComponent({
             return;
           }
 
-          let id: ToastID | null = null;
+          let toastMethod: ToastMethod = toast.info;
+          let showDetailsButton = false;
+
           if (message.type === MessageType.Error) {
-            id = toast.error(message.title, makeToastOptions(msgID));
+            toastMethod = toast.error;
+            showDetailsButton = true;
           } else if (message.type === MessageType.Warning) {
-            id = toast.warning(message.title, makeToastOptions(msgID));
+            toastMethod = toast.warning;
+            showDetailsButton = true;
           } else if (message.type === MessageType.Info) {
-            id = toast.info(message.title, makeToastOptions(msgID));
+            toastMethod = toast.info;
           } else if (message.type === MessageType.Success) {
-            id = toast.success(message.title, makeToastOptions(msgID));
+            toastMethod = toast.success;
           }
 
-          if (id !== null) {
-            toasts[msgID] = id;
-          }
+          toasts[msgID] = toastMethod(
+            {
+              component: MessageNotificationContent,
+              props: {
+                message: message.title,
+                detailsButton: showDetailsButton,
+              },
+            },
+            makeToastOptions(msgID)
+          );
         });
       }
     });

@@ -31,7 +31,7 @@ export const DataTypes = {
 
 export const Messages = {
   WebGLLost: {
-    title: 'Viewer Error (click for details)',
+    title: 'Viewer Error',
     details:
       'Lost the WebGL context! Please reload the webpage. If the problem persists, you may need to restart your web browser.',
   },

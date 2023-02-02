@@ -10,6 +10,7 @@ import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 import { useFileStore } from './datasets-files';
 import { DataSet, StateFile, DataSetType } from '../io/state-file/schema';
 import { useMessageStore } from './messages';
+import { readRemoteManifestFile } from '../io/manifest';
 
 export const DataType = {
   Image: 'Image',
@@ -169,11 +170,33 @@ export const useDatasetStore = defineStore('dataset', () => {
   }
 
   async function loadFiles(files: File[]): Promise<LoadResult[]> {
-    const typedFiles = await Promise.all(files.map((f) => retypeFile(f)));
+    let allFiles = await Promise.all(files.map((f) => retypeFile(f)));
+
+    // process any json manifests
+    const manifestFiles = allFiles.filter((file) => file.type === 'json');
+    allFiles = allFiles.filter((file) => file.type !== 'json');
+
+    const manifestStatuses: FileLoadResult[] = [];
+    if (manifestFiles.length) {
+      await Promise.all(
+        manifestFiles.map(async (file) => {
+          try {
+            allFiles.push(...(await readRemoteManifestFile(file)));
+          } catch (err) {
+            manifestStatuses.push(
+              makeFileFailureStatus(
+                file,
+                'Failed to parse or download manifest'
+              )
+            );
+          }
+        })
+      );
+    }
 
     // process archives
-    const fileEntries = await extractArchivesRecursively(typedFiles);
-    const allFiles = fileEntries.map((entry) => entry.file);
+    const fileEntries = await extractArchivesRecursively(allFiles);
+    allFiles = fileEntries.map((entry) => entry.file);
 
     const dicoms = allFiles.filter(({ type }) => type === 'dcm');
     const otherFiles = allFiles.filter(({ type }) => type !== 'dcm');
