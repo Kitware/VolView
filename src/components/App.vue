@@ -163,7 +163,7 @@
         <message-notifications @open-notifications="messageDialog = true" />
 
         <v-dialog v-model="settingsDialog" width="50%">
-          <settings @close="settingsDialog = false" />
+          <settings @close="settingsDialog = false" v-if="settingsDialog" />
         </v-dialog>
 
         <v-dialog v-model="saveDialog" width="30%">
