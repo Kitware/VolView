@@ -326,8 +326,6 @@ export default defineComponent({
           light.setPositional(false);
         }
 
-        mapper.setMaximumSamplesPerRay(2000);
-
         const dims = image.getDimensions();
         const spacing = image.getSpacing();
         const spatialDiagonal = vec3.length(
@@ -338,7 +336,8 @@ export default defineComponent({
           )
         );
 
-        let sampleDistance = (1.5 * vec3.length(spacing)) / 10;
+        // Ensure that the maximum samples per ray are not exceeded.
+        let sampleDistance = mapper.getSampleDistance();
         if (
           spatialDiagonal / sampleDistance >
           mapper.getMaximumSamplesPerRay()

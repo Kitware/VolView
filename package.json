@@ -17,7 +17,7 @@
     "doc:publish": "kw-doc -c ./documentation/config.js -mp"
   },
   "dependencies": {
-    "@kitware/vtk.js": "^25.13.0",
+    "@kitware/vtk.js": "^26.3.1",
     "@vue/composition-api": "1.6.3",
     "@vueuse/core": "^8.5.0",
     "@vueuse/shared": "^9.2.0",

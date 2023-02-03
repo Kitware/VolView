@@ -39,7 +39,7 @@ function vtkLPSView2DProxy(publicAPI, model) {
   };
 
   publicAPI.resizeToFit = (lookAxis, viewUpAxis, dims) => {
-    const [w, h] = model.openglRenderWindow.getSize();
+    const [w, h] = model.renderWindow.getViews()[0].getSize();
     let bw;
     let bh;
     if (lookAxis === 0 && viewUpAxis === 1) {

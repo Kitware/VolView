@@ -15,7 +15,7 @@ export function commonViewCustomizations(publicAPI, model) {
       const devicePixelRatio = window.devicePixelRatio || 1;
       const width = Math.max(10, Math.floor(devicePixelRatio * dims.width));
       const height = Math.max(10, Math.floor(devicePixelRatio * dims.height));
-      model.openglRenderWindow.setSize(width, height);
+      model.renderWindow.getViews()[0].setSize(width, height);
       publicAPI.invokeResize({ width, height });
       publicAPI.render(true);
     }
