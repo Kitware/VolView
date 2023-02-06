@@ -24,3 +24,14 @@ export type PartialWithRequired<T, K extends keyof T> = Pick<T, K> &
   Partial<Omit<T, K>>;
 
 export type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+
+export type TypedArrayConstructor =
+  | Uint8ArrayConstructor
+  | Uint8ClampedArrayConstructor
+  | Uint16ArrayConstructor
+  | Uint32ArrayConstructor
+  | Int8ArrayConstructor
+  | Int16ArrayConstructor
+  | Int32ArrayConstructor
+  | Float32ArrayConstructor
+  | Float64ArrayConstructor;

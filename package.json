@@ -36,12 +36,13 @@
     "itk-wasm": "1.0.0-b.66",
     "jszip": "3.10.0",
     "mitt": "^3.0.0",
+    "nanoid": "^4.0.1",
     "pinia": "^2.0.34",
+    "socket.io-client": "^4.6.2",
     "vue": "^3.2.47",
     "vue-toastification": "^2.0.0-rc.5",
     "vuetify": "^3.1.14",
     "whatwg-url": "^12.0.1",
-    "wslink": "^1.6.4",
     "zod": "^3.18.0"
   },
   "devDependencies": {
