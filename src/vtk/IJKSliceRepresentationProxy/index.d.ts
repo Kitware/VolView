@@ -1,4 +1,4 @@
-import vtkSliceRepresentationProxy from '@kitware/vtk.js/Proxy/Core/SliceRepresentationProxy';
+import vtkSliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/SliceRepresentationProxy';
 
 export interface vtkIJKSliceRepresentationProxy
   extends vtkSliceRepresentationProxy {

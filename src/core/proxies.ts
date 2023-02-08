@@ -1,9 +1,9 @@
 import { vtkObject } from '@kitware/vtk.js/interfaces';
+import { VtkProxy } from '@kitware/vtk.js/macros';
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import vtkProxyObject from '../types/vtk-types';
 
 // mapped in proxy.js
 export enum ViewProxyType {
@@ -27,7 +27,7 @@ export default class ProxyWrapper {
   }
 
   delete() {
-    const deleteProxy = (proxy: vtkProxyObject) =>
+    const deleteProxy = (proxy: VtkProxy) =>
       this.proxyManager.deleteProxy(proxy);
 
     this.viewProxies.forEach(deleteProxy);
