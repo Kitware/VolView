@@ -92,9 +92,9 @@ export default {
             return getAsEntry.call(item);
           });
           const files = await readAllFiles(entries);
-          this.$emit('drop', files);
+          this.$emit('drop-files', files);
         } else {
-          this.$emit('drop', Array.from(ev.dataTransfer.files));
+          this.$emit('drop-files', Array.from(ev.dataTransfer.files));
         }
       }
     },
