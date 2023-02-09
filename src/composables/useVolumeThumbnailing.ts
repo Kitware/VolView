@@ -6,7 +6,7 @@ import {
   set,
   watch,
 } from '@vue/composition-api';
-import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
@@ -102,9 +102,7 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
         presetName
       );
 
-      thumbnailer.colorTransferFuncProxy.setMode(
-        vtkLookupTableProxy.Mode.Preset
-      );
+      thumbnailer.colorTransferFuncProxy.setMode(LookupTableProxyMode.Preset);
       thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
       const ctRange = getColorFunctionRangeFromPreset(presetName);
       thumbnailer.colorTransferFuncProxy.setDataRange(

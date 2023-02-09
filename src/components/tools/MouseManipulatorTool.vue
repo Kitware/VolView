@@ -8,6 +8,7 @@ import {
   watch,
 } from '@vue/composition-api';
 import { useViewStore } from '@/src/store/views';
+import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 
 export default defineComponent({
   name: 'MouseManipulatorTool',
@@ -31,7 +32,9 @@ export default defineComponent({
     const { viewId: viewID, options } = toRefs(props);
 
     const viewStore = useViewStore();
-    const viewProxy = computed(() => viewStore.getViewProxy(viewID.value)!);
+    const viewProxy = computed(
+      () => viewStore.getViewProxy<vtkLPSViewProxy>(viewID.value)!
+    );
 
     const intStyle = computed(() => {
       return viewProxy.value.isA('vtkView2DProxy')
