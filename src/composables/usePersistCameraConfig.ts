@@ -1,13 +1,13 @@
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import { Ref } from '@vue/composition-api';
-import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { useViewConfigStore } from '../store/view-configs';
 import { CameraConfig } from '../store/view-configs/types';
+import { vtkLPSViewProxy } from '../types/vtk-types';
 
 export function usePersistCameraConfig(
   viewID: Ref<string>,
   dataID: Ref<string | null>,
-  viewProxy: Ref<vtkViewProxy>,
+  viewProxy: Ref<vtkLPSViewProxy>,
   ...toPersist: (keyof CameraConfig)[]
 ) {
   const viewConfigStore = useViewConfigStore();

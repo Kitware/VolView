@@ -1,7 +1,7 @@
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import { VtkProxy } from '@kitware/vtk.js/macros';
 import { onBeforeUnmount } from '@vue/composition-api';
 import { withProxyManager } from './proxyManager';
-import vtkProxyObject from '../types/vtk-types';
 
 export enum ProxyManagerEvent {
   ProxyCreated,
@@ -12,7 +12,7 @@ export enum ProxyManagerEvent {
 
 export function onProxyManagerEvent(
   event: ProxyManagerEvent,
-  cb: (proxyID: string, obj: vtkProxyObject | null) => void
+  cb: (proxyID: string, obj: VtkProxy | null) => void
 ) {
   const subs: vtkSubscription[] = [];
 

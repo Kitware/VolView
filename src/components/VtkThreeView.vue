@@ -58,7 +58,7 @@ import {
 import { vec3 } from 'gl-matrix';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
-import vtkLookupTableProxy from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -426,7 +426,7 @@ export default defineComponent({
         const opFunc = opacityFunction.value;
 
         const lut = proxyManager.getLookupTable(arrayName);
-        lut.setMode(vtkLookupTableProxy.Mode.Preset);
+        lut.setMode(LookupTableProxyMode.Preset);
         lut.setPresetName(ctFunc.preset);
         lut.setDataRange(...ctFunc.mappingRange);
 
