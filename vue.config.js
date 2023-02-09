@@ -13,8 +13,8 @@ const ITK_WASM_INCLUDE = [
   'VTK',
   'BMP',
   'GDCM',
-  'ReadDICOMTags',
-  'ReadImageDICOMFileSeries',
+  'read-dicom-tags',
+  'read-image-dicom-file-series',
 ];
 
 const itkConfig = path.resolve(__dirname, 'src', 'io', 'itk', 'itkConfig.js');
@@ -26,9 +26,12 @@ module.exports = {
     config.plugin('html').tap((args) => {
       // eslint-disable-next-line no-param-reassign
       args[0].ga = process.env.VOLVIEW_GA_ID || null;
+      // eslint-disable-next-line no-param-reassign
+      args[0].title = 'VolView';
       return args;
     });
   },
+  publicPath: process.env.VUE_APP_PUBLIC_PATH || '',
   configureWebpack: {
     devtool: 'source-map',
     resolve: {
@@ -73,7 +76,7 @@ module.exports = {
             },
           },
           {
-            from: path.join(__dirname, 'src', 'io', 'itk-dicom', 'web-build'),
+            from: path.join(__dirname, 'src', 'io', 'itk-dicom', 'emscripten-build'),
             to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]'),
             filter: (resourcePath) => {
               return path.basename(resourcePath).startsWith('dicom');

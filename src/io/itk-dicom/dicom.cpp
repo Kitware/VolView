@@ -306,7 +306,7 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
 
 int main(int argc, char *argv[]) {
   std::string action;
-  itk::wasm::Pipeline pipeline("VolView pipeline to access DICOM data", argc,
+  itk::wasm::Pipeline pipeline("DICOM-VolView", "VolView pipeline to access DICOM data", argc,
                                argv);
   pipeline.add_option("-a,--action", action, "The action to run")
       ->check(CLI::IsMember({"categorize", "getSliceImage"}));
