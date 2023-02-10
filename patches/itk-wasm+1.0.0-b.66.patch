@@ -1,0 +1,21 @@
+diff --git a/node_modules/itk-wasm/dist/web-workers/bundles/pipeline.worker.js b/node_modules/itk-wasm/dist/web-workers/bundles/pipeline.worker.js
+index 8f3ea5f..67a775f 100644
+--- a/node_modules/itk-wasm/dist/web-workers/bundles/pipeline.worker.js
++++ b/node_modules/itk-wasm/dist/web-workers/bundles/pipeline.worker.js
+@@ -2570,6 +2570,7 @@
+       pipelineModule.resetModuleStdout();
+       pipelineModule.resetModuleStderr();
+       let returnValue = 0;
++      const stackPtr = pipelineModule.stackSave();
+       try {
+           returnValue = pipelineModule.callMain(args.slice());
+       }
+@@ -2588,6 +2589,8 @@
+               }
+           }
+           throw exception;
++      } finally {
++        pipelineModule.stackRestore(stackPtr);
+       }
+       const stdout = pipelineModule.getModuleStdout();
+       const stderr = pipelineModule.getModuleStderr();
