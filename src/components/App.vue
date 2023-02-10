@@ -1,5 +1,5 @@
 <template>
-  <drag-and-drop enabled @drop="openFiles" id="app-container">
+  <drag-and-drop enabled @drop-files="openFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
         <v-app-bar app dense clipped-left>
