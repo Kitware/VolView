@@ -45,10 +45,18 @@ export class DICOMIO {
           .then((result) => {
             if (result.webWorker) {
               this.webWorker = result.webWorker;
-              resolve();
             } else {
               reject(new Error('Could not initialize webworker'));
             }
+          })
+          .then(async () => {
+            // preload read-dicom-tags pipeline
+            try {
+              await readDICOMTags(this.webWorker, new File([], ''), null);
+            } catch {
+              // ignore
+            }
+            resolve();
           })
           .catch(reject);
       });
