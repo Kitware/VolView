@@ -61,7 +61,7 @@ index 197bc45..35f4b64 100644
 -export { vtkLookupTableProxy$1 as default, newInstance };
 +export { vtkLookupTableProxy$1 as default, newInstance, Mode, Defaults };
 diff --git a/node_modules/@kitware/vtk.js/Proxy/Core/ViewProxy.d.ts b/node_modules/@kitware/vtk.js/Proxy/Core/ViewProxy.d.ts
-index a3b5dd9..4c19e71 100644
+index a3b5dd9..c7757c2 100644
 --- a/node_modules/@kitware/vtk.js/Proxy/Core/ViewProxy.d.ts
 +++ b/node_modules/@kitware/vtk.js/Proxy/Core/ViewProxy.d.ts
 @@ -24,7 +24,7 @@ export interface vtkViewProxy extends VtkProxy {
@@ -73,6 +73,15 @@ index a3b5dd9..4c19e71 100644
    resetCamera(): void;
  
    addRepresentation(representation: vtkAbstractRepresentationProxy): void;
+@@ -66,7 +66,7 @@ export interface vtkViewProxy extends VtkProxy {
+   getInteractor(): vtkRenderWindowInteractor;
+   getInteractorStyle2D(): vtkInteractorStyle;
+   getInteractorStyle3D(): vtkInteractorStyle;
+-  getOpenglRenderWindow(): vtkOpenGLRenderWindow;
++  getOpenGLRenderWindow(): vtkOpenGLRenderWindow;
+   getOrientationAxesType(): string;
+   getPresetToOrientationAxes(): any;
+   getRenderer(): vtkRenderer;
 diff --git a/node_modules/@kitware/vtk.js/macros.d.ts b/node_modules/@kitware/vtk.js/macros.d.ts
 index e72f680..9b560ef 100644
 --- a/node_modules/@kitware/vtk.js/macros.d.ts
