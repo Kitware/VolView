@@ -58,6 +58,8 @@ export default defineComponent({
       setCVRParam('useVolumetricScatteringBlending', (buttonIdx !== 0));
     };
 
+    const volumeQualityLabels = ['Performance', '', 'Quality'];
+
     return {
       cvrParams,
       laoEnabled,
@@ -66,6 +68,7 @@ export default defineComponent({
       LIGHTING_MODELS,
       selectLightingMode,
       lightingModel,
+      volumeQualityLabels,
     };
   },
 });
@@ -77,6 +80,19 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
+      <v-slider
+        label="Volume Profile"
+        ticks="always"
+        tick-size="4"
+        :tick-labels="volumeQualityLabels"
+        hint="Hint"
+        min="1"
+        max="3"
+        step="1"
+        :value="cvrParams.volumeQuality"
+        @change="setCVRParam('volumeQuality', $event)"
+      />
+      <v-divider class="my-8" />
       <v-slider
         label="Ambient"
         min="0"
