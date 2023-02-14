@@ -2,11 +2,13 @@ import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { set, del } from '@vue/composition-api';
 import { defineStore } from 'pinia';
+import { Image } from 'itk-wasm';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
+import { DICOMIO, Pipeline, PtCtPipeline, SeriesPipeline } from '../io/dicom';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -44,6 +46,7 @@ export interface VolumeInfo {
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
+  pipeline: Pipeline;
 }
 
 /**
@@ -72,7 +75,7 @@ export function genSynPatientKey(patient: PatientInfo) {
 
 interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
-  sliceData: Record<string, Record<string, object>>;
+  sliceData: Record<string, Record<string, Image>>;
 
   // volumeKey -> imageID
   volumeToImageID: Record<string, string>;
@@ -102,6 +105,86 @@ interface State {
   studyPatient: Record<string, string>;
 }
 
+type VolumeIngredients = {
+  volumeKey: string;
+  tags: Record<string, string>;
+  files: File[];
+};
+
+const readDicomTags = (dicomIO: DICOMIO, file: File) =>
+  dicomIO.readTags(file, [
+    { name: 'PatientName', tag: '0010|0010', strconv: true },
+    { name: 'PatientID', tag: '0010|0020', strconv: true },
+    { name: 'PatientBirthDate', tag: '0010|0030' },
+    { name: 'PatientSex', tag: '0010|0040' },
+    { name: 'StudyInstanceUID', tag: '0020|000d' },
+    { name: 'StudyDate', tag: '0008|0020' },
+    { name: 'StudyTime', tag: '0008|0030' },
+    { name: 'StudyID', tag: '0020|0010', strconv: true },
+    { name: 'AccessionNumber', tag: '0008|0050' },
+    { name: 'StudyDescription', tag: '0008|1030', strconv: true },
+    { name: 'Modality', tag: '0008|0060' },
+    { name: 'SeriesInstanceUID', tag: '0020|000e' },
+    { name: 'SeriesNumber', tag: '0020|0011' },
+    { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+  ]);
+
+const makeSeriesPipeline = (volume: VolumeIngredients) =>
+  ({ kind: 'series', files: volume.files } as SeriesPipeline);
+
+const groupPetCtVolumes = (volumes: VolumeIngredients[]) => {
+  const byModality = volumes.reduce(
+    (modalities, volume) => ({
+      ...modalities,
+      [volume.tags.Modality]: [
+        ...(modalities[volume.tags.Modality] || []),
+        volume,
+      ],
+    }),
+    {} as Record<string, VolumeIngredients[]>
+  );
+  const {
+    PT: ptVolumes = [],
+    CT: ctVolumes = [],
+    ...otherModalities
+  } = byModality;
+  let matchCandidates = [...ptVolumes];
+  const ctAndPtVolumes = ctVolumes.map((ctVolume) => {
+    const {
+      tags: { StudyInstanceUID: ctStudy },
+    } = ctVolume;
+    const matchingPt = matchCandidates.find(
+      ({ tags: { StudyInstanceUID: petStudy } }) => petStudy === ctStudy
+    );
+    if (matchingPt) {
+      // remove from candidates
+      matchCandidates = matchCandidates.filter(
+        (candidate) => candidate !== matchingPt
+      );
+      return {
+        ...ctVolume,
+        files: [...ctVolume.files, ...matchingPt.files], // getVolumeThumbnail assumes CT files are ahead of PET files
+        pipeline: {
+          kind: 'pt-ct',
+          ctFiles: [...ctVolume.files],
+          ptFiles: [...matchingPt.files],
+        } as PtCtPipeline,
+      };
+    }
+    return { ...ctVolume, pipeline: makeSeriesPipeline(ctVolume) };
+  });
+
+  return [
+    ...ctAndPtVolumes,
+    ...[...matchCandidates, ...Object.values(otherModalities).flat()].map(
+      (v) => ({
+        ...v,
+        pipeline: makeSeriesPipeline(v),
+      })
+    ),
+  ];
+};
+
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
@@ -126,94 +209,91 @@ export const useDICOMStore = defineStore('dicom', {
         return [];
       }
 
-      const nameToFileMap = new Map(files.map((f) => [f.name, f]));
-
       const volumesToFilesMap = await dicomIO.categorizeFiles(files);
+
+      const nameToFileMap = new Map(files.map((f) => [f.name, f]));
+      const volumesWithFilesAndTags = await Promise.all(
+        Object.entries(volumesToFilesMap)
+          // map file names to files
+          .map(([volumeKey, fileNames]) => ({
+            volumeKey,
+            files: fileNames.map((fName) => nameToFileMap.get(fName)),
+          }))
+          // get tags for first file
+          .map(async ({ files: volumeFiles, ...rest }) => {
+            const firstFile = volumeFiles[0];
+            if (firstFile)
+              return {
+                tags: await readDicomTags(dicomIO, firstFile),
+                files: volumeFiles as File[],
+                ...rest,
+              };
+            throw new Error(
+              'Failed trying to group PET-CT DICOM files.  Could not find File matching name in volumeMap.'
+            );
+          })
+      );
+      const volumesGrouped = groupPetCtVolumes(volumesWithFilesAndTags);
+
       const updatedVolumeKeys: VolumeKeys[] = [];
 
-      await Promise.all(
-        Object.entries(volumesToFilesMap).map(
-          async ([volumeKey, fileNames]) => {
-            const volumeFiles: File[] = [];
-            fileNames.forEach((fileName) => {
-              const file = nameToFileMap.get(fileName);
-              if (file) {
-                volumeFiles.push(file);
-              }
+      volumesGrouped.forEach(
+        async ({ volumeKey, tags, files: volumeFiles, pipeline }) => {
+          // Add file entries to the file store
+          fileStore.add(volumeKey, volumeFiles);
+
+          // Now read the tags
+          const numberOfSlices = volumeFiles.length;
+
+          if (!(volumeKey in this.volumeInfo)) {
+            // TODO parse the raw string values
+            const patient = {
+              PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
+              PatientName: tags.PatientName || ANONYMOUS_PATIENT,
+              PatientBirthDate: tags.PatientBirthDate || '',
+              PatientSex: tags.PatientSex || '',
+            };
+            const patientKey = genSynPatientKey(patient);
+
+            const studyKey = tags.StudyInstanceUID;
+            const study = pick(
+              tags,
+              'StudyID',
+              'StudyInstanceUID',
+              'StudyDate',
+              'StudyTime',
+              'AccessionNumber',
+              'StudyDescription'
+            );
+
+            const volumeInfo = {
+              ...pick(
+                tags,
+                'Modality',
+                'SeriesInstanceUID',
+                'SeriesNumber',
+                'SeriesDescription'
+              ),
+              NumberOfSlices: numberOfSlices,
+              VolumeID: volumeKey,
+              pipeline,
+            };
+
+            updatedVolumeKeys.push({
+              patientKey,
+              studyKey,
+              volumeKey,
             });
 
-            // Add file entries to the file store
-            fileStore.add(volumeKey, volumeFiles);
-
-            // Now read the tags
-            const numberOfSlices = volumeFiles.length;
-
-            if (!(volumeKey in this.volumeInfo)) {
-              const info = await dicomIO.readTags(volumeFiles[0], [
-                { name: 'PatientName', tag: '0010|0010', strconv: true },
-                { name: 'PatientID', tag: '0010|0020', strconv: true },
-                { name: 'PatientBirthDate', tag: '0010|0030' },
-                { name: 'PatientSex', tag: '0010|0040' },
-                { name: 'StudyInstanceUID', tag: '0020|000d' },
-                { name: 'StudyDate', tag: '0008|0020' },
-                { name: 'StudyTime', tag: '0008|0030' },
-                { name: 'StudyID', tag: '0020|0010', strconv: true },
-                { name: 'AccessionNumber', tag: '0008|0050' },
-                { name: 'StudyDescription', tag: '0008|1030', strconv: true },
-                { name: 'Modality', tag: '0008|0060' },
-                { name: 'SeriesInstanceUID', tag: '0020|000e' },
-                { name: 'SeriesNumber', tag: '0020|0011' },
-                { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
-              ]);
-
-              // TODO parse the raw string values
-              const patient = {
-                PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
-                PatientName: info.PatientName || ANONYMOUS_PATIENT,
-                PatientBirthDate: info.PatientBirthDate || '',
-                PatientSex: info.PatientSex || '',
-              };
-              const patientKey = genSynPatientKey(patient);
-
-              const studyKey = info.StudyInstanceUID;
-              const study = pick(
-                info,
-                'StudyID',
-                'StudyInstanceUID',
-                'StudyDate',
-                'StudyTime',
-                'AccessionNumber',
-                'StudyDescription'
-              );
-
-              const volumeInfo = {
-                ...pick(
-                  info,
-                  'Modality',
-                  'SeriesInstanceUID',
-                  'SeriesNumber',
-                  'SeriesDescription'
-                ),
-                NumberOfSlices: numberOfSlices,
-                VolumeID: volumeKey,
-              };
-
-              updatedVolumeKeys.push({
-                patientKey,
-                studyKey,
-                volumeKey,
-              });
-
-              this._updateDatabase(patient, study, volumeInfo);
-            }
-
-            // invalidate any existing volume
-            if (volumeKey in this.volumeToImageID) {
-              // buildVolume requestor uses this as a rebuild hint
-              set(this.needsRebuild, volumeKey, true);
-            }
+            this._updateDatabase(patient, study, volumeInfo);
           }
-        )
+
+          // invalidate any existing volume
+          if (volumeKey in this.volumeToImageID) {
+            // buildVolume requestor uses this as a rebuild hint
+            set(this.needsRebuild, volumeKey, true);
+          }
+        }
       );
 
       return updatedVolumeKeys;
@@ -356,9 +436,21 @@ export const useDICOMStore = defineStore('dicom', {
       return itkImage;
     },
 
+    // returns an ITK image object
+    async getVolumeThumbnail(volumeKey: string) {
+      const info = this.volumeInfo[volumeKey];
+      const numberOfSlices = (() => {
+        if (info.pipeline.kind === 'series') return Number(info.NumberOfSlices);
+        if (info.pipeline.kind === 'pt-ct') return info.pipeline.ctFiles.length; // assumes CT files are ahead of PET files
+        throw new Error('Did not recognize pipeline kind');
+      })();
+
+      const middleSlice = Math.ceil(Number(numberOfSlices) / 2);
+      return this.getVolumeSlice(volumeKey, middleSlice, true);
+    },
+
     async buildVolume(volumeKey: string, forceRebuild: boolean = false) {
       const imageStore = useImageStore();
-      const fileStore = useFileStore();
       const dicomIO = this.$dicomIO;
 
       const rebuild = forceRebuild || this.needsRebuild[volumeKey];
@@ -367,16 +459,14 @@ export const useDICOMStore = defineStore('dicom', {
         return imageStore.dataIndex[this.volumeToImageID[volumeKey]];
       }
 
-      if (!(volumeKey in this.volumeInfo)) {
+      const volumeInfo = this.volumeInfo[volumeKey];
+      if (!volumeInfo) {
         throw new Error(`Cannot find given volume key: ${volumeKey}`);
       }
 
-      const volumeFiles = fileStore.getFiles(volumeKey);
-      if (!volumeFiles) {
-        throw new Error(`No files found for volume key: ${volumeKey}`);
-      }
+      console.log(volumeInfo);
 
-      const itkImage = await dicomIO.buildVolume(volumeFiles);
+      const itkImage = await dicomIO.buildVolume(volumeInfo.pipeline);
       const vtkImage: vtkImageData =
         vtkITKHelper.convertItkToVtkImage(itkImage);
 

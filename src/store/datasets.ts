@@ -165,6 +165,7 @@ export const useDatasetStore = defineStore('dataset', () => {
             details: `${err}. More details can be found in the developer's console.`,
           });
         }
+        console.error(err);
       }
     }
   }

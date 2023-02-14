@@ -4,6 +4,7 @@ import {
   InterfaceTypes,
   readDICOMTags,
   readImageDICOMFileSeries,
+  Image,
 } from 'itk-wasm';
 
 export interface TagSpec {
@@ -13,6 +14,19 @@ export interface TagSpec {
 
 // volume ID => file names
 export type VolumesToFilesMap = Record<string, string[]>;
+
+export type SeriesPipeline = {
+  kind: 'series';
+  files: File[];
+};
+
+export type PtCtPipeline = {
+  kind: 'pt-ct';
+  ctFiles: File[];
+  ptFiles: File[];
+};
+
+export type Pipeline = SeriesPipeline | PtCtPipeline;
 
 export class DICOMIO {
   private webWorker: any;
@@ -176,20 +190,26 @@ export class DICOMIO {
       outputs
     );
 
-    return result.outputs[0].data;
+    return result.outputs[0].data as Image;
   }
 
   /**
-   * Builds a volume for a set of files.
+   * Builds a volume per a pipeline.
    * @async
-   * @param {File[]} files the set of files to build volume from
+   * @param {Pipeline} pipeline structure to build volume from
    * @returns ItkImage
    */
-  async buildVolume(files: File[]) {
+  async buildVolume(pipeline: Pipeline) {
     await this.initialize();
 
-    const result = await readImageDICOMFileSeries(files);
+    if (pipeline.kind === 'series')
+      return (await readImageDICOMFileSeries(pipeline.files)).image;
 
-    return result.image;
+    if (pipeline.kind === 'pt-ct') {
+      return (await readImageDICOMFileSeries(pipeline.ctFiles)).image;
+    }
+
+    const exhaustiveCheck: never = pipeline;
+    return exhaustiveCheck;
   }
 }

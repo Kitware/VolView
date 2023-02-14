@@ -17,6 +17,8 @@ interface InstanceInfo {
   Columns: number;
 }
 
+type VolumeInfoForUi = Omit<VolumeInfo, 'pipeline'>;
+
 interface State {
   // volumeKey -> imageID
   volumeToImageID: Record<string, string>;
@@ -37,7 +39,7 @@ interface State {
   studyVolumes: Record<string, string[]>;
 
   // volumeKey -> volume info
-  volumeInfo: Record<string, VolumeInfo>;
+  volumeInfo: Record<string, VolumeInfoForUi>;
   // volumeKey -> array of instanceKeys
   volumeInstances: Record<string, string[]>;
 
@@ -112,7 +114,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     _updateDatabase(
       patient: PatientInfo,
       study: StudyInfo,
-      volume: VolumeInfo,
+      volume: VolumeInfoForUi,
       instance: InstanceInfo
     ) {
       const patientKey = patient.PatientID;
