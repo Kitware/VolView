@@ -47,6 +47,10 @@ namespace fs = std::experimental::filesystem;
 #include "gdcmImageHelper.h"
 #include "gdcmReader.h"
 
+#include "itkResampleImageFilter.h"
+#include "itkLinearInterpolateImageFunction.h"
+#include "itkInputImage.h"
+
 using json = nlohmann::json;
 using ImageType = itk::Image<float, 3>;
 using ReaderType = itk::ImageFileReader<ImageType>;
@@ -304,12 +308,82 @@ int getSliceImage(itk::wasm::Pipeline &pipeline) {
   return EXIT_SUCCESS;
 }
 
+/**
+ * Resample an image per ITK origin, spacing, direction, size
+ */
+int resampleImage(itk::wasm::Pipeline &pipeline) {
+  using ImageType = itk::Image<double, 3>;
+  using WasmInputImageType = itk::wasm::InputImage<ImageType>;
+  WasmInputImageType inputImage;
+  pipeline.add_option("InputImage", inputImage, "Input image")->required();
+
+  using OuputImageType = ImageType;
+  using WasmOutputImageType = itk::wasm::OutputImage<OuputImageType>;
+  WasmOutputImageType outputImage;
+  pipeline.add_option("OutputImage", outputImage, "Resampled output image")->required();
+
+  std::vector<unsigned int> outSize;
+  pipeline.add_option("-z,--size", outSize, "New image size for each direction")->expected(2, 3)->delimiter(',');
+
+  std::vector<double> outSpacing;
+  pipeline.add_option("-p,--spacing", outSpacing, "New image spacing for each direction")->expected(2, 3)->delimiter(',');
+
+  std::vector<double> outOrigin;
+  pipeline.add_option("-o,--origin", outOrigin, "New image origin for each direction")->expected(2, 3)->delimiter(',');
+
+  std::vector<double> outDirection;
+  pipeline.add_option("-d,--direction", outDirection, "New image direction")->expected(4, 9)->delimiter(',');
+
+
+  ITK_WASM_PARSE(pipeline);
+
+  auto inImage = inputImage.Get();
+
+  using ResampleFilterType = itk::ResampleImageFilter<ImageType, OuputImageType>;
+  auto resampleFilter = ResampleFilterType::New();
+  resampleFilter->SetInput(inImage);
+
+  using ScalarType = double;
+  using InterpolatorType = itk::LinearInterpolateImageFunction<ImageType, ScalarType>;
+  resampleFilter->SetInterpolator(InterpolatorType::New());
+
+  typename ImageType::SizeType outputSize;
+  typename ImageType::SpacingType outputSpacing;
+  typename ImageType::PointType outputOrigin;
+  const int dims = outputSize.size();
+  for (int i = 0; i < dims; ++i)
+  {
+    outputSize[i] = outSize[i];
+    outputSpacing[i] = outSpacing[i];
+    outputOrigin[i] = outOrigin[i];
+  }
+  resampleFilter->SetSize(outputSize);
+  resampleFilter->SetOutputSpacing(outputSpacing);
+  resampleFilter->SetOutputOrigin(outputOrigin);
+
+  typename ImageType::DirectionType outputDirection;
+  for (int row = 0; row < dims; ++row)
+  {
+    for (int col = 0; col < dims; ++col)
+    {
+      outputDirection(row, col) = outDirection[row * dims + col];
+    }
+  }
+
+  resampleFilter->SetOutputDirection(outputDirection);
+
+  resampleFilter->Update();
+  outputImage.Set(resampleFilter->GetOutput());
+
+  return EXIT_SUCCESS;
+}
+
 int main(int argc, char *argv[]) {
   std::string action;
   itk::wasm::Pipeline pipeline("DICOM-VolView", "VolView pipeline to access DICOM data", argc,
                                argv);
   pipeline.add_option("-a,--action", action, "The action to run")
-      ->check(CLI::IsMember({"categorize", "getSliceImage"}));
+      ->check(CLI::IsMember({"categorize", "getSliceImage", "resample"}));
 
   // Pre parse so we can get the action
   ITK_WASM_PRE_PARSE(pipeline)
@@ -321,7 +395,13 @@ int main(int argc, char *argv[]) {
   } else if (action == "getSliceImage") {
 
     ITK_WASM_CATCH_EXCEPTION(pipeline, getSliceImage(pipeline));
-  }
 
+  }
+   else if (action == "resample") {
+
+    ITK_WASM_CATCH_EXCEPTION(pipeline, resampleImage(pipeline));
+
+   }
+   
   return EXIT_SUCCESS;
 }

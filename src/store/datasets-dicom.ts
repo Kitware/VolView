@@ -464,8 +464,6 @@ export const useDICOMStore = defineStore('dicom', {
         throw new Error(`Cannot find given volume key: ${volumeKey}`);
       }
 
-      console.log(volumeInfo);
-
       const itkImage = await dicomIO.buildVolume(volumeInfo.pipeline);
       const vtkImage: vtkImageData =
         vtkITKHelper.convertItkToVtkImage(itkImage);

@@ -7,6 +7,8 @@ import {
   Image,
 } from 'itk-wasm';
 
+import { composeImages } from './fuseImagesUtils';
+
 export interface TagSpec {
   name: string;
   tag: string;
@@ -112,13 +114,7 @@ export class DICOMIO {
 
     const outputs = [{ type: InterfaceTypes.TextStream }];
 
-    const result = await this.runTask(
-      // module
-      'dicom',
-      args,
-      inputs,
-      outputs
-    );
+    const result = await this.runTask('dicom', args, inputs, outputs);
 
     return JSON.parse((result.outputs[0].data as TextStream).data);
   }
@@ -182,15 +178,49 @@ export class DICOMIO {
 
     const outputs = [{ type: InterfaceTypes.Image }];
 
-    const result = await this.runTask(
-      // module
-      'dicom',
-      args,
-      inputs,
-      outputs
-    );
+    const result = await this.runTask('dicom', args, inputs, outputs);
 
     return result.outputs[0].data as Image;
+  }
+
+  async resample(fixed: Image, moving: Image) {
+    await this.initialize();
+
+    const { size, spacing, origin, direction } = fixed;
+    const args = [
+      '--action',
+      'resample',
+      '0', // space for input image
+
+      '--size',
+      size.join(','),
+      '--spacing',
+      spacing.join(','),
+      '--origin',
+      origin.join(','),
+      '--direction',
+      direction.join(','),
+
+      '--memory-io',
+      '0',
+    ];
+
+    const inputs = [{ type: InterfaceTypes.Image, data: moving }];
+    const outputs = [{ type: InterfaceTypes.Image }];
+
+    const result = await this.runTask('dicom', args, inputs, outputs);
+    const image = result.outputs[0].data as Image;
+    return image;
+  }
+
+  async fuse(fixedFiles: File[], movingFiles: File[]) {
+    await this.initialize();
+
+    const { image: fixed } = await readImageDICOMFileSeries(fixedFiles);
+    const { image: moving } = await readImageDICOMFileSeries(movingFiles);
+    const movingInFixedSpace = await this.resample(fixed, moving);
+
+    return composeImages([fixed, movingInFixedSpace]);
   }
 
   /**
@@ -205,9 +235,8 @@ export class DICOMIO {
     if (pipeline.kind === 'series')
       return (await readImageDICOMFileSeries(pipeline.files)).image;
 
-    if (pipeline.kind === 'pt-ct') {
-      return (await readImageDICOMFileSeries(pipeline.ctFiles)).image;
-    }
+    if (pipeline.kind === 'pt-ct')
+      return this.fuse(pipeline.ctFiles, pipeline.ptFiles);
 
     const exhaustiveCheck: never = pipeline;
     return exhaustiveCheck;
