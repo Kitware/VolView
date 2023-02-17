@@ -7,8 +7,6 @@ import {
   Image,
 } from 'itk-wasm';
 
-import { composeImages } from './fuseImagesUtils';
-
 export interface TagSpec {
   name: string;
   tag: string;
@@ -220,20 +218,20 @@ export class DICOMIO {
     const { image: moving } = await readImageDICOMFileSeries(movingFiles);
     const movingInFixedSpace = await this.resample(fixed, moving);
 
-    return composeImages([fixed, movingInFixedSpace]);
+    return [fixed, movingInFixedSpace];
   }
 
   /**
    * Builds a volume per a pipeline.
    * @async
-   * @param {Pipeline} pipeline structure to build volume from
-   * @returns ItkImage
+   * @param {Pipeline} pipeline structure to build volumes from
+   * @returns ItkImage[]
    */
   async buildVolume(pipeline: Pipeline) {
     await this.initialize();
 
     if (pipeline.kind === 'series')
-      return (await readImageDICOMFileSeries(pipeline.files)).image;
+      return [(await readImageDICOMFileSeries(pipeline.files)).image];
 
     if (pipeline.kind === 'pt-ct')
       return this.fuse(pipeline.ctFiles, pipeline.ptFiles);

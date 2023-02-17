@@ -124,11 +124,11 @@ export const useDatasetStore = defineStore('dataset', () => {
   const primaryDataset = computed<vtkImageData | null>(() => {
     const sel = primarySelection.value;
     const { dataIndex } = imageStore;
-    const { volumeToImageID } = dicomStore;
 
     if (sel?.type === 'dicom') {
-      const id = volumeToImageID[sel.volumeKey];
-      return dataIndex[id] || null;
+      const { volumeToImageIDs } = dicomStore;
+      const id = volumeToImageIDs[sel.volumeKey]?.[0];
+      return (id && dataIndex[id]) || null;
     }
     if (sel?.type === 'image') {
       return dataIndex[sel.dataID] || null;

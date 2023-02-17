@@ -78,7 +78,7 @@ interface State {
   sliceData: Record<string, Record<string, Image>>;
 
   // volumeKey -> imageID
-  volumeToImageID: Record<string, string>;
+  volumeToImageIDs: Record<string, string[] | undefined>;
   // imageID -> volumeKey
   imageIDToVolumeKey: Record<string, string>;
 
@@ -188,7 +188,7 @@ const groupPetCtVolumes = (volumes: VolumeIngredients[]) => {
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
-    volumeToImageID: {},
+    volumeToImageIDs: {},
     imageIDToVolumeKey: {},
     patientInfo: {},
     patientStudies: {},
@@ -289,7 +289,7 @@ export const useDICOMStore = defineStore('dicom', {
           }
 
           // invalidate any existing volume
-          if (volumeKey in this.volumeToImageID) {
+          if (volumeKey in this.volumeToImageIDs) {
             // buildVolume requestor uses this as a rebuild hint
             set(this.needsRebuild, volumeKey, true);
           }
@@ -336,11 +336,12 @@ export const useDICOMStore = defineStore('dicom', {
         del(this.sliceData, volumeKey);
         del(this.volumeStudy, volumeKey);
 
-        if (volumeKey in this.volumeToImageID) {
-          const imageID = this.volumeToImageID[volumeKey];
-          imageStore.deleteData(imageID);
-          del(this.volumeToImageID, volumeKey);
-          del(this.imageIDToVolumeKey, imageID);
+        if (volumeKey in this.volumeToImageIDs) {
+          this.volumeToImageIDs[volumeKey]!.forEach((imageID) => {
+            imageStore.deleteData(imageID);
+            del(this.volumeToImageIDs, volumeKey);
+            del(this.imageIDToVolumeKey, imageID);
+          });
         }
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
@@ -455,8 +456,10 @@ export const useDICOMStore = defineStore('dicom', {
 
       const rebuild = forceRebuild || this.needsRebuild[volumeKey];
 
-      if (!rebuild && volumeKey in this.volumeToImageID) {
-        return imageStore.dataIndex[this.volumeToImageID[volumeKey]];
+      if (!rebuild && volumeKey in this.volumeToImageIDs) {
+        return this.volumeToImageIDs[volumeKey]!.map(
+          (imageID) => imageStore.dataIndex[imageID]
+        );
       }
 
       const volumeInfo = this.volumeInfo[volumeKey];
@@ -464,23 +467,28 @@ export const useDICOMStore = defineStore('dicom', {
         throw new Error(`Cannot find given volume key: ${volumeKey}`);
       }
 
-      const itkImage = await dicomIO.buildVolume(volumeInfo.pipeline);
-      const vtkImage: vtkImageData =
-        vtkITKHelper.convertItkToVtkImage(itkImage);
+      const images = (await dicomIO.buildVolume(volumeInfo.pipeline)).map(
+        (image) => vtkITKHelper.convertItkToVtkImage(image) as vtkImageData
+      );
 
-      if (volumeKey in this.volumeToImageID) {
-        const imageID = this.volumeToImageID[volumeKey];
-        imageStore.updateData(imageID, vtkImage);
-      } else {
-        const name = this.volumeInfo[volumeKey].SeriesInstanceUID;
-        const imageID = imageStore.addVTKImageData(name, vtkImage);
-        set(this.volumeToImageID, volumeKey, imageID);
-        set(this.imageIDToVolumeKey, imageID, volumeKey);
-      }
+      images.forEach((image, index) => {
+        const existingImageID = this.volumeToImageIDs[volumeKey]?.[index];
+        if (existingImageID) {
+          imageStore.updateData(existingImageID, image);
+        } else {
+          const name = this.volumeInfo[volumeKey].SeriesInstanceUID;
+          const imageID = imageStore.addVTKImageData(name, image);
+          set(this.imageIDToVolumeKey, imageID, volumeKey);
+          set(this.volumeToImageIDs, volumeKey, [
+            ...(this.volumeToImageIDs[volumeKey] ?? []),
+            imageID,
+          ]);
+        }
+      });
 
       del(this.needsRebuild, volumeKey);
 
-      return vtkImage;
+      return images;
     },
   },
 });

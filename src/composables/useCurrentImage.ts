@@ -30,13 +30,13 @@ export function useCurrentImage() {
 
   const currentImageID = computed(() => {
     const { primarySelection } = dataStore;
-    const { volumeToImageID } = dicomStore;
+    const { volumeToImageIDs } = dicomStore;
 
     if (primarySelection?.type === 'image') {
       return primarySelection.dataID;
     }
     if (primarySelection?.type === 'dicom') {
-      return volumeToImageID[primarySelection.volumeKey] || null;
+      return volumeToImageIDs[primarySelection.volumeKey]?.[0] || null;
     }
     return null;
   });
@@ -52,8 +52,10 @@ export function useCurrentImage() {
   });
 
   const currentImageData = computed(() => {
-    // assumed to be only images for now
-    return dataStore.primaryDataset;
+    if (currentImageID.value)
+      // assumed to be only images for now
+      return imageStore.dataIndex[currentImageID.value];
+    return undefined;
   });
 
   const currentImageExtent = computed(() =>
