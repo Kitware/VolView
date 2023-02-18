@@ -96,6 +96,7 @@ export const setupLayersConfig = () => {
   const updateColorBy = createUpdateFunc('colorBy');
   const updateTransferFunction = createUpdateFunc('transferFunction');
   const updateOpacityFunction = createUpdateFunc('opacityFunction');
+  const updateBlendConfig = createUpdateFunc('blendConfig');
 
   const setColorPreset = (viewID: string, imageID: string, preset: string) => {
     const imageStore = useImageStore();
@@ -154,6 +155,7 @@ export const setupLayersConfig = () => {
       updateColorBy,
       updateTransferFunction,
       updateOpacityFunction,
+      updateBlendConfig,
       resetToDefault,
       setColorPreset,
     },
