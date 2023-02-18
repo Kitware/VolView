@@ -3,6 +3,7 @@ import { LPSAxisDir } from '@/src/types/lps';
 import {
   ColorTransferFunction,
   CVRConfig,
+  BlendConfig,
   OpacityFunction,
 } from '@/src/types/views';
 
@@ -36,4 +37,14 @@ export interface WindowLevelConfig {
   level: number;
   min: number; // data range min
   max: number; // data range max
+}
+
+export interface LayersConfig {
+  colorBy: {
+    arrayName: string;
+    location: string;
+  };
+  transferFunction: ColorTransferFunction;
+  opacityFunction: OpacityFunction;
+  blendConfig: BlendConfig;
 }

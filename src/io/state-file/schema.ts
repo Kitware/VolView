@@ -17,6 +17,7 @@ import {
   CameraConfig,
   SliceConfig,
   WindowLevelConfig,
+  LayersConfig,
   VolumeColorConfig,
 } from '../../store/view-configs/types';
 import { LPSAxisDir, LPSAxis } from '../../types/lps';
@@ -31,6 +32,7 @@ import {
   OpacityNodes,
   ColoringConfig,
   CVRConfig,
+  BlendConfig,
 } from '../../types/views';
 
 export enum DataSetType {
@@ -176,9 +178,21 @@ const VolumeColorConfig: z.ZodType<VolumeColorConfig> = z.object({
   cvr: CVRConfig,
 });
 
+const BlendConfig: z.ZodType<BlendConfig> = z.object({
+  opacity: z.number(),
+});
+
+const LayersConfig: z.ZodType<LayersConfig> = z.object({
+  colorBy: ColorBy,
+  transferFunction: ColorTransferFunction,
+  opacityFunction: OpacityFunction,
+  blendConfig: BlendConfig,
+});
+
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
+  layers: LayersConfig.optional(),
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
 });

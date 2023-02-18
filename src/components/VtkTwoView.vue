@@ -187,6 +187,8 @@ import { onKeyStroke } from '@vueuse/core';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
@@ -218,6 +220,9 @@ import { defaultSliceConfig } from '../store/view-configs/slicing';
 import { useWindowingSync } from '../composables/sync/useWindowingSync';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
+import { useProxyManager } from '../composables/proxyManager';
+import { useImageStore } from '../store/datasets-images';
+import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -271,6 +276,7 @@ export default defineComponent({
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
       isImageLoading,
+      currentLayerImageIDs: curLayerImageIDs,
     } = useCurrentImage();
 
     const dicomStore = useDICOMStore();
@@ -486,12 +492,14 @@ export default defineComponent({
       );
     });
 
-    const { baseImageRep, labelmapReps } = useSceneBuilder<
+    const { baseImageRep, labelmapReps, layerReps } = useSceneBuilder<
       vtkIJKSliceRepresentationProxy,
-      vtkLabelMapSliceRepProxy
+      vtkLabelMapSliceRepProxy,
+      vtkIJKSliceRepresentationProxy
     >(viewID, {
       baseImage: curImageID,
       labelmaps: labelmapIDs,
+      layers: curLayerImageIDs,
     });
 
     // --- camera setup --- //
@@ -619,8 +627,8 @@ export default defineComponent({
         rep.setWindowWidth(width);
         rep.setWindowLevel(level);
       }
-      labelmapReps.value.forEach((lmRep) => {
-        lmRep.setSlice(slice);
+      [...layerReps.value, ...labelmapReps.value].forEach((lRep) => {
+        lRep.setSlice(slice);
       });
 
       viewProxy.value.render();
@@ -634,6 +642,127 @@ export default defineComponent({
         lmRep.setOpacity(labelmapOpacity);
       });
     });
+
+    // --- layers setup --- //
+
+    const layersConfigs = computed(() =>
+      curLayerImageIDs.value.map((layerID) =>
+        viewConfigStore.layers.getComputedConfig(viewID, layerID)
+      )
+    );
+
+    const imageStore = useImageStore();
+    watch(
+      [viewID, curLayerImageIDs],
+      () => {
+        curLayerImageIDs.value.forEach((layerID, layerIndex) => {
+          const layerImageData = imageStore.dataIndex[layerID];
+          const layerConfig = layersConfigs.value[layerIndex].value;
+          if (layerImageData && !layerConfig) {
+            viewConfigStore.layers.resetToDefault(
+              viewID.value,
+              layerID,
+              layerImageData
+            );
+          }
+        });
+      },
+      { immediate: true }
+    );
+
+    // --- coloring --- //
+
+    const proxyManager = useProxyManager()!;
+
+    const colorBys = computed(() =>
+      layersConfigs.value.map((config) => config.value?.colorBy)
+    );
+    const transferFunctions = computed(() =>
+      layersConfigs.value.map((config) => config.value?.transferFunction)
+    );
+    const opacityFunctions = computed(() =>
+      layersConfigs.value.map((config) => config.value?.opacityFunction)
+    );
+
+    const blendConfigs = computed(() =>
+      layersConfigs.value.map((config) => config.value?.blendConfig)
+    );
+
+    watch(
+      [layerReps, colorBys, transferFunctions, opacityFunctions, blendConfigs],
+      () => {
+        layerReps.value
+          .map(
+            (layerRep, idx) =>
+              [
+                layerRep,
+                colorBys.value[idx],
+                transferFunctions.value[idx],
+                opacityFunctions.value[idx],
+                blendConfigs.value[idx],
+              ] as const
+          )
+          .forEach(
+            ([
+              rep,
+              colorBy,
+              transferFunction,
+              opacityFunction,
+              blendConfig,
+            ]) => {
+              if (
+                !colorBy ||
+                !transferFunction ||
+                !opacityFunction ||
+                !blendConfig
+              ) {
+                return;
+              }
+
+              const { arrayName, location } = colorBy;
+              const ctFunc = transferFunction;
+              const opFunc = opacityFunction;
+
+              const lut = proxyManager.getLookupTable(arrayName);
+              lut.setMode(LookupTableProxyMode.Preset);
+              lut.setPresetName(ctFunc.preset);
+              lut.setDataRange(...ctFunc.mappingRange);
+
+              const pwf = proxyManager.getPiecewiseFunction(arrayName);
+              pwf.setMode(opFunc.mode);
+              pwf.setDataRange(...opFunc.mappingRange);
+
+              switch (opFunc.mode) {
+                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
+                  pwf.setGaussians(opFunc.gaussians);
+                  break;
+                case vtkPiecewiseFunctionProxy.Mode.Points: {
+                  const opacityPoints = getShiftedOpacityFromPreset(
+                    opFunc.preset,
+                    opFunc.mappingRange,
+                    opFunc.shift
+                  );
+                  if (opacityPoints) {
+                    pwf.setPoints(opacityPoints);
+                  }
+                  break;
+                }
+                case vtkPiecewiseFunctionProxy.Mode.Nodes:
+                  pwf.setNodes(opFunc.nodes);
+                  break;
+                default:
+              }
+
+              rep.setColorBy(arrayName, location);
+              rep.setOpacity(blendConfig.opacity);
+
+              // Need to trigger a render for when we are restoring from a state file
+              viewProxy.value.render();
+            }
+          );
+      },
+      { immediate: true, deep: true }
+    );
 
     return {
       vtkContainerRef,

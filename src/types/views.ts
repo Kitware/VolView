@@ -63,3 +63,7 @@ export interface CVRConfig {
   diffuse: number;
   specular: number;
 }
+
+export interface BlendConfig {
+  opacity: number;
+}

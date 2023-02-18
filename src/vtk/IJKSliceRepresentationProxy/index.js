@@ -16,9 +16,6 @@ function vtkIJKSliceRepresentationProxy(publicAPI, model) {
 
   const superClass = { ...publicAPI };
 
-  // don't set colors on slices
-  publicAPI.setColorBy = () => {};
-
   // pretend XYZ slicing is actually just IJK.
   publicAPI.setSlicingMode = (modeString) => {
     return superClass.setSlicingMode(SLICE_MODE_MAP[modeString]);
