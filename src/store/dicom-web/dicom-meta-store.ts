@@ -17,7 +17,7 @@ interface InstanceInfo {
   Columns: number;
 }
 
-type VolumeInfoForUi = Omit<VolumeInfo, 'pipeline'>;
+type VolumeInfoForUi = Omit<VolumeInfo, 'layers'>;
 
 interface State {
   // volumeKey -> imageID

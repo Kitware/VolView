@@ -7,7 +7,6 @@ import {
   getOpacityFunctionFromPreset,
   getOpacityRangeFromPreset,
 } from '@/src/utils/vtk-helpers';
-import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
 import { ColorTransferFunction } from '@/src/types/views';
 import {
   removeDataFromConfig,
@@ -20,17 +19,14 @@ import { LayersConfig } from './types';
 import { useDICOMStore } from '../datasets-dicom';
 import { useImageStore } from '../datasets-images';
 
-function getPresetFromVolume(imageID: string) {
+export const MODALITY_TO_PRESET: Record<string, string> = {
+  PT: '2hot',
+};
+
+function getPreset(imageID: string) {
   const dicomStore = useDICOMStore();
-  if (imageID in dicomStore.imageIDToVolumeKey) {
-    const volKey = dicomStore.imageIDToVolumeKey[imageID];
-    const { pipeline, Modality } = dicomStore.volumeInfo[volKey];
-    if (pipeline.kind === 'pt-ct') return '2hot';
-    if (Modality in DEFAULT_PRESET_BY_MODALITY) {
-      return DEFAULT_PRESET_BY_MODALITY[Modality];
-    }
-  }
-  return DEFAULT_PRESET;
+  const { Modality = undefined } = dicomStore.imageIDToLayer[imageID];
+  return Modality ? MODALITY_TO_PRESET[Modality] : DEFAULT_PRESET;
 }
 
 export const defaultLayersConfig = (): LayersConfig => ({
@@ -128,7 +124,7 @@ export const setupLayersConfig = () => {
       arrayName: scalars.getName() + dataID,
       location: 'pointData',
     });
-    setColorPreset(viewID, dataID, getPresetFromVolume(dataID));
+    setColorPreset(viewID, dataID, getPreset(dataID));
   };
 
   const serialize = (stateFile: StateFile) => {

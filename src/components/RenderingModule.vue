@@ -24,7 +24,7 @@ export default defineComponent({
   <div class="overflow-y-auto mx-2 fill-height">
     <template v-if="hasCurrentImage">
       <volume-rendering />
-      <v-expansion-panels multiple accordion :value="[1]">
+      <v-expansion-panels multiple accordion :value="[1, 2]">
         <v-expansion-panel>
           <v-expansion-panel-header>
             <v-icon class="flex-grow-0 mr-4">mdi-palette</v-icon>
@@ -48,7 +48,7 @@ export default defineComponent({
         <v-expansion-panel v-if="hasLayers">
           <v-expansion-panel-header>
             <v-icon class="flex-grow-0 mr-4">mdi-layers</v-icon>
-            2D Layers
+            Layers
           </v-expansion-panel-header>
           <v-expansion-panel-content>
             <layer-list />

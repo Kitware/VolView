@@ -9,10 +9,10 @@ export default defineComponent({
     LayerProperties,
   },
   setup() {
-    const { currentLayerImageIDs } = useCurrentImage();
+    const images = useCurrentImage().currentLayerImageIDs.value.reverse();
 
     return {
-      currentLayerImageIDs,
+      images,
     };
   },
 });
@@ -20,11 +20,7 @@ export default defineComponent({
 
 <template>
   <div class="mx-2">
-    <layer-properties
-      v-for="imageID in currentLayerImageIDs"
-      :key="imageID"
-      :imageID="imageID"
-    >
+    <layer-properties v-for="image in images" :key="image" :imageID="image">
     </layer-properties>
   </div>
 </template>

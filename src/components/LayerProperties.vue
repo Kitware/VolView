@@ -1,8 +1,14 @@
 <script lang="ts">
 import { computed, defineComponent, watch } from '@vue/composition-api';
-import { InitViewIDs } from '../config';
+import { InitViewSpecs } from '../config';
+import { useImageStore } from '../store/datasets-images';
+import { useDICOMStore } from '../store/datasets-dicom';
 import { useViewConfigStore } from '../store/view-configs';
 import { BlendConfig } from '../types/views';
+
+const VIEWS_2D = Object.entries(InitViewSpecs)
+  .filter(([, { viewType }]) => viewType === '2D')
+  .map(([viewID]) => viewID);
 
 export default defineComponent({
   name: 'LayerProperties',
@@ -10,18 +16,27 @@ export default defineComponent({
     imageID: String,
   },
   setup(props) {
+    const dicomStore = useDICOMStore();
+    const imageStore = useImageStore();
+
+    const imageName = computed(() => {
+      return (
+        props.imageID &&
+        (dicomStore.imageIDToLayer[props.imageID]?.Modality ||
+          imageStore.metadata[props.imageID]?.name)
+      );
+    });
+
     const viewConfigStore = useViewConfigStore();
 
     const layerConfigs = computed(() =>
-      Object.values(InitViewIDs)
-        .filter((viewID) => viewID !== InitViewIDs.Three)
-        .map((viewID) => ({
-          config: viewConfigStore.layers.getComputedConfig(
-            viewID,
-            props.imageID!
-          ),
+      VIEWS_2D.map((viewID) => ({
+        config: viewConfigStore.layers.getComputedConfig(
           viewID,
-        }))
+          props.imageID!
+        ),
+        viewID,
+      }))
     );
 
     watch(layerConfigs, () => {
@@ -47,6 +62,7 @@ export default defineComponent({
     };
 
     return {
+      imageName,
       blendConfig,
       setBlendConfig,
     };
@@ -55,19 +71,17 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="mx-2">
-    <div v-if="!!blendConfig">
-      <v-slider
-        label="Opacity"
-        min="0"
-        max="1"
-        step="0.01"
-        dense
-        hide-details
-        thumb-label
-        :value="blendConfig.opacity"
-        @input="setBlendConfig('opacity', $event)"
-      />
-    </div>
+  <div class="mx-2" v-if="!!blendConfig">
+    <v-slider
+      :label="imageName + ' Opacity'"
+      min="0"
+      max="1"
+      step="0.01"
+      dense
+      hide-details
+      thumb-label
+      :value="blendConfig.opacity"
+      @input="setBlendConfig('opacity', $event)"
+    />
   </div>
 </template>

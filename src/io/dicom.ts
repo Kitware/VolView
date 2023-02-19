@@ -15,19 +15,6 @@ export interface TagSpec {
 // volume ID => file names
 export type VolumesToFilesMap = Record<string, string[]>;
 
-export type SeriesPipeline = {
-  kind: 'series';
-  files: File[];
-};
-
-export type PtCtPipeline = {
-  kind: 'pt-ct';
-  ctFiles: File[];
-  ptFiles: File[];
-};
-
-export type Pipeline = SeriesPipeline | PtCtPipeline;
-
 export class DICOMIO {
   private webWorker: any;
   private initializeCheck: Promise<void> | null;
@@ -211,32 +198,22 @@ export class DICOMIO {
     return image;
   }
 
-  async fuse(fixedFiles: File[], movingFiles: File[]) {
-    await this.initialize();
-
-    const { image: fixed } = await readImageDICOMFileSeries(fixedFiles);
-    const { image: moving } = await readImageDICOMFileSeries(movingFiles);
-    const movingInFixedSpace = await this.resample(fixed, moving);
-
-    return [fixed, movingInFixedSpace];
-  }
-
   /**
-   * Builds a volume per a pipeline.
+   * Makes ItkImages, resampling to first image.
    * @async
-   * @param {Pipeline} pipeline structure to build volumes from
+   * @param {File[][]} List of series for each layer
    * @returns ItkImage[]
    */
-  async buildVolume(pipeline: Pipeline) {
+  async buildVolume(layers: File[][]) {
     await this.initialize();
 
-    if (pipeline.kind === 'series')
-      return [(await readImageDICOMFileSeries(pipeline.files)).image];
+    const [fixed, ...moving] = (
+      await Promise.all(layers.map((files) => readImageDICOMFileSeries(files)))
+    ).map(({ image }) => image);
 
-    if (pipeline.kind === 'pt-ct')
-      return this.fuse(pipeline.ctFiles, pipeline.ptFiles);
-
-    const exhaustiveCheck: never = pipeline;
-    return exhaustiveCheck;
+    const resampled = await Promise.all(
+      moving.map((movingImage) => this.resample(fixed, movingImage))
+    );
+    return [fixed, ...resampled];
   }
 }
