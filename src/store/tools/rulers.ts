@@ -178,7 +178,7 @@ export const useRulerStore = defineStore('ruler', () => {
     );
     const coords = manipulator.handleEvent(
       eventData,
-      viewProxy.getOpenglRenderWindow()
+      viewProxy.getOpenGLRenderWindow()
     );
     if (coords.length) {
       updateRuler.call(this, id, {
