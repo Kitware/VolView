@@ -62,9 +62,11 @@ module.exports = {
               'node_modules',
               'itk-wasm',
               'dist',
-              'web-workers'
+              'web-workers',
+              'bundles',
+              'pipeline.worker.js'
             ),
-            to: path.join(__dirname, 'dist', 'itk', 'web-workers'),
+            to: path.join(__dirname, 'dist', 'itk'),
           },
           {
             from: path.join(__dirname, 'node_modules', 'itk-image-io'),
@@ -76,7 +78,13 @@ module.exports = {
             },
           },
           {
-            from: path.join(__dirname, 'src', 'io', 'itk-dicom', 'emscripten-build'),
+            from: path.join(
+              __dirname,
+              'src',
+              'io',
+              'itk-dicom',
+              'emscripten-build'
+            ),
             to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]'),
             filter: (resourcePath) => {
               return path.basename(resourcePath).startsWith('dicom');
