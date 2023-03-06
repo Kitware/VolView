@@ -16,7 +16,10 @@ declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Pre
   export default any;
 }
 
-declare module '@kitware/vtk.js/Common/DataModel/ITKHelper';
+declare module '@kitware/vtk.js/Common/DataModel/ITKHelper' {
+  export function convertVtkToItkImage(image: vtkImageData): Image;
+  export function convertItkToVtkImage(image: Image): vtkImageData;
+}
 
 declare module '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps' {
   export declare const vtkColorMaps: {
@@ -297,7 +300,9 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
   import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
   import vtkLineManipulator from '@kitware/vtk.js/Widgets/Manipulators/LineManipulator';
   import { mat4, vec3 } from 'gl-matrix';
-  import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+  import vtkImageData, {
+    vtkImageData,
+  } from '@kitware/vtk.js/Common/DataModel/ImageData';
   import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
   import { Bounds } from '@kitware/vtk.js/types';
 

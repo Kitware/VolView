@@ -334,7 +334,6 @@ int resampleImage(itk::wasm::Pipeline &pipeline) {
   std::vector<double> outDirection;
   pipeline.add_option("-d,--direction", outDirection, "New image direction")->expected(4, 9)->delimiter(',');
 
-
   ITK_WASM_PARSE(pipeline);
 
   auto inImage = inputImage.Get();

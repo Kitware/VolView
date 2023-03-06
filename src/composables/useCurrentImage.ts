@@ -30,28 +30,23 @@ export function useCurrentImage() {
 
   const currentImageID = computed(() => {
     const { primarySelection } = dataStore;
-    const { volumeToImageIDs } = dicomStore;
+    const { volumeToImageID } = dicomStore;
 
     if (primarySelection?.type === 'image') {
       return primarySelection.dataID;
     }
     if (primarySelection?.type === 'dicom') {
-      return volumeToImageIDs[primarySelection.volumeKey]?.[0] || null;
+      return volumeToImageID[primarySelection.volumeKey] || null;
     }
     return null;
   });
 
-  const currentLayerImageIDs = computed(() => {
-    const { imageIDToVolumeKey, volumeToImageIDs } = dicomStore;
-    const currentID = currentImageID.value;
-    if (currentID) {
-      // plain imageStore images don't have layers yet, so just checking dicomStore.volumeToImageIDs
-      const [, ...layerImageIDs] =
-        volumeToImageIDs[imageIDToVolumeKey[currentID]] ?? [];
-      return layerImageIDs;
-    }
-    return [];
-  });
+  const currentLayerImageIDs = computed(
+    () =>
+      dataStore.layers
+        .map((volumeKey) => dicomStore.volumeToImageID[volumeKey])
+        .filter(Boolean) as string[]
+  );
 
   const currentImageMetadata = computed(() => {
     const { metadata } = imageStore;

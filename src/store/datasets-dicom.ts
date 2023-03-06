@@ -17,12 +17,6 @@ export function imageCacheMultiKey(offset: number, asThumbnail: boolean) {
   return `${offset}!!${asThumbnail}`;
 }
 
-type VolumeIngredients = {
-  volumeKey: string;
-  tags: Record<string, string>;
-  files: File[];
-};
-
 export interface VolumeKeys {
   patientKey: string;
   studyKey: string;
@@ -45,21 +39,13 @@ export interface StudyInfo {
   StudyDescription: string;
 }
 
-interface SeriesInfo {
+export interface VolumeInfo {
   NumberOfSlices: number;
   VolumeID: string;
   Modality: string;
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
-}
-
-interface Layer extends SeriesInfo {
-  files: File[];
-}
-
-export interface VolumeInfo extends SeriesInfo {
-  layers: Layer[];
 }
 
 /**
@@ -91,7 +77,7 @@ interface State {
   sliceData: Record<string, Record<string, Image>>;
 
   // volumeKey -> imageID
-  volumeToImageIDs: Record<string, string[] | undefined>;
+  volumeToImageID: Record<string, string | undefined>;
   // imageID -> volumeKey
   imageIDToVolumeKey: Record<string, string>;
 
@@ -116,9 +102,6 @@ interface State {
   volumeStudy: Record<string, string>;
   // studyKey -> patientKey
   studyPatient: Record<string, string>;
-
-  // imageID -> layer
-  imageIDToLayer: Record<string, Layer>;
 }
 
 const readDicomTags = (dicomIO: DICOMIO, file: File) =>
@@ -139,54 +122,11 @@ const readDicomTags = (dicomIO: DICOMIO, file: File) =>
     { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
   ]);
 
-const groupPetCtVolumes = (volumes: VolumeIngredients[]) => {
-  const byModality = volumes.reduce(
-    (modalities, volume) => ({
-      ...modalities,
-      [volume.tags.Modality]: [
-        ...(modalities[volume.tags.Modality] || []),
-        volume,
-      ],
-    }),
-    {} as Record<string, VolumeIngredients[]>
-  );
-  const {
-    PT: ptVolumes = [],
-    CT: ctVolumes = [],
-    ...otherModalities
-  } = byModality;
-  let matchCandidates = [...ptVolumes];
-  const ctAndPtVolumes = ctVolumes.map((ctVolume) => {
-    const {
-      tags: { StudyInstanceUID: ctStudy },
-    } = ctVolume;
-    const matchingPt = matchCandidates.find(
-      ({ tags: { StudyInstanceUID: petStudy } }) => petStudy === ctStudy
-    );
-    if (matchingPt) {
-      // remove from candidates
-      matchCandidates = matchCandidates.filter(
-        (candidate) => candidate !== matchingPt
-      );
-      return [ctVolume, matchingPt];
-    }
-    return [ctVolume];
-  });
-
-  return [
-    ...ctAndPtVolumes,
-    ...[...matchCandidates, ...Object.values(otherModalities).flat()].map(
-      (v) => [v]
-    ),
-  ];
-};
-
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
-    volumeToImageIDs: {},
+    volumeToImageID: {},
     imageIDToVolumeKey: {},
-    imageIDToLayer: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -208,98 +148,73 @@ export const useDICOMStore = defineStore('dicom', {
 
       const volumesToFilesMap = await dicomIO.categorizeFiles(inputFiles);
 
-      const nameToFileMap = new Map(inputFiles.map((f) => [f.name, f]));
-      const volumesWithFilesAndTags = await Promise.all(
+      const nameToFile = new Map(inputFiles.map((f) => [f.name, f]));
+      const volumesOfFiles = await Promise.all(
         Object.entries(volumesToFilesMap)
-          // map file names to files
+          // group files with volumes
           .map(([volumeKey, fileNames]) => ({
             volumeKey,
-            files: fileNames.map((fName) => nameToFileMap.get(fName)),
+            files: fileNames.map((fName) => nameToFile.get(fName) as File),
           }))
-          // get tags for first file
-          .map(async ({ files: volumeFiles, ...rest }) => {
-            const firstFile = volumeFiles[0];
-            if (firstFile)
-              return {
-                tags: await readDicomTags(dicomIO, firstFile),
-                files: volumeFiles as File[],
-                ...rest,
-              };
-            throw new Error(
-              'Failed trying to group PET-CT DICOM files.  Could not find File matching name in volumeMap.'
-            );
-          })
       );
-      const volumesGrouped = groupPetCtVolumes(volumesWithFilesAndTags);
 
       const updatedVolumeKeys: VolumeKeys[] = [];
 
-      volumesGrouped.forEach(async (layers) => {
-        const { volumeKey, tags } = layers[0];
+      await Promise.all(
+        volumesOfFiles.map(async ({ volumeKey, files }) => {
+          fileStore.add(volumeKey, files);
 
-        const makeVolumeInfo = ({
-          tags: layerTags,
-          files,
-        }: VolumeIngredients) => ({
-          ...pick(
-            layerTags,
-            'Modality',
-            'SeriesInstanceUID',
-            'SeriesNumber',
-            'SeriesDescription'
-          ),
-          NumberOfSlices: files.length,
-          VolumeID: volumeKey,
-          files,
-        });
+          // Now read the tags
+          if (!(volumeKey in this.volumeInfo)) {
+            const tags = await readDicomTags(dicomIO, files[0]);
+            // TODO parse the raw string values
+            const patient = {
+              PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
+              PatientName: tags.PatientName || ANONYMOUS_PATIENT,
+              PatientBirthDate: tags.PatientBirthDate || '',
+              PatientSex: tags.PatientSex || '',
+            };
+            const patientKey = genSynPatientKey(patient);
 
-        fileStore.add(
-          volumeKey,
-          layers.flatMap(({ files }) => files)
-        );
+            const studyKey = tags.StudyInstanceUID;
+            const study = pick(
+              tags,
+              'StudyID',
+              'StudyInstanceUID',
+              'StudyDate',
+              'StudyTime',
+              'AccessionNumber',
+              'StudyDescription'
+            );
 
-        // Now read the tags
-        if (!(volumeKey in this.volumeInfo)) {
-          // TODO parse the raw string values
-          const patient = {
-            PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
-            PatientName: tags.PatientName || ANONYMOUS_PATIENT,
-            PatientBirthDate: tags.PatientBirthDate || '',
-            PatientSex: tags.PatientSex || '',
-          };
-          const patientKey = genSynPatientKey(patient);
+            const volumeInfo = {
+              ...pick(
+                tags,
+                'Modality',
+                'SeriesInstanceUID',
+                'SeriesNumber',
+                'SeriesDescription'
+              ),
+              NumberOfSlices: files.length,
+              VolumeID: volumeKey,
+            };
 
-          const studyKey = tags.StudyInstanceUID;
-          const study = pick(
-            tags,
-            'StudyID',
-            'StudyInstanceUID',
-            'StudyDate',
-            'StudyTime',
-            'AccessionNumber',
-            'StudyDescription'
-          );
+            updatedVolumeKeys.push({
+              patientKey,
+              studyKey,
+              volumeKey,
+            });
 
-          const volumeInfo = {
-            ...makeVolumeInfo(layers[0]),
-            layers: layers.map(makeVolumeInfo),
-          };
+            this._updateDatabase(patient, study, volumeInfo);
+          }
 
-          updatedVolumeKeys.push({
-            patientKey,
-            studyKey,
-            volumeKey,
-          });
-
-          this._updateDatabase(patient, study, volumeInfo);
-        }
-
-        // invalidate any existing volume
-        if (volumeKey in this.volumeToImageIDs) {
-          // buildVolume requestor uses this as a rebuild hint
-          set(this.needsRebuild, volumeKey, true);
-        }
-      });
+          // invalidate any existing volume
+          if (volumeKey in this.volumeToImageID) {
+            // buildVolume requestor uses this as a rebuild hint
+            set(this.needsRebuild, volumeKey, true);
+          }
+        })
+      );
 
       return updatedVolumeKeys;
     },
@@ -341,13 +256,11 @@ export const useDICOMStore = defineStore('dicom', {
         del(this.sliceData, volumeKey);
         del(this.volumeStudy, volumeKey);
 
-        if (volumeKey in this.volumeToImageIDs) {
-          this.volumeToImageIDs[volumeKey]!.forEach((imageID) => {
-            imageStore.deleteData(imageID);
-            del(this.volumeToImageIDs, volumeKey);
-            del(this.imageIDToVolumeKey, imageID);
-            del(this.imageIDToVolumeKey, imageID);
-          });
+        if (volumeKey in this.volumeToImageID) {
+          const imageID = this.volumeToImageID[volumeKey];
+          imageStore.deleteData(imageID!);
+          del(this.volumeToImageID, volumeKey);
+          del(this.imageIDToVolumeKey, imageID);
         }
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
@@ -456,44 +369,75 @@ export const useDICOMStore = defineStore('dicom', {
 
       const rebuild = forceRebuild || this.needsRebuild[volumeKey];
 
-      if (!rebuild && volumeKey in this.volumeToImageIDs) {
-        return this.volumeToImageIDs[volumeKey]!.map(
-          (imageID) => imageStore.dataIndex[imageID]
-        );
+      if (!rebuild && this.volumeToImageID[volumeKey]) {
+        const imageID = this.volumeToImageID[volumeKey]!;
+        return imageStore.dataIndex[imageID];
       }
 
-      const volumeInfo = this.volumeInfo[volumeKey];
-      if (!volumeInfo) {
-        throw new Error(`Cannot find given volume key: ${volumeKey}`);
-      }
-
-      const images = (
-        await dicomIO.buildVolume(volumeInfo.layers.map(({ files }) => files))
-      ).map(
-        (image) => vtkITKHelper.convertItkToVtkImage(image) as vtkImageData
+      const fileStore = useFileStore();
+      const files = fileStore.getFiles(volumeKey);
+      if (!files) throw new Error('No files for volume key');
+      const image = vtkITKHelper.convertItkToVtkImage(
+        await dicomIO.buildImage(files)
       );
 
-      images.forEach((image, index) => {
-        const existingImageID = this.volumeToImageIDs[volumeKey]?.[index];
-        if (existingImageID) {
-          imageStore.updateData(existingImageID, image);
-        } else {
-          const layer = volumeInfo.layers[index];
-          const name = layer.SeriesInstanceUID;
-          const imageID = imageStore.addVTKImageData(name, image);
-          set(this.imageIDToVolumeKey, imageID, volumeKey);
-          // push image into image array
-          set(this.volumeToImageIDs, volumeKey, [
-            ...(this.volumeToImageIDs[volumeKey] ?? []),
-            imageID,
-          ]);
-          set(this.imageIDToLayer, imageID, layer);
-        }
-      });
+      const existingImageID = this.volumeToImageID[volumeKey];
+      if (existingImageID) {
+        imageStore.updateData(existingImageID, image);
+      } else {
+        const name = this.volumeInfo[volumeKey].SeriesInstanceUID;
+        const imageID = imageStore.addVTKImageData(name, image);
+        set(this.imageIDToVolumeKey, imageID, volumeKey);
+        set(this.volumeToImageID, volumeKey, imageID);
+      }
 
       del(this.needsRebuild, volumeKey);
 
-      return images;
+      return image;
+    },
+
+    async buildResampledVolume(
+      volumeKey: string,
+      resampleSource: vtkImageData
+    ) {
+      const imageStore = useImageStore();
+
+      const dicomIO = this.$dicomIO;
+
+      const fileStore = useFileStore();
+      const files = fileStore.getFiles(volumeKey);
+      if (!files) throw new Error('No files for volume key');
+      let image = await dicomIO.buildImage(files);
+      image = await dicomIO.resample(
+        vtkITKHelper.convertVtkToItkImage(resampleSource),
+        image
+      );
+      const vtkImage = vtkITKHelper.convertItkToVtkImage(image);
+
+      const existingImageID = this.volumeToImageID[volumeKey];
+      if (existingImageID) {
+        imageStore.updateData(existingImageID, vtkImage);
+      } else {
+        const name = this.volumeInfo[volumeKey].SeriesInstanceUID;
+        const imageID = imageStore.addVTKImageData(name, vtkImage);
+        set(this.imageIDToVolumeKey, imageID, volumeKey);
+        set(this.volumeToImageID, volumeKey, imageID);
+      }
+
+      // to support loading as base layer or to different base image, always rebuild
+      set(this.needsRebuild, volumeKey, true);
+
+      return image;
+    },
+
+    deleteImage(volumeKey: string) {
+      if (volumeKey in this.volumeToImageID) {
+        const imageID = this.volumeToImageID[volumeKey];
+        const imageStore = useImageStore();
+        imageStore.deleteData(imageID!);
+        del(this.volumeToImageID, volumeKey);
+        del(this.imageIDToVolumeKey, imageID);
+      }
     },
   },
 });

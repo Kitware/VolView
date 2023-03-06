@@ -52,14 +52,14 @@ export function useSceneBuilder<
     return [];
   });
 
-  const layerReps = computed(() => {
-    const _viewID = viewID.value;
-    return (sceneIDs.layers?.value ?? [])
-      .map((id) =>
-        viewStore.getDataRepresentationForView<LayerType>(id, _viewID)
-      )
-      .filter(Boolean) as LayerType[];
-  });
+  const layerReps = computed(
+    () =>
+      (sceneIDs.layers?.value ?? [])
+        .map((id) =>
+          viewStore.getDataRepresentationForView<LayerType>(id, viewID.value)
+        )
+        .filter(Boolean) as LayerType[]
+  );
 
   const modelReps = computed(() => {
     const _viewID = viewID.value;

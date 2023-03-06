@@ -589,7 +589,7 @@ export default defineComponent({
           );
         }
 
-        // If we have a save camera configuration restore it
+        // If we have a saved camera configuration restore it
         if (cameraConfig) {
           restoreCameraConfig(cameraConfig);
 
@@ -670,7 +670,15 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- coloring --- //
+    const layerImages = computed(() =>
+      curLayerImageIDs.value.map((layerID) => imageStore.dataIndex[layerID])
+    );
+
+    watch(layerImages, () => {
+      viewProxy.value.render();
+    });
+
+    // --- layer coloring --- //
 
     const proxyManager = useProxyManager()!;
 

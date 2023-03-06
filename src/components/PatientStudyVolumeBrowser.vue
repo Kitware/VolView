@@ -12,11 +12,7 @@ import Image from 'itk-wasm/dist/core/Image';
 import type { PropType } from '@vue/composition-api';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
-import {
-  DataSelection,
-  selectionEquals,
-  useDatasetStore,
-} from '../store/datasets';
+import { DataSelection, useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
 
@@ -60,7 +56,7 @@ async function generateDICOMThumbnail(
   if (volumeKey in dicomStore.volumeInfo) {
     return (await dicomStore.getVolumeThumbnail(volumeKey)) as Image;
   }
-  return null;
+  throw new Error('No matching volume key in dicomStore');
 }
 
 export default defineComponent({
@@ -77,23 +73,36 @@ export default defineComponent({
   setup(props) {
     const { volumeKeys } = toRefs(props);
     const dicomStore = useDICOMStore();
-    const dataStore = useDatasetStore();
+    const datasetStore = useDatasetStore();
 
     const volumes = computed(() => {
       const { volumeInfo } = dicomStore;
-      return volumeKeys.value.map((volumeKey) => ({
-        key: volumeKey,
-        // for thumbnailing
-        cacheKey: dicomCacheKey(volumeKey),
-        info: volumeInfo[volumeKey],
-        // for UI selection
-        selectionKey: {
-          type: 'dicom',
-          volumeKey,
-        } as DataSelection,
-      }));
+      const loadedVolumeKey =
+        datasetStore.primarySelection?.type === 'dicom' &&
+        datasetStore.primarySelection.volumeKey;
+      return volumeKeys.value.map((volumeKey) => {
+        const layerAdded = datasetStore.layers.includes(volumeKey);
+        return {
+          key: volumeKey,
+          // for thumbnailing
+          cacheKey: dicomCacheKey(volumeKey),
+          info: volumeInfo[volumeKey],
+          // for UI selection
+          selectionKey: {
+            type: 'dicom',
+            volumeKey,
+          } as DataSelection,
+          layerable: volumeKey !== loadedVolumeKey,
+          layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
+          layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+        };
+      });
     });
 
+    const updateLayer = (volumeKey: string) =>
+      datasetStore.layers.includes(volumeKey)
+        ? datasetStore.deleteLayer(volumeKey)
+        : datasetStore.addLayer(volumeKey);
     // --- thumbnails --- //
 
     const thumbnailCache = reactive<Record<string, string>>({});
@@ -154,10 +163,7 @@ export default defineComponent({
       thumbnailCache,
       volumes,
       removeSelectedDICOMVolumes,
-      selectionEquals,
-      setPrimarySelection: (sel: DataSelection) => {
-        dataStore.setPrimarySelection(sel);
-      },
+      updateLayer,
     };
   },
 });
@@ -243,6 +249,20 @@ export default defineComponent({
                     >
                       <div class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
+                          <v-tooltip top>
+                            <template v-slot:activator="{ on, attrs }">
+                              <v-btn
+                                icon
+                                :disabled="!volume.layerable"
+                                @click.stop="updateLayer(volume.key)"
+                                v-bind="attrs"
+                                v-on="on"
+                              >
+                                <v-icon>{{ volume.layerIcon }}</v-icon>
+                              </v-btn>
+                            </template>
+                            {{ volume.layerTooltip }}
+                          </v-tooltip>
                           <v-checkbox
                             :key="volume.info.VolumeID"
                             :value="volume.key"

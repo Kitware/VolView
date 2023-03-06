@@ -12,6 +12,11 @@ export interface TagSpec {
   tag: string;
 }
 
+export type SpatialParameters = Pick<
+  Image,
+  'size' | 'spacing' | 'origin' | 'direction'
+>;
+
 // volume ID => file names
 export type VolumesToFilesMap = Record<string, string[]>;
 
@@ -168,7 +173,7 @@ export class DICOMIO {
     return result.outputs[0].data as Image;
   }
 
-  async resample(fixed: Image, moving: Image) {
+  async resample(fixed: SpatialParameters, moving: Image) {
     await this.initialize();
 
     const { size, spacing, origin, direction } = fixed;
@@ -199,21 +204,13 @@ export class DICOMIO {
   }
 
   /**
-   * Makes ItkImages, resampling to first image.
+   * Makes ItkImage
    * @async
-   * @param {File[][]} List of series for each layer
-   * @returns ItkImage[]
+   * @param {File[]} Files in series
+   * @returns ItkImage
    */
-  async buildVolume(layers: File[][]) {
+  async buildImage(seriesFiles: File[]) {
     await this.initialize();
-
-    const [fixed, ...moving] = (
-      await Promise.all(layers.map((files) => readImageDICOMFileSeries(files)))
-    ).map(({ image }) => image);
-
-    const resampled = await Promise.all(
-      moving.map((movingImage) => this.resample(fixed, movingImage))
-    );
-    return [fixed, ...resampled];
+    return readImageDICOMFileSeries(seriesFiles).then(({ image }) => image);
   }
 }

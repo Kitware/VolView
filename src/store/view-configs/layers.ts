@@ -25,8 +25,9 @@ export const MODALITY_TO_PRESET: Record<string, string> = {
 
 function getPreset(imageID: string) {
   const dicomStore = useDICOMStore();
-  const { Modality = undefined } = dicomStore.imageIDToLayer[imageID];
-  return Modality ? MODALITY_TO_PRESET[Modality] : DEFAULT_PRESET;
+  const volumeKey = dicomStore.imageIDToVolumeKey[imageID];
+  const { Modality = undefined } = dicomStore.volumeInfo[volumeKey];
+  return (Modality && MODALITY_TO_PRESET[Modality]) || DEFAULT_PRESET;
 }
 
 export const defaultLayersConfig = (): LayersConfig => ({

@@ -118,6 +118,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   // --- state --- //
 
   const primarySelection = ref<DataSelection | null>(null);
+  const layers = ref<string[]>([]); // type: Array<DataID>
 
   // --- getters --- //
 
@@ -126,8 +127,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     const { dataIndex } = imageStore;
 
     if (sel?.type === 'dicom') {
-      const { volumeToImageIDs } = dicomStore;
-      const id = volumeToImageIDs[sel.volumeKey]?.[0];
+      const { volumeToImageID } = dicomStore;
+      const id = volumeToImageID[sel.volumeKey];
       return (id && dataIndex[id]) || null;
     }
     if (sel?.type === 'image') {
@@ -146,8 +147,44 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   // --- actions --- //
 
+  async function buildVolume(
+    key: string,
+    resampleSource: vtkImageData | null = null
+  ) {
+    try {
+      if (resampleSource)
+        return await dicomStore.buildResampledVolume(key, resampleSource);
+      return await dicomStore.buildVolume(key);
+    } catch (err) {
+      if (err instanceof Error) {
+        const messageStore = useMessageStore();
+        messageStore.addError('Failed to build volume(s)', {
+          details: `${err}. More details can be found in the developer's console.`,
+        });
+      }
+      console.error(err);
+    }
+    return undefined;
+  }
+
+  async function addLayer(volumeKey: string) {
+    layers.value = [...layers.value, volumeKey];
+    // ensure image data exists
+    // assuming dicom
+    await buildVolume(volumeKey, primaryDataset.value);
+  }
+
+  async function deleteLayer(volumeKey: string) {
+    dicomStore.deleteImage(volumeKey);
+    layers.value = layers.value.filter((key) => key !== volumeKey);
+  }
+
   async function setPrimarySelection(sel: DataSelection | null) {
     primarySelection.value = sel;
+
+    layers.value.forEach((key) => {
+      deleteLayer(key);
+    });
 
     if (sel === null) {
       return;
@@ -155,18 +192,7 @@ export const useDatasetStore = defineStore('dataset', () => {
 
     // if selection is dicom, call buildVolume
     if (sel.type === 'dicom') {
-      try {
-        // trigger dicom dataset building
-        await dicomStore.buildVolume(sel.volumeKey);
-      } catch (err) {
-        if (err instanceof Error) {
-          const messageStore = useMessageStore();
-          messageStore.addError('Failed to build volume(s)', {
-            details: `${err}. More details can be found in the developer's console.`,
-          });
-        }
-        console.error(err);
-      }
+      await buildVolume(sel.volumeKey);
     }
   }
 
@@ -338,5 +364,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     loadFiles,
     serialize,
     deserialize,
+    layers,
+    addLayer,
+    deleteLayer,
   };
 });

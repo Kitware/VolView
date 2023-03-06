@@ -22,7 +22,8 @@ export default defineComponent({
     const imageName = computed(() => {
       return (
         props.imageID &&
-        (dicomStore.imageIDToLayer[props.imageID]?.Modality ||
+        (dicomStore.volumeInfo[dicomStore.imageIDToVolumeKey[props.imageID]]
+          ?.Modality ||
           imageStore.metadata[props.imageID]?.name)
       );
     });
