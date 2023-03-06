@@ -423,15 +423,13 @@ export default defineComponent({
 
     // --- arrows change slice --- //
 
-    const { currentImageID } = useCurrentImage();
-
     const hover = ref(false);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!currentImageID.value || !hover.value) return;
+      if (!curImageID.value || !hover.value) return;
 
       const sliceOffset = SLICE_OFFSET_KEYS[event.key] ?? 0;
       if (sliceOffset) {
-        viewConfigStore.updateSliceConfig(viewID.value, currentImageID.value, {
+        viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
           slice: currentSlice.value + sliceOffset,
         });
 

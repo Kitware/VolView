@@ -9,6 +9,7 @@ import { useFileStore } from './datasets-files';
 import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { DICOMIO } from '../io/dicom';
+import { resample } from '../io/resample/resample';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -408,7 +409,7 @@ export const useDICOMStore = defineStore('dicom', {
       const files = fileStore.getFiles(volumeKey);
       if (!files) throw new Error('No files for volume key');
       let image = await dicomIO.buildImage(files);
-      image = await dicomIO.resample(
+      image = await resample(
         vtkITKHelper.convertVtkToItkImage(resampleSource),
         image
       );

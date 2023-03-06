@@ -90,6 +90,19 @@ module.exports = {
               return path.basename(resourcePath).startsWith('dicom');
             },
           },
+          {
+            from: path.join(
+              __dirname,
+              'src',
+              'io',
+              'resample',
+              'emscripten-build'
+            ),
+            to: path.join(__dirname, 'dist', 'itk', 'pipelines', '[name][ext]'),
+            filter: (resourcePath) => {
+              return path.basename(resourcePath).startsWith('resample');
+            },
+          },
         ],
       }),
     ],

@@ -99,10 +99,11 @@ export default defineComponent({
       });
     });
 
-    const updateLayer = (volumeKey: string) =>
+    const layerHandler = (volumeKey: string) =>
       datasetStore.layers.includes(volumeKey)
         ? datasetStore.deleteLayer(volumeKey)
         : datasetStore.addLayer(volumeKey);
+
     // --- thumbnails --- //
 
     const thumbnailCache = reactive<Record<string, string>>({});
@@ -163,7 +164,7 @@ export default defineComponent({
       thumbnailCache,
       volumes,
       removeSelectedDICOMVolumes,
-      updateLayer,
+      layerHandler,
     };
   },
 });
@@ -254,7 +255,7 @@ export default defineComponent({
                               <v-btn
                                 icon
                                 :disabled="!volume.layerable"
-                                @click.stop="updateLayer(volume.key)"
+                                @click.stop="layerHandler(volume.key)"
                                 v-bind="attrs"
                                 v-on="on"
                               >
