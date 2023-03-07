@@ -11,6 +11,7 @@ import { useFileStore } from './datasets-files';
 import { DataSet, StateFile, DataSetType } from '../io/state-file/schema';
 import { useMessageStore } from './messages';
 import { readRemoteManifestFile } from '../io/manifest';
+import { useLayerStore, useVolumeIDToLayerID } from './datasets-layers';
 
 export const DataType = {
   Image: 'Image',
@@ -114,27 +115,32 @@ export const useDatasetStore = defineStore('dataset', () => {
   const modelStore = useModelStore();
   const dicomStore = useDICOMStore();
   const fileStore = useFileStore();
+  const layerStore = useLayerStore();
 
   // --- state --- //
 
   const primarySelection = ref<DataSelection | null>(null);
-  const layers = ref<string[]>([]); // type: Array<DataID>
 
   // --- getters --- //
 
-  const primaryDataset = computed<vtkImageData | null>(() => {
+  const primaryImageID = computed(() => {
     const sel = primarySelection.value;
-    const { dataIndex } = imageStore;
 
     if (sel?.type === 'dicom') {
       const { volumeToImageID } = dicomStore;
-      const id = volumeToImageID[sel.volumeKey];
-      return (id && dataIndex[id]) || null;
+      return volumeToImageID[sel.volumeKey];
     }
+
     if (sel?.type === 'image') {
-      return dataIndex[sel.dataID] || null;
+      return sel.dataID;
     }
-    return null;
+
+    return undefined;
+  });
+
+  const primaryDataset = computed<vtkImageData | null>(() => {
+    const { dataIndex } = imageStore;
+    return (primaryImageID.value && dataIndex[primaryImageID.value]) || null;
   });
 
   const allDataIDs = computed(() => {
@@ -147,14 +153,9 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   // --- actions --- //
 
-  async function buildVolume(
-    key: string,
-    resampleSource: vtkImageData | null = null
-  ) {
+  function buildWithErrorMessage(buildFunc: Function) {
     try {
-      if (resampleSource)
-        return await dicomStore.buildResampledVolume(key, resampleSource);
-      return await dicomStore.buildVolume(key);
+      return buildFunc();
     } catch (err) {
       if (err instanceof Error) {
         const messageStore = useMessageStore();
@@ -167,24 +168,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     return undefined;
   }
 
-  async function addLayer(volumeKey: string) {
-    layers.value = [...layers.value, volumeKey];
-    // ensure image data exists
-    // assuming dicom
-    await buildVolume(volumeKey, primaryDataset.value);
-  }
-
-  async function deleteLayer(volumeKey: string) {
-    dicomStore.deleteImage(volumeKey);
-    layers.value = layers.value.filter((key) => key !== volumeKey);
-  }
-
-  async function setPrimarySelection(sel: DataSelection | null) {
+  function setPrimarySelection(sel: DataSelection | null) {
     primarySelection.value = sel;
-
-    layers.value.forEach((key) => {
-      deleteLayer(key);
-    });
 
     if (sel === null) {
       return;
@@ -192,7 +177,7 @@ export const useDatasetStore = defineStore('dataset', () => {
 
     // if selection is dicom, call buildVolume
     if (sel.type === 'dicom') {
-      await buildVolume(sel.volumeKey);
+      buildWithErrorMessage(() => dicomStore.buildVolume(sel.volumeKey));
     }
   }
 
@@ -322,6 +307,28 @@ export const useDatasetStore = defineStore('dataset', () => {
       );
   }
 
+  // --- layers --- //
+
+  async function addLayer(volumeKey: string) {
+    return buildWithErrorMessage(async () => {
+      await dicomStore.buildVolume(volumeKey);
+      const sourceImageID = dicomStore.volumeToImageID[volumeKey]!;
+      layerStore.addLayer(primaryImageID.value!, sourceImageID);
+    });
+  }
+
+  async function deleteLayer(volumeKey: string) {
+    const layerID = useVolumeIDToLayerID(volumeKey).value;
+    if (layerID) layerStore.deleteLayer(layerID);
+  }
+
+  const layers = computed(
+    () =>
+      (primaryImageID.value &&
+        layerStore.parentToLayers[primaryImageID.value]) ||
+      []
+  );
+
   // --- watch for deletion --- //
 
   imageStore.$onAction(({ name, args, after }) => {
@@ -343,14 +350,16 @@ export const useDatasetStore = defineStore('dataset', () => {
     if (name !== 'deleteVolume') {
       return;
     }
+
+    const [volumeKey] = args;
+    deleteLayer(volumeKey);
+
     after(() => {
-      const [volumeKey] = args;
       const sel = primarySelection.value;
       if (sel?.type === 'dicom' && volumeKey === sel.volumeKey) {
         primarySelection.value = null;
       }
 
-      // remove file store entry
       fileStore.remove(volumeKey);
     });
   });

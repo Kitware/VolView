@@ -5,13 +5,15 @@ import VolumeProperties from './VolumeProperties.vue';
 import VolumeRendering from './VolumeRendering.vue';
 import VolumePresets from './VolumePresets.vue';
 import LayerList from './LayerList.vue';
+import { useDatasetStore } from '../store/datasets';
 
 export default defineComponent({
   components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
   setup() {
-    const { currentImageData, currentLayerImageIDs } = useCurrentImage();
+    const { currentImageData } = useCurrentImage();
     const hasCurrentImage = computed(() => !!currentImageData.value);
-    const hasLayers = computed(() => !!currentLayerImageIDs.value?.length);
+    const dataStore = useDatasetStore();
+    const hasLayers = computed(() => !!dataStore.layers.length);
     return {
       hasCurrentImage,
       hasLayers,

@@ -206,6 +206,7 @@ import PaintTool from './tools/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
+import { useDatasetStore } from '../store/datasets';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import { useViewConfigStore } from '../store/view-configs';
@@ -221,8 +222,8 @@ import { useWindowingSync } from '../composables/sync/useWindowingSync';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
-import { useImageStore } from '../store/datasets-images';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
+import { useLayerStore } from '../store/datasets-layers';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -276,7 +277,6 @@ export default defineComponent({
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
       isImageLoading,
-      currentLayerImageIDs: curLayerImageIDs,
     } = useCurrentImage();
 
     const dicomStore = useDICOMStore();
@@ -490,6 +490,9 @@ export default defineComponent({
       );
     });
 
+    const datasetStore = useDatasetStore();
+    const layers = computed(() => datasetStore.layers);
+
     const { baseImageRep, labelmapReps, layerReps } = useSceneBuilder<
       vtkIJKSliceRepresentationProxy,
       vtkLabelMapSliceRepProxy,
@@ -497,7 +500,7 @@ export default defineComponent({
     >(viewID, {
       baseImage: curImageID,
       labelmaps: labelmapIDs,
-      layers: curLayerImageIDs,
+      layers,
     });
 
     // --- camera setup --- //
@@ -644,17 +647,17 @@ export default defineComponent({
     // --- layers setup --- //
 
     const layersConfigs = computed(() =>
-      curLayerImageIDs.value.map((layerID) =>
+      layers.value.map((layerID) =>
         viewConfigStore.layers.getComputedConfig(viewID, layerID)
       )
     );
 
-    const imageStore = useImageStore();
+    const layerStore = useLayerStore();
     watch(
-      [viewID, curLayerImageIDs],
+      [viewID, layers],
       () => {
-        curLayerImageIDs.value.forEach((layerID, layerIndex) => {
-          const layerImageData = imageStore.dataIndex[layerID];
+        layers.value.forEach((layerID, layerIndex) => {
+          const layerImageData = layerStore.layers[layerID];
           const layerConfig = layersConfigs.value[layerIndex].value;
           if (layerImageData && !layerConfig) {
             viewConfigStore.layers.resetToDefault(
@@ -669,7 +672,7 @@ export default defineComponent({
     );
 
     const layerImages = computed(() =>
-      curLayerImageIDs.value.map((layerID) => imageStore.dataIndex[layerID])
+      layers.value.map((layerID) => layerStore.layers[layerID])
     );
 
     watch(layerImages, () => {
@@ -689,7 +692,6 @@ export default defineComponent({
     const opacityFunctions = computed(() =>
       layersConfigs.value.map((config) => config.value?.opacityFunction)
     );
-
     const blendConfigs = computed(() =>
       layersConfigs.value.map((config) => config.value?.blendConfig)
     );

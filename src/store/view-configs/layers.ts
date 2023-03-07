@@ -16,18 +16,17 @@ import {
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
 import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
-import { useDICOMStore } from '../datasets-dicom';
-import { useImageStore } from '../datasets-images';
+import { useLayerStore, useLayerModality, LayerID } from '../datasets-layers';
 
 export const MODALITY_TO_PRESET: Record<string, string> = {
   PT: '2hot',
 };
 
-function getPreset(imageID: string) {
-  const dicomStore = useDICOMStore();
-  const volumeKey = dicomStore.imageIDToVolumeKey[imageID];
-  const { Modality = undefined } = dicomStore.volumeInfo[volumeKey];
-  return (Modality && MODALITY_TO_PRESET[Modality]) || DEFAULT_PRESET;
+function getPreset(id: LayerID) {
+  const modality = useLayerModality(id);
+  return (
+    (modality.value && MODALITY_TO_PRESET[modality.value]) || DEFAULT_PRESET
+  );
 }
 
 export const defaultLayersConfig = (): LayersConfig => ({
@@ -78,7 +77,7 @@ export const setupLayersConfig = () => {
   ) => {
     return (
       viewID: string,
-      dataID: string,
+      dataID: LayerID,
       update: Partial<LayersConfig[K]>
     ) => {
       const config = layersConfigs.get(viewID, dataID) ?? defaultLayersConfig();
@@ -95,9 +94,9 @@ export const setupLayersConfig = () => {
   const updateOpacityFunction = createUpdateFunc('opacityFunction');
   const updateBlendConfig = createUpdateFunc('blendConfig');
 
-  const setColorPreset = (viewID: string, imageID: string, preset: string) => {
-    const imageStore = useImageStore();
-    const image = imageStore.dataIndex[imageID];
+  const setColorPreset = (viewID: string, imageID: LayerID, preset: string) => {
+    const layerStore = useLayerStore();
+    const image = layerStore.layers[imageID];
     if (!image) return;
     const imageDataRange = image.getPointData().getScalars().getRange();
 
@@ -116,7 +115,7 @@ export const setupLayersConfig = () => {
 
   const resetToDefault = (
     viewID: string,
-    dataID: string,
+    dataID: LayerID,
     image: vtkImageData
   ) => {
     const scalars = image.getPointData().getScalars();

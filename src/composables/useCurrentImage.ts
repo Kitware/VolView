@@ -41,13 +41,6 @@ export function useCurrentImage() {
     return null;
   });
 
-  const currentLayerImageIDs = computed(
-    () =>
-      dataStore.layers
-        .map((volumeKey) => dicomStore.volumeToImageID[volumeKey])
-        .filter(Boolean) as string[]
-  );
-
   const currentImageMetadata = computed(() => {
     const { metadata } = imageStore;
     const imageID = currentImageID.value;
@@ -79,6 +72,5 @@ export function useCurrentImage() {
     currentImageMetadata,
     currentImageExtent,
     isImageLoading,
-    currentLayerImageIDs,
   };
 }

@@ -1,5 +1,4 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { set, del } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
@@ -9,7 +8,6 @@ import { useFileStore } from './datasets-files';
 import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { DICOMIO } from '../io/dicom';
-import { resample } from '../io/resample/resample';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -395,50 +393,6 @@ export const useDICOMStore = defineStore('dicom', {
       del(this.needsRebuild, volumeKey);
 
       return image;
-    },
-
-    async buildResampledVolume(
-      volumeKey: string,
-      resampleSource: vtkImageData
-    ) {
-      const imageStore = useImageStore();
-
-      const dicomIO = this.$dicomIO;
-
-      const fileStore = useFileStore();
-      const files = fileStore.getFiles(volumeKey);
-      if (!files) throw new Error('No files for volume key');
-      let image = await dicomIO.buildImage(files);
-      image = await resample(
-        vtkITKHelper.convertVtkToItkImage(resampleSource),
-        image
-      );
-      const vtkImage = vtkITKHelper.convertItkToVtkImage(image);
-
-      const existingImageID = this.volumeToImageID[volumeKey];
-      if (existingImageID) {
-        imageStore.updateData(existingImageID, vtkImage);
-      } else {
-        const name = this.volumeInfo[volumeKey].SeriesInstanceUID;
-        const imageID = imageStore.addVTKImageData(name, vtkImage);
-        set(this.imageIDToVolumeKey, imageID, volumeKey);
-        set(this.volumeToImageID, volumeKey, imageID);
-      }
-
-      // to support loading as base layer or to different base image, always rebuild
-      set(this.needsRebuild, volumeKey, true);
-
-      return image;
-    },
-
-    deleteImage(volumeKey: string) {
-      if (volumeKey in this.volumeToImageID) {
-        const imageID = this.volumeToImageID[volumeKey];
-        const imageStore = useImageStore();
-        imageStore.deleteData(imageID!);
-        del(this.volumeToImageID, volumeKey);
-        del(this.imageIDToVolumeKey, imageID);
-      }
     },
   },
 });

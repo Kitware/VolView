@@ -15,6 +15,7 @@ import { useDICOMStore } from '../store/datasets-dicom';
 import { DataSelection, useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
+import { useLayerVolumeID } from '../store/datasets-layers';
 
 const canvas = document.createElement('canvas');
 
@@ -80,8 +81,11 @@ export default defineComponent({
       const loadedVolumeKey =
         datasetStore.primarySelection?.type === 'dicom' &&
         datasetStore.primarySelection.volumeKey;
+      const loadedLayerVolumeIDs = datasetStore.layers.map(
+        (layerID) => useLayerVolumeID(layerID).value
+      );
       return volumeKeys.value.map((volumeKey) => {
-        const layerAdded = datasetStore.layers.includes(volumeKey);
+        const layerAdded = loadedLayerVolumeIDs.includes(volumeKey);
         return {
           key: volumeKey,
           // for thumbnailing
@@ -92,17 +96,16 @@ export default defineComponent({
             type: 'dicom',
             volumeKey,
           } as DataSelection,
-          layerable: volumeKey !== loadedVolumeKey,
+          layerable:
+            volumeKey !== loadedVolumeKey && datasetStore.primarySelection,
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+          layerHandler: layerAdded
+            ? () => datasetStore.deleteLayer(volumeKey)
+            : () => datasetStore.addLayer(volumeKey),
         };
       });
     });
-
-    const layerHandler = (volumeKey: string) =>
-      datasetStore.layers.includes(volumeKey)
-        ? datasetStore.deleteLayer(volumeKey)
-        : datasetStore.addLayer(volumeKey);
 
     // --- thumbnails --- //
 
@@ -164,7 +167,6 @@ export default defineComponent({
       thumbnailCache,
       volumes,
       removeSelectedDICOMVolumes,
-      layerHandler,
     };
   },
 });
@@ -255,9 +257,10 @@ export default defineComponent({
                               <v-btn
                                 icon
                                 :disabled="!volume.layerable"
-                                @click.stop="layerHandler(volume.key)"
+                                @click.stop="volume.layerHandler()"
                                 v-bind="attrs"
                                 v-on="on"
+                                class="mt-1"
                               >
                                 <v-icon>{{ volume.layerIcon }}</v-icon>
                               </v-btn>
