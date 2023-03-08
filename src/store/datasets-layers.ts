@@ -1,12 +1,13 @@
 import { computed, ref, set, del } from '@vue/composition-api';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { resample } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
 
-export type LayerID = string & { __type: 'LayerID' }; // branded type
+export type LayerID = string & { __type: 'LayerID' }; // differ from Image/Volume IDs with a branded type
 
 export const useLayerStore = defineStore('layer', () => {
   type _This = ReturnType<typeof useLayerStore>;
@@ -29,6 +30,13 @@ export const useLayerStore = defineStore('layer', () => {
     if (!sourceData) {
       throw new Error('No image data for sourceImageID');
     }
+
+    if (
+      !vtkBoundingBox.intersects(sourceData.getBounds(), parentData.getBounds())
+    )
+      throw new Error(
+        'Image bounds do not intersect, so no physical overlap in space'
+      );
 
     const image = await resample(
       vtkITKHelper.convertVtkToItkImage(parentData),

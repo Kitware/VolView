@@ -153,9 +153,9 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   // --- actions --- //
 
-  function buildWithErrorMessage(buildFunc: Function) {
+  async function buildWithErrorMessage(buildFunc: Function) {
     try {
-      return buildFunc();
+      return await buildFunc();
     } catch (err) {
       if (err instanceof Error) {
         const messageStore = useMessageStore();
@@ -311,9 +311,10 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   async function addLayer(volumeKey: string) {
     return buildWithErrorMessage(async () => {
+      const cachedID = primaryImageID.value!; // save in case user changes selection while loading layer source image
       await dicomStore.buildVolume(volumeKey);
       const sourceImageID = dicomStore.volumeToImageID[volumeKey]!;
-      layerStore.addLayer(primaryImageID.value!, sourceImageID);
+      await layerStore.addLayer(cachedID, sourceImageID);
     });
   }
 

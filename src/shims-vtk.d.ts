@@ -283,6 +283,7 @@ declare module '@kitware/vtk.js/Common/DataModel/BoundingBox' {
   import { Bounds } from '@kitware/vtk.js/types';
   export function inflate(bounds: Bounds, delta: number);
   export function getDiagonalLength(bounds: Bounds): number;
+  export function intersects(bounds1: Bounds, bounds2: Bounds): boolean;
 }
 
 declare module '@kitware/vtk.js/IO/XML/XMLImageDataWriter' {
