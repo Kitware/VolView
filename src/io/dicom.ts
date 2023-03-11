@@ -204,13 +204,16 @@ export class DICOMIO {
   }
 
   /**
-   * Makes ItkImage
+   * Builds a volume for a set of files.
    * @async
-   * @param {File[]} Files in series
+   * @param {File[]} seriesFiles the set of files to build volume from
    * @returns ItkImage
    */
   async buildImage(seriesFiles: File[]) {
     await this.initialize();
-    return readImageDICOMFileSeries(seriesFiles).then(({ image }) => image);
+
+    const result = await readImageDICOMFileSeries(seriesFiles);
+
+    return result.image;
   }
 }
