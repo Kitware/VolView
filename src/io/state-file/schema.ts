@@ -273,6 +273,15 @@ const Tools = z.object({
 
 export type Tools = z.infer<typeof Tools>;
 
+export const ParentToLayers = z
+  .object({
+    selectionKey: z.string(),
+    sourceSelectionKeys: z.string().array(),
+  })
+  .array();
+
+export type ParentToLayers = z.infer<typeof ParentToLayers>;
+
 export const ManifestSchema = z.object({
   version: z.string(),
   dataSets: DataSet.array(),
@@ -281,6 +290,7 @@ export const ManifestSchema = z.object({
   views: View.array(),
   primarySelection: z.string().optional(),
   layout: Layout,
+  parentToLayers: ParentToLayers,
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;

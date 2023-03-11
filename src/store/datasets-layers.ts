@@ -14,6 +14,7 @@ import {
   useImageID,
 } from './datasets';
 import { useErrorMessage } from '../composables/useErrorMessage';
+import { Manifest, StateFile } from '../io/state-file/schema';
 
 // differ from Image/Volume IDs with a branded type
 type DataSelectionKey = string & { __type: 'DataSelectionKey' };
@@ -178,6 +179,47 @@ export const useLayersStore = defineStore('layer', () => {
     deleteSelection(selection);
   });
 
+  function serialize(this: _This, state: StateFile) {
+    state.manifest.parentToLayers = Object.entries(this.parentToLayers).map(
+      ([selectionKey, layers]) => ({
+        selectionKey,
+        sourceSelectionKeys: layers.map(({ selection }) =>
+          toDataSelectionKey(selection)
+        ),
+      })
+    );
+  }
+
+  function deserialize(
+    this: _This,
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
+    const remapSelection = (selection: DataSelection) => {
+      if (selection.type === 'dicom')
+        return makeDICOMSelection(dataIDMap[selection.volumeKey]);
+      if (selection.type === 'image')
+        return makeImageSelection(dataIDMap[selection.dataID]);
+      const _exhaustiveCheck: never = selection;
+      return _exhaustiveCheck;
+    };
+
+    const { parentToLayers: parentToLayersSerialized } = manifest;
+    parentToLayersSerialized.forEach(
+      ({ selectionKey, sourceSelectionKeys }) => {
+        const parent = remapSelection(
+          toDataSelectionFromKey(selectionKey as DataSelectionKey)
+        );
+        sourceSelectionKeys.forEach((sourceKey) => {
+          const source = remapSelection(
+            toDataSelectionFromKey(sourceKey as DataSelectionKey)
+          );
+          this.addLayer(parent, source);
+        });
+      }
+    );
+  }
+
   return {
     parentToLayers,
     _addLayer,
@@ -185,5 +227,7 @@ export const useLayersStore = defineStore('layer', () => {
     deleteLayer,
     getLayers,
     getLayer,
+    serialize,
+    deserialize,
   };
 });

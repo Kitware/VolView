@@ -15,6 +15,7 @@ import {
   makeImageSelection,
 } from '../../store/datasets';
 import { useDICOMStore } from '../../store/datasets-dicom';
+import { useLayersStore } from '../../store/datasets-layers';
 import {
   ARCHIVE_FILE_TYPES,
   extractArchivesRecursively,
@@ -24,13 +25,14 @@ import { FileEntry } from '../types';
 import { Manifest, ManifestSchema } from './schema';
 
 const MANIFEST = 'manifest.json';
-const VERSION = '0.0.1';
+const VERSION = '0.0.2';
 
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
   const labelStore = useLabelmapStore();
   const toolStore = useToolStore();
+  const layersStore = useLayersStore();
 
   const zip = new JSZip();
   const manifest: Manifest = {
@@ -56,6 +58,7 @@ export async function save(fileName: string) {
       items: [],
     },
     views: [],
+    parentToLayers: [],
   };
 
   const stateFile = {
@@ -67,6 +70,7 @@ export async function save(fileName: string) {
   viewStore.serialize(stateFile);
   await labelStore.serialize(stateFile);
   toolStore.serialize(stateFile);
+  await layersStore.serialize(stateFile);
 
   zip.file(MANIFEST, JSON.stringify(manifest));
   const content = await zip.generateAsync({ type: 'blob' });
@@ -80,6 +84,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const viewStore = useViewStore();
   const labelStore = useLabelmapStore();
   const toolStore = useToolStore();
+  const layersStore = useLayersStore();
 
   // First load the manifest
   const manifestFile = state.filter((entry) => entry.file.name === MANIFEST);
@@ -101,11 +106,13 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const statuses: LoadResult[] = [];
 
   // We load them sequentially to preserve the order
+  // eslint-disable-next-line no-restricted-syntax
   for (const dataSet of dataSets) {
     const files = state
       .filter((entry) => entry.path === dataSet.path)
       .map((entry) => entry.file);
 
+    // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore
       .deserialize(dataSet, files)
       .then((result) => {
@@ -146,6 +153,8 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   // Restore the tools
   toolStore.deserialize(manifest, labelmapIDMap, stateIDToStoreID);
+
+  layersStore.deserialize(manifest, stateIDToStoreID);
 
   return new Promise<LoadResult[]>((resolve) => {
     resolve(statuses);
