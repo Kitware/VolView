@@ -2,6 +2,7 @@ import { computed } from '@vue/composition-api';
 import { useDatasetStore } from '../store/datasets';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { defaultImageMetadata, useImageStore } from '../store/datasets-images';
+import { useLayersStore } from '../store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '../utils/lps';
 
 // Returns a spatially inflated image extent
@@ -27,6 +28,7 @@ export function useCurrentImage() {
   const dataStore = useDatasetStore();
   const dicomStore = useDICOMStore();
   const imageStore = useImageStore();
+  const layersStore = useLayersStore();
 
   const currentImageID = computed(() => {
     const { primarySelection } = dataStore;
@@ -66,11 +68,16 @@ export function useCurrentImage() {
     return !!dataStore.primarySelection && !dataStore.primaryDataset;
   });
 
+  const currentLayers = computed(
+    () => layersStore.getLayers(dataStore.primarySelection) ?? []
+  );
+
   return {
     currentImageData,
     currentImageID,
     currentImageMetadata,
     currentImageExtent,
     isImageLoading,
+    currentLayers,
   };
 }

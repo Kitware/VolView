@@ -9,11 +9,8 @@ import { InitViewSpecs } from '../config';
 import { useImageStore } from '../store/datasets-images';
 import { useViewConfigStore } from '../store/view-configs';
 import { BlendConfig } from '../types/views';
-import {
-  useLayerModality,
-  useLayerStore,
-  LayerID,
-} from '../store/datasets-layers';
+import { Layer } from '../store/datasets-layers';
+import { useDICOMStore } from '../store/datasets-dicom';
 
 const VIEWS_2D = Object.entries(InitViewSpecs)
   .filter(([, { viewType }]) => viewType === '2D')
@@ -22,39 +19,40 @@ const VIEWS_2D = Object.entries(InitViewSpecs)
 export default defineComponent({
   name: 'LayerProperties',
   props: {
-    layerID: {
+    layer: {
       required: true,
-      type: String as unknown as PropType<LayerID>,
+      type: Object as PropType<Layer>,
     },
   },
   setup(props) {
     const imageStore = useImageStore();
-    const layerStore = useLayerStore();
 
     const imageName = computed(() => {
-      const imageID =
-        props.layerID && layerStore.layerIDToImageID[props.layerID];
-      const modality = useLayerModality(props.layerID);
-      return modality.value || imageStore.metadata[imageID!]?.name;
+      const { selection } = props.layer;
+      if (selection.type === 'dicom')
+        return useDICOMStore().volumeInfo[selection.volumeKey].Modality;
+      if (selection.type === 'image')
+        return imageStore.metadata[selection.dataID];
+      const _exhaustiveCheck: never = selection;
+      return _exhaustiveCheck;
     });
 
     const viewConfigStore = useViewConfigStore();
 
+    const layerID = props.layer.id;
+
     const layerConfigs = computed(() =>
       VIEWS_2D.map((viewID) => ({
-        config: viewConfigStore.layers.getComputedConfig(
-          viewID,
-          props.layerID!
-        ),
+        config: viewConfigStore.layers.getComputedConfig(viewID, layerID),
         viewID,
       }))
     );
 
     watch(layerConfigs, () => {
       layerConfigs.value.forEach(({ config, viewID }) => {
-        if (props.layerID && !config.value) {
+        if (!config.value) {
           // init to defaults
-          viewConfigStore.layers.updateBlendConfig(viewID, props.layerID, {});
+          viewConfigStore.layers.updateBlendConfig(viewID, layerID, {});
         }
       });
     });
@@ -64,9 +62,8 @@ export default defineComponent({
     );
 
     const setBlendConfig = (key: keyof BlendConfig, value: any) => {
-      if (!props.layerID) return;
       layerConfigs.value.forEach(({ viewID }) =>
-        viewConfigStore.layers.updateBlendConfig(viewID, props.layerID, {
+        viewConfigStore.layers.updateBlendConfig(viewID, layerID, {
           [key]: value,
         })
       );

@@ -15,7 +15,7 @@ import { useDICOMStore } from '../store/datasets-dicom';
 import { DataSelection, useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
-import { useLayerVolumeID } from '../store/datasets-layers';
+import { useLayersStore } from '../store/datasets-layers';
 
 const canvas = document.createElement('canvas');
 
@@ -75,34 +75,38 @@ export default defineComponent({
     const { volumeKeys } = toRefs(props);
     const dicomStore = useDICOMStore();
     const datasetStore = useDatasetStore();
+    const layersStore = useLayersStore();
 
     const volumes = computed(() => {
       const { volumeInfo } = dicomStore;
-      const loadedVolumeKey =
-        datasetStore.primarySelection?.type === 'dicom' &&
-        datasetStore.primarySelection.volumeKey;
-      const loadedLayerVolumeIDs = datasetStore.layers.map(
-        (layerID) => useLayerVolumeID(layerID).value
-      );
+      const { primarySelection } = datasetStore;
+      const layerVolumeKeys = layersStore
+        .getLayers(primarySelection)
+        .map(
+          ({ selection }) => selection.type === 'dicom' && selection.volumeKey
+        )
+        .filter(Boolean);
+      const selectedVolumeKey =
+        primarySelection?.type === 'dicom' && primarySelection.volumeKey;
       return volumeKeys.value.map((volumeKey) => {
-        const layerAdded = loadedLayerVolumeIDs.includes(volumeKey);
+        const selectionKey = {
+          type: 'dicom',
+          volumeKey,
+        } as DataSelection;
+        const layerAdded = layerVolumeKeys.includes(volumeKey);
         return {
           key: volumeKey,
           // for thumbnailing
           cacheKey: dicomCacheKey(volumeKey),
           info: volumeInfo[volumeKey],
           // for UI selection
-          selectionKey: {
-            type: 'dicom',
-            volumeKey,
-          } as DataSelection,
-          layerable:
-            volumeKey !== loadedVolumeKey && datasetStore.primarySelection,
+          selectionKey,
+          layerable: volumeKey !== selectedVolumeKey && primarySelection,
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
           layerHandler: layerAdded
-            ? () => datasetStore.deleteLayer(volumeKey)
-            : () => datasetStore.addLayer(volumeKey),
+            ? () => layersStore.deleteLayer(primarySelection, selectionKey)
+            : () => layersStore.addLayer(primarySelection, selectionKey),
         };
       });
     });

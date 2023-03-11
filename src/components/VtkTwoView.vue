@@ -206,7 +206,6 @@ import PaintTool from './tools/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
-import { useDatasetStore } from '../store/datasets';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import { useViewConfigStore } from '../store/view-configs';
@@ -223,7 +222,6 @@ import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
-import { useLayerStore } from '../store/datasets-layers';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -277,6 +275,7 @@ export default defineComponent({
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
       isImageLoading,
+      currentLayers,
     } = useCurrentImage();
 
     const dicomStore = useDICOMStore();
@@ -490,8 +489,7 @@ export default defineComponent({
       );
     });
 
-    const datasetStore = useDatasetStore();
-    const layers = computed(() => datasetStore.layers);
+    const layerIDs = computed(() => currentLayers.value.map(({ id }) => id));
 
     const { baseImageRep, labelmapReps, layerReps } = useSceneBuilder<
       vtkIJKSliceRepresentationProxy,
@@ -500,7 +498,7 @@ export default defineComponent({
     >(viewID, {
       baseImage: curImageID,
       labelmaps: labelmapIDs,
-      layers,
+      layers: layerIDs,
     });
 
     // --- camera setup --- //
@@ -647,37 +645,23 @@ export default defineComponent({
     // --- layers setup --- //
 
     const layersConfigs = computed(() =>
-      layers.value.map((layerID) =>
-        viewConfigStore.layers.getComputedConfig(viewID, layerID)
+      layerIDs.value.map((id) =>
+        viewConfigStore.layers.getComputedConfig(viewID, id)
       )
     );
 
-    const layerStore = useLayerStore();
     watch(
-      [viewID, layers],
+      [viewID, currentLayers],
       () => {
-        layers.value.forEach((layerID, layerIndex) => {
-          const layerImageData = layerStore.layers[layerID];
+        currentLayers.value.forEach(({ image, id }, layerIndex) => {
           const layerConfig = layersConfigs.value[layerIndex].value;
-          if (layerImageData && !layerConfig) {
-            viewConfigStore.layers.resetToDefault(
-              viewID.value,
-              layerID,
-              layerImageData
-            );
+          if (image && !layerConfig) {
+            viewConfigStore.layers.resetToDefault(viewID.value, id, image);
           }
         });
       },
       { immediate: true }
     );
-
-    const layerImages = computed(() =>
-      layers.value.map((layerID) => layerStore.layers[layerID])
-    );
-
-    watch(layerImages, () => {
-      viewProxy.value.render();
-    });
 
     // --- layer coloring --- //
 

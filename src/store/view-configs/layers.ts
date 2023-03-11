@@ -16,17 +16,25 @@ import {
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
 import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
-import { useLayerStore, useLayerModality, LayerID } from '../datasets-layers';
+import { LayerID, useLayersStore } from '../datasets-layers';
+import { useDICOMStore } from '../datasets-dicom';
 
 export const MODALITY_TO_PRESET: Record<string, string> = {
   PT: '2hot',
 };
 
 function getPreset(id: LayerID) {
-  const modality = useLayerModality(id);
-  return (
-    (modality.value && MODALITY_TO_PRESET[modality.value]) || DEFAULT_PRESET
-  );
+  const layersStore = useLayersStore();
+  const layer = layersStore.getLayer(id);
+  if (layer) {
+    if (layer.selection.type === 'dicom') {
+      const dicomStore = useDICOMStore();
+      const { Modality = undefined } =
+        dicomStore.volumeInfo[layer.selection.volumeKey];
+      return (Modality && MODALITY_TO_PRESET[Modality]) || DEFAULT_PRESET;
+    }
+  }
+  return DEFAULT_PRESET;
 }
 
 export const defaultLayersConfig = (): LayersConfig => ({
@@ -94,10 +102,12 @@ export const setupLayersConfig = () => {
   const updateOpacityFunction = createUpdateFunc('opacityFunction');
   const updateBlendConfig = createUpdateFunc('blendConfig');
 
-  const setColorPreset = (viewID: string, imageID: LayerID, preset: string) => {
-    const layerStore = useLayerStore();
-    const image = layerStore.layers[imageID];
-    if (!image) return;
+  const setColorPreset = (viewID: string, layerID: LayerID, preset: string) => {
+    const layersStore = useLayersStore();
+    const layer = layersStore.getLayer(layerID);
+    if (!layer) return;
+    const { image } = layer;
+
     const imageDataRange = image.getPointData().getScalars().getRange();
 
     const ctRange = getColorFunctionRangeFromPreset(preset);
@@ -105,12 +115,12 @@ export const setupLayersConfig = () => {
       preset,
       mappingRange: ctRange || imageDataRange,
     };
-    updateTransferFunction(viewID, imageID, ctFunc);
+    updateTransferFunction(viewID, layerID, ctFunc);
 
     const opFunc = getOpacityFunctionFromPreset(preset);
     const opRange = getOpacityRangeFromPreset(preset);
     opFunc.mappingRange = opRange || imageDataRange;
-    updateOpacityFunction(viewID, imageID, opFunc);
+    updateOpacityFunction(viewID, layerID, opFunc);
   };
 
   const resetToDefault = (

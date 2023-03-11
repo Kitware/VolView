@@ -1,6 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
-import { useDatasetStore } from '../store/datasets';
+import { useCurrentImage } from '../composables/useCurrentImage';
 import LayerProperties from './LayerProperties.vue';
 
 export default defineComponent({
@@ -9,8 +9,8 @@ export default defineComponent({
     LayerProperties,
   },
   setup() {
-    const dataStore = useDatasetStore();
-    const layers = computed(() => [...dataStore.layers].reverse());
+    const { currentLayers } = useCurrentImage();
+    const layers = computed(() => [...currentLayers.value].reverse());
 
     return {
       layers,
@@ -21,7 +21,7 @@ export default defineComponent({
 
 <template>
   <div class="mx-2">
-    <layer-properties v-for="layer in layers" :key="layer" :layerID="layer">
+    <layer-properties v-for="layer in layers" :key="layer.id" :layer="layer">
     </layer-properties>
   </div>
 </template>
