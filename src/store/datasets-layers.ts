@@ -10,6 +10,7 @@ import {
   DataSelection,
   makeDICOMSelection,
   makeImageSelection,
+  selectionEquals,
   useImageID,
 } from './datasets';
 import { useErrorMessage } from '../composables/useErrorMessage';
@@ -22,13 +23,6 @@ export type Layer = {
   selection: DataSelection;
   image: vtkImageData;
   id: LayerID;
-};
-
-const compareDataSelection = (a: DataSelection, b: DataSelection) => {
-  if (a.type === 'dicom' && b.type === 'dicom')
-    return a.volumeKey === b.volumeKey;
-  if (a.type === 'image' && b.type === 'image') return a.dataID === b.dataID;
-  return false;
 };
 
 const toDataSelectionKey = (selection: DataSelection) => {
@@ -125,7 +119,7 @@ export const useLayersStore = defineStore('layer', () => {
     const layers = this.parentToLayers[parentKey] ?? [];
 
     const layerToDelete = layers.find(({ selection }) =>
-      compareDataSelection(selection, source)
+      selectionEquals(selection, source)
     );
     if (!layerToDelete) return;
 

@@ -19,6 +19,7 @@ import {
   useDatasetStore,
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
+import { useLayersStore } from '../store/datasets-layers';
 
 function imageCacheKey(dataID: string) {
   return `image-${dataID}`;
@@ -34,6 +35,7 @@ export default defineComponent({
     const imageStore = useImageStore();
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
+    const layersStore = useLayersStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -43,18 +45,41 @@ export default defineComponent({
 
     const images = computed(() => {
       const { metadata } = imageStore;
-      return nonDICOMImages.value.map((id) => ({
-        id,
-        cacheKey: imageCacheKey(id),
-        // for UI selection
-        selectionKey: {
+      const layerImageIDs = layersStore
+        .getLayers(primarySelection.value)
+        .map(({ selection }) => selection.type === 'image' && selection.dataID)
+        .filter(Boolean);
+      const selectedImageID =
+        primarySelection.value?.type === 'image' &&
+        primarySelection.value?.dataID;
+
+      return nonDICOMImages.value.map((id) => {
+        const selectionKey = {
           type: 'image',
           dataID: id,
-        } as DataSelection,
-        name: metadata[id].name,
-        dimensions: metadata[id].dimensions,
-        spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
-      }));
+        } as DataSelection;
+        const layerAdded = layerImageIDs.includes(id);
+        return {
+          id,
+          cacheKey: imageCacheKey(id),
+          // for UI selection
+          selectionKey: {
+            type: 'image',
+            dataID: id,
+          } as DataSelection,
+          name: metadata[id].name,
+          dimensions: metadata[id].dimensions,
+          spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
+
+          layerable: id !== selectedImageID && primarySelection.value,
+          layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
+          layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+          layerHandler: layerAdded
+            ? () =>
+                layersStore.deleteLayer(primarySelection.value, selectionKey)
+            : () => layersStore.addLayer(primarySelection.value, selectionKey),
+        };
+      });
     });
 
     // --- thumbnails --- //
@@ -179,6 +204,22 @@ export default defineComponent({
           </div>
           <div class="caption">Dims: ({{ image.dimensions.join(', ') }})</div>
           <div class="caption">Spacing: ({{ image.spacing.join(', ') }})</div>
+
+          <v-tooltip top>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn
+                icon
+                :disabled="!image.layerable"
+                @click.stop="image.layerHandler()"
+                v-bind="attrs"
+                v-on="on"
+                class="mt-1"
+              >
+                <v-icon>{{ image.layerIcon }}</v-icon>
+              </v-btn>
+            </template>
+            {{ image.layerTooltip }}
+          </v-tooltip>
         </image-list-card>
       </groupable-item>
     </item-group>

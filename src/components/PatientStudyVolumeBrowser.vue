@@ -88,6 +88,7 @@ export default defineComponent({
         .filter(Boolean);
       const selectedVolumeKey =
         primarySelection?.type === 'dicom' && primarySelection.volumeKey;
+
       return volumeKeys.value.map((volumeKey) => {
         const selectionKey = {
           type: 'dicom',

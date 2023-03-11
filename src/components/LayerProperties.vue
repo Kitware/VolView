@@ -32,7 +32,7 @@ export default defineComponent({
       if (selection.type === 'dicom')
         return useDICOMStore().volumeInfo[selection.volumeKey].Modality;
       if (selection.type === 'image')
-        return imageStore.metadata[selection.dataID];
+        return imageStore.metadata[selection.dataID].name;
       const _exhaustiveCheck: never = selection;
       return _exhaustiveCheck;
     });
