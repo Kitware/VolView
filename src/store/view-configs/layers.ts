@@ -104,9 +104,8 @@ export const setupLayersConfig = () => {
 
   const setColorPreset = (viewID: string, layerID: LayerID, preset: string) => {
     const layersStore = useLayersStore();
-    const layer = layersStore.getLayer(layerID);
-    if (!layer) return;
-    const { image } = layer;
+    const image = layersStore.layerImages[layerID];
+    if (!image) throw new Error('No image for layer');
 
     const imageDataRange = image.getPointData().getScalars().getRange();
 

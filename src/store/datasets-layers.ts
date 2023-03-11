@@ -1,4 +1,4 @@
-import { ref, set } from '@vue/composition-api';
+import { del, ref, set } from '@vue/composition-api';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
@@ -22,7 +22,6 @@ export type LayerID = string & { __type: 'LayerID' };
 
 export type Layer = {
   selection: DataSelection;
-  image: vtkImageData;
   id: LayerID;
 };
 
@@ -56,6 +55,7 @@ export const useLayersStore = defineStore('layer', () => {
   type _This = ReturnType<typeof useLayersStore>;
 
   const parentToLayers = ref<Record<DataSelectionKey, Layer[]>>({});
+  const layerImages = ref<Record<LayerID, vtkImageData>>({});
 
   async function _addLayer(
     this: _This,
@@ -66,6 +66,13 @@ export const useLayersStore = defineStore('layer', () => {
       console.warn('Tried to addLayer without parent data selection');
       return;
     }
+    const parentKey = toDataSelectionKey(parent);
+    const id = `${parentKey}::${toDataSelectionKey(source)}`;
+    set(this.parentToLayers, parentKey, [
+      ...(this.parentToLayers[parentKey] ?? []),
+      { selection: source, id } as Layer,
+    ]);
+
     const [parentImage, sourceImage] = await Promise.all(
       [parent, source].map(useImage)
     );
@@ -75,10 +82,12 @@ export const useLayersStore = defineStore('layer', () => {
         parentImage.getBounds(),
         sourceImage.getBounds()
       )
-    )
+    ) {
+      this.deleteLayer(parent, source);
       throw new Error(
         'Image bounds do not intersect, so no overlap in physical space'
       );
+    }
 
     const itkImage = await resample(
       vtkITKHelper.convertVtkToItkImage(parentImage),
@@ -86,14 +95,10 @@ export const useLayersStore = defineStore('layer', () => {
     );
     const image = vtkITKHelper.convertItkToVtkImage(itkImage);
 
-    const parentKey = toDataSelectionKey(parent);
-    const id = `${parentKey}::${toDataSelectionKey(source)}`;
-    set(this.parentToLayers, parentKey, [
-      ...(this.parentToLayers[parentKey] ?? []),
-      { selection: source, image, id } as Layer,
-    ]);
-
     this.$proxies.addData(id, image);
+
+    // calling after adding data to proxy manager delays enabling deletion, thus avoiding error
+    set(this.layerImages, id, image);
   }
 
   async function addLayer(
@@ -130,7 +135,11 @@ export const useLayersStore = defineStore('layer', () => {
       layers.filter((layer) => layer !== layerToDelete)
     );
 
-    this.$proxies.deleteData(layerToDelete.id);
+    del(this.layerImages, layerToDelete.id);
+
+    // May have errored creating data, so check before delete
+    if (this.$proxies.getData(layerToDelete.id))
+      this.$proxies.deleteData(layerToDelete.id);
   }
 
   function getLayers(key: DataSelection | null | undefined) {
@@ -222,6 +231,7 @@ export const useLayersStore = defineStore('layer', () => {
 
   return {
     parentToLayers,
+    layerImages,
     _addLayer,
     addLayer,
     deleteLayer,

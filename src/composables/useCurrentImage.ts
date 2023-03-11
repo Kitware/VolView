@@ -68,8 +68,10 @@ export function useCurrentImage() {
     return !!dataStore.primarySelection && !dataStore.primaryDataset;
   });
 
-  const currentLayers = computed(
-    () => layersStore.getLayers(dataStore.primarySelection) ?? []
+  const currentLayers = computed(() =>
+    layersStore
+      .getLayers(dataStore.primarySelection)
+      .filter(({ id }) => id in layersStore.layerImages)
   );
 
   return {

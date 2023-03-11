@@ -222,6 +222,7 @@ import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
+import { useLayersStore } from '../store/datasets-layers';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -650,10 +651,12 @@ export default defineComponent({
       )
     );
 
+    const layersStore = useLayersStore();
     watch(
       [viewID, currentLayers],
       () => {
-        currentLayers.value.forEach(({ image, id }, layerIndex) => {
+        currentLayers.value.forEach(({ id }, layerIndex) => {
+          const image = layersStore.layerImages[id];
           const layerConfig = layersConfigs.value[layerIndex].value;
           if (image && !layerConfig) {
             viewConfigStore.layers.resetToDefault(viewID.value, id, image);

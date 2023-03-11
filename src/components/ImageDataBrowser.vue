@@ -15,6 +15,7 @@ import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
+  ImageSelection,
   selectionEquals,
   useDatasetStore,
 } from '../store/datasets';
@@ -45,10 +46,17 @@ export default defineComponent({
 
     const images = computed(() => {
       const { metadata } = imageStore;
-      const layerImageIDs = layersStore
+
+      const layerImages = layersStore
         .getLayers(primarySelection.value)
-        .map(({ selection }) => selection.type === 'image' && selection.dataID)
-        .filter(Boolean);
+        .filter(({ selection }) => selection.type === 'image');
+      const layerImageIDs = layerImages.map(
+        ({ selection }) => (selection as ImageSelection).dataID
+      );
+      const loadedLayerImageIDs = layerImages
+        .filter(({ id }) => id in layersStore.layerImages)
+        .map(({ selection }) => (selection as ImageSelection).dataID);
+
       const selectedImageID =
         primarySelection.value?.type === 'image' &&
         primarySelection.value?.dataID;
@@ -59,6 +67,8 @@ export default defineComponent({
           dataID: id,
         } as DataSelection;
         const layerAdded = layerImageIDs.includes(id);
+        const layerLoaded = loadedLayerImageIDs.includes(id);
+        const loading = layerAdded && !layerLoaded;
         return {
           id,
           cacheKey: imageCacheKey(id),
@@ -70,14 +80,17 @@ export default defineComponent({
           name: metadata[id].name,
           dimensions: metadata[id].dimensions,
           spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
-
           layerable: id !== selectedImageID && primarySelection.value,
+          loading,
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
-          layerHandler: layerAdded
-            ? () =>
-                layersStore.deleteLayer(primarySelection.value, selectionKey)
-            : () => layersStore.addLayer(primarySelection.value, selectionKey),
+          layerHandler: () => {
+            if (!loading) {
+              if (layerAdded)
+                layersStore.deleteLayer(primarySelection.value, selectionKey);
+              else layersStore.addLayer(primarySelection.value, selectionKey);
+            }
+          },
         };
       });
     });
@@ -215,7 +228,13 @@ export default defineComponent({
                 v-on="on"
                 class="mt-1"
               >
-                <v-icon>{{ image.layerIcon }}</v-icon>
+                <v-icon v-if="!image.loading">{{ image.layerIcon }}</v-icon>
+                <v-progress-circular
+                  v-if="image.loading"
+                  indeterminate
+                  size="20"
+                  color="grey lighten-5"
+                ></v-progress-circular>
               </v-btn>
             </template>
             {{ image.layerTooltip }}

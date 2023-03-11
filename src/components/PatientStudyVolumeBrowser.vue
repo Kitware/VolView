@@ -12,7 +12,11 @@ import Image from 'itk-wasm/dist/core/Image';
 import type { PropType } from '@vue/composition-api';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
-import { DataSelection, useDatasetStore } from '../store/datasets';
+import {
+  DataSelection,
+  DICOMSelection,
+  useDatasetStore,
+} from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
 import { useLayersStore } from '../store/datasets-layers';
@@ -80,12 +84,15 @@ export default defineComponent({
     const volumes = computed(() => {
       const { volumeInfo } = dicomStore;
       const { primarySelection } = datasetStore;
-      const layerVolumeKeys = layersStore
+      const layerVolumes = layersStore
         .getLayers(primarySelection)
-        .map(
-          ({ selection }) => selection.type === 'dicom' && selection.volumeKey
-        )
-        .filter(Boolean);
+        .filter(({ selection }) => selection.type === 'dicom');
+      const layerVolumeKeys = layerVolumes.map(
+        ({ selection }) => (selection as DICOMSelection).volumeKey
+      );
+      const loadedLayerVolumeKeys = layerVolumes
+        .filter(({ id }) => id in layersStore.layerImages)
+        .map(({ selection }) => (selection as DICOMSelection).volumeKey);
       const selectedVolumeKey =
         primarySelection?.type === 'dicom' && primarySelection.volumeKey;
 
@@ -95,6 +102,8 @@ export default defineComponent({
           volumeKey,
         } as DataSelection;
         const layerAdded = layerVolumeKeys.includes(volumeKey);
+        const layerLoaded = loadedLayerVolumeKeys.includes(volumeKey);
+        const loading = layerAdded && !layerLoaded;
         return {
           key: volumeKey,
           // for thumbnailing
@@ -103,11 +112,16 @@ export default defineComponent({
           // for UI selection
           selectionKey,
           layerable: volumeKey !== selectedVolumeKey && primarySelection,
+          loading,
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
-          layerHandler: layerAdded
-            ? () => layersStore.deleteLayer(primarySelection, selectionKey)
-            : () => layersStore.addLayer(primarySelection, selectionKey),
+          layerHandler: () => {
+            if (!loading) {
+              if (layerAdded)
+                layersStore.deleteLayer(primarySelection, selectionKey);
+              else layersStore.addLayer(primarySelection, selectionKey);
+            }
+          },
         };
       });
     });
@@ -267,7 +281,15 @@ export default defineComponent({
                                 v-on="on"
                                 class="mt-1"
                               >
-                                <v-icon>{{ volume.layerIcon }}</v-icon>
+                                <v-icon v-if="!volume.loading">{{
+                                  volume.layerIcon
+                                }}</v-icon>
+                                <v-progress-circular
+                                  v-if="volume.loading"
+                                  indeterminate
+                                  size="20"
+                                  color="grey lighten-5"
+                                ></v-progress-circular>
                               </v-btn>
                             </template>
                             {{ volume.layerTooltip }}
