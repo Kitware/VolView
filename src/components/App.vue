@@ -235,8 +235,12 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { wrapInArray } from '../utils';
 import { fetchFile } from '../utils/fetch';
+import { retypeFile } from '../io';
 
-async function loadFiles(files: FileList, setError: (err: Error) => void) {
+async function loadFiles(
+  files: FileList | File[],
+  setError: (err: Error) => void
+) {
   const dataStore = useDatasetStore();
 
   const loadFirstDataset = !dataStore.primarySelection;
@@ -308,6 +312,15 @@ async function loadRemoteFilesFromURLParams(
       return fetchFile(url, name);
     })
   );
+
+  // Check for state file, then just load it and skip rest
+  if (fileResults.length === 1 && fileResults[0].status === 'fulfilled') {
+    const file = await retypeFile(fileResults[0].value);
+    if (await isStateFile(file)) {
+      loadFiles([file], setError);
+      return;
+    }
+  }
 
   const results = await Promise.allSettled(
     fileResults.map(async (fileResult) => {
