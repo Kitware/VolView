@@ -234,7 +234,7 @@ export default defineComponent({
                   indeterminate
                   size="20"
                   color="grey lighten-5"
-                ></v-progress-circular>
+                />
               </v-btn>
             </template>
             {{ image.layerTooltip }}
