@@ -23,6 +23,7 @@ import {
 } from '../io';
 import { FileEntry } from '../types';
 import { Manifest, ManifestSchema } from './schema';
+import { deserializeFiles, RemoteFileCache } from './utils';
 
 const MANIFEST = 'manifest.json';
 const VERSION = '0.0.2';
@@ -105,12 +106,12 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const statuses: LoadResult[] = [];
 
+  const remoteFileCache: RemoteFileCache = {};
   // We load them sequentially to preserve the order
   // eslint-disable-next-line no-restricted-syntax
   for (const dataSet of dataSets) {
-    const files = state
-      .filter((entry) => entry.path === dataSet.path)
-      .map((entry) => entry.file);
+    // eslint-disable-next-line no-await-in-loop
+    const files = await deserializeFiles(state, remoteFileCache, dataSet.path);
 
     // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore
@@ -118,7 +119,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
       .then((result) => {
         if (result.loaded) {
           stateIDToStoreID[dataSet.id] = result.dataID;
-          fileStore.add(result.dataID, files);
+          fileStore.add(result.dataID, files); // not done by imageStore, unlike dicomStore
         }
 
         return result;

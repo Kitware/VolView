@@ -70,6 +70,8 @@ async function getFileTypeFromMagic(file: File): Promise<string | null> {
  * @param file
  */
 export async function retypeFile(file: File): Promise<File> {
+  if (file.type) return file;
+
   let type: string | null;
 
   type =

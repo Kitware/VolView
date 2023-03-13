@@ -22,6 +22,7 @@ async function fetchRemoteManifest(
 }
 
 export async function readRemoteManifestFile(manifestFile: File) {
+  // TODO store Files and URLs so FileStore can replace file in SerializeData
   const decoder = new TextDecoder();
   const ab = await manifestFile.arrayBuffer();
   const text = decoder.decode(new Uint8Array(ab));

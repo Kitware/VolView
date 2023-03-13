@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 
 interface State {
   byDataID: Record<string, File[]>;
+  fileToRemote: Map<File, string>;
 }
 
 /**
@@ -11,6 +12,7 @@ interface State {
 export const useFileStore = defineStore('files', {
   state: (): State => ({
     byDataID: {},
+    fileToRemote: new Map(),
   }),
   getters: {
     getFiles: (state) => {
@@ -25,11 +27,16 @@ export const useFileStore = defineStore('files', {
   actions: {
     remove(dataID: string) {
       if (dataID in this.byDataID) {
+        this.byDataID[dataID].forEach((file) => this.fileToRemote.delete(file));
         del(this.byDataID, dataID);
       }
     },
     add(dataID: string, files: File[]) {
       set(this.byDataID, dataID, files);
+    },
+
+    addRemote(file: File, url: string) {
+      this.fileToRemote.set(file, url);
     },
   },
 });

@@ -235,7 +235,8 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { wrapInArray } from '../utils';
 import { fetchFile } from '../utils/fetch';
-import { retypeFile } from '../io';
+import { extractArchivesRecursively, retypeFile } from '../io';
+import { useFileStore } from '../store/datasets-files';
 
 async function loadFiles(
   files: FileList | File[],
@@ -323,9 +324,18 @@ async function loadRemoteFilesFromURLParams(
   }
 
   const results = await Promise.allSettled(
-    fileResults.map(async (fileResult) => {
+    fileResults.map(async (fileResult, urlIndex) => {
       if (fileResult.status === 'fulfilled') {
-        const loadResults = await dataStore.loadFiles([fileResult.value]);
+        // Extract to source image files and save remote urls for fileStore serialization
+        const zipFile = await retypeFile(fileResult.value);
+        const extractResults = await extractArchivesRecursively([zipFile]);
+        const extracted = extractResults.map(({ file }) => file);
+        const retyped = await Promise.all(
+          extracted.map((file) => retypeFile(file))
+        );
+        const fileStore = useFileStore();
+        retyped.forEach((file) => fileStore.addRemote(file, urls[urlIndex]));
+        const loadResults = await dataStore.loadFiles(retyped);
         const errored = loadResults.find((s) => !s.loaded);
         if (errored) {
           // force the promise to error out
