@@ -31,7 +31,7 @@ module.exports = {
       return args;
     });
   },
-  publicPath: process.env.VUE_APP_PUBLIC_PATH || '',
+  publicPath: process.env.VUE_APP_PUBLIC_PATH || '/',
   configureWebpack: {
     devtool: 'source-map',
     resolve: {
