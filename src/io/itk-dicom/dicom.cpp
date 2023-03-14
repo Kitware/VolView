@@ -309,7 +309,7 @@ int main(int argc, char *argv[]) {
   itk::wasm::Pipeline pipeline("DICOM-VolView", "VolView pipeline to access DICOM data", argc,
                                argv);
   pipeline.add_option("-a,--action", action, "The action to run")
-      ->check(CLI::IsMember({"categorize", "getSliceImage" }));
+      ->check(CLI::IsMember({"categorize", "getSliceImage"}));
 
   // Pre parse so we can get the action
   ITK_WASM_PRE_PARSE(pipeline)
@@ -321,8 +321,7 @@ int main(int argc, char *argv[]) {
   } else if (action == "getSliceImage") {
 
     ITK_WASM_CATCH_EXCEPTION(pipeline, getSliceImage(pipeline));
-
   }
-   
+
   return EXIT_SUCCESS;
 }

@@ -281,15 +281,13 @@ export default defineComponent({
                                 v-on="on"
                                 class="mt-1"
                               >
-                                <v-icon v-if="!volume.loading">{{
-                                  volume.layerIcon
-                                }}</v-icon>
                                 <v-progress-circular
                                   v-if="volume.loading"
                                   indeterminate
                                   size="20"
                                   color="grey lighten-5"
                                 />
+                                <v-icon v-else>{{ volume.layerIcon }}</v-icon>
                               </v-btn>
                             </template>
                             {{ volume.layerTooltip }}
