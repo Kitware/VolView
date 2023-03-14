@@ -148,14 +148,12 @@ export const useDICOMStore = defineStore('dicom', {
       const volumesToFilesMap = await dicomIO.categorizeFiles(inputFiles);
 
       const nameToFile = new Map(inputFiles.map((f) => [f.name, f]));
-      const volumesOfFiles = await Promise.all(
-        Object.entries(volumesToFilesMap)
-          // group files with volumes
-          .map(([volumeKey, fileNames]) => ({
-            volumeKey,
-            files: fileNames.map((fName) => nameToFile.get(fName) as File),
-          }))
-      );
+      const volumesOfFiles = Object.entries(volumesToFilesMap)
+        // group files with volumes
+        .map(([volumeKey, fileNames]) => ({
+          volumeKey,
+          files: fileNames.map((fName) => nameToFile.get(fName) as File),
+        }));
 
       const updatedVolumeKeys: VolumeKeys[] = [];
 

@@ -11,7 +11,7 @@ import {
   makeDICOMSelection,
   makeImageSelection,
   selectionEquals,
-  useImageID,
+  getImage,
 } from './datasets';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
@@ -39,18 +39,6 @@ const toDataSelectionFromKey = (key: DataSelectionKey) => {
   throw new Error('Unknown DataSelection key');
 };
 
-const useImage = async (selection: DataSelection) => {
-  const images = useImageStore();
-  const dicoms = useDICOMStore();
-  if (selection.type === 'dicom') {
-    // ensure image data exists
-    await useErrorMessage('Failed to build volume', () =>
-      dicoms.buildVolume(selection.volumeKey)
-    );
-  }
-  return images.dataIndex[useImageID(selection)!];
-};
-
 export const useLayersStore = defineStore('layer', () => {
   type _This = ReturnType<typeof useLayersStore>;
 
@@ -74,7 +62,7 @@ export const useLayersStore = defineStore('layer', () => {
     ]);
 
     const [parentImage, sourceImage] = await Promise.all(
-      [parent, source].map(useImage)
+      [parent, source].map(getImage)
     );
 
     if (
@@ -209,8 +197,9 @@ export const useLayersStore = defineStore('layer', () => {
         return makeDICOMSelection(dataIDMap[selection.volumeKey]);
       if (selection.type === 'image')
         return makeImageSelection(dataIDMap[selection.dataID]);
+
       const _exhaustiveCheck: never = selection;
-      return _exhaustiveCheck;
+      throw new Error(`invalid selection type ${_exhaustiveCheck}`);
     };
 
     const { parentToLayers: parentToLayersSerialized } = manifest;

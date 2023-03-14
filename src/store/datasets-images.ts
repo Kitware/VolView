@@ -78,8 +78,7 @@ export const useImageStore = defineStore('images', {
 
         set(this.metadata, id, metadata);
       }
-      this.$proxies.getData(id)?.setInputData(imageData);
-      this.$proxies.getData(id)?.update();
+      this.$proxies.updateData(id, imageData);
       set(this.dataIndex, id, imageData);
     },
 

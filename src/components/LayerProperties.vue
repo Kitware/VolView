@@ -33,7 +33,9 @@ export default defineComponent({
         return useDICOMStore().volumeInfo[selection.volumeKey].Modality;
       if (selection.type === 'image')
         return imageStore.metadata[selection.dataID].name;
-      throw new Error('Unknown selection type');
+
+      const _exhaustiveCheck: never = selection;
+      throw new Error(`invalid selection type ${_exhaustiveCheck}`);
     });
 
     const viewConfigStore = useViewConfigStore();
