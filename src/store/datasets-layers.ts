@@ -61,8 +61,7 @@ export const useLayersStore = defineStore('layer', () => {
     source: DataSelection
   ) {
     if (!parent) {
-      console.warn('Tried to addLayer without parent data selection');
-      return;
+      throw new Error('Tried to addLayer without parent data selection');
     }
     const parentKey = toDataSelectionKey(parent);
     const id = `${parentKey}::${toDataSelectionKey(source)}`;
@@ -115,8 +114,7 @@ export const useLayersStore = defineStore('layer', () => {
     source: DataSelection
   ) {
     if (!parent) {
-      console.warn('Tried to deleteLayer without parent data selection');
-      return;
+      throw new Error('Tried to deleteLayer without parent data selection');
     }
 
     const parentKey = toDataSelectionKey(parent);
