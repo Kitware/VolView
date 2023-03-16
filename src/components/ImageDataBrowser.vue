@@ -69,23 +69,21 @@ export default defineComponent({
         const layerAdded = layerImageIDs.includes(id);
         const layerLoaded = loadedLayerImageIDs.includes(id);
         const loading = layerAdded && !layerLoaded;
+        const layerable = id !== selectedImageID && primarySelection.value;
         return {
           id,
           cacheKey: imageCacheKey(id),
           // for UI selection
-          selectionKey: {
-            type: 'image',
-            dataID: id,
-          } as DataSelection,
+          selectionKey,
           name: metadata[id].name,
           dimensions: metadata[id].dimensions,
           spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
-          layerable: id !== selectedImageID && primarySelection.value,
+          layerable,
           loading,
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
           layerHandler: () => {
-            if (!loading && primarySelection.value) {
+            if (!loading && layerable) {
               if (layerAdded)
                 layersStore.deleteLayer(primarySelection.value, selectionKey);
               else layersStore.addLayer(primarySelection.value, selectionKey);

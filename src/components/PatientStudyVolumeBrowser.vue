@@ -104,6 +104,7 @@ export default defineComponent({
         const layerAdded = layerVolumeKeys.includes(volumeKey);
         const layerLoaded = loadedLayerVolumeKeys.includes(volumeKey);
         const loading = layerAdded && !layerLoaded;
+        const layerable = volumeKey !== selectedVolumeKey && primarySelection;
         return {
           key: volumeKey,
           // for thumbnailing
@@ -111,12 +112,12 @@ export default defineComponent({
           info: volumeInfo[volumeKey],
           // for UI selection
           selectionKey,
-          layerable: volumeKey !== selectedVolumeKey && primarySelection,
+          layerable,
           loading,
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
           layerHandler: () => {
-            if (!loading && primarySelection) {
+            if (!loading && layerable) {
               if (layerAdded)
                 layersStore.deleteLayer(primarySelection, selectionKey);
               else layersStore.addLayer(primarySelection, selectionKey);
