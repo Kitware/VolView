@@ -57,12 +57,13 @@ export const useLayersStore = defineStore('layer', () => {
 
   async function _addLayer(
     this: _This,
-    parent: DataSelection | null | undefined,
+    parent: DataSelection,
     source: DataSelection
   ) {
     if (!parent) {
       throw new Error('Tried to addLayer without parent data selection');
     }
+
     const parentKey = toDataSelectionKey(parent);
     const id = `${parentKey}::${toDataSelectionKey(source)}`;
     set(this.parentToLayers, parentKey, [
@@ -100,7 +101,7 @@ export const useLayersStore = defineStore('layer', () => {
 
   async function addLayer(
     this: _This,
-    parent: DataSelection | null | undefined,
+    parent: DataSelection,
     source: DataSelection
   ) {
     return useErrorMessage('Failed to build layer', () =>
@@ -110,7 +111,7 @@ export const useLayersStore = defineStore('layer', () => {
 
   function deleteLayer(
     this: _This,
-    parent: DataSelection | null | undefined,
+    parent: DataSelection,
     source: DataSelection
   ) {
     if (!parent) {

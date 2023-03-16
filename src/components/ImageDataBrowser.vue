@@ -85,7 +85,7 @@ export default defineComponent({
           layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
           layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
           layerHandler: () => {
-            if (!loading) {
+            if (!loading && primarySelection.value) {
               if (layerAdded)
                 layersStore.deleteLayer(primarySelection.value, selectionKey);
               else layersStore.addLayer(primarySelection.value, selectionKey);
