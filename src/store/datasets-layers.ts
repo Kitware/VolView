@@ -25,18 +25,28 @@ export type Layer = {
   id: LayerID;
 };
 
+const assertNeverDataSelection = (selection: never): never => {
+  throw new Error(`Unknown DataSelection: ${selection}`);
+};
+
+const getID = (selection: DataSelection) => {
+  if (selection.type === 'dicom') return selection.volumeKey;
+  if (selection.type === 'image') return selection.dataID;
+  return assertNeverDataSelection(selection);
+};
+
 const toDataSelectionKey = (selection: DataSelection) => {
-  const id =
-    selection.type === 'dicom' ? selection.volumeKey : selection.dataID;
+  const id = getID(selection);
   return `${selection.type}::${id}` as DataSelectionKey;
 };
 
 const toDataSelectionFromKey = (key: DataSelectionKey) => {
-  const [type, id] = key.split('::');
+  const [type, id] = key.split('::') as [DataSelection['type'], string];
+
   if (type === 'dicom') return makeDICOMSelection(id);
   if (type === 'image') return makeImageSelection(id);
 
-  throw new Error('Unknown DataSelection key');
+  return assertNeverDataSelection(type);
 };
 
 export const useLayersStore = defineStore('layer', () => {
