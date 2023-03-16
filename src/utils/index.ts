@@ -1,3 +1,5 @@
+import { URL } from 'whatwg-url';
+
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */
@@ -132,11 +134,9 @@ export function wrapInArray<T>(maybeArray: T | T[]): T[] {
 
 /**
  * Extracts the basename from a URL.
- *
- * Requires that the URL global be present.
  */
 export function getURLBasename(url: string) {
-  return new URL(url).pathname.split('/').at(-1) ?? '';
+  return new URL(url, window.location.href).pathname.split('/').at(-1) ?? '';
 }
 
 // from https://stackoverflow.com/a/18650828

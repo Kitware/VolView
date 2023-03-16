@@ -1,3 +1,5 @@
+import { URL } from 'whatwg-url';
+
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */
@@ -19,7 +21,7 @@ interface URLHandler {
  */
 const HTTPHandler: URLHandler = {
   testURL: (url) => {
-    const { protocol } = new URL(url);
+    const { protocol } = new URL(url, window.location.href);
     return protocol === 'http:' || protocol === 'https:';
   },
   fetchURL: async (url, options = {}) => {
@@ -64,14 +66,12 @@ const HTTPHandler: URLHandler = {
  * Handles Google Bucket URLs
  */
 const GoogleBucketHandler: URLHandler = {
-  testURL: (url) => new URL(url).protocol === 'gs:',
+  testURL: (url) => new URL(url, window.location.href).protocol === 'gs:',
   fetchURL: async (url, options = {}) => {
-    const urlComponents = new URL(url);
-    // gs URIs look like gs://bucket_name/file_name,
-    // and pathname is everything after gs:
-    // strip off both of the leading slashes.
-    const bucketPath = urlComponents.pathname.slice(2);
-    const httpURL = `https://storage.googleapis.com/${bucketPath}`;
+    const urlComponents = new URL(url, window.location.href);
+    const bucket = urlComponents.hostname;
+    const path = urlComponents.pathname;
+    const httpURL = `https://storage.googleapis.com/${bucket}${path}`;
     return HTTPHandler.fetchURL(httpURL, options);
   },
 };
