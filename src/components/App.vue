@@ -199,6 +199,7 @@ import {
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
+import { URL } from 'whatwg-url';
 
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
@@ -301,7 +302,7 @@ async function loadRemoteFilesFromURLParams(
 
   const fileResults = await Promise.allSettled(
     urls.map(async (url, index) => {
-      const { pathname } = new URL(url);
+      const { pathname } = new URL(url, window.location.href);
       const name = names[index] || pathname.split('/').at(-1) || '';
 
       return fetchFile(url, name);

@@ -1,4 +1,5 @@
 import vtk from '@kitware/vtk.js/vtk';
+import { URL } from 'whatwg-url';
 
 import PromiseWorker from '@/src/utils/promise-worker';
 import vtkDataSet from '@kitware/vtk.js/Common/DataModel/DataSet';
