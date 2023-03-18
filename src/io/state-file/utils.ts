@@ -15,9 +15,10 @@ export async function serializeData(
   dataType: DataSetType
 ) {
   const fileStore = useFileStore();
-  const { manifest } = stateFile;
   const { zip } = stateFile;
-  const { dataSets } = manifest;
+  const {
+    manifest: { dataSets },
+  } = stateFile;
 
   dataIDs.forEach((id) => {
     const files = fileStore.getFiles(id);
@@ -75,25 +76,27 @@ const getFile = async (
   return file;
 };
 
-export async function deserializeFiles(
-  state: FileEntry[],
-  remoteFileCache: RemoteFileCache,
-  dataSetPath: string
-) {
-  const files = await Promise.all(
-    state
-      .filter((entry) => entry.path === dataSetPath)
-      .map((entry) => entry.file)
-      .map(async (file) => {
-        const isRemotePointer = file.name.endsWith(REMOTE_EXT);
-        if (!isRemotePointer) return file;
+export const makeDeserializeFiles = (savedFiles: FileEntry[]) => {
+  const remoteFileCache: RemoteFileCache = {};
 
-        const { url } = JSON.parse(await file.text());
-        const remoteFile = await getFile(remoteFileCache, url, file.name);
-        const fileStore = useFileStore();
-        fileStore.addRemote(remoteFile, url);
-        return remoteFile;
-      })
-  );
-  return files;
-}
+  const deserializeFiles = async (dataSetPath: string) => {
+    const datasetFiles = await Promise.all(
+      savedFiles
+        .filter((entry) => entry.path === dataSetPath)
+        .map((entry) => entry.file)
+        .map(async (file) => {
+          const isRemotePointer = file.name.endsWith(REMOTE_EXT);
+          if (!isRemotePointer) return file;
+
+          const { url } = JSON.parse(await file.text());
+          const remoteFile = await getFile(remoteFileCache, url, file.name);
+          const fileStore = useFileStore();
+          fileStore.addRemote(remoteFile, url);
+          return remoteFile;
+        })
+    );
+    return datasetFiles;
+  };
+
+  return deserializeFiles;
+};

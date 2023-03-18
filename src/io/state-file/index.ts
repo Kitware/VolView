@@ -23,7 +23,7 @@ import {
 } from '../io';
 import { FileEntry } from '../types';
 import { Manifest, ManifestSchema } from './schema';
-import { deserializeFiles, RemoteFileCache } from './utils';
+import { makeDeserializeFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
 const VERSION = '0.0.2';
@@ -106,12 +106,12 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const statuses: LoadResult[] = [];
 
-  const remoteFileCache: RemoteFileCache = {};
+  const deserializeFiles = makeDeserializeFiles(state);
   // We load them sequentially to preserve the order
   // eslint-disable-next-line no-restricted-syntax
   for (const dataSet of dataSets) {
     // eslint-disable-next-line no-await-in-loop
-    const files = await deserializeFiles(state, remoteFileCache, dataSet.path);
+    const files = await deserializeFiles(dataSet.path);
 
     // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore
