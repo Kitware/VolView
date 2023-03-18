@@ -4,8 +4,8 @@ import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
-import { useFileStore } from './datasets-files';
-import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
+import { DatasetFile, useFileStore } from './datasets-files';
+import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { DICOMIO } from '../io/dicom';
 
@@ -136,24 +136,36 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importFiles(inputFiles: File[]) {
-      const fileStore = useFileStore();
+    async importFiles(datasetFiles: DatasetFile[]) {
+      if (!datasetFiles.length) return [];
 
       const dicomIO = this.$dicomIO;
 
-      if (!inputFiles.length) {
-        return [];
-      }
+      const fileToDatasetFile = new Map(
+        datasetFiles.map((df) => [df.file, df])
+      );
+      const allFiles = [...fileToDatasetFile.keys()];
 
-      const volumeToFiles = await dicomIO.categorizeFiles(inputFiles);
+      const volumeToFiles = await dicomIO.categorizeFiles(allFiles);
+
+      const fileStore = useFileStore();
+
+      // Link VolumeKey and DatasetFiles in fileStore
+      Object.entries(volumeToFiles).forEach(([volumeKey, files]) => {
+        const volumeDatasetFiles = files.map((file) => {
+          const datasetFile = fileToDatasetFile.get(file);
+          if (!datasetFile)
+            throw new Error('Did not match File with source DatasetFile');
+          return datasetFile;
+        });
+        fileStore.add(volumeKey, volumeDatasetFiles);
+      });
 
       const updatedVolumeKeys: VolumeKeys[] = [];
 
       await Promise.all(
         Object.entries(volumeToFiles).map(async ([volumeKey, files]) => {
-          fileStore.add(volumeKey, files);
-
-          // Now read the tags
+          // Read tags of first file
           if (!(volumeKey in this.volumeInfo)) {
             const tags = await readDicomTags(dicomIO, files[0]);
             // TODO parse the raw string values
@@ -290,10 +302,10 @@ export const useDICOMStore = defineStore('dicom', {
 
     async serialize(stateFile: StateFile) {
       const dataIDs = Object.keys(this.volumeInfo);
-      await serializeData(stateFile, dataIDs, DataSetType.DICOM);
+      await serializeData(stateFile, dataIDs, DatasetType.DICOM);
     },
 
-    async deserialize(dataSet: DataSet, files: File[]) {
+    async deserialize(files: DatasetFile[]) {
       return this.importFiles(files).then((volumeKeys) => {
         if (volumeKeys.length !== 1) {
           // Volumes are store individually so we should get one back.

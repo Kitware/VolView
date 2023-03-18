@@ -1,102 +1,113 @@
 import { fetchFile } from '@/src/utils/fetch';
 import { getURLBasename } from '@/src/utils';
-import { StateFile, DataSetType } from './schema';
-import { useFileStore } from '../../store/datasets-files';
+import {
+  StateFile,
+  DatasetType,
+  Dataset,
+  Manifest,
+  RemoteDatasetFile,
+} from './schema';
+import {
+  isRemote,
+  RemoteDatasetFileMeta,
+  useFileStore,
+} from '../../store/datasets-files';
 import { FileEntry } from '../types';
 import { extractArchivesRecursively, retypeFile } from '../io';
-
-export type RemoteFileCache = Record<string, File[] | Promise<File[]>>;
-
-const REMOTE_EXT = '.json-with-remote-url';
 
 export async function serializeData(
   stateFile: StateFile,
   dataIDs: string[],
-  dataType: DataSetType
+  dataType: DatasetType
 ) {
   const fileStore = useFileStore();
   const { zip } = stateFile;
   const {
-    manifest: { dataSets },
+    manifest: { datasets, remoteDatasetFiles },
   } = stateFile;
 
   dataIDs.forEach((id) => {
-    const files = fileStore.getFiles(id);
-    if (files === null) {
+    const files = fileStore.getDatasetFiles(id);
+    if (!files.length) {
       throw new Error(`No files for dataID: ${id}`);
     }
 
+    const remoteFiles = files.filter(isRemote) as Array<RemoteDatasetFileMeta>;
+    remoteDatasetFiles[id] = remoteFiles.map(
+      ({ url, path, file: { name } }) => ({
+        url,
+        path,
+        name,
+      })
+    );
+
     const dataPath = `data/${id}/`;
-    dataSets.push({
+
+    files
+      .filter((file) => !isRemote(file))
+      .forEach(({ file }) => {
+        const filePath = `${dataPath}/${file.name}`;
+        zip.file(filePath, file);
+      });
+
+    datasets.push({
       id,
       path: dataPath,
       type: dataType,
     });
-
-    files.forEach((file: File) => {
-      const filePath = `data/${id}/${file.name}`;
-      // replace files from remote source with file with URL
-      const url = fileStore.fileToRemote.get(file);
-      const urlFile = new File([JSON.stringify({ url })], file.name, {
-        type: 'application/json',
-      });
-      console.log(urlFile.type);
-      if (url) zip.file(filePath + REMOTE_EXT, urlFile);
-      else zip.file(filePath, file);
-    });
   });
 }
 
-const getFile = async (
-  cache: RemoteFileCache,
-  url: string,
-  fileName: string
-) => {
-  if (!(url in cache)) {
-    // eslint-disable-next-line no-param-reassign
-    cache[url] = fetchFile(url, getURLBasename(url))
-      .then((remoteFile) => retypeFile(remoteFile))
-      .then((remoteFile) => extractArchivesRecursively([remoteFile]))
-      .then((fileEntries) => fileEntries.map(({ file }) => file));
-    // eslint-disable-next-line no-param-reassign
-    cache[url] = await cache[url];
-  }
+type RemoteFileCache = Record<string, FileEntry[] | Promise<FileEntry[]>>;
 
-  // ensure parallel remote file requests have resolved
-  const sansRemoteExtension = fileName.substring(
-    0,
-    fileName.length - REMOTE_EXT.length
-  );
-  const file = (await cache[url]).find(
-    ({ name }) => name === sansRemoteExtension
-  ); // assumes unique file names in .zip URL!
-  if (!file)
-    throw new Error('Did not find matching filename in remote file URL');
+const getRemoteFile = () => {
+  const cache: RemoteFileCache = {};
 
-  return file;
+  return async ({
+    url,
+    path: remoteFilePath,
+    name: remoteFileName,
+  }: RemoteDatasetFile) => {
+    if (!(url in cache)) {
+      cache[url] = fetchFile(url, getURLBasename(url))
+        .then((remoteFile) => retypeFile(remoteFile))
+        .then((remoteFile) => extractArchivesRecursively([remoteFile]));
+      cache[url] = await cache[url];
+    }
+    // ensure parallel remote file requests have resolved
+    const remoteFiles = await cache[url];
+
+    const file = remoteFiles.find(
+      ({ path, file: { name } }) =>
+        path === remoteFilePath && name === remoteFileName
+    ); // ??? assumes unique file names in .zip URL?!
+
+    if (!file)
+      throw new Error(
+        `Did not find matching file in remote file URL: ${url} : ${remoteFilePath} : ${remoteFileName}`
+      );
+
+    return file;
+  };
 };
 
-export const makeDeserializeFiles = (savedFiles: FileEntry[]) => {
-  const remoteFileCache: RemoteFileCache = {};
+export const deserializeDatasetFiles = (
+  manifest: Manifest,
+  savedFiles: FileEntry[]
+) => {
+  const getFile = getRemoteFile();
 
-  const deserializeFiles = async (dataSetPath: string) => {
-    const datasetFiles = await Promise.all(
-      savedFiles
-        .filter((entry) => entry.path === dataSetPath)
-        .map((entry) => entry.file)
-        .map(async (file) => {
-          const isRemotePointer = file.name.endsWith(REMOTE_EXT);
-          if (!isRemotePointer) return file;
+  return async ({ id, path }: Dataset) => {
+    const filesInStateFile = savedFiles.filter((entry) => entry.path === path);
 
-          const { url } = JSON.parse(await file.text());
-          const remoteFile = await getFile(remoteFileCache, url, file.name);
-          const fileStore = useFileStore();
-          fileStore.addRemote(remoteFile, url);
-          return remoteFile;
-        })
+    const remoteFiles = await Promise.all(
+      manifest.remoteDatasetFiles[id].map(async (fileMeta) => {
+        const remoteFile = await getFile(fileMeta);
+        // const fileStore = useFileStore();
+        // fileStore.addRemote(remoteFile, fileMeta.url);
+        return remoteFile;
+      })
     );
-    return datasetFiles;
+    return [...filesInStateFile, ...remoteFiles];
   };
-
-  return deserializeFiles;
 };

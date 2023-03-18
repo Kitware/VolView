@@ -7,9 +7,10 @@ import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
-import { useFileStore } from './datasets-files';
-import { DataSet, StateFile, DataSetType } from '../io/state-file/schema';
+import { DatasetFile, useFileStore } from './datasets-files';
+import { StateFile, DatasetType, Dataset } from '../io/state-file/schema';
 import { readRemoteManifestFile } from '../io/manifest';
+import { partition } from '../utils';
 import { useErrorMessage } from '../composables/useErrorMessage';
 
 export const DataType = {
@@ -18,14 +19,14 @@ export const DataType = {
 };
 
 const makeFileSuccessStatus = (
-  file: File,
+  filename: string,
   type: 'model' | 'image',
   dataID: string
 ) =>
   ({
     type: 'file',
     loaded: true,
-    filename: file.name,
+    filename,
     dataID,
     dataType: type,
   } as const);
@@ -204,10 +205,11 @@ export const useDatasetStore = defineStore('dataset', () => {
 
     // process archives
     const fileEntries = await extractArchivesRecursively(allFiles);
-    allFiles = fileEntries.map((entry) => entry.file);
 
-    const dicoms = allFiles.filter(({ type }) => type === 'dcm');
-    const otherFiles = allFiles.filter(({ type }) => type !== 'dcm');
+    const [dicoms, otherFiles] = partition(
+      ({ file: { type } }) => type === 'dcm',
+      fileEntries
+    );
 
     const dicomStatus = dicomStore
       .importFiles(dicoms)
@@ -217,7 +219,8 @@ export const useDatasetStore = defineStore('dataset', () => {
       .catch((err) => [makeDICOMFailureStatus(err)]);
 
     const otherStatuses = Promise.all([
-      ...otherFiles.map(async (file) => {
+      ...otherFiles.map(async (datasetFile) => {
+        const { file } = datasetFile;
         const reader = FILE_READERS.get(file.type);
         if (reader) {
           try {
@@ -227,18 +230,18 @@ export const useDatasetStore = defineStore('dataset', () => {
                 file.name,
                 dataObj as vtkImageData
               );
-              fileStore.add(id, [file]);
+              fileStore.add(id, [datasetFile]);
 
-              return makeFileSuccessStatus(file, 'image', id);
+              return makeFileSuccessStatus(file.name, 'image', id);
             }
             if (dataObj.isA('vtkPolyData')) {
               const id = modelStore.addVTKPolyData(
                 file.name,
                 dataObj as vtkPolyData
               );
-              fileStore.add(id, [file]);
+              fileStore.add(id, [datasetFile]);
 
-              return makeFileSuccessStatus(file, 'model', id);
+              return makeFileSuccessStatus(file.name, 'model', id);
             }
             return makeFileFailureStatus(
               file,
@@ -277,11 +280,11 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
   }
 
-  async function deserialize(dataSet: DataSet, files: File[]) {
+  async function deserialize(dataSet: Dataset, files: DatasetFile[]) {
     // dicom
-    if (dataSet.type === DataSetType.DICOM) {
+    if (dataSet.type === DatasetType.DICOM) {
       return dicomStore
-        .deserialize(dataSet, files)
+        .deserialize(files)
         .then((volumeKey) => makeDICOMSuccessStatus(volumeKey))
         .catch((err) => makeDICOMFailureStatus(err));
     }
@@ -290,11 +293,11 @@ export const useDatasetStore = defineStore('dataset', () => {
     if (files.length !== 1) {
       throw new Error('Invalid state file.');
     }
-    const file = files[0];
-
+    const datasetFile = files[0];
+    const { file } = datasetFile;
     return imageStore
-      .deserialize(dataSet, file)
-      .then((dataID) => makeFileSuccessStatus(file, 'image', dataID))
+      .deserialize(datasetFile)
+      .then((dataID) => makeFileSuccessStatus(file.name, 'image', dataID))
       .catch((err) =>
         makeFileFailureStatus(
           file.name,

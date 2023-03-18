@@ -6,10 +6,10 @@ import { Bounds } from '@kitware/vtk.js/types';
 
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
-import { StateFile, DataSetType, DataSet } from '../io/state-file/schema';
+import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { FILE_READERS } from '../io';
-import { useFileStore } from './datasets-files';
+import { DatasetFile, useFileStore } from './datasets-files';
 import { LPSDirections } from '../types/lps';
 
 export interface ImageMetadata {
@@ -96,10 +96,11 @@ export const useImageStore = defineStore('images', {
       // input files in fileStore with matching imageID.)
       const dataIDs = this.idList.filter((id) => id in fileStore.byDataID);
 
-      await serializeData(stateFile, dataIDs, DataSetType.IMAGE);
+      await serializeData(stateFile, dataIDs, DatasetType.IMAGE);
     },
 
-    async deserialize(dataSet: DataSet, file: File) {
+    async deserialize(datasetFile: DatasetFile) {
+      const { file } = datasetFile;
       const reader = FILE_READERS.get(file.type);
       if (reader) {
         const dataObj = await reader(
@@ -107,7 +108,7 @@ export const useImageStore = defineStore('images', {
         );
         if (dataObj.isA('vtkImageData')) {
           const id = this.addVTKImageData(file.name, dataObj as vtkImageData);
-
+          useFileStore().add(id, [datasetFile]);
           return id;
         }
       }

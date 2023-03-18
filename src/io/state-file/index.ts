@@ -23,7 +23,7 @@ import {
 } from '../io';
 import { FileEntry } from '../types';
 import { Manifest, ManifestSchema } from './schema';
-import { makeDeserializeFiles } from './utils';
+import { deserializeDatasetFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
 const VERSION = '0.0.2';
@@ -38,7 +38,8 @@ export async function save(fileName: string) {
   const zip = new JSZip();
   const manifest: Manifest = {
     version: VERSION,
-    dataSets: [],
+    datasets: [],
+    remoteDatasetFiles: {},
     labelMaps: [],
     tools: {
       rulers: [],
@@ -95,7 +96,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const manifestString = await manifestFile[0].file.text();
   const manifest = ManifestSchema.parse(JSON.parse(manifestString));
-  const { dataSets } = manifest;
+  const { datasets } = manifest;
 
   // We restore the view first, so that the appropriate watchers are triggered
   // in the views as the data is loaded
@@ -106,19 +107,19 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const statuses: LoadResult[] = [];
 
-  const deserializeFiles = makeDeserializeFiles(state);
+  const deserializeFiles = deserializeDatasetFiles(manifest, state);
   // We load them sequentially to preserve the order
   // eslint-disable-next-line no-restricted-syntax
-  for (const dataSet of dataSets) {
+  for (const dataset of datasets) {
     // eslint-disable-next-line no-await-in-loop
-    const files = await deserializeFiles(dataSet.path);
+    const files = await deserializeFiles(dataset);
 
     // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore
-      .deserialize(dataSet, files)
+      .deserialize(dataset, files)
       .then((result) => {
         if (result.loaded) {
-          stateIDToStoreID[dataSet.id] = result.dataID;
+          stateIDToStoreID[dataset.id] = result.dataID;
           fileStore.add(result.dataID, files); // not done by imageStore, unlike dicomStore
         }
 
