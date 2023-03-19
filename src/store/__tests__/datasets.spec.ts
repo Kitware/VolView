@@ -10,6 +10,7 @@ import { FILE_READERS } from '@/src/io';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import ProxyWrapper from '@/src/core/proxies';
 import Sinon from 'sinon';
+import { makeLocal } from '../datasets-files';
 
 chai.use(chaiSubset);
 
@@ -35,7 +36,7 @@ describe('Dataset store', () => {
       makeEmptyFile('test1.nrrd'),
       makeEmptyFile('test2.nrrd'),
       makeEmptyFile('test3.nrrd'),
-    ];
+    ].map(makeLocal);
 
     // override nrrd reader
     const testImageData = vtkImageData.newInstance();
@@ -51,7 +52,7 @@ describe('Dataset store', () => {
 
   it('handles missing readers', async () => {
     const datasetStore = useDatasetStore();
-    const files = [makeEmptyFile('test1.invalid')];
+    const files = [makeEmptyFile('test1.invalid')].map(makeLocal);
 
     const loadResults = await datasetStore.loadFiles(files);
     expect(loadResults).to.containSubset([
@@ -61,7 +62,7 @@ describe('Dataset store', () => {
 
   it('handles readers that return an error', async () => {
     const datasetStore = useDatasetStore();
-    const files = [makeEmptyFile('test1.invalid')];
+    const files = [makeEmptyFile('test1.invalid')].map(makeLocal);
 
     FILE_READERS.set('invalid', () => {
       throw new Error('invalid!');

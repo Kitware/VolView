@@ -15,6 +15,7 @@ import {
 } from '../../store/datasets';
 import { useDICOMStore } from '../../store/datasets-dicom';
 import { useLayersStore } from '../../store/datasets-layers';
+import { makeZip, ZipDatasetFile } from '../../store/datasets-files';
 import {
   ARCHIVE_FILE_TYPES,
   extractArchivesRecursively,
@@ -38,7 +39,7 @@ export async function save(fileName: string) {
   const manifest: Manifest = {
     version: VERSION,
     datasets: [],
-    remoteDatasetFiles: {},
+    remoteDatasetFileEntries: {},
     labelMaps: [],
     tools: {
       rulers: [],
@@ -162,7 +163,9 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
 export async function loadState(stateFile: File) {
   const typedFile = await retypeFile(stateFile);
-  const fileEntries = await extractArchivesRecursively([typedFile]);
+  const fileEntries = (await extractArchivesRecursively([
+    makeZip()(typedFile),
+  ])) as Array<ZipDatasetFile>;
 
   return restore(fileEntries);
 }

@@ -5,12 +5,13 @@ import {
   DatasetType,
   Dataset,
   Manifest,
-  RemoteDatasetFile,
+  RemoteDatasetFileEntry,
 } from './schema';
 import {
   DatasetFile,
   isRemote,
-  RemoteDatasetFileMeta,
+  makeRemote,
+  RemoteDatasetFile,
   useFileStore,
 } from '../../store/datasets-files';
 import { FileEntry } from '../types';
@@ -24,7 +25,7 @@ export async function serializeData(
   const fileStore = useFileStore();
   const { zip } = stateFile;
   const {
-    manifest: { datasets, remoteDatasetFiles },
+    manifest: { datasets, remoteDatasetFileEntries },
   } = stateFile;
 
   dataIDs.forEach((id) => {
@@ -34,17 +35,17 @@ export async function serializeData(
     }
 
     const [remoteFiles, zipFiles] = partition(isRemote, files) as [
-      Array<RemoteDatasetFileMeta>,
+      Array<RemoteDatasetFile>,
       Array<DatasetFile>
     ];
 
-    remoteDatasetFiles[id] = remoteFiles.map(
-      ({ url, path, file: { name } }) => ({
+    remoteDatasetFileEntries[id] = remoteFiles
+      .map((f) => ({ path: '', ...f }))
+      .map(({ url, path, file: { name } }) => ({
         url,
         path,
         name,
-      })
-    );
+      }));
 
     const dataPath = `data/${id}/`;
 
@@ -61,7 +62,7 @@ export async function serializeData(
   });
 }
 
-type RemoteFileCache = Record<string, FileEntry[] | Promise<FileEntry[]>>;
+type RemoteFileCache = Record<string, DatasetFile[] | Promise<DatasetFile[]>>;
 
 const getRemoteFile = () => {
   const cache: RemoteFileCache = {};
@@ -70,20 +71,26 @@ const getRemoteFile = () => {
     url,
     path: remoteFilePath,
     name: remoteFileName,
-  }: RemoteDatasetFile) => {
+  }: RemoteDatasetFileEntry) => {
     if (!(url in cache)) {
       cache[url] = fetchFile(url, getURLBasename(url))
         .then((remoteFile) => retypeFile(remoteFile))
-        .then((remoteFile) => extractArchivesRecursively([remoteFile]));
+        .then((remoteFile) =>
+          extractArchivesRecursively([makeRemote(url)(remoteFile)])
+        );
       cache[url] = await cache[url];
     }
     // ensure parallel remote file requests have resolved
     const remoteFiles = await cache[url];
 
-    const file = remoteFiles.find(
-      ({ path, file: { name } }) =>
-        path === remoteFilePath && name === remoteFileName
-    ); // ??? assumes unique file names in .zip URL?!
+    const file = remoteFiles
+      .map((f) => ({ path: '', ...f }))
+      .find(
+        ({ path, file: { name } }) =>
+          path === remoteFilePath && name === remoteFileName
+      );
+
+    console.log(remoteFiles);
 
     if (!file)
       throw new Error(
@@ -104,12 +111,7 @@ export const deserializeDatasetFiles = (
     const filesInStateFile = savedFiles.filter((entry) => entry.path === path);
 
     const remoteFiles = await Promise.all(
-      manifest.remoteDatasetFiles[id].map(async (fileMeta) => {
-        const remoteFile = await getFile(fileMeta);
-        // const fileStore = useFileStore();
-        // fileStore.addRemote(remoteFile, fileMeta.url);
-        return remoteFile;
-      })
+      manifest.remoteDatasetFileEntries[id].map(getFile)
     );
     return [...filesInStateFile, ...remoteFiles];
   };

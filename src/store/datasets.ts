@@ -178,12 +178,20 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
   }
 
-  async function loadFiles(files: File[]): Promise<LoadResult[]> {
-    let allFiles = await Promise.all(files.map((f) => retypeFile(f)));
+  async function loadFiles(files: DatasetFile[]): Promise<LoadResult[]> {
+    let allFiles = await Promise.all(
+      files.map(async ({ file, ...rest }) => ({
+        file: await retypeFile(file),
+        ...rest,
+      }))
+    );
 
     // process any json manifests
-    const manifestFiles = allFiles.filter((file) => file.type === 'json');
-    allFiles = allFiles.filter((file) => file.type !== 'json');
+    const [manifestFiles, nonManifests] = partition(
+      ({ file }) => file.type === 'json',
+      allFiles
+    );
+    allFiles = nonManifests;
 
     const manifestStatuses: FileLoadResult[] = [];
     if (manifestFiles.length) {
@@ -194,7 +202,7 @@ export const useDatasetStore = defineStore('dataset', () => {
           } catch (err) {
             manifestStatuses.push(
               makeFileFailureStatus(
-                file,
+                file.file,
                 'Failed to parse or download manifest'
               )
             );

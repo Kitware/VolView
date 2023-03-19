@@ -3,17 +3,14 @@ import { defineStore } from 'pinia';
 import { pluck } from '../utils';
 
 export type DatasetUrl = string & { __type: 'UrlString' };
-export type LocalDatasetFileMeta = { file: { name: string } };
-export type ZipDatasetFileMeta = LocalDatasetFileMeta & { path: string };
-export type RemoteDatasetFileMeta = ZipDatasetFileMeta & { url: DatasetUrl };
-export type DatasetFileMeta =
-  | LocalDatasetFileMeta
-  | ZipDatasetFileMeta
-  | RemoteDatasetFileMeta;
-
-export type DatasetFile = DatasetFileMeta & {
-  file: File;
-};
+export type LocalDatasetFile = { file: File };
+export type ZipDatasetFile = LocalDatasetFile & { path: string };
+export type RemoteDatasetFile = LocalDatasetFile & { url: DatasetUrl };
+export type DatasetFile =
+  | LocalDatasetFile
+  | ZipDatasetFile
+  | RemoteDatasetFile
+  | (ZipDatasetFile & RemoteDatasetFile);
 
 export const makeLocal = (file: File) => ({
   file,
@@ -29,13 +26,12 @@ export const makeZip =
 export const makeRemote = (url: DatasetUrl | string) => (file: File) => ({
   file,
   url: url as DatasetUrl,
-  path: '',
 });
 
 export const isRemote = (
-  datasetFile: DatasetFileMeta
-): datasetFile is RemoteDatasetFileMeta =>
-  (datasetFile as RemoteDatasetFileMeta).url !== undefined;
+  datasetFile: DatasetFile
+): datasetFile is RemoteDatasetFile =>
+  (datasetFile as RemoteDatasetFile).url !== undefined;
 
 interface State {
   byDataID: Record<string, DatasetFile[]>;
