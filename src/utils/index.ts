@@ -58,6 +58,10 @@ export async function fetchFile(
   return new File([blob], name);
 }
 
+export const isFulfilled = <T>(
+  input: PromiseSettledResult<T>
+): input is PromiseFulfilledResult<T> => input.status === 'fulfilled';
+
 type PromiseResolveFunction<T> = (value: T) => void;
 type PromiseRejectFunction = (reason?: Error) => void;
 export interface Deferred<T> {

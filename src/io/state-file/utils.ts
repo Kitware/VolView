@@ -1,5 +1,5 @@
 import { fetchFile } from '@/src/utils/fetch';
-import { getURLBasename } from '@/src/utils';
+import { getURLBasename, partition } from '@/src/utils';
 import {
   StateFile,
   DatasetType,
@@ -8,6 +8,7 @@ import {
   RemoteDatasetFile,
 } from './schema';
 import {
+  DatasetFile,
   isRemote,
   RemoteDatasetFileMeta,
   useFileStore,
@@ -32,7 +33,11 @@ export async function serializeData(
       throw new Error(`No files for dataID: ${id}`);
     }
 
-    const remoteFiles = files.filter(isRemote) as Array<RemoteDatasetFileMeta>;
+    const [remoteFiles, zipFiles] = partition(isRemote, files) as [
+      Array<RemoteDatasetFileMeta>,
+      Array<DatasetFile>
+    ];
+
     remoteDatasetFiles[id] = remoteFiles.map(
       ({ url, path, file: { name } }) => ({
         url,
@@ -43,12 +48,10 @@ export async function serializeData(
 
     const dataPath = `data/${id}/`;
 
-    files
-      .filter((file) => !isRemote(file))
-      .forEach(({ file }) => {
-        const filePath = `${dataPath}/${file.name}`;
-        zip.file(filePath, file);
-      });
+    zipFiles.forEach(({ file }) => {
+      const filePath = `${dataPath}/${file.name}`;
+      zip.file(filePath, file);
+    });
 
     datasets.push({
       id,

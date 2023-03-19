@@ -221,9 +221,9 @@ import {
   DICOMLoadSuccess,
   FileLoadFailure,
   DICOMLoadFailure,
-  DataSelection,
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
+import { makeRemote, makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { useRulerStore } from '../store/tools/rulers';
@@ -233,15 +233,10 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { wrapInArray } from '../utils';
+import { partition, pluck, wrapInArray, isFulfilled } from '../utils';
 import { fetchFile } from '../utils/fetch';
-import { extractArchivesRecursively, retypeFile } from '../io';
-import { useFileStore } from '../store/datasets-files';
 
-async function loadFiles(
-  files: FileList | File[],
-  setError: (err: Error) => void
-) {
+async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
   const dataStore = useDatasetStore();
 
   const loadFirstDataset = !dataStore.primarySelection;
@@ -250,11 +245,11 @@ async function loadFiles(
   let stateFile = false;
   try {
     // For now only support restoring from a single state files.
-    stateFile = files.length === 1 && (await isStateFile(files[0]));
+    stateFile = files.length === 1 && (await isStateFile(files[0].file));
     if (stateFile) {
-      statuses = await loadState(files[0]);
+      statuses = await loadState(files[0].file);
     } else {
-      statuses = await dataStore.loadFiles(Array.from(files));
+      statuses = await dataStore.loadFiles(files);
     }
   } catch (error) {
     setError(error as Error);
@@ -300,72 +295,43 @@ async function loadRemoteFilesFromURLParams(
   params: UrlParams,
   setError: (err: Error) => void
 ) {
-  const dataStore = useDatasetStore();
-
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []);
 
-  const fileResults = await Promise.allSettled(
+  const fetchResults = await Promise.allSettled(
     urls.map(async (url, index) => {
       const { pathname } = new URL(url, window.location.href);
       const name = names[index] || pathname.split('/').at(-1) || '';
-
       return fetchFile(url, name);
     })
   );
 
-  // Check for state file, then just load it and skip rest
-  if (fileResults.length === 1 && fileResults[0].status === 'fulfilled') {
-    const file = await retypeFile(fileResults[0].value);
-    if (await isStateFile(file)) {
-      loadFiles([file], setError);
-      return;
-    }
+  const withUrls = fetchResults.map((result, idx) => ({
+    result,
+    url: urls[idx],
+  }));
+
+  const [fulfilled, rejected] = partition(
+    ({ result }) => isFulfilled(result),
+    withUrls
+  ) as [
+    Array<{ url: string; result: PromiseFulfilledResult<File> }>,
+    Array<{ url: string; result: PromiseRejectedResult }>
+  ];
+
+  if (rejected.length) {
+    setError(
+      new Error(
+        `Failed to download URLs:\n${rejected.map(pluck('url')).join('\n')}`
+      )
+    );
   }
 
-  const results = await Promise.allSettled(
-    fileResults.map(async (fileResult, urlIndex) => {
-      if (fileResult.status === 'fulfilled') {
-        // Extract to source image files and save remote urls for fileStore serialization
-        const zipFile = await retypeFile(fileResult.value);
-        const extractResults = await extractArchivesRecursively([zipFile]);
-        const extracted = extractResults.map(({ file }) => file);
-        const retyped = await Promise.all(
-          extracted.map((file) => retypeFile(file))
-        );
-        const fileStore = useFileStore();
-        retyped.forEach((file) => fileStore.addRemote(file, urls[urlIndex]));
-        const loadResults = await dataStore.loadFiles(retyped);
-        const errored = loadResults.find((s) => !s.loaded);
-        if (errored) {
-          // force the promise to error out
-          throw new Error();
-        }
-        // only select the first dataset
-        return loadResults[0];
-      }
-      throw fileResult.reason;
-    })
+  const datasetFiles = fulfilled.map(({ result: { value: file }, url }) =>
+    makeRemote(url)(file)
   );
 
-  const failedURLs: string[] = [];
-  let selectDataID: DataSelection | null = null;
-
-  results.forEach((res, index) => {
-    if (res.status === 'fulfilled' && res.value.loaded && !selectDataID) {
-      selectDataID = convertSuccessResultToDataSelection(res.value);
-    } else if (res.status === 'rejected') {
-      failedURLs.push(urls[index]);
-    }
-  });
-
-  if (selectDataID) {
-    dataStore.setPrimarySelection(selectDataID);
-  }
-
-  if (failedURLs.length) {
-    setError(new Error(`These URLs failed to load:\n${failedURLs.join('\n')}`));
-  }
+  loadFiles(datasetFiles, setError);
 }
 
 export default defineComponent({
@@ -429,7 +395,8 @@ export default defineComponent({
         return;
       }
 
-      runAsLoading((setError) => loadFiles(files, setError));
+      const datasetFiles = Array.from(files).map(makeLocal);
+      runAsLoading((setError) => loadFiles(datasetFiles, setError));
     }
 
     const fileEl = document.createElement('input');

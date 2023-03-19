@@ -1,6 +1,5 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { useFileStore } from '@/src/store/datasets-files';
 import { LayoutDirection } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
 import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
@@ -82,7 +81,6 @@ export async function save(fileName: string) {
 async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const datasetStore = useDatasetStore();
   const dicomStore = useDICOMStore();
-  const fileStore = useFileStore();
   const viewStore = useViewStore();
   const labelStore = useLabelmapStore();
   const toolStore = useToolStore();
@@ -120,7 +118,6 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
       .then((result) => {
         if (result.loaded) {
           stateIDToStoreID[dataset.id] = result.dataID;
-          fileStore.add(result.dataID, files); // not done by imageStore, unlike dicomStore
         }
 
         return result;
@@ -171,8 +168,9 @@ export async function loadState(stateFile: File) {
 }
 
 export async function isStateFile(file: File) {
-  if (ARCHIVE_FILE_TYPES.has(file.type)) {
-    const zip = await JSZip.loadAsync(file);
+  const typedFile = await retypeFile(file);
+  if (ARCHIVE_FILE_TYPES.has(typedFile.type)) {
+    const zip = await JSZip.loadAsync(typedFile);
 
     return zip.file(MANIFEST) !== null;
   }

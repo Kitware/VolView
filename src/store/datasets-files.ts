@@ -3,24 +3,42 @@ import { defineStore } from 'pinia';
 import { pluck } from '../utils';
 
 export type DatasetUrl = string & { __type: 'UrlString' };
-export type LocalDatasetFileMeta = { path: string; file: { name: string } };
-export type RemoteDatasetFileMeta = LocalDatasetFileMeta & { url: DatasetUrl };
-export type DatasetFileMeta = LocalDatasetFileMeta | RemoteDatasetFileMeta;
+export type LocalDatasetFileMeta = { file: { name: string } };
+export type ZipDatasetFileMeta = LocalDatasetFileMeta & { path: string };
+export type RemoteDatasetFileMeta = ZipDatasetFileMeta & { url: DatasetUrl };
+export type DatasetFileMeta =
+  | LocalDatasetFileMeta
+  | ZipDatasetFileMeta
+  | RemoteDatasetFileMeta;
 
 export type DatasetFile = DatasetFileMeta & {
   file: File;
 };
 
-export function isRemote(
+export const makeLocal = (file: File) => ({
+  file,
+});
+
+export const makeZip =
+  (path = '') =>
+  (file: File) => ({
+    file,
+    path,
+  });
+
+export const makeRemote = (url: DatasetUrl | string) => (file: File) => ({
+  file,
+  url: url as DatasetUrl,
+  path: '',
+});
+
+export const isRemote = (
   datasetFile: DatasetFileMeta
-): datasetFile is RemoteDatasetFileMeta {
-  // return (datasetFile as RemoteDatasetFileMeta).url !== undefined;
-  return 'url' in datasetFile;
-}
+): datasetFile is RemoteDatasetFileMeta =>
+  (datasetFile as RemoteDatasetFileMeta).url !== undefined;
 
 interface State {
   byDataID: Record<string, DatasetFile[]>;
-  fileToRemote: Map<File, string>;
 }
 
 /**
@@ -29,7 +47,6 @@ interface State {
 export const useFileStore = defineStore('files', {
   state: (): State => ({
     byDataID: {},
-    fileToRemote: new Map(),
   }),
 
   getters: {
@@ -43,17 +60,12 @@ export const useFileStore = defineStore('files', {
   actions: {
     remove(dataID: string) {
       if (dataID in this.byDataID) {
-        // this.byDataID[dataID].forEach((file) => this.fileToRemote.delete(file));
         del(this.byDataID, dataID);
       }
     },
 
     add(dataID: string, files: DatasetFile[]) {
       set(this.byDataID, dataID, files);
-    },
-
-    addRemote(file: File, url: string) {
-      this.fileToRemote.set(file, url);
     },
   },
 });
