@@ -17,7 +17,8 @@ async function fetchRemoteManifest(
 ) {
   return Promise.all(
     manifest.resources.map(async (resource) =>
-      makeRemote(resource.url)(
+      makeRemote(
+        resource.url,
         await fetchFile(
           resource.url,
           resource.name ?? getURLBasename(resource.url)

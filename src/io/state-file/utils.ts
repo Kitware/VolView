@@ -1,5 +1,5 @@
 import { fetchFile } from '@/src/utils/fetch';
-import { getURLBasename, partition } from '@/src/utils';
+import { partition } from '@/src/utils';
 import {
   StateFile,
   DatasetType,
@@ -40,9 +40,10 @@ export async function serializeData(
     ];
 
     remoteDatasetFileEntries[id] = remoteFiles
-      .map((f) => ({ path: '', ...f }))
-      .map(({ url, path, file: { name } }) => ({
+      .map((f) => ({ path: '', ...f })) // ensure path
+      .map(({ url, remoteFilename, path, file: { name } }) => ({
         url,
+        remoteFilename,
         path,
         name,
       }));
@@ -69,32 +70,31 @@ const getRemoteFile = () => {
 
   return async ({
     url,
-    path: remoteFilePath,
-    name: remoteFileName,
+    remoteFilename,
+    path: extractedFilePath,
+    name: extractedFilename,
   }: RemoteDatasetFileEntry) => {
     if (!(url in cache)) {
-      cache[url] = fetchFile(url, getURLBasename(url))
+      cache[url] = fetchFile(url, remoteFilename)
         .then((remoteFile) => retypeFile(remoteFile))
         .then((remoteFile) =>
-          extractArchivesRecursively([makeRemote(url)(remoteFile)])
+          extractArchivesRecursively([makeRemote(url, remoteFile)])
         );
       cache[url] = await cache[url];
     }
-    // ensure parallel remote file requests have resolved
+    // ensure parallel remote file requests for same URL have resolved
     const remoteFiles = await cache[url];
 
     const file = remoteFiles
       .map((f) => ({ path: '', ...f }))
       .find(
         ({ path, file: { name } }) =>
-          path === remoteFilePath && name === remoteFileName
+          path === extractedFilePath && name === extractedFilename
       );
-
-    console.log(remoteFiles);
 
     if (!file)
       throw new Error(
-        `Did not find matching file in remote file URL: ${url} : ${remoteFilePath} : ${remoteFileName}`
+        `Did not find matching file in remote file URL: ${url} : ${extractedFilePath} : ${extractedFilename}`
       );
 
     return file;

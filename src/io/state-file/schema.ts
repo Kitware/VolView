@@ -61,6 +61,7 @@ export type Dataset = z.infer<typeof Dataset>;
 const RemoteDatasetFileEntry = z.object({
   path: z.string(),
   url: z.string(),
+  remoteFilename: z.string(),
   name: z.string(),
 });
 export type RemoteDatasetFileEntry = z.infer<typeof RemoteDatasetFileEntry>;

@@ -96,7 +96,7 @@ export default defineComponent({
 
         if (sampleFile) {
           const [loadResult] = await datasetStore.loadFiles([
-            makeRemote(sample.url)(sampleFile),
+            makeRemote(sample.url, sampleFile),
           ]);
           if (loadResult?.loaded) {
             const selection = convertSuccessResultToDataSelection(loadResult);

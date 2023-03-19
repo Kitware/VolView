@@ -1,6 +1,5 @@
 import { extensionToImageIO } from 'itk-wasm';
 import { extractFilesFromZip } from './zip';
-import { FileEntry } from './types';
 import { DatasetFile } from '../store/datasets-files';
 
 export const ARCHIVE_FILE_TYPES = new Set(['zip', 'application/zip']);
@@ -98,7 +97,7 @@ export async function extractArchivesRecursively(
     files.map(async (file) => {
       if (ARCHIVE_FILE_TYPES.has(file.file.type)) {
         const entries = await extractFilesFromZip(file.file);
-        return entries.map((withPath) => ({ ...file, ...withPath })); // preserve DatasetFile url provenance
+        return entries.map((withPath) => ({ ...file, ...withPath })); // preserve DatasetFile remote provenance
       }
 
       return [file];

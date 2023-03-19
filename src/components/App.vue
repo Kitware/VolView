@@ -296,28 +296,28 @@ async function loadRemoteFilesFromURLParams(
   setError: (err: Error) => void
 ) {
   const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names ?? []);
+  const names = wrapInArray(params.names);
+  const fetchParams = urls.map((url, idx) => ({
+    url,
+    remoteFilename:
+      names[idx] ||
+      new URL(url, window.location.href).pathname.split('/').at(-1) ||
+      '',
+  }));
 
   const fetchResults = await Promise.allSettled(
-    urls.map(async (url, index) => {
-      const { pathname } = new URL(url, window.location.href);
-      const name = names[index] || pathname.split('/').at(-1) || '';
-      return fetchFile(url, name);
-    })
+    fetchParams.map(({ url, remoteFilename }) => fetchFile(url, remoteFilename))
   );
 
-  const withUrls = fetchResults.map((result, idx) => ({
+  const withParams = fetchResults.map((result, idx) => ({
     result,
-    url: urls[idx],
+    ...fetchParams[idx],
   }));
 
   const [fulfilled, rejected] = partition(
-    ({ result }) => isFulfilled(result),
-    withUrls
-  ) as [
-    Array<{ url: string; result: PromiseFulfilledResult<File> }>,
-    Array<{ url: string; result: PromiseRejectedResult }>
-  ];
+    ({ result }) => isFulfilled(result) && result.value.size !== 0,
+    withParams
+  );
 
   if (rejected.length) {
     setError(
@@ -327,11 +327,12 @@ async function loadRemoteFilesFromURLParams(
     );
   }
 
-  const datasetFiles = fulfilled.map(({ result: { value: file }, url }) =>
-    makeRemote(url)(file)
+  const datasetFiles = fulfilled.map(({ result, url }) =>
+    makeRemote(url, (result as PromiseFulfilledResult<File>).value)
   );
 
-  loadFiles(datasetFiles, setError);
+  // must await for setError to work
+  await loadFiles(datasetFiles, setError);
 }
 
 export default defineComponent({

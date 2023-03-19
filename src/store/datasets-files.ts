@@ -5,7 +5,10 @@ import { pluck } from '../utils';
 export type DatasetUrl = string & { __type: 'UrlString' };
 export type LocalDatasetFile = { file: File };
 export type ZipDatasetFile = LocalDatasetFile & { path: string };
-export type RemoteDatasetFile = LocalDatasetFile & { url: DatasetUrl };
+export type RemoteDatasetFile = LocalDatasetFile & {
+  url: DatasetUrl;
+  remoteFilename: string;
+};
 export type DatasetFile =
   | LocalDatasetFile
   | ZipDatasetFile
@@ -16,16 +19,10 @@ export const makeLocal = (file: File) => ({
   file,
 });
 
-export const makeZip =
-  (path = '') =>
-  (file: File) => ({
-    file,
-    path,
-  });
-
-export const makeRemote = (url: DatasetUrl | string) => (file: File) => ({
+export const makeRemote = (url: DatasetUrl | string, file: File) => ({
   file,
   url: url as DatasetUrl,
+  remoteFilename: file.name,
 });
 
 export const isRemote = (
