@@ -106,12 +106,12 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const statuses: LoadResult[] = [];
 
-  const deserializeFiles = deserializeDatasetFiles(manifest, state);
+  const deserializeDataset = deserializeDatasetFiles(manifest, state);
   // We load them sequentially to preserve the order
   // eslint-disable-next-line no-restricted-syntax
   for (const dataset of datasets) {
     // eslint-disable-next-line no-await-in-loop
-    const files = await deserializeFiles(dataset);
+    const files = await deserializeDataset(dataset);
 
     // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore

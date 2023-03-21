@@ -2,7 +2,8 @@ import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { pluck } from '../utils';
 
-export type DatasetUrl = string & { __type: 'UrlString' };
+export type DatasetPath = string & { __type: 'DatasetPath' };
+export type DatasetUrl = string & { __type: 'DatasetUrl' };
 export type LocalDatasetFile = { file: File };
 export type ZipDatasetFile = LocalDatasetFile & { path: string };
 export type RemoteDatasetFile = LocalDatasetFile & {
@@ -19,11 +20,28 @@ export const makeLocal = (file: File) => ({
   file,
 });
 
-export const makeRemote = (url: DatasetUrl | string, file: File) => ({
-  file,
-  url: url as DatasetUrl,
-  remoteFilename: file.name,
-});
+export const makeZip = (
+  path: DatasetUrl | string,
+  file: File | DatasetFile
+) => {
+  const isFile = file instanceof File;
+  return {
+    path: path as DatasetPath,
+    ...(isFile ? { file } : file),
+  };
+};
+
+export const makeRemote = (
+  url: DatasetUrl | string,
+  file: File | DatasetFile
+) => {
+  const isFile = file instanceof File;
+  return {
+    url: url as DatasetUrl,
+    remoteFilename: isFile ? file.name : file.file.name,
+    ...(isFile ? { file } : file),
+  };
+};
 
 export const isRemote = (
   datasetFile: DatasetFile

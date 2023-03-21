@@ -314,7 +314,7 @@ async function loadRemoteFilesFromURLParams(
     ...fetchParams[idx],
   }));
 
-  const [fulfilled, rejected] = partition(
+  const [downloaded, rejected] = partition(
     ({ result }) => isFulfilled(result) && result.value.size !== 0,
     withParams
   );
@@ -327,7 +327,7 @@ async function loadRemoteFilesFromURLParams(
     );
   }
 
-  const datasetFiles = fulfilled.map(({ result, url }) =>
+  const datasetFiles = downloaded.map(({ result, url }) =>
     makeRemote(url, (result as PromiseFulfilledResult<File>).value)
   );
 

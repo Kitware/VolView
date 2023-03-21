@@ -19,14 +19,14 @@ export const DataType = {
 };
 
 const makeFileSuccessStatus = (
-  filename: string,
+  file: File | string,
   type: 'model' | 'image',
   dataID: string
 ) =>
   ({
     type: 'file',
     loaded: true,
-    filename,
+    filename: typeof file === 'string' ? file : file.name,
     dataID,
     dataType: type,
   } as const);
@@ -198,7 +198,7 @@ export const useDatasetStore = defineStore('dataset', () => {
       await Promise.all(
         manifestFiles.map(async (file) => {
           try {
-            allFiles.push(...(await readRemoteManifestFile(file)));
+            allFiles.push(...(await readRemoteManifestFile(file.file)));
           } catch (err) {
             manifestStatuses.push(
               makeFileFailureStatus(
@@ -240,7 +240,7 @@ export const useDatasetStore = defineStore('dataset', () => {
               );
               fileStore.add(id, [datasetFile]);
 
-              return makeFileSuccessStatus(file.name, 'image', id);
+              return makeFileSuccessStatus(file, 'image', id);
             }
             if (dataObj.isA('vtkPolyData')) {
               const id = modelStore.addVTKPolyData(
@@ -249,7 +249,7 @@ export const useDatasetStore = defineStore('dataset', () => {
               );
               fileStore.add(id, [datasetFile]);
 
-              return makeFileSuccessStatus(file.name, 'model', id);
+              return makeFileSuccessStatus(file, 'model', id);
             }
             return makeFileFailureStatus(
               file,
@@ -305,7 +305,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     const { file } = datasetFile;
     return imageStore
       .deserialize(datasetFile)
-      .then((dataID) => makeFileSuccessStatus(file.name, 'image', dataID))
+      .then((dataID) => makeFileSuccessStatus(file, 'image', dataID))
       .catch((err) =>
         makeFileFailureStatus(
           file.name,

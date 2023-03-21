@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DatasetFile, makeRemote } from '../store/datasets-files';
+import { makeRemote } from '../store/datasets-files';
 import { getURLBasename } from '../utils';
 import { fetchFile } from '../utils/fetch';
 
@@ -28,9 +28,9 @@ async function fetchRemoteManifest(
   );
 }
 
-export async function readRemoteManifestFile(manifestFile: DatasetFile) {
+export async function readRemoteManifestFile(manifestFile: File) {
   const decoder = new TextDecoder();
-  const ab = await manifestFile.file.arrayBuffer();
+  const ab = await manifestFile.arrayBuffer();
   const text = decoder.decode(new Uint8Array(ab));
   const manifest = RemoteDataManifest.parse(JSON.parse(text));
   return fetchRemoteManifest(manifest);
