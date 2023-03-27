@@ -9,8 +9,8 @@ import { useModelStore } from './datasets-models';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 import { useFileStore } from './datasets-files';
 import { DataSet, StateFile, DataSetType } from '../io/state-file/schema';
-import { useMessageStore } from './messages';
 import { readRemoteManifestFile } from '../io/manifest';
+import { useErrorMessage } from '../composables/useErrorMessage';
 
 export const DataType = {
   Image: 'Image',
@@ -83,6 +83,27 @@ export type ImageSelection = ReturnType<typeof makeImageSelection>;
 
 export type DataSelection = DICOMSelection | ImageSelection;
 
+export const getImageID = (selection: DataSelection) => {
+  if (selection.type === 'image') return selection.dataID;
+  if (selection.type === 'dicom')
+    return useDICOMStore().volumeToImageID[selection.volumeKey];
+
+  const _exhaustiveCheck: never = selection;
+  throw new Error(`invalid selection type ${_exhaustiveCheck}`);
+};
+
+export const getImage = async (selection: DataSelection) => {
+  const images = useImageStore();
+  const dicoms = useDICOMStore();
+  if (selection.type === 'dicom') {
+    // ensure image data exists
+    await useErrorMessage('Failed to build volume', () =>
+      dicoms.buildVolume(selection.volumeKey)
+    );
+  }
+  return images.dataIndex[getImageID(selection)!];
+};
+
 export function selectionEquals(s1: DataSelection, s2: DataSelection) {
   if (s1.type === 'dicom' && s2.type === 'dicom') {
     return s1.volumeKey === s2.volumeKey;
@@ -121,19 +142,14 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   // --- getters --- //
 
-  const primaryDataset = computed<vtkImageData | null>(() => {
-    const sel = primarySelection.value;
-    const { dataIndex } = imageStore;
-    const { volumeToImageID } = dicomStore;
+  const primaryImageID = computed(() => {
+    if (primarySelection.value) return getImageID(primarySelection.value);
+    return undefined;
+  });
 
-    if (sel?.type === 'dicom') {
-      const id = volumeToImageID[sel.volumeKey];
-      return dataIndex[id] || null;
-    }
-    if (sel?.type === 'image') {
-      return dataIndex[sel.dataID] || null;
-    }
-    return null;
+  const primaryDataset = computed<vtkImageData | null>(() => {
+    const { dataIndex } = imageStore;
+    return (primaryImageID.value && dataIndex[primaryImageID.value]) || null;
   });
 
   const allDataIDs = computed(() => {
@@ -146,7 +162,7 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   // --- actions --- //
 
-  async function setPrimarySelection(sel: DataSelection | null) {
+  function setPrimarySelection(sel: DataSelection | null) {
     primarySelection.value = sel;
 
     if (sel === null) {
@@ -155,17 +171,9 @@ export const useDatasetStore = defineStore('dataset', () => {
 
     // if selection is dicom, call buildVolume
     if (sel.type === 'dicom') {
-      try {
-        // trigger dicom dataset building
-        await dicomStore.buildVolume(sel.volumeKey);
-      } catch (err) {
-        if (err instanceof Error) {
-          const messageStore = useMessageStore();
-          messageStore.addError('Failed to build volume(s)', {
-            details: `${err}. More details can be found in the developer's console.`,
-          });
-        }
-      }
+      useErrorMessage('Failed to build volume', () =>
+        dicomStore.buildVolume(sel.volumeKey)
+      );
     }
   }
 
@@ -316,6 +324,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     if (name !== 'deleteVolume') {
       return;
     }
+
     after(() => {
       const [volumeKey] = args;
       const sel = primarySelection.value;
@@ -323,7 +332,6 @@ export const useDatasetStore = defineStore('dataset', () => {
         primarySelection.value = null;
       }
 
-      // remove file store entry
       fileStore.remove(volumeKey);
     });
   });

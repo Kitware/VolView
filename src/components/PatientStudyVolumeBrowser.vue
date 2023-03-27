@@ -14,11 +14,12 @@ import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
-  selectionEquals,
+  DICOMSelection,
   useDatasetStore,
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
+import { useLayersStore } from '../store/datasets-layers';
 
 const canvas = document.createElement('canvas');
 
@@ -58,17 +59,9 @@ async function generateDICOMThumbnail(
   volumeKey: string
 ) {
   if (volumeKey in dicomStore.volumeInfo) {
-    const info = dicomStore.volumeInfo[volumeKey];
-    const middleSlice = Math.ceil(Number(info.NumberOfSlices) / 2);
-    const thumb = (await dicomStore.getVolumeSlice(
-      volumeKey,
-      middleSlice,
-      true
-    )) as Image;
-
-    return thumb;
+    return (await dicomStore.getVolumeThumbnail(volumeKey)) as Image;
   }
-  return null;
+  throw new Error('No matching volume key in dicomStore');
 }
 
 export default defineComponent({
@@ -85,21 +78,53 @@ export default defineComponent({
   setup(props) {
     const { volumeKeys } = toRefs(props);
     const dicomStore = useDICOMStore();
-    const dataStore = useDatasetStore();
+    const datasetStore = useDatasetStore();
+    const layersStore = useLayersStore();
 
     const volumes = computed(() => {
       const { volumeInfo } = dicomStore;
-      return volumeKeys.value.map((volumeKey) => ({
-        key: volumeKey,
-        // for thumbnailing
-        cacheKey: dicomCacheKey(volumeKey),
-        info: volumeInfo[volumeKey],
-        // for UI selection
-        selectionKey: {
+      const { primarySelection } = datasetStore;
+      const layerVolumes = layersStore
+        .getLayers(primarySelection)
+        .filter(({ selection }) => selection.type === 'dicom');
+      const layerVolumeKeys = layerVolumes.map(
+        ({ selection }) => (selection as DICOMSelection).volumeKey
+      );
+      const loadedLayerVolumeKeys = layerVolumes
+        .filter(({ id }) => id in layersStore.layerImages)
+        .map(({ selection }) => (selection as DICOMSelection).volumeKey);
+      const selectedVolumeKey =
+        primarySelection?.type === 'dicom' && primarySelection.volumeKey;
+
+      return volumeKeys.value.map((volumeKey) => {
+        const selectionKey = {
           type: 'dicom',
           volumeKey,
-        } as DataSelection,
-      }));
+        } as DataSelection;
+        const layerAdded = layerVolumeKeys.includes(volumeKey);
+        const layerLoaded = loadedLayerVolumeKeys.includes(volumeKey);
+        const loading = layerAdded && !layerLoaded;
+        const layerable = volumeKey !== selectedVolumeKey && primarySelection;
+        return {
+          key: volumeKey,
+          // for thumbnailing
+          cacheKey: dicomCacheKey(volumeKey),
+          info: volumeInfo[volumeKey],
+          // for UI selection
+          selectionKey,
+          layerable,
+          loading,
+          layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
+          layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+          layerHandler: () => {
+            if (!loading && layerable) {
+              if (layerAdded)
+                layersStore.deleteLayer(primarySelection, selectionKey);
+              else layersStore.addLayer(primarySelection, selectionKey);
+            }
+          },
+        };
+      });
     });
 
     // --- thumbnails --- //
@@ -162,10 +187,6 @@ export default defineComponent({
       thumbnailCache,
       volumes,
       removeSelectedDICOMVolumes,
-      selectionEquals,
-      setPrimarySelection: (sel: DataSelection) => {
-        dataStore.setPrimarySelection(sel);
-      },
     };
   },
 });
@@ -251,6 +272,27 @@ export default defineComponent({
                     >
                       <div class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
+                          <v-tooltip top>
+                            <template v-slot:activator="{ on, attrs }">
+                              <v-btn
+                                icon
+                                :disabled="!volume.layerable"
+                                @click.stop="volume.layerHandler()"
+                                v-bind="attrs"
+                                v-on="on"
+                                class="mt-1"
+                              >
+                                <v-progress-circular
+                                  v-if="volume.loading"
+                                  indeterminate
+                                  size="20"
+                                  color="grey lighten-5"
+                                />
+                                <v-icon v-else>{{ volume.layerIcon }}</v-icon>
+                              </v-btn>
+                            </template>
+                            {{ volume.layerTooltip }}
+                          </v-tooltip>
                           <v-checkbox
                             :key="volume.info.VolumeID"
                             :value="volume.key"

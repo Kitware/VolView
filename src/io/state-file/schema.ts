@@ -17,6 +17,7 @@ import {
   CameraConfig,
   SliceConfig,
   WindowLevelConfig,
+  LayersConfig,
   VolumeColorConfig,
 } from '../../store/view-configs/types';
 import { LPSAxisDir, LPSAxis } from '../../types/lps';
@@ -31,6 +32,7 @@ import {
   OpacityNodes,
   ColoringConfig,
   CVRConfig,
+  BlendConfig,
 } from '../../types/views';
 
 export enum DataSetType {
@@ -176,9 +178,21 @@ const VolumeColorConfig: z.ZodType<VolumeColorConfig> = z.object({
   cvr: CVRConfig,
 });
 
+const BlendConfig: z.ZodType<BlendConfig> = z.object({
+  opacity: z.number(),
+});
+
+const LayersConfig: z.ZodType<LayersConfig> = z.object({
+  colorBy: ColorBy,
+  transferFunction: ColorTransferFunction,
+  opacityFunction: OpacityFunction,
+  blendConfig: BlendConfig,
+});
+
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
+  layers: LayersConfig.optional(),
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
 });
@@ -259,6 +273,15 @@ const Tools = z.object({
 
 export type Tools = z.infer<typeof Tools>;
 
+export const ParentToLayers = z
+  .object({
+    selectionKey: z.string(),
+    sourceSelectionKeys: z.string().array(),
+  })
+  .array();
+
+export type ParentToLayers = z.infer<typeof ParentToLayers>;
+
 export const ManifestSchema = z.object({
   version: z.string(),
   dataSets: DataSet.array(),
@@ -267,6 +290,7 @@ export const ManifestSchema = z.object({
   views: View.array(),
   primarySelection: z.string().optional(),
   layout: Layout,
+  parentToLayers: ParentToLayers,
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;

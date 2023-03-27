@@ -1,4 +1,5 @@
 import { URL } from 'whatwg-url';
+import { TypedArray } from 'itk-wasm';
 
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
@@ -116,7 +117,8 @@ export const ensureDefault = <T>(
   return records[key];
 };
 
-export function arrayEquals<T>(a: T[], b: T[]) {
+type ArrayLike<T> = T extends unknown[] ? T : T extends TypedArray ? T : never;
+export function arrayEquals<T>(a: ArrayLike<T>, b: ArrayLike<T>) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;

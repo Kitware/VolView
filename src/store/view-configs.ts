@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 
 import { setupSlicingConfig } from './view-configs/slicing';
 import { setupWindowingConfig } from './view-configs/windowing';
+import { setupLayersConfig } from './view-configs/layers';
 import { setupCameraConfig } from './view-configs/camera';
 import { setupVolumeColorConfig } from './view-configs/volume-coloring';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
@@ -14,12 +15,14 @@ import { useImageStore } from './datasets-images';
 export const useViewConfigStore = defineStore('viewConfig', () => {
   const sliceConfig = setupSlicingConfig();
   const windowingConfig = setupWindowingConfig();
+  const layersConfig = setupLayersConfig();
   const cameraConfig = setupCameraConfig();
   const volumeColorConfig = setupVolumeColorConfig();
 
   const removeView = (viewID: string) => {
     sliceConfig.removeView(viewID);
     windowingConfig.removeView(viewID);
+    layersConfig.removeView(viewID);
     cameraConfig.removeView(viewID);
     volumeColorConfig.removeView(viewID);
   };
@@ -27,6 +30,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const removeData = (dataID: string, viewID?: string) => {
     sliceConfig.removeData(dataID, viewID);
     windowingConfig.removeData(dataID, viewID);
+    layersConfig.removeData(dataID, viewID);
     cameraConfig.removeData(dataID, viewID);
     volumeColorConfig.removeData(dataID, viewID);
   };
@@ -34,6 +38,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const serialize = (stateFile: StateFile) => {
     sliceConfig.serialize(stateFile);
     windowingConfig.serialize(stateFile);
+    layersConfig.serialize(stateFile);
     cameraConfig.serialize(stateFile);
     volumeColorConfig.serialize(stateFile);
   };
@@ -52,6 +57,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
 
     sliceConfig.deserialize(viewID, updatedConfig);
     windowingConfig.deserialize(viewID, updatedConfig);
+    layersConfig.deserialize(viewID, updatedConfig);
     cameraConfig.deserialize(viewID, updatedConfig);
     volumeColorConfig.deserialize(viewID, updatedConfig);
   };
@@ -74,5 +80,6 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     ...windowingConfig.actions,
     ...cameraConfig.actions,
     ...volumeColorConfig.actions,
+    layers: layersConfig.actions,
   };
 });

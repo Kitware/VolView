@@ -4,12 +4,18 @@ import {
   InterfaceTypes,
   readDICOMTags,
   readImageDICOMFileSeries,
+  Image,
 } from 'itk-wasm';
 
 export interface TagSpec {
   name: string;
   tag: string;
 }
+
+export type SpatialParameters = Pick<
+  Image,
+  'size' | 'spacing' | 'origin' | 'direction'
+>;
 
 // volume ID => file names
 export type VolumesToFilesMap = Record<string, string[]>;
@@ -98,13 +104,7 @@ export class DICOMIO {
 
     const outputs = [{ type: InterfaceTypes.TextStream }];
 
-    const result = await this.runTask(
-      // module
-      'dicom',
-      args,
-      inputs,
-      outputs
-    );
+    const result = await this.runTask('dicom', args, inputs, outputs);
 
     return JSON.parse((result.outputs[0].data as TextStream).data);
   }
@@ -168,27 +168,51 @@ export class DICOMIO {
 
     const outputs = [{ type: InterfaceTypes.Image }];
 
-    const result = await this.runTask(
-      // module
-      'dicom',
-      args,
-      inputs,
-      outputs
-    );
+    const result = await this.runTask('dicom', args, inputs, outputs);
 
-    return result.outputs[0].data;
+    return result.outputs[0].data as Image;
+  }
+
+  async resample(fixed: SpatialParameters, moving: Image) {
+    await this.initialize();
+
+    const { size, spacing, origin, direction } = fixed;
+    const args = [
+      '--action',
+      'resample',
+      '0', // space for input image
+
+      '--size',
+      size.join(','),
+      '--spacing',
+      spacing.join(','),
+      '--origin',
+      origin.join(','),
+      '--direction',
+      direction.join(','),
+
+      '--memory-io',
+      '0',
+    ];
+
+    const inputs = [{ type: InterfaceTypes.Image, data: moving }];
+    const outputs = [{ type: InterfaceTypes.Image }];
+
+    const result = await this.runTask('dicom', args, inputs, outputs);
+    const image = result.outputs[0].data as Image;
+    return image;
   }
 
   /**
    * Builds a volume for a set of files.
    * @async
-   * @param {File[]} files the set of files to build volume from
+   * @param {File[]} seriesFiles the set of files to build volume from
    * @returns ItkImage
    */
-  async buildVolume(files: File[]) {
+  async buildImage(seriesFiles: File[]) {
     await this.initialize();
 
-    const result = await readImageDICOMFileSeries(files);
+    const result = await readImageDICOMFileSeries(seriesFiles);
 
     return result.image;
   }

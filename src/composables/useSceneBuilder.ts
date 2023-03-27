@@ -6,6 +6,7 @@ import { vtkLPSViewProxy } from '../types/vtk-types';
 interface Scene {
   baseImage?: Ref<string | null>;
   labelmaps?: Ref<string[]>;
+  layers?: Ref<string[]>;
   models?: Ref<string[]>;
 }
 
@@ -14,6 +15,7 @@ type RepProxy = vtkAbstractRepresentationProxy;
 export function useSceneBuilder<
   BaseImageType extends RepProxy = RepProxy,
   LabelMapType extends RepProxy = RepProxy,
+  LayerType extends RepProxy = RepProxy,
   ModelType extends RepProxy = RepProxy
 >(viewID: Ref<string>, sceneIDs: Scene) {
   const viewStore = useViewStore();
@@ -50,6 +52,15 @@ export function useSceneBuilder<
     return [];
   });
 
+  const layerReps = computed(
+    () =>
+      (sceneIDs.layers?.value ?? [])
+        .map((id) =>
+          viewStore.getDataRepresentationForView<LayerType>(id, viewID.value)
+        )
+        .filter(Boolean) as LayerType[]
+  );
+
   const modelReps = computed(() => {
     const _viewID = viewID.value;
     if (sceneIDs.models) {
@@ -66,8 +77,8 @@ export function useSceneBuilder<
   });
 
   watch(
-    [viewProxy, baseImageRep, labelmapReps, modelReps],
-    ([view, baseRep, lmReps, mReps]) => {
+    [viewProxy, baseImageRep, labelmapReps, layerReps, modelReps],
+    ([view, baseRep, lmReps, layReps, mReps]) => {
       if (!view) {
         throw new Error('[useSceneBuilder] No view available');
       }
@@ -79,8 +90,9 @@ export function useSceneBuilder<
         baseRep.setRescaleOnColorBy(false);
         view.addRepresentation(baseRep);
       }
-      lmReps.forEach((rep) => view.addRepresentation(rep));
-      mReps.forEach((rep) => view.addRepresentation(rep));
+      [...lmReps, ...layReps, ...mReps].forEach((rep) =>
+        view.addRepresentation(rep)
+      );
 
       // TODO not sure why I need this, but might as well keep
       // the renderer up to date.
@@ -92,5 +104,5 @@ export function useSceneBuilder<
     { deep: true, immediate: true }
   );
 
-  return { baseImageRep, labelmapReps, modelReps };
+  return { baseImageRep, labelmapReps, layerReps, modelReps };
 }

@@ -15,10 +15,12 @@ import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
+  ImageSelection,
   selectionEquals,
   useDatasetStore,
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
+import { useLayersStore } from '../store/datasets-layers';
 
 function imageCacheKey(dataID: string) {
   return `image-${dataID}`;
@@ -34,6 +36,7 @@ export default defineComponent({
     const imageStore = useImageStore();
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
+    const layersStore = useLayersStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -43,18 +46,51 @@ export default defineComponent({
 
     const images = computed(() => {
       const { metadata } = imageStore;
-      return nonDICOMImages.value.map((id) => ({
-        id,
-        cacheKey: imageCacheKey(id),
-        // for UI selection
-        selectionKey: {
+
+      const layerImages = layersStore
+        .getLayers(primarySelection.value)
+        .filter(({ selection }) => selection.type === 'image');
+      const layerImageIDs = layerImages.map(
+        ({ selection }) => (selection as ImageSelection).dataID
+      );
+      const loadedLayerImageIDs = layerImages
+        .filter(({ id }) => id in layersStore.layerImages)
+        .map(({ selection }) => (selection as ImageSelection).dataID);
+
+      const selectedImageID =
+        primarySelection.value?.type === 'image' &&
+        primarySelection.value?.dataID;
+
+      return nonDICOMImages.value.map((id) => {
+        const selectionKey = {
           type: 'image',
           dataID: id,
-        } as DataSelection,
-        name: metadata[id].name,
-        dimensions: metadata[id].dimensions,
-        spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
-      }));
+        } as DataSelection;
+        const layerAdded = layerImageIDs.includes(id);
+        const layerLoaded = loadedLayerImageIDs.includes(id);
+        const loading = layerAdded && !layerLoaded;
+        const layerable = id !== selectedImageID && primarySelection.value;
+        return {
+          id,
+          cacheKey: imageCacheKey(id),
+          // for UI selection
+          selectionKey,
+          name: metadata[id].name,
+          dimensions: metadata[id].dimensions,
+          spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
+          layerable,
+          loading,
+          layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
+          layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+          layerHandler: () => {
+            if (!loading && layerable) {
+              if (layerAdded)
+                layersStore.deleteLayer(primarySelection.value, selectionKey);
+              else layersStore.addLayer(primarySelection.value, selectionKey);
+            }
+          },
+        };
+      });
     });
 
     // --- thumbnails --- //
@@ -179,6 +215,28 @@ export default defineComponent({
           </div>
           <div class="caption">Dims: ({{ image.dimensions.join(', ') }})</div>
           <div class="caption">Spacing: ({{ image.spacing.join(', ') }})</div>
+
+          <v-tooltip top>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn
+                icon
+                :disabled="!image.layerable"
+                @click.stop="image.layerHandler()"
+                v-bind="attrs"
+                v-on="on"
+                class="mt-1"
+              >
+                <v-progress-circular
+                  v-if="image.loading"
+                  indeterminate
+                  size="20"
+                  color="grey lighten-5"
+                />
+                <v-icon v-else>{{ image.layerIcon }}</v-icon>
+              </v-btn>
+            </template>
+            {{ image.layerTooltip }}
+          </v-tooltip>
         </image-list-card>
       </groupable-item>
     </item-group>

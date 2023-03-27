@@ -17,7 +17,11 @@ module.exports = {
 
   plugins: ['@typescript-eslint', 'import'],
 
-  ignorePatterns: ['src/io/itk-dicom/emscripten-build/**', '**/*.d.ts'],
+  ignorePatterns: [
+    'src/io/itk-dicom/emscripten-build/**',
+    'src/io/resample/emscripten-build/**',
+    '**/*.d.ts',
+  ],
 
   globals: {
     globalThis: false, // not writeable

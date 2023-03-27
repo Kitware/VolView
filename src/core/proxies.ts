@@ -75,6 +75,21 @@ export default class ProxyWrapper {
     return <vtkSourceProxy<T> | null>(this.dataProxies.get(id) ?? null);
   }
 
+  updateData<T extends vtkObject>(id: string, data: T) {
+    const proxy = this.dataProxies.get(id);
+    if (!proxy) {
+      return;
+    }
+    proxy.setInputData(data);
+  }
+
+  deleteData(id: string) {
+    const proxy = this.dataProxies.get(id);
+    this.dataProxies.delete(id);
+    if (proxy) this.proxyManager.deleteProxy(proxy);
+    else throw new Error('Did not find proxy for ID');
+  }
+
   getDataRepresentationForView<T extends vtkAbstractRepresentationProxy>(
     dataID: string,
     viewID: string

@@ -78,6 +78,8 @@ export const useImageStore = defineStore('images', {
 
         set(this.metadata, id, metadata);
       }
+      this.$proxies.updateData(id, imageData);
+      set(this.dataIndex, id, imageData);
     },
 
     deleteData(id: string) {
@@ -90,11 +92,9 @@ export const useImageStore = defineStore('images', {
 
     async serialize(stateFile: StateFile) {
       const fileStore = useFileStore();
-      // We want to filter out volume data (which is generated so don't have
-      // associated files).
-      const dataIDs = this.idList.filter((id) => {
-        return id in fileStore.byDataID;
-      });
+      // We want to filter out volume images (which are generated and don't have
+      // input files in fileStore with matching imageID.)
+      const dataIDs = this.idList.filter((id) => id in fileStore.byDataID);
 
       await serializeData(stateFile, dataIDs, DataSetType.IMAGE);
     },

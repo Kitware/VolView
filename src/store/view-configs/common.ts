@@ -2,6 +2,7 @@ import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import {
   CameraConfig,
+  LayersConfig,
   SliceConfig,
   VolumeColorConfig,
   WindowLevelConfig,
@@ -29,7 +30,8 @@ type SubViewConfig =
   | CameraConfig
   | SliceConfig
   | VolumeColorConfig
-  | WindowLevelConfig;
+  | WindowLevelConfig
+  | LayersConfig;
 
 type ViewConfigGetter = (
   viewID: string,

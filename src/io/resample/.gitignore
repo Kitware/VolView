@@ -1,0 +1,2 @@
+/emscripten-build/*
+!emscripten-build/resample*

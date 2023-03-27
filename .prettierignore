@@ -2,4 +2,5 @@ dist
 node_modules
 public
 src/io/itk-dicom
+src/io/resample
 *.json
