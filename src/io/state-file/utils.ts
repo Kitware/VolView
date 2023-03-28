@@ -66,6 +66,7 @@ export async function serializeData(
 type RemoteFileCache = Record<string, DatasetFile[] | Promise<DatasetFile[]>>;
 
 const getRemoteFile = () => {
+  // url to DatasetFiles
   const cache: RemoteFileCache = {};
 
   return async ({
@@ -78,11 +79,10 @@ const getRemoteFile = () => {
     if (!(url in cache)) {
       // Fetch, extract, store Files in shared cache
       cache[url] = fetchFile(url, remoteFilename)
-        .then((remoteFile) => retypeFile(remoteFile))
+        .then(retypeFile)
         .then((remoteFile) =>
           extractArchivesRecursively([makeRemote(url, remoteFile)])
         );
-      cache[url] = await cache[url];
     }
     // Ensure parallel remote file requests for same URL have resolved.
     const remoteFiles = await cache[url];
@@ -110,7 +110,9 @@ export const deserializeDatasetFiles = (
   const getFile = getRemoteFile();
 
   return async ({ id, path }: Dataset) => {
-    const filesInStateFile = savedFiles.filter((entry) => entry.path === path);
+    const filesInStateFile = savedFiles.filter(
+      ({ archivePath }) => archivePath === path
+    );
 
     const remoteFiles = await Promise.all(
       manifest.remoteFiles[id].map(getFile)

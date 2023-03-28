@@ -5,7 +5,7 @@ import { pluck } from '../utils';
 export type DatasetPath = string & { __type: 'DatasetPath' };
 export type DatasetUrl = string & { __type: 'DatasetUrl' };
 export type LocalDatasetFile = { file: File };
-export type ZipDatasetFile = LocalDatasetFile & { path: string };
+export type ZipDatasetFile = LocalDatasetFile & { archivePath: string };
 export type RemoteDatasetFile = LocalDatasetFile & {
   url: DatasetUrl;
   remoteFilename: string;

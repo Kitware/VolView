@@ -111,11 +111,13 @@ export const useLabelmapStore = defineStore('labelmap', {
       labelMaps.forEach(async (labelMap) => {
         const [file] = stateFiles
           .filter(
-            (entry) => `${entry.path}${entry.file.name}` === labelMap.path
+            (entry) =>
+              `${entry.archivePath}${entry.file.name}` === labelMap.path
           )
           .map((entry) => entry.file);
 
         // map parent id to new id
+        // eslint-disable-next-line no-param-reassign
         labelMap.parent = dataIDMap[labelMap.parent];
 
         const { parent } = labelMap;
