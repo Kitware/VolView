@@ -5,7 +5,7 @@ import {
   DatasetType,
   Dataset,
   Manifest,
-  RemoteDatasetFileEntry,
+  RemoteFile,
 } from './schema';
 import {
   DatasetFile,
@@ -25,7 +25,7 @@ export async function serializeData(
   const fileStore = useFileStore();
   const { zip } = stateFile;
   const {
-    manifest: { datasets, remoteDatasetFileEntries },
+    manifest: { datasets, remoteFiles },
   } = stateFile;
 
   dataIDs.forEach((id) => {
@@ -34,12 +34,12 @@ export async function serializeData(
       throw new Error(`No files for dataID: ${id}`);
     }
 
-    const [remoteFiles, zipFiles] = partition(isRemote, files) as [
+    const [remotes, toZip] = partition(isRemote, files) as [
       Array<RemoteDatasetFile>,
       Array<DatasetFile>
     ];
 
-    remoteDatasetFileEntries[id] = remoteFiles
+    remoteFiles[id] = remotes
       .map((f) => ({ path: '', ...f })) // ensure path
       .map(({ url, remoteFilename, path, file: { name } }) => ({
         url,
@@ -50,7 +50,7 @@ export async function serializeData(
 
     const dataPath = `data/${id}/`;
 
-    zipFiles.forEach(({ file }) => {
+    toZip.forEach(({ file }) => {
       const filePath = `${dataPath}/${file.name}`;
       zip.file(filePath, file);
     });
@@ -73,8 +73,10 @@ const getRemoteFile = () => {
     remoteFilename,
     path: extractedFilePath,
     name: extractedFilename,
-  }: RemoteDatasetFileEntry) => {
+  }: RemoteFile) => {
+    // First time seeing URL?
     if (!(url in cache)) {
+      // Fetch, extract, store Files in shared cache
       cache[url] = fetchFile(url, remoteFilename)
         .then((remoteFile) => retypeFile(remoteFile))
         .then((remoteFile) =>
@@ -82,7 +84,7 @@ const getRemoteFile = () => {
         );
       cache[url] = await cache[url];
     }
-    // ensure parallel remote file requests for same URL have resolved
+    // Ensure parallel remote file requests for same URL have resolved.
     const remoteFiles = await cache[url];
 
     const file = remoteFiles
@@ -111,7 +113,7 @@ export const deserializeDatasetFiles = (
     const filesInStateFile = savedFiles.filter((entry) => entry.path === path);
 
     const remoteFiles = await Promise.all(
-      manifest.remoteDatasetFileEntries[id].map(getFile)
+      manifest.remoteFiles[id].map(getFile)
     );
     return [...filesInStateFile, ...remoteFiles];
   };

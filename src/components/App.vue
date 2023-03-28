@@ -296,7 +296,7 @@ async function loadRemoteFilesFromURLParams(
   setError: (err: Error) => void
 ) {
   const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names);
+  const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
   const fetchParams = urls.map((url, idx) => ({
     url,
     remoteFilename:

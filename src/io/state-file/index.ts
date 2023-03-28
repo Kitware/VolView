@@ -26,7 +26,7 @@ import { Manifest, ManifestSchema } from './schema';
 import { deserializeDatasetFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
-const VERSION = '0.0.2';
+const VERSION = '0.0.3';
 
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();
@@ -39,7 +39,7 @@ export async function save(fileName: string) {
   const manifest: Manifest = {
     version: VERSION,
     datasets: [],
-    remoteDatasetFileEntries: {},
+    remoteFiles: {},
     labelMaps: [],
     tools: {
       rulers: [],

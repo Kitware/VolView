@@ -61,9 +61,11 @@ export const useFileStore = defineStore('files', {
   }),
 
   getters: {
+    // Returns [DatasetFile] used to build a dataID
     getDatasetFiles: (state) => (dataID: string) =>
       state.byDataID[dataID] ?? [],
 
+    // Returns [File] used to build a dataID
     getFiles: (state) => (dataID: string) =>
       (state.byDataID[dataID] ?? []).map(pluck('file')),
   },

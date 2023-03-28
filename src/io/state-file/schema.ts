@@ -58,13 +58,13 @@ const Dataset = z.object({
 });
 export type Dataset = z.infer<typeof Dataset>;
 
-const RemoteDatasetFileEntry = z.object({
+const RemoteFile = z.object({
   path: z.string(),
   url: z.string(),
   remoteFilename: z.string(),
   name: z.string(),
 });
-export type RemoteDatasetFileEntry = z.infer<typeof RemoteDatasetFileEntry>;
+export type RemoteFile = z.infer<typeof RemoteFile>;
 
 const LayoutDirectionNative = z.nativeEnum(LayoutDirection);
 
@@ -293,7 +293,7 @@ export type ParentToLayers = z.infer<typeof ParentToLayers>;
 export const ManifestSchema = z.object({
   version: z.string(),
   datasets: Dataset.array(),
-  remoteDatasetFileEntries: z.record(RemoteDatasetFileEntry.array()),
+  remoteFiles: z.record(RemoteFile.array()),
   labelMaps: LabelMap.array(),
   tools: Tools,
   views: View.array(),
