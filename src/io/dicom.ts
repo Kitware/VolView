@@ -18,7 +18,10 @@ export type SpatialParameters = Pick<
 >;
 
 // volume ID => file names
-export type VolumesToFilesMap = Record<string, string[]>;
+export type VolumesToFileNamesMap = Record<string, string[]>;
+
+// volume ID => files
+export type VolumesToFilesMap = Record<string, File[]>;
 
 export class DICOMIO {
   private webWorker: any;
@@ -81,12 +84,12 @@ export class DICOMIO {
     await this.initialize();
 
     const inputs = await Promise.all(
-      files.map(async (file) => {
+      files.map(async (file, index) => {
         const buffer = await file.arrayBuffer();
         return {
           type: InterfaceTypes.BinaryFile,
           data: {
-            path: file.name,
+            path: index.toString(), // make each file name unique
             data: new Uint8Array(buffer),
           },
         };
@@ -106,7 +109,20 @@ export class DICOMIO {
 
     const result = await this.runTask('dicom', args, inputs, outputs);
 
-    return JSON.parse((result.outputs[0].data as TextStream).data);
+    // File names are indexes into input files array
+    const volumeToFileIndexes = JSON.parse(
+      (result.outputs[0].data as TextStream).data
+    ) as VolumesToFileNamesMap;
+
+    const volumeToFiles = Object.fromEntries(
+      Object.entries(volumeToFileIndexes).map(([volumeKey, fileIndexes]) => [
+        volumeKey,
+        // file indexes to Files
+        fileIndexes.map((fileIndex) => files[parseInt(fileIndex, 10)]),
+      ])
+    );
+
+    return volumeToFiles;
   }
 
   /**
