@@ -59,7 +59,7 @@ const Dataset = z.object({
 export type Dataset = z.infer<typeof Dataset>;
 
 const RemoteFile = z.object({
-  path: z.string(),
+  archivePath: z.string().optional(),
   url: z.string(),
   remoteFilename: z.string(),
   name: z.string(),

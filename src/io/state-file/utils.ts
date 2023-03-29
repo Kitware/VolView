@@ -39,14 +39,10 @@ export async function serializeData(
       Array<DatasetFile>
     ];
 
-    remoteFiles[id] = remotes
-      .map((f) => ({ path: '', ...f })) // ensure path
-      .map(({ url, remoteFilename, path, file: { name } }) => ({
-        url,
-        remoteFilename,
-        path,
-        name,
-      }));
+    remoteFiles[id] = remotes.map(({ file: { name }, ...rest }) => ({
+      name,
+      ...rest,
+    }));
 
     const dataPath = `data/${id}/`;
 
@@ -72,8 +68,8 @@ const getRemoteFile = () => {
   return async ({
     url,
     remoteFilename,
-    path: extractedFilePath,
-    name: extractedFilename,
+    archivePath: savedArchivePath,
+    name: savedFilename,
   }: RemoteFile) => {
     // First time seeing URL?
     if (!(url in cache)) {
@@ -87,16 +83,15 @@ const getRemoteFile = () => {
     // Ensure parallel remote file requests for same URL have resolved.
     const remoteFiles = await cache[url];
 
-    const file = remoteFiles
-      .map((f) => ({ path: '', ...f }))
-      .find(
-        ({ path, file: { name } }) =>
-          path === extractedFilePath && name === extractedFilename
-      );
+    const file = remoteFiles.find(
+      (remote) =>
+        remote.file.name === savedFilename &&
+        (!('archivePath' in remote) || remote.archivePath === savedArchivePath)
+    );
 
     if (!file)
       throw new Error(
-        `Did not find matching file in remote file URL: ${url} : ${extractedFilePath} : ${extractedFilename}`
+        `Did not find matching file in remote file URL: ${url} : ${savedArchivePath} : ${savedFilename}`
       );
 
     return file;
