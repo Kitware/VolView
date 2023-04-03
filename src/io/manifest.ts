@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { makeRemote } from '../store/datasets-files';
 import { getURLBasename } from '../utils';
 import { fetchFile } from '../utils/fetch';
 
@@ -15,8 +16,14 @@ async function fetchRemoteManifest(
   manifest: z.infer<typeof RemoteDataManifest>
 ) {
   return Promise.all(
-    manifest.resources.map((resource) =>
-      fetchFile(resource.url, resource.name ?? getURLBasename(resource.url))
+    manifest.resources.map(async (resource) =>
+      makeRemote(
+        resource.url,
+        await fetchFile(
+          resource.url,
+          resource.name ?? getURLBasename(resource.url)
+        )
+      )
     )
   );
 }

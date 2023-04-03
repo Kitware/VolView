@@ -1,6 +1,6 @@
 import { extensionToImageIO } from 'itk-wasm';
 import { extractFilesFromZip } from './zip';
-import { FileEntry } from './types';
+import { DatasetFile } from '../store/datasets-files';
 
 export const ARCHIVE_FILE_TYPES = new Set(['zip', 'application/zip']);
 
@@ -70,6 +70,8 @@ async function getFileTypeFromMagic(file: File): Promise<string | null> {
  * @param file
  */
 export async function retypeFile(file: File): Promise<File> {
+  if (file.type) return file;
+
   let type: string | null;
 
   type =
@@ -89,27 +91,28 @@ export async function retypeFile(file: File): Promise<File> {
 }
 
 export async function extractArchivesRecursively(
-  files: File[]
-): Promise<FileEntry[]> {
+  files: DatasetFile[]
+): Promise<DatasetFile[]> {
   const results = await Promise.all(
     files.map(async (file) => {
-      if (ARCHIVE_FILE_TYPES.has(file.type)) {
-        return extractFilesFromZip(file);
+      if (ARCHIVE_FILE_TYPES.has(file.file.type)) {
+        const entries = await extractFilesFromZip(file.file);
+        return entries.map((withPath) => ({ ...file, ...withPath })); // preserve DatasetFile remote provenance
       }
 
-      return [{ file, path: '' }];
+      return [file];
     })
   );
 
   const archivedEntries = await Promise.all(
     results.flat().map(async (entry) => {
-      return { file: await retypeFile(entry.file), path: entry.path };
+      return { ...entry, file: await retypeFile(entry.file) };
     })
   );
 
-  const archives = archivedEntries
-    .filter(({ file }) => ARCHIVE_FILE_TYPES.has(file.type))
-    .map(({ file }) => file);
+  const archives = archivedEntries.filter(({ file }) =>
+    ARCHIVE_FILE_TYPES.has(file.type)
+  );
 
   if (archives.length > 0) {
     const moreEntries = await extractArchivesRecursively(archives);

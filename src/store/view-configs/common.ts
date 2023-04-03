@@ -45,7 +45,7 @@ export const serializeViewConfig = <K extends ViewConfigStateKey>(
   configGetter: ViewConfigGetter,
   viewConfigStateKey: K
 ) => {
-  const dataIDs = stateFile.manifest.dataSets.map((dataSet) => dataSet.id);
+  const dataIDs = stateFile.manifest.datasets.map((dataset) => dataset.id);
   const { views } = stateFile.manifest;
 
   views.forEach((view) => {

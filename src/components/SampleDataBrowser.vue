@@ -17,6 +17,7 @@ import { SampleDataset } from '../types';
 import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { fetchFile } from '../utils/fetch';
+import { makeRemote } from '../store/datasets-files';
 
 enum ProgressState {
   Pending,
@@ -94,7 +95,9 @@ export default defineComponent({
         status.progress[sample.name].state = ProgressState.Done;
 
         if (sampleFile) {
-          const [loadResult] = await datasetStore.loadFiles([sampleFile]);
+          const [loadResult] = await datasetStore.loadFiles([
+            makeRemote(sample.url, sampleFile),
+          ]);
           if (loadResult?.loaded) {
             const selection = convertSuccessResultToDataSelection(loadResult);
             if (selection) {

@@ -24,7 +24,7 @@ export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
     return files.map((file, index) => {
       return {
         file,
-        path: paths[index],
+        archivePath: paths[index],
       };
     });
   });

@@ -1,6 +1,5 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { useFileStore } from '@/src/store/datasets-files';
 import { LayoutDirection } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
 import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
@@ -16,6 +15,7 @@ import {
 } from '../../store/datasets';
 import { useDICOMStore } from '../../store/datasets-dicom';
 import { useLayersStore } from '../../store/datasets-layers';
+import { makeLocal, ZipDatasetFile } from '../../store/datasets-files';
 import {
   ARCHIVE_FILE_TYPES,
   extractArchivesRecursively,
@@ -23,9 +23,10 @@ import {
 } from '../io';
 import { FileEntry } from '../types';
 import { Manifest, ManifestSchema } from './schema';
+import { deserializeDatasetFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
-const VERSION = '0.0.2';
+const VERSION = '0.0.3';
 
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();
@@ -37,7 +38,8 @@ export async function save(fileName: string) {
   const zip = new JSZip();
   const manifest: Manifest = {
     version: VERSION,
-    dataSets: [],
+    datasets: [],
+    remoteFiles: {},
     labelMaps: [],
     tools: {
       rulers: [],
@@ -80,7 +82,6 @@ export async function save(fileName: string) {
 async function restore(state: FileEntry[]): Promise<LoadResult[]> {
   const datasetStore = useDatasetStore();
   const dicomStore = useDICOMStore();
-  const fileStore = useFileStore();
   const viewStore = useViewStore();
   const labelStore = useLabelmapStore();
   const toolStore = useToolStore();
@@ -94,7 +95,7 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const manifestString = await manifestFile[0].file.text();
   const manifest = ManifestSchema.parse(JSON.parse(manifestString));
-  const { dataSets } = manifest;
+  const { datasets } = manifest;
 
   // We restore the view first, so that the appropriate watchers are triggered
   // in the views as the data is loaded
@@ -105,20 +106,19 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
   const statuses: LoadResult[] = [];
 
+  const deserializeDataset = deserializeDatasetFiles(manifest, state);
   // We load them sequentially to preserve the order
   // eslint-disable-next-line no-restricted-syntax
-  for (const dataSet of dataSets) {
-    const files = state
-      .filter((entry) => entry.path === dataSet.path)
-      .map((entry) => entry.file);
+  for (const dataset of datasets) {
+    // eslint-disable-next-line no-await-in-loop
+    const files = await deserializeDataset(dataset);
 
     // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore
-      .deserialize(dataSet, files)
+      .deserialize(dataset, files)
       .then((result) => {
         if (result.loaded) {
-          stateIDToStoreID[dataSet.id] = result.dataID;
-          fileStore.add(result.dataID, files);
+          stateIDToStoreID[dataset.id] = result.dataID;
         }
 
         return result;
@@ -163,14 +163,17 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
 
 export async function loadState(stateFile: File) {
   const typedFile = await retypeFile(stateFile);
-  const fileEntries = await extractArchivesRecursively([typedFile]);
+  const fileEntries = (await extractArchivesRecursively([
+    makeLocal(typedFile),
+  ])) as Array<ZipDatasetFile>;
 
   return restore(fileEntries);
 }
 
 export async function isStateFile(file: File) {
-  if (ARCHIVE_FILE_TYPES.has(file.type)) {
-    const zip = await JSZip.loadAsync(file);
+  const typedFile = await retypeFile(file);
+  if (ARCHIVE_FILE_TYPES.has(typedFile.type)) {
+    const zip = await JSZip.loadAsync(typedFile);
 
     return zip.file(MANIFEST) !== null;
   }

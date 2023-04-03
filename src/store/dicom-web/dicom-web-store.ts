@@ -15,6 +15,7 @@ import {
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
 } from '../../core/dicom-web-api';
+import { makeLocal } from '../datasets-files';
 
 export type ProgressState = 'Remote' | 'Pending' | 'Error' | 'Done';
 
@@ -168,7 +169,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         progressCallback
       );
       if (files) {
-        const [loadResult] = await datasets.loadFiles(files);
+        const [loadResult] = await datasets.loadFiles(files.map(makeLocal));
         if (loadResult?.loaded) {
           const selection = convertSuccessResultToDataSelection(loadResult);
           datasets.setPrimarySelection(selection);

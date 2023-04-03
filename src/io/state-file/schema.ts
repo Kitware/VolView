@@ -35,12 +35,12 @@ import {
   BlendConfig,
 } from '../../types/views';
 
-export enum DataSetType {
+export enum DatasetType {
   DICOM = 'dicom',
   IMAGE = 'image',
 }
 
-const DataSetTypeNative = z.nativeEnum(DataSetType);
+const DatasetTypeNative = z.nativeEnum(DatasetType);
 
 const LPSAxisDir: z.ZodType<LPSAxisDir> = z.union([
   z.literal('Left'),
@@ -51,12 +51,20 @@ const LPSAxisDir: z.ZodType<LPSAxisDir> = z.union([
   z.literal('Inferior'),
 ]);
 
-const DataSet = z.object({
+const Dataset = z.object({
   id: z.string(),
   path: z.string(),
-  type: DataSetTypeNative,
+  type: DatasetTypeNative,
 });
-export type DataSet = z.infer<typeof DataSet>;
+export type Dataset = z.infer<typeof Dataset>;
+
+const RemoteFile = z.object({
+  archivePath: z.string().optional(),
+  url: z.string(),
+  remoteFilename: z.string(),
+  name: z.string(),
+});
+export type RemoteFile = z.infer<typeof RemoteFile>;
 
 const LayoutDirectionNative = z.nativeEnum(LayoutDirection);
 
@@ -284,7 +292,8 @@ export type ParentToLayers = z.infer<typeof ParentToLayers>;
 
 export const ManifestSchema = z.object({
   version: z.string(),
-  dataSets: DataSet.array(),
+  datasets: Dataset.array(),
+  remoteFiles: z.record(RemoteFile.array()),
   labelMaps: LabelMap.array(),
   tools: Tools,
   views: View.array(),

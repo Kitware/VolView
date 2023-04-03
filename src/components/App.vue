@@ -221,9 +221,9 @@ import {
   DICOMLoadSuccess,
   FileLoadFailure,
   DICOMLoadFailure,
-  DataSelection,
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
+import { makeRemote, makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { useRulerStore } from '../store/tools/rulers';
@@ -233,10 +233,10 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { wrapInArray } from '../utils';
+import { partition, pluck, wrapInArray, isFulfilled } from '../utils';
 import { fetchFile } from '../utils/fetch';
 
-async function loadFiles(files: FileList, setError: (err: Error) => void) {
+async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
   const dataStore = useDatasetStore();
 
   const loadFirstDataset = !dataStore.primarySelection;
@@ -245,11 +245,11 @@ async function loadFiles(files: FileList, setError: (err: Error) => void) {
   let stateFile = false;
   try {
     // For now only support restoring from a single state files.
-    stateFile = files.length === 1 && (await isStateFile(files[0]));
+    stateFile = files.length === 1 && (await isStateFile(files[0].file));
     if (stateFile) {
-      statuses = await loadState(files[0]);
+      statuses = await loadState(files[0].file);
     } else {
-      statuses = await dataStore.loadFiles(Array.from(files));
+      statuses = await dataStore.loadFiles(files);
     }
   } catch (error) {
     setError(error as Error);
@@ -295,54 +295,44 @@ async function loadRemoteFilesFromURLParams(
   params: UrlParams,
   setError: (err: Error) => void
 ) {
-  const dataStore = useDatasetStore();
-
   const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names ?? []);
+  const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
+  const fetchParams = urls.map((url, idx) => ({
+    url,
+    remoteFilename:
+      names[idx] ||
+      new URL(url, window.location.href).pathname.split('/').at(-1) ||
+      '',
+  }));
 
-  const fileResults = await Promise.allSettled(
-    urls.map(async (url, index) => {
-      const { pathname } = new URL(url, window.location.href);
-      const name = names[index] || pathname.split('/').at(-1) || '';
-
-      return fetchFile(url, name);
-    })
+  const fetchResults = await Promise.allSettled(
+    fetchParams.map(({ url, remoteFilename }) => fetchFile(url, remoteFilename))
   );
 
-  const results = await Promise.allSettled(
-    fileResults.map(async (fileResult) => {
-      if (fileResult.status === 'fulfilled') {
-        const loadResults = await dataStore.loadFiles([fileResult.value]);
-        const errored = loadResults.find((s) => !s.loaded);
-        if (errored) {
-          // force the promise to error out
-          throw new Error();
-        }
-        // only select the first dataset
-        return loadResults[0];
-      }
-      throw fileResult.reason;
-    })
+  const withParams = fetchResults.map((result, idx) => ({
+    result,
+    ...fetchParams[idx],
+  }));
+
+  const [downloaded, rejected] = partition(
+    ({ result }) => isFulfilled(result) && result.value.size !== 0,
+    withParams
   );
 
-  const failedURLs: string[] = [];
-  let selectDataID: DataSelection | null = null;
-
-  results.forEach((res, index) => {
-    if (res.status === 'fulfilled' && res.value.loaded && !selectDataID) {
-      selectDataID = convertSuccessResultToDataSelection(res.value);
-    } else if (res.status === 'rejected') {
-      failedURLs.push(urls[index]);
-    }
-  });
-
-  if (selectDataID) {
-    dataStore.setPrimarySelection(selectDataID);
+  if (rejected.length) {
+    setError(
+      new Error(
+        `Failed to download URLs:\n${rejected.map(pluck('url')).join('\n')}`
+      )
+    );
   }
 
-  if (failedURLs.length) {
-    setError(new Error(`These URLs failed to load:\n${failedURLs.join('\n')}`));
-  }
+  const datasetFiles = downloaded.map(({ result, url }) =>
+    makeRemote(url, (result as PromiseFulfilledResult<File>).value)
+  );
+
+  // must await for setError to work
+  await loadFiles(datasetFiles, setError);
 }
 
 export default defineComponent({
@@ -406,7 +396,8 @@ export default defineComponent({
         return;
       }
 
-      runAsLoading((setError) => loadFiles(files, setError));
+      const datasetFiles = Array.from(files).map(makeLocal);
+      runAsLoading((setError) => loadFiles(datasetFiles, setError));
     }
 
     const fileEl = document.createElement('input');
