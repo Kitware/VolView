@@ -108,7 +108,6 @@ export const getImage = async (selection: DataSelection) => {
 };
 
 // Converts imageID to VolumeKey if exists, else return input imageID
-// @deprecated prefer imageID unless DICOM tags are needed
 export const getDataID = (imageID: string) => {
   const dicomStore = useDICOMStore();
   return dicomStore.imageIDToVolumeKey[imageID] ?? imageID;
