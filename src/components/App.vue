@@ -53,7 +53,7 @@
                 size="40"
                 icon="mdi-content-save-all"
                 name="Save session"
-                @click="saveDialog = true"
+                @click="handleSave"
               />
               <div class="my-1 tool-separator" />
               <v-menu offset-x>
@@ -228,7 +228,7 @@ import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
-import { isStateFile, loadState } from '../io/state-file';
+import { isStateFile, loadState, serialize } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
@@ -453,11 +453,32 @@ export default defineComponent({
       return 'primary';
     });
 
+    const saveDialog = ref(false);
+
+    const saveUrl = urlParams.save as string;
+
+    const handleSave = async () => {
+      if (saveUrl) {
+        const blob = await serialize();
+        fetch(saveUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/zip',
+            'Content-Length': blob.size.toString(),
+          },
+          body: blob,
+        });
+      } else {
+        saveDialog.value = true;
+      }
+    };
+
     return {
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
       settingsDialog: ref(false),
-      saveDialog: ref(false),
+      saveDialog,
+      handleSave,
       leftSideBar: ref(!root.$vuetify.breakpoint.mobile),
       messageCount,
       messageBadgeColor,
