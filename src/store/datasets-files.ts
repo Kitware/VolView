@@ -5,7 +5,7 @@ import { pluck } from '../utils';
 export type DatasetPath = string & { __type: 'DatasetPath' };
 export type DatasetUrl = string & { __type: 'DatasetUrl' };
 export type LocalDatasetFile = { file: File };
-export type ZipDatasetFile = LocalDatasetFile & { archivePath: string };
+export type ZipDatasetFile = LocalDatasetFile & { archivePath: DatasetPath };
 export type RemoteDatasetFile = LocalDatasetFile & {
   url: DatasetUrl;
   remoteFilename: string;
@@ -19,17 +19,6 @@ export type DatasetFile =
 export const makeLocal = (file: File) => ({
   file,
 });
-
-export const makeZip = (
-  path: DatasetUrl | string,
-  file: File | DatasetFile
-) => {
-  const isFile = file instanceof File;
-  return {
-    path: path as DatasetPath,
-    ...(isFile ? { file } : file),
-  };
-};
 
 export const makeRemote = (
   url: DatasetUrl | string,

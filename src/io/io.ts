@@ -1,6 +1,7 @@
 import { extensionToImageIO } from 'itk-wasm';
 import { extractFilesFromZip } from './zip';
-import { DatasetFile } from '../store/datasets-files';
+import { DatasetFile, ZipDatasetFile } from '../store/datasets-files';
+import { partition } from '../utils';
 
 export const ARCHIVE_FILE_TYPES = new Set(['zip', 'application/zip']);
 
@@ -90,36 +91,36 @@ export async function retypeFile(file: File): Promise<File> {
   return retypedFile;
 }
 
+const isZip = (datasetFile: DatasetFile) =>
+  ARCHIVE_FILE_TYPES.has(datasetFile.file.type);
+
 export async function extractArchivesRecursively(
   files: DatasetFile[]
 ): Promise<DatasetFile[]> {
-  const results = await Promise.all(
-    files.map(async (file) => {
-      if (ARCHIVE_FILE_TYPES.has(file.file.type)) {
-        const entries = await extractFilesFromZip(file.file);
-        return entries.map((withPath) => ({ ...file, ...withPath })); // preserve DatasetFile remote provenance
-      }
+  if (!files.length) return [];
 
-      return [file];
+  const [archives, loadableFiles] = partition(isZip, files);
+
+  const unzipped = await Promise.all(
+    archives.flatMap(async (zip) => {
+      const entries = await extractFilesFromZip(zip.file);
+      const zipArchivePath = (zip as ZipDatasetFile).archivePath ?? '';
+      return entries.map(({ file, archivePath }) => ({
+        ...zip, // preserve DatasetFile remote provenance
+        archivePath: `${zipArchivePath}/${archivePath}`,
+        file,
+      }));
     })
   );
 
-  const archivedEntries = await Promise.all(
-    results.flat().map(async (entry) => {
-      return { ...entry, file: await retypeFile(entry.file) };
+  const retyped = await Promise.all(
+    unzipped.flat().map(async ({ file, ...rest }) => {
+      return { file: await retypeFile(file), ...rest };
     })
   );
 
-  const archives = archivedEntries.filter(({ file }) =>
-    ARCHIVE_FILE_TYPES.has(file.type)
-  );
-
-  if (archives.length > 0) {
-    const moreEntries = await extractArchivesRecursively(archives);
-    return [...archivedEntries, ...moreEntries];
-  }
-
-  return archivedEntries;
+  const moreEntries = await extractArchivesRecursively(retyped);
+  return [...loadableFiles, ...moreEntries];
 }
 
 export type ReadAsType = 'ArrayBuffer' | 'Text';
