@@ -461,14 +461,15 @@ export default defineComponent({
     });
 
     const saveDialog = ref(false);
-
-    const saveUrl = urlParams.save as string;
-
+    const saveUrl =
+      process.env.VUE_APP_ENABLE_REMOTE_SAVE && (urlParams.save as string);
     const saveHappening = ref(false);
+
     const handleSave = async () => {
       if (saveUrl) {
         try {
           saveHappening.value = true;
+
           const blob = await serialize();
           const saveResult = await fetch(saveUrl, {
             method: 'POST',
@@ -478,15 +479,17 @@ export default defineComponent({
             },
             body: blob,
           });
+
           if (saveResult.ok) messageStore.addSuccess('Save Successful');
           else messageStore.addError('Save Failed', 'Network response not OK');
-          saveHappening.value = false;
         } catch (error) {
           messageStore.addError(
             'Save Failed with error',
             `Failed from: ${error}`
           );
           console.error(error);
+        } finally {
+          saveHappening.value = false;
         }
       } else {
         saveDialog.value = true;
