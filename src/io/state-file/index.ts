@@ -74,9 +74,8 @@ export async function serialize() {
   await layersStore.serialize(stateFile);
 
   zip.file(MANIFEST, JSON.stringify(manifest));
-  const blob = await zip.generateAsync({ type: 'blob' });
 
-  return blob;
+  return zip.generateAsync({ type: 'blob' });
 }
 
 async function restore(state: FileEntry[]): Promise<LoadResult[]> {

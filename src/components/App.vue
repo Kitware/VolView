@@ -50,10 +50,17 @@
                 @click="userPromptFiles"
               />
               <tool-button
+                v-if="!saveHappening"
                 size="40"
                 icon="mdi-content-save-all"
                 name="Save session"
                 @click="handleSave"
+              />
+              <v-progress-circular
+                v-if="saveHappening"
+                indeterminate
+                size="40"
+                color="grey lighten-5"
               />
               <div class="my-1 tool-separator" />
               <v-menu offset-x>
@@ -457,17 +464,30 @@ export default defineComponent({
 
     const saveUrl = urlParams.save as string;
 
+    const saveHappening = ref(false);
     const handleSave = async () => {
       if (saveUrl) {
-        const blob = await serialize();
-        fetch(saveUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/zip',
-            'Content-Length': blob.size.toString(),
-          },
-          body: blob,
-        });
+        try {
+          saveHappening.value = true;
+          const blob = await serialize();
+          const saveResult = await fetch(saveUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/zip',
+              'Content-Length': blob.size.toString(),
+            },
+            body: blob,
+          });
+          if (saveResult.ok) messageStore.addSuccess('Save Successful');
+          else messageStore.addError('Save Failed', 'Network response not OK');
+          saveHappening.value = false;
+        } catch (error) {
+          messageStore.addError(
+            'Save Failed with error',
+            `Failed from: ${error}`
+          );
+          console.error(error);
+        }
       } else {
         saveDialog.value = true;
       }
@@ -479,6 +499,7 @@ export default defineComponent({
       settingsDialog: ref(false),
       saveDialog,
       handleSave,
+      saveHappening,
       leftSideBar: ref(!root.$vuetify.breakpoint.mobile),
       messageCount,
       messageBadgeColor,
