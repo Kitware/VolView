@@ -85,7 +85,7 @@ export const useToolStore = defineStore('tool', {
       const paintStore = usePaintToolStore();
       const cropStore = useCropStore();
 
-      rulerStore.deserialize(manifest);
+      rulerStore.deserialize(manifest, dataIDMap);
       crosshairsStore.deserialize(manifest);
       paintStore.deserialize(manifest, labelmapIDMap);
       cropStore.deserialize(manifest, dataIDMap);

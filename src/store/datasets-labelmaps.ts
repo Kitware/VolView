@@ -8,6 +8,7 @@ import { LABELMAP_PALETTE } from '../config';
 import { StateFile, Manifest } from '../io/state-file/schema';
 import { vtiReader, vtiWriter } from '../io/vtk/async';
 import { FileEntry } from '../io/types';
+import { findImageID, getDataID } from './datasets';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -87,7 +88,7 @@ export const useLabelmapStore = defineStore('labelmap', {
       await Promise.all(
         Object.entries(this.labelmaps).map(async ([id, labelMap]) => {
           const labelPath = `labels/${id}.vti`;
-          const parent = this.parentImage[id];
+          const parent = getDataID(this.parentImage[id]);
           labelMaps.push({
             id,
             parent,
@@ -127,7 +128,7 @@ export const useLabelmapStore = defineStore('labelmap', {
         const imageData = await vtiReader(file);
         const labelMapObj = toLabelMap(imageData as vtkImageData);
         this.idList.push(id);
-        set(this.parentImage, id, parent);
+        set(this.parentImage, id, findImageID(parent));
         set(this.labelmaps, id, labelMapObj);
         this.$proxies.addData(id, labelMapObj);
       });

@@ -14,6 +14,7 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { LPSAxisDir } from '@/src/types/lps';
 import { Ruler } from './types';
 import { useViewStore } from '../views';
+import { findImageID, getDataID } from '../datasets';
 
 const emptyRuler = (): Ruler => ({
   name: '',
@@ -264,20 +265,33 @@ export const useRulerStore = defineStore('ruler', () => {
   }
 
   function serialize(state: StateFile) {
-    const rulersInState = state.manifest.tools.rulers;
-
-    rulerIDs.value.forEach((rulerID) => {
-      const ruler = rulers.value[rulerID];
-      rulersInState.push(ruler);
-    });
+    state.manifest.tools.rulers = rulerIDs.value
+      .map((rulerID) => rulers.value[rulerID])
+      // If parent image is DICOM, save VolumeKey
+      .map(({ imageID, ...rest }) => ({
+        imageID: getDataID(imageID),
+        ...rest,
+      }));
   }
 
-  function deserialize(this: _This, manifest: Manifest) {
+  function deserialize(
+    this: _This,
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
     const rulersInState = manifest.tools.rulers;
 
-    rulersInState.forEach((ruler) => {
-      addNewRuler.call(this, ruler);
-    });
+    rulersInState
+      .map(({ imageID, ...rest }) => {
+        const newID = dataIDMap[imageID];
+        return {
+          ...rest,
+          imageID: findImageID(newID),
+        };
+      })
+      .forEach((ruler) => {
+        addNewRuler.call(this, ruler);
+      });
   }
 
   return {

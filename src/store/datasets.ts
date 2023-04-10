@@ -87,7 +87,7 @@ export type DataSelection = DICOMSelection | ImageSelection;
 export const getImageID = (selection: DataSelection) => {
   if (selection.type === 'image') return selection.dataID;
   if (selection.type === 'dicom')
-    return useDICOMStore().volumeToImageID[selection.volumeKey];
+    return useDICOMStore().volumeToImageID[selection.volumeKey]; // volume selected, but image may not have been made yet
 
   const _exhaustiveCheck: never = selection;
   throw new Error(`invalid selection type ${_exhaustiveCheck}`);
@@ -101,8 +101,22 @@ export const getImage = async (selection: DataSelection) => {
     await useErrorMessage('Failed to build volume', () =>
       dicoms.buildVolume(selection.volumeKey)
     );
+    return images.dataIndex[getImageID(selection)!];
   }
-  return images.dataIndex[getImageID(selection)!];
+  // just an image that should be in dataIndex
+  return images.dataIndex[selection.dataID];
+};
+
+// Converts imageID to VolumeKey if exists, else return input imageID
+export const getDataID = (imageID: string) => {
+  const dicomStore = useDICOMStore();
+  return dicomStore.imageIDToVolumeKey[imageID] ?? imageID;
+};
+
+// Pass VolumeKey or ImageID and get ImageID
+export const findImageID = (dataID: string) => {
+  const dicomStore = useDICOMStore();
+  return dicomStore.volumeToImageID[dataID] ?? dataID;
 };
 
 export function selectionEquals(s1: DataSelection, s2: DataSelection) {

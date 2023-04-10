@@ -26,7 +26,7 @@ import { Manifest, ManifestSchema } from './schema';
 import { deserializeDatasetFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
-const VERSION = '0.0.3';
+const VERSION = '0.0.4';
 
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();
@@ -116,8 +116,11 @@ async function restore(state: FileEntry[]): Promise<LoadResult[]> {
     // eslint-disable-next-line no-await-in-loop
     const status = await datasetStore
       .deserialize(dataset, files)
-      .then((result) => {
+      .then(async (result) => {
         if (result.loaded) {
+          if (result.type === 'dicom')
+            // generate imageID so rulers and labelmaps can use stateIDToStoreID to setup there internal imageStore imageID references
+            await dicomStore.buildVolume(result.dataID);
           stateIDToStoreID[dataset.id] = result.dataID;
         }
 
