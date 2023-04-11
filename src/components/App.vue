@@ -487,7 +487,6 @@ export default defineComponent({
             'Save Failed with error',
             `Failed from: ${error}`
           );
-          console.error(error);
         } finally {
           saveHappening.value = false;
         }
