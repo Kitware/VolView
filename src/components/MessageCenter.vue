@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { MessageType, useMessageStore } from '../store/messages';
 import MessageItem from './MessageItem.vue';
@@ -81,7 +81,9 @@ export default defineComponent({
 
     return {
       deleteItem,
-      clearAll: messageStore.clearAll,
+      clearAll: () => {
+        messageStore.clearAll();
+      },
       scrollIfLast,
       messageListEl,
       showErrors,
@@ -95,10 +97,10 @@ export default defineComponent({
 
 <template>
   <v-card class="fill-height message-center">
-    <v-card-title>
+    <v-card-title class="d-flex flex-row align-center">
       <span>Notifications</span>
       <v-spacer />
-      <v-btn icon @click="$emit('close')"><v-icon>mdi-close</v-icon></v-btn>
+      <v-btn variant="text" icon="mdi-close" @click="$emit('close')"></v-btn>
     </v-card-title>
     <v-card-text class="content-container pt-4">
       <div class="action-bar ma-2">
@@ -129,7 +131,7 @@ export default defineComponent({
       </div>
       <div class="message-list ma-2" ref="messageListEl">
         <v-expansion-panels
-          accordion
+          variant="accordion"
           multiple
           hover
           :value="filteredMessages.map((_, i) => i)"

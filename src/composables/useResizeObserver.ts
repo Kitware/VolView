@@ -1,4 +1,4 @@
-import { onBeforeUnmount, Ref, unref, watch } from '@vue/composition-api';
+import { onBeforeUnmount, Ref, unref, watch } from 'vue';
 
 /**
  * Invokes a callback whenever an element is resized.

@@ -1,14 +1,6 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  reactive,
-  ref,
-  set,
-  toRefs,
-  watch,
-} from '@vue/composition-api';
-import type { PropType } from '@vue/composition-api';
+import { computed, defineComponent, reactive, ref, toRefs, watch } from 'vue';
+import type { PropType } from 'vue';
 import { useDicomMetaStore } from '../../store/dicom-web/dicom-meta-store';
 import {
   useDicomWebStore,
@@ -76,7 +68,7 @@ export default defineComponent({
           .forEach(async (key) => {
             const thumb = await dicomWebStore.fetchVolumeThumbnail(key);
             if (thumb !== null) {
-              set(thumbnailCache, key, thumb);
+              thumbnailCache[key] = thumb;
             }
           });
       },
@@ -122,7 +114,7 @@ export default defineComponent({
               <v-row no-gutters class="pa-0" justify="center">
                 <div>
                   <v-img
-                    contain
+                    cover
                     height="150px"
                     width="150px"
                     :src="(thumbnailCache || {})[volume.key] || ''"
@@ -133,16 +125,14 @@ export default defineComponent({
                       :value="true"
                       opacity="0"
                     >
-                      <v-tooltip top>
-                        <template v-slot:activator="{ on }">
-                          <v-row no-gutters>
-                            <div class="mb-1 ml-1 text-caption" v-on="on">
-                              {{ volume.widthHeightFrames }}
-                            </div>
-                          </v-row>
-                        </template>
-                        Width by height by frames
-                      </v-tooltip>
+                      <v-row no-gutters>
+                        <div class="mb-1 ml-1 text-caption">
+                          {{ volume.widthHeightFrames }}
+                          <v-tooltip location="top" activator="parent">
+                            Width by height by frames
+                          </v-tooltip>
+                        </div>
+                      </v-row>
                     </v-overlay>
 
                     <v-overlay
@@ -179,7 +169,7 @@ export default defineComponent({
                             </v-icon>
                             <span
                               v-else-if="volume.progress.percent !== 0"
-                              class="caption text--white"
+                              class="text-caption text--white"
                             >
                               {{ volume.progress.percent }}
                             </span>
@@ -234,12 +224,12 @@ export default defineComponent({
   overflow: hidden;
 }
 
-.thumbnail-overlay >>> .v-overlay__content {
+.thumbnail-overlay :deep(.v-overlay__content) {
   height: 100%;
   width: 100%;
 }
 
-.volume-list >>> .theme--light.v-sheet--outlined {
+.volume-list :deep(.v-theme--light.v-sheet--outlined) {
   border: none;
 }
 

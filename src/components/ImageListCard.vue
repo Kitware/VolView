@@ -1,25 +1,26 @@
 <template>
-  <v-hover v-slot="{ hover }">
+  <v-hover v-slot="{ isHovering, props }">
     <v-card
       :disabled="disabled"
-      outlined
+      variant="outlined"
       :ripple="!disabled"
       :class="{
-        'image-list-card-hover': !disabled && hover,
+        'image-list-card-hover': !disabled && isHovering,
         'image-list-card-active': !disabled && active,
       }"
-      v-on="disabled ? {} : $listeners"
+      v-bind="disabled ? props : { ...props, ...$attrs }"
     >
-      <v-container>
+      <v-container :title="htmlTitle">
         <v-row no-gutters class="flex-nowrap">
           <v-col v-if="selectable" cols="1" class="d-flex align-center">
             <v-checkbox
               @click.stop
               :key="id"
-              :value="inputValue"
-              :input-value="value"
+              density="compact"
               :disabled="disabled"
-              @change="onChange"
+              :value="inputValue"
+              :model-value="modelValue"
+              @update:model-value="$emit('update:model-value', $event)"
             />
           </v-col>
           <v-col
@@ -33,11 +34,11 @@
               :width="`${imageSize}px`"
               :src="imageUrl"
             />
-            <v-overlay absolute :value="$slots['image-overlay']">
+            <v-overlay contained :model-value="!!$slots['image-overlay']">
               <slot name="image-overlay" />
             </v-overlay>
           </v-col>
-          <v-col :cols="7">
+          <v-col :cols="selectable ? 7 : 8">
             <div class="ml-2">
               <slot></slot>
             </div>
@@ -49,36 +50,37 @@
 </template>
 
 <style scoped>
-.theme--light.image-list-card-hover {
+.v-theme--light.image-list-card-hover {
   background-color: rgba(0, 0, 0, 0.1);
   border-color: rgba(0, 0, 0, 0.1);
   transition: all 0.25s;
 }
 
-.theme--dark.image-list-card-hover {
+.v-theme--dark.image-list-card-hover {
   background-color: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.1);
   transition: all 0.25s;
 }
 
-.theme--light.image-list-card-active {
+.v-theme--light.image-list-card-active {
   background-color: #b3e5fc;
   border-color: #b3e5fc;
 }
 
-.theme--dark.image-list-card-active {
+.v-theme--dark.image-list-card-active {
   background-color: #01579b;
   border-color: #01579b;
 }
 
 .image-container {
   position: relative;
-  margin-right: 20px;
+  margin-left: 8px;
+  margin-right: 8px;
 }
 </style>
 
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 
 export default defineComponent({
   name: 'ImageListCard',
@@ -96,19 +98,10 @@ export default defineComponent({
       default: false,
     },
     id: String,
-    value: Array,
+    modelValue: Array,
     inputValue: String,
     disabled: Boolean,
-  },
-
-  setup(props, { emit }) {
-    const onChange = (event: any) => {
-      emit('input', event);
-    };
-
-    return {
-      onChange,
-    };
+    htmlTitle: String,
   },
 });
 </script>

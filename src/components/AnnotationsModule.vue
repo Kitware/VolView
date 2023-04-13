@@ -1,11 +1,11 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
-import MeasurementsList from './MeasurementsList.vue';
+import { defineComponent } from 'vue';
+import MeasurementsRulerList from './MeasurementsRulerList.vue';
 import LabelmapList from './LabelmapList.vue';
 
 export default defineComponent({
   components: {
-    MeasurementsList,
+    MeasurementsRulerList,
     LabelmapList,
   },
   setup() {},
@@ -14,10 +14,10 @@ export default defineComponent({
 
 <template>
   <div class="overflow-y-auto mx-2 fill-height">
-    <v-list dense>
-      <v-subheader class="annot-subheader">Measurements</v-subheader>
-      <measurements-list />
-      <v-subheader class="annot-subheader">Labelmaps</v-subheader>
+    <v-list density="compact">
+      <v-list-subheader class="annot-subheader">Measurements</v-list-subheader>
+      <measurements-ruler-list />
+      <v-list-subheader class="annot-subheader">Labelmaps</v-list-subheader>
       <labelmap-list />
     </v-list>
   </div>
@@ -27,11 +27,11 @@ export default defineComponent({
 .annot-subheader {
   margin: 8px 0;
 }
-.theme--dark.annot-subheader {
+.v-theme--dark.annot-subheader {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.theme--light.annot-subheader {
+.v-theme--light.annot-subheader {
   background: rgba(0, 0, 0, 0.08);
 }
 </style>

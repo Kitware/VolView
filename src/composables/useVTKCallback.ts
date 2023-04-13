@@ -1,5 +1,5 @@
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
-import { isRef, onUnmounted, watchEffect } from '@vue/composition-api';
+import { isRef, onUnmounted, watchEffect } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 
 type Listener = (obj: any) => void;

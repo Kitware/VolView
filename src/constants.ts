@@ -1,5 +1,5 @@
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { ComputedRef, InjectionKey } from '@vue/composition-api';
+import { ComputedRef, InjectionKey } from 'vue';
 
 export const NO_PROXY = -1;
 export const NO_SELECTION = -1;

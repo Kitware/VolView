@@ -6,14 +6,14 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+  h,
+} from 'vue';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
-import { CreateElement, RenderContext } from 'vue';
 import { useViewStore } from '@/src/store/views';
 import { defaultWindowLevelConfig } from '@/src/store/view-configs/windowing';
 
@@ -21,16 +21,18 @@ function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
 }
 
-const PROPS = {
-  viewId: {
-    type: String,
-    required: true,
-  },
-} as const;
+interface Props {
+  viewId: string;
+}
 
-const WindowLevelTool = defineComponent({
+const WindowLevelToolComponent = defineComponent({
   name: 'WindowLevelTool',
-  props: PROPS,
+  props: {
+    viewId: {
+      type: String,
+      required: true,
+    },
+  },
   setup(props) {
     const { viewId: viewID } = toRefs(props);
     const viewConfigStore = useViewConfigStore();
@@ -178,14 +180,9 @@ const WindowLevelTool = defineComponent({
   },
 });
 
-export default {
-  functional: true,
-  render(h: CreateElement, ctx: RenderContext<typeof PROPS>) {
-    const toolStore = useToolStore();
-    const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
-    // TODO vue 3 does away with VNodeData, so
-    // remove the props key
-    return active.value ? h(WindowLevelTool, { props: ctx.props }) : [];
-  },
-};
+export default function WindowLevelTool(props: Props) {
+  const toolStore = useToolStore();
+  const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
+  return active.value ? h(WindowLevelToolComponent, props) : [];
+}
 </script>

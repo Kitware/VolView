@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from 'vue';
 
 import PatientDetails from './PatientDetails.vue';
 import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';

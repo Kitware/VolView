@@ -1,10 +1,5 @@
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
-import {
-  computed,
-  Ref,
-  triggerRef,
-  WritableComputedRef,
-} from '@vue/composition-api';
+import { computed, Ref, triggerRef, WritableComputedRef } from 'vue';
 import { createPrimitiveSyncContext } from './createPrimitiveSyncContext';
 
 function generateComputed(

@@ -1,5 +1,4 @@
-import Vue from 'vue';
-import VueCompositionApi, { computed, ref } from '@vue/composition-api';
+import { computed, ref } from 'vue';
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import Sinon from 'sinon';
 import chai, { expect } from 'chai';
@@ -29,9 +28,6 @@ function makeContext(k: string) {
 }
 
 describe('useWindowingSync', () => {
-  before(() => {
-    Vue.use(VueCompositionApi);
-  });
   it('should work', () => {
     const ctxt1 = makeContext('abc');
     const ctxt2 = makeContext('abc');

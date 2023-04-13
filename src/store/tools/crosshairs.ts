@@ -2,7 +2,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkCrosshairsWidget from '@/src/vtk/CrosshairsWidget';
 import { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { inflate } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { computed, ref, unref, watch } from '@vue/composition-api';
+import { computed, ref, unref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { getLPSAxisFromDir } from '@/src/utils/lps';

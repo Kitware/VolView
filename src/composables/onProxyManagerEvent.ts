@@ -1,6 +1,6 @@
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { VtkProxy } from '@kitware/vtk.js/macros';
-import { onBeforeUnmount } from '@vue/composition-api';
+import { onBeforeUnmount } from 'vue';
 import { withProxyManager } from './proxyManager';
 
 export enum ProxyManagerEvent {

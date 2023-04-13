@@ -1,5 +1,5 @@
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
-import { Ref } from '@vue/composition-api';
+import { Ref } from 'vue';
 import { useViewConfigStore } from '../store/view-configs';
 import { CameraConfig } from '../store/view-configs/types';
 import { vtkLPSViewProxy } from '../types/vtk-types';

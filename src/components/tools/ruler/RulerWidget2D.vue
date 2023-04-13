@@ -12,7 +12,7 @@ import {
   toRefs,
   watch,
   watchEffect,
-} from '@vue/composition-api';
+} from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';

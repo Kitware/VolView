@@ -1,4 +1,4 @@
-import { computed, ref, set } from '@vue/composition-api';
+import { computed, ref } from 'vue';
 import { useLocalStorage } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import {
@@ -141,12 +141,12 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
     if (!isDownloadable(volumes.value[volumeKey])) return;
 
-    set(volumes.value, volumeKey, {
+    volumes.value[volumeKey] = {
       ...volumes.value[volumeKey],
       state: 'Pending',
       loaded: 0,
       total: 0,
-    });
+    };
 
     const { SeriesInstanceUID: seriesInstanceUID } =
       dicoms.volumeInfo[volumeKey];
@@ -155,11 +155,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const seriesInfo = { studyInstanceUID, seriesInstanceUID };
 
     const progressCallback = ({ loaded, total }: ProgressEvent) => {
-      set(volumes.value, volumeKey, {
+      volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
         loaded,
         total,
-      });
+      };
     };
 
     try {
@@ -173,10 +173,10 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         if (loadResult?.loaded) {
           const selection = convertSuccessResultToDataSelection(loadResult);
           datasets.setPrimarySelection(selection);
-          set(volumes.value, volumeKey, {
+          volumes.value[volumeKey] = {
             ...volumes.value[volumeKey],
             state: 'Done',
-          });
+          };
         } else {
           throw new Error('Failed to load DICOM.');
         }
@@ -186,11 +186,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     } catch (error) {
       const messageStore = useMessageStore();
       messageStore.addError('Failed to load DICOM', error as Error);
-      set(volumes.value, volumeKey, {
+      volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
         state: 'Error',
         loaded: 0,
-      });
+      };
     }
   };
 
@@ -204,11 +204,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         loadedVolumeKey.startsWith(key)
       );
       if (volumeKey)
-        set(volumes.value, volumeKey, {
+        volumes.value[volumeKey] = {
           ...volumes.value[volumeKey],
           state: 'Remote',
           loaded: 0,
-        });
+        };
     });
   });
 

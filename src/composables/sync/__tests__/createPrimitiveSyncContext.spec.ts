@@ -1,13 +1,8 @@
-import Vue from 'vue';
-import VueCompositionApi, { ref } from '@vue/composition-api';
+import { ref } from 'vue';
 import { expect } from 'chai';
 import { createPrimitiveSyncContext } from '../createPrimitiveSyncContext';
 
 describe('createPrimitiveSyncContext', () => {
-  before(() => {
-    Vue.use(VueCompositionApi);
-  });
-
   it('should work', () => {
     const useSync = createPrimitiveSyncContext(0);
 

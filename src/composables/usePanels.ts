@@ -1,4 +1,4 @@
-import { computed, ref, Ref, watch } from '@vue/composition-api';
+import { computed, ref, Ref, watch } from 'vue';
 
 export interface Panel {
   key: string;

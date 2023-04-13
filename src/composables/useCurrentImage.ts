@@ -1,4 +1,4 @@
-import { computed } from '@vue/composition-api';
+import { computed } from 'vue';
 import { useDatasetStore } from '../store/datasets';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { defaultImageMetadata, useImageStore } from '../store/datasets-images';

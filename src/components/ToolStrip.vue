@@ -1,9 +1,8 @@
 <template>
   <item-group
     mandatory
-    class="d-flex flex-column align-center"
-    :value="currentTool"
-    @change="setCurrentTool($event)"
+    :model-value="currentTool"
+    @update:model-value="setCurrentTool($event)"
   >
     <div class="my-1 tool-separator" />
     <groupable-item
@@ -56,11 +55,11 @@
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
       <v-menu
         v-model="paintMenu"
-        offset-x
+        location="end"
         :close-on-content-click="false"
         :disabled="!active"
       >
-        <template v-slot:activator="{ attrs, on }">
+        <template v-slot:activator="{ props }">
           <div>
             <tool-button
               size="40"
@@ -69,8 +68,7 @@
               :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
               :disabled="noCurrentImage"
               @click.stop="toggle"
-              v-on="on"
-              v-bind="attrs"
+              v-bind="props"
             >
               <v-icon v-if="active" class="menu-more" size="18">
                 mdi-menu-right
@@ -93,18 +91,23 @@
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <v-menu v-model="cropMenu" offset-x open-on-hover close-on-content-click>
-        <template v-slot:activator="{ attrs, on }">
+      <v-menu
+        v-model="cropMenu"
+        location="end"
+        open-on-hover
+        close-on-content-click
+      >
+        <template v-slot:activator="{ props }">
           <div>
             <tool-button
               size="40"
               icon="mdi-crop"
               name="Crop"
+              tooltipLocation="bottom"
               :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
               :disabled="noCurrentImage"
               @click.stop="toggle"
-              v-on="on"
-              v-bind="attrs"
+              v-bind="props"
             >
               <v-icon v-if="active" class="menu-more" size="18">
                 mdi-menu-right
@@ -119,7 +122,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref } from '@vue/composition-api';
+import { computed, defineComponent, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ToolButton from './ToolButton.vue';
@@ -174,7 +177,7 @@ export default defineComponent({
 <style scoped>
 .menu-more {
   position: absolute;
-  right: -50%;
+  right: -10%;
 }
 
 .tool-separator {

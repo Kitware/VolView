@@ -1,9 +1,6 @@
 import { expect } from 'chai';
-import vueCompositionApi, { computed } from '@vue/composition-api';
-import Vue from 'vue';
+import { computed } from 'vue';
 import { useDoubleRecord } from '../useDoubleRecord';
-
-Vue.use(vueCompositionApi);
 
 describe('useDoubleRecord', () => {
   it('should work', () => {

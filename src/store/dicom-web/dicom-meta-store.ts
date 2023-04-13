@@ -1,4 +1,3 @@
-import { set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import {
   ANONYMOUS_PATIENT,
@@ -119,30 +118,30 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     ) {
       const patientKey = patient.PatientID;
       if (patientKey && !(patientKey in this.patientInfo)) {
-        set(this.patientInfo, patientKey, patient);
-        set(this.patientStudies, patientKey, []);
+        this.patientInfo[patientKey] = patient;
+        this.patientStudies[patientKey] = [];
       }
 
       const studyKey = study.StudyInstanceUID;
       if (studyKey && !(studyKey in this.studyInfo)) {
-        set(this.studyInfo, studyKey, study);
-        set(this.studyVolumes, studyKey, []);
-        set(this.studyPatient, studyKey, patientKey);
+        this.studyInfo[studyKey] = study;
+        this.studyVolumes[studyKey] = [];
+        this.studyPatient[studyKey] = patientKey;
         this.patientStudies[patientKey].push(studyKey);
       }
 
       const volumeKey = volume.VolumeID;
       if (volumeKey && !(volumeKey in this.volumeInfo)) {
-        set(this.volumeInfo, volumeKey, volume);
-        set(this.volumeInstances, volumeKey, []);
-        set(this.volumeStudy, volumeKey, studyKey);
+        this.volumeInfo[volumeKey] = volume;
+        this.volumeInstances[volumeKey] = [];
+        this.volumeStudy[volumeKey] = studyKey;
         this.studyVolumes[studyKey].push(volumeKey);
       }
 
       const instanceKey = instance.SopInstanceUID;
       if (instanceKey && !(instanceKey in this.instanceInfo)) {
-        set(this.instanceInfo, instanceKey, instance);
-        set(this.instanceVolume, instanceKey, volumeKey);
+        this.instanceInfo[instanceKey] = instance;
+        this.instanceVolume[instanceKey] = volumeKey;
         this.volumeInstances[volumeKey].push(instanceKey);
 
         this.volumeInfo[volumeKey].NumberOfSlices += 1;

@@ -1,30 +1,42 @@
-<script>
-export default {
-  name: 'GroupableItem',
-  inject: ['group'],
+<script lang="ts">
+import { inject, defineComponent, toRefs } from 'vue';
+import { ItemGroupProvider, ItemGroupProviderValue } from './ItemGroup.vue';
+
+export default defineComponent({
   props: {
-    value: { required: true },
-  },
-  render() {
-    const nodes = this.$scopedSlots.default({
-      active: this.group.isSelected(this.value),
-      select: this.select,
-      toggle: this.toggle,
-    });
-    // always return first node, if any.
-    return nodes[0];
-  },
-  methods: {
-    select() {
-      this.group.selectItem(this.value);
+    value: {
+      type: null,
+      required: true,
     },
-    toggle() {
-      if (this.group.isSelected(this.value)) {
-        this.group.selectItem(null);
-      } else {
-        this.group.selectItem(this.value);
+  },
+  setup(props, { slots }) {
+    const { value } = toRefs(props);
+    const itemGroup = inject<ItemGroupProviderValue>(ItemGroupProvider);
+
+    if (!itemGroup) {
+      throw new Error('GroupableItem needs ItemGroup!');
+    }
+
+    const select = () => {
+      itemGroup.selectItem(value.value);
+    };
+
+    const toggle = () => {
+      if (!itemGroup) {
+        return;
       }
-    },
+
+      itemGroup.selectItem(
+        itemGroup.isSelected(value.value) ? undefined : value.value
+      );
+    };
+
+    return () =>
+      slots.default?.({
+        active: itemGroup.isSelected(value.value),
+        select,
+        toggle,
+      });
   },
-};
+});
 </script>

@@ -11,22 +11,25 @@
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
           <div class="annotation-cell">
-            <v-tooltip bottom transition="slide-x-transition">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  class="pointer-events-all"
-                  dark
-                  x-small
-                  icon
-                  @click="resetCamera"
-                  v-bind="attrs"
-                  v-on="on"
-                >
-                  <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
-                </v-btn>
-              </template>
-              <span>Reset camera</span>
-            </v-tooltip>
+            <v-btn
+              class="pointer-events-all"
+              dark
+              icon
+              size="medium"
+              variant="text"
+              @click="resetCamera"
+            >
+              <v-icon size="medium" class="py-1">
+                mdi-camera-flip-outline
+              </v-icon>
+              <v-tooltip
+                location="right"
+                activator="parent"
+                transition="slide-x-transition"
+              >
+                Reset Camera
+              </v-tooltip>
+            </v-btn>
             <span class="ml-3">{{ topLeftLabel }}</span>
           </div>
         </template>
@@ -54,7 +57,7 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { vec3 } from 'gl-matrix';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';

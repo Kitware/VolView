@@ -19,7 +19,7 @@ import {
   ref,
   Ref,
   toRefs,
-} from '@vue/composition-api';
+} from 'vue';
 import { vec3 } from 'gl-matrix';
 import Crop2DLineHandle from './Crop2DLineHandle.vue';
 import { CropLines } from './types';

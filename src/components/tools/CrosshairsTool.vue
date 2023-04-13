@@ -18,12 +18,7 @@
 
 <script lang="ts">
 import { storeToRefs } from 'pinia';
-import {
-  computed,
-  defineComponent,
-  PropType,
-  toRefs,
-} from '@vue/composition-api';
+import { computed, defineComponent, PropType, toRefs } from 'vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';

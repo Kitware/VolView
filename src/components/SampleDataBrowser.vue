@@ -1,11 +1,5 @@
 <script lang="ts">
-import {
-  set,
-  del,
-  defineComponent,
-  reactive,
-  computed,
-} from '@vue/composition-api';
+import { defineComponent, reactive, computed } from 'vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { SAMPLE_DATA } from '../config';
 import {
@@ -53,8 +47,8 @@ export default defineComponent({
     const clearLoadedStatus = (id: string) => {
       const url = loaded.idToURL[id];
       if (url) {
-        del(loaded.idToURL, id);
-        del(loaded.urlToID, url);
+        delete loaded.idToURL[id];
+        delete loaded.urlToID[url];
       }
     };
 
@@ -80,11 +74,10 @@ export default defineComponent({
 
     async function downloadSample(sample: SampleDataset) {
       const progress = (percent: number) => {
-        // TODO set/del doesn't exist in vue 3
-        set(status.progress, sample.name, {
+        status.progress[sample.name] = {
           state: ProgressState.Pending,
           progress: percent * 100,
-        });
+        };
       };
       try {
         progress(Infinity);
@@ -105,8 +98,8 @@ export default defineComponent({
                 selection.type === 'image'
                   ? selection.dataID
                   : selection.volumeKey;
-              set(loaded.idToURL, id, sample.url);
-              set(loaded.urlToID, sample.url, id);
+              loaded.idToURL[id] = sample.url;
+              loaded.urlToID[sample.url] = id;
             }
             datasetStore.setPrimarySelection(selection);
           }
@@ -116,7 +109,7 @@ export default defineComponent({
         const messageStore = useMessageStore();
         messageStore.addError('Failed to load sample data', error as Error);
       } finally {
-        del(status.progress, sample.name);
+        delete status.progress[sample.name];
       }
     }
 
@@ -157,32 +150,33 @@ export default defineComponent({
       v-for="sample in samples"
       :disabled="sample.isDownloading || sample.isLoaded"
       :key="sample.name"
-      :title="sample.name"
+      :html-title="sample.name"
       :image-url="sample.image"
       :image-size="100"
+      class="mb-1"
       @click="downloadSample(sample)"
     >
-      <div class="body-2 font-weight-bold text-no-wrap text-truncate">
+      <div class="text-body-2 font-weight-bold text-no-wrap text-truncate">
         {{ sample.name }}
       </div>
-      <div class="body-2 mt-2">{{ sample.description }}</div>
-      <template
-        v-slot:image-overlay
-        v-if="sample.isDownloading || sample.isLoaded"
-      >
-        <v-row class="fill-height ma-0" align="center" justify="center">
+      <div class="text-body-2 mt-2">{{ sample.description }}</div>
+      <template #image-overlay v-if="sample.isDownloading || sample.isLoaded">
+        <v-row class="fill-height ma-0 align-center justify-center">
           <v-progress-circular
             color="white"
             :indeterminate="sample.indeterminate && !sample.isDone"
-            :value="sample.progress"
+            :model-value="sample.progress"
           >
-            <v-icon v-if="sample.isDone || sample.isLoaded" small color="white"
-              >mdi-check</v-icon
-            >
+            <v-icon v-if="sample.isDone || sample.isLoaded" small color="white">
+              mdi-check
+            </v-icon>
             <v-icon v-else-if="sample.isError" small color="white">
               mdi-alert-circle
             </v-icon>
-            <span v-else-if="!sample.indeterminate" class="caption text--white">
+            <span
+              v-else-if="!sample.indeterminate"
+              class="text-caption text--white"
+            >
               {{ sample.progress }}
             </span>
           </v-progress-circular>

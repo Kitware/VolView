@@ -1,10 +1,5 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  PropType,
-  watch,
-} from '@vue/composition-api';
+import { computed, defineComponent, PropType, toRefs, watch } from 'vue';
 import { InitViewSpecs } from '../config';
 import { useImageStore } from '../store/datasets-images';
 import { useViewConfigStore } from '../store/view-configs';
@@ -25,6 +20,7 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const { layer } = toRefs(props);
     const imageStore = useImageStore();
 
     const imageName = computed(() => {
@@ -40,7 +36,7 @@ export default defineComponent({
 
     const viewConfigStore = useViewConfigStore();
 
-    const layerID = props.layer.id;
+    const layerID = computed(() => layer.value.id);
 
     const layerConfigs = computed(() =>
       VIEWS_2D.map((viewID) => ({
@@ -53,7 +49,7 @@ export default defineComponent({
       layerConfigs.value.forEach(({ config, viewID }) => {
         if (!config.value) {
           // init to defaults
-          viewConfigStore.layers.updateBlendConfig(viewID, layerID, {});
+          viewConfigStore.layers.updateBlendConfig(viewID, layerID.value, {});
         }
       });
     });
@@ -64,7 +60,7 @@ export default defineComponent({
 
     const setBlendConfig = (key: keyof BlendConfig, value: any) => {
       layerConfigs.value.forEach(({ viewID }) =>
-        viewConfigStore.layers.updateBlendConfig(viewID, layerID, {
+        viewConfigStore.layers.updateBlendConfig(viewID, layerID.value, {
           [key]: value,
         })
       );
@@ -86,7 +82,7 @@ export default defineComponent({
       min="0"
       max="1"
       step="0.01"
-      dense
+      density="compact"
       hide-details
       thumb-label
       :value="blendConfig.opacity"

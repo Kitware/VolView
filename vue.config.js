@@ -3,6 +3,7 @@ const path = require('path');
 const webpack = require('webpack');
 /* eslint-disable-next-line import/no-extraneous-dependencies */
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const { VuetifyPlugin } = require('webpack-plugin-vuetify');
 
 const ITK_WASM_INCLUDE = [
   'Nrrd',
@@ -46,6 +47,7 @@ module.exports = {
       },
     },
     plugins: [
+      new VuetifyPlugin({ autoImport: true }),
       // disable webvr
       new webpack.NormalModuleReplacementPlugin(
         /^webvr-polyfill$/,

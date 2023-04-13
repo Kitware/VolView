@@ -3,7 +3,7 @@ import { LPSAxis } from '@/src/types/lps';
 import { getAxisBounds } from '@/src/utils/lps';
 import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
 import { Vector2, Vector3 } from '@kitware/vtk.js/types';
-import { computed, reactive, readonly, set, unref } from '@vue/composition-api';
+import { computed, reactive, readonly, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
@@ -81,7 +81,7 @@ export const useCropStore = defineStore('crop', () => {
   };
 
   const setCropping = (imageID: string, planes: LPSCroppingPlanes) => {
-    set(state.croppingByImageID, imageID, clampCroppingPlanes(imageID, planes));
+    state.croppingByImageID[imageID] = clampCroppingPlanes(imageID, planes);
   };
 
   const setCroppingForAxis = (

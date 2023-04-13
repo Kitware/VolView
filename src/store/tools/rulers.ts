@@ -1,4 +1,4 @@
-import { computed, del, ref, set } from '@vue/composition-api';
+import { computed, ref } from 'vue';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { removeFromArray } from '@/src/utils';
@@ -106,7 +106,7 @@ export const useRulerStore = defineStore('ruler', () => {
   function addNewRuler(this: _This, rulerState: Partial<Ruler>) {
     const id = this.$id.nextID();
 
-    set(rulers.value, id, emptyRuler());
+    rulers.value[id] = emptyRuler();
     rulerIDs.value.push(id);
 
     this.$rulers.createRuler(id);
@@ -126,7 +126,7 @@ export const useRulerStore = defineStore('ruler', () => {
   function removeRuler(this: _This, id: string) {
     deactivateRuler(id);
     removeFromArray(rulerIDs.value, id);
-    del(rulers.value, id);
+    delete rulers.value[id];
     this.$rulers.removeRuler(id);
   }
 

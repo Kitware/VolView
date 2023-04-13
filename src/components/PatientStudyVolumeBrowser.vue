@@ -1,15 +1,7 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  del,
-  reactive,
-  set,
-  toRefs,
-  watch,
-} from '@vue/composition-api';
+import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
 import Image from 'itk-wasm/dist/core/Image';
-import type { PropType } from '@vue/composition-api';
+import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
@@ -144,7 +136,7 @@ export default defineComponent({
             const thumb = await generateDICOMThumbnail(dicomStore, key);
             if (thumb !== null) {
               const encodedImage = itkImageToURI(thumb);
-              set(thumbnailCache, cacheKey, encodedImage);
+              thumbnailCache[cacheKey] = encodedImage;
             }
           } catch (err) {
             if (err instanceof Error) {
@@ -160,7 +152,7 @@ export default defineComponent({
         const lookup = new Set(keys.map((key) => dicomCacheKey(key)));
         Object.keys(thumbnailCache).forEach((key) => {
           if (!lookup.has(key)) {
-            del(thumbnailCache, key);
+            delete thumbnailCache[key];
           }
         });
       },
@@ -201,26 +193,22 @@ export default defineComponent({
           :indeterminate="selectedSome && !selectedAll"
           label="Select All"
           v-model="selectedAll"
-          dense
+          density="compact"
           hide-details
         />
       </v-col>
       <v-col cols="6" align-self="center" class="d-flex justify-end mt-2">
-        <v-tooltip left>
-          <template v-slot:activator="{ on, attrs }">
-            <v-btn
-              icon
-              small
-              :disabled="!selectedSome"
-              @click.stop="removeSelectedDICOMVolumes"
-              v-bind="attrs"
-              v-on="on"
-            >
-              <v-icon>mdi-delete</v-icon>
-            </v-btn>
-          </template>
-          Delete selected
-        </v-tooltip>
+        <v-btn
+          icon
+          variant="text"
+          :disabled="!selectedSome"
+          @click.stop="removeSelectedDICOMVolumes"
+        >
+          <v-icon>mdi-delete</v-icon>
+          <v-tooltip location="left" activator="parent">
+            Delete selected
+          </v-tooltip>
+        </v-btn>
       </v-col>
     </v-row>
     <v-row no-gutters>
@@ -233,7 +221,7 @@ export default defineComponent({
             :value="volume.selectionKey"
           >
             <v-card
-              outlined
+              variant="outlined"
               ripple
               :class="{
                 'volume-card': true,
@@ -241,15 +229,15 @@ export default defineComponent({
               }"
               min-height="180px"
               min-width="180px"
-              :title="volume.info.SeriesDescription"
+              :html-title="volume.info.SeriesDescription"
               @click="select"
             >
               <v-row no-gutters class="pa-0" justify="center">
                 <div>
                   <v-img
-                    contain
-                    max-height="150px"
-                    max-width="150px"
+                    cover
+                    height="150"
+                    width="150"
                     :src="(thumbnailCache || {})[volume.cacheKey] || ''"
                   >
                     <template v-slot:placeholder>
@@ -261,44 +249,35 @@ export default defineComponent({
                         <v-progress-circular
                           indeterminate
                           color="grey lighten-5"
-                        ></v-progress-circular>
+                        />
                       </v-row>
                     </template>
-                    <v-overlay
-                      absolute
-                      class="thumbnail-overlay"
-                      :value="true"
-                      opacity="0"
-                    >
+                    <div class="thumbnail-overlay">
                       <div class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
-                          <v-tooltip top>
-                            <template v-slot:activator="{ on, attrs }">
-                              <v-btn
-                                icon
-                                :disabled="!volume.layerable"
-                                @click.stop="volume.layerHandler()"
-                                v-bind="attrs"
-                                v-on="on"
-                                class="mt-1"
-                              >
-                                <v-progress-circular
-                                  v-if="volume.loading"
-                                  indeterminate
-                                  size="20"
-                                  color="grey lighten-5"
-                                />
-                                <v-icon v-else>{{ volume.layerIcon }}</v-icon>
-                              </v-btn>
-                            </template>
-                            {{ volume.layerTooltip }}
-                          </v-tooltip>
+                          <div class="layer-btn-container">
+                            <v-btn
+                              v-show="volume.layerable"
+                              :loading="volume.loading"
+                              icon
+                              variant="plain"
+                              density="compact"
+                              @click.stop="volume.layerHandler"
+                            >
+                              <v-icon :icon="volume.layerIcon" />
+                              <v-tooltip location="top" activator="parent">
+                                {{ volume.layerTooltip }}
+                              </v-tooltip>
+                            </v-btn>
+                          </div>
                           <v-checkbox
                             :key="volume.info.VolumeID"
                             :value="volume.key"
                             v-model="selected"
                             @click.stop
-                            dense
+                            density="compact"
+                            hide-details
+                            class="series-selector"
                           />
                         </v-row>
                         <v-spacer />
@@ -308,7 +287,7 @@ export default defineComponent({
                           </div>
                         </v-row>
                       </div>
-                    </v-overlay>
+                    </div>
                   </v-img>
                 </div>
               </v-row>
@@ -340,12 +319,12 @@ export default defineComponent({
   cursor: pointer;
 }
 
-.theme--light.volume-card-active {
+.v-theme--light.volume-card-active {
   background-color: #b3e5fc;
   border-color: #b3e5fc;
 }
 
-.theme--dark.volume-card-active {
+.v-theme--dark.volume-card-active {
   background-color: #01579b;
   border-color: #01579b;
 }
@@ -356,12 +335,23 @@ export default defineComponent({
   overflow: hidden;
 }
 
-.thumbnail-overlay >>> .v-overlay__content {
+.series-selector {
+  max-width: 36px;
+}
+
+.thumbnail-overlay {
   height: 100%;
   width: 100%;
 }
 
-.volume-list >>> .theme--light.v-sheet--outlined {
+.volume-list :deep(.v-theme--light.v-sheet--outlined) {
   border: none;
+}
+
+.layer-btn-container {
+  display: flex;
+  flex-flow: column;
+  justify-content: center;
+  height: var(--v-input-control-height);
 }
 </style>

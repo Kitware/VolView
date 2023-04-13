@@ -1,11 +1,4 @@
-import {
-  del,
-  onBeforeUnmount,
-  reactive,
-  ref,
-  set,
-  watch,
-} from '@vue/composition-api';
+import { onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
@@ -88,7 +81,7 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
       }
 
       if (!(imageID in thumbnails)) {
-        set(thumbnails, imageID, {});
+        thumbnails[imageID] = {};
       }
 
       if (presetName in thumbnails[imageID]) {
@@ -118,7 +111,7 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
       renWin.render();
       const imageURL = await renWin.captureImages()[0];
       if (imageURL) {
-        set(thumbnails[imageID], presetName, imageURL);
+        thumbnails[imageID][presetName] = imageURL;
       }
     }
 
@@ -162,7 +155,9 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
     if (name === 'deleteData') {
       const [id] = args as [string];
       if (id in thumbnails) {
-        after(() => del(thumbnails, id));
+        after(() => {
+          delete thumbnails[id];
+        });
       }
     }
   });

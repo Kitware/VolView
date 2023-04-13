@@ -1,5 +1,5 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-import { computed, Ref, watch } from '@vue/composition-api';
+import { computed, Ref, watch } from 'vue';
 import { useViewStore } from '../store/views';
 import { vtkLPSViewProxy } from '../types/vtk-types';
 

@@ -15,13 +15,7 @@
 </template>
 
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  PropType,
-  toRefs,
-} from '@vue/composition-api';
-import { Component } from 'vue';
+import { Component, computed, defineComponent, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';

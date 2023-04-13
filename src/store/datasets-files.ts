@@ -1,4 +1,3 @@
-import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { pluck } from '../utils';
 
@@ -73,12 +72,12 @@ export const useFileStore = defineStore('files', {
   actions: {
     remove(dataID: string) {
       if (dataID in this.byDataID) {
-        del(this.byDataID, dataID);
+        delete this.byDataID[dataID];
       }
     },
 
     add(dataID: string, files: DatasetFile[]) {
-      set(this.byDataID, dataID, files);
+      this.byDataID[dataID] = files;
     },
   },
 });

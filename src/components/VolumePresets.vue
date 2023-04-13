@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, watch } from '@vue/composition-api';
+import { computed, defineComponent, watch } from 'vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -117,7 +117,7 @@ export default defineComponent({
 
 <template>
   <div class="overflow-x-visible mx-2">
-    <item-group class="container" :value="preset" @change="selectPreset">
+    <item-group :model-value="preset" @update:model-value="selectPreset">
       <v-row no-gutters justify="center">
         <groupable-item
           v-for="preset in presetList"
@@ -129,19 +129,17 @@ export default defineComponent({
             cols="4"
             :class="{
               'thumbnail-container': true,
-              blue: active,
+              'bg-blue': active,
             }"
             @click="select"
           >
-            <v-img :src="thumbnails[preset] || ''" contain aspect-ratio="1">
-              <v-overlay
-                absolute
-                :value="true"
-                opacity="0.3"
-                class="thumbnail-overlay"
-              >
-                {{ preset.replace(/-/g, ' ') }}
-              </v-overlay>
+            <v-img :src="thumbnails[preset] || ''" cover aspect-ratio="1">
+              <div class="thumbnail-overlay">
+                <div class="thumbnail-overlay-scrim" />
+                <div class="thumbnail-overlay-text">
+                  {{ preset.replace(/-/g, ' ') }}
+                </div>
+              </div>
             </v-img>
           </v-col>
         </groupable-item>
@@ -157,9 +155,29 @@ export default defineComponent({
 }
 
 .thumbnail-overlay {
+  position: relative;
   top: 70%;
   height: 30%;
   font-size: 0.75em;
   text-align: center;
+}
+
+.thumbnail-overlay-scrim {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  background: black;
+  opacity: 0.2;
+}
+
+.thumbnail-overlay-text {
+  display: flex;
+  flex-flow: row;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  height: 100%;
+  padding: 2px 4px;
 }
 </style>

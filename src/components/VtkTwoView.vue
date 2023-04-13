@@ -8,21 +8,16 @@
     @focusout="hover = false"
   >
     <div class="vtk-gutter">
-      <v-tooltip right transition="slide-x-transition">
-        <template v-slot:activator="{ on, attrs }">
-          <v-btn
-            dark
-            x-small
-            icon
-            @click="enableResizeToFit"
-            v-bind="attrs"
-            v-on="on"
-          >
-            <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
-          </v-btn>
-        </template>
-        <span>Reset camera</span>
-      </v-tooltip>
+      <v-btn dark icon size="medium" variant="text" @click="enableResizeToFit">
+        <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
+        <v-tooltip
+          location="right"
+          activator="parent"
+          transition="slide-x-transition"
+        >
+          Reset Camera
+        </v-tooltip>
+      </v-btn>
       <slice-slider
         class="slice-slider"
         :slice="slice"
@@ -91,64 +86,56 @@
           <div class="annotation-cell">
             <v-menu
               open-on-hover
-              offset-y
+              location="bottom left"
               left
               nudge-left="10"
               dark
               v-if="dicomInfo !== null"
               max-width="300px"
             >
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
+              <template v-slot:activator="{ props }">
+                <v-icon
+                  v-bind="props"
                   dark
-                  small
-                  icon
-                  v-bind="attrs"
-                  v-on="on"
-                  class="pointer-events-all"
+                  size="x-large"
+                  class="pointer-events-all hover-info"
                 >
-                  <v-icon dark> mdi-information </v-icon>
-                </v-btn>
+                  mdi-information
+                </v-icon>
               </template>
               <v-list class="grey darken-3">
                 <v-list-item>
-                  <v-list-item-content>
-                    <v-list-item-title class="font-weight-bold">
-                      PATIENT / CASE
-                    </v-list-item-title>
-                    <v-divider />
-                    <v-list-item-title>
-                      ID: {{ dicomInfo.patientID }}
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title class="font-weight-bold">
+                    PATIENT / CASE
+                  </v-list-item-title>
+                  <v-divider />
+                  <v-list-item-title>
+                    ID: {{ dicomInfo.patientID }}
+                  </v-list-item-title>
                 </v-list-item>
                 <v-list-item>
-                  <v-list-item-content>
-                    <v-list-item-title class="font-weight-bold">
-                      STUDY
-                    </v-list-item-title>
-                    <v-divider />
-                    <v-list-item-title>
-                      ID: {{ dicomInfo.studyID }}
-                    </v-list-item-title>
-                    <v-list-item-title>
-                      {{ dicomInfo.studyDescription }}
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title class="font-weight-bold">
+                    STUDY
+                  </v-list-item-title>
+                  <v-divider />
+                  <v-list-item-title>
+                    ID: {{ dicomInfo.studyID }}
+                  </v-list-item-title>
+                  <v-list-item-title>
+                    {{ dicomInfo.studyDescription }}
+                  </v-list-item-title>
                 </v-list-item>
                 <v-list-item>
-                  <v-list-item-content>
-                    <v-list-item-title class="font-weight-bold">
-                      SERIES
-                    </v-list-item-title>
-                    <v-divider />
-                    <v-list-item-title>
-                      Series #: {{ dicomInfo.seriesNumber }}
-                    </v-list-item-title>
-                    <v-list-item-title>
-                      {{ dicomInfo.seriesDescription }}
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title class="font-weight-bold">
+                    SERIES
+                  </v-list-item-title>
+                  <v-divider />
+                  <v-list-item-title>
+                    Series #: {{ dicomInfo.seriesNumber }}
+                  </v-list-item-title>
+                  <v-list-item-title>
+                    {{ dicomInfo.seriesDescription }}
+                  </v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-menu>
@@ -180,7 +167,7 @@ import {
   toRefs,
   watch,
   watchEffect,
-} from '@vue/composition-api';
+} from 'vue';
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
@@ -787,3 +774,10 @@ export default defineComponent({
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
 <style scoped src="@/src/components/styles/utils.css"></style>
+<style scoped>
+.hover-info {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+</style>

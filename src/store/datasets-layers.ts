@@ -1,4 +1,4 @@
-import { del, ref, set } from '@vue/composition-api';
+import { ref } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
@@ -65,11 +65,11 @@ export const useLayersStore = defineStore('layer', () => {
     }
 
     const parentKey = toDataSelectionKey(parent);
-    const id = `${parentKey}::${toDataSelectionKey(source)}`;
-    set(this.parentToLayers, parentKey, [
+    const id = `${parentKey}::${toDataSelectionKey(source)}` as LayerID;
+    this.parentToLayers[parentKey] = [
       ...(this.parentToLayers[parentKey] ?? []),
       { selection: source, id } as Layer,
-    ]);
+    ];
 
     const [parentImage, sourceImage] = await Promise.all(
       [parent, source].map(getImage)
@@ -96,7 +96,7 @@ export const useLayersStore = defineStore('layer', () => {
     this.$proxies.addData(id, image);
 
     // calling after adding data to proxy manager delays enabling deletion, thus avoiding error
-    set(this.layerImages, id, image);
+    this.layerImages[id] = image;
   }
 
   async function addLayer(
@@ -126,13 +126,11 @@ export const useLayersStore = defineStore('layer', () => {
     );
     if (!layerToDelete) return;
 
-    set(
-      this.parentToLayers,
-      parentKey,
-      layers.filter((layer) => layer !== layerToDelete)
+    this.parentToLayers[parentKey] = layers.filter(
+      (layer) => layer !== layerToDelete
     );
 
-    del(this.layerImages, layerToDelete.id);
+    delete this.layerImages[layerToDelete.id];
 
     // May have errored creating data, so check before delete
     if (this.$proxies.getData(layerToDelete.id))

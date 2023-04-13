@@ -1,5 +1,4 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
-import { set, del } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { pick, removeFromArray } from '../utils';
@@ -212,7 +211,7 @@ export const useDICOMStore = defineStore('dicom', {
           // invalidate any existing volume
           if (volumeKey in this.volumeToImageID) {
             // buildVolume requestor uses this as a rebuild hint
-            set(this.needsRebuild, volumeKey, true);
+            this.needsRebuild[volumeKey] = true;
           }
         })
       );
@@ -230,21 +229,21 @@ export const useDICOMStore = defineStore('dicom', {
       const volumeKey = volume.VolumeID;
 
       if (!(patientKey in this.patientInfo)) {
-        set(this.patientInfo, patientKey, patient);
-        set(this.patientStudies, patientKey, []);
+        this.patientInfo[patientKey] = patient;
+        this.patientStudies[patientKey] = [];
       }
 
       if (!(studyKey in this.studyInfo)) {
-        set(this.studyInfo, studyKey, study);
-        set(this.studyVolumes, studyKey, []);
-        set(this.studyPatient, studyKey, patientKey);
+        this.studyInfo[studyKey] = study;
+        this.studyVolumes[studyKey] = [];
+        this.studyPatient[studyKey] = patientKey;
         this.patientStudies[patientKey].push(studyKey);
       }
 
       if (!(volumeKey in this.volumeInfo)) {
-        set(this.volumeInfo, volumeKey, volume);
-        set(this.volumeStudy, volumeKey, studyKey);
-        set(this.sliceData, volumeKey, {});
+        this.volumeInfo[volumeKey] = volume;
+        this.volumeStudy[volumeKey] = studyKey;
+        this.sliceData[volumeKey] = {};
         this.studyVolumes[studyKey].push(volumeKey);
       }
     },
@@ -253,15 +252,15 @@ export const useDICOMStore = defineStore('dicom', {
       const imageStore = useImageStore();
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
-        del(this.volumeInfo, volumeKey);
-        del(this.sliceData, volumeKey);
-        del(this.volumeStudy, volumeKey);
+        delete this.volumeInfo[volumeKey];
+        delete this.sliceData[volumeKey];
+        delete this.volumeStudy[volumeKey];
 
         if (volumeKey in this.volumeToImageID) {
-          const imageID = this.volumeToImageID[volumeKey];
+          const imageID = this.volumeToImageID[volumeKey]!;
           imageStore.deleteData(imageID!);
-          del(this.volumeToImageID, volumeKey);
-          del(this.imageIDToVolumeKey, imageID);
+          delete this.volumeToImageID[volumeKey];
+          delete this.imageIDToVolumeKey[imageID];
         }
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
@@ -274,13 +273,13 @@ export const useDICOMStore = defineStore('dicom', {
     deleteStudy(studyKey: string) {
       if (studyKey in this.studyInfo) {
         const patientKey = this.studyPatient[studyKey];
-        del(this.studyInfo, studyKey);
-        del(this.studyPatient, studyKey);
+        delete this.studyInfo[studyKey];
+        delete this.studyPatient[studyKey];
 
         [...this.studyVolumes[studyKey]].forEach((volumeKey) =>
           this.deleteVolume(volumeKey)
         );
-        del(this.studyVolumes, studyKey);
+        delete this.studyVolumes[studyKey];
 
         removeFromArray(this.patientStudies[patientKey], studyKey);
         if (this.patientStudies[patientKey].length === 0) {
@@ -291,12 +290,12 @@ export const useDICOMStore = defineStore('dicom', {
 
     deletePatient(patientKey: string) {
       if (patientKey in this.patientInfo) {
-        del(this.patientInfo, patientKey);
+        delete this.patientInfo[patientKey];
 
         [...this.patientStudies[patientKey]].forEach((studyKey) =>
           this.deleteStudy(studyKey)
         );
-        del(this.patientStudies, patientKey);
+        delete this.patientStudies[patientKey];
       }
     },
 
@@ -351,9 +350,9 @@ export const useDICOMStore = defineStore('dicom', {
 
       const sliceFile = volumeFiles[sliceIndex - 1];
 
-      const itkImage = dicomIO.getVolumeSlice(sliceFile, asThumbnail);
+      const itkImage = await dicomIO.getVolumeSlice(sliceFile, asThumbnail);
 
-      set(this.sliceData[volumeKey], cacheKey, itkImage);
+      this.sliceData[volumeKey][cacheKey] = itkImage;
       return itkImage;
     },
 
@@ -388,11 +387,11 @@ export const useDICOMStore = defineStore('dicom', {
       } else {
         const name = this.volumeInfo[volumeKey].SeriesInstanceUID;
         const imageID = imageStore.addVTKImageData(name, image);
-        set(this.imageIDToVolumeKey, imageID, volumeKey);
-        set(this.volumeToImageID, volumeKey, imageID);
+        this.imageIDToVolumeKey[imageID] = volumeKey;
+        this.volumeToImageID[volumeKey] = imageID;
       }
 
-      del(this.needsRebuild, volumeKey);
+      delete this.needsRebuild[volumeKey];
 
       return image;
     },

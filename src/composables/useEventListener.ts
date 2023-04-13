@@ -1,4 +1,4 @@
-import { onUnmounted, Ref, watch } from '@vue/composition-api';
+import { onUnmounted, Ref, watch } from 'vue';
 import { NOOP } from '../constants';
 
 export function useEventListener(

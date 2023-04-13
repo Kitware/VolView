@@ -5,7 +5,7 @@
       <v-row no-gutters align="center">
         <v-col>
           <v-select
-            dense
+            density="compact"
             outlined
             hide-details
             label="Select or create a labelmap"
@@ -16,9 +16,9 @@
       <v-row no-gutters align="center">
         <v-col>
           <v-slider
-            :value="brushSize"
-            @input="setBrushSize"
-            dense
+            :model-value="brushSize"
+            @update:model-value="setBrushSize"
+            density="compact"
             hide-details
             label="Size"
             min="1"
@@ -26,8 +26,9 @@
           >
             <template v-slot:append>
               <v-text-field
-                :value="brushSize"
+                :model-value="brushSize"
                 @input="setBrushSize"
+                variant="underlined"
                 class="mt-n1 pt-0"
                 style="width: 40px"
                 hide-details
@@ -42,9 +43,9 @@
       <v-row no-gutters align="center">
         <v-col>
           <v-slider
-            :value="opacity"
-            @input="setOpacity"
-            dense
+            :model-value="opacity"
+            @update:model-value="setOpacity"
+            density="compact"
             hide-details
             label="Opacity"
             min="0"
@@ -53,8 +54,9 @@
           >
             <template v-slot:append>
               <v-text-field
-                :value="opacity"
+                :model-value="opacity"
                 @input="setOpacity"
+                variant="underlined"
                 class="mt-n1 pt-0"
                 style="width: 40px"
                 hide-details
@@ -76,8 +78,8 @@
             hide-sliders
             show-swatches
             :swatches="swatches"
-            :value="brushColor"
-            @input="setBrushColor"
+            :model-value="brushColor"
+            @update:model-value="setBrushColor"
           />
         </v-col>
       </v-row>
@@ -86,7 +88,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from 'vue';
 import { LABELMAP_PALETTE } from '../config';
 import { usePaintToolStore } from '../store/tools/paint';
 import { rgbaToHexa } from '../utils/color';
@@ -131,7 +133,7 @@ export default defineComponent({
     });
 
     const setBrushColor = (color: string) => {
-      const hexa = color.toUpperCase();
+      const hexa = `${color}FF`.toUpperCase();
       if (hexa in hexToValue) {
         paintStore.setBrushValue(hexToValue[hexa]);
       }

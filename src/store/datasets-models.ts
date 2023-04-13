@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
-import { set } from '@vue/composition-api';
 
 interface State {
   idList: string[]; // list of IDs
@@ -17,7 +16,7 @@ export const useModelStore = defineStore('models', {
     addVTKPolyData(name: string, polyData: vtkPolyData) {
       const id = this.$id.nextID();
       this.idList.push(id);
-      set(this.dataIndex, id, polyData);
+      this.dataIndex[id] = polyData;
       this.$proxies.addData(id, polyData);
       return id;
     },

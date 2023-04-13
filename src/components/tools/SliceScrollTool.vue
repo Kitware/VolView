@@ -6,7 +6,7 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';

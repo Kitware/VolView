@@ -1,18 +1,18 @@
-import { computed, del, reactive, set, unref } from '@vue/composition-api';
+import { computed, reactive, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 
 export function useDoubleRecord<V>() {
   type Map1 = Record<string, Record<string, V>>;
-  type Map2 = Record<string, string>;
+  type Map2 = Record<string, V>;
   const reactiveRoot = reactive<{ map: Map1 }>({
     map: {},
   });
 
   const _set = (k1: string, k2: string, v: V) => {
     if (!(k1 in reactiveRoot.map)) {
-      set(reactiveRoot.map, k1, reactive<Map2>({}));
+      reactiveRoot.map[k1] = reactive<Map2>({});
     }
-    set(reactiveRoot.map[k1], k2, v);
+    reactiveRoot.map[k1][k2] = v;
   };
 
   const get = (k1: string, k2: string) => {
@@ -52,12 +52,12 @@ export function useDoubleRecord<V>() {
 
   const _delete = (k1: string, k2: string) => {
     if (k1 in reactiveRoot.map) {
-      del(reactiveRoot.map[k1], k2);
+      delete reactiveRoot.map[k1][k2];
     }
   };
 
   const deleteFirstKey = (k1: string) => {
-    del(reactiveRoot.map, k1);
+    delete reactiveRoot.map[k1];
   };
 
   const deleteSecondKey = (k2: string) => {

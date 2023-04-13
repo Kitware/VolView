@@ -6,7 +6,7 @@ import {
   ref,
   watch,
   watchEffect,
-} from '@vue/composition-api';
+} from 'vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
@@ -15,7 +15,6 @@ import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunct
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
-import ColorFunctionSlider from './ColorFunctionSlider.vue';
 import { useVTKCallback } from '../composables/useVTKCallback';
 import { useViewConfigStore } from '../store/view-configs';
 import {
@@ -33,9 +32,6 @@ const TARGET_VIEW_ID = '3D';
 
 export default defineComponent({
   name: 'VolumeRendering',
-  components: {
-    ColorFunctionSlider,
-  },
   setup() {
     const viewConfigStore = useViewConfigStore();
     const editorContainerRef = ref<HTMLElement | null>(null);
@@ -343,8 +339,8 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div>
-      <color-function-slider
-        dense
+      <v-range-slider
+        density="compact"
         hide-details
         :min="fullMappingRange[0]"
         :max="fullMappingRange[1]"

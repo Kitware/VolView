@@ -1,5 +1,5 @@
 import { Vector3 } from '@kitware/vtk.js/types';
-import { computed } from '@vue/composition-api';
+import { computed } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { useViewConfigStore } from '../store/view-configs';
 import { getLPSAxisFromDir } from '../utils/lps';

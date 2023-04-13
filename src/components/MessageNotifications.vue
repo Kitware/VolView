@@ -1,8 +1,8 @@
 <script lang="ts">
-import { defineComponent, del, watch } from '@vue/composition-api';
+import { defineComponent, watch } from 'vue';
 import { useToast } from '@/src/composables/useToast';
 import { storeToRefs } from 'pinia';
-import { ToastID } from 'vue-toastification/dist/types/src/types';
+import { ToastID } from 'vue-toastification/dist/types/types';
 import { Message, MessageType, useMessageStore } from '../store/messages';
 import MessageNotificationContent from './MessageNotificationContent.vue';
 
@@ -27,7 +27,7 @@ export default defineComponent({
       closeOnClick: !byID.value[msgID].options.persist,
       onClick: () => emit('open-notifications'),
       onClose: () => {
-        del(toasts, msgID);
+        delete toasts[msgID];
       },
     });
 
@@ -36,7 +36,7 @@ export default defineComponent({
       Object.keys(toasts).forEach((msgID) => {
         if (!(msgID in msgLookup)) {
           toast.dismiss(toasts[msgID]);
-          del(toasts, msgID);
+          delete toasts[msgID];
         }
       });
     });

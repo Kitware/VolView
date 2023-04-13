@@ -1,5 +1,4 @@
-import { ref, Ref, UnwrapRef, watch } from '@vue/composition-api';
-import { WatchOptions } from 'vue';
+import { ref, Ref, UnwrapRef, watch, WatchOptions } from 'vue';
 
 /**
  * immediate: sync from sync state to valueRef immediately.

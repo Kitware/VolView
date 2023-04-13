@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted } from '@vue/composition-api';
+import { onBeforeUnmount, onMounted } from 'vue';
 import { useMessageStore } from '../store/messages';
 
 export function useGlobalErrorHook() {

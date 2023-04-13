@@ -1,5 +1,5 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { computed, ref, unref } from '@vue/composition-api';
+import { computed, ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { useVTKCallback } from './useVTKCallback';
 

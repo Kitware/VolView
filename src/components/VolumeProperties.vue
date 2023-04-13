@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from '@vue/composition-api';
+import { computed, defineComponent, ref, watch } from 'vue';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useViewConfigStore } from '../store/view-configs';
 import { CVRConfig } from '../types/views';
@@ -92,29 +92,29 @@ export default defineComponent({
         min="0"
         max="1"
         step="0.1"
-        dense
+        density="compact"
         hide-details
         thumb-label
-        :value="cvrParams.ambient"
-        @change="setCVRParam('ambient', $event)"
+        :model-value="cvrParams.ambient"
+        @update:model-value="setCVRParam('ambient', $event)"
       />
       <v-slider
         label="Diffuse"
         min="0"
         max="2"
         step="0.1"
-        dense
+        density="compact"
         hide-details
         thumb-label
-        :value="cvrParams.diffuse"
-        @change="setCVRParam('diffuse', $event)"
+        :model-value="cvrParams.diffuse"
+        @update:model-value="setCVRParam('diffuse', $event)"
       />
       <v-switch
         label="Light follows camera"
-        dense
+        density="compact"
         hide-details
-        :input-value="cvrParams.lightFollowsCamera"
-        @change="setCVRParam('lightFollowsCamera', !!$event)"
+        :model-value="cvrParams.lightFollowsCamera"
+        @update:model-value="setCVRParam('lightFollowsCamera', !!$event)"
       />
       <v-divider class="my-8" />
 
@@ -135,36 +135,38 @@ export default defineComponent({
         min="0"
         max="1"
         step="0.05"
-        dense
+        density="compact"
         hide-details
         thumb-label
         v-if="vsbEnabled"
-        :value="cvrParams.volumetricScatteringBlending"
-        @change="setCVRParam('volumetricScatteringBlending', $event)"
+        :model-value="cvrParams.volumetricScatteringBlending"
+        @update:model-value="
+          setCVRParam('volumetricScatteringBlending', $event)
+        "
       />
       <v-slider
         label="LAO Kernel Size"
         min="2"
         max="10"
         step="1"
-        dense
+        density="compact"
         hide-details
         thumb-label
         v-if="laoEnabled"
-        :value="cvrParams.laoKernelSize"
-        @change="setCVRParam('laoKernelSize', $event)"
+        :model-value="cvrParams.laoKernelSize"
+        @update:model-value="setCVRParam('laoKernelSize', $event)"
       />
       <v-slider
         label="LAO Kernel Radius"
         :min="cvrParams.laoKernelSize * 2"
         :max="cvrParams.laoKernelSize * 2 + 10"
         step="1"
-        dense
+        density="compact"
         hide-details
         thumb-label
         v-if="laoEnabled"
-        :value="cvrParams.laoKernelRadius"
-        @change="setCVRParam('laoKernelRadius', $event)"
+        :model-value="cvrParams.laoKernelRadius"
+        @update:model-value="setCVRParam('laoKernelRadius', $event)"
       />
     </div>
   </div>

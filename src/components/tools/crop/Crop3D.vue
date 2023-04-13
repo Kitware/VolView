@@ -23,7 +23,7 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 function isValidCroppingPlanes(planes: LPSCroppingPlanes) {
   return (

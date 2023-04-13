@@ -1,6 +1,6 @@
 <script lang="ts">
 import { useViewStore } from '@/src/store/views';
-import { computed, defineComponent, toRefs, watch } from '@vue/composition-api';
+import { computed, defineComponent, toRefs, watch } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useToolStore } from '@/src/store/tools';

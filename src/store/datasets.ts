@@ -2,7 +2,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import { defineStore } from 'pinia';
-import { computed, ref } from '@vue/composition-api';
+import { computed, ref } from 'vue';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';

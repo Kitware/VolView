@@ -6,7 +6,7 @@ import {
   onBeforeUnmount,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { useViewStore } from '@/src/store/views';
 import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 

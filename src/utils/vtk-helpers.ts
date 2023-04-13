@@ -34,8 +34,7 @@ export function normalizeMouseEventPosition(
   ev: MouseEvent,
   view: vtkOpenGLRenderWindow
 ) {
-  // TODO fix typing in vtk.js
-  const canvas = (view as any).getCanvas() as HTMLCanvasElement | null;
+  const canvas = view.getCanvas();
   if (!canvas) return null;
 
   const bounds = canvas.getBoundingClientRect();
