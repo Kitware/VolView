@@ -55,7 +55,7 @@ export default defineComponent({
 
     const lightingModel = ref(0);
     const selectLightingMode = (buttonIdx: number) => {
-      setCVRParam('useVolumetricScatteringBlending', (buttonIdx !== 0));
+      setCVRParam('useVolumetricScatteringBlending', buttonIdx !== 0);
     };
 
     return {
@@ -114,7 +114,11 @@ export default defineComponent({
           @change="selectLightingMode"
           mandatory
         >
-          <v-btn v-for="model in Object.values(LIGHTING_MODELS)" :key="model" block>
+          <v-btn
+            v-for="model in Object.values(LIGHTING_MODELS)"
+            :key="model"
+            block
+          >
             {{ model }}
           </v-btn>
         </v-btn-toggle>
