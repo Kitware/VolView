@@ -2,10 +2,14 @@ import { createVuetify } from 'vuetify';
 import { useLocalStorage } from '@vueuse/core';
 
 import KitwareMark from '@/src/components/icons/KitwareLogoIcon.vue';
+import {
+  DefaultTheme,
+  DarkTheme,
+  LightTheme,
+  ThemeStorageKey,
+} from '@/src/constants';
 
-const store = useLocalStorage('dark', true);
-
-export default createVuetify({
+const vuetify = createVuetify({
   icons: {
     values: {
       kitwareMark: {
@@ -14,9 +18,36 @@ export default createVuetify({
     },
   },
   theme: {
-    defaultTheme: store.value ? 'dark' : 'light',
+    defaultTheme: DefaultTheme,
+    themes: {
+      [DarkTheme]: {
+        dark: true,
+        colors: {
+          'selection-bg-color': '#01579b',
+          'selection-border-color': '#01579b',
+        },
+        variables: {
+          'border-color': '#000000',
+        },
+      },
+      [LightTheme]: {
+        dark: false,
+        colors: {
+          'selection-bg-color': '#b3e5fc',
+          'selection-border-color': '#b3e5fc',
+        },
+      },
+    },
   },
   breakpoint: {
     mobileBreakpoint: 'sm',
   },
 });
+
+const theme = useLocalStorage(ThemeStorageKey, DefaultTheme);
+if (theme.value !== DarkTheme || theme.value !== LightTheme) {
+  theme.value = DefaultTheme;
+}
+vuetify.theme.global.name.value = theme.value;
+
+export default vuetify;

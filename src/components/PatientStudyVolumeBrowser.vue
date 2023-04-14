@@ -319,14 +319,9 @@ export default defineComponent({
   cursor: pointer;
 }
 
-.v-theme--light.volume-card-active {
-  background-color: #b3e5fc;
-  border-color: #b3e5fc;
-}
-
-.v-theme--dark.volume-card-active {
-  background-color: #01579b;
-  border-color: #01579b;
+.volume-card-active {
+  background-color: rgb(var(--v-theme-selection-bg-color));
+  border-color: rgb(var(--v-theme-selection-border-color));
 }
 
 .series-desc {
@@ -342,10 +337,6 @@ export default defineComponent({
 .thumbnail-overlay {
   height: 100%;
   width: 100%;
-}
-
-.volume-list :deep(.v-theme--light.v-sheet--outlined) {
-  border: none;
 }
 
 .layer-btn-container {

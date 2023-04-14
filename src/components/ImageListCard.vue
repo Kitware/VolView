@@ -50,26 +50,13 @@
 </template>
 
 <style scoped>
-.v-theme--light.image-list-card-hover {
-  background-color: rgba(0, 0, 0, 0.1);
-  border-color: rgba(0, 0, 0, 0.1);
-  transition: all 0.25s;
+.v-card--variant-outlined {
+  border: thin solid rgb(var(--v-theme-on-surface-variant));
 }
 
-.v-theme--dark.image-list-card-hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.1);
-  transition: all 0.25s;
-}
-
-.v-theme--light.image-list-card-active {
-  background-color: #b3e5fc;
-  border-color: #b3e5fc;
-}
-
-.v-theme--dark.image-list-card-active {
-  background-color: #01579b;
-  border-color: #01579b;
+.image-list-card-active {
+  background-color: rgb(var(--v-theme-selection-bg-color));
+  border-color: rgb(var(--v-theme-selection-border-color));
 }
 
 .image-container {

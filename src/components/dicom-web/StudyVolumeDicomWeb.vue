@@ -229,10 +229,6 @@ export default defineComponent({
   width: 100%;
 }
 
-.volume-list :deep(.v-theme--light.v-sheet--outlined) {
-  border: none;
-}
-
 .fetching {
   align-self: center;
   justify-self: center;

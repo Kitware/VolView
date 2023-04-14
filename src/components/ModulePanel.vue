@@ -82,14 +82,7 @@ export default defineComponent({
   flex: 0 2;
   /* roughly match vuetify's dark/light transition */
   transition: border-bottom 0.3s;
-}
-
-.v-theme--light #module-switcher {
-  border-bottom: 2px solid #efefef;
-}
-
-.v-theme--dark #module-switcher {
-  border-bottom: 2px solid #2f2f2f;
+  border-bottom: 2px solid rgb(var(--v-theme-on-surface-variant));
 }
 
 #close-btn {

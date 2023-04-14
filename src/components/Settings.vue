@@ -15,26 +15,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watchEffect } from 'vue';
+import { defineComponent, ref, watch } from 'vue';
 import { useTheme } from 'vuetify';
 import { useLocalStorage } from '@vueuse/core';
 
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
+import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
 
 export default defineComponent({
   setup() {
     const theme = useTheme();
-    const store = useLocalStorage<boolean>(
-      'dark',
-      theme.global.current.value.dark ?? true
-    );
+    const store = useLocalStorage(ThemeStorageKey, theme.global.name.value);
+    const dark = ref(theme.global.name.value === DarkTheme);
 
-    watchEffect(() => {
-      theme.global.name.value = store.value ? 'dark' : 'light';
+    watch(dark, (isDark) => {
+      theme.global.name.value = isDark ? DarkTheme : LightTheme;
+      store.value = theme.global.name.value;
     });
 
     return {
-      dark: store,
+      dark,
     };
   },
   components: {

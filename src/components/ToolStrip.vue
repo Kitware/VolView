@@ -170,7 +170,7 @@ export default defineComponent({
 
 <style>
 .tool-btn-selected {
-  background-color: rgba(128, 128, 255, 0.7);
+  background-color: rgb(var(--v-theme-selection-bg-color));
 }
 </style>
 
