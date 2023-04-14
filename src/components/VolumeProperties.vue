@@ -9,7 +9,6 @@ const TARGET_VIEW_ID = '3D';
 const LIGHTING_MODELS = {
   standard: 'Standard',
   hybrid: 'Hybrid',
-  lao: 'Ambient Occlusion',
 };
 
 export default defineComponent({
@@ -54,18 +53,9 @@ export default defineComponent({
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
-    const lightingModel = ref(2); // LAO is default
+    const lightingModel = ref(0);
     const selectLightingMode = (buttonIdx: number) => {
-      if (buttonIdx === 0) {
-        setCVRParam('useVolumetricScatteringBlending', false);
-        setCVRParam('useLocalAmbientOcclusion', false);
-      } else if (buttonIdx === 1) {
-        setCVRParam('useVolumetricScatteringBlending', true);
-        setCVRParam('useLocalAmbientOcclusion', false);
-      } else if (buttonIdx === 2) {
-        setCVRParam('useVolumetricScatteringBlending', false);
-        setCVRParam('useLocalAmbientOcclusion', true);
-      }
+      setCVRParam('useVolumetricScatteringBlending', (buttonIdx !== 0));
     };
 
     return {
@@ -124,11 +114,21 @@ export default defineComponent({
           @change="selectLightingMode"
           mandatory
         >
-          <v-btn v-for="model in Object.values(LIGHTING_MODELS)" :key="model">
+          <v-btn v-for="model in Object.values(LIGHTING_MODELS)" :key="model" block>
             {{ model }}
           </v-btn>
         </v-btn-toggle>
       </v-row>
+
+      <v-switch
+        label="Local Ambient Occlusion"
+        dense
+        hide-details
+        :input-value="cvrParams.useLocalAmbientOcclusion"
+        @change="setCVRParam('useLocalAmbientOcclusion', !!$event)"
+      />
+
+      <v-spacer class="my-2" />
 
       <v-slider
         label="Scatter Blending"
@@ -141,30 +141,6 @@ export default defineComponent({
         v-if="vsbEnabled"
         :value="cvrParams.volumetricScatteringBlending"
         @change="setCVRParam('volumetricScatteringBlending', $event)"
-      />
-      <v-slider
-        label="LAO Kernel Size"
-        min="2"
-        max="10"
-        step="1"
-        dense
-        hide-details
-        thumb-label
-        v-if="laoEnabled"
-        :value="cvrParams.laoKernelSize"
-        @change="setCVRParam('laoKernelSize', $event)"
-      />
-      <v-slider
-        label="LAO Kernel Radius"
-        :min="cvrParams.laoKernelSize * 2"
-        :max="cvrParams.laoKernelSize * 2 + 10"
-        step="1"
-        dense
-        hide-details
-        thumb-label
-        v-if="laoEnabled"
-        :value="cvrParams.laoKernelRadius"
-        @change="setCVRParam('laoKernelRadius', $event)"
       />
     </div>
   </div>
