@@ -10,19 +10,7 @@ import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { FILE_READERS } from '../io';
 import { DatasetFile, useFileStore } from './datasets-files';
-import { LPSDirections } from '../types/lps';
-
-export interface ImageMetadata {
-  name: string;
-  orientation: mat3;
-  lpsOrientation: LPSDirections;
-  spacing: vec3;
-  origin: vec3;
-  dimensions: vec3;
-  worldBounds: Bounds;
-  worldToIndex: mat4;
-  indexToWorld: mat4;
-}
+import { ImageMetadata } from '../types/image';
 
 export const defaultImageMetadata = () => ({
   name: '(none)',

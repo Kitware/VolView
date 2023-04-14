@@ -1,5 +1,5 @@
 import { Vector3 } from '@kitware/vtk.js/types';
-import { ImageMetadata } from '@/src/store/datasets-images';
+import { ImageMetadata } from '@/src/types/image';
 import {
   InteractionState,
   RulerWidgetState,
