@@ -8,7 +8,7 @@ import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { useImageStore } from '../datasets-images';
-import { LPSCroppingPlanes } from './types';
+import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
 import { StateFile, Manifest } from '../../io/state-file/schema';
 
