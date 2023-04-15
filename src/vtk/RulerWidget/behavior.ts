@@ -1,7 +1,6 @@
-import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import macro from '@kitware/vtk.js/macro';
 import { Vector3 } from '@kitware/vtk.js/types';
-import { InteractionState, RulerPointWidgetState } from './state';
+import { InteractionState } from './state';
 
 export function shouldIgnoreEvent(e: any) {
   return e.altKey || e.controlKey || e.shiftKey;
@@ -10,15 +9,22 @@ export function shouldIgnoreEvent(e: any) {
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkRulerWidgetProp');
 
-  const superClass = { ...publicAPI };
-
-  const subscriptions: vtkSubscription[] = [];
-  let dragging: RulerPointWidgetState | null = null;
+  let draggingState: any = null;
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
   // support forwarding events
   macro.event(publicAPI, model, 'RightClickEvent');
+  // finalized event
+  macro.event(publicAPI, model, 'FinalizedEvent');
+
+  // TODO this is an override to also clear activeState,
+  // since this is a "passive" widget that doesn't manage
+  // active state inside the focus handlers.
+  publicAPI.deactivateAllHandles = () => {
+    model.widgetState.deactivate();
+    model.activeState = null;
+  };
 
   publicAPI.setFirstPoint = (coord: Vector3) => {
     const point = model.widgetState.getFirstPoint();
@@ -30,6 +36,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     point.setOrigin(coord);
   };
 
+  publicAPI.resetInteractionState = () => {
+    model.widgetState.setInteractionState(InteractionState.PlacingFirst);
+  };
+
   /**
    * Places or drags a point.
    */
@@ -38,36 +48,36 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    // This ruler widget is passive, so if another widget
+    // is active, we don't do anything.
+    const activeWidget = model._widgetManager.getActiveWidget();
+    if (activeWidget && activeWidget !== publicAPI) {
+      return macro.VOID;
+    }
+
     const intState = model.widgetState.getInteractionState();
 
-    // in order to place points, we should be...
-    if (
-      // focused
-      model.hasFocus &&
-      // not be settled
-      intState !== InteractionState.Settled
-    ) {
+    if (intState !== InteractionState.Finalized) {
       const worldCoords = model.manipulator.handleEvent(
         eventData,
         model._apiSpecificRenderWindow
       );
       if (worldCoords.length) {
+        publicAPI.invokeInteractionEvent();
         if (intState === InteractionState.PlacingFirst) {
           publicAPI.setFirstPoint(worldCoords);
           model.widgetState.setInteractionState(InteractionState.PlacingSecond);
         } else if (intState === InteractionState.PlacingSecond) {
           publicAPI.setSecondPoint(worldCoords);
-          model.widgetState.setInteractionState(InteractionState.Settled);
+          model.widgetState.setInteractionState(InteractionState.Finalized);
+          publicAPI.invokeFinalizedEvent();
         }
-        publicAPI.invokeInteractionEvent();
         return macro.EVENT_ABORT;
       }
-    }
-
-    // widget is considered settled, so see if we
-    // are trying to drag a point.
-    if (model.activeState?.getActive() && model.pickable) {
-      dragging = model.activeState;
+    } else if (model.activeState?.getActive() && model.pickable) {
+      // widget is considered finalized, so see if we
+      // are trying to drag a point.
+      draggingState = model.activeState;
       model._apiSpecificRenderWindow.setCursor('grabbing');
       model._interactor.requestAnimation(publicAPI);
       publicAPI.invokeStartInteractionEvent();
@@ -83,30 +93,29 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.handleMouseMove = (eventData: any) => {
     const intState = model.widgetState.getInteractionState();
 
-    if (model.hasFocus && intState === InteractionState.Settled) {
-      publicAPI.loseFocus();
-      return macro.VOID;
-    }
-
-    if (
-      dragging || // moving an existing point
-      intState !== InteractionState.Settled // placing a point
-    ) {
+    // show second point during placement
+    if (intState === InteractionState.PlacingSecond) {
       const worldCoords = model.manipulator.handleEvent(
         eventData,
         model._apiSpecificRenderWindow
       );
 
       if (worldCoords.length) {
-        if (dragging) {
-          dragging.setOrigin(worldCoords);
-        } else if (intState === InteractionState.PlacingFirst) {
-          model.widgetState.getFirstPoint().setVisible(true);
-          publicAPI.setFirstPoint(worldCoords);
-        } else if (intState === InteractionState.PlacingSecond) {
-          model.widgetState.getSecondPoint().setVisible(true);
-          publicAPI.setSecondPoint(worldCoords);
-        }
+        model.widgetState.getSecondPoint().setOrigin(worldCoords);
+        publicAPI.invokeInteractionEvent();
+      }
+
+      return macro.EVENT_ABORT;
+    }
+
+    if (draggingState) {
+      const worldCoords = model.manipulator.handleEvent(
+        eventData,
+        model._apiSpecificRenderWindow
+      );
+
+      if (worldCoords.length) {
+        draggingState.setOrigin(worldCoords);
         publicAPI.invokeInteractionEvent();
       }
 
@@ -120,32 +129,31 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Finishes dragging
    */
   publicAPI.handleLeftButtonRelease = (eventData: any) => {
-    if (dragging) {
+    if (draggingState) {
       const worldCoords = model.manipulator.handleEvent(
         eventData,
         model._apiSpecificRenderWindow
       );
       if (worldCoords.length) {
-        dragging.setOrigin(worldCoords);
+        draggingState.setOrigin(worldCoords);
       }
 
-      dragging = null;
+      draggingState = null;
       model._apiSpecificRenderWindow.setCursor('pointer');
       model.widgetState.deactivate();
       model._interactor.cancelAnimation(publicAPI);
       publicAPI.invokeEndInteractionEvent();
-      // model._widgetManager.enablePicking();
-      // model._interactor.render();
+      model._widgetManager.enablePicking();
     }
   };
 
   publicAPI.handleRightButtonPress = (eventData: any) => {
     if (
       shouldIgnoreEvent(eventData) ||
-      model.widgetState.getInteractionState() !== InteractionState.Settled || // ignore when still placing
+      model.widgetState.getInteractionState() !== InteractionState.Finalized || // ignore when still placing
       !model.activeState?.getActive() || // ignore when no selected state
       model.hasFocus || // ignore when focused
-      dragging // ignore when dragging
+      draggingState // ignore when dragging
     ) {
       return macro.VOID;
     }
@@ -154,32 +162,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   publicAPI.grabFocus = () => {
-    if (
-      !model.hasFocus &&
-      // only allow focus if placing points
-      model.widgetState.getInteractionState() !== InteractionState.Settled
-    ) {
-      model.hasFocus = true;
-      // render the (invisible) point handles
-      model._interactor.requestAnimation(publicAPI);
-      publicAPI.invokeStartInteractionEvent();
-    }
+    throw new Error('grabFocus is not implemented');
   };
 
   publicAPI.loseFocus = () => {
-    if (model.hasFocus) {
-      model._interactor.cancelAnimation(publicAPI);
-      publicAPI.invokeEndInteractionEvent();
-    }
-    model.hasFocus = false;
-    // model._widgetManager.enablePicking();
-    // model._interactor.render();
-  };
-
-  publicAPI.delete = () => {
-    superClass.delete();
-    while (subscriptions.length) {
-      subscriptions.pop()!.unsubscribe();
-    }
+    throw new Error('loseFocus is not implemented');
   };
 }

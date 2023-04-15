@@ -190,7 +190,6 @@
 import {
   computed,
   defineComponent,
-  onBeforeUnmount,
   onMounted,
   Ref,
   ref,
@@ -226,7 +225,6 @@ import { useImageStore } from '../store/datasets-images';
 import { makeRemote, makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
-import { useRulerStore } from '../store/tools/rulers';
 import { Layouts } from '../config';
 import { isStateFile, loadState } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
@@ -423,13 +421,6 @@ export default defineComponent({
         loadRemoteFilesFromURLParams(urlParams, setError)
       );
     });
-
-    // --- store initialization -- //
-
-    const rulerStore = useRulerStore();
-    rulerStore.initialize();
-
-    onBeforeUnmount(() => rulerStore.uninitialize());
 
     // --- template vars --- //
 

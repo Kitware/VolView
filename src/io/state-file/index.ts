@@ -26,7 +26,7 @@ import { Manifest, ManifestSchema } from './schema';
 import { deserializeDatasetFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
-const VERSION = '0.0.4';
+const VERSION = '0.0.5';
 
 export async function save(fileName: string) {
   const datasetStore = useDatasetStore();

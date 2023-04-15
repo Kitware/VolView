@@ -1,12 +1,12 @@
 <script lang="ts">
-import { useRulerStore } from '@/src/store/tools/rulers';
-import { vtkRulerViewWidget } from '@/src/vtk/RulerWidget';
+import vtkRulerWidget, { vtkRulerViewWidget } from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
   onBeforeUnmount,
   onMounted,
+  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -19,6 +19,10 @@ import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
+import { useRulerStore } from '@/src/store/tools/rulers';
+import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
+import { Vector3 } from '@kitware/vtk.js/types';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -39,37 +43,89 @@ export default defineComponent({
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    slice: {
+    currentSlice: {
       type: Number,
       required: true,
     },
-    focused: Boolean,
   },
   setup(props, { emit }) {
-    const {
-      rulerId: rulerIDRef,
-      widgetManager: widgetManagerRef,
-      viewDirection,
-      focused,
-      slice,
-    } = toRefs(props);
+    const { rulerId, widgetManager, viewDirection, currentSlice } =
+      toRefs(props);
+
     const rulerStore = useRulerStore();
-    const factoryRef = computed(() =>
-      rulerStore.getVTKFactory(rulerIDRef.value)
+    const isPlacingRuler = computed(() =>
+      rulerStore.isPlacingRuler(rulerId.value)
     );
-    const widgetRef = ref<vtkRulerViewWidget | null>(null);
-    const rulerRef = computed(() => rulerStore.rulers[rulerIDRef.value]);
+    const ruler = computed(() =>
+      isPlacingRuler.value
+        ? rulerStore.placingRulerByID[rulerId.value]
+        : rulerStore.rulerByID[rulerId.value]
+    );
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
+
+    const widgetFactory = vtkRulerWidget.newInstance({
+      id: rulerId.value,
+      store: rulerStore,
+    });
+    const widget = ref<vtkRulerViewWidget | null>(null);
 
     onMounted(() => {
-      if (!factoryRef.value) {
-        throw new Error(
-          `No widget exists for ruler with ID ${rulerIDRef.value}`
-        );
-      }
-      const widgetManager = widgetManagerRef.value;
-      const factory = factoryRef.value;
+      widget.value = widgetManager.value.addWidget(
+        widgetFactory
+      ) as vtkRulerViewWidget;
+    });
 
-      widgetRef.value = widgetManager.addWidget(factory) as vtkRulerViewWidget;
+    onUnmounted(() => {
+      if (!widget.value) {
+        return;
+      }
+      widgetManager.value.removeWidget(widget.value);
+      widget.value.delete();
+      widgetFactory.delete();
+    });
+
+    // --- placing ruler reset --- //
+
+    // reset placing ruler when changing slices or images
+    watch([currentSlice, currentImageID, isPlacingRuler], () => {
+      if (!isPlacingRuler.value || !widget.value) return;
+      rulerStore.resetPlacingRuler(rulerId.value);
+      widget.value.resetInteractionState();
+    });
+
+    // --- placing ruler finalization --- //
+
+    const getCurrentFrameOfReference = (): FrameOfReference => {
+      const planeNormal = currentImageMetadata.value.lpsOrientation[
+        viewDirection.value
+      ] as Vector3;
+      const planeOrigin = ruler.value!.firstPoint!;
+      return {
+        planeNormal,
+        planeOrigin,
+      };
+    };
+
+    // this only happens for the placing ruler
+    const onFinalizedEvent = useVTKCallback(
+      computed(() => widget.value?.onFinalizedEvent)
+    );
+
+    onFinalizedEvent(() => {
+      if (!currentImageID.value || !isPlacingRuler.value || !widget.value) {
+        return;
+      }
+      // set name + imageID + frame + slice
+      rulerStore.updateRuler(rulerId.value, {
+        name: 'Ruler',
+        imageID: currentImageID.value,
+        slice: currentSlice.value,
+        frameOfReference: getCurrentFrameOfReference(),
+      });
+
+      // resets the widget and the backing placing ruler
+      rulerStore.commitPlacingRuler(rulerId.value);
+      widget.value.resetInteractionState();
     });
 
     // --- right click handling --- //
@@ -77,7 +133,10 @@ export default defineComponent({
     let rightClickSub: vtkSubscription | null = null;
 
     onMounted(() => {
-      rightClickSub = widgetRef.value!.onRightClickEvent((eventData) => {
+      if (!widget.value) {
+        return;
+      }
+      rightClickSub = widget.value.onRightClickEvent((eventData) => {
         const coords = getCSSCoordinatesFromEvent(eventData);
         if (coords) {
           emit('contextmenu', coords);
@@ -97,55 +156,41 @@ export default defineComponent({
     const manipulator = vtkPlaneManipulator.newInstance();
 
     onMounted(() => {
-      widgetRef.value!.setManipulator(manipulator);
+      if (!widget.value) {
+        return;
+      }
+      widget.value.setManipulator(manipulator);
     });
-
-    const { currentImageMetadata } = useCurrentImage();
 
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        rulerRef.value.slice ?? slice.value,
+        ruler.value?.slice ?? currentSlice.value,
         currentImageMetadata.value
       );
     });
 
-    // --- focus --- //
-
-    watchEffect(() => {
-      const widgetManager = widgetManagerRef.value;
-      const widget = widgetRef.value;
-      if (focused.value) {
-        widgetManager.grabFocus(widget!);
-      } else {
-        // TODO unfocus the specific widget; necessary?
-      }
-    });
-
-    onBeforeUnmount(() => {
-      const widgetManager = widgetManagerRef.value;
-      const widget = widgetRef.value;
-      widgetManager.removeWidget(widget!);
-    });
-
     // --- visibility --- //
 
-    watch(
-      () => {
-        const rulerSlice = rulerRef.value.slice;
-        const curSlice = slice.value;
-        return !Number.isInteger(rulerSlice) || rulerSlice === curSlice;
-      },
-      (visible) => {
-        widgetRef.value!.setVisibility(visible);
-      }
-    );
+    // watch(
+    //   () => {
+    //     const rulerSlice = ruler.value?.slice;
+    //     const curSlice = currentSlice.value;
+    //     return !Number.isInteger(rulerSlice) || rulerSlice === curSlice;
+    //   },
+    //   (visible) => {
+    //     widget.setVisibility(visible);
+    //   }
+    // );
 
     onMounted(() => {
-      // hide handle visibility
-      widgetRef.value!.setHandleVisibility(false);
-      widgetManagerRef.value.renderWidgets();
+      if (!widget.value) {
+        return;
+      }
+      // hide handle visibility, but not picking visibility
+      widget.value.setHandleVisibility(false);
+      widgetManager.value.renderWidgets();
     });
 
     return () => null;

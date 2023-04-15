@@ -91,7 +91,7 @@ export default defineComponent({
       const imageID = currentImageID.value;
       return rulerStore.rulerIDs
         .map((id) => {
-          const ruler = rulerStore.rulers[id];
+          const ruler = rulerStore.rulerByID[id];
           return {
             id,
             type: 'ruler',

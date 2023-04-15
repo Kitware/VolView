@@ -5,7 +5,7 @@ import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representatio
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
 import widgetBehavior from './behavior';
-import stateGenerator from './state';
+import stateGenerator, { PointsLabel } from './state';
 
 export { shouldIgnoreEvent } from './behavior';
 
@@ -18,20 +18,10 @@ function vtkRulerWidget(publicAPI, model) {
 
   // --- Widget Requirement ---------------------------------------------------
 
-  // model.methodsToLink = [
-  //   'activeScaleFactor',
-  //   'activeColor',
-  //   'useActiveColor',
-  //   'glyphResolution',
-  //   'defaultScale',
-  //   'text',
-  //   'textStateIndex',
-  // ];
-
   publicAPI.getRepresentationsForViewType = () => [
     {
       builder: vtkSphereHandleRepresentation,
-      labels: ['points'],
+      labels: [PointsLabel],
       initialValues: {
         scaleInPixels: true,
       },
@@ -63,7 +53,7 @@ export function extend(publicAPI, model, initialValues = {}) {
   vtkAbstractWidgetFactory.extend(publicAPI, model, {
     ...initialValues,
     behavior: widgetBehavior,
-    widgetState: stateGenerator(),
+    widgetState: stateGenerator(initialValues),
   });
   macro.get(publicAPI, model, ['manipulator']);
 
