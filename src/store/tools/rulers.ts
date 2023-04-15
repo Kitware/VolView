@@ -4,20 +4,15 @@ import { removeFromArray } from '@/src/utils';
 import { TOOL_COLORS } from '@/src/config';
 import { defineStore } from 'pinia';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { PartialWithRequired, RequiredWithPartial } from '@/src/types';
+import { RequiredWithPartial } from '@/src/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '../datasets';
-import { Ruler } from '../../types/ruler';
+import { Ruler, RulerPatch, PlacingRuler } from '../../types/ruler';
 import { useViewStore } from '../views';
 import { useViewConfigStore } from '../view-configs';
-
-export interface PlacingRuler
-  extends PartialWithRequired<Ruler, 'id' | 'color'> {}
-
-export type RulerPatch = Partial<Omit<Ruler, 'id'>>;
 
 const emptyPlacingRuler = (
   id: string,
@@ -149,6 +144,7 @@ export const useRulerStore = defineStore('ruler', () => {
       const clone = { ...ruler, id: this.$id.nextID() };
       addRuler.call(this, clone);
       resetPlacingRuler(id);
+      return clone.id;
     }
     return null;
   }

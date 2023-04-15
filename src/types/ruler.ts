@@ -1,5 +1,6 @@
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { Vector3 } from '@kitware/vtk.js/types';
+import { PartialWithRequired } from '.';
 
 export interface Ruler {
   /**
@@ -32,3 +33,8 @@ export interface Ruler {
   name: string;
   color: string;
 }
+
+export interface PlacingRuler
+  extends PartialWithRequired<Ruler, 'id' | 'color'> {}
+
+export type RulerPatch = Partial<Omit<Ruler, 'id'>>;
