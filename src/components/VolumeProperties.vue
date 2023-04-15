@@ -107,7 +107,7 @@ export default defineComponent({
       <v-slider
         label="Diffuse"
         min="0"
-        max="2"
+        max="1"
         step="0.1"
         dense
         hide-details
