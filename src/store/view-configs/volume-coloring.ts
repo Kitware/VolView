@@ -53,7 +53,7 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   cvr: {
     enabled: true,
     lightFollowsCamera: true,
-    volumeQuality: 1,
+    volumeQuality: 2,
     useVolumetricScatteringBlending: false,
     volumetricScatteringBlending: 0.5,
     useLocalAmbientOcclusion: true,
