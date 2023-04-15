@@ -58,17 +58,21 @@ export default defineComponent({
       setCVRParam('useVolumetricScatteringBlending', (buttonIdx !== 0));
     };
 
-    const volumeQualityLabels = ['Performance', '', 'Quality'];
+    const volumeQualityLabels = ['Sturdy', 'Robust', 'Extreme', 'Ludicrous'];
+    const showQualityWarning = false;
+    const disableQualityWarning = false;
 
     return {
+      LIGHTING_MODELS,
       cvrParams,
       laoEnabled,
-      vsbEnabled,
-      setCVRParam,
-      LIGHTING_MODELS,
-      selectLightingMode,
       lightingModel,
+      selectLightingMode,
+      setCVRParam,
+      showQualityWarning,
       volumeQualityLabels,
+      vsbEnabled,
+      disableQualityWarning,
     };
   },
 });
@@ -80,18 +84,54 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
-      <v-slider
-        label="Volume Profile"
-        ticks="always"
-        tick-size="4"
-        :tick-labels="volumeQualityLabels"
-        hint="Hint"
-        min="1"
-        max="3"
-        step="1"
-        :value="cvrParams.volumeQuality"
-        @change="setCVRParam('volumeQuality', $event)"
-      />
+      <v-tooltip v-model="showQualityWarning"
+        class="align-center justify-center"
+        scroll-strategy="none"
+        contained
+        bottom
+        :disabled = "true"
+        >
+        <template v-slot:activator="{ props }">
+          <v-slider
+            ticks="always"
+            tick-size="4"
+            :tick-labels="volumeQualityLabels"
+            min="1"
+            max="4"
+            step="1"
+            :value="cvrParams.volumeQuality"
+            v-bind="props"
+            @change="{
+              showQualityWarning = !disableQualityWarning && ($event > 2);
+              setCVRParam('volumeQuality', $event)
+            }"
+          />
+          <v-expand-transition>
+            <v-card
+              v-if="showQualityWarning"
+              >
+              <v-card-title>Warning</v-card-title>
+              <v-card-subtitle>Higher values are unstable on some systems</v-card-subtitle>
+              <v-card-actions>
+                <v-btn
+                  small
+                  icon
+                  @click="showQualityWarning = false"
+                  >
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+                <v-btn
+                  small
+                  icon
+                  @click="{disableQualityWarning = true; showQualityWarning = false;}"
+                  >
+                  <v-icon>mdi-minus-circle</v-icon>
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-expand-transition>
+        </template>
+      </v-tooltip>
       <v-divider class="my-8" />
       <v-slider
         label="Ambient"
