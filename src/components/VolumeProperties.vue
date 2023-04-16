@@ -113,20 +113,44 @@ export default defineComponent({
               <v-card-title>Warning</v-card-title>
               <v-card-subtitle>Higher values are unstable on some systems</v-card-subtitle>
               <v-card-actions>
-                <v-btn
-                  small
-                  icon
-                  @click="showQualityWarning = false"
+                <v-tooltip
+                  scroll-strategy="none"
+                  contained
+                  bottom
+                  class="align-center justify-center"
                   >
-                  <v-icon>mdi-close</v-icon>
-                </v-btn>
-                <v-btn
-                  small
-                  icon
-                  @click="{disableQualityWarning = true; showQualityWarning = false;}"
+                  <template v-slot:activator="{ on, props }">
+                    <v-btn
+                      small
+                      icon
+                      @click="showQualityWarning = false"
+                      v-bind="props"
+                      v-on="on"
+                      >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Close this warning</span>
+                </v-tooltip>
+                <v-tooltip
+                  scroll-strategy="none"
+                  contained
+                  bottom
+                  class="align-center justify-center"
                   >
-                  <v-icon>mdi-minus-circle</v-icon>
-                </v-btn>
+                  <template v-slot:activator="{ on, props }">
+                    <v-btn
+                      small
+                      icon
+                      @click="{disableQualityWarning = true; showQualityWarning = false;}"
+                      v-bind="props"
+                      v-on="on"
+                      >
+                      <v-icon>mdi-minus-circle</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Disable this warning</span>
+                </v-tooltip>
               </v-card-actions>
             </v-card>
           </v-expand-transition>
