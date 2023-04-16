@@ -326,6 +326,11 @@ export default defineComponent({
           light.setPositional(false);
         }
 
+        property.setScalarOpacityUnitDistance(
+          0,
+          0.5 * getDiagonalLength(image.getBounds()) /
+            Math.max(...image.getDimensions())
+        );
         if (animating) {
           mapper.setSampleDistance(0.75);
           mapper.setMaximumSamplesPerRay(1000);
@@ -344,22 +349,17 @@ export default defineComponent({
           // Use the average spacing for sampling by default
           let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
           // Adjust the volume sampling by the quality slider value
-          sampleDistance /= params.volumeQuality;
+          sampleDistance /= 0.5 * (params.volumeQuality * params.volumeQuality);
           const samplesPerRay = spatialDiagonal / sampleDistance + 1;
           mapper.setMaximumSamplesPerRay(samplesPerRay);
           mapper.setSampleDistance(sampleDistance);
           // Adjust the global illumination reach by volume quality slider
           mapper.setGlobalIlluminationReach(
-            enabled ? 0.2 * params.volumeQuality : 0
+            enabled ? 0.25 * params.volumeQuality : 0
           );
         }
 
         property.setShade(true);
-        property.setScalarOpacityUnitDistance(
-          0,
-          getDiagonalLength(image.getBounds()) /
-            Math.max(...image.getDimensions())
-        );
         property.setUseGradientOpacity(0, !enabled);
         property.setGradientOpacityMinimumValue(0, 0.0);
         const dataRange = image.getPointData().getScalars().getRange();
