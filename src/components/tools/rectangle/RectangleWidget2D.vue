@@ -1,5 +1,4 @@
 <script lang="ts">
-import vtkRulerWidget, { vtkRulerViewWidget } from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
@@ -24,10 +23,13 @@ import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { ToolID, useRectangleStore } from '@/src/store/tools/rectangles';
+import vtkRectangleWidget, {
+  vtkRectangleViewWidget,
+} from '@/src/vtk/RectangleWidget';
 
 const useStore = useRectangleStore;
-const vtkWidgetFactory = vtkRulerWidget;
-type WidgetView = vtkRulerViewWidget;
+const vtkWidgetFactory = vtkRectangleWidget;
+type WidgetView = vtkRectangleViewWidget;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
