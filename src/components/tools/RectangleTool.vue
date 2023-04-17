@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RulerSVG2D
+      <RectangleSVG2D
         v-for="ruler in rulers"
         :key="ruler.id"
         v-show="currentSlice === ruler.slice"
@@ -9,9 +9,8 @@
         :point1="ruler.firstPoint"
         :point2="ruler.secondPoint"
         :color="ruler.color"
-        :length="ruler.length"
       />
-      <RulerSVG2D
+      <RectangleSVG2D
         v-if="placingRuler"
         :key="placingRuler.id"
         :view-id="viewId"
@@ -73,7 +72,7 @@ import { Tools } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
-import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
+import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -103,7 +102,7 @@ export default defineComponent({
   },
   components: {
     RulerWidget2D,
-    RulerSVG2D,
+    RectangleSVG2D,
   },
   setup(props) {
     const { viewDirection } = toRefs(props);
