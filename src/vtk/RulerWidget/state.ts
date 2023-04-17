@@ -6,13 +6,7 @@ import createPointState from './pointState';
 
 export const PointsLabel = 'points';
 
-export const InteractionState = {
-  PlacingFirst: 'PlacingFirst',
-  PlacingSecond: 'PlacingSecond',
-  Finalized: 'Finalized',
-};
-
-function watchState(publicAPI, state, callback) {
+function watchState(publicAPI: any, state: any, callback: () => {}) {
   let subscription = state.onModified(callback);
   const originalDelete = publicAPI.delete;
   publicAPI.delete = () => {
@@ -22,16 +16,18 @@ function watchState(publicAPI, state, callback) {
   };
 }
 
-function vtkRulerWidgetState(publicAPI, model) {
+function vtkRulerWidgetState(publicAPI: any, model: any) {
   const firstPoint = createPointState({
     id: model.id,
     store: model._store,
     key: 'firstPoint',
+    visible: true,
   });
   const secondPoint = createPointState({
     id: model.id,
     store: model._store,
     key: 'secondPoint',
+    visible: true,
   });
 
   watchState(publicAPI, firstPoint, () => publicAPI.modified());
@@ -43,20 +39,24 @@ function vtkRulerWidgetState(publicAPI, model) {
 
   publicAPI.getFirstPoint = () => firstPoint;
   publicAPI.getSecondPoint = () => secondPoint;
-
-  model.interactionState =
-    firstPoint.getOrigin() && secondPoint.getOrigin()
-      ? InteractionState.Finalized
-      : InteractionState.PlacingFirst;
 }
 
-function _createRulerWidgetState(publicAPI, model, initialValues) {
-  Object.assign(model, initialValues);
-  vtkWidgetState.extend(publicAPI, model, {});
+const defaultValues = (initialValues: any) => ({
+  isPlaced: false,
+  ...initialValues,
+});
+
+function _createRulerWidgetState(
+  publicAPI: any,
+  model: any,
+  initialValues: any
+) {
+  Object.assign(model, defaultValues(initialValues));
+  vtkWidgetState.extend(publicAPI, model, initialValues);
   bounds.extend(publicAPI, model);
 
   macro.get(publicAPI, model, ['id']);
-  macro.setGet(publicAPI, model, ['interactionState']);
+  macro.setGet(publicAPI, model, ['isPlaced']);
   macro.moveToProtected(publicAPI, model, ['store']);
 
   vtkRulerWidgetState(publicAPI, model);

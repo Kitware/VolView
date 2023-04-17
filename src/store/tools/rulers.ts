@@ -4,34 +4,30 @@ import { removeFromArray } from '@/src/utils';
 import { TOOL_COLORS } from '@/src/config';
 import { defineStore } from 'pinia';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { RequiredWithPartial } from '@/src/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '../datasets';
-import { Ruler, RulerPatch, PlacingRuler } from '../../types/ruler';
+import { Ruler, RulerPatch } from '../../types/ruler';
 import { useViewStore } from '../views';
 import { useViewConfigStore } from '../view-configs';
 
-const emptyPlacingRuler = (
-  id: string,
-  color = TOOL_COLORS[0]
-): PlacingRuler => ({
-  id,
-  color,
+const createRulerWithDefaults = (ruler: Partial<Ruler>): Ruler => ({
+  firstPoint: [0, 0, 0],
+  secondPoint: [0, 0, 0],
+  frameOfReference: {
+    planeOrigin: [0, 0, 0],
+    planeNormal: [1, 0, 0],
+  },
+  slice: -1,
+  imageID: '',
+  id: '',
+  name: 'Ruler',
+  color: TOOL_COLORS[0],
+  placing: false,
+  ...ruler,
 });
-
-function isPlacingRulerFinalized(ruler: PlacingRuler): ruler is Ruler {
-  return Boolean(
-    ruler.firstPoint &&
-      ruler.secondPoint &&
-      ruler.name &&
-      ruler.imageID &&
-      ruler.frameOfReference &&
-      ruler.slice != null
-  );
-}
 
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
@@ -40,7 +36,6 @@ export const useRulerStore = defineStore('ruler', () => {
 
   const rulerIDs = ref<string[]>([]);
   const rulerByID = ref<Record<string, Ruler>>(Object.create(null));
-  const placingRulerByID = ref<Record<string, PlacingRuler>>({});
 
   // used for picking the next ruler color
   let colorIndex = 0;
@@ -48,10 +43,6 @@ export const useRulerStore = defineStore('ruler', () => {
     const color = TOOL_COLORS[colorIndex];
     colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
     return color;
-  }
-
-  function getNextPlacingRulerID() {
-    return `PlacingRuler-${Object.keys(placingRulerByID.value).length}`;
   }
 
   // --- getters --- //
@@ -73,38 +64,10 @@ export const useRulerStore = defineStore('ruler', () => {
 
   // --- actions --- //
 
-  function createPlacingRuler() {
-    const id = getNextPlacingRulerID();
-    set(placingRulerByID.value, id, emptyPlacingRuler(id, getNextColor()));
-    return id;
-  }
-
-  function resetPlacingRuler(id: string) {
-    if (!(id in placingRulerByID.value)) {
-      return;
-    }
-    const { color } = placingRulerByID.value[id];
-    set(placingRulerByID.value, id, emptyPlacingRuler(id, color));
-  }
-
-  function isPlacingRuler(id: string) {
-    return id in placingRulerByID.value;
-  }
-
-  function addRuler(
-    this: _This,
-    ruler: RequiredWithPartial<Ruler, 'id' | 'color'>
-  ) {
-    const id = ruler.id ?? this.$id.nextID();
-    if (id in rulerByID.value) {
-      throw new Error('Cannot add ruler with conflicting ID');
-    }
+  function addRuler(this: _This, ruler: RulerPatch) {
+    const id = this.$id.nextID();
     const color = ruler.color ?? getNextColor();
-    set(rulerByID.value, id, {
-      ...ruler,
-      id,
-      color,
-    });
+    set(rulerByID.value, id, createRulerWithDefaults({ ...ruler, id, color }));
     rulerIDs.value.push(id);
     return id;
   }
@@ -113,40 +76,13 @@ export const useRulerStore = defineStore('ruler', () => {
     if (id in rulerByID.value) {
       removeFromArray(rulerIDs.value, id);
       del(rulerByID.value, id);
-    } else if (id in placingRulerByID.value) {
-      del(placingRulerByID.value, id);
     }
   }
 
   function updateRuler(id: string, patch: RulerPatch) {
-    if (id in placingRulerByID.value) {
-      set(placingRulerByID.value, id, {
-        ...placingRulerByID.value[id],
-        ...patch,
-      });
-    } else if (id in rulerByID.value) {
+    if (id in rulerByID.value) {
       set(rulerByID.value, id, { ...rulerByID.value[id], ...patch });
     }
-  }
-
-  /**
-   * Saves a given placing ruler and returns the new ruler's ID.
-   *
-   * This makes a copy of the placing ruler and saves it.
-   * @param this
-   * @param id
-   * @returns
-   */
-  function commitPlacingRuler(this: _This, id: string) {
-    const ruler = placingRulerByID.value[id];
-    if (ruler && isPlacingRulerFinalized(ruler)) {
-      // allocate a non-placing ID
-      const clone = { ...ruler, id: this.$id.nextID() };
-      addRuler.call(this, clone);
-      resetPlacingRuler(id);
-      return clone.id;
-    }
-    return null;
   }
 
   function jumpToRuler(rulerID: string) {
@@ -177,15 +113,14 @@ export const useRulerStore = defineStore('ruler', () => {
       });
     });
   }
+
   // --- tool activation --- //
 
   function activateTool(this: _This) {
     return true;
   }
 
-  function deactivateTool() {
-    placingRulerByID.value = {};
-  }
+  function deactivateTool() {}
 
   // --- serialization --- //
 
@@ -224,13 +159,8 @@ export const useRulerStore = defineStore('ruler', () => {
     rulerIDs,
     rulerByID,
     lengthByID,
-    placingRulerByID,
     activateTool,
     deactivateTool,
-    createPlacingRuler,
-    resetPlacingRuler,
-    commitPlacingRuler,
-    isPlacingRuler,
     addRuler,
     updateRuler,
     removeRuler,

@@ -1,7 +1,9 @@
 import macro from '@kitware/vtk.js/macros';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-import visible from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
-import scale1 from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
+import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
+import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
+
+const PIXEL_SIZE = 20;
 
 function watchStore(publicAPI, store, getter, cmp) {
   let cached = getter();
@@ -20,20 +22,21 @@ function watchStore(publicAPI, store, getter, cmp) {
   };
 }
 
-function _createPointState(publicAPI, model, { id, store, key }) {
+function _createPointState(
+  publicAPI,
+  model,
+  { id, store, key, visible = true }
+) {
   Object.assign(model, {
     id,
     _store: store,
     key,
   });
   vtkWidgetState.extend(publicAPI, model, {});
-  visible.extend(publicAPI, model, { visible: true });
-  scale1.extend(publicAPI, model, { scale1: 20 });
+  visibleMixin.extend(publicAPI, model, { visible });
+  scale1Mixin.extend(publicAPI, model, { scale1: PIXEL_SIZE });
 
   const getRuler = () => {
-    if (model._store.isPlacingRuler(model.id)) {
-      return model._store.placingRulerByID[model.id];
-    }
     return model._store.rulerByID[model.id];
   };
 

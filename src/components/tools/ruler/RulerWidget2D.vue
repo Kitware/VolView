@@ -1,5 +1,9 @@
 <script lang="ts">
-import vtkRulerWidget, { vtkRulerViewWidget } from '@/src/vtk/RulerWidget';
+import vtkRulerWidget, {
+  InteractionState,
+  vtkRulerViewWidget,
+  vtkRulerWidgetPointState,
+} from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
@@ -8,6 +12,7 @@ import {
   onMounted,
   onUnmounted,
   PropType,
+  Ref,
   ref,
   toRefs,
   watch,
@@ -21,11 +26,12 @@ import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
-import { Vector3 } from '@kitware/vtk.js/types';
+import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
+import { watchOnce } from '@vueuse/core';
 
 export default defineComponent({
   name: 'RulerWidget2D',
+  emits: ['placed'],
   props: {
     rulerId: {
       type: String,
@@ -47,25 +53,26 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    isPlacing: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  components: {
+    RulerSVG2D,
   },
   setup(props, { emit }) {
-    const { rulerId, widgetManager, viewDirection, currentSlice } =
+    const { rulerId, widgetManager, viewDirection, currentSlice, isPlacing } =
       toRefs(props);
 
     const rulerStore = useRulerStore();
-    const isPlacingRuler = computed(() =>
-      rulerStore.isPlacingRuler(rulerId.value)
-    );
-    const ruler = computed(() =>
-      isPlacingRuler.value
-        ? rulerStore.placingRulerByID[rulerId.value]
-        : rulerStore.rulerByID[rulerId.value]
-    );
+    const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
 
     const widgetFactory = vtkRulerWidget.newInstance({
       id: rulerId.value,
       store: rulerStore,
+      isPlaced: !isPlacing.value,
     });
     const widget = ref<vtkRulerViewWidget | null>(null);
 
@@ -84,48 +91,34 @@ export default defineComponent({
       widgetFactory.delete();
     });
 
-    // --- placing ruler reset --- //
-
-    // reset placing ruler when changing slices or images
-    watch([currentSlice, currentImageID, isPlacingRuler], () => {
-      if (!isPlacingRuler.value || !widget.value) return;
-      rulerStore.resetPlacingRuler(rulerId.value);
-      widget.value.resetInteractionState();
-    });
-
-    // --- placing ruler finalization --- //
-
-    const getCurrentFrameOfReference = (): FrameOfReference => {
-      const planeNormal = currentImageMetadata.value.lpsOrientation[
-        viewDirection.value
-      ] as Vector3;
-      const planeOrigin = ruler.value!.firstPoint!;
-      return {
-        planeNormal,
-        planeOrigin,
-      };
-    };
-
-    // this only happens for the placing ruler
-    const onFinalizedEvent = useVTKCallback(
-      computed(() => widget.value?.onFinalizedEvent)
+    watch(
+      [isPlacing, widget],
+      ([placing, widget_]) => {
+        if (placing && widget_) {
+          widget_.setInteractionState(InteractionState.PlacingFirst);
+        }
+      },
+      { immediate: true }
     );
 
-    onFinalizedEvent(() => {
-      if (!currentImageID.value || !isPlacingRuler.value || !widget.value) {
-        return;
-      }
-      // set name + imageID + frame + slice
-      rulerStore.updateRuler(rulerId.value, {
-        name: 'Ruler',
-        imageID: currentImageID.value,
-        slice: currentSlice.value,
-        frameOfReference: getCurrentFrameOfReference(),
-      });
+    // --- reset on slice/image changes --- //
 
-      // resets the widget and the backing placing ruler
-      rulerStore.commitPlacingRuler(rulerId.value);
-      widget.value.resetInteractionState();
+    watch([currentSlice, currentImageID], () => {
+      const isPlaced = widget.value?.getWidgetState().getIsPlaced();
+      if (widget.value && !isPlaced) {
+        widget.value.resetInteractions();
+        widget.value.setInteractionState(InteractionState.PlacingFirst);
+      }
+    });
+
+    // --- placed event --- //
+
+    const onPlacedEvent = useVTKCallback(
+      computed(() => widget.value?.onPlacedEvent)
+    );
+
+    onPlacedEvent(() => {
+      emit('placed');
     });
 
     // --- right click handling --- //
@@ -173,8 +166,8 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // technically toggles the pickability of the ruler
-    // handles, since the 3D ruler parts are visually hidden.
+    // toggles the pickability of the ruler handles,
+    // since the 3D ruler parts are visually hidden.
     watch(
       () => ruler.value?.slice === currentSlice.value,
       (visible) => {
@@ -191,7 +184,55 @@ export default defineComponent({
       widgetManager.value.renderWidgets();
     });
 
-    return () => null;
+    // --- handle pick visibility --- //
+
+    const usePointVisibility = (
+      pointState: Ref<vtkRulerWidgetPointState | undefined>
+    ) => {
+      const visible = ref(false);
+      const updateVisibility = () => {
+        if (!pointState.value) return;
+        visible.value = pointState.value.getVisible();
+      };
+
+      const onModified = useVTKCallback(
+        computed(() => pointState.value?.onModified)
+      );
+      onModified(() => updateVisibility());
+
+      watchOnce(widget, () => updateVisibility());
+
+      return visible;
+    };
+
+    const firstPointVisible = usePointVisibility(
+      computed(() => widget.value?.getWidgetState().getFirstPoint())
+    );
+    const secondPointVisible = usePointVisibility(
+      computed(() => widget.value?.getWidgetState().getSecondPoint())
+    );
+
+    return {
+      ruler,
+      firstPoint: computed(() => {
+        return firstPointVisible.value ? ruler.value.firstPoint : undefined;
+      }),
+      secondPoint: computed(() => {
+        return secondPointVisible.value ? ruler.value.secondPoint : undefined;
+      }),
+      length: computed(() => rulerStore.lengthByID[ruler.value.id]),
+    };
   },
 });
 </script>
+
+<template>
+  <RulerSVG2D
+    v-show="currentSlice === ruler.slice"
+    :view-id="viewId"
+    :point1="firstPoint"
+    :point2="secondPoint"
+    :color="ruler.color"
+    :length="length"
+  />
+</template>
