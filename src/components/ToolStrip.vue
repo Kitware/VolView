@@ -81,6 +81,19 @@
         <paint-controls />
       </v-menu>
     </groupable-item>
+    <groupable-item
+      v-slot:default="{ active, toggle }"
+      :value="Tools.Rectangle"
+    >
+      <tool-button
+        size="40"
+        icon="mdi-vector-square"
+        name="Rectangle"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      />
+    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
       <tool-button
         size="40"
