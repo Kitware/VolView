@@ -1,28 +1,35 @@
+import { defineStore } from 'pinia';
+import { computed, del, ref, set } from '@vue/composition-api';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { TOOL_COLORS } from '@/src/config';
 import { RequiredWithPartial } from '@/src/types';
+import { removeFromArray } from '@/src/utils';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import { LPSAxisDir } from '@/src/types/lps';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import {
   Rectangle,
-  PlacingRectangle,
+  PlacingTool,
   RectangleID,
   RectanglePatch,
 } from '@/src/types/rectangle';
-import { removeFromArray } from '@/src/utils';
-import { computed, del, ref, set } from '@vue/composition-api';
-import { defineStore } from 'pinia';
+import { useViewStore } from '../views';
+import { useViewConfigStore } from '../view-configs';
 
 export type Tool = Rectangle;
 type ToolPatch = RectanglePatch;
-type PlacingTool = PlacingRectangle;
 export type ToolID = RectangleID;
-export type PlacingToolID = string & { __type: 'PlacingToolID' };
 
 const createEmptyPlacingTool = (
-  id: PlacingToolID,
+  id: ToolID,
   color = TOOL_COLORS[0]
 ): PlacingTool => ({
   id,
   color,
 });
+
+const isPlacingToolFinalized = (tool: PlacingTool): tool is Tool =>
+  Object.values(tool).every((prop) => prop != null);
 
 export const useRectangleStore = defineStore('rectangles', () => {
   type _This = ReturnType<typeof useRectangleStore>;
@@ -31,9 +38,9 @@ export const useRectangleStore = defineStore('rectangles', () => {
 
   const toolIDs = ref<ToolID[]>([]);
   const toolByID = ref<Record<ToolID, Tool>>(Object.create(null));
-  const placingToolByID = ref<Record<PlacingToolID, PlacingTool>>({});
+  const placingToolByID = ref<Record<ToolID, PlacingTool>>({});
 
-  // used for picking the next ruler color
+  // used for picking the next tool color
   let colorIndex = -1;
   function getNextColor() {
     colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
@@ -41,9 +48,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
   }
 
   function getNextPlacingToolID() {
-    return `PlacingTool-${
-      Object.keys(placingToolByID.value).length
-    }` as PlacingToolID;
+    return `PlacingTool-${Object.keys(placingToolByID.value).length}` as ToolID;
   }
 
   // --- getters --- //
@@ -61,7 +66,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
     return id;
   }
 
-  function resetPlacingTool(id: PlacingToolID) {
+  function resetPlacingTool(id: ToolID) {
     if (!(id in placingToolByID.value)) {
       return;
     }
@@ -91,7 +96,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
     return id;
   }
 
-  function removeTool(id: ToolID | PlacingToolID) {
+  function removeTool(id: ToolID) {
     if (id in toolByID.value) {
       removeFromArray(toolIDs.value, id);
       del(toolByID.value, id);
@@ -100,15 +105,64 @@ export const useRectangleStore = defineStore('rectangles', () => {
     }
   }
 
-  function updateTool(id: ToolID | PlacingToolID, patch: ToolPatch) {
+  function updateTool(id: ToolID, patch: ToolPatch) {
     if (id in placingToolByID.value) {
       set(placingToolByID.value, id, {
-        ...placingToolByID.value[id as PlacingToolID],
+        ...placingToolByID.value[id],
         ...patch,
       });
     } else if (id in toolByID.value) {
-      set(toolByID.value, id, { ...toolByID.value[id as ToolID], ...patch });
+      set(toolByID.value, id, { ...toolByID.value[id], ...patch });
     }
+  }
+
+  /**
+   * Saves a given placing tool and returns the new tools's ID.
+   *
+   * This makes a copy of the placing tool and saves it.
+   * @param this
+   * @param id
+   * @returns
+   */
+  function commitPlacingTool(this: _This, id: ToolID) {
+    const tool = placingToolByID.value[id];
+    if (tool && isPlacingToolFinalized(tool)) {
+      // allocate a non-placing ID
+      const clone = { ...tool, id: this.$id.nextID() as ToolID };
+      addTool.call(this, clone);
+      resetPlacingTool(id);
+      return clone.id;
+    }
+    return null;
+  }
+
+  function jumpToTool(toolID: ToolID) {
+    const tool = toolByID.value[toolID];
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
+
+    const imageID = currentImageID.value;
+    if (!imageID || tool.imageID !== imageID) return;
+
+    const toolImageFrame = frameOfReferenceToImageSliceAndAxis(
+      tool.frameOfReference,
+      currentImageMetadata.value
+    );
+
+    if (!toolImageFrame) return;
+
+    const viewStore = useViewStore();
+    const relevantViewIDs = viewStore.viewIDs.filter((viewID) => {
+      const viewSpec = viewStore.viewSpecs[viewID];
+      const viewDir = viewSpec.props.viewDirection as LPSAxisDir | undefined;
+      return viewDir && getLPSAxisFromDir(viewDir) === toolImageFrame.axis;
+    });
+
+    const viewConfigStore = useViewConfigStore();
+    relevantViewIDs.forEach((viewID) => {
+      viewConfigStore.updateSliceConfig(viewID, imageID, {
+        slice: tool.slice!,
+      });
+    });
   }
 
   return {
@@ -122,5 +176,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
     addTool,
     removeTool,
     updateTool,
+    commitPlacingTool,
+    jumpToTool,
   };
 });

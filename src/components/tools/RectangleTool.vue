@@ -2,37 +2,37 @@
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
       <RectangleSVG2D
-        v-for="ruler in rulers"
-        :key="ruler.id"
-        v-show="currentSlice === ruler.slice"
+        v-for="tool in tools"
+        :key="tool.id"
+        v-show="currentSlice === tool.slice"
         :view-id="viewId"
-        :point1="ruler.firstPoint"
-        :point2="ruler.secondPoint"
-        :color="ruler.color"
+        :point1="tool.firstPoint"
+        :point2="tool.secondPoint"
+        :color="tool.color"
       />
       <RectangleSVG2D
-        v-if="placingRuler"
-        :key="placingRuler.id"
+        v-if="placingTool"
+        :key="placingTool.id"
         :view-id="viewId"
-        :point1="placingRuler.firstPoint"
-        :point2="placingRuler.secondPoint"
-        :color="placingRuler.color"
+        :point1="placingTool.firstPoint"
+        :point2="placingTool.secondPoint"
+        :color="placingTool.color"
       />
     </svg>
-    <RulerWidget2D
-      v-for="ruler in rulers"
-      :key="ruler.id"
-      :ruler-id="ruler.id"
+    <RectangleWidget2D
+      v-for="tool in tools"
+      :key="tool.id"
+      :tool-id="tool.id"
       :current-slice="currentSlice"
       :view-id="viewId"
       :view-direction="viewDirection"
       :widget-manager="widgetManager"
-      @contextmenu="openContextMenu(ruler.id, $event)"
+      @contextmenu="openContextMenu(tool.id, $event)"
     />
-    <RulerWidget2D
-      v-if="placingRuler"
-      :key="placingRuler.id"
-      :ruler-id="placingRuler.id"
+    <RectangleWidget2D
+      v-if="placingTool"
+      :key="placingTool.id"
+      :tool-id="placingTool.id"
       :current-slice="currentSlice"
       :view-id="viewId"
       :view-direction="viewDirection"
@@ -48,7 +48,7 @@
       close-on-content-click
     >
       <v-list dense>
-        <v-list-item @click="deleteRulerFromContextMenu">
+        <v-list-item @click="deleteToolFromContextMenu">
           <v-list-item-title>Delete</v-list-item-title>
         </v-list-item>
       </v-list>
@@ -71,18 +71,13 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
+import RectangleWidget2D from '@/src/components/tools/rectangle/RectangleWidget2D.vue';
 import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
-import {
-  useRectangleStore,
-  PlacingToolID,
-  ToolID,
-  Tool,
-} from '@/src/store/tools/rectangles';
+import { useRectangleStore, ToolID, Tool } from '@/src/store/tools/rectangles';
 
 export default defineComponent({
   name: 'RectangleTool',
@@ -105,7 +100,7 @@ export default defineComponent({
     },
   },
   components: {
-    RulerWidget2D,
+    RectangleWidget2D,
     RectangleSVG2D,
   },
   setup(props) {
@@ -114,7 +109,7 @@ export default defineComponent({
     const rectangleStore = useRectangleStore();
     const { placingToolByID, tools } = storeToRefs(rectangleStore);
 
-    const placingToolID = ref<PlacingToolID | null>(null);
+    const placingToolID = ref<ToolID | null>(null);
     const placingTool = computed(
       () => placingToolID.value && placingToolByID.value[placingToolID.value]
     );
@@ -143,17 +138,17 @@ export default defineComponent({
       show: false,
       x: 0,
       y: 0,
-      forRulerID: '' as ToolID,
+      forToolID: '' as ToolID,
     });
 
-    const openContextMenu = (rulerID: ToolID, displayXY: Vector2) => {
+    const openContextMenu = (toolID: ToolID, displayXY: Vector2) => {
       [contextMenu.x, contextMenu.y] = displayXY;
       contextMenu.show = true;
-      contextMenu.forRulerID = rulerID;
+      contextMenu.forToolID = toolID;
     };
 
-    const deleteRulerFromContextMenu = () => {
-      rectangleStore.removeTool(contextMenu.forRulerID);
+    const deleteToolFromContextMenu = () => {
+      rectangleStore.removeTool(contextMenu.forToolID);
     };
 
     // --- ruler data --- //
@@ -172,24 +167,22 @@ export default defineComponent({
       return !!rulerAxis && rulerAxis.axis === viewAxis.value;
     };
 
-    const currentRulers = computed(() => {
+    const currentTools = computed(() => {
       const curImageID = currentImageID.value;
 
-      const rulerData = tools.value.filter((tool) => {
+      return tools.value.filter((tool) => {
         // only show tools for the current image
         // and current view axis
         return tool.imageID === curImageID && doesToolFrameMatchViewAxis(tool);
       });
-
-      return rulerData;
     });
 
     return {
-      rulers: currentRulers,
-      placingRuler: placingTool,
+      tools: currentTools,
+      placingTool,
       contextMenu,
       openContextMenu,
-      deleteRulerFromContextMenu,
+      deleteToolFromContextMenu,
     };
   },
 });
