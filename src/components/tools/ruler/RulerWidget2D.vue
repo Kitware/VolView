@@ -173,16 +173,14 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // watch(
-    //   () => {
-    //     const rulerSlice = ruler.value?.slice;
-    //     const curSlice = currentSlice.value;
-    //     return !Number.isInteger(rulerSlice) || rulerSlice === curSlice;
-    //   },
-    //   (visible) => {
-    //     widget.setVisibility(visible);
-    //   }
-    // );
+    // technically toggles the pickability of the ruler
+    // handles, since the 3D ruler parts are visually hidden.
+    watch(
+      () => ruler.value?.slice === currentSlice.value,
+      (visible) => {
+        widget.value?.setVisibility(visible);
+      }
+    );
 
     onMounted(() => {
       if (!widget.value) {
