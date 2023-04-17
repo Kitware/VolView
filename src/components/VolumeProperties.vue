@@ -53,7 +53,7 @@ export default defineComponent({
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
-    const lightingModel = ref(0);
+    const lightingModel = ref(1);
     const selectLightingMode = (buttonIdx: number) => {
       setCVRParam('useVolumetricScatteringBlending', buttonIdx !== 0);
     };
