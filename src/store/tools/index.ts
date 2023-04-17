@@ -19,6 +19,9 @@ function getStore(tool: Tools): IToolStore | null {
   if (tool === Tools.Ruler) {
     return useRulerStore();
   }
+  if (tool === Tools.Rectangle) {
+    return useRulerStore();
+  }
   if (tool === Tools.Paint) {
     return usePaintToolStore();
   }
