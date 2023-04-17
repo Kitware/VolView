@@ -55,7 +55,7 @@ export default defineComponent({
 
     const lightingModel = ref(0);
     const selectLightingMode = (buttonIdx: number) => {
-      setCVRParam('useVolumetricScatteringBlending', (buttonIdx !== 0));
+      setCVRParam('useVolumetricScatteringBlending', buttonIdx !== 0);
     };
 
     const volumeQualityLabels = ['Sturdy', 'Robust', 'Extreme', 'Ludicrous'];
@@ -84,13 +84,14 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
-      <v-tooltip v-model="showQualityWarning"
+      <v-tooltip
+        v-model="showQualityWarning"
         class="align-center justify-center"
         scroll-strategy="none"
         contained
         bottom
-        :disabled = "true"
-        >
+        :disabled="true"
+      >
         <template v-slot:activator="{ props }">
           <v-slider
             ticks="always"
@@ -101,24 +102,26 @@ export default defineComponent({
             step="1"
             :value="cvrParams.volumeQuality"
             v-bind="props"
-            @change="{
-              showQualityWarning = !disableQualityWarning && ($event > 2);
-              setCVRParam('volumeQuality', $event)
-            }"
+            @change="
+              {
+                showQualityWarning = !disableQualityWarning && $event > 2;
+                setCVRParam('volumeQuality', $event);
+              }
+            "
           />
           <v-expand-transition>
-            <v-card
-              v-if="showQualityWarning"
-              >
+            <v-card v-if="showQualityWarning">
               <v-card-title>Warning</v-card-title>
-              <v-card-subtitle>Higher values are unstable on some systems</v-card-subtitle>
+              <v-card-subtitle
+                >Higher values are unstable on some systems</v-card-subtitle
+              >
               <v-card-actions>
                 <v-tooltip
                   scroll-strategy="none"
                   contained
                   bottom
                   class="align-center justify-center"
-                  >
+                >
                   <template v-slot:activator="{ on, props }">
                     <v-btn
                       small
@@ -126,7 +129,7 @@ export default defineComponent({
                       @click="showQualityWarning = false"
                       v-bind="props"
                       v-on="on"
-                      >
+                    >
                       <v-icon>mdi-close</v-icon>
                     </v-btn>
                   </template>
@@ -137,15 +140,20 @@ export default defineComponent({
                   contained
                   bottom
                   class="align-center justify-center"
-                  >
+                >
                   <template v-slot:activator="{ on, props }">
                     <v-btn
                       small
                       icon
-                      @click="{disableQualityWarning = true; showQualityWarning = false;}"
+                      @click="
+                        {
+                          disableQualityWarning = true;
+                          showQualityWarning = false;
+                        }
+                      "
                       v-bind="props"
                       v-on="on"
-                      >
+                    >
                       <v-icon>mdi-minus-circle</v-icon>
                     </v-btn>
                   </template>
@@ -194,7 +202,11 @@ export default defineComponent({
           @change="selectLightingMode"
           mandatory
         >
-          <v-btn v-for="model in Object.values(LIGHTING_MODELS)" :key="model" block>
+          <v-btn
+            v-for="model in Object.values(LIGHTING_MODELS)"
+            :key="model"
+            block
+          >
             {{ model }}
           </v-btn>
         </v-btn-toggle>

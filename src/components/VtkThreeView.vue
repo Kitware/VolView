@@ -328,7 +328,7 @@ export default defineComponent({
 
         property.setScalarOpacityUnitDistance(
           0,
-          0.5 * getDiagonalLength(image.getBounds()) /
+          (0.5 * getDiagonalLength(image.getBounds())) /
             Math.max(...image.getDimensions())
         );
         if (animating) {
