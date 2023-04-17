@@ -58,13 +58,14 @@ export default defineComponent({
       setCVRParam('useVolumetricScatteringBlending', buttonIdx !== 0);
     };
 
-    const volumeQualityLabels = ['Sturdy', 'Robust', 'Extreme', 'Ludicrous'];
+    const volumeQualityLabels = ['Good', 'Better', 'Ultra', 'Beta'];
     const showQualityWarning = false;
     const disableQualityWarning = false;
 
     return {
       LIGHTING_MODELS,
       cvrParams,
+      disableQualityWarning,
       laoEnabled,
       lightingModel,
       selectLightingMode,
@@ -72,7 +73,6 @@ export default defineComponent({
       showQualityWarning,
       volumeQualityLabels,
       vsbEnabled,
-      disableQualityWarning,
     };
   },
 });
@@ -84,86 +84,50 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
-      <v-tooltip
+      <v-slider
+        ticks="always"
+        tick-size="4"
+        :tick-labels="volumeQualityLabels"
+        min="1"
+        max="4"
+        step="1"
+        :value="cvrParams.volumeQuality"
+        @change="
+          {
+            showQualityWarning = !disableQualityWarning && $event > 2;
+            setCVRParam('volumeQuality', $event);
+          }
+        "
+      />
+      <v-alert
         v-model="showQualityWarning"
-        class="align-center justify-center"
-        scroll-strategy="none"
-        contained
-        bottom
-        :disabled="true"
+        border="top"
+        border-color
+        dark
+        color="secondary"
+        type="warning"
+        elevation="2"
+        close-text="Close Warning"
+        transition="slide-y-transition"
+        dense
+        dismissible
+        prominent
+        @click="showQualityWarning = false"
       >
-        <template v-slot:activator="{ props }">
-          <v-slider
-            ticks="always"
-            tick-size="4"
-            :tick-labels="volumeQualityLabels"
-            min="1"
-            max="4"
-            step="1"
-            :value="cvrParams.volumeQuality"
-            v-bind="props"
-            @change="
-              {
-                showQualityWarning = !disableQualityWarning && $event > 2;
-                setCVRParam('volumeQuality', $event);
-              }
-            "
-          />
-          <v-expand-transition>
-            <v-card v-if="showQualityWarning">
-              <v-card-title>Warning</v-card-title>
-              <v-card-subtitle
-                >Higher values are unstable on some systems</v-card-subtitle
-              >
-              <v-card-actions>
-                <v-tooltip
-                  scroll-strategy="none"
-                  contained
-                  bottom
-                  class="align-center justify-center"
-                >
-                  <template v-slot:activator="{ on, props }">
-                    <v-btn
-                      small
-                      icon
-                      @click="showQualityWarning = false"
-                      v-bind="props"
-                      v-on="on"
-                    >
-                      <v-icon>mdi-close</v-icon>
-                    </v-btn>
-                  </template>
-                  <span>Close this warning</span>
-                </v-tooltip>
-                <v-tooltip
-                  scroll-strategy="none"
-                  contained
-                  bottom
-                  class="align-center justify-center"
-                >
-                  <template v-slot:activator="{ on, props }">
-                    <v-btn
-                      small
-                      icon
-                      @click="
-                        {
-                          disableQualityWarning = true;
-                          showQualityWarning = false;
-                        }
-                      "
-                      v-bind="props"
-                      v-on="on"
-                    >
-                      <v-icon>mdi-minus-circle</v-icon>
-                    </v-btn>
-                  </template>
-                  <span>Disable this warning</span>
-                </v-tooltip>
-              </v-card-actions>
-            </v-card>
-          </v-expand-transition>
-        </template>
-      </v-tooltip>
+      <b>"Ultra"</b> and <b>"Beta"</b> modes are unstable on some systems.
+        <v-spacer></v-spacer>
+        <v-btn
+          dense
+          small
+          block
+          @click="
+            disableQualityWarning = true;
+            showQualityWarning = false;
+          "
+        >
+          Dont Show Again
+        </v-btn>
+      </v-alert>
       <v-divider class="my-8" />
       <v-slider
         label="Ambient"
