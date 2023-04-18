@@ -7,14 +7,16 @@ import { removeFromArray } from '@/src/utils';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import {
   Rectangle,
   PlacingTool,
   RectangleID,
   RectanglePatch,
 } from '@/src/types/rectangle';
-import { useViewStore } from '../views';
-import { useViewConfigStore } from '../view-configs';
+import { useViewStore } from '@/src/store/views';
+import { useViewConfigStore } from '@/src/store/view-configs';
+import { findImageID, getDataID } from '@/src/store/datasets';
 
 export type Tool = Rectangle;
 type ToolPatch = RectanglePatch;
@@ -165,6 +167,48 @@ export const useRectangleStore = defineStore('rectangles', () => {
     });
   }
 
+  // --- tool activation --- //
+
+  function activateTool(this: _This) {
+    return true;
+  }
+
+  function deactivateTool() {
+    placingToolByID.value = {};
+  }
+
+  // --- serialization --- //
+
+  function serialize(state: StateFile) {
+    state.manifest.tools.rectangles = toolIDs.value
+      .map((rectangleID) => toolByID.value[rectangleID])
+      // If parent image is DICOM, save VolumeKey
+      .map(({ imageID, ...rest }) => ({
+        imageID: getDataID(imageID),
+        ...rest,
+      }));
+  }
+
+  function deserialize(
+    this: _This,
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
+    const rectanglesInState = manifest.tools.rectangles;
+
+    rectanglesInState
+      .map(({ imageID, ...rest }) => {
+        const newID = dataIDMap[imageID];
+        return {
+          ...rest,
+          imageID: findImageID(newID),
+        };
+      })
+      .forEach((rectangle) => {
+        addTool.call(this, rectangle);
+      });
+  }
+
   return {
     tools,
     toolIDs,
@@ -178,5 +222,9 @@ export const useRectangleStore = defineStore('rectangles', () => {
     updateTool,
     commitPlacingTool,
     jumpToTool,
+    activateTool,
+    deactivateTool,
+    serialize,
+    deserialize,
   };
 });

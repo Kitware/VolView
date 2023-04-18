@@ -4,6 +4,7 @@ import { useCropStore } from './crop';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
+import { useRectangleStore } from './rectangles';
 import { Tools } from './types';
 
 interface State {
@@ -20,7 +21,7 @@ function getStore(tool: Tools): IToolStore | null {
     return useRulerStore();
   }
   if (tool === Tools.Rectangle) {
-    return useRulerStore();
+    return useRectangleStore();
   }
   if (tool === Tools.Paint) {
     return usePaintToolStore();
@@ -66,11 +67,13 @@ export const useToolStore = defineStore('tool', {
     serialize(state: StateFile) {
       const { tools } = state.manifest;
       const rulerStore = useRulerStore();
+      const rectangleStore = useRectangleStore();
       const crosshairsStore = useCrosshairsToolStore();
       const paintStore = usePaintToolStore();
       const cropStore = useCropStore();
 
       rulerStore.serialize(state);
+      rectangleStore.serialize(state);
       crosshairsStore.serialize(state);
       paintStore.serialize(state);
       cropStore.serialize(state);
@@ -84,11 +87,13 @@ export const useToolStore = defineStore('tool', {
     ) {
       const { tools } = manifest;
       const rulerStore = useRulerStore();
+      const rectangleStore = useRectangleStore();
       const crosshairsStore = useCrosshairsToolStore();
       const paintStore = usePaintToolStore();
       const cropStore = useCropStore();
 
       rulerStore.deserialize(manifest, dataIDMap);
+      rectangleStore.deserialize(manifest, dataIDMap);
       crosshairsStore.deserialize(manifest);
       paintStore.deserialize(manifest, labelmapIDMap);
       cropStore.deserialize(manifest, dataIDMap);
