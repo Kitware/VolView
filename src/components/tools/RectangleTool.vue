@@ -1,42 +1,16 @@
 <template>
   <div class="overlay-no-events">
-    <svg class="overlay-no-events">
-      <RectangleSVG2D
-        v-for="tool in tools"
-        :key="tool.id"
-        v-show="currentSlice === tool.slice"
-        :view-id="viewId"
-        :point1="tool.firstPoint"
-        :point2="tool.secondPoint"
-        :color="tool.color"
-      />
-      <RectangleSVG2D
-        v-if="placingTool"
-        :key="placingTool.id"
-        :view-id="viewId"
-        :point1="placingTool.firstPoint"
-        :point2="placingTool.secondPoint"
-        :color="placingTool.color"
-      />
-    </svg>
     <RectangleWidget2D
       v-for="tool in tools"
       :key="tool.id"
       :tool-id="tool.id"
+      :is-placing="tool.id === placingToolID"
       :current-slice="currentSlice"
       :view-id="viewId"
       :view-direction="viewDirection"
       :widget-manager="widgetManager"
       @contextmenu="openContextMenu(tool.id, $event)"
-    />
-    <RectangleWidget2D
-      v-if="placingTool"
-      :key="placingTool.id"
-      :tool-id="placingTool.id"
-      :current-slice="currentSlice"
-      :view-id="viewId"
-      :view-direction="viewDirection"
-      :widget-manager="widgetManager"
+      @placed="onToolPlaced"
     />
     <v-menu
       v-model="contextMenu.show"
@@ -60,6 +34,7 @@
 import {
   computed,
   defineComponent,
+  onUnmounted,
   PropType,
   reactive,
   ref,
@@ -67,17 +42,23 @@ import {
   watch,
 } from '@vue/composition-api';
 import { storeToRefs } from 'pinia';
+import { vec3 } from 'gl-matrix';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RectangleWidget2D from '@/src/components/tools/rectangle/RectangleWidget2D.vue';
-import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { Vector2 } from '@kitware/vtk.js/types';
+import { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import {
+  FrameOfReference,
+  frameOfReferenceToImageSliceAndAxis,
+} from '@/src/utils/frameOfReference';
 import { useRectangleStore, ToolID, Tool } from '@/src/store/tools/rectangles';
+import { RectangleID } from '@/src/types/rectangle';
+
+const useActiveToolStore = useRectangleStore;
 
 export default defineComponent({
   name: 'RectangleTool',
@@ -101,18 +82,12 @@ export default defineComponent({
   },
   components: {
     RectangleWidget2D,
-    RectangleSVG2D,
   },
   setup(props) {
-    const { viewDirection } = toRefs(props);
+    const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
-    const rectangleStore = useRectangleStore();
-    const { placingToolByID, tools } = storeToRefs(rectangleStore);
-
-    const placingToolID = ref<ToolID | null>(null);
-    const placingTool = computed(
-      () => placingToolID.value && placingToolByID.value[placingToolID.value]
-    );
+    const activeToolStore = useActiveToolStore();
+    const { tools } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(
@@ -120,14 +95,81 @@ export default defineComponent({
     );
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
+    const placingToolID = ref<RectangleID | null>(null);
+
+    // --- active tool management --- //
+
     watch(
-      isToolActive,
-      (active) => {
-        if (active) {
-          placingToolID.value = rectangleStore.createPlacingTool();
-        } else if (placingToolID.value != null) {
-          rectangleStore.removeTool(placingToolID.value);
+      placingToolID,
+      (id, prevId) => {
+        if (prevId != null) {
+          activeToolStore.updateTool(prevId, { placing: false });
         }
+        if (id != null) {
+          activeToolStore.updateTool(id, { placing: true });
+        }
+      },
+      { immediate: true }
+    );
+
+    watch(
+      [isToolActive, currentImageID] as const,
+      ([active, imageID]) => {
+        if (placingToolID.value != null) {
+          activeToolStore.removeTool(placingToolID.value);
+          placingToolID.value = null;
+        }
+        if (active && imageID) {
+          placingToolID.value = activeToolStore.addTool({
+            imageID,
+            placing: true,
+          });
+        }
+      },
+      { immediate: true }
+    );
+
+    onUnmounted(() => {
+      if (placingToolID.value != null) {
+        activeToolStore.removeTool(placingToolID.value);
+        placingToolID.value = null;
+      }
+    });
+    const onToolPlaced = () => {
+      if (currentImageID.value) {
+        placingToolID.value = activeToolStore.addTool({
+          imageID: currentImageID.value,
+          placing: true,
+        });
+      }
+    };
+
+    // --- updating active tool frame --- //
+
+    // TODO useCurrentFrameOfReference(viewDirection)
+    const getCurrentFrameOfReference = (): FrameOfReference => {
+      const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
+      const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
+      const lpsIdx = lpsOrientation[viewAxis.value];
+      const planeOrigin: Vector3 = [0, 0, 0];
+      planeOrigin[lpsIdx] = currentSlice.value;
+      // convert index pt to world pt
+      vec3.transformMat4(planeOrigin, planeOrigin, indexToWorld);
+      return {
+        planeNormal,
+        planeOrigin,
+      };
+    };
+    // update active ruler's frame + slice, since the
+    // active ruler is not finalized.
+    watch(
+      [currentSlice, placingToolID] as const,
+      ([slice, toolID]) => {
+        if (!toolID) return;
+        activeToolStore.updateTool(toolID, {
+          frameOfReference: getCurrentFrameOfReference(),
+          slice,
+        });
       },
       { immediate: true }
     );
@@ -148,7 +190,7 @@ export default defineComponent({
     };
 
     const deleteToolFromContextMenu = () => {
-      rectangleStore.removeTool(contextMenu.forToolID);
+      activeToolStore.removeTool(contextMenu.forToolID);
     };
 
     // --- ruler data --- //
@@ -179,10 +221,11 @@ export default defineComponent({
 
     return {
       tools: currentTools,
-      placingTool,
+      placingToolID,
       contextMenu,
       openContextMenu,
       deleteToolFromContextMenu,
+      onToolPlaced,
     };
   },
 });

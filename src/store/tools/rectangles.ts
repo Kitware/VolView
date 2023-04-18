@@ -2,18 +2,12 @@ import { defineStore } from 'pinia';
 import { computed, del, ref, set } from '@vue/composition-api';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { TOOL_COLORS } from '@/src/config';
-import { RequiredWithPartial } from '@/src/types';
 import { removeFromArray } from '@/src/utils';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import {
-  Rectangle,
-  PlacingTool,
-  RectangleID,
-  RectanglePatch,
-} from '@/src/types/rectangle';
+import { Rectangle, RectangleID, RectanglePatch } from '@/src/types/rectangle';
 import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { findImageID, getDataID } from '@/src/store/datasets';
@@ -22,16 +16,23 @@ export type Tool = Rectangle;
 type ToolPatch = RectanglePatch;
 export type ToolID = RectangleID;
 
-const createEmptyPlacingTool = (
-  id: ToolID,
-  color = TOOL_COLORS[0]
-): PlacingTool => ({
-  id,
-  color,
+const createRectangleWithDefaults = (
+  rectangle: Partial<Rectangle>
+): Rectangle => ({
+  firstPoint: [0, 0, 0],
+  secondPoint: [0, 0, 0],
+  frameOfReference: {
+    planeOrigin: [0, 0, 0],
+    planeNormal: [1, 0, 0],
+  },
+  slice: -1,
+  imageID: '',
+  id: '' as ToolID,
+  name: 'Rectangle',
+  color: TOOL_COLORS[0],
+  placing: false,
+  ...rectangle,
 });
-
-const isPlacingToolFinalized = (tool: PlacingTool): tool is Tool =>
-  Object.values(tool).every((prop) => prop != null);
 
 export const useRectangleStore = defineStore('rectangles', () => {
   type _This = ReturnType<typeof useRectangleStore>;
@@ -40,17 +41,12 @@ export const useRectangleStore = defineStore('rectangles', () => {
 
   const toolIDs = ref<ToolID[]>([]);
   const toolByID = ref<Record<ToolID, Tool>>(Object.create(null));
-  const placingToolByID = ref<Record<ToolID, PlacingTool>>({});
 
   // used for picking the next tool color
   let colorIndex = -1;
   function getNextColor() {
     colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
     return TOOL_COLORS[colorIndex];
-  }
-
-  function getNextPlacingToolID() {
-    return `PlacingTool-${Object.keys(placingToolByID.value).length}` as ToolID;
   }
 
   // --- getters --- //
@@ -62,80 +58,36 @@ export const useRectangleStore = defineStore('rectangles', () => {
 
   // --- actions --- //
 
-  function createPlacingTool() {
-    const id = getNextPlacingToolID();
-    set(placingToolByID.value, id, createEmptyPlacingTool(id, getNextColor()));
-    return id;
-  }
-
-  function resetPlacingTool(id: ToolID) {
-    if (!(id in placingToolByID.value)) {
-      return;
-    }
-    const { color } = placingToolByID.value[id];
-    set(placingToolByID.value, id, createEmptyPlacingTool(id, color));
-  }
-
-  function isPlacingTool(id: ToolID) {
-    return id in placingToolByID.value;
-  }
-
-  function addTool(
-    this: _This,
-    tool: RequiredWithPartial<Tool, 'id' | 'color'>
-  ) {
-    const id = tool.id ?? (this.$id.nextID() as ToolID);
+  function addTool(this: _This, tool: ToolPatch) {
+    const id = this.$id.nextID() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
     const color = tool.color ?? getNextColor();
-    set(toolByID.value, id, {
-      ...tool,
+    set(
+      toolByID.value,
       id,
-      color,
-    });
+      createRectangleWithDefaults({
+        ...tool,
+        id,
+        color,
+      })
+    );
     toolIDs.value.push(id);
     return id;
   }
 
   function removeTool(id: ToolID) {
-    if (id in toolByID.value) {
-      removeFromArray(toolIDs.value, id);
-      del(toolByID.value, id);
-    } else if (id in placingToolByID.value) {
-      del(placingToolByID.value, id);
-    }
+    if (!(id in toolByID.value)) return;
+
+    removeFromArray(toolIDs.value, id);
+    del(toolByID.value, id);
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {
-    if (id in placingToolByID.value) {
-      set(placingToolByID.value, id, {
-        ...placingToolByID.value[id],
-        ...patch,
-      });
-    } else if (id in toolByID.value) {
-      set(toolByID.value, id, { ...toolByID.value[id], ...patch });
-    }
-  }
+    if (!(id in toolByID.value)) return;
 
-  /**
-   * Saves a given placing tool and returns the new tools's ID.
-   *
-   * This makes a copy of the placing tool and saves it.
-   * @param this
-   * @param id
-   * @returns
-   */
-  function commitPlacingTool(this: _This, id: ToolID) {
-    const tool = placingToolByID.value[id];
-    if (tool && isPlacingToolFinalized(tool)) {
-      // allocate a non-placing ID
-      const clone = { ...tool, id: this.$id.nextID() as ToolID };
-      addTool.call(this, clone);
-      resetPlacingTool(id);
-      return clone.id;
-    }
-    return null;
+    set(toolByID.value, id, { ...toolByID.value[id], ...patch, id });
   }
 
   function jumpToTool(toolID: ToolID) {
@@ -173,9 +125,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
     return true;
   }
 
-  function deactivateTool() {
-    placingToolByID.value = {};
-  }
+  function deactivateTool() {}
 
   // --- serialization --- //
 
@@ -213,14 +163,9 @@ export const useRectangleStore = defineStore('rectangles', () => {
     tools,
     toolIDs,
     toolByID,
-    placingToolByID,
-    createPlacingTool,
-    resetPlacingTool,
-    isPlacingTool,
     addTool,
     removeTool,
     updateTool,
-    commitPlacingTool,
     jumpToTool,
     activateTool,
     deactivateTool,

@@ -4,32 +4,34 @@ import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidge
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { RectangleWidgetState } from './state';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
+import vtkRulerWidget, {
+  IRulerWidgetInitialValues,
+  vtkRulerViewWidget,
+  vtkRulerWidgetPointState,
+} from '../RulerWidget';
 
-export interface vtkRectangleViewWidget extends vtkAbstractWidget {
-  setManipulator(manipulator: vtkPlaneManipulator): boolean;
-  getManipulator(): vtkPlaneManipulator;
-  onRightClickEvent(cb: (eventData: any) => void): vtkSubscription;
-  onFinalizedEvent(cb: (eventData: any) => void): vtkSubscription;
-  resetInteractionState(): void;
-}
+export { InteractionState } from '../RulerWidget';
 
-export interface IRectangleWidgetInitialValues {
-  id: string;
+export interface vtkRectangleWidgetPointState
+  extends vtkRulerWidgetPointState {}
+
+export interface vtkRectangleWidgetState extends vtkRulerWidgetState {}
+
+export interface vtkRectangleViewWidget extends vtkRulerViewWidget {}
+
+export interface IRectangleWidgetInitialValues
+  extends IRulerWidgetInitialValues {
   store: ReturnType<typeof useRectangleStore>;
 }
 
-export interface vtkRectangleWidget extends vtkAbstractWidgetFactory {
-  getLength(): number;
-  getWidgetState(): RectangleWidgetState;
-}
+export interface vtkRectangleWidget extends vtkRulerWidget {}
 
 function newInstance(
   initialValues: IRectangleWidgetInitialValues
 ): vtkRectangleWidget;
 
-export function shouldIgnoreEvent(ev: any): boolean;
-
 export declare const vtkRectangleWidget: {
   newInstance: typeof newInstance;
 };
+
 export default vtkRectangleWidget;

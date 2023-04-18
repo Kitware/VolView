@@ -1,34 +1,36 @@
 <template>
-  <g ref="containerEl">
-    <rect
-      :x="rectangle.x"
-      :y="rectangle.y"
-      :width="rectangle.width"
-      :height="rectangle.height"
-      :stroke="color"
-      stroke-width="1"
-      fill="transparent"
-    />
-    <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
-    <circle
-      v-if="first"
-      :cx="first.x"
-      :cy="first.y"
-      :stroke="color"
-      stroke-width="1"
-      fill="transparent"
-      :r="10 / devicePixelRatio"
-    />
-    <circle
-      v-if="second"
-      :cx="second.x"
-      :cy="second.y"
-      :stroke="color"
-      stroke-width="1"
-      fill="transparent"
-      :r="10 / devicePixelRatio"
-    />
-  </g>
+  <svg class="overlay-no-events">
+    <g ref="containerEl">
+      <rect
+        :x="rectangle.x"
+        :y="rectangle.y"
+        :width="rectangle.width"
+        :height="rectangle.height"
+        :stroke="color"
+        stroke-width="1"
+        fill="transparent"
+      />
+      <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
+      <circle
+        v-if="first"
+        :cx="first.x"
+        :cy="first.y"
+        :stroke="color"
+        stroke-width="1"
+        fill="transparent"
+        :r="10 / devicePixelRatio"
+      />
+      <circle
+        v-if="second"
+        :cx="second.x"
+        :cy="second.y"
+        :stroke="color"
+        stroke-width="1"
+        fill="transparent"
+        :r="10 / devicePixelRatio"
+      />
+    </g>
+  </svg>
 </template>
 
 <script lang="ts">

@@ -20,19 +20,24 @@ import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
-import { Vector3 } from '@kitware/vtk.js/types';
 import { ToolID, useRectangleStore } from '@/src/store/tools/rectangles';
 import vtkRectangleWidget, {
   vtkRectangleViewWidget,
+  InteractionState,
 } from '@/src/vtk/RectangleWidget';
+import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
+import { vtkRulerWidgetPointState } from '@/src/vtk/RulerWidget';
+import { watchOnce } from '@vueuse/core';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
 type WidgetView = vtkRectangleViewWidget;
+type vtkWidgetPointState = vtkRulerWidgetPointState;
+const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
+  emits: ['placed'],
   props: {
     toolId: {
       type: String,
@@ -54,6 +59,13 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    isPlacing: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  components: {
+    SVG2DComponent,
   },
   setup(props, { emit }) {
     const {
@@ -61,21 +73,18 @@ export default defineComponent({
       widgetManager,
       viewDirection,
       currentSlice,
+      isPlacing,
     } = toRefs(props);
     const toolId = ref(stringToolId.value) as Ref<ToolID>;
 
     const toolStore = useStore();
-    const isPlacingTool = computed(() => toolStore.isPlacingTool(toolId.value));
-    const tool = computed(() =>
-      isPlacingTool.value
-        ? toolStore.placingToolByID[toolId.value]
-        : toolStore.toolByID[toolId.value]
-    );
+    const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
       store: toolStore,
+      isPlaced: !isPlacing.value,
     });
     const widget = ref<WidgetView | null>(null);
 
@@ -92,48 +101,32 @@ export default defineComponent({
       widgetFactory.delete();
     });
 
-    // --- placing tool reset --- //
-
-    // reset placing tool when changing slices or images
-    watch([currentSlice, currentImageID, isPlacingTool], () => {
-      if (!isPlacingTool.value || !widget.value) return;
-      toolStore.resetPlacingTool(toolId.value);
-      widget.value.resetInteractionState();
-    });
-
-    // --- placing tool finalization --- //
-
-    const getCurrentFrameOfReference = (): FrameOfReference => {
-      const planeNormal = currentImageMetadata.value.lpsOrientation[
-        viewDirection.value
-      ] as Vector3;
-      const planeOrigin = tool.value!.firstPoint!;
-      return {
-        planeNormal,
-        planeOrigin,
-      };
-    };
-
-    // this only happens for the placing tool
-    const onFinalizedEvent = useVTKCallback(
-      computed(() => widget.value?.onFinalizedEvent)
+    watch(
+      [isPlacing, widget],
+      ([placing, widget_]) => {
+        if (placing && widget_) {
+          widget_.setInteractionState(InteractionState.PlacingFirst);
+        }
+      },
+      { immediate: true }
     );
 
-    onFinalizedEvent(() => {
-      if (!currentImageID.value || !isPlacingTool.value || !widget.value) {
-        return;
-      }
-      // set name + imageID + frame + slice
-      toolStore.updateTool(toolId.value, {
-        name: 'Tool',
-        imageID: currentImageID.value,
-        slice: currentSlice.value,
-        frameOfReference: getCurrentFrameOfReference(),
-      });
+    // --- reset on slice/image changes --- //
 
-      // resets the widget and the backing placing tool
-      toolStore.commitPlacingTool(toolId.value);
-      widget.value.resetInteractionState();
+    watch([currentSlice, currentImageID, widget], () => {
+      const isPlaced = widget.value?.getWidgetState().getIsPlaced();
+      if (widget.value && !isPlaced) {
+        widget.value.resetInteractions();
+        widget.value.setInteractionState(InteractionState.PlacingFirst);
+      }
+    });
+
+    const onPlacedEvent = useVTKCallback(
+      computed(() => widget.value?.onPlacedEvent)
+    );
+
+    onPlacedEvent(() => {
+      emit('placed');
     });
 
     // --- right click handling --- //
@@ -181,13 +174,14 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // technically toggles the pickability of the tool
-    // handles, since the 3D tool parts are visually hidden.
+    // toggles the pickability of the tool handles,
+    // since the 3D tool parts are visually hidden.
     watch(
-      () => tool.value?.slice === currentSlice.value,
+      () => !!widget.value && tool.value?.slice === currentSlice.value,
       (visible) => {
         widget.value?.setVisibility(visible);
-      }
+      },
+      { immediate: true }
     );
 
     onMounted(() => {
@@ -199,7 +193,49 @@ export default defineComponent({
       widgetManager.value.renderWidgets();
     });
 
-    return () => null;
+    // --- handle pick visibility --- //
+    const usePointVisibility = (
+      pointState: Ref<vtkWidgetPointState | undefined>
+    ) => {
+      const visible = ref(false);
+      const updateVisibility = () => {
+        if (!pointState.value) return;
+        visible.value = pointState.value.getVisible();
+      };
+      const onModified = useVTKCallback(
+        computed(() => pointState.value?.onModified)
+      );
+      onModified(() => updateVisibility());
+      watchOnce(widget, () => updateVisibility());
+      return visible;
+    };
+
+    const firstPointVisible = usePointVisibility(
+      computed(() => widget.value?.getWidgetState().getFirstPoint())
+    );
+    const secondPointVisible = usePointVisibility(
+      computed(() => widget.value?.getWidgetState().getSecondPoint())
+    );
+
+    return {
+      tool,
+      firstPoint: computed(() => {
+        return firstPointVisible.value ? tool.value.firstPoint : undefined;
+      }),
+      secondPoint: computed(() => {
+        return secondPointVisible.value ? tool.value.secondPoint : undefined;
+      }),
+    };
   },
 });
 </script>
+
+<template>
+  <SVG2DComponent
+    v-show="currentSlice === tool.slice"
+    :view-id="viewId"
+    :point1="firstPoint"
+    :point2="secondPoint"
+    :color="tool.color"
+  />
+</template>
