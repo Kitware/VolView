@@ -125,8 +125,8 @@ export const useRulerStore = defineStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.rulers = rulerIDs.value
-      .map((rulerID) => rulerByID.value[rulerID])
+    state.manifest.tools.rulers = rulers.value
+      .filter((ruler) => !ruler.placing)
       // If parent image is DICOM, save VolumeKey
       .map(({ imageID, ...rest }) => ({
         imageID: getDataID(imageID),
