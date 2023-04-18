@@ -9,7 +9,7 @@
       stroke-width="1"
       fill="transparent"
     />
-    <!-- radius is related to the vtkRulerWidget scale, specified in state -->
+    <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
     <circle
       v-if="first"
       :cx="first.x"
@@ -27,23 +27,7 @@
       stroke-width="1"
       fill="transparent"
       :r="10 / devicePixelRatio"
-      class="handle"
     />
-    <text
-      v-if="second"
-      :x="second.x"
-      :y="second.y"
-      :dx="textdx"
-      :dy="textdy"
-      :text-anchor="anchor"
-      stroke-width="0.75"
-      stroke="black"
-      :fill="color"
-      :font-size="`${textSize}px`"
-      font-weight="bold"
-    >
-      Area: {{ area }}
-    </text>
   </g>
 </template>
 
@@ -78,17 +62,9 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    textOffset: {
-      type: Number,
-      default: 8,
-    },
-    textSize: {
-      type: Number,
-      default: 14,
-    },
   },
   setup(props) {
-    const { viewId: viewID, point1, point2, textOffset } = toRefs(props);
+    const { viewId: viewID, point1, point2 } = toRefs(props);
     const firstPoint = ref<SVGPoint | null>();
     const secondPoint = ref<SVGPoint | null>();
 
@@ -144,10 +120,6 @@ export default defineComponent({
       };
     });
 
-    const area = computed(() =>
-      (rectangle.value.width * rectangle.value.height).toFixed(2)
-    );
-
     const cameraOnModified = useVTKCallback(
       computed(() => viewProxy.value.getCamera().onModified)
     );
@@ -156,19 +128,6 @@ export default defineComponent({
     watch([viewProxy, point1, point2], updatePoints, {
       deep: true,
       immediate: true,
-    });
-
-    const textProperties = computed(() => {
-      const first = unref(firstPoint);
-      const second = unref(secondPoint);
-      const offset = textOffset.value;
-      if (!first || !second) {
-        return null;
-      }
-      if (second.x > first.x) {
-        return { dx: offset, dy: -offset, anchor: 'start' };
-      }
-      return { dx: -offset, dy: -offset, anchor: 'end' };
     });
 
     // --- resize --- //
@@ -181,21 +140,13 @@ export default defineComponent({
 
     return {
       devicePixelRatio,
-      textdx: computed(() => textProperties.value?.dx ?? 0),
-      textdy: computed(() => textProperties.value?.dy ?? 0),
-      anchor: computed(() => textProperties.value?.anchor ?? 'start'),
       first: firstPoint,
       second: secondPoint,
       rectangle,
-      area,
       containerEl,
     };
   },
 });
 </script>
 
-<style scoped>
-.handle {
-  cursor: pointer;
-}
-</style>
+<style scoped></style>
