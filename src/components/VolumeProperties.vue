@@ -53,9 +53,9 @@ export default defineComponent({
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
-    const lightingModel = ref(1);
-    const selectLightingMode = (buttonIdx: number) => {
-      setCVRParam('useVolumetricScatteringBlending', buttonIdx !== 0);
+    const lightingModel = ref<keyof typeof LIGHTING_MODELS>('hybrid');
+    const selectLightingMode = (buttonTxt: string) => {
+      setCVRParam('useVolumetricScatteringBlending', buttonTxt === 'hybrid');
     };
 
     const volumeQualityLabels = ['Good', 'Better', 'Ultra', 'Beta'];
@@ -114,7 +114,7 @@ export default defineComponent({
         prominent
         @click="showQualityWarning = false"
       >
-      <b>"Ultra"</b> and <b>"Beta"</b> modes are unstable on some systems.
+        <b>"Ultra"</b> and <b>"Beta"</b> modes are unstable on some systems.
         <v-spacer></v-spacer>
         <v-btn
           dense
@@ -167,8 +167,9 @@ export default defineComponent({
           mandatory
         >
           <v-btn
-            v-for="model in Object.values(LIGHTING_MODELS)"
+            v-for="model in Object.keys(LIGHTING_MODELS)"
             :key="model"
+            :value="model"
             block
           >
             {{ model }}
