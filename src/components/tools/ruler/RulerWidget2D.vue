@@ -103,7 +103,7 @@ export default defineComponent({
 
     // --- reset on slice/image changes --- //
 
-    watch([currentSlice, currentImageID], () => {
+    watch([currentSlice, currentImageID, widget], () => {
       const isPlaced = widget.value?.getWidgetState().getIsPlaced();
       if (widget.value && !isPlaced) {
         widget.value.resetInteractions();
@@ -169,10 +169,11 @@ export default defineComponent({
     // toggles the pickability of the ruler handles,
     // since the 3D ruler parts are visually hidden.
     watch(
-      () => ruler.value?.slice === currentSlice.value,
+      () => !!widget.value && ruler.value?.slice === currentSlice.value,
       (visible) => {
         widget.value?.setVisibility(visible);
-      }
+      },
+      { immediate: true }
     );
 
     onMounted(() => {

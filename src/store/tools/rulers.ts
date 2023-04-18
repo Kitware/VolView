@@ -81,7 +81,7 @@ export const useRulerStore = defineStore('ruler', () => {
 
   function updateRuler(id: string, patch: RulerPatch) {
     if (id in rulerByID.value) {
-      set(rulerByID.value, id, { ...rulerByID.value[id], ...patch });
+      set(rulerByID.value, id, { ...rulerByID.value[id], ...patch, id });
     }
   }
 
