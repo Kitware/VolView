@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import { computed, defineComponent, ref, watch } from 'vue';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import { useDicomWebStore } from '../store/dicom-web/dicom-web-store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
@@ -7,6 +7,7 @@ import PatientBrowser from './PatientBrowser.vue';
 import PatientList from './dicom-web/PatientList.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
+import { removeFromArray } from '../utils';
 
 const SAMPLE_DATA_KEY = 'sampleData';
 const ANONYMOUS_DATA_KEY = 'anonymousData';
@@ -42,9 +43,23 @@ export default defineComponent({
           .length > 0
     );
 
-    // TODO Collapse Sample Data after loading data
-
     const panels = ref<string[]>([SAMPLE_DATA_KEY]);
+
+    watch(
+      [hasAnonymousImages, patients] as const,
+      ([showAnonymous, patients_]) => {
+        const showPatients = patients_.length > 0;
+        if (showAnonymous) {
+          panels.value.push(ANONYMOUS_DATA_KEY);
+        }
+        if (showPatients) {
+          panels.value.push(...patients_.map((patient) => patient.key));
+        }
+        if (showAnonymous || showPatients) {
+          removeFromArray(panels.value, SAMPLE_DATA_KEY);
+        }
+      }
+    );
 
     return {
       panels,

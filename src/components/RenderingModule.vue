@@ -15,7 +15,7 @@ export default defineComponent({
     const { currentLayers } = useCurrentImage();
     const hasLayers = computed(() => !!currentLayers.value.length);
 
-    const panels = ref<string[]>(['preset', 'properties']);
+    const panels = ref<string[]>(['properties', 'layers']);
 
     return {
       panels,
@@ -51,7 +51,7 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel v-if="hasLayers">
+        <v-expansion-panel v-if="hasLayers" value="layers">
           <v-expansion-panel-title>
             <v-icon class="flex-grow-0 mr-4">mdi-layers</v-icon>
             Layers

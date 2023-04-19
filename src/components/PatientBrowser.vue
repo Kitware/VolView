@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref, toRefs } from 'vue';
+import { computed, defineComponent, ref, toRefs, watch } from 'vue';
 import type { Ref } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -50,9 +50,15 @@ export default defineComponent({
     });
 
     const studyKeys = computed(() => studies.value.map((study) => study.key));
-    // const studyKeysSet = computed(() => new Set(studyKeys.value));
-
     const panels = ref<string[]>([]);
+
+    watch(
+      studyKeys,
+      (keys) => {
+        panels.value = Array.from(new Set([...panels.value, ...keys]));
+      },
+      { immediate: true }
+    );
 
     // --- selection --- //
 
