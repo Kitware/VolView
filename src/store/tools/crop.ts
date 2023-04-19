@@ -7,8 +7,9 @@ import { computed, reactive, readonly, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { ImageMetadata, useImageStore } from '../datasets-images';
-import { LPSCroppingPlanes } from './types';
+import { useImageStore } from '../datasets-images';
+import { LPSCroppingPlanes } from '../../types/crop';
+import { ImageMetadata } from '../../types/image';
 import { StateFile, Manifest } from '../../io/state-file/schema';
 
 function clampRangeToBounds(range: Vector2, bounds: Vector2) {

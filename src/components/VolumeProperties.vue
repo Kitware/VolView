@@ -9,7 +9,6 @@ const TARGET_VIEW_ID = '3D';
 const LIGHTING_MODELS = {
   standard: 'Standard',
   hybrid: 'Hybrid',
-  lao: 'Ambient Occlusion',
 };
 
 export default defineComponent({
@@ -54,28 +53,26 @@ export default defineComponent({
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
-    const lightingModel = ref(2); // LAO is default
-    const selectLightingMode = (buttonIdx: number) => {
-      if (buttonIdx === 0) {
-        setCVRParam('useVolumetricScatteringBlending', false);
-        setCVRParam('useLocalAmbientOcclusion', false);
-      } else if (buttonIdx === 1) {
-        setCVRParam('useVolumetricScatteringBlending', true);
-        setCVRParam('useLocalAmbientOcclusion', false);
-      } else if (buttonIdx === 2) {
-        setCVRParam('useVolumetricScatteringBlending', false);
-        setCVRParam('useLocalAmbientOcclusion', true);
-      }
+    const lightingModel = ref<keyof typeof LIGHTING_MODELS>('hybrid');
+    const selectLightingMode = (buttonTxt: string) => {
+      setCVRParam('useVolumetricScatteringBlending', buttonTxt === 'hybrid');
     };
 
+    const volumeQualityLabels = ['Good', 'Better', 'Ultra', 'Beta'];
+    const showQualityWarning = false;
+    const disableQualityWarning = false;
+
     return {
-      cvrParams,
-      laoEnabled,
-      vsbEnabled,
-      setCVRParam,
       LIGHTING_MODELS,
-      selectLightingMode,
+      cvrParams,
+      disableQualityWarning,
+      laoEnabled,
       lightingModel,
+      selectLightingMode,
+      setCVRParam,
+      showQualityWarning,
+      volumeQualityLabels,
+      vsbEnabled,
     };
   },
 });
@@ -87,6 +84,51 @@ export default defineComponent({
       <div ref="pwfEditorRef" />
     </div>
     <div v-if="!!cvrParams">
+      <v-slider
+        ticks="always"
+        tick-size="4"
+        :tick-labels="volumeQualityLabels"
+        min="1"
+        max="4"
+        step="1"
+        :value="cvrParams.volumeQuality"
+        @change="
+          {
+            showQualityWarning = !disableQualityWarning && $event > 2;
+            setCVRParam('volumeQuality', $event);
+          }
+        "
+      />
+      <v-alert
+        v-model="showQualityWarning"
+        border="top"
+        border-color
+        dark
+        color="secondary"
+        type="warning"
+        elevation="2"
+        close-text="Close Warning"
+        transition="slide-y-transition"
+        dense
+        dismissible
+        prominent
+        @click="showQualityWarning = false"
+      >
+        <b>"Ultra"</b> and <b>"Beta"</b> modes are unstable on some systems.
+        <v-spacer></v-spacer>
+        <v-btn
+          dense
+          small
+          block
+          @click="
+            disableQualityWarning = true;
+            showQualityWarning = false;
+          "
+        >
+          Dont Show Again
+        </v-btn>
+      </v-alert>
+      <v-divider class="my-8" />
       <v-slider
         label="Ambient"
         min="0"
@@ -101,7 +143,7 @@ export default defineComponent({
       <v-slider
         label="Diffuse"
         min="0"
-        max="2"
+        max="1"
         step="0.1"
         density="compact"
         hide-details
@@ -124,11 +166,26 @@ export default defineComponent({
           @change="selectLightingMode"
           mandatory
         >
-          <v-btn v-for="model in Object.values(LIGHTING_MODELS)" :key="model">
+          <v-btn
+            v-for="model in Object.keys(LIGHTING_MODELS)"
+            :key="model"
+            :value="model"
+            block
+          >
             {{ model }}
           </v-btn>
         </v-btn-toggle>
       </v-row>
+
+      <v-switch
+        label="Local Ambient Occlusion"
+        dense
+        hide-details
+        :input-value="cvrParams.useLocalAmbientOcclusion"
+        @change="setCVRParam('useLocalAmbientOcclusion', !!$event)"
+      />
+
+      <v-spacer class="my-2" />
 
       <v-slider
         label="Scatter Blending"
@@ -143,30 +200,6 @@ export default defineComponent({
         @update:model-value="
           setCVRParam('volumetricScatteringBlending', $event)
         "
-      />
-      <v-slider
-        label="LAO Kernel Size"
-        min="2"
-        max="10"
-        step="1"
-        density="compact"
-        hide-details
-        thumb-label
-        v-if="laoEnabled"
-        :model-value="cvrParams.laoKernelSize"
-        @update:model-value="setCVRParam('laoKernelSize', $event)"
-      />
-      <v-slider
-        label="LAO Kernel Radius"
-        :min="cvrParams.laoKernelSize * 2"
-        :max="cvrParams.laoKernelSize * 2 + 10"
-        step="1"
-        density="compact"
-        hide-details
-        thumb-label
-        v-if="laoEnabled"
-        :model-value="cvrParams.laoKernelRadius"
-        @update:model-value="setCVRParam('laoKernelRadius', $event)"
       />
     </div>
   </div>

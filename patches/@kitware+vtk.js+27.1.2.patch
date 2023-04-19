@@ -1,8 +1,8 @@
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
-index e2e24b5..35efba5 100644
+index 1c6ff82..7917ee3 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
-@@ -7,6 +7,8 @@ import { Q as isPowerOfTwo, M as nearestPowerOfTwo } from '../../Common/Core/Mat
+@@ -8,6 +8,8 @@ import { Q as isPowerOfTwo, M as nearestPowerOfTwo } from '../../Common/Core/Mat
  import vtkViewNode from '../SceneGraph/ViewNode.js';
  import { registerOverride } from './ViewNodeFactory.js';
  
@@ -11,7 +11,7 @@ index e2e24b5..35efba5 100644
  function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
  
  function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
-@@ -609,9 +611,10 @@ function vtkOpenGLTexture(publicAPI, model) {
+@@ -610,9 +612,10 @@ function vtkOpenGLTexture(publicAPI, model) {
        for (var _idx2 = 0; _idx2 < data.length; _idx2++) {
          if (data[_idx2]) {
            var newArray = new Uint16Array(pixCount);
@@ -23,3 +23,29 @@ index e2e24b5..35efba5 100644
            }
  
            pixData.push(newArray);
+diff --git a/node_modules/@kitware/vtk.js/Widgets/Core/WidgetManager.js b/node_modules/@kitware/vtk.js/Widgets/Core/WidgetManager.js
+index 2b28d9c..821c82e 100644
+--- a/node_modules/@kitware/vtk.js/Widgets/Core/WidgetManager.js
++++ b/node_modules/@kitware/vtk.js/Widgets/Core/WidgetManager.js
+@@ -190,10 +190,12 @@ function vtkWidgetManager(publicAPI, model) {
+               // Default cursor behavior
+               model._apiSpecificRenderWindow.setCursor(widget ? 'pointer' : 'default');
+ 
++              model.activeWidget = null;
+               wantRender = false;
+ 
+               if (model.widgetInFocus === widget && widget.hasFocus()) {
+                 activateHandle(widget);
++                model.activeWidget = widget;
+                 wantRender = true;
+               } else {
+                 for (i = 0; i < model.widgets.length; i++) {
+@@ -633,7 +635,7 @@ function extend(publicAPI, model) {
+     name: 'viewType',
+     enum: ViewTypes
+   }]);
+-  macro.get(publicAPI, model, ['selections', 'widgets', 'viewId', 'pickingEnabled']); // Object specific methods
++  macro.get(publicAPI, model, ['selections', 'widgets', 'viewId', 'pickingEnabled', 'activeWidget']); // Object specific methods
+ 
+   vtkWidgetManager(publicAPI, model);
+ } // ----------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import { computed, Ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { mat3 } from 'gl-matrix';
-import { ImageMetadata } from '../store/datasets-images';
+import { ImageMetadata } from '../types/image';
 import { LPSAxisDir } from '../types/lps';
 import { getLPSDirections } from '../utils/lps';
 

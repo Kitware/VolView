@@ -117,7 +117,10 @@ export default defineComponent({
             y: point2D[1],
           };
         }
+      } else {
+        firstPoint.value = null;
       }
+
       if (pt2) {
         const point2D = worldToSVG(pt2, viewRenderer);
         if (point2D) {
@@ -126,6 +129,8 @@ export default defineComponent({
             y: point2D[1],
           };
         }
+      } else {
+        secondPoint.value = null;
       }
     };
 

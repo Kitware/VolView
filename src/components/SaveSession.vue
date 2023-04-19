@@ -29,7 +29,9 @@
 
 <script lang="ts">
 import { defineComponent, onMounted, ref } from 'vue';
-import { save } from '../io/state-file';
+import { saveAs } from 'file-saver';
+
+import { serialize } from '../io/state-file';
 
 const DEFAULT_FILENAME = 'session.volview.zip';
 
@@ -40,7 +42,8 @@ export default defineComponent({
 
     async function saveSession() {
       if (fileName.value.trim().length >= 0) {
-        await save(fileName.value);
+        const blob = await serialize();
+        saveAs(blob, fileName.value);
         emit('close');
       }
     }

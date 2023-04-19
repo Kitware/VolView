@@ -1,5 +1,4 @@
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import { LayoutDirection } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
 import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
@@ -26,9 +25,9 @@ import { Manifest, ManifestSchema } from './schema';
 import { deserializeDatasetFiles } from './utils';
 
 const MANIFEST = 'manifest.json';
-const VERSION = '0.0.4';
+const VERSION = '0.0.5';
 
-export async function save(fileName: string) {
+export async function serialize() {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
   const labelStore = useLabelmapStore();
@@ -75,8 +74,8 @@ export async function save(fileName: string) {
   await layersStore.serialize(stateFile);
 
   zip.file(MANIFEST, JSON.stringify(manifest));
-  const content = await zip.generateAsync({ type: 'blob' });
-  saveAs(content, fileName);
+
+  return zip.generateAsync({ type: 'blob' });
 }
 
 async function restore(state: FileEntry[]): Promise<LoadResult[]> {
