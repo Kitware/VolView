@@ -43,17 +43,11 @@
                 @click="userPromptFiles"
               />
               <tool-button
-                v-if="!saveHappening"
                 size="40"
                 icon="mdi-content-save-all"
                 name="Save session"
+                :loading="saveHappening"
                 @click="handleSave"
-              />
-              <v-progress-circular
-                v-if="saveHappening"
-                indeterminate
-                size="40"
-                color="grey lighten-5"
               />
               <div class="my-1 tool-separator" />
               <v-menu location="left">
