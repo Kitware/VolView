@@ -50,10 +50,17 @@
                 @click="userPromptFiles"
               />
               <tool-button
+                v-if="!saveHappening"
                 size="40"
                 icon="mdi-content-save-all"
                 name="Save session"
-                @click="saveDialog = true"
+                @click="handleSave"
+              />
+              <v-progress-circular
+                v-if="saveHappening"
+                indeterminate
+                size="40"
+                color="grey lighten-5"
               />
               <div class="my-1 tool-separator" />
               <v-menu offset-x>
@@ -226,7 +233,7 @@ import { makeRemote, makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
-import { isStateFile, loadState } from '../io/state-file';
+import { isStateFile, loadState, serialize } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
@@ -444,11 +451,48 @@ export default defineComponent({
       return 'primary';
     });
 
+    const saveDialog = ref(false);
+    const saveUrl =
+      process.env.VUE_APP_ENABLE_REMOTE_SAVE && (urlParams.save as string);
+    const saveHappening = ref(false);
+
+    const handleSave = async () => {
+      if (saveUrl) {
+        try {
+          saveHappening.value = true;
+
+          const blob = await serialize();
+          const saveResult = await fetch(saveUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/zip',
+              'Content-Length': blob.size.toString(),
+            },
+            body: blob,
+          });
+
+          if (saveResult.ok) messageStore.addSuccess('Save Successful');
+          else messageStore.addError('Save Failed', 'Network response not OK');
+        } catch (error) {
+          messageStore.addError(
+            'Save Failed with error',
+            `Failed from: ${error}`
+          );
+        } finally {
+          saveHappening.value = false;
+        }
+      } else {
+        saveDialog.value = true;
+      }
+    };
+
     return {
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
       settingsDialog: ref(false),
-      saveDialog: ref(false),
+      saveDialog,
+      handleSave,
+      saveHappening,
       leftSideBar: ref(!root.$vuetify.breakpoint.mobile),
       messageCount,
       messageBadgeColor,

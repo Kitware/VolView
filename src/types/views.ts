@@ -52,6 +52,7 @@ export interface CVRConfig {
   enabled: boolean;
 
   lightFollowsCamera: boolean;
+  volumeQuality: number;
 
   useVolumetricScatteringBlending: boolean;
   volumetricScatteringBlending: number;
