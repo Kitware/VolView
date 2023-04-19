@@ -177,7 +177,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.handleRightButtonPress = (eventData: any) => {
     if (
       shouldIgnoreEvent(eventData) ||
-      publicAPI.getInteractionState() !== InteractionState.Select
+      publicAPI.getInteractionState() !== InteractionState.Select ||
+      !model.activeState
     ) {
       return macro.VOID;
     }
