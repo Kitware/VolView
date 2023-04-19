@@ -4,7 +4,6 @@
       <v-list-item-title>Labelmap (ID = {{ lm.id }})</v-list-item-title>
     </v-list-item>
   </v-list>
-  <div v-else class="text-caption empty-state">No labelmaps yet</div>
 </template>
 
 <style scoped>
