@@ -53,11 +53,12 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   cvr: {
     enabled: true,
     lightFollowsCamera: true,
-    useVolumetricScatteringBlending: false,
+    volumeQuality: 2,
+    useVolumetricScatteringBlending: true,
     volumetricScatteringBlending: 0.5,
     useLocalAmbientOcclusion: true,
-    laoKernelRadius: 6,
-    laoKernelSize: 3,
+    laoKernelRadius: 5,
+    laoKernelSize: 15,
     ambient: DEFAULT_AMBIENT,
     diffuse: DEFAULT_DIFFUSE,
     specular: DEFAULT_SPECULAR,
@@ -115,12 +116,6 @@ export const setupVolumeColorConfig = () => {
   const updateVolumeCVRParameters = createUpdateFunc('cvr', (cvrConfig) => {
     return {
       ...cvrConfig,
-      // 2X kernel size minimizes flickering lighting
-      // Limit kernel radius to [2*size, 2*size+10]
-      laoKernelRadius: Math.max(
-        2 * cvrConfig.laoKernelSize,
-        Math.min(2 * cvrConfig.laoKernelSize + 10, cvrConfig.laoKernelRadius)
-      ),
     };
   });
 
