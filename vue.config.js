@@ -3,7 +3,6 @@ const path = require('path');
 const webpack = require('webpack');
 /* eslint-disable-next-line import/no-extraneous-dependencies */
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const { VuetifyPlugin } = require('webpack-plugin-vuetify');
 
 const ITK_WASM_INCLUDE = [
   'Nrrd',
@@ -33,6 +32,12 @@ module.exports = {
     });
   },
   publicPath: process.env.VUE_APP_PUBLIC_PATH || '/',
+  pluginOptions: {
+    // vue-cli-plugin-vuetify injects VuetifyPlugin with these args for us
+    vuetify: {
+      autoImport: true,
+    },
+  },
   configureWebpack: {
     devtool: 'source-map',
     resolve: {
@@ -47,7 +52,6 @@ module.exports = {
       },
     },
     plugins: [
-      new VuetifyPlugin({ autoImport: true }),
       // disable webvr
       new webpack.NormalModuleReplacementPlugin(
         /^webvr-polyfill$/,
