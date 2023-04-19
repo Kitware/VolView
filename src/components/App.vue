@@ -21,15 +21,12 @@
           />
         </v-app-bar>
         <v-navigation-drawer
-          id="left-nav"
           v-model="leftSideBar"
           app
           clipped
           touchless
-          :min-width="450"
-          :max-width="550"
-          :width="450"
-          :handle-size="4"
+          width="450"
+          id="left-nav"
         >
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
@@ -37,7 +34,7 @@
           <div class="fill-height d-flex flex-row flex-grow-1">
             <div
               id="tools-strip"
-              class="grey darken-4 d-flex flex-column align-center"
+              class="bg-grey-darken-4 d-flex flex-column align-center"
             >
               <tool-button
                 size="40"
@@ -118,7 +115,7 @@
                 v-show="!hasData"
                 no-gutters
                 align="center"
-                class="clickable grey darken-3"
+                class="clickable bg-grey-darken-3"
                 @click="userPromptFiles"
               >
                 <v-col>
@@ -188,14 +185,7 @@
 </template>
 
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  onMounted,
-  Ref,
-  ref,
-  watch,
-} from 'vue';
+import { computed, defineComponent, onMounted, Ref, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -512,6 +502,10 @@ export default defineComponent({
   position: fixed;
 }
 
+#left-nav {
+  border-right: 1px solid rgb(var(--v-theme-background));
+}
+
 #content-main > .v-content__wrap {
   display: flex;
 }
@@ -533,11 +527,6 @@ export default defineComponent({
 #app-container {
   width: 100%;
   height: 100%;
-}
-
-#left-nav {
-  display: flex;
-  flex-flow: column;
 }
 
 #tools-strip {

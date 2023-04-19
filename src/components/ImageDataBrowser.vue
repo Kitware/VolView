@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, reactive, watch, watchEffect } from 'vue';
+import { computed, defineComponent, reactive, watch } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
@@ -126,10 +126,6 @@ export default defineComponent({
     const { selected, selectedAll, selectedSome } =
       useMultiSelection(nonDICOMImages);
 
-    watchEffect(() => {
-      console.log(selected.value);
-    });
-
     function removeSelection() {
       selected.value.forEach((id) => {
         imageStore.deleteData(id);
@@ -177,7 +173,11 @@ export default defineComponent({
             @click.stop="removeSelection"
           >
             <v-icon>mdi-delete</v-icon>
-            <v-tooltip location="left" activator="parent">
+            <v-tooltip
+              :disabled="!selectedSome"
+              location="left"
+              activator="parent"
+            >
               Delete selected
             </v-tooltip>
           </v-btn>
@@ -197,14 +197,15 @@ export default defineComponent({
       >
         <image-list-card
           v-model="selected"
+          class="mt-1"
           selectable
           :inputValue="image.id"
           :active="active"
           :html-title="image.name"
           :image-url="(thumbnails[image.cacheKey] || {}).imageURI || ''"
           :image-size="100"
-          @click="select"
           :id="image.id"
+          @click="select"
         >
           <div class="text-body-2 font-weight-bold text-no-wrap text-truncate">
             {{ image.name }}

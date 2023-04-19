@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from 'vue';
+import { computed, defineComponent, watch, ref } from 'vue';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useViewConfigStore } from '../store/view-configs';
 import { CVRConfig } from '../types/views';
@@ -53,14 +53,22 @@ export default defineComponent({
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
-    const lightingModel = ref<keyof typeof LIGHTING_MODELS>('hybrid');
-    const selectLightingMode = (buttonTxt: string) => {
-      setCVRParam('useVolumetricScatteringBlending', buttonTxt === 'hybrid');
+    type LightingModel = keyof typeof LIGHTING_MODELS;
+    const lightingModel = computed<LightingModel>(() =>
+      cvrParams.value?.useVolumetricScatteringBlending ? 'hybrid' : 'standard'
+    );
+    const selectLightingMode = (model: LightingModel) => {
+      setCVRParam('useVolumetricScatteringBlending', model === 'hybrid');
     };
 
-    const volumeQualityLabels = ['Good', 'Better', 'Ultra', 'Beta'];
-    const showQualityWarning = false;
-    const disableQualityWarning = false;
+    const volumeQualityLabels = {
+      1: 'Good',
+      2: 'Better',
+      3: 'Ultra',
+      4: 'Beta',
+    };
+    const showQualityWarning = ref(false);
+    const disableQualityWarning = ref(false);
 
     return {
       LIGHTING_MODELS,
@@ -85,14 +93,14 @@ export default defineComponent({
     </div>
     <div v-if="!!cvrParams">
       <v-slider
-        ticks="always"
+        show-ticks="always"
         tick-size="4"
-        :tick-labels="volumeQualityLabels"
+        :ticks="volumeQualityLabels"
         min="1"
         max="4"
         step="1"
-        :value="cvrParams.volumeQuality"
-        @change="
+        :model-value="cvrParams.volumeQuality"
+        @update:model-value="
           {
             showQualityWarning = !disableQualityWarning && $event > 2;
             setCVRParam('volumeQuality', $event);
@@ -102,30 +110,28 @@ export default defineComponent({
       <v-alert
         v-model="showQualityWarning"
         border="top"
-        border-color
-        dark
-        color="secondary"
+        variant="tonal"
         type="warning"
         elevation="2"
         close-text="Close Warning"
         transition="slide-y-transition"
-        dense
-        dismissible
-        prominent
+        density="compact"
         @click="showQualityWarning = false"
       >
-        <b>"Ultra"</b> and <b>"Beta"</b> modes are unstable on some systems.
-        <v-spacer></v-spacer>
+        <div>
+          <b>Ultra</b> and <b>Beta</b> modes are unstable on some systems.
+        </div>
         <v-btn
-          dense
-          small
+          size="small"
+          variant="tonal"
           block
+          class="mt-2"
           @click="
             disableQualityWarning = true;
             showQualityWarning = false;
           "
         >
-          Dont Show Again
+          Don't Show Again
         </v-btn>
       </v-alert>
       <v-divider class="my-8" />
@@ -162,15 +168,18 @@ export default defineComponent({
 
       <v-row class="my-4">
         <v-btn-toggle
-          v-model="lightingModel"
-          @change="selectLightingMode"
+          :model-value="lightingModel"
+          @update:model-value="selectLightingMode"
           mandatory
+          divided
+          variant="outlined"
+          class="w-100"
         >
           <v-btn
             v-for="model in Object.keys(LIGHTING_MODELS)"
             :key="model"
             :value="model"
-            block
+            class="w-50"
           >
             {{ model }}
           </v-btn>
@@ -179,10 +188,10 @@ export default defineComponent({
 
       <v-switch
         label="Local Ambient Occlusion"
-        dense
+        density="compact"
         hide-details
-        :input-value="cvrParams.useLocalAmbientOcclusion"
-        @change="setCVRParam('useLocalAmbientOcclusion', !!$event)"
+        :model-value="cvrParams.useLocalAmbientOcclusion"
+        @update:model-value="setCVRParam('useLocalAmbientOcclusion', !!$event)"
       />
 
       <v-spacer class="my-2" />

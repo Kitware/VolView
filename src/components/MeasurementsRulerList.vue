@@ -10,12 +10,12 @@ export default defineComponent({
 
     const rulers = computed(() => {
       const imageID = currentImageID.value;
-      return rulerStore.rulerIDs
-        .map((id) => [id, rulerStore.rulers[id]] as const)
-        .filter(([, ruler]) => ruler.imageID === imageID)
-        .map(([id, ruler]) => ({
-          id,
-          length: rulerStore.lengthByID[id],
+      const { lengthByID } = rulerStore;
+      return rulerStore.rulers
+        .filter((ruler) => ruler.imageID === imageID)
+        .map((ruler) => ({
+          id: ruler.id,
+          length: lengthByID[ruler.id],
           color: ruler.color,
         }));
     });

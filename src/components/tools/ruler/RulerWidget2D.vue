@@ -31,7 +31,7 @@ import { watchOnce } from '@vueuse/core';
 
 export default defineComponent({
   name: 'RulerWidget2D',
-  emits: ['placed'],
+  emits: ['placed', 'contextmenu'],
   props: {
     rulerId: {
       type: String,

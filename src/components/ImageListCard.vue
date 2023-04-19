@@ -8,7 +8,7 @@
         'image-list-card-hover': !disabled && isHovering,
         'image-list-card-active': !disabled && active,
       }"
-      v-bind="disabled ? props : { ...props, ...$attrs }"
+      v-bind="{ ...props, ...$attrs }"
     >
       <v-container :title="htmlTitle">
         <v-row no-gutters class="flex-nowrap">

@@ -102,7 +102,7 @@
                   mdi-information
                 </v-icon>
               </template>
-              <v-list class="grey darken-3">
+              <v-list class="bg-grey-darken-3">
                 <v-list-item>
                   <v-list-item-title class="font-weight-bold">
                     PATIENT / CASE
