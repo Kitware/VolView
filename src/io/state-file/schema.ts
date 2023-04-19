@@ -6,12 +6,10 @@ import vtkPiecewiseFunctionProxy, {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-import {
-  Ruler,
-  Tools as ToolsEnum,
-  LPSCroppingPlanes,
-} from '@/src/store/tools/types';
-import { InteractionState } from '@/src/vtk/RulerWidget/state';
+import { Tools as ToolsEnum } from '@/src/store/tools/types';
+import { Ruler } from '@/src/types/ruler';
+import { LPSCroppingPlanes } from '@/src/types/crop';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
 
 import {
   CameraConfig,
@@ -236,16 +234,19 @@ const LPSAxis: z.ZodType<LPSAxis> = z.union([
   z.literal('Coronal'),
 ]);
 
-const InteractionStateNative = z.nativeEnum(InteractionState);
+const FrameOfReference: z.ZodType<FrameOfReference> = z.object({
+  planeOrigin: Vector3,
+  planeNormal: Vector3,
+});
 
 const Ruler: z.ZodType<Ruler> = z.object({
-  name: z.string(),
-  firstPoint: Vector3.nullable(),
-  secondPoint: Vector3.nullable(),
-  viewAxis: LPSAxis.nullable(),
-  slice: z.number().nullable(),
+  firstPoint: Vector3,
+  secondPoint: Vector3,
   imageID: z.string(),
-  interactionState: InteractionStateNative,
+  frameOfReference: FrameOfReference,
+  slice: z.number(),
+  id: z.string(),
+  name: z.string(),
   color: z.string(),
 });
 

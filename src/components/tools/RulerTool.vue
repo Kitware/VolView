@@ -1,30 +1,19 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RulerSVG2D
-        v-for="ruler in rulers"
-        :key="ruler.id"
-        v-show="slice === ruler.slice"
-        :view-id="viewId"
-        :point1="ruler.firstPoint"
-        :point2="ruler.secondPoint"
-        :color="ruler.color"
-        :length="ruler.length"
-      />
-    </svg>
-    <div>
       <RulerWidget2D
         v-for="ruler in rulers"
         :key="ruler.id"
         :ruler-id="ruler.id"
-        :slice="slice"
+        :is-placing="ruler.id === placingRulerID"
+        :current-slice="currentSlice"
         :view-id="viewId"
         :view-direction="viewDirection"
-        :focused="ruler.focused"
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(ruler.id, $event)"
+        @placed="onRulerPlaced"
       />
-    </div>
+    </svg>
     <v-menu
       v-model="contextMenu.show"
       :position-x="contextMenu.x"
@@ -47,8 +36,10 @@
 import {
   computed,
   defineComponent,
+  onUnmounted,
   PropType,
   reactive,
+  ref,
   toRefs,
   watch,
 } from '@vue/composition-api';
@@ -58,15 +49,16 @@ import { Tools } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
-import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
-import { shouldIgnoreEvent } from '@/src/vtk/RulerWidget';
-import { useViewStore } from '@/src/store/views';
-import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
-import { Vector2 } from '@kitware/vtk.js/types';
+import { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { storeToRefs } from 'pinia';
+import {
+  FrameOfReference,
+  frameOfReferenceToImageSliceAndAxis,
+} from '@/src/utils/frameOfReference';
+import { Ruler } from '@/src/types/ruler';
+import { vec3 } from 'gl-matrix';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -75,7 +67,7 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    slice: {
+    currentSlice: {
       type: Number,
       required: true,
     },
@@ -90,22 +82,99 @@ export default defineComponent({
   },
   components: {
     RulerWidget2D,
-    RulerSVG2D,
   },
   setup(props) {
-    const { viewId: viewID, viewDirection } = toRefs(props);
-    const viewStore = useViewStore();
+    const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
+    const { rulers } = storeToRefs(rulerStore);
 
-    const viewProxy = computed(
-      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
+    const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
+
+    const placingRulerID = ref<string | null>(null);
+
+    // --- active ruler management --- //
+
+    watch(
+      placingRulerID,
+      (id, prevId) => {
+        if (prevId != null) {
+          rulerStore.updateRuler(prevId, { placing: false });
+        }
+        if (id != null) {
+          rulerStore.updateRuler(id, { placing: true });
+        }
+      },
+      { immediate: true }
     );
 
-    const { currentImageID } = useCurrentImage();
-    const active = computed(() => toolStore.currentTool === Tools.Ruler);
-    const activeRulerID = computed(() => rulerStore.activeRulerID);
-    const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
+    watch(
+      [isToolActive, currentImageID] as const,
+      ([active, imageID]) => {
+        if (placingRulerID.value != null) {
+          rulerStore.removeRuler(placingRulerID.value);
+          placingRulerID.value = null;
+        }
+        if (active && imageID) {
+          placingRulerID.value = rulerStore.addRuler({
+            imageID,
+            placing: true,
+          });
+        }
+      },
+      { immediate: true }
+    );
+
+    onUnmounted(() => {
+      if (placingRulerID.value != null) {
+        rulerStore.removeRuler(placingRulerID.value);
+        placingRulerID.value = null;
+      }
+    });
+
+    const onRulerPlaced = () => {
+      if (currentImageID.value) {
+        placingRulerID.value = rulerStore.addRuler({
+          imageID: currentImageID.value,
+          placing: true,
+        });
+      }
+    };
+
+    // --- updating active ruler frame --- //
+
+    // TODO useCurrentFrameOfReference(viewDirection)
+    const getCurrentFrameOfReference = (): FrameOfReference => {
+      const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
+      const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
+
+      const lpsIdx = lpsOrientation[viewAxis.value];
+      const planeOrigin: Vector3 = [0, 0, 0];
+      planeOrigin[lpsIdx] = currentSlice.value;
+      // convert index pt to world pt
+      vec3.transformMat4(planeOrigin, planeOrigin, indexToWorld);
+
+      return {
+        planeNormal,
+        planeOrigin,
+      };
+    };
+
+    // update active ruler's frame + slice, since the
+    // active ruler is not finalized.
+    watch(
+      [currentSlice, placingRulerID] as const,
+      ([slice, rulerID]) => {
+        if (!rulerID) return;
+        rulerStore.updateRuler(rulerID, {
+          frameOfReference: getCurrentFrameOfReference(),
+          slice,
+        });
+      },
+      { immediate: true }
+    );
 
     // --- context menu --- //
 
@@ -126,74 +195,51 @@ export default defineComponent({
       rulerStore.removeRuler(contextMenu.forRulerID);
     };
 
-    // --- ruler lifecycle --- //
-
-    const deleteActiveRuler = () => {
-      rulerStore.removeActiveRuler();
-    };
-
-    const startNewRuler = (eventData: any) => {
-      if (!active.value || contextMenu.show || shouldIgnoreEvent(eventData)) {
-        return VOID;
-      }
-      rulerStore.addNewRulerFromViewEvent(eventData, viewID.value);
-      return EVENT_ABORT;
-    };
-
-    // We don't create a ruler until we receive a click, so
-    // the button press listener must be here rather than in
-    // the widget itself.
-    // We may support configuring which mouse button triggers this tool
-    // in the future.
-    const onLeftButtonPress = useVTKCallback(
-      computed(() => viewProxy.value.getInteractor().onLeftButtonPress)
-    );
-    onLeftButtonPress(startNewRuler);
-
-    // delete active ruler if slice changes
-    watch(
-      () => props.slice,
-      () => {
-        deleteActiveRuler();
-      }
-    );
-
     // --- ruler data --- //
 
-    const currentRulers = computed(() => {
-      const { rulers: rulerByID, lengthByID } = rulerStore;
-      const curImageID = currentImageID.value;
-      const isToolActive = active.value;
-      const curViewAxis = viewAxis.value;
-      const curActiveRulerID = activeRulerID.value;
+    // does the ruler's frame of reference match
+    // the view's axis
+    const doesRulerFrameMatchViewAxis = (ruler: Partial<Ruler>) => {
+      if (!ruler.frameOfReference) return false;
+      const rulerAxis = frameOfReferenceToImageSliceAndAxis(
+        ruler.frameOfReference,
+        currentImageMetadata.value,
+        {
+          allowOutOfBoundsSlice: true,
+        }
+      );
+      return !!rulerAxis && rulerAxis.axis === viewAxis.value;
+    };
 
-      return rulerStore.rulerIDs
-        .map((id) => ({ id, ruler: rulerByID[id] }))
-        .filter(({ ruler }) => {
-          // only show rulers for the current image and the current view
+    const currentRulers = computed(() => {
+      const { lengthByID } = rulerStore;
+      const curImageID = currentImageID.value;
+
+      const rulerData = rulers.value
+        .filter((ruler) => {
+          // only show rulers for the current image
+          // and current view axis
           return (
-            ruler.imageID === curImageID &&
-            (!ruler.viewAxis || ruler.viewAxis === curViewAxis)
+            ruler.imageID === curImageID && doesRulerFrameMatchViewAxis(ruler)
           );
         })
-        .map(({ id, ruler }) => {
+        .map((ruler) => {
           return {
-            id,
-            firstPoint: ruler.firstPoint,
-            secondPoint: ruler.secondPoint,
-            color: ruler.color,
-            slice: ruler.slice,
-            length: lengthByID[id],
-            focused: isToolActive && curActiveRulerID === id,
+            ...ruler,
+            length: lengthByID[ruler.id],
           };
         });
+
+      return rulerData;
     });
 
     return {
       rulers: currentRulers,
+      placingRulerID,
       contextMenu,
       openContextMenu,
       deleteRulerFromContextMenu,
+      onRulerPlaced,
     };
   },
 });

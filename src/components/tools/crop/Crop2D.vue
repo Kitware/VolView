@@ -2,7 +2,7 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCurrentSlice } from '@/src/composables/useCurrentSlice';
 import { useVTKMultiWorldToSVG } from '@/src/composables/useVTKWorldToDisplay';
-import { ImageMetadata } from '@/src/store/datasets-images';
+import { ImageMetadata } from '@/src/types/image';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useViewStore } from '@/src/store/views';
 import { LPSAxis, LPSBounds, LPSPoint } from '@/src/types/lps';

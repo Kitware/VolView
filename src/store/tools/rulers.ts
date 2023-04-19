@@ -1,33 +1,33 @@
 import { computed, del, ref, set } from '@vue/composition-api';
-import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { removeFromArray } from '@/src/utils';
-import { RulerStateUpdate } from '@/src/core/tools/ruler';
 import { TOOL_COLORS } from '@/src/config';
 import { defineStore } from 'pinia';
-import { InteractionState } from '@/src/vtk/RulerWidget/state';
-import { useViewConfigStore } from '@/src/store/view-configs';
-import { createPlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
-import { Ruler } from './types';
-import { useViewStore } from '../views';
 import { findImageID, getDataID } from '../datasets';
+import { Ruler, RulerPatch } from '../../types/ruler';
+import { useViewStore } from '../views';
+import { useViewConfigStore } from '../view-configs';
 
-const emptyRuler = (): Ruler => ({
-  name: '',
-  firstPoint: null,
-  secondPoint: null,
-  viewAxis: null,
-  slice: null,
+const createRulerWithDefaults = (ruler: Partial<Ruler>): Ruler => ({
+  firstPoint: [0, 0, 0],
+  secondPoint: [0, 0, 0],
+  frameOfReference: {
+    planeOrigin: [0, 0, 0],
+    planeNormal: [1, 0, 0],
+  },
+  slice: -1,
   imageID: '',
-  interactionState: InteractionState.PlacingFirst,
+  id: '',
+  name: 'Ruler',
   color: TOOL_COLORS[0],
+  placing: false,
+  ...ruler,
 });
-
-export type RulerPatch = Partial<Ruler> & RulerStateUpdate;
 
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
@@ -35,178 +35,75 @@ export const useRulerStore = defineStore('ruler', () => {
   // --- state --- //
 
   const rulerIDs = ref<string[]>([]);
-  const rulers = ref<Record<string, Ruler>>(Object.create(null));
-  const activeRulerID = ref<string | null>(null);
+  const rulerByID = ref<Record<string, Ruler>>(Object.create(null));
 
+  // used for picking the next ruler color
   let colorIndex = 0;
+  function getNextColor() {
+    const color = TOOL_COLORS[colorIndex];
+    colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
+    return color;
+  }
 
   // --- getters --- //
 
-  const lengthByID = computed(() => {
-    const rulersIndex = rulers.value;
-    return rulerIDs.value.reduce((lengths, id) => {
-      const { firstPoint, secondPoint } = rulersIndex[id];
-      return Object.assign(lengths, {
-        [id]:
-          firstPoint && secondPoint
-            ? Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint))
-            : 0,
-      });
-    }, {} as Record<string, number>);
+  const rulers = computed<Ruler[]>(() => {
+    const byID = rulerByID.value;
+    return rulerIDs.value.map((id) => byID[id]);
   });
 
-  function getVTKFactory(this: _This, id: string) {
-    return this.$rulers.getFactory(id);
-  }
+  const lengthByID = computed<Record<string, number>>(() => {
+    const byID = rulerByID.value;
+    return rulerIDs.value.reduce((lengths, id) => {
+      const { firstPoint, secondPoint } = byID[id];
+      return Object.assign(lengths, {
+        [id]: Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint)),
+      });
+    }, {});
+  });
 
   // --- actions --- //
 
-  function deactivateRuler(rulerID: string) {
-    if (rulerID in rulers.value) {
-      activeRulerID.value = null;
-    }
-  }
-
-  function activateRuler(rulerID: string) {
-    if (activeRulerID.value) {
-      deactivateRuler(activeRulerID.value);
-    }
-    if (rulerID in rulers.value) {
-      activeRulerID.value = rulerID;
-    }
-  }
-
-  function updateRulerInternal(this: _This, id: string, patch: Partial<Ruler>) {
-    if (id in rulers.value) {
-      const ruler = rulers.value[id];
-      Object.assign(ruler, patch);
-
-      if (
-        id === activeRulerID.value &&
-        ruler.interactionState === InteractionState.Settled
-      ) {
-        deactivateRuler(id);
-      }
-    }
-  }
-
-  function updateRuler(this: _This, id: string, patch: Partial<Ruler>) {
-    updateRulerInternal.call(this, id, patch);
-    if (id in rulers.value) {
-      const ruler = rulers.value[id];
-      const update: RulerStateUpdate = {
-        firstPoint: ruler.firstPoint,
-        secondPoint: ruler.secondPoint,
-        interactionState: ruler.interactionState,
-      };
-      this.$rulers.updateRuler(id, update);
-    }
-  }
-
-  function addNewRuler(this: _This, rulerState: Partial<Ruler>) {
+  function addRuler(this: _This, ruler: RulerPatch) {
     const id = this.$id.nextID();
-
-    set(rulers.value, id, emptyRuler());
+    const color = ruler.color ?? getNextColor();
+    set(rulerByID.value, id, createRulerWithDefaults({ ...ruler, id, color }));
     rulerIDs.value.push(id);
-
-    this.$rulers.createRuler(id);
-
-    const patch = { ...rulerState };
-    // set color if necessary
-    if (!('color' in patch)) {
-      patch.color = TOOL_COLORS[colorIndex];
-      colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
-    }
-
-    updateRuler.call(this, id, patch);
-
     return id;
   }
 
-  function removeRuler(this: _This, id: string) {
-    deactivateRuler(id);
-    removeFromArray(rulerIDs.value, id);
-    del(rulers.value, id);
-    this.$rulers.removeRuler(id);
-  }
-
-  function removeActiveRuler(this: _This) {
-    if (activeRulerID.value) {
-      removeRuler.call(this, activeRulerID.value);
+  function removeRuler(id: string) {
+    if (id in rulerByID.value) {
+      removeFromArray(rulerIDs.value, id);
+      del(rulerByID.value, id);
     }
   }
 
-  function addNewRulerFromViewEvent(
-    this: _This,
-    eventData: any,
-    viewID: string
-  ) {
-    if (activeRulerID.value) {
-      return;
+  function updateRuler(id: string, patch: RulerPatch) {
+    if (id in rulerByID.value) {
+      set(rulerByID.value, id, { ...rulerByID.value[id], ...patch, id });
     }
-
-    const viewConfigStore = useViewConfigStore();
-    const currentImage = useCurrentImage();
-
-    const imageID = currentImage.currentImageID.value;
-    const imageMetadata = currentImage.currentImageMetadata.value;
-
-    if (!imageID) {
-      return;
-    }
-
-    const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
-    if (!sliceConfig) {
-      return;
-    }
-
-    const { slice, axisDirection: viewDirection } = sliceConfig;
-    const viewAxis = getLPSAxisFromDir(viewDirection);
-
-    const viewProxy = this.$proxies.getView(viewID);
-    if (!viewProxy) {
-      return;
-    }
-
-    const id = addNewRuler.call(this, {
-      name: 'Ruler',
-      imageID,
-    });
-    const manipulator = createPlaneManipulatorFor2DView(
-      viewDirection,
-      slice,
-      imageMetadata
-    );
-    const coords = manipulator.handleEvent(
-      eventData,
-      viewProxy.getOpenGLRenderWindow()
-    );
-    if (coords.length) {
-      updateRuler.call(this, id, {
-        firstPoint: coords as Vector3,
-        slice,
-        imageID,
-        viewAxis,
-        interactionState: InteractionState.PlacingSecond,
-      });
-    }
-
-    activateRuler(id);
   }
 
   function jumpToRuler(rulerID: string) {
-    const ruler = rulers.value[rulerID];
-    if (!ruler?.viewAxis || ruler?.slice == null) return;
+    const ruler = rulerByID.value[rulerID];
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
 
-    const { currentImageID } = useCurrentImage();
     const imageID = currentImageID.value;
     if (!imageID || ruler.imageID !== imageID) return;
+
+    const rulerImageFrame = frameOfReferenceToImageSliceAndAxis(
+      ruler.frameOfReference,
+      currentImageMetadata.value
+    );
+
+    if (!rulerImageFrame) return;
 
     const viewStore = useViewStore();
     const relevantViewIDs = viewStore.viewIDs.filter((viewID) => {
       const viewSpec = viewStore.viewSpecs[viewID];
       const viewDir = viewSpec.props.viewDirection as LPSAxisDir | undefined;
-      return viewDir && getLPSAxisFromDir(viewDir) === ruler.viewAxis;
+      return viewDir && getLPSAxisFromDir(viewDir) === rulerImageFrame.axis;
     });
 
     const viewConfigStore = useViewConfigStore();
@@ -217,56 +114,19 @@ export const useRulerStore = defineStore('ruler', () => {
     });
   }
 
-  // --- watch RulerTool for changes to apply --- //
-
-  function updateFromWidgetState(
-    this: _This,
-    event: {
-      id: string;
-      update: RulerStateUpdate;
-    }
-  ) {
-    const { id, update } = event;
-    const patch: Partial<Ruler> = {};
-
-    if ('firstPoint' in update) {
-      patch.firstPoint = update.firstPoint;
-    }
-    if ('secondPoint' in update) {
-      patch.secondPoint = update.secondPoint;
-    }
-    if ('interactionState' in update) {
-      patch.interactionState = update.interactionState;
-    }
-
-    updateRulerInternal.call(this, id, patch);
-  }
-
-  let cleanup: Function;
-
-  function initialize(this: _This) {
-    const update = updateFromWidgetState.bind(this);
-    this.$rulers.events.on('widgetUpdate', update);
-    cleanup = () => this.$rulers.events.off('widgetUpdate', update);
-  }
-
-  function uninitialize(this: _This) {
-    cleanup();
-  }
-
   // --- tool activation --- //
 
-  function activateTool() {
+  function activateTool(this: _This) {
     return true;
   }
 
-  function deactivateTool(this: _This) {
-    removeActiveRuler.call(this);
-  }
+  function deactivateTool() {}
+
+  // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.rulers = rulerIDs.value
-      .map((rulerID) => rulers.value[rulerID])
+    state.manifest.tools.rulers = rulers.value
+      .filter((ruler) => !ruler.placing)
       // If parent image is DICOM, save VolumeKey
       .map(({ imageID, ...rest }) => ({
         imageID: getDataID(imageID),
@@ -290,30 +150,22 @@ export const useRulerStore = defineStore('ruler', () => {
         };
       })
       .forEach((ruler) => {
-        addNewRuler.call(this, ruler);
+        addRuler.call(this, ruler);
       });
   }
 
   return {
-    rulerIDs,
     rulers,
-    activeRulerID,
+    rulerIDs,
+    rulerByID,
     lengthByID,
-    getVTKFactory,
-
-    initialize,
-    uninitialize,
-
     activateTool,
     deactivateTool,
-
-    addNewRuler,
-    addNewRulerFromViewEvent,
-    removeActiveRuler,
-    removeRuler,
+    addRuler,
     updateRuler,
+    removeRuler,
+    jumpToRuler,
     serialize,
     deserialize,
-    jumpToRuler,
   };
 });

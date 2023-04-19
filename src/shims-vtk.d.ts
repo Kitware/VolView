@@ -32,23 +32,8 @@ declare module '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps' 
   export default vtkColorMaps;
 }
 
-declare module '@kitware/vtk.js/Widgets/Core/WidgetState' {
-  import { vtkObject } from '@kitware/vtk.js/interfaces';
-
-  export interface vtkWidgetState extends vtkObject {
-    setActive(active: boolean): boolean;
-    getActive(): boolean;
-    bindState(subState: vtkWidgetState, labels?: string | string[]): void;
-    unbindState(subState: vtkWidgetState): void;
-    unbindAll(): void;
-    activate(): void;
-    deactivate(excludingState?: vtkWidgetState): void;
-    activateOnly(subState: vtkWidgetState): void;
-    getStatesWithLabel(label: string): vtkWidgetState[];
-    getAllNestedStates(): vtkWidgetState[];
-  }
-
-  export default vtkWidgetState;
+declare module '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin' {
+  export declare function extend(publicAPI: any, model: any): void;
 }
 
 declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget' {

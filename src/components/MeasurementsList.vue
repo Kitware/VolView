@@ -90,19 +90,19 @@ export default defineComponent({
     const measurements = computed(() => {
       const imageID = currentImageID.value;
       return rulerStore.rulerIDs
-        .map((id) => {
-          const ruler = rulerStore.rulers[id];
+        .map((id) => rulerStore.rulerByID[id])
+        .filter((ruler) => ruler.imageID === imageID && !ruler.placing)
+        .map((ruler) => {
           return {
-            id,
+            id: ruler.id,
             type: 'ruler',
             imageID: ruler.imageID,
             data: {
-              length: rulerStore.lengthByID[id],
+              length: rulerStore.lengthByID[ruler.id],
               color: ruler.color,
             },
           } as Measurement;
-        })
-        .filter((mm) => mm.imageID === imageID);
+        });
     });
 
     function remove(type: Measurement['type'], id: string) {

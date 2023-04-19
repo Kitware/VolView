@@ -1,5 +1,6 @@
 import { URL } from 'whatwg-url';
 import { TypedArray } from 'itk-wasm';
+import { EPSILON } from '../constants';
 
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
@@ -195,4 +196,12 @@ export function formatBytes(bytes: number, decimals = 2) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return `${parseFloat((bytes / k ** i).toFixed(dm))} ${sizes[i]}`;
+}
+
+export function roundIfCloseToInteger(value: number, eps = EPSILON) {
+  const rounded = Math.round(value);
+  if (Math.abs(rounded - value) <= eps) {
+    return rounded;
+  }
+  return value;
 }

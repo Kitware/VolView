@@ -25,7 +25,7 @@
       </v-tooltip>
       <slice-slider
         class="slice-slider"
-        :slice="slice"
+        :slice="currentSlice"
         :min="sliceMin"
         :max="sliceMax"
         :step="1"
@@ -43,23 +43,22 @@
         <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
         <ruler-tool
-          view-type="2D"
           :view-id="viewID"
           :widget-manager="widgetManager"
           :view-direction="viewDirection"
-          :slice="slice"
+          :current-slice="currentSlice"
         />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
           :widget-manager="widgetManager"
-          :slice="slice"
+          :slice="currentSlice"
         />
         <crosshairs-tool
           :view-id="viewID"
           :view-direction="viewDirection"
           :widget-manager="widgetManager"
-          :slice="slice"
+          :slice="currentSlice"
         />
         <crop-tool :view-id="viewID" />
       </div>
@@ -76,7 +75,7 @@
         </template>
         <template v-slot:bottom-left>
           <div class="annotation-cell">
-            <div>Slice: {{ slice + 1 }}/{{ sliceMax + 1 }}</div>
+            <div>Slice: {{ currentSlice + 1 }}/{{ sliceMax + 1 }}</div>
             <div
               v-if="
                 typeof windowWidth === 'number' &&
@@ -765,7 +764,7 @@ export default defineComponent({
       viewProxy,
       viewAxis,
       active: true,
-      slice: currentSlice,
+      currentSlice,
       sliceMin,
       sliceMax,
       windowWidth,
