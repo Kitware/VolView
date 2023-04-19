@@ -167,19 +167,21 @@
         <v-dialog v-model="saveDialog" width="30%">
           <save-session @close="saveDialog = false" />
         </v-dialog>
-
-        <v-overlay
-          :value="dragHover"
-          color="#fff"
-          z-index="100"
-          class="text-center"
-        >
-          <v-icon color="black" size="4.75rem">mdi-download</v-icon>
-          <div class="text-h2 font-weight-bold black--text">
-            Drop your files to open
-          </div>
-        </v-overlay>
       </v-app>
+      <persistent-overlay
+        :disabled="!dragHover"
+        color="#000"
+        :opacity="0.3"
+        :z-index="2000"
+        class="text-center"
+      >
+        <div class="d-flex flex-column align-center justify-center h-100">
+          <div class="dnd-prompt">
+            <v-icon size="4.75rem">mdi-download</v-icon>
+            <div class="text-h2 font-weight-bold">Drop your files to open</div>
+          </div>
+        </div>
+      </persistent-overlay>
     </template>
   </drag-and-drop>
 </template>
@@ -201,6 +203,7 @@ import ToolStrip from './ToolStrip.vue';
 import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
+import PersistentOverlay from './PersistentOverlay.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import VolViewLogo from './icons/VolViewLogo.vue';
 import {
@@ -340,6 +343,7 @@ export default defineComponent({
     VolViewLogo,
     Settings,
     SaveSession,
+    PersistentOverlay,
   },
 
   setup() {
@@ -547,5 +551,13 @@ export default defineComponent({
 
 .vertical-offset-margin {
   margin-top: 128px;
+}
+
+.dnd-prompt {
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.4);
+  padding: 64px;
 }
 </style>

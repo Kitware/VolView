@@ -34,9 +34,9 @@
               :width="`${imageSize}px`"
               :src="imageUrl"
             />
-            <v-overlay contained :model-value="!!$slots['image-overlay']">
+            <persistent-overlay :disabled="!$slots['image-overlay']">
               <slot name="image-overlay" />
-            </v-overlay>
+            </persistent-overlay>
           </v-col>
           <v-col :cols="selectable ? 7 : 8">
             <div class="ml-2">
@@ -68,6 +68,7 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
+import PersistentOverlay from './PersistentOverlay.vue';
 
 export default defineComponent({
   name: 'ImageListCard',
@@ -90,5 +91,6 @@ export default defineComponent({
     disabled: Boolean,
     htmlTitle: String,
   },
+  components: { PersistentOverlay },
 });
 </script>

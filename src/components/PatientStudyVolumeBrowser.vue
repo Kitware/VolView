@@ -12,6 +12,7 @@ import {
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
 import { useLayersStore } from '../store/datasets-layers';
+import PersistentOverlay from './PersistentOverlay.vue';
 
 const canvas = document.createElement('canvas');
 
@@ -66,6 +67,7 @@ export default defineComponent({
   },
   components: {
     GroupableItem,
+    PersistentOverlay,
   },
   setup(props) {
     const { volumeKeys } = toRefs(props);
@@ -252,7 +254,7 @@ export default defineComponent({
                         />
                       </v-row>
                     </template>
-                    <div class="thumbnail-overlay">
+                    <persistent-overlay>
                       <div class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
                           <div class="layer-btn-container">
@@ -287,7 +289,7 @@ export default defineComponent({
                           </div>
                         </v-row>
                       </div>
-                    </div>
+                    </persistent-overlay>
                   </v-img>
                 </div>
               </v-row>
@@ -334,9 +336,6 @@ export default defineComponent({
   max-width: 36px;
 }
 
-.thumbnail-overlay {
-  height: 100%;
-  width: 100%;
 }
 
 .layer-btn-container {

@@ -4,6 +4,7 @@ import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
+import PersistentOverlay from './PersistentOverlay.vue';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useViewConfigStore } from '../store/view-configs';
 import { getColorFunctionRangeFromPreset } from '../utils/vtk-helpers';
@@ -17,6 +18,7 @@ export default defineComponent({
   components: {
     ItemGroup,
     GroupableItem,
+    PersistentOverlay,
   },
   setup() {
     const viewConfigStore = useViewConfigStore();
@@ -134,12 +136,11 @@ export default defineComponent({
             @click="select"
           >
             <v-img :src="thumbnails[preset] || ''" cover aspect-ratio="1">
-              <div class="thumbnail-overlay">
-                <div class="thumbnail-overlay-scrim" />
+              <persistent-overlay class="thumbnail-overlay">
                 <div class="thumbnail-overlay-text">
                   {{ preset.replace(/-/g, ' ') }}
                 </div>
-              </div>
+              </persistent-overlay>
             </v-img>
           </v-col>
         </groupable-item>
@@ -155,20 +156,10 @@ export default defineComponent({
 }
 
 .thumbnail-overlay {
-  position: relative;
   top: 70%;
   height: 30%;
   font-size: 0.75em;
   text-align: center;
-}
-
-.thumbnail-overlay-scrim {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  width: 100%;
-  background: black;
-  opacity: 0.2;
 }
 
 .thumbnail-overlay-text {
