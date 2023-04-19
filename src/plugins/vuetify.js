@@ -45,7 +45,7 @@ const vuetify = createVuetify({
 });
 
 const theme = useLocalStorage(ThemeStorageKey, DefaultTheme);
-if (theme.value !== DarkTheme || theme.value !== LightTheme) {
+if (theme.value !== DarkTheme && theme.value !== LightTheme) {
   theme.value = DefaultTheme;
 }
 vuetify.theme.global.name.value = theme.value;
