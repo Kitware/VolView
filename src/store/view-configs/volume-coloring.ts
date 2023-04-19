@@ -5,7 +5,6 @@ import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunct
 import {
   getColorFunctionRangeFromPreset,
   getOpacityFunctionFromPreset,
-  getOpacityRangeFromPreset,
 } from '@/src/utils/vtk-helpers';
 import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
 import { ColorTransferFunction } from '@/src/types/views';
@@ -137,8 +136,7 @@ export const setupVolumeColorConfig = () => {
     updateVolumeColorTransferFunction(viewID, imageID, ctFunc);
 
     const opFunc = getOpacityFunctionFromPreset(preset);
-    const opRange = getOpacityRangeFromPreset(preset);
-    opFunc.mappingRange = opRange || imageDataRange;
+    opFunc.mappingRange = imageDataRange;
     updateVolumeOpacityFunction(viewID, imageID, opFunc);
   };
 
