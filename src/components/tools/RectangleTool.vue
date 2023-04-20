@@ -1,17 +1,19 @@
 <template>
   <div class="overlay-no-events">
-    <RectangleWidget2D
-      v-for="tool in tools"
-      :key="tool.id"
-      :tool-id="tool.id"
-      :is-placing="tool.id === placingToolID"
-      :current-slice="currentSlice"
-      :view-id="viewId"
-      :view-direction="viewDirection"
-      :widget-manager="widgetManager"
-      @contextmenu="openContextMenu(tool.id, $event)"
-      @placed="onToolPlaced"
-    />
+    <svg class="overlay-no-events">
+      <RectangleWidget2D
+        v-for="tool in tools"
+        :key="tool.id"
+        :tool-id="tool.id"
+        :is-placing="tool.id === placingToolID"
+        :current-slice="currentSlice"
+        :view-id="viewId"
+        :view-direction="viewDirection"
+        :widget-manager="widgetManager"
+        @contextmenu="openContextMenu(tool.id, $event)"
+        @placed="onToolPlaced"
+      />
+    </svg>
     <v-menu
       v-model="contextMenu.show"
       :position-x="contextMenu.x"
@@ -195,20 +197,20 @@ export default defineComponent({
       activeToolStore.removeTool(contextMenu.forToolID);
     };
 
-    // --- ruler data --- //
+    // --- tool data --- //
 
-    // does the ruler's frame of reference match
+    // does the tools's frame of reference match
     // the view's axis
-    const doesToolFrameMatchViewAxis = (ruler: Partial<Tool>) => {
-      if (!ruler.frameOfReference) return false;
-      const rulerAxis = frameOfReferenceToImageSliceAndAxis(
-        ruler.frameOfReference,
+    const doesToolFrameMatchViewAxis = (tool: Partial<Tool>) => {
+      if (!tool.frameOfReference) return false;
+      const toolAxis = frameOfReferenceToImageSliceAndAxis(
+        tool.frameOfReference,
         currentImageMetadata.value,
         {
           allowOutOfBoundsSlice: true,
         }
       );
-      return !!rulerAxis && rulerAxis.axis === viewAxis.value;
+      return !!toolAxis && toolAxis.axis === viewAxis.value;
     };
 
     const currentTools = computed(() => {
