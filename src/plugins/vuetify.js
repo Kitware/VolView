@@ -26,15 +26,14 @@ const vuetify = createVuetify({
           'selection-bg-color': '#01579b',
           'selection-border-color': '#01579b',
         },
-        variables: {
-          'border-color': '#000000',
-        },
       },
       [LightTheme]: {
         dark: false,
         colors: {
           'selection-bg-color': '#b3e5fc',
           'selection-border-color': '#b3e5fc',
+          surface: '#f0f0f0',
+          'on-surface-variant': '#d0d0d0',
         },
       },
     },

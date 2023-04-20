@@ -163,6 +163,7 @@ export default defineComponent({
       <template #image-overlay v-if="sample.isDownloading || sample.isLoaded">
         <v-row class="fill-height ma-0 align-center justify-center">
           <v-progress-circular
+            class="sample-progress"
             color="white"
             :indeterminate="sample.indeterminate && !sample.isDone"
             :model-value="sample.progress"
@@ -191,5 +192,13 @@ export default defineComponent({
    when the value is updated rapidly. */
 .v-progress-circular__overlay {
   transition: unset;
+}
+</style>
+
+<style scoped>
+.sample-progress {
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 16px;
+  box-shadow: 0 0 8px 8px rgba(0, 0, 0, 0.75);
 }
 </style>
