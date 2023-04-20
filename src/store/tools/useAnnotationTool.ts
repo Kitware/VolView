@@ -21,7 +21,7 @@ const useIDGenerator = () => {
 };
 
 type AnnotationTool = {
-  id: unknown;
+  id: string;
   color: typeof TOOL_COLORS[number];
   imageID: string;
   slice: number;
@@ -29,15 +29,13 @@ type AnnotationTool = {
   frameOfReference: FrameOfReference;
 };
 
-export const useAnnotationTool = <
-  Tool extends AnnotationTool,
-  ToolID extends Tool['id'] & string
->({
+export const useAnnotationTool = <Tool extends AnnotationTool>({
   toolDefaults,
 }: {
   toolDefaults: Tool;
 }) => {
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
+  type ToolID = Tool['id'];
 
   // cast to Ref<ToolID[]> needed. https://github.com/vuejs/core/issues/2136#issuecomment-693524663
   const toolIDs = ref<ToolID[]>([]) as Ref<ToolID[]>;
