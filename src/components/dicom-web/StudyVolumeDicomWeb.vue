@@ -154,13 +154,14 @@ export default defineComponent({
                               volume.progress.percent === 0 &&
                               volume.progress.state !== 'Done'
                             "
-                            :value="volume.progress.percent"
+                            :model-value="volume.progress.percent"
                           >
                             <v-icon
                               v-if="volume.progress.state === 'Done'"
                               color="white"
-                              >mdi-check</v-icon
                             >
+                              mdi-check
+                            </v-icon>
                             <v-icon
                               v-else-if="volume.progress.state === 'Error'"
                               color="white"

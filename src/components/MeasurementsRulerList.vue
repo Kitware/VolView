@@ -12,7 +12,7 @@ export default defineComponent({
       const imageID = currentImageID.value;
       const { lengthByID } = rulerStore;
       return rulerStore.rulers
-        .filter((ruler) => ruler.imageID === imageID)
+        .filter((ruler) => ruler.imageID === imageID && !ruler.placing)
         .map((ruler) => ({
           id: ruler.id,
           length: lengthByID[ruler.id],

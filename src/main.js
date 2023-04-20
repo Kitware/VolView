@@ -1,7 +1,8 @@
-import '@/public/global.css';
-import '@kitware/vtk.js/Rendering/Profiles/All';
-import 'vue-toastification/dist/index.css';
 import 'vuetify/styles';
+import 'vue-toastification/dist/index.css';
+import '@/public/global.css';
+
+import '@kitware/vtk.js/Rendering/Profiles/All';
 
 import { createApp } from 'vue';
 import VueToast from 'vue-toastification';

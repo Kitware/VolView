@@ -227,6 +227,7 @@ export default defineComponent({
               ripple
               :class="{
                 'volume-card': true,
+                'mt-1': true,
                 'volume-card-active': active,
               }"
               min-height="180px"
@@ -235,7 +236,7 @@ export default defineComponent({
               @click="select"
             >
               <v-row no-gutters class="pa-0" justify="center">
-                <div>
+                <div class="thumbnail-container">
                   <v-img
                     cover
                     height="150"
@@ -250,7 +251,7 @@ export default defineComponent({
                       >
                         <v-progress-circular
                           indeterminate
-                          color="grey lighten-5"
+                          color="grey-lighten-5"
                         />
                       </v-row>
                     </template>
@@ -336,6 +337,9 @@ export default defineComponent({
   max-width: 36px;
 }
 
+.thumbnail-container {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
 }
 
 .layer-btn-container {

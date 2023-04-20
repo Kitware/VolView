@@ -50,10 +50,6 @@
 </template>
 
 <style scoped>
-.v-card--variant-outlined {
-  border: thin solid rgb(var(--v-theme-on-surface-variant));
-}
-
 .image-list-card-active {
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));
