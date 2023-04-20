@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { removeFromArray } from '../utils';
 
 export enum MessageType {
   Error,
@@ -113,9 +114,8 @@ export const useMessageStore = defineStore('message', {
     },
     clearOne(id: string) {
       if (id in this.byID) {
+        removeFromArray(this.msgList, id);
         delete this.byID[id];
-        const idx = this.msgList.indexOf(id);
-        this.msgList.splice(idx, 1);
       }
     },
     clearAll() {

@@ -4,31 +4,6 @@ import { storeToRefs } from 'pinia';
 import { MessageType, useMessageStore } from '../store/messages';
 import MessageItem from './MessageItem.vue';
 
-function watchResize(
-  element: Element,
-  callback: (el: Element) => void,
-  timeout = 10
-) {
-  let timeoutID = -1;
-  let observer: ResizeObserver;
-
-  const refreshTimeout = (cb: Function) => {
-    clearTimeout(timeoutID);
-    timeoutID = setTimeout(cb, timeout);
-  };
-
-  const cleanup = () => {
-    observer.disconnect();
-  };
-
-  observer = new ResizeObserver(() => {
-    refreshTimeout(cleanup);
-    callback(element);
-  });
-
-  observer.observe(element);
-}
-
 export default defineComponent({
   components: {
     MessageItem,
@@ -59,33 +34,11 @@ export default defineComponent({
       messageStore.clearOne(messageID);
     }
 
-    const messageListEl = ref<HTMLElement>();
-
-    let cachedLast = -Infinity;
-    function scrollIfLast(openPanels: number[]) {
-      const last = Math.max(...openPanels);
-      const listEl = messageListEl.value;
-      if (
-        last === messages.value.length - 1 &&
-        // detect if the last panel is already expanded
-        last !== cachedLast &&
-        listEl?.firstElementChild
-      ) {
-        watchResize(listEl.firstElementChild, () => {
-          const height = listEl.scrollHeight;
-          listEl.scroll(0, height);
-        });
-      }
-      cachedLast = last;
-    }
-
     return {
       deleteItem,
       clearAll: () => {
         messageStore.clearAll();
       },
-      scrollIfLast,
-      messageListEl,
       showErrors,
       showWarnings,
       showInfo,
@@ -129,14 +82,8 @@ export default defineComponent({
           <span>Clear All</span>
         </v-btn>
       </div>
-      <div class="message-list ma-2" ref="messageListEl">
-        <v-expansion-panels
-          variant="accordion"
-          multiple
-          hover
-          :value="filteredMessages.map((_, i) => i)"
-          @change="scrollIfLast"
-        >
+      <div class="message-list ma-2">
+        <v-expansion-panels variant="accordion" multiple>
           <message-item
             v-for="msg in filteredMessages"
             :key="msg.id"

@@ -2,9 +2,7 @@
   <div>
     <span>{{ message }}</span>
     &nbsp;
-    <v-btn v-if="detailsButton" dark depressed size="small" color="#00000022">
-      details
-    </v-btn>
+    <button v-if="detailsButton" class="button">details</button>
   </div>
 </template>
 
@@ -18,3 +16,12 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.button {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  border-radius: 3px;
+  text-transform: capitalize;
+}
+</style>
