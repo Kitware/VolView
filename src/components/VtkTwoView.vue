@@ -734,6 +734,8 @@ export default defineComponent({
                 default:
               }
 
+              // control color range manually
+              rep.setRescaleOnColorBy(false);
               rep.setColorBy(arrayName, location);
               rep.setOpacity(blendConfig.opacity);
 

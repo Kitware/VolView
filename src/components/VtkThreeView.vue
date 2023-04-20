@@ -465,6 +465,8 @@ export default defineComponent({
         }
 
         if (rep) {
+          // control color range manually
+          rep.setRescaleOnColorBy(false);
           rep.setColorBy(arrayName, location);
         }
 

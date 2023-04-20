@@ -86,8 +86,6 @@ export function useSceneBuilder<
       view.removeAllRepresentations();
 
       if (baseRep) {
-        // we control the color mapping range manually
-        baseRep.setRescaleOnColorBy(false);
         view.addRepresentation(baseRep);
       }
       [...lmReps, ...layReps, ...mReps].forEach((rep) =>
@@ -101,7 +99,7 @@ export function useSceneBuilder<
       view.getRenderer().computeVisiblePropBounds();
       view.render();
     },
-    { deep: true, immediate: true }
+    { immediate: true }
   );
 
   return { baseImageRep, labelmapReps, layerReps, modelReps };
