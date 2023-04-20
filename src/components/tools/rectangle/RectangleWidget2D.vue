@@ -20,7 +20,7 @@ import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
-import { ToolID, useRectangleStore } from '@/src/store/tools/rectangles';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
 import vtkRectangleWidget, {
   vtkRectangleViewWidget,
   InteractionState,
@@ -28,11 +28,13 @@ import vtkRectangleWidget, {
 import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
 import { vtkRulerWidgetPointState } from '@/src/vtk/RulerWidget';
 import { watchOnce } from '@vueuse/core';
+import { RectangleID } from '@/src/types/rectangle';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
 type WidgetView = vtkRectangleViewWidget;
 type vtkWidgetPointState = vtkRulerWidgetPointState;
+type ToolID = RectangleID;
 const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({

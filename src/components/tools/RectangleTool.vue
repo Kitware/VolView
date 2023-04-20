@@ -55,9 +55,11 @@ import {
   FrameOfReference,
   frameOfReferenceToImageSliceAndAxis,
 } from '@/src/utils/frameOfReference';
-import { useRectangleStore, ToolID, Tool } from '@/src/store/tools/rectangles';
-import { RectangleID } from '@/src/types/rectangle';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { Rectangle, RectangleID } from '@/src/types/rectangle';
 
+type ToolID = RectangleID;
+type Tool = Rectangle;
 const useActiveToolStore = useRectangleStore;
 
 export default defineComponent({

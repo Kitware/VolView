@@ -4,9 +4,6 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { Rectangle, RectangleID } from '@/src/types/rectangle';
 import { useAnnotationTool } from './useAnnotationTool';
 
-export type Tool = Rectangle;
-export type ToolID = RectangleID;
-
 const rectangleDefaults: Rectangle = {
   firstPoint: [0, 0, 0],
   secondPoint: [0, 0, 0],
@@ -16,7 +13,7 @@ const rectangleDefaults: Rectangle = {
   },
   slice: -1,
   imageID: '',
-  id: '' as ToolID,
+  id: '' as RectangleID,
   name: 'Rectangle',
   color: TOOL_COLORS[0],
   placing: false,
