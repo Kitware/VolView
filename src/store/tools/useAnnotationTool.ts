@@ -139,9 +139,7 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
             imageID: findImageID(dataIDMap[imageID]),
           } as Tool)
       )
-      .forEach((tool) => {
-        addTool(tool);
-      });
+      .forEach(addTool);
   };
 
   return {

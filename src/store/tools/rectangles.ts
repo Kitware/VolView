@@ -25,7 +25,7 @@ const rectangleDefaults: Rectangle = {
 export const useRectangleStore = defineStore('rectangles', () => {
   const {
     serialize: serializeTools,
-    deserialize: deserializeTool,
+    deserialize: deserializeTools,
     ...toolStoreProps
   } = useAnnotationTool({
     toolDefaults: rectangleDefaults,
@@ -39,7 +39,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
     const rectanglesInState = manifest.tools.rectangles;
-    deserializeTool(rectanglesInState, dataIDMap);
+    deserializeTools(rectanglesInState, dataIDMap);
   }
 
   return {
