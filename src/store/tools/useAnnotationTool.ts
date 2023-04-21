@@ -1,8 +1,8 @@
 import { Ref, computed, del, ref, set } from '@vue/composition-api';
+import { Store } from 'pinia';
 import { removeFromArray } from '@/src/utils';
 
 import { TOOL_COLORS } from '@/src/config';
-import { defineStore } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   FrameOfReference,
@@ -14,12 +14,6 @@ import { useViewConfigStore } from '@/src/store/view-configs';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '@/src/store/datasets';
 
-const useDependencyInjectionStore = defineStore('dependencyInjection', {});
-const useIDGenerator = () => {
-  const { $id } = useDependencyInjectionStore();
-  return $id;
-};
-
 type AnnotationTool = {
   id: string;
   color: typeof TOOL_COLORS[number];
@@ -29,6 +23,7 @@ type AnnotationTool = {
   frameOfReference: FrameOfReference;
 };
 
+// Must return addTool in consuming Pinia store.
 export const useAnnotationTool = <Tool extends AnnotationTool>({
   toolDefaults,
 }: {
@@ -54,10 +49,8 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     return TOOL_COLORS[colorIndex];
   }
 
-  const idGenerator = useIDGenerator();
-
-  const addTool = (tool: ToolPatch): ToolID => {
-    const id = idGenerator.nextID() as ToolID;
+  function addTool(this: Store, tool: ToolPatch): ToolID {
+    const id = this.$id.nextID() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
@@ -70,7 +63,7 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     });
     toolIDs.value.push(id);
     return id;
-  };
+  }
 
   function removeTool(id: ToolID) {
     if (!(id in toolByID.value)) return;
