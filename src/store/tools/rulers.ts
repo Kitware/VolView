@@ -22,22 +22,21 @@ const rulerDefaults: Ruler = {
 };
 
 export const useRulerStore = defineStore('ruler', () => {
-  const toolStoreProps = useAnnotationTool({
-    toolDefaults: rulerDefaults,
-  });
-
   const {
     toolIDs: rulerIDs,
     toolByID: rulerByID,
     tools: rulers,
-
     addTool: addRuler,
     updateTool: updateRuler,
     removeTool: removeRuler,
     jumpToTool: jumpToRuler,
     serialize: serializeTools,
     deserialize: deserializeTools,
-  } = toolStoreProps;
+    activateTool,
+    deactivateTool,
+  } = useAnnotationTool({
+    toolDefaults: rulerDefaults,
+  });
 
   const lengthByID = computed<Record<string, number>>(() => {
     const byID = rulerByID.value;
@@ -60,7 +59,6 @@ export const useRulerStore = defineStore('ruler', () => {
   }
 
   return {
-    ...toolStoreProps,
     rulerIDs,
     rulerByID,
     rulers,
@@ -71,5 +69,7 @@ export const useRulerStore = defineStore('ruler', () => {
     jumpToRuler,
     serialize,
     deserialize,
+    activateTool,
+    deactivateTool,
   };
 });

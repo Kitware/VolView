@@ -96,7 +96,7 @@ export default defineComponent({
 
     const measurements = computed(() => {
       const selectedImageID = currentImageID.value;
-      const rulers = rulerStore.tools.map((tool) => ({
+      const rulers = rulerStore.rulers.map((tool) => ({
         type: 'ruler',
         data: {
           length: rulerStore.lengthByID[tool.id],
@@ -128,7 +128,7 @@ export default defineComponent({
 
     function remove(type: Measurement['type'], id: string) {
       if (type === 'ruler') {
-        return rulerStore.removeTool(id);
+        return rulerStore.removeRuler(id);
       }
       if (type === 'rectangle') {
         return rectangleStore.removeTool(id as RectangleID);
@@ -139,7 +139,7 @@ export default defineComponent({
 
     function jumpTo(type: Measurement['type'], id: string) {
       if (type === 'ruler') {
-        return rulerStore.jumpToTool(id);
+        return rulerStore.jumpToRuler(id);
       }
       if (type === 'rectangle') {
         return rectangleStore.jumpToTool(id as RectangleID);
@@ -150,7 +150,7 @@ export default defineComponent({
 
     function updateColor(type: Measurement['type'], id: string, color: string) {
       if (type === 'ruler') {
-        return rulerStore.updateTool(id, { color });
+        return rulerStore.updateRuler(id, { color });
       }
       if (type === 'rectangle') {
         return rectangleStore.updateTool(id as RectangleID, { color });
