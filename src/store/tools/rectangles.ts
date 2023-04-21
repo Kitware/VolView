@@ -20,6 +20,8 @@ const rectangleDefaults: Rectangle = {
 };
 
 export const useRectangleStore = defineStore('rectangles', () => {
+  type _This = ReturnType<typeof useRectangleStore>;
+
   const {
     serialize: serializeTools,
     deserialize: deserializeTools,
@@ -34,9 +36,12 @@ export const useRectangleStore = defineStore('rectangles', () => {
     state.manifest.tools.rectangles = serializeTools();
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    const rectanglesInState = manifest.tools.rectangles;
-    deserializeTools(rectanglesInState, dataIDMap);
+  function deserialize(
+    this: _This,
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
+    deserializeTools.call(this, manifest.tools.rectangles, dataIDMap);
   }
 
   return {

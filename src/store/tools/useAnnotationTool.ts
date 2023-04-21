@@ -120,10 +120,11 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
         ...rest,
       }));
 
-  const deserialize = (
+  function deserialize(
+    this: Store,
     serialized: Tool[],
     dataIDMap: Record<string, string>
-  ) => {
+  ) {
     serialized
       .map(
         ({ imageID, ...rest }) =>
@@ -132,8 +133,8 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
             imageID: findImageID(dataIDMap[imageID]),
           } as Tool)
       )
-      .forEach(addTool);
-  };
+      .forEach((tool) => addTool.call(this, tool));
+  }
 
   return {
     toolIDs,

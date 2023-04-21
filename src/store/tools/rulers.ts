@@ -22,6 +22,8 @@ const rulerDefaults: Ruler = {
 };
 
 export const useRulerStore = defineStore('ruler', () => {
+  type _This = ReturnType<typeof useRulerStore>;
+
   const {
     toolIDs: rulerIDs,
     toolByID: rulerByID,
@@ -54,8 +56,12 @@ export const useRulerStore = defineStore('ruler', () => {
     state.manifest.tools.rulers = serializeTools();
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    deserializeTools(manifest.tools.rulers, dataIDMap);
+  function deserialize(
+    this: _This,
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
+    deserializeTools.call(this, manifest.tools.rulers, dataIDMap);
   }
 
   return {
