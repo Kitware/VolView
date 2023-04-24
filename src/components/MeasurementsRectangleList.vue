@@ -1,40 +1,39 @@
 <script lang="ts">
 import { computed, defineComponent } from 'vue';
 import { useCurrentImage } from '../composables/useCurrentImage';
-import { useRulerStore } from '../store/tools/rulers';
+import { useRectangleStore } from '../store/tools/rectangles';
+import { RectangleID } from '../types/rectangle';
 
 export default defineComponent({
   setup() {
-    const rulerStore = useRulerStore();
+    const rectStore = useRectangleStore();
     const { currentImageID } = useCurrentImage();
 
-    const rulers = computed(() => {
+    const rects = computed(() => {
       const imageID = currentImageID.value;
-      const { lengthByID } = rulerStore;
-      return rulerStore.rulers
-        .filter((ruler) => ruler.imageID === imageID && !ruler.placing)
-        .map((ruler) => ({
-          id: ruler.id,
-          name: ruler.name,
-          length: lengthByID[ruler.id],
-          color: ruler.color,
+      return rectStore.tools
+        .filter((rect) => rect.imageID === imageID && !rect.placing)
+        .map((rect) => ({
+          id: rect.id,
+          name: rect.name,
+          color: rect.color,
         }));
     });
 
-    function remove(id: string) {
-      rulerStore.removeRuler(id);
+    function remove(id: RectangleID) {
+      rectStore.removeTool(id);
     }
 
-    function jumpTo(id: string) {
-      rulerStore.jumpToRuler(id);
+    function jumpTo(id: RectangleID) {
+      rectStore.jumpToTool(id);
     }
 
-    function updateColor(id: string, color: string) {
-      rulerStore.updateRuler(id, { color });
+    function updateColor(id: RectangleID, color: string) {
+      rectStore.updateTool(id, { color });
     }
 
     return {
-      rulers,
+      rects,
       remove,
       jumpTo,
       updateColor,
@@ -44,44 +43,41 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-list-item v-for="ruler in rulers" :key="ruler.id" lines="two">
+  <v-list-item v-for="rect in rects" :key="rect.id" lines="two">
     <template #prepend>
       <v-menu location="end" :close-on-content-click="false">
         <template v-slot:activator="{ props }">
           <div
             class="color-dot clickable mr-3"
-            :style="{ backgroundColor: ruler.color }"
+            :style="{ backgroundColor: rect.color }"
             v-bind="props"
           />
         </template>
         <v-color-picker
-          :model-value="ruler.color"
-          @update:model-value="updateColor(ruler.id, $event)"
+          :model-value="rect.color"
+          @update:model-value="updateColor(rect.id, $event)"
           hide-inputs
           class="overflow-hidden"
         />
       </v-menu>
     </template>
     <v-list-item-title v-bind="$attrs">
-      {{ ruler.name }} (ID = {{ ruler.id }})
+      {{ rect.name }} (ID = {{ rect.id }})
     </v-list-item-title>
-    <v-list-item-subtitle>
-      Length: {{ ruler.length.toFixed(2) }}mm
-    </v-list-item-subtitle>
     <template #append>
       <v-row no-gutters>
         <v-btn
           class="mr-2"
           icon="mdi-target"
           variant="text"
-          @click="jumpTo(ruler.id)"
+          @click="jumpTo(rect.id)"
         >
           <v-icon>mdi-target</v-icon>
           <v-tooltip location="top" activator="parent">
             Reveal Slice
           </v-tooltip>
         </v-btn>
-        <v-btn icon="mdi-delete" variant="text" @click="remove(ruler.id)">
+        <v-btn icon="mdi-delete" variant="text" @click="remove(rect.id)">
           <v-icon>mdi-delete</v-icon>
           <v-tooltip location="top" activator="parent">Delete</v-tooltip>
         </v-btn>

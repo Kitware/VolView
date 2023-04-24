@@ -1,11 +1,13 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import MeasurementsRulerList from './MeasurementsRulerList.vue';
+import MeasurementsRectangleList from './MeasurementsRectangleList.vue';
 import LabelmapList from './LabelmapList.vue';
 
 export default defineComponent({
   components: {
     MeasurementsRulerList,
+    MeasurementsRectangleList,
     LabelmapList,
   },
   setup() {},
@@ -17,6 +19,7 @@ export default defineComponent({
     <div class="header">Measurements</div>
     <div class="content">
       <measurements-ruler-list />
+      <measurements-rectangle-list />
     </div>
     <div class="text-caption text-center empty-state">No measurements</div>
     <div class="header">Labelmaps</div>
