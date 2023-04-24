@@ -7,6 +7,7 @@ import { computed, reactive, readonly, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
+import { arrayEqualsWithComparator } from '@/src/utils';
 import { useImageStore } from '../datasets-images';
 import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
@@ -41,6 +42,15 @@ function convertCropBoundsToVTKPlane(
   ] as Vector3;
 
   return vtkPlane.newInstance({ origin, normal });
+}
+
+export function croppingPlanesEqual(a1: vtkPlane[], a2: vtkPlane[]) {
+  return arrayEqualsWithComparator<vtkPlane>(a1, a2, (p1, p2) => {
+    return (
+      vec3.equals(p1.getOrigin(), p2.getOrigin()) &&
+      vec3.equals(p1.getNormal(), p2.getNormal())
+    );
+  });
 }
 
 export const useCropStore = defineStore('crop', () => {

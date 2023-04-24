@@ -170,6 +170,19 @@ export function arrayEquals<T>(a: ArrayLike<T>, b: ArrayLike<T>) {
   return true;
 }
 
+type ComparatorFunction<T> = (a: T, b: T) => boolean;
+export function arrayEqualsWithComparator<T>(
+  a: T[],
+  b: T[],
+  cmp: ComparatorFunction<T>
+) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!cmp(a[i], b[i])) return false;
+  }
+  return true;
+}
+
 /**
  * Wraps non-arrays in an array.
  * @param maybeArray

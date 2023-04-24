@@ -31,6 +31,16 @@ export function commonViewCustomizations(publicAPI, model) {
     }
   };
 
+  // provide a renderLater impl that schedules for the next js task
+  let timeout = null;
+  publicAPI.renderLater = () => {
+    if (timeout != null) return;
+    timeout = setTimeout(() => {
+      publicAPI.render();
+      timeout = null;
+    }, 0);
+  };
+
   // add helper function
   publicAPI.removeAllRepresentations = () => {
     model.representations.forEach((rep) => model.renderer.removeViewProp(rep));
