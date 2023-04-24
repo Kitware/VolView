@@ -53,7 +53,10 @@ function _createPointState(
     publicAPI.modified();
   };
 
-  watchStore(publicAPI, model._store, () => getRuler()[model.key]);
+  watchStore(publicAPI, model._store, () => {
+    const ruler = getRuler();
+    return ruler && ruler[model.key];
+  });
 }
 
 const createPointState = macro.newInstance(
