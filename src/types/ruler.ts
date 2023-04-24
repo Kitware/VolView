@@ -36,5 +36,3 @@ export interface Ruler {
    */
   placing?: boolean;
 }
-
-export type RulerPatch = Partial<Omit<Ruler, 'id'>>;
