@@ -208,7 +208,7 @@ export default defineComponent({
         computed(() => pointState.value?.onModified)
       );
       onModified(() => updateVisibility());
-      watchOnce(widget, () => updateVisibility());
+      watchOnce(pointState, () => updateVisibility());
       return visible;
     };
 
