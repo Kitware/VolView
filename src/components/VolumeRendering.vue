@@ -257,11 +257,16 @@ export default defineComponent({
       }
       return [0, 1];
     });
-    const effectiveMappingRange = computed(
+
+    const fullMappingRange = computed(
       () =>
         getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
         imageDataRange.value
     );
+    const fullMappingRangeWidth = computed(() => {
+      const range = fullMappingRange.value;
+      return range[1] - range[0];
+    });
 
     const selectPreset = (name: string) => {
       if (!currentImageID.value) return;
@@ -272,39 +277,38 @@ export default defineComponent({
       );
     };
 
-    const rgbPoints = computed(
-      () =>
-        vtkColorMaps.getPresetByName(colorTransferFunctionRef.value!.preset)
-          ?.RGBPoints
+    // --- mapping range editing --- //
+
+    const rangeShift = ref(0);
+    const rangeWidth = ref(0);
+
+    // reset case
+    watch(
+      [selectedPreset, currentImageID],
+      () => {
+        rangeShift.value = 0;
+        rangeWidth.value = fullMappingRangeWidth.value;
+      },
+      { immediate: true }
     );
 
-    const updateColorMappingRange = (range: [number, number]) => {
-      const { mappingRange } = colorTransferFunctionRef.value ?? {};
-      // guard against infinite loops
-      if (
-        currentImageID.value &&
-        mappingRange &&
-        (Math.abs(range[0] - mappingRange[0]) > 1e-6 ||
-          Math.abs(range[1] - mappingRange[1]) > 1e-6)
-      ) {
-        viewConfigStore.updateVolumeColorTransferFunction(
-          TARGET_VIEW_ID,
-          currentImageID.value,
-          {
-            mappingRange: range,
-          }
-        );
-      }
-    };
+    watch([rangeShift, rangeWidth], ([shift, width]) => {
+      const imageID = currentImageID.value;
+      if (!imageID) return;
 
-    const onColorMappingUpdate = (range: [number, number]) => {
-      request3DAnimation();
-      updateColorMappingRange(range);
-    };
+      const fullRange = fullMappingRange.value;
+      const fullWidth = fullMappingRangeWidth.value;
+      const min = fullRange[0] + Math.floor((fullWidth - width) / 2) + shift;
+      const max = fullRange[1] - Math.ceil((fullWidth - width) / 2) + shift;
 
-    const onColorMappingFinalize = () => {
-      cancel3DAnimation();
-    };
+      viewConfigStore.updateVolumeColorTransferFunction(
+        TARGET_VIEW_ID,
+        imageID,
+        {
+          mappingRange: [min, max],
+        }
+      );
+    });
 
     return {
       editorContainerRef,
@@ -312,7 +316,7 @@ export default defineComponent({
       thumbnails: currentThumbnails,
       hasCurrentImage,
       preset: selectedPreset,
-      fullMappingRange: effectiveMappingRange,
+      fullMappingRange,
       mappingRange: computed(
         () => colorTransferFunctionRef.value!.mappingRange
       ),
@@ -324,10 +328,13 @@ export default defineComponent({
       }),
       presetList: PresetNameList,
       size: THUMBNAIL_SIZE,
-      rgbPoints,
+      rangeShiftMin: computed(() => -fullMappingRangeWidth.value / 2),
+      rangeShiftMax: computed(() => fullMappingRangeWidth.value / 2),
+      rangeShift,
+      rangeWidth,
+      request3DAnimation,
+      cancel3DAnimation,
       selectPreset,
-      onColorMappingUpdate,
-      onColorMappingFinalize,
     };
   },
 });
@@ -338,17 +345,28 @@ export default defineComponent({
     <div class="mt-4 pwf-editor" ref="editorContainerRef">
       <div ref="pwfEditorRef" />
     </div>
-    <div>
-      <v-range-slider
+    <div class="mapping-range-editor">
+      <v-slider
+        v-model="rangeShift"
         density="compact"
         hide-details
-        :min="fullMappingRange[0]"
-        :max="fullMappingRange[1]"
+        label="Shift"
+        :min="rangeShiftMin"
+        :max="rangeShiftMax"
         :step="colorSliderStep"
-        :rgb-points="rgbPoints"
-        :value="mappingRange"
-        @input="onColorMappingUpdate"
-        @change="onColorMappingFinalize"
+        @pointerdown="request3DAnimation"
+        @pointerup="cancel3DAnimation"
+      />
+      <v-slider
+        v-model="rangeWidth"
+        density="compact"
+        hide-details
+        label="Width"
+        min="1"
+        :max="fullMappingRange[1] - fullMappingRange[0]"
+        :step="colorSliderStep"
+        @pointerdown="request3DAnimation"
+        @pointerup="cancel3DAnimation"
       />
     </div>
   </div>
@@ -357,5 +375,9 @@ export default defineComponent({
 <style scoped>
 .pwf-editor {
   touch-action: none;
+}
+
+.mapping-range-editor {
+  padding: 8px 16px 8px 4px;
 }
 </style>
