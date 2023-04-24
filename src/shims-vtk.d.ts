@@ -36,51 +36,6 @@ declare module '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin' {
   export declare function extend(publicAPI: any, model: any): void;
 }
 
-declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget' {
-  import { vtkObject } from '@kitware/vtk.js/interfaces';
-  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-  import vtkProp from '@kitware/vtk.js/Rendering/Core/Prop';
-  import vtkWidgetRepresentation from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation';
-  import vtkInteractorObserver from '@kitware/vtk.js/Rendering/Core/InteractorObserver';
-  import vtkWidgetManager, {
-    RenderingTypes,
-  } from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-  import { EventHandler } from '@kitware/vtk.js/interfaces-additions';
-  import { Bounds } from '@kitware/vtk.js/types';
-
-  export interface vtkAbstractWidget extends vtkProp, vtkInteractorObserver {
-    getBounds(): Bounds;
-    getNestedProps(): vtkWidgetRepresentation[];
-    activateHandle(locator: {
-      selectedState: vtkWidgetState;
-      representation: vtkWidgetRepresentation;
-    }): void;
-    deactivateAllHandles(): void;
-    hasActor(actor: vtkProp): boolean;
-    grabFocus(): void;
-    loseFocus(): void;
-    hasFocus(): boolean;
-    placeWidget(bounds: Bounds): void;
-    getPlaceFactor(): number;
-    setPlaceFactor(factor: number): void;
-    getRepresentationFromActor(actor: vtkProp): vtkWidgetRepresentation;
-    updateRepresentationForRender(renderingType: RenderingTypes): void;
-    getViewWidgets(): vtkAbstractWidget[];
-    setContextVisibility(visible: boolean): boolean;
-    getContextVisibility(): boolean;
-    setHandleVisibility(visible: boolean): boolean;
-    getHandleVisibility(): boolean;
-    setWidgetManager(wm: vtkWidgetManager): boolean;
-    getWidgetManager(): vtkWidgetManager;
-    getRepresentations(): vtkWidgetRepresentation[];
-    getWidgetState(): vtkWidgetState;
-    onActivateHandle(cb: EventHandler, priority?: number): void;
-    invokeActivateHandle(...args: any[]): void;
-  }
-
-  export default vtkAbstractWidget;
-}
-
 declare module '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
   import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
@@ -263,13 +218,6 @@ declare module '@kitware/vtk.js/Widgets/Core/StateBuilder' {
   export declare const vtkStateBuilder: {
     createBuilder: typeof createBuilder;
   };
-}
-
-declare module '@kitware/vtk.js/Common/DataModel/BoundingBox' {
-  import { Bounds } from '@kitware/vtk.js/types';
-  export function inflate(bounds: Bounds, delta: number);
-  export function getDiagonalLength(bounds: Bounds): number;
-  export function intersects(bounds1: Bounds, bounds2: Bounds): boolean;
 }
 
 declare module '@kitware/vtk.js/IO/XML/XMLImageDataWriter' {
