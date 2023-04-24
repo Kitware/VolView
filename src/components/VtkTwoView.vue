@@ -48,6 +48,12 @@
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
+        <rectangle-tool
+          :view-id="viewID"
+          :widget-manager="widgetManager"
+          :view-direction="viewDirection"
+          :current-slice="currentSlice"
+        />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
@@ -201,6 +207,7 @@ import SliceScrollTool from './tools/SliceScrollTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import RulerTool from './tools/RulerTool.vue';
+import RectangleTool from './tools/RectangleTool.vue';
 import PaintTool from './tools/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -254,6 +261,7 @@ export default defineComponent({
     PanTool,
     ZoomTool,
     RulerTool,
+    RectangleTool,
     PaintTool,
     CrosshairsTool,
     CropTool,

@@ -42,6 +42,7 @@ export async function serialize() {
     labelMaps: [],
     tools: {
       rulers: [],
+      rectangles: [],
       crosshairs: {
         position: [0, 0, 0],
       },

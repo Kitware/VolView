@@ -8,6 +8,7 @@ import vtkPiecewiseFunctionProxy, {
 
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
 import { Ruler } from '@/src/types/ruler';
+import { Rectangle } from '@/src/types/rectangle';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 
@@ -250,6 +251,17 @@ const Ruler: z.ZodType<Ruler> = z.object({
   color: z.string(),
 });
 
+const Rectangle: z.ZodType<Rectangle> = z.object({
+  firstPoint: Vector3,
+  secondPoint: Vector3,
+  imageID: z.string(),
+  frameOfReference: FrameOfReference,
+  slice: z.number(),
+  id: z.string() as unknown as z.ZodType<Rectangle['id']>,
+  name: z.string(),
+  color: z.string(),
+});
+
 const Crosshairs = z.object({
   position: Vector3,
 });
@@ -275,6 +287,7 @@ const Cropping = z.record(LPSCroppingPlanes);
 
 const Tools = z.object({
   rulers: Ruler.array(),
+  rectangles: Rectangle.array(),
   crosshairs: Crosshairs,
   paint: Paint,
   crop: Cropping,

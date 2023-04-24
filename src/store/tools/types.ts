@@ -4,6 +4,7 @@ export enum Tools {
   Zoom = 'Zoom',
   Ruler = 'Ruler',
   Paint = 'Paint',
+  Rectangle = 'Rectangle',
   Crosshairs = 'Crosshairs',
   Crop = 'Crop',
 }
