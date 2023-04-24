@@ -43,7 +43,7 @@ function _createPointState(
   const updateRuler = (patch) => model._store.updateRuler(model.id, patch);
 
   publicAPI.getOrigin = () => {
-    return getRuler()[model.key];
+    return getRuler()?.[model.key];
   };
 
   publicAPI.setOrigin = (xyz) => {
@@ -53,10 +53,7 @@ function _createPointState(
     publicAPI.modified();
   };
 
-  watchStore(publicAPI, model._store, () => {
-    const ruler = getRuler();
-    return ruler && ruler[model.key];
-  });
+  watchStore(publicAPI, model._store, () => getRuler()?.[model.key]);
 }
 
 const createPointState = macro.newInstance(
