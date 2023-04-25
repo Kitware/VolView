@@ -19,14 +19,21 @@ function vtkLPSView2DProxy(publicAPI, model) {
 
   // override addRepresentation
   publicAPI.addRepresentation = (rep) => {
-    superClass.addRepresentation(rep);
+    if (!rep) {
+      return;
+    }
+    if (model.representations.indexOf(rep) === -1) {
+      model.representations.push(rep);
+      model.renderer.addViewProp(rep);
+    }
+
     if (rep.setSlicingMode && model.slicingMode) {
       rep.setSlicingMode(model.slicingMode);
     }
   };
 
-  // this basically ignores model.axis
   publicAPI.setSlicingMode = (mode) => {
+    model.axis = 'IJK'.indexOf(mode);
     if (superClass.setSlicingMode(mode) && mode) {
       let count = model.representations.length;
       while (count--) {
