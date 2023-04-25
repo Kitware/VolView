@@ -24,32 +24,22 @@ export function useSceneBuilder<
   );
 
   const baseImageRep = computed(() => {
-    const _viewID = viewID.value;
-    if (sceneIDs.baseImage) {
-      const imageID = sceneIDs.baseImage.value;
-      if (imageID) {
-        return viewStore.getDataRepresentationForView<BaseImageType>(
-          imageID,
-          _viewID
-        );
-      }
-    }
-    return null;
+    const imageID = sceneIDs.baseImage?.value;
+    if (!imageID) return null;
+
+    return viewStore.getDataRepresentationForView<BaseImageType>(
+      imageID,
+      viewID.value
+    );
   });
 
   const labelmapReps = computed(() => {
-    const _viewID = viewID.value;
-    if (sceneIDs.labelmaps) {
-      const labelmapIDs = sceneIDs.labelmaps.value;
-      if (labelmapIDs) {
-        return labelmapIDs
-          .map((id) =>
-            viewStore.getDataRepresentationForView<LabelMapType>(id, _viewID)
-          )
-          .filter(Boolean) as LabelMapType[];
-      }
-    }
-    return [];
+    const labelmapIDs = sceneIDs.labelmaps?.value ?? [];
+    return labelmapIDs
+      .map((id) =>
+        viewStore.getDataRepresentationForView<LabelMapType>(id, viewID.value)
+      )
+      .filter(Boolean) as LabelMapType[];
   });
 
   const layerReps = computed(
@@ -62,18 +52,12 @@ export function useSceneBuilder<
   );
 
   const modelReps = computed(() => {
-    const _viewID = viewID.value;
-    if (sceneIDs.models) {
-      const modelIDs = sceneIDs.models.value;
-      if (modelIDs) {
-        return modelIDs
-          .map((id) =>
-            viewStore.getDataRepresentationForView<ModelType>(id, _viewID)
-          )
-          .filter(Boolean) as ModelType[];
-      }
-    }
-    return [];
+    const modelIDs = sceneIDs.models?.value ?? [];
+    return modelIDs
+      .map((id) =>
+        viewStore.getDataRepresentationForView<ModelType>(id, viewID.value)
+      )
+      .filter(Boolean) as ModelType[];
   });
 
   watch(
