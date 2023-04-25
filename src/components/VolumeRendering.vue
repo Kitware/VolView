@@ -16,7 +16,7 @@ import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransf
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useVTKCallback } from '../composables/useVTKCallback';
-import { useViewConfigStore } from '../store/view-configs';
+import useVolumeColoringStore from '../store/view-configs/volume-coloring';
 import {
   getColorFunctionRangeFromPreset,
   getShiftedOpacityFromPreset,
@@ -24,16 +24,17 @@ import {
 import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
+import { InitViewIDs } from '../config';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
 const THUMBNAIL_SIZE = 80;
-const TARGET_VIEW_ID = '3D';
+const TARGET_VIEW_ID = InitViewIDs.Three;
 
 export default defineComponent({
   name: 'VolumeRendering',
   setup() {
-    const viewConfigStore = useViewConfigStore();
+    const volumeColoringStore = useVolumeColoringStore();
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
 
@@ -41,16 +42,15 @@ export default defineComponent({
 
     const { currentImageID, currentImageData } = useCurrentImage();
 
-    const volumeColorConfig = viewConfigStore.getComputedVolumeColorConfig(
-      TARGET_VIEW_ID,
-      currentImageID
+    const volumeColorConfig = computed(() =>
+      volumeColoringStore.getConfig(TARGET_VIEW_ID, currentImageID.value)
     );
 
     watch(volumeColorConfig, () => {
       const imageID = currentImageID.value;
       if (imageID && !volumeColorConfig.value) {
         // creates a default color config
-        viewConfigStore.updateVolumeColorConfig(TARGET_VIEW_ID, imageID, {});
+        volumeColoringStore.updateConfig(TARGET_VIEW_ID, imageID, {});
       }
     });
 
@@ -104,7 +104,7 @@ export default defineComponent({
 
       const { mode } = opacityFunction.value ?? {};
       if (mode === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
-        viewConfigStore.updateVolumeOpacityFunction(
+        volumeColoringStore.updateOpacityFunction(
           TARGET_VIEW_ID,
           currentImageID.value,
           {
@@ -113,7 +113,7 @@ export default defineComponent({
           }
         );
       } else if (mode === vtkPiecewiseFunctionProxy.Mode.Points) {
-        viewConfigStore.updateVolumeOpacityFunction(
+        volumeColoringStore.updateOpacityFunction(
           TARGET_VIEW_ID,
           currentImageID.value,
           {
@@ -270,7 +270,7 @@ export default defineComponent({
 
     const selectPreset = (name: string) => {
       if (!currentImageID.value) return;
-      viewConfigStore.setVolumeColorPreset(
+      volumeColoringStore.setColorPreset(
         TARGET_VIEW_ID,
         currentImageID.value,
         name
@@ -301,13 +301,9 @@ export default defineComponent({
       const min = fullRange[0] + Math.floor((fullWidth - width) / 2) + shift;
       const max = fullRange[1] - Math.ceil((fullWidth - width) / 2) + shift;
 
-      viewConfigStore.updateVolumeColorTransferFunction(
-        TARGET_VIEW_ID,
-        imageID,
-        {
-          mappingRange: [min, max],
-        }
-      );
+      volumeColoringStore.updateColorTransferFunction(TARGET_VIEW_ID, imageID, {
+        mappingRange: [min, max],
+      });
     });
 
     return {

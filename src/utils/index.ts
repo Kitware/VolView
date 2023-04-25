@@ -2,6 +2,10 @@ import { URL } from 'whatwg-url';
 import { TypedArray } from 'itk-wasm';
 import { EPSILON } from '../constants';
 
+export function identity<T>(arg: T) {
+  return arg;
+}
+
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */

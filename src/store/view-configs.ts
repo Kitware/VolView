@@ -4,7 +4,7 @@ import useViewSliceStore from './view-configs/slicing';
 import useWindowingStore from './view-configs/windowing';
 import { setupLayersConfig } from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
-import { setupVolumeColorConfig } from './view-configs/volume-coloring';
+import useVolumeColoringStore from './view-configs/volume-coloring';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 import { useImageStore } from './datasets-images';
 
@@ -17,14 +17,14 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const windowingStore = useWindowingStore();
   const layersConfig = setupLayersConfig();
   const viewCameraStore = useViewCameraStore();
-  const volumeColorConfig = setupVolumeColorConfig();
+  const volumeColoringStore = useVolumeColoringStore();
 
   const removeView = (viewID: string) => {
     viewSliceStore.removeView(viewID);
     windowingStore.removeView(viewID);
     layersConfig.removeView(viewID);
     viewCameraStore.removeView(viewID);
-    volumeColorConfig.removeView(viewID);
+    volumeColoringStore.removeView(viewID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
@@ -32,7 +32,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     windowingStore.removeData(dataID, viewID);
     layersConfig.removeData(dataID, viewID);
     viewCameraStore.removeData(dataID, viewID);
-    volumeColorConfig.removeData(dataID, viewID);
+    volumeColoringStore.removeData(dataID, viewID);
   };
 
   const serialize = (stateFile: StateFile) => {
@@ -40,7 +40,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     windowingStore.serialize(stateFile);
     layersConfig.serialize(stateFile);
     viewCameraStore.serialize(stateFile);
-    volumeColorConfig.serialize(stateFile);
+    volumeColoringStore.serialize(stateFile);
   };
 
   const deserialize = (
@@ -59,7 +59,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     windowingStore.deserialize(viewID, updatedConfig);
     layersConfig.deserialize(viewID, updatedConfig);
     viewCameraStore.deserialize(viewID, updatedConfig);
-    volumeColorConfig.deserialize(viewID, updatedConfig);
+    volumeColoringStore.deserialize(viewID, updatedConfig);
   };
 
   // delete hook
@@ -76,7 +76,6 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     removeData,
     serialize,
     deserialize,
-    ...volumeColorConfig.actions,
     layers: layersConfig.actions,
   };
 });

@@ -77,14 +77,13 @@ import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
-import { useViewConfigStore } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import { useModelStore } from '../store/datasets-models';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
 import { VolumeColorConfig } from '../store/view-configs/types';
-import {
+import useVolumeColoringStore, {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
@@ -96,12 +95,12 @@ import { useWidgetManager } from '../composables/useWidgetManager';
 import { VTKThreeViewWidgetManager } from '../constants';
 import { useCropStore, croppingPlanesEqual } from '../store/tools/crop';
 import { isViewAnimating } from '../composables/isViewAnimating';
-import { arrayEquals } from '../utils';
 import { ColoringConfig } from '../types/views';
 import useViewCameraStore from '../store/view-configs/camera';
+import { Maybe } from '../types';
 
 function useCvrEffect(
-  config: Ref<VolumeColorConfig | undefined>,
+  config: Ref<Maybe<VolumeColorConfig>>,
   imageRep: Ref<vtkVolumeRepresentationProxy | null>,
   viewProxy: Ref<vtkLPSView3DProxy>
 ) {
@@ -148,8 +147,8 @@ function useCvrEffect(
 
   watch(
     [volumeCenter, renderer, cvrEnabled, lightFollowsCamera],
-    ([center, ren, enabled, lightFollowsCamera_], [oldCenter]) => {
-      if (!center || (oldCenter && arrayEquals(center, oldCenter))) return;
+    ([center, ren, enabled, lightFollowsCamera_]) => {
+      if (!center) return;
 
       if (ren.getLights().length === 0) {
         ren.createLight();
@@ -318,7 +317,7 @@ function useCvrEffect(
 }
 
 function useColoringEffect(
-  config: Ref<ColoringConfig | undefined>,
+  config: Ref<Maybe<ColoringConfig>>,
   imageRep: Ref<vtkVolumeRepresentationProxy | null>,
   viewProxy: Ref<vtkLPSView3DProxy>
 ) {
@@ -402,7 +401,7 @@ export default defineComponent({
   },
   setup(props) {
     const modelStore = useModelStore();
-    const viewConfigStore = useViewConfigStore();
+    const volumeColoringStore = useVolumeColoringStore();
     const viewCameraStore = useViewCameraStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -536,9 +535,8 @@ export default defineComponent({
 
     // --- coloring setup --- //
 
-    const volumeColorConfig = viewConfigStore.getComputedVolumeColorConfig(
-      viewID,
-      curImageID
+    const volumeColorConfig = computed(() =>
+      volumeColoringStore.getConfig(viewID.value, curImageID.value)
     );
 
     watch(
@@ -549,7 +547,7 @@ export default defineComponent({
           currentImageData.value &&
           !volumeColorConfig.value
         ) {
-          viewConfigStore.resetToDefaultColoring(
+          volumeColoringStore.resetToDefaultColoring(
             viewID.value,
             curImageID.value,
             currentImageData.value

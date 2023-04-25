@@ -1,5 +1,3 @@
-import { MaybeRef } from '@vueuse/core';
-import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import {
@@ -8,13 +6,19 @@ import {
 } from '@/src/utils/vtk-helpers';
 import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
 import { ColorTransferFunction } from '@/src/types/views';
+import { defineStore } from 'pinia';
+import { reactive } from 'vue';
 import {
-  removeDataFromConfig,
-  removeViewFromConfig,
-  serializeViewConfig,
-} from './common';
+  DoubleKeyRecord,
+  deleteSecondKey,
+  getDoubleKeyRecord,
+  patchDoubleKeyRecord,
+} from '@/src/utils/doubleKeyRecord';
+import { Maybe } from '@/src/types';
+import { identity } from '@/src/utils';
+import { createViewConfigSerializer } from './common';
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
-import { StateFile, ViewConfig } from '../../io/state-file/schema';
+import { ViewConfig } from '../../io/state-file/schema';
 import { VolumeColorConfig } from './types';
 import { useDICOMStore } from '../datasets-dicom';
 import { useImageStore } from '../datasets-images';
@@ -64,65 +68,50 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
   },
 });
 
-export const setupVolumeColorConfig = () => {
-  // (viewID, dataID) -> VolumeColorConfig
-  const volumeColorConfigs = useDoubleRecord<VolumeColorConfig>();
+export const useVolumeColoringStore = defineStore('volumeColoring', () => {
+  const configs = reactive<DoubleKeyRecord<VolumeColorConfig>>({});
 
-  const getVolumeColorConfig = (viewID: string, dataID: string) =>
-    volumeColorConfigs.get(viewID, dataID);
+  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
+    getDoubleKeyRecord(configs, viewID, dataID);
 
-  const getComputedVolumeColorConfig = (
-    viewID: MaybeRef<string | null>,
-    dataID: MaybeRef<string | null>
-  ) => volumeColorConfigs.getComputed(viewID, dataID);
-
-  const updateVolumeColorConfig = (
+  const updateConfig = (
     viewID: string,
     dataID: string,
-    update: Partial<VolumeColorConfig>
+    patch: Partial<VolumeColorConfig>
   ) => {
     const config = {
       ...defaultVolumeColorConfig(),
-      ...volumeColorConfigs.get(viewID, dataID),
-      ...update,
+      ...getConfig(viewID, dataID),
+      ...patch,
     };
-    volumeColorConfigs.set(viewID, dataID, config);
+
+    patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
 
   const createUpdateFunc = <K extends keyof VolumeColorConfig>(
     key: K,
-    validator: (config: VolumeColorConfig[K]) => VolumeColorConfig[K] = (i) => i
+    transform: (config: VolumeColorConfig[K]) => VolumeColorConfig[K] = identity
   ) => {
     return (
       viewID: string,
       dataID: string,
       update: Partial<VolumeColorConfig[K]>
     ) => {
-      const config =
-        volumeColorConfigs.get(viewID, dataID) ?? defaultVolumeColorConfig();
-      const updatedConfig = validator({
+      const config = getConfig(viewID, dataID) ?? defaultVolumeColorConfig();
+      const updatedConfig = transform({
         ...config[key],
         ...update,
       });
-      updateVolumeColorConfig(viewID, dataID, { [key]: updatedConfig });
+      updateConfig(viewID, dataID, { [key]: updatedConfig });
     };
   };
 
-  const updateVolumeColorBy = createUpdateFunc('colorBy');
-  const updateVolumeColorTransferFunction =
-    createUpdateFunc('transferFunction');
-  const updateVolumeOpacityFunction = createUpdateFunc('opacityFunction');
-  const updateVolumeCVRParameters = createUpdateFunc('cvr', (cvrConfig) => {
-    return {
-      ...cvrConfig,
-    };
-  });
+  const updateColorBy = createUpdateFunc('colorBy');
+  const updateColorTransferFunction = createUpdateFunc('transferFunction');
+  const updateOpacityFunction = createUpdateFunc('opacityFunction');
+  const updateCVRParameters = createUpdateFunc('cvr');
 
-  const setVolumeColorPreset = (
-    viewID: string,
-    imageID: string,
-    preset: string
-  ) => {
+  const setColorPreset = (viewID: string, imageID: string, preset: string) => {
     const imageStore = useImageStore();
     const image = imageStore.dataIndex[imageID];
     if (!image) return;
@@ -133,11 +122,11 @@ export const setupVolumeColorConfig = () => {
       preset,
       mappingRange: ctRange || imageDataRange,
     };
-    updateVolumeColorTransferFunction(viewID, imageID, ctFunc);
+    updateColorTransferFunction(viewID, imageID, ctFunc);
 
     const opFunc = getOpacityFunctionFromPreset(preset);
     opFunc.mappingRange = imageDataRange;
-    updateVolumeOpacityFunction(viewID, imageID, opFunc);
+    updateOpacityFunction(viewID, imageID, opFunc);
   };
 
   const resetToDefaultColoring = (
@@ -147,40 +136,50 @@ export const setupVolumeColorConfig = () => {
   ) => {
     const scalars = image.getPointData().getScalars();
 
-    updateVolumeColorBy(viewID, dataID, {
+    updateColorBy(viewID, dataID, {
       arrayName: scalars.getName(),
       location: 'pointData',
     });
-    setVolumeColorPreset(viewID, dataID, getPresetFromImageModality(dataID));
+    setColorPreset(viewID, dataID, getPresetFromImageModality(dataID));
   };
 
-  const serialize = (stateFile: StateFile) => {
-    serializeViewConfig(stateFile, getVolumeColorConfig, 'volumeColorConfig');
+  const removeView = (viewID: string) => {
+    delete configs[viewID];
   };
+
+  const removeData = (dataID: string, viewID?: string) => {
+    if (viewID) {
+      delete configs[viewID]?.[dataID];
+    } else {
+      deleteSecondKey(configs, dataID);
+    }
+  };
+
+  const serialize = createViewConfigSerializer(configs, 'volumeColorConfig');
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.volumeColorConfig) {
-        volumeColorConfigs.set(viewID, dataID, viewConfig.volumeColorConfig);
+        updateConfig(viewID, dataID, viewConfig.volumeColorConfig);
       }
     });
   };
 
   return {
-    removeView: removeViewFromConfig(volumeColorConfigs),
-    removeData: removeDataFromConfig(volumeColorConfigs),
+    configs,
+    getConfig,
+    updateConfig,
+    updateColorBy,
+    updateColorTransferFunction,
+    updateOpacityFunction,
+    updateCVRParameters,
+    resetToDefaultColoring,
+    setColorPreset,
+    removeView,
+    removeData,
     serialize,
     deserialize,
-    actions: {
-      getVolumeColorConfig,
-      getComputedVolumeColorConfig,
-      updateVolumeColorConfig,
-      updateVolumeColorBy,
-      updateVolumeColorTransferFunction,
-      updateVolumeOpacityFunction,
-      updateVolumeCVRParameters,
-      resetToDefaultColoring,
-      setVolumeColorPreset,
-    },
   };
-};
+});
+
+export default useVolumeColoringStore;
