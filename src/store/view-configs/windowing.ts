@@ -1,10 +1,14 @@
-import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
+import { defineStore } from 'pinia';
+import { reactive, ref } from 'vue';
 import {
-  removeDataFromConfig,
-  removeViewFromConfig,
-  serializeViewConfig,
-} from './common';
-import { StateFile, ViewConfig } from '../../io/state-file/schema';
+  DoubleKeyRecord,
+  deleteSecondKey,
+  getDoubleKeyRecord,
+  patchDoubleKeyRecord,
+} from '@/src/utils/doubleKeyRecord';
+import { Maybe } from '@/src/types';
+import { createViewConfigSerializer } from './common';
+import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
 
 export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
@@ -14,56 +18,97 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   max: 1,
 });
 
-export const setupWindowingConfig = () => {
-  // (viewID, dataID) -> WindowLevelConfig
-  const windowLevelConfigs = useDoubleRecord<WindowLevelConfig>();
+const useWindowingStore = defineStore('windowing', () => {
+  const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
+  const syncAcrossViews = ref(true);
 
-  const getWindowingConfig = (viewID: string, dataID: string) =>
-    windowLevelConfigs.get(viewID, dataID);
-
-  const updateWindowingConfig = (
-    viewID: string,
-    dataID: string,
-    update: Partial<WindowLevelConfig>
-  ) => {
-    const config = {
-      ...defaultWindowLevelConfig(),
-      ...windowLevelConfigs.get(viewID, dataID),
-      ...update,
-    };
-    windowLevelConfigs.set(viewID, dataID, config);
+  const setSyncAcrossViews = (yn: boolean) => {
+    syncAcrossViews.value = yn;
   };
 
-  const resetWindowLevel = (viewID: string, dataID: string) => {
-    if (windowLevelConfigs.has(viewID, dataID)) {
-      const config = windowLevelConfigs.get(viewID, dataID)!;
-      const width = config.max - config.min;
-      const level = (config.max + config.min) / 2;
-      updateWindowingConfig(viewID, dataID, { width, level });
+  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
+    getDoubleKeyRecord(configs, viewID, dataID);
+
+  /**
+   * Syncs the window/level params of (srcViewID, srcDataID) across all views.
+   * @param srcViewID
+   * @param srcDataID
+   */
+  const syncWindowLevel = (srcViewID: string, srcDataID: string) => {
+    if (!syncAcrossViews.value) return;
+
+    const config = configs[srcViewID]?.[srcDataID];
+    if (!config) return;
+
+    const { width, level } = config;
+    Object.keys(configs)
+      .filter((viewID) => viewID !== srcViewID)
+      .forEach((viewID) => {
+        patchDoubleKeyRecord(configs, viewID, srcDataID, {
+          width,
+          level,
+        });
+      });
+  };
+
+  const updateConfig = (
+    viewID: string,
+    dataID: string,
+    patch: Partial<WindowLevelConfig>
+  ) => {
+    patchDoubleKeyRecord(configs, viewID, dataID, {
+      ...defaultWindowLevelConfig(),
+      ...configs[viewID]?.[dataID],
+      ...patch,
+    });
+
+    if (syncAcrossViews.value) {
+      syncWindowLevel(viewID, dataID);
     }
   };
 
-  const serialize = (stateFile: StateFile) => {
-    serializeViewConfig(stateFile, getWindowingConfig, 'window');
+  const resetWindowLevel = (viewID: string, dataID: string) => {
+    const config = configs[viewID]?.[dataID];
+    if (config == null) return;
+
+    const width = config.max - config.min;
+    const level = (config.max + config.min) / 2;
+    updateConfig(viewID, dataID, { width, level });
   };
+
+  const removeView = (viewID: string) => {
+    delete configs[viewID];
+  };
+
+  const removeData = (dataID: string, viewID?: string) => {
+    if (viewID) {
+      delete configs[viewID]?.[dataID];
+    } else {
+      deleteSecondKey(configs, dataID);
+    }
+  };
+
+  const serialize = createViewConfigSerializer(configs, 'window');
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.window) {
-        windowLevelConfigs.set(viewID, dataID, viewConfig.window);
+        updateConfig(viewID, dataID, viewConfig.window);
       }
     });
   };
 
   return {
-    removeView: removeViewFromConfig(windowLevelConfigs),
-    removeData: removeDataFromConfig(windowLevelConfigs),
+    configs,
+    getConfig,
+    setSyncAcrossViews,
+    updateConfig,
+    resetWindowLevel,
+    removeView,
+    removeData,
     serialize,
     deserialize,
-    actions: {
-      getWindowingConfig,
-      updateWindowingConfig,
-      resetWindowLevel,
-    },
   };
-};
+});
+
+export default useWindowingStore;

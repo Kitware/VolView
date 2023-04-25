@@ -202,6 +202,7 @@ import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import { useViewConfigStore } from '../store/view-configs';
+import useWindowingStore from '../store/view-configs/windowing';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
@@ -210,7 +211,6 @@ import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { CameraConfig } from '../store/view-configs/types';
 import { defaultSliceConfig } from '../store/view-configs/slicing';
-import { useWindowingSync } from '../composables/sync/useWindowingSync';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
@@ -255,6 +255,7 @@ export default defineComponent({
   },
   setup(props) {
     const viewConfigStore = useViewConfigStore();
+    const windowingStore = useWindowingStore();
     const paintStore = usePaintToolStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -298,22 +299,11 @@ export default defineComponent({
     );
 
     const wlConfig = computed({
-      get: () => {
-        const _viewID = viewID.value;
-        const imageID = curImageID.value;
-        if (imageID !== null) {
-          return viewConfigStore.getWindowingConfig(_viewID, imageID) ?? null;
-        }
-        return null;
-      },
+      get: () => windowingStore.getConfig(viewID.value, curImageID.value),
       set: (newValue) => {
         const imageID = curImageID.value;
         if (imageID !== null && newValue != null) {
-          viewConfigStore.updateWindowingConfig(
-            viewID.value,
-            imageID,
-            newValue
-          );
+          windowingStore.updateConfig(viewID.value, imageID, newValue);
         }
       },
     });
@@ -445,34 +435,23 @@ export default defineComponent({
 
     watch(
       curImageData,
-      (imageData, oldImageData) => {
-        if (imageData && imageData !== oldImageData) {
-          // TODO listen to changes in point data
-          const range = imageData.getPointData().getScalars().getRange();
-          if (
-            curImageID.value !== null &&
-            !viewConfigStore.getWindowingConfig(viewID.value, curImageID.value)
-          ) {
-            viewConfigStore.updateWindowingConfig(
-              viewID.value,
-              curImageID.value,
-              {
-                min: range[0],
-                max: range[1],
-              }
-            );
-            viewConfigStore.resetWindowLevel(viewID.value, curImageID.value);
-          }
+      (imageData) => {
+        if (curImageID.value == null || wlConfig.value != null || !imageData) {
+          return;
         }
+
+        // TODO listen to changes in point data
+        const range = imageData.getPointData().getScalars().getRange();
+        windowingStore.updateConfig(viewID.value, curImageID.value, {
+          min: range[0],
+          max: range[1],
+        });
+        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
       },
       {
         immediate: true,
       }
     );
-
-    // --- sync windowing parameters --- //
-
-    useWindowingSync(curImageID, wlConfig);
 
     // --- scene setup --- //
 
@@ -609,7 +588,7 @@ export default defineComponent({
     // --- apply windowing and slice configs --- //
 
     watchEffect(() => {
-      if (sliceConfig.value === null || wlConfig.value === null) {
+      if (sliceConfig.value == null || wlConfig.value == null) {
         return;
       }
 

@@ -1,5 +1,7 @@
 import { StoreDefinition } from 'pinia';
 
+export type Maybe<T> = T | null | undefined;
+
 export type NullableValues<T> = {
   [K in keyof T]: T[K] | null;
 };
