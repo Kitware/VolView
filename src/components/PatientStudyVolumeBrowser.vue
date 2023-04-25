@@ -260,7 +260,7 @@ export default defineComponent({
                         <v-row no-gutters justify="end" align-content="start">
                           <div class="layer-btn-container">
                             <v-btn
-                              v-show="volume.layerable"
+                              :disabled="!volume.layerable"
                               :loading="volume.loading"
                               icon
                               variant="plain"
