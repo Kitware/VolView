@@ -350,7 +350,10 @@ export default defineComponent({
           // Use the average spacing for sampling by default
           let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
           // Adjust the volume sampling by the quality slider value
-          sampleDistance /= 0.5 * (params.volumeQuality * params.volumeQuality);
+          sampleDistance /=
+            params.volumeQuality > 1
+              ? 0.5 * (params.volumeQuality * params.volumeQuality)
+              : 1.0;
           const samplesPerRay = spatialDiagonal / sampleDistance + 1;
           mapper.setMaximumSamplesPerRay(samplesPerRay);
           mapper.setSampleDistance(sampleDistance);
