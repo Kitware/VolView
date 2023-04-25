@@ -58,6 +58,7 @@ import {
   toRefs,
   watch,
   Ref,
+  nextTick,
 } from 'vue';
 import { computedWithControl } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
@@ -499,12 +500,13 @@ export default defineComponent({
 
         // We don't want to reset the camera if we have a config we are restoring
         if (!cameraConfig) {
-          resetCamera();
+          // nextTick ensures resetCamera gets called after
+          // useSceneBuilder refreshes the scene.
+          nextTick(resetCamera);
         }
       },
       {
         immediate: true,
-        deep: true,
       }
     );
 
