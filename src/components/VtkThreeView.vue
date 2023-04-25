@@ -335,6 +335,7 @@ export default defineComponent({
           mapper.setSampleDistance(0.75);
           mapper.setMaximumSamplesPerRay(1000);
           mapper.setGlobalIlluminationReach(0);
+          mapper.setComputeNormalFromOpacity(false);
         } else {
           const dims = image.getDimensions();
           const spacing = image.getSpacing();
@@ -360,6 +361,9 @@ export default defineComponent({
         }
 
         property.setShade(true);
+        mapper.setComputeNormalFromOpacity(
+          !enabled && params.volumeQuality > 2
+        );
         property.setUseGradientOpacity(0, !enabled);
         property.setGradientOpacityMinimumValue(0, 0.0);
         const dataRange = image.getPointData().getScalars().getRange();
