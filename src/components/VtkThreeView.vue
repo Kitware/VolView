@@ -83,7 +83,7 @@ import { useModelStore } from '../store/datasets-models';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
-import { CameraConfig, VolumeColorConfig } from '../store/view-configs/types';
+import { VolumeColorConfig } from '../store/view-configs/types';
 import {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
@@ -98,6 +98,7 @@ import { useCropStore, croppingPlanesEqual } from '../store/tools/crop';
 import { isViewAnimating } from '../composables/isViewAnimating';
 import { arrayEquals } from '../utils';
 import { ColoringConfig } from '../types/views';
+import useViewCameraStore from '../store/view-configs/camera';
 
 function useCvrEffect(
   config: Ref<VolumeColorConfig | undefined>,
@@ -402,6 +403,7 @@ export default defineComponent({
   setup(props) {
     const modelStore = useModelStore();
     const viewConfigStore = useViewConfigStore();
+    const viewCameraStore = useViewCameraStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
 
@@ -491,13 +493,10 @@ export default defineComponent({
     watch(
       [baseImageRep, cameraDirVec, cameraUpVec],
       () => {
-        let cameraConfig: CameraConfig | undefined;
-        if (curImageID.value !== null) {
-          cameraConfig = viewConfigStore.getCameraConfig(
-            viewID.value,
-            curImageID.value
-          );
-        }
+        const cameraConfig = viewCameraStore.getConfig(
+          viewID.value,
+          curImageID.value
+        );
 
         // We don't want to reset the camera if we have a config we are restoring
         if (!cameraConfig) {
@@ -522,13 +521,10 @@ export default defineComponent({
 
     watch(curImageID, () => {
       // See if we have a camera configuration to restore
-      let cameraConfig = null;
-      if (curImageID.value !== null) {
-        cameraConfig = viewConfigStore.getCameraConfig(
-          viewID.value,
-          curImageID.value
-        );
-      }
+      const cameraConfig = viewCameraStore.getConfig(
+        viewID.value,
+        curImageID.value
+      );
 
       if (cameraConfig) {
         restoreCameraConfig(cameraConfig);

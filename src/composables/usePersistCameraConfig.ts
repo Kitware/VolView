@@ -1,8 +1,8 @@
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import { Ref } from 'vue';
-import { useViewConfigStore } from '../store/view-configs';
 import { CameraConfig } from '../store/view-configs/types';
 import { vtkLPSViewProxy } from '../types/vtk-types';
+import useViewCameraStore from '../store/view-configs/camera';
 
 export function usePersistCameraConfig(
   viewID: Ref<string>,
@@ -10,7 +10,7 @@ export function usePersistCameraConfig(
   viewProxy: Ref<vtkLPSViewProxy>,
   ...toPersist: (keyof CameraConfig)[]
 ) {
-  const viewConfigStore = useViewConfigStore();
+  const viewCameraStore = useViewCameraStore();
   let persistCameraConfig = true;
 
   // We setup this list of functions to avoid if and indexOf in the onModified
@@ -20,7 +20,7 @@ export function usePersistCameraConfig(
   if (toPersist.indexOf('position') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+        viewCameraStore.updateConfig(viewID.value, dataID.value, {
           position: viewProxy.value.getCamera().getPosition(),
         });
       }
@@ -29,7 +29,7 @@ export function usePersistCameraConfig(
   if (toPersist.indexOf('viewUp') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+        viewCameraStore.updateConfig(viewID.value, dataID.value, {
           viewUp: viewProxy.value.getCamera().getViewUp(),
         });
       }
@@ -38,7 +38,7 @@ export function usePersistCameraConfig(
   if (toPersist.indexOf('focalPoint') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+        viewCameraStore.updateConfig(viewID.value, dataID.value, {
           focalPoint: viewProxy.value.getCamera().getFocalPoint(),
         });
       }
@@ -47,7 +47,7 @@ export function usePersistCameraConfig(
   if (toPersist.indexOf('directionOfProjection') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+        viewCameraStore.updateConfig(viewID.value, dataID.value, {
           directionOfProjection: viewProxy.value
             .getCamera()
             .getDirectionOfProjection(),
@@ -58,7 +58,7 @@ export function usePersistCameraConfig(
   if (toPersist.indexOf('parallelScale') > -1) {
     persist.push(() => {
       if (dataID.value !== null && persistCameraConfig) {
-        viewConfigStore.updateCameraConfig(viewID.value, dataID.value, {
+        viewCameraStore.updateConfig(viewID.value, dataID.value, {
           parallelScale: viewProxy.value.getCamera().getParallelScale(),
         });
       }

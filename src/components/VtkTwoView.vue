@@ -209,7 +209,6 @@ import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
-import { CameraConfig } from '../store/view-configs/types';
 import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
@@ -218,6 +217,7 @@ import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
+import { useViewCameraStore } from '../store/view-configs/camera';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -259,6 +259,7 @@ export default defineComponent({
     const viewConfigStore = useViewConfigStore();
     const windowingStore = useWindowingStore();
     const viewSliceStore = useViewSliceStore();
+    const viewCameraStore = useViewCameraStore();
     const paintStore = usePaintToolStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -548,13 +549,10 @@ export default defineComponent({
     watch(
       [curImageID, cameraDirVec, cameraUpVec],
       () => {
-        let cameraConfig: CameraConfig | undefined;
-        if (curImageID.value !== null) {
-          cameraConfig = viewConfigStore.getCameraConfig(
-            viewID.value,
-            curImageID.value
-          );
-        }
+        const cameraConfig = viewCameraStore.getConfig(
+          viewID.value,
+          curImageID.value
+        );
 
         // If we have a saved camera configuration restore it
         if (cameraConfig) {
