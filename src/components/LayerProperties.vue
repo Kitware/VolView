@@ -2,10 +2,10 @@
 import { computed, defineComponent, PropType, toRefs, watch } from 'vue';
 import { InitViewSpecs } from '../config';
 import { useImageStore } from '../store/datasets-images';
-import { useViewConfigStore } from '../store/view-configs';
 import { BlendConfig } from '../types/views';
 import { Layer } from '../store/datasets-layers';
 import { useDICOMStore } from '../store/datasets-dicom';
+import useLayerColoringStore from '../store/view-configs/layers';
 
 const VIEWS_2D = Object.entries(InitViewSpecs)
   .filter(([, { viewType }]) => viewType === '2D')
@@ -34,33 +34,33 @@ export default defineComponent({
       throw new Error(`invalid selection type ${_exhaustiveCheck}`);
     });
 
-    const viewConfigStore = useViewConfigStore();
+    const layerColoringStore = useLayerColoringStore();
 
     const layerID = computed(() => layer.value.id);
 
     const layerConfigs = computed(() =>
       VIEWS_2D.map((viewID) => ({
-        config: viewConfigStore.layers.getComputedConfig(viewID, layerID),
+        config: layerColoringStore.getConfig(viewID, layerID.value),
         viewID,
       }))
     );
 
     watch(layerConfigs, () => {
       layerConfigs.value.forEach(({ config, viewID }) => {
-        if (!config.value) {
+        if (!config) {
           // init to defaults
-          viewConfigStore.layers.updateBlendConfig(viewID, layerID.value, {});
+          layerColoringStore.updateBlendConfig(viewID, layerID.value, {});
         }
       });
     });
 
     const blendConfig = computed(
-      () => layerConfigs.value?.[0].config.value?.blendConfig
+      () => layerConfigs.value?.[0].config?.blendConfig
     );
 
     const setBlendConfig = (key: keyof BlendConfig, value: any) => {
       layerConfigs.value.forEach(({ viewID }) =>
-        viewConfigStore.layers.updateBlendConfig(viewID, layerID.value, {
+        layerColoringStore.updateBlendConfig(viewID, layerID.value, {
           [key]: value,
         })
       );
@@ -85,8 +85,8 @@ export default defineComponent({
       density="compact"
       hide-details
       thumb-label
-      :value="blendConfig.opacity"
-      @input="setBlendConfig('opacity', $event)"
+      :model-value="blendConfig.opacity"
+      @update:model-value="setBlendConfig('opacity', $event)"
     />
   </div>
 </template>

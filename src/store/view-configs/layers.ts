@@ -1,20 +1,23 @@
-import { MaybeRef } from '@vueuse/core';
-import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import {
   getColorFunctionRangeFromPreset,
   getOpacityFunctionFromPreset,
-  getOpacityRangeFromPreset,
 } from '@/src/utils/vtk-helpers';
 import { ColorTransferFunction } from '@/src/types/views';
+import { defineStore } from 'pinia';
+import { reactive } from 'vue';
 import {
-  removeDataFromConfig,
-  removeViewFromConfig,
-  serializeViewConfig,
-} from './common';
+  DoubleKeyRecord,
+  deleteSecondKey,
+  getDoubleKeyRecord,
+  patchDoubleKeyRecord,
+} from '@/src/utils/doubleKeyRecord';
+import { Maybe } from '@/src/types';
+import { identity } from '@/src/utils';
+import { createViewConfigSerializer } from './common';
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
-import { StateFile, ViewConfig } from '../../io/state-file/schema';
+import { ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
 import { LayerID, useLayersStore } from '../datasets-layers';
 import { useDICOMStore } from '../datasets-dicom';
@@ -54,42 +57,37 @@ export const defaultLayersConfig = (): LayersConfig => ({
   blendConfig: { opacity: 0.6 },
 });
 
-export const setupLayersConfig = () => {
-  // (viewID, dataID) -> LayersConfig
-  const layersConfigs = useDoubleRecord<LayersConfig>();
+export const useLayerColoringStore = defineStore('layerColoring', () => {
+  const configs = reactive<DoubleKeyRecord<LayersConfig>>({});
 
-  const getConfig = (viewID: string, dataID: string) =>
-    layersConfigs.get(viewID, dataID);
-
-  const getComputedConfig = (
-    viewID: MaybeRef<string | null>,
-    dataID: MaybeRef<string | null>
-  ) => layersConfigs.getComputed(viewID, dataID);
+  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
+    getDoubleKeyRecord(configs, viewID, dataID);
 
   const updateConfig = (
     viewID: string,
     dataID: string,
-    update: Partial<LayersConfig>
+    patch: Partial<LayersConfig>
   ) => {
     const config = {
       ...defaultLayersConfig(),
-      ...layersConfigs.get(viewID, dataID),
-      ...update,
+      ...getConfig(viewID, dataID),
+      ...patch,
     };
-    layersConfigs.set(viewID, dataID, config);
+
+    patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
 
   const createUpdateFunc = <K extends keyof LayersConfig>(
     key: K,
-    validator: (config: LayersConfig[K]) => LayersConfig[K] = (i) => i
+    transform: (config: LayersConfig[K]) => LayersConfig[K] = identity
   ) => {
     return (
       viewID: string,
       dataID: LayerID,
       update: Partial<LayersConfig[K]>
     ) => {
-      const config = layersConfigs.get(viewID, dataID) ?? defaultLayersConfig();
-      const updatedConfig = validator({
+      const config = getConfig(viewID, dataID) ?? defaultLayersConfig();
+      const updatedConfig = transform({
         ...config[key],
         ...update,
       });
@@ -98,15 +96,14 @@ export const setupLayersConfig = () => {
   };
 
   const updateColorBy = createUpdateFunc('colorBy');
-  const updateTransferFunction = createUpdateFunc('transferFunction');
+  const updateColorTransferFunction = createUpdateFunc('transferFunction');
   const updateOpacityFunction = createUpdateFunc('opacityFunction');
   const updateBlendConfig = createUpdateFunc('blendConfig');
 
   const setColorPreset = (viewID: string, layerID: LayerID, preset: string) => {
     const layersStore = useLayersStore();
     const image = layersStore.layerImages[layerID];
-    if (!image) throw new Error('No image for layer');
-
+    if (!image) return;
     const imageDataRange = image.getPointData().getScalars().getRange();
 
     const ctRange = getColorFunctionRangeFromPreset(preset);
@@ -114,11 +111,10 @@ export const setupLayersConfig = () => {
       preset,
       mappingRange: ctRange || imageDataRange,
     };
-    updateTransferFunction(viewID, layerID, ctFunc);
+    updateColorTransferFunction(viewID, layerID, ctFunc);
 
     const opFunc = getOpacityFunctionFromPreset(preset);
-    const opRange = getOpacityRangeFromPreset(preset);
-    opFunc.mappingRange = opRange || imageDataRange;
+    opFunc.mappingRange = imageDataRange;
     updateOpacityFunction(viewID, layerID, opFunc);
   };
 
@@ -136,33 +132,43 @@ export const setupLayersConfig = () => {
     setColorPreset(viewID, dataID, getPreset(dataID));
   };
 
-  const serialize = (stateFile: StateFile) => {
-    serializeViewConfig(stateFile, getConfig, 'layers');
+  const removeView = (viewID: string) => {
+    delete configs[viewID];
   };
+
+  const removeData = (dataID: string, viewID?: string) => {
+    if (viewID) {
+      delete configs[viewID]?.[dataID];
+    } else {
+      deleteSecondKey(configs, dataID);
+    }
+  };
+
+  const serialize = createViewConfigSerializer(configs, 'layers');
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.layers) {
-        layersConfigs.set(viewID, dataID, viewConfig.layers);
+        updateConfig(viewID, dataID, viewConfig.layers);
       }
     });
   };
 
   return {
-    removeView: removeViewFromConfig(layersConfigs),
-    removeData: removeDataFromConfig(layersConfigs),
+    configs,
+    getConfig,
+    updateConfig,
+    updateColorBy,
+    updateColorTransferFunction,
+    updateOpacityFunction,
+    updateBlendConfig,
+    resetToDefault,
+    setColorPreset,
+    removeView,
+    removeData,
     serialize,
     deserialize,
-    actions: {
-      getConfig,
-      getComputedConfig,
-      updateConfig,
-      updateColorBy,
-      updateTransferFunction,
-      updateOpacityFunction,
-      updateBlendConfig,
-      resetToDefault,
-      setColorPreset,
-    },
   };
-};
+});
+
+export default useLayerColoringStore;

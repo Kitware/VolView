@@ -201,7 +201,6 @@ import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
-import { useViewConfigStore } from '../store/view-configs';
 import useWindowingStore from '../store/view-configs/windowing';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
@@ -218,6 +217,7 @@ import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
+import useLayerColoringStore from '../store/view-configs/layers';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -256,10 +256,10 @@ export default defineComponent({
     CropTool,
   },
   setup(props) {
-    const viewConfigStore = useViewConfigStore();
     const windowingStore = useWindowingStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
+    const layerColoringStore = useLayerColoringStore();
     const paintStore = usePaintToolStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -611,9 +611,7 @@ export default defineComponent({
     // --- layers setup --- //
 
     const layersConfigs = computed(() =>
-      layerIDs.value.map((id) =>
-        viewConfigStore.layers.getComputedConfig(viewID, id)
-      )
+      layerIDs.value.map((id) => layerColoringStore.getConfig(viewID.value, id))
     );
 
     const layersStore = useLayersStore();
@@ -622,9 +620,9 @@ export default defineComponent({
       () => {
         currentLayers.value.forEach(({ id }, layerIndex) => {
           const image = layersStore.layerImages[id];
-          const layerConfig = layersConfigs.value[layerIndex].value;
+          const layerConfig = layersConfigs.value[layerIndex];
           if (image && !layerConfig) {
-            viewConfigStore.layers.resetToDefault(viewID.value, id, image);
+            layerColoringStore.resetToDefault(viewID.value, id, image);
           }
         });
       },
@@ -636,16 +634,16 @@ export default defineComponent({
     const proxyManager = useProxyManager()!;
 
     const colorBys = computed(() =>
-      layersConfigs.value.map((config) => config.value?.colorBy)
+      layersConfigs.value.map((config) => config?.colorBy)
     );
     const transferFunctions = computed(() =>
-      layersConfigs.value.map((config) => config.value?.transferFunction)
+      layersConfigs.value.map((config) => config?.transferFunction)
     );
     const opacityFunctions = computed(() =>
-      layersConfigs.value.map((config) => config.value?.opacityFunction)
+      layersConfigs.value.map((config) => config?.opacityFunction)
     );
     const blendConfigs = computed(() =>
-      layersConfigs.value.map((config) => config.value?.blendConfig)
+      layersConfigs.value.map((config) => config?.blendConfig)
     );
 
     watch(
