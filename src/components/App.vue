@@ -50,7 +50,7 @@
                 @click="handleSave"
               />
               <div class="my-1 tool-separator" />
-              <v-menu location="left">
+              <v-menu location="right">
                 <template v-slot:activator="{ props }">
                   <div>
                     <tool-button
