@@ -10,9 +10,10 @@ import {
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useViewConfigStore } from '@/src/store/view-configs';
 import { useViewStore } from '@/src/store/views';
-import { defaultSliceConfig } from '@/src/store/view-configs/slicing';
+import useViewSliceStore, {
+  defaultSliceConfig,
+} from '@/src/store/view-configs/slicing';
 
 export default defineComponent({
   name: 'SliceScrollTool',
@@ -24,7 +25,7 @@ export default defineComponent({
   },
   setup(props) {
     const { viewId: viewID } = toRefs(props);
-    const viewConfigStore = useViewConfigStore();
+    const viewSliceStore = useViewSliceStore();
     const viewStore = useViewStore();
     const { currentImageID } = useCurrentImage();
 
@@ -34,22 +35,20 @@ export default defineComponent({
 
     const sliceConfigDefault = defaultSliceConfig();
     const sliceConfig = computed(() =>
-      currentImageID.value !== null
-        ? viewConfigStore.getSliceConfig(viewID.value, currentImageID.value)!
-        : null
+      viewSliceStore.getConfig(viewID.value, currentImageID.value)
     );
     const sliceRange = computed(() => ({
       min:
-        sliceConfig.value !== null
+        sliceConfig.value != null
           ? sliceConfig.value.min
           : sliceConfigDefault.min,
       max:
-        sliceConfig.value !== null
+        sliceConfig.value != null
           ? sliceConfig.value.max
           : sliceConfigDefault.max,
       step: 1,
       default:
-        sliceConfig.value !== null
+        sliceConfig.value != null
           ? sliceConfig.value.slice
           : sliceConfigDefault.slice,
     }));
@@ -98,11 +97,9 @@ export default defineComponent({
         () => scrollVal.value,
         (slice) => {
           if (currentImageID.value !== null) {
-            viewConfigStore.updateSliceConfig(
-              viewID.value,
-              currentImageID.value,
-              { slice }
-            );
+            viewSliceStore.updateConfig(viewID.value, currentImageID.value, {
+              slice,
+            });
           }
         }
       );

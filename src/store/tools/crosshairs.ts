@@ -7,8 +7,8 @@ import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { useViewConfigStore } from '../view-configs';
 import { useViewStore } from '../views';
+import useViewSliceStore from '../view-configs/slicing';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
@@ -33,7 +33,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     return out as Vector3;
   });
 
-  const viewConfigStore = useViewConfigStore();
+  const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
 
   // only gets views that have a slicing config
@@ -41,7 +41,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     const imageID = unref(currentImageID);
     if (imageID) {
       return viewStore.viewIDs.filter(
-        (viewID) => !!viewConfigStore.getSliceConfig(viewID, imageID)
+        (viewID) => !!viewSliceStore.getConfig(viewID, imageID)
       );
     }
     return [];
@@ -66,11 +66,11 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
       }
 
       currentViewIDs.value.forEach((viewID) => {
-        const sliceConfig = viewConfigStore.getSliceConfig(viewID, imageID);
+        const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
         const axis = getLPSAxisFromDir(sliceConfig!.axisDirection);
         const index = lpsOrientation[axis];
         const slice = Math.round(indexPos[index]);
-        viewConfigStore.updateSliceConfig(viewID, imageID, { slice });
+        viewSliceStore.updateConfig(viewID, imageID, { slice });
       });
     }
   });

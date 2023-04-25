@@ -10,9 +10,9 @@ import {
 } from '@/src/utils/frameOfReference';
 import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-import { useViewConfigStore } from '@/src/store/view-configs';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '@/src/store/datasets';
+import useViewSliceStore from '../view-configs/slicing';
 
 type AnnotationTool = {
   id: string;
@@ -99,9 +99,9 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
       return viewDir && getLPSAxisFromDir(viewDir) === toolImageFrame.axis;
     });
 
-    const viewConfigStore = useViewConfigStore();
+    const viewSliceStore = useViewSliceStore();
     relevantViewIDs.forEach((viewID) => {
-      viewConfigStore.updateSliceConfig(viewID, imageID, {
+      viewSliceStore.updateConfig(viewID, imageID, {
         slice: tool.slice!,
       });
     });

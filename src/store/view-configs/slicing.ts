@@ -1,12 +1,15 @@
-import { MaybeRef } from '@vueuse/core';
-import { useDoubleRecord } from '@/src/composables/useDoubleRecord';
 import { clampValue } from '@/src/utils';
+import { defineStore } from 'pinia';
+import { reactive } from 'vue';
 import {
-  removeDataFromConfig,
-  removeViewFromConfig,
-  serializeViewConfig,
-} from './common';
-import { StateFile, ViewConfig } from '../../io/state-file/schema';
+  DoubleKeyRecord,
+  deleteSecondKey,
+  getDoubleKeyRecord,
+  patchDoubleKeyRecord,
+} from '@/src/utils/doubleKeyRecord';
+import { Maybe } from '@/src/types';
+import { createViewConfigSerializer } from './common';
+import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
 
 export const defaultSliceConfig = (): SliceConfig => ({
@@ -16,71 +19,71 @@ export const defaultSliceConfig = (): SliceConfig => ({
   axisDirection: 'Inferior',
 });
 
-export const setupSlicingConfig = () => {
-  // (viewID, dataID) -> SliceConfig
-  const sliceConfigs = useDoubleRecord<SliceConfig>();
+export const useViewSliceStore = defineStore('viewSlice', () => {
+  const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
 
-  const getSliceConfig = (viewID: string, dataID: string) =>
-    sliceConfigs.get(viewID, dataID);
+  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
+    getDoubleKeyRecord(configs, viewID, dataID);
 
-  const getComputedSliceConfig = (
-    viewID: MaybeRef<string | null>,
-    dataID: MaybeRef<string | null>
-  ) => sliceConfigs.getComputed(viewID, dataID);
-
-  const updateSliceConfig = (
+  const updateConfig = (
     viewID: string,
     dataID: string,
-    update: Partial<SliceConfig>
+    patch: Partial<SliceConfig>
   ) => {
     const config = {
       ...defaultSliceConfig(),
-      ...sliceConfigs.get(viewID, dataID),
-      ...update,
+      ...getConfig(viewID, dataID),
+      ...patch,
     };
 
-    if ('min' in update || 'max' in update) {
-      config.slice = Math.floor((config.min + config.max) / 2);
-    }
     config.slice = clampValue(config.slice, config.min, config.max);
-
-    sliceConfigs.set(viewID, dataID, config);
+    patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
 
   const resetSlice = (viewID: string, dataID: string) => {
-    if (sliceConfigs.has(viewID, dataID)) {
-      const config = sliceConfigs.get(viewID, dataID)!;
-      // Make this consistent with ImageMapper + SliceRepresentationProxy
-      // behavior. Setting this to floor() will affect images where the
-      // middle slice is fractional.
-      updateSliceConfig(viewID, dataID, {
-        slice: Math.ceil((config.min + config.max) / 2),
-      });
+    const config = getConfig(viewID, dataID);
+    if (!config) return;
+
+    // Setting this to floor() will affect images where the
+    // middle slice is fractional.
+    // This is consistent with vtkImageMapper and SliceRepresentationProxy.
+    updateConfig(viewID, dataID, {
+      slice: Math.ceil((config.min + config.max) / 2),
+    });
+  };
+
+  const removeView = (viewID: string) => {
+    delete configs[viewID];
+  };
+
+  const removeData = (dataID: string, viewID?: string) => {
+    if (viewID) {
+      delete configs[viewID]?.[dataID];
+    } else {
+      deleteSecondKey(configs, dataID);
     }
   };
 
-  const serialize = (stateFile: StateFile) => {
-    serializeViewConfig(stateFile, getSliceConfig, 'slice');
-  };
+  const serialize = createViewConfigSerializer(configs, 'slice');
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.slice) {
-        sliceConfigs.set(viewID, dataID, viewConfig.slice);
+        updateConfig(viewID, dataID, viewConfig.slice);
       }
     });
   };
 
   return {
-    removeView: removeViewFromConfig(sliceConfigs),
-    removeData: removeDataFromConfig(sliceConfigs),
+    configs,
+    getConfig,
+    updateConfig,
+    resetSlice,
+    removeView,
+    removeData,
     serialize,
     deserialize,
-    actions: {
-      getSliceConfig,
-      getComputedSliceConfig,
-      updateSliceConfig,
-      resetSlice,
-    },
   };
-};
+});
+
+export default useViewSliceStore;

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 
-import { setupSlicingConfig } from './view-configs/slicing';
+import useViewSliceStore from './view-configs/slicing';
 import useWindowingStore from './view-configs/windowing';
 import { setupLayersConfig } from './view-configs/layers';
 import { setupCameraConfig } from './view-configs/camera';
@@ -13,14 +13,14 @@ import { useImageStore } from './datasets-images';
  * view. The key is a synthetic id generated from the view ID and data ID.
  */
 export const useViewConfigStore = defineStore('viewConfig', () => {
-  const sliceConfig = setupSlicingConfig();
+  const viewSliceStore = useViewSliceStore();
   const windowingStore = useWindowingStore();
   const layersConfig = setupLayersConfig();
   const cameraConfig = setupCameraConfig();
   const volumeColorConfig = setupVolumeColorConfig();
 
   const removeView = (viewID: string) => {
-    sliceConfig.removeView(viewID);
+    viewSliceStore.removeView(viewID);
     windowingStore.removeView(viewID);
     layersConfig.removeView(viewID);
     cameraConfig.removeView(viewID);
@@ -28,7 +28,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   };
 
   const removeData = (dataID: string, viewID?: string) => {
-    sliceConfig.removeData(dataID, viewID);
+    viewSliceStore.removeData(dataID, viewID);
     windowingStore.removeData(dataID, viewID);
     layersConfig.removeData(dataID, viewID);
     cameraConfig.removeData(dataID, viewID);
@@ -36,7 +36,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   };
 
   const serialize = (stateFile: StateFile) => {
-    sliceConfig.serialize(stateFile);
+    viewSliceStore.serialize(stateFile);
     windowingStore.serialize(stateFile);
     layersConfig.serialize(stateFile);
     cameraConfig.serialize(stateFile);
@@ -55,7 +55,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
       updatedConfig[newDataID] = viewConfig;
     });
 
-    sliceConfig.deserialize(viewID, updatedConfig);
+    viewSliceStore.deserialize(viewID, updatedConfig);
     windowingStore.deserialize(viewID, updatedConfig);
     layersConfig.deserialize(viewID, updatedConfig);
     cameraConfig.deserialize(viewID, updatedConfig);
@@ -76,7 +76,6 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     removeData,
     serialize,
     deserialize,
-    ...sliceConfig.actions,
     ...cameraConfig.actions,
     ...volumeColorConfig.actions,
     layers: layersConfig.actions,

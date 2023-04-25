@@ -210,7 +210,9 @@ import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { CameraConfig } from '../store/view-configs/types';
-import { defaultSliceConfig } from '../store/view-configs/slicing';
+import useViewSliceStore, {
+  defaultSliceConfig,
+} from '../store/view-configs/slicing';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
@@ -256,6 +258,7 @@ export default defineComponent({
   setup(props) {
     const viewConfigStore = useViewConfigStore();
     const windowingStore = useWindowingStore();
+    const viewSliceStore = useViewSliceStore();
     const paintStore = usePaintToolStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -278,24 +281,16 @@ export default defineComponent({
 
     const sliceConfigDefaults = defaultSliceConfig();
     const sliceConfig = computed(() =>
-      curImageID.value !== null
-        ? viewConfigStore.getSliceConfig(viewID.value, curImageID.value)!
-        : null
+      viewSliceStore.getConfig(viewID.value, curImageID.value)
     );
-    const currentSlice = computed(() =>
-      sliceConfig.value !== null
-        ? sliceConfig.value.slice
-        : sliceConfigDefaults.slice
+    const currentSlice = computed(
+      () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
     );
-    const sliceMin = computed(() =>
-      sliceConfig.value !== null
-        ? sliceConfig.value.min
-        : sliceConfigDefaults.min
+    const sliceMin = computed(
+      () => sliceConfig.value?.min ?? sliceConfigDefaults.min
     );
-    const sliceMax = computed(() =>
-      sliceConfig.value !== null
-        ? sliceConfig.value.max
-        : sliceConfigDefaults.max
+    const sliceMax = computed(
+      () => sliceConfig.value?.max ?? sliceConfigDefaults.max
     );
 
     const wlConfig = computed({
@@ -355,7 +350,7 @@ export default defineComponent({
 
     const setSlice = (slice: number) => {
       if (curImageID.value !== null) {
-        viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
           slice,
         });
       }
@@ -390,19 +385,18 @@ export default defineComponent({
 
     watch(
       [viewID, curImageID, viewDirection],
-      () => {
-        if (
-          curImageID.value &&
-          !viewConfigStore.getSliceConfig(viewID.value, curImageID.value)
-        ) {
-          viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
-            ...sliceDomain.value,
-            axisDirection: viewDirection.value,
-          });
-          viewConfigStore.resetSlice(viewID.value, curImageID.value);
+      ([viewID_, imageID, viewDir]) => {
+        if (!imageID || sliceConfig.value != null) {
+          return;
         }
+
+        viewSliceStore.updateConfig(viewID_, imageID, {
+          ...sliceDomain.value,
+          axisDirection: viewDir,
+        });
+        viewSliceStore.resetSlice(viewID_, imageID);
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     // --- arrows change slice --- //
@@ -413,7 +407,7 @@ export default defineComponent({
 
       const sliceOffset = SLICE_OFFSET_KEYS[event.key] ?? 0;
       if (sliceOffset) {
-        viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
           slice: currentSlice.value + sliceOffset,
         });
 
