@@ -192,14 +192,6 @@ export default defineComponent({
 </template>
 
 <style>
-#patient-data-studies .v-expansion-panel--active > .v-expansion-panel-header {
-  min-height: unset;
-}
-
-#patient-data-studies .v-expansion-panel-content__wrap {
-  padding: 0 8px;
-}
-
 #patient-data-studies .v-expansion-panel::before {
   box-shadow: none;
 }

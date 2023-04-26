@@ -54,7 +54,7 @@ export default defineComponent({
       :key="study.StudyInstanceUID"
       class="patient-data-study-panel"
     >
-      <v-expansion-panel-header
+      <v-expansion-panel-title
         color="#1976fa0a"
         class="pl-3 no-select"
         :title="study.StudyDate"
@@ -95,23 +95,15 @@ export default defineComponent({
             </div>
           </div>
         </div>
-      </v-expansion-panel-header>
-      <v-expansion-panel-content>
+      </v-expansion-panel-title>
+      <v-expansion-panel-text>
         <study-volume-dicom-web :volume-keys="study.volumeKeys" />
-      </v-expansion-panel-content>
+      </v-expansion-panel-text>
     </v-expansion-panel>
   </v-expansion-panels>
 </template>
 
 <style>
-#patient-data-studies .v-expansion-panel--active > .v-expansion-panel-header {
-  min-height: unset;
-}
-
-#patient-data-studies .v-expansion-panel-content__wrap {
-  padding: 0 8px;
-}
-
 #patient-data-studies .v-expansion-panel::before {
   box-shadow: none;
 }
