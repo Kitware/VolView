@@ -37,7 +37,7 @@ export default defineComponent({
     const studies = computed(() => {
       const selPatient = patientKey.value;
       const { patientStudies, studyInfo, studyVolumes } = dicomStore;
-      return patientStudies[selPatient].map((studyKey) => {
+      return (patientStudies[selPatient] ?? []).map((studyKey) => {
         const info = studyInfo[studyKey];
         return {
           ...info,
