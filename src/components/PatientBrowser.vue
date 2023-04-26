@@ -206,7 +206,7 @@ export default defineComponent({
 }
 
 .study-selector {
-  max-width: 36px;
+  flex: 0 0 auto;
 }
 
 .study-header-title {
