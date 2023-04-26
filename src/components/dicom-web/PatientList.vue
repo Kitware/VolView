@@ -36,17 +36,17 @@ export default defineComponent({
 
   <v-expansion-panels v-else-if="patients.length > 0" multiple accordion>
     <v-expansion-panel v-for="patient in patients" :key="patient.key">
-      <v-expansion-panel-header>
+      <v-expansion-panel-title>
         <div class="patient-header">
           <v-icon class="collection-header-icon">mdi-account</v-icon>
           <span class="patient-header-name" :title="patient.name">
             {{ patient.name }}
           </span>
         </div>
-      </v-expansion-panel-header>
-      <v-expansion-panel-content>
+      </v-expansion-panel-title>
+      <v-expansion-panel-text>
         <patient-details :patient-key="patient.key" />
-      </v-expansion-panel-content>
+      </v-expansion-panel-text>
     </v-expansion-panel>
   </v-expansion-panels>
 </template>

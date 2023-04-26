@@ -58,7 +58,7 @@ async function generateDICOMThumbnail(
 }
 
 export default defineComponent({
-  name: 'PatientBrowser',
+  name: 'PatientStudyVolumeBrowser',
   props: {
     volumeKeys: {
       type: Array as PropType<Array<string>>,
