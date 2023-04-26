@@ -30,7 +30,7 @@ const useWindowingStore = defineStore('windowing', () => {
     getDoubleKeyRecord(configs, viewID, dataID);
 
   /**
-   * Syncs the window/level params of (srcViewID, srcDataID) across all views.
+   * Syncs the window/level/min/max params of (srcViewID, srcDataID) across all views sharing the dataset.
    * @param srcViewID
    * @param srcDataID
    */
@@ -40,14 +40,10 @@ const useWindowingStore = defineStore('windowing', () => {
     const config = configs[srcViewID]?.[srcDataID];
     if (!config) return;
 
-    const { width, level } = config;
     Object.keys(configs)
       .filter((viewID) => viewID !== srcViewID)
       .forEach((viewID) => {
-        patchDoubleKeyRecord(configs, viewID, srcDataID, {
-          width,
-          level,
-        });
+        patchDoubleKeyRecord(configs, viewID, srcDataID, config);
       });
   };
 
