@@ -402,7 +402,8 @@ export default defineComponent({
       }
 
       const datasetFiles = Array.from(files).map(makeLocal);
-      runAsLoading((setError) => loadFiles(datasetFiles, setError));
+      await useDatasetStore().loadFiles2(datasetFiles);
+      // runAsLoading((setError) => loadFiles(datasetFiles, setError));
     }
 
     const fileEl = document.createElement('input');

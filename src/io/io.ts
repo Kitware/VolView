@@ -1,65 +1,14 @@
-import { extensionToImageIO } from 'itk-wasm';
 import { extractFilesFromZip } from './zip';
 import { DatasetFile } from '../store/datasets-files';
 import { partition } from '../utils';
-
-export const ARCHIVE_FILE_TYPES = new Set(['zip', 'application/zip']);
-
-export const ITK_IMAGE_EXTENSIONS = Array.from(
-  new Set(Array.from(extensionToImageIO.keys()).map((ext) => ext.toLowerCase()))
-);
-
-// remove duplicates
-export const FILE_TYPES = Array.from(
-  new Set(['vti', 'vtp', 'stl', 'dcm', 'zip', 'json', ...ITK_IMAGE_EXTENSIONS])
-);
-
-/**
- * file magic database
- * Used to handle certain cases where files have no extension
- */
-const FILE_MAGIC_DB = [
-  {
-    type: 'dcm',
-    skip: 128,
-    header: Array.from('DICM').map((c) => c.charCodeAt(0)),
-  },
-];
-
-// How much data to read when extracting file magic.
-// This should be generous enough for most files.
-const HEAD_CHUNK = 512;
-
-function prefixEquals(target: Uint8Array, prefix: number[] | Uint8Array) {
-  if (prefix.length > target.length) {
-    return false;
-  }
-  for (let i = 0; i < prefix.length; i += 1) {
-    if (prefix[i] !== target[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-async function getFileTypeFromMagic(file: File): Promise<string | null> {
-  return new Promise((resolve) => {
-    const head = file.slice(0, HEAD_CHUNK);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const chunk = new Uint8Array(reader.result! as ArrayBuffer);
-      for (let i = 0; i < FILE_MAGIC_DB.length; i += 1) {
-        const { type, header, skip = 0 } = FILE_MAGIC_DB[i];
-        if (prefixEquals(chunk.slice(skip), header)) {
-          resolve(type);
-          return;
-        }
-      }
-      resolve(null);
-    };
-    reader.readAsArrayBuffer(head);
-  });
-}
+import {
+  ARCHIVE_FILE_TYPES,
+  FILE_EXTENSIONS,
+  FILE_EXT_TO_MIME,
+  MIME_TYPES,
+} from './mimeTypes';
+import { Maybe } from '../types';
+import { getFileMimeFromMagic } from './magic';
 
 /**
  * Retypes a given File.
@@ -73,14 +22,15 @@ async function getFileTypeFromMagic(file: File): Promise<string | null> {
 export async function retypeFile(file: File): Promise<File> {
   if (file.type) return file;
 
-  let type: string | null;
+  let type: Maybe<string>;
 
   type =
-    FILE_TYPES.find((ext) => file.name.toLowerCase().endsWith(`.${ext}`)) ??
-    null;
+    [...FILE_EXTENSIONS].find((ext) =>
+      file.name.toLowerCase().endsWith(`.${ext}`)
+    ) ?? null;
 
   if (!type) {
-    type = await getFileTypeFromMagic(file);
+    type = await getFileMimeFromMagic(file);
   }
 
   if (!type) {
@@ -89,6 +39,31 @@ export async function retypeFile(file: File): Promise<File> {
 
   const retypedFile = new File([file], file.name, { type: type.toLowerCase() });
   return retypedFile;
+}
+
+export async function getFileMimeType(file: File): Promise<Maybe<string>> {
+  const fileType = file.type.toLowerCase();
+  if (MIME_TYPES.has(fileType)) {
+    return fileType;
+  }
+
+  if (FILE_EXTENSIONS.has(fileType)) {
+    return FILE_EXT_TO_MIME[fileType];
+  }
+
+  const supportedExt = [...FILE_EXTENSIONS].find((ext) =>
+    file.name.toLowerCase().endsWith(`.${ext}`)
+  );
+  if (supportedExt) {
+    return FILE_EXT_TO_MIME[supportedExt];
+  }
+
+  const mimeFromMagic = await getFileMimeFromMagic(file);
+  if (mimeFromMagic && MIME_TYPES.has(mimeFromMagic)) {
+    return mimeFromMagic;
+  }
+
+  return null;
 }
 
 const isZip = (datasetFile: DatasetFile) =>

@@ -9,9 +9,10 @@ import { useModelStore } from './datasets-models';
 import { extractArchivesRecursively, retypeFile, FILE_READERS } from '../io';
 import { DatasetFile, useFileStore } from './datasets-files';
 import { StateFile, DatasetType, Dataset } from '../io/state-file/schema';
-import { readRemoteManifestFile } from '../io/manifest';
+import { fetchRemoteManifest, readRemoteManifestFile } from '../io/manifest';
 import { partition } from '../utils';
 import { useErrorMessage } from '../composables/useErrorMessage';
+import { DataSource, importDataSources } from '../core/importDataSources';
 
 export const DataType = {
   Image: 'Image',
@@ -192,6 +193,20 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
   }
 
+  async function loadFiles2(files: DatasetFile[]) {
+    const resources: DataSource[] = files.map((file) => {
+      return {
+        fileSrc: {
+          file: file.file,
+          fileType: '',
+        },
+      };
+    });
+
+    const results = await importDataSources(resources);
+    console.log('Results:', results);
+  }
+
   async function loadFiles(files: DatasetFile[]): Promise<LoadResult[]> {
     let allFiles = await Promise.all(
       files.map(async ({ file, ...rest }) => ({
@@ -212,7 +227,8 @@ export const useDatasetStore = defineStore('dataset', () => {
       await Promise.all(
         manifestFiles.map(async (file) => {
           try {
-            allFiles.push(...(await readRemoteManifestFile(file.file)));
+            const manifest = await readRemoteManifestFile(file.file);
+            allFiles.push(...(await fetchRemoteManifest(manifest)));
           } catch (err) {
             manifestStatuses.push(
               makeFileFailureStatus(
@@ -368,6 +384,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     getDataProxyByID,
     setPrimarySelection,
     loadFiles,
+    loadFiles2,
     serialize,
     deserialize,
   };

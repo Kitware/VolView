@@ -1,9 +1,13 @@
 import vtkITKImageReader from '@kitware/vtk.js/IO/Misc/ITKImageReader';
-import { readImageArrayBuffer } from 'itk-wasm';
+import { readImageArrayBuffer, extensionToImageIO } from 'itk-wasm';
 import { FileReaderMap } from '.';
 
-import { readFileAsArrayBuffer, ITK_IMAGE_EXTENSIONS } from './io';
+import { readFileAsArrayBuffer } from './io';
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
+
+export const ITK_IMAGE_EXTENSIONS = Array.from(
+  new Set(Array.from(extensionToImageIO.keys()).map((ext) => ext.toLowerCase()))
+);
 
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
 
