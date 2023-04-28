@@ -1,6 +1,8 @@
 import { computed, ref, set } from '@vue/composition-api';
-import { useLocalStorage } from '@vueuse/core';
+import { useLocalStorage, UrlParams } from '@vueuse/core';
 import { defineStore } from 'pinia';
+import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
+
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
@@ -43,9 +45,14 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
-  const host = process.env.VUE_APP_DICOM_WEB_URL
-    ? ref(process.env.VUE_APP_DICOM_WEB_URL)
+  const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+  const dicomWebFromURLParam = urlParams.dicomweb as string | undefined;
+  const initialHost = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
+
+  const host = initialHost
+    ? ref(initialHost)
     : useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
+
   // Remove trailing slash
   const cleanHost = computed(() => host.value?.replace(/\/$/, '') ?? '');
   const isConfigured = computed(() => !!cleanHost.value);
