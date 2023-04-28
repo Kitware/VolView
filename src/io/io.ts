@@ -67,7 +67,8 @@ export async function getFileMimeType(file: File): Promise<Maybe<string>> {
 }
 
 const isZip = (datasetFile: DatasetFile) =>
-  ARCHIVE_FILE_TYPES.has(datasetFile.file.type);
+  ARCHIVE_FILE_TYPES.has(datasetFile.file.type) ||
+  datasetFile.file.name.endsWith('.zip');
 
 export async function extractArchivesRecursively(
   files: DatasetFile[]

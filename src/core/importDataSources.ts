@@ -10,9 +10,10 @@ import { canFetchUrl, fetchFile } from '../utils/fetch';
 import { useImageStore } from '../store/datasets-images';
 import {
   DatasetFile,
+  DatasetPath,
+  DatasetUrl,
   isRemote,
   makeLocal,
-  makeRemote,
   useFileStore,
 } from '../store/datasets-files';
 import { useModelStore } from '../store/datasets-models';
@@ -100,10 +101,20 @@ export function convertDataSourceToDatasetFile(
   // remote file case
   const remoteDataSource = provenance.find((ds) => ds.uriSrc);
   if (remoteDataSource) {
-    return makeRemote(
-      remoteDataSource.uriSrc!.uri,
-      fileDataSource.fileSrc!.file
-    );
+    const archiveSrc = provenance.find((ds) => ds.archiveSrc)?.archiveSrc;
+    return {
+      url: remoteDataSource.uriSrc!.uri as DatasetUrl,
+      remoteFilename: remoteDataSource.uriSrc!.name,
+      file: fileDataSource.fileSrc!.file,
+      ...(archiveSrc
+        ? {
+            archivePath: archiveSrc.path
+              .split('/')
+              .slice(0, -1)
+              .join('/') as DatasetPath,
+          }
+        : {}),
+    };
   }
 
   // local file case
