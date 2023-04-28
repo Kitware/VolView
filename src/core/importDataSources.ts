@@ -190,7 +190,7 @@ const extractArchive: ImportHandler = async (dataSource, { execute, done }) => {
           fileType: '',
         },
         archiveSrc: {
-          path: entry.archivePath,
+          path: `${entry.archivePath}/${entry.file.name}`,
         },
         parent: dataSource,
       });
