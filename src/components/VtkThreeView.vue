@@ -335,6 +335,7 @@ export default defineComponent({
           mapper.setSampleDistance(0.75);
           mapper.setMaximumSamplesPerRay(1000);
           mapper.setGlobalIlluminationReach(0);
+          mapper.setComputeNormalFromOpacity(false);
         } else {
           const dims = image.getDimensions();
           const spacing = image.getSpacing();
@@ -349,7 +350,10 @@ export default defineComponent({
           // Use the average spacing for sampling by default
           let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
           // Adjust the volume sampling by the quality slider value
-          sampleDistance /= 0.5 * (params.volumeQuality * params.volumeQuality);
+          sampleDistance /=
+            params.volumeQuality > 1
+              ? 0.5 * (params.volumeQuality * params.volumeQuality)
+              : 1.0;
           const samplesPerRay = spatialDiagonal / sampleDistance + 1;
           mapper.setMaximumSamplesPerRay(samplesPerRay);
           mapper.setSampleDistance(sampleDistance);
@@ -360,6 +364,9 @@ export default defineComponent({
         }
 
         property.setShade(true);
+        mapper.setComputeNormalFromOpacity(
+          !enabled && params.volumeQuality > 2
+        );
         property.setUseGradientOpacity(0, !enabled);
         property.setGradientOpacityMinimumValue(0, 0.0);
         const dataRange = image.getPointData().getScalars().getRange();
