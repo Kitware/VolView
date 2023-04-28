@@ -1,4 +1,3 @@
-import Sinon from 'sinon';
 import sinonChai from 'sinon-chai';
 import Chai, { expect } from 'chai';
 import Pipeline, { Handler } from '../pipeline';
@@ -14,27 +13,50 @@ function asyncSleep(msec: number) {
 }
 
 describe('Pipeline', () => {
-  it('should execute a pipeline in order', async () => {
+  it('should execute a pipeline in order with results', async () => {
     const callOrder: number[] = [];
 
-    const handlers: Array<Handler<void>> = [
-      (input, { next }) => {
+    const handlers: Array<Handler<void, number>> = [
+      () => {
         callOrder.push(1);
-        next();
       },
-      (input, { next }) => {
+      () => {
         callOrder.push(2);
-        next();
+      },
+      (input, { done }) => {
+        callOrder.push(3);
+        return done(42);
+      },
+    ];
+    const pipeline = new Pipeline(handlers);
+    const result = await pipeline.execute();
+
+    expect(result.ok).to.be.true;
+    expect(result.errors).to.have.length(0);
+    expect(result.data).to.deep.equal([42]);
+    expect(callOrder).to.deep.equal([1, 2, 3]);
+  });
+
+  it('should terminate a pipeline at the end without done', async () => {
+    const callOrder: number[] = [];
+
+    const handlers: Array<Handler<void, number>> = [
+      () => {
+        callOrder.push(1);
+      },
+      () => {
+        callOrder.push(2);
       },
       () => {
         callOrder.push(3);
       },
     ];
-    const pipeline = new Pipeline<void>(handlers);
+    const pipeline = new Pipeline(handlers);
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.true;
     expect(result.errors).to.have.length(0);
+    expect(result.data).to.have.length(0);
     expect(callOrder).to.deep.equal([1, 2, 3]);
   });
 
@@ -42,16 +64,17 @@ describe('Pipeline', () => {
     let calc = 0;
 
     const handlers: Array<Handler<number>> = [
-      async (input, { next }) => {
-        await asyncSleep(1);
-        next(input + 1);
-      },
-      (input, { next }) => {
-        next(input + 2);
-      },
       async (input) => {
         await asyncSleep(1);
+        return input + 1;
+      },
+      (input) => {
+        return input + 2;
+      },
+      async (input, { done }) => {
+        await asyncSleep(1);
         calc = input;
+        return done();
       },
     ];
     const pipeline = new Pipeline(handlers);
@@ -62,50 +85,21 @@ describe('Pipeline', () => {
     expect(calc).to.equal(8);
   });
 
-  it('should execute an asynchronous (async) pipeline without done', async () => {
-    const callOrder: number[] = [];
-
-    const handlers: Array<Handler<void>> = [
-      async (input, { next }) => {
-        await asyncSleep(1);
-        callOrder.push(1);
-        next();
-      },
-      async (input, { next }) => {
-        await asyncSleep(1);
-        callOrder.push(2);
-        next();
-      },
-      async () => {
-        await asyncSleep(1);
-        callOrder.push(3);
-      },
-    ];
-    const pipeline = new Pipeline<void>(handlers);
-    const result = await pipeline.execute();
-
-    expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
-    expect(callOrder).to.deep.equal([1, 2, 3]);
-  });
-
   it('should execute an asynchronous (promise) pipeline with done', async () => {
     const callOrder: number[] = [];
 
     const handlers: Array<Handler<void>> = [
-      (input, { next }) => {
+      () => {
         return asyncSleep(1).then(() => {
           callOrder.push(1);
-          next();
         });
       },
-      (input, { next }) => {
+      () => {
         return asyncSleep(1).then(() => {
           callOrder.push(2);
-          next();
         });
       },
-      (input, context, done) => {
+      (input, { done }) => {
         return asyncSleep(1).then(() => {
           callOrder.push(3);
           done();
@@ -120,77 +114,26 @@ describe('Pipeline', () => {
     expect(callOrder).to.deep.equal([1, 2, 3]);
   });
 
-  it('should wait for done()', async () => {
-    const spy = Sinon.spy();
-    const handlers: Array<Handler<void>> = [
-      (input, context, done) => {
-        asyncSleep(1).then(() => {
-          spy();
-          done();
+  it('should support a null result to done()', async () => {
+    const handlers: Array<Handler<void, null>> = [
+      (input, { done }) => {
+        return asyncSleep(1).then(() => {
+          done(null);
         });
       },
     ];
-    const pipeline = new Pipeline<void>(handlers);
+    const pipeline = new Pipeline(handlers);
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.true;
     expect(result.errors).to.have.length(0);
-    expect(spy).to.have.been.calledOnce;
-  });
-
-  it('should correctly terminate early if an async handler does not return a promise', async () => {
-    const spy = Sinon.spy();
-    const handlers: Array<Handler<void>> = [
-      // This handler doesn't return a promise, despite it being async!
-      (_, { next }) => {
-        asyncSleep(1).then(() => {
-          next();
-        });
-      },
-      () => {
-        spy();
-      },
-    ];
-    const pipeline = new Pipeline<void>(handlers);
-    const result = await pipeline.execute();
-
-    expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
-    expect(spy).to.not.have.been.called;
-  });
-
-  it('should detect double next()', async () => {
-    const handlers: Array<Handler<void>> = [
-      (_, { next }) => {
-        next();
-        next();
-      },
-    ];
-    const pipeline = new Pipeline<void>(handlers);
-    const result = await pipeline.execute();
-
-    expect(result.ok).to.be.false;
-    expect(result.errors).to.have.length(1);
+    expect(result.data).to.deep.equal([null]);
   });
 
   it('should detect double done()', async () => {
     const handlers: Array<Handler<void>> = [
-      (input, ctxt, done) => {
+      (input, { done }) => {
         done();
-        done();
-      },
-    ];
-    const pipeline = new Pipeline<void>(handlers);
-    const result = await pipeline.execute();
-
-    expect(result.ok).to.be.false;
-    expect(result.errors).to.have.length(1);
-  });
-
-  it('should detect mixed done() and next()', async () => {
-    const handlers: Array<Handler<void>> = [
-      (input, { next }, done) => {
-        next();
         done();
       },
     ];
@@ -235,19 +178,20 @@ describe('Pipeline', () => {
   it('should handle nested async errors', async () => {
     const error = new Error('Some failure');
     const handlers: Array<Handler<number>> = [
-      async (counter, { next }) => {
+      async (counter) => {
         if (counter === 0) {
           throw error;
         }
         await asyncSleep(1);
-        next();
+        return counter;
       },
-      async (counter, { execute }) => {
+      async (counter, { execute, done }) => {
         await asyncSleep(1);
         execute(counter - 1);
         if (counter > 1) {
           execute(counter - 2);
         }
+        return done();
       },
     ];
 

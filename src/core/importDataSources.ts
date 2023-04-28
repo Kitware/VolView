@@ -5,6 +5,7 @@ import { ARCHIVE_FILE_TYPES } from '../io/mimeTypes';
 import { extractFilesFromZip } from '../io/zip';
 import Pipeline, { Handler } from './pipeline';
 import { canFetchUrl, fetchFile } from '../utils/fetch';
+import { DatasetFile } from '../store/datasets-files';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -33,8 +34,10 @@ export interface ArchiveSource {
 }
 
 /**
- * Cases to handle:
- *   associated dataset file is part of a (potentially nested) remote archive
+ * Represents a source of datasets.
+ *
+ * If the parent property is set, it represents the DataSource from which this
+ * DataSource was derived.
  */
 export interface DataSource {
   uriSrc?: UriSource;
@@ -42,6 +45,13 @@ export interface DataSource {
   archiveSrc?: ArchiveSource;
   parent?: DataSource;
 }
+
+export interface ImportResult {
+  dataID: string;
+  dataSource: DataSource;
+}
+
+type ImportHandler = Handler<DataSource, ImportResult>;
 
 function isArchive(r: DataSource): r is DataSource & { fileSrc: FileSource } {
   return !!r.fileSrc && ARCHIVE_FILE_TYPES.has(r.fileSrc.fileType);
@@ -51,7 +61,7 @@ function isArchive(r: DataSource): r is DataSource & { fileSrc: FileSource } {
  * Transforms a file data source to have a mime type
  * @param dataSource
  */
-const retypeFile: Handler<DataSource> = async (dataSource, { next }) => {
+const retypeFile: ImportHandler = async (dataSource) => {
   let src = dataSource;
   const { fileSrc } = src;
   if (fileSrc && fileSrc.fileType === '') {
@@ -66,35 +76,23 @@ const retypeFile: Handler<DataSource> = async (dataSource, { next }) => {
       };
     }
   }
-  next(src);
+  return src;
 };
 
-const importSingleFile: Handler<DataSource> = (dataSource, { next }) => {
+const importSingleFile: ImportHandler = async (dataSource, { done }) => {
   if (dataSource.fileSrc) {
     // pass to readers
     console.log('importing single file', dataSource);
-  } else {
-    next();
+    return done();
   }
-};
-
-const importDicomFile: Handler<DataSource> = (dataSource, { next }) => {
-  if (dataSource.fileSrc?.fileType === 'application/dicom') {
-    // pass to dicom store
-    console.log('importing dicom', dataSource);
-  } else {
-    next();
-  }
+  return dataSource;
 };
 
 /**
  * Extracts files from an archive
  * @param dataSource
  */
-const extractArchive: Handler<DataSource> = async (
-  dataSource,
-  { next, execute }
-) => {
+const extractArchive: ImportHandler = async (dataSource, { execute, done }) => {
   if (isArchive(dataSource)) {
     const files = await extractFilesFromZip(dataSource.fileSrc.file);
     files.forEach((entry) => {
@@ -109,14 +107,14 @@ const extractArchive: Handler<DataSource> = async (
         parent: dataSource,
       });
     });
-  } else {
-    next();
+    return done();
   }
+  return dataSource;
 };
 
-const handleRemoteManifest: Handler<DataSource> = async (
+const handleRemoteManifest: ImportHandler = async (
   dataSource,
-  { next, execute }
+  { done, execute }
 ) => {
   const { fileSrc } = dataSource;
   if (fileSrc?.fileType === 'application/json') {
@@ -133,22 +131,18 @@ const handleRemoteManifest: Handler<DataSource> = async (
         });
       });
     } catch (err) {
-      next();
-      return;
+      return dataSource;
     }
 
     remotes.forEach((remote) => {
       execute(remote);
     });
-  } else {
-    next();
+    return done();
   }
+  return dataSource;
 };
 
-const downloadUrl: Handler<DataSource> = async (
-  dataSource,
-  { next, execute }
-) => {
+const downloadUrl: ImportHandler = async (dataSource, { execute, done }) => {
   const { uriSrc } = dataSource;
   if (uriSrc && canFetchUrl(uriSrc.uri)) {
     const file = await fetchFile(uriSrc.uri, uriSrc.name);
@@ -159,17 +153,28 @@ const downloadUrl: Handler<DataSource> = async (
       },
       parent: dataSource,
     });
-  } else {
-    next();
+    return done();
   }
+  return dataSource;
 };
 
-const unhandledResource: Handler<DataSource> = () => {
+const unhandledResource: ImportHandler = () => {
   throw new Error('Failed to handle a resource');
 };
 
 export async function importDataSources(dataSources: DataSource[]) {
-  const middleware = [
+  const dicoms: DatasetFile[] = [];
+  const importDicomFile: ImportHandler = (dataSource, { done }) => {
+    if (dataSource.fileSrc?.fileType === 'application/dicom') {
+      dicoms.push({
+        file: dataSource.fileSrc.file,
+      });
+      return done();
+    }
+    return dataSource;
+  };
+
+  const middleware: Array<ImportHandler> = [
     // retyping should be first in the pipeline
     retypeFile,
     handleRemoteManifest,
@@ -186,5 +191,8 @@ export async function importDataSources(dataSources: DataSource[]) {
   const results = await Promise.all(
     dataSources.map((r) => pipeline.execute(r))
   );
+
+  console.log('dicoms:', dicoms);
+
   return results;
 }

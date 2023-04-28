@@ -1,17 +1,41 @@
-import { defer } from '../utils';
+import { Awaitable } from '@vueuse/core';
+import { defer, partition } from '../utils';
 
-export interface PipelineError<T> {
+/**
+ * Represents a pipeline error.
+ *
+ * The inputDataStackTrace property provides the inputs that caused the error.
+ * It is ordered by nested level, starting with the inner most execution context
+ * input.
+ *
+ * The cause property refers to the original thrown object that resulted in the
+ * error.
+ */
+export interface PipelineError<DataType> {
   message: string;
-  inputDataStackTrace: T[];
+  inputDataStackTrace: DataType[];
   cause: unknown;
 }
 
-export interface PipelineResult<T> {
+/**
+ * Represents a pipeline's execution result.
+ *
+ * The data property holds any return values from handlers.
+ *
+ * The errors property holds any errors reported from (potentially nested)
+ * executions.
+ */
+export interface PipelineResult<DataType, ResultType> {
   ok: boolean;
-  errors: PipelineError<T>[];
+  data: ResultType[];
+  errors: PipelineError<DataType>[];
 }
 
-function createPipelineError<T>(message: string, input: T, cause: unknown) {
+function createPipelineError<DataType>(
+  message: string,
+  input: DataType,
+  cause: unknown
+) {
   return {
     message,
     inputDataStackTrace: [input],
@@ -19,52 +43,81 @@ function createPipelineError<T>(message: string, input: T, cause: unknown) {
   };
 }
 
-export interface IPipeline<T> {
+export interface IPipeline<DataType, ResultType> {
   /**
    * Runs a given input through a middleware pipeline.
    * @param input
    */
-  execute(input: T): Promise<PipelineResult<T>>;
+  execute(input: DataType): Promise<PipelineResult<DataType, ResultType>>;
 }
 
-export interface PipelineContext<T> {
-  next(out?: T): void;
-  execute(input: T): Promise<PipelineResult<T>>;
+const DoneSentinel: symbol = Symbol('DoneSentinel');
+type DoneSentinelType = symbol;
+export type Done<Out> = (out?: Out) => DoneSentinelType;
+
+export interface PipelineContext<DataType, ResultType> {
+  /**
+   * Terminate the pipeline with an optional pipeline return value.
+   * @param pipelineReturn
+   */
+  done: Done<ResultType>;
+  /**
+   * Execute the pipeline with the given input.
+   * @param input
+   */
+  execute(input: DataType): Promise<PipelineResult<DataType, ResultType>>;
 }
 
 /**
- * Handles an input in a pipeline.
+ * Represents an element/step of a pipeline.
  *
- * If a handler does not call next, the pipeline terminates.
+ * Handlers have three pipeline operations availble to them:
+ * - process input and produce output for the rest of the pipeline
+ * - terminate the pipeline and optionally produce a result
+ * - start a nested execution of the pipeline with new data
  *
- * A handler can optionally pass in a transformed output to `next(newInput)`.
+ * Handlers receive input data via the `input` parameter and pass data down the
+ * pipeline by returning. Pipeline execution will await asynchronous handlers if
+ * they return a Promise that resolves to the output data.
  *
- * A handler is free to start new pipeline executions by calling `execute(input)`.
- * The handler can optionally await the `execute` call if it so desires. The
- * top-level pipeline will track all nested executions.
+ * The second argument to a handler is a context object containing an
+ * `execute()` method and a `done()` method.
  *
- * If a handler specifies a third and optional `done` parameter, then the pipeline
- * will wait for the handler to call `done` before terminating, rather than awaiting
- * for the function to return.
+ * A handler is free to start new pipeline executions by calling
+ * `execute(input)`.  The handler does not need to await the `execute` call, as
+ * the top-level pipeline will track all nested executions.
  *
- * If a handler does not use the optional "done" parameter, it must register all
- * `execute` calls prior to returning, otherwise they will not be tracked.
- * For asynchronous handlers, this means using async/await in order to register
- * all `execute` calls.
+ * If a handler wishes to terminate the pipeline, it must call `done()`. This
+ * will signal the pipeline to terminate after the handler returns.  An optional
+ * pipeline result value can be passed as the single argument to `done(output)`.
+ * If `done()` is signalled, then the handler's return value is ignored.
+ *
+ * To facilitate typing and to avoid accidentally forgetting to return a value
+ * in a handler, handlers are typed to return either the DataType or the return
+ * value of done().
  */
+export type Handler<DataType, ResultType = void> = (
+  input: DataType,
+  context: PipelineContext<DataType, ResultType>
+) => Awaitable<DataType | DoneSentinelType>;
 
-export type Done = () => void;
+/**
+ * Represents an executable pipeline.
+ *
+ * Features supported:
+ * - Execution of a pipeline in the given order of the provided handlers
+ * - Handlers can run nested executions of the same pipeline
+ * - Handlers can optionally transform data for downstream use
+ * - Early termination
+ * - Reporting errors. This includes un-nesting errors from nested executions.
+ * - Reporting data returned from terminating handlers, if any.
+ */
+export default class Pipeline<DataType, ResultType = void>
+  implements IPipeline<DataType, ResultType>
+{
+  private handlers: Handler<DataType, ResultType>[];
 
-export type Handler<T> = (
-  input: T,
-  context: PipelineContext<T>,
-  done: Done
-) => void;
-
-export default class Pipeline<T> implements IPipeline<T> {
-  private handlers: Handler<T>[];
-
-  constructor(handlers?: Handler<T>[]) {
+  constructor(handlers?: Handler<DataType, ResultType>[]) {
     this.handlers = Array.from(handlers ?? []);
   }
 
@@ -75,114 +128,113 @@ export default class Pipeline<T> implements IPipeline<T> {
    * nested execution contexts have finished, allowing for aggregate
    * error reporting.
    * @param input
+   * @returns {PipelineResult}
    */
-  async execute(input: T) {
+  async execute(input: DataType) {
     return this.startExecutionContext(input);
   }
 
-  private async startExecutionContext(input: T) {
+  private async startExecutionContext(input: DataType) {
     const handlers = [...this.handlers];
-    const nestedExecutions: Array<Promise<PipelineResult<T>>> = [];
-    const execution = defer<void>();
+    const nestedExecutions: Array<
+      Promise<PipelineResult<DataType, ResultType>>
+    > = [];
+    const execution = defer<ResultType | void>();
 
-    const terminate = (error?: Error) => {
+    const terminate = (result: ResultType | void, error?: Error) => {
       if (error) {
         execution.reject(error);
       } else {
-        execution.resolve();
+        execution.resolve(result);
       }
     };
 
-    const invokeHandler = async (data: T, index: number) => {
-      if (index >= handlers.length) {
-        return;
-      }
-
-      let nextInvoked = false;
+    const invokeHandler = async (data: DataType, index: number) => {
       let doneInvoked = false;
+      // eslint-disable-next-line no-undef-init
+      let pipelineResult: ResultType | undefined = undefined;
+      const endOfPipeline = index >= handlers.length;
 
-      const context: PipelineContext<T> = {
-        next: (out?: T) => {
-          if (nextInvoked) {
-            throw new Error('next() called twice in a pipeline handler!');
+      const context: PipelineContext<DataType, ResultType> = {
+        done: (out?: ResultType): DoneSentinelType => {
+          if (doneInvoked) {
+            throw new Error('done() called twice!');
           }
 
-          nextInvoked = true;
-          invokeHandler(out ?? data, index + 1);
+          doneInvoked = true;
+          pipelineResult = out;
+          return DoneSentinel;
         },
-        execute: async (arg: T) => {
+        execute: async (arg: DataType) => {
           const promise = this.execute(arg);
           nestedExecutions.push(promise);
           return promise;
         },
       };
 
-      const deferredDone = defer<void>();
+      let output: DataType | DoneSentinelType;
 
-      const done = () => {
-        if (doneInvoked) {
-          throw new Error('done() called twice!');
-        }
-        if (nextInvoked) {
-          throw new Error('done() and next() called in the same handler!');
-        }
-
-        doneInvoked = true;
-        deferredDone.resolve();
-      };
-
-      const handler = handlers[index];
-      const expectDoneCallback = handler.length === 3;
+      if (endOfPipeline) {
+        output = DoneSentinel;
+      }
 
       try {
-        await handler(data, context, done);
+        if (endOfPipeline) {
+          output = DoneSentinel;
+        } else {
+          const handler = handlers[index];
+          output = await handler(data, context);
+        }
       } catch (thrown) {
         const error =
           thrown instanceof Error
             ? thrown
             : new Error(thrown ? String(thrown) : 'Unknown error occurred');
-        terminate(error);
+        terminate(undefined, error);
         return;
       }
 
-      if (expectDoneCallback) {
-        await deferredDone.promise;
-        terminate();
+      if (doneInvoked || endOfPipeline) {
+        terminate(pipelineResult);
         return;
       }
 
-      if (nextInvoked && doneInvoked) {
-        throw new Error('done() and next() called in the same handler!');
-      }
-
-      // returning without next() means to finish
-      if (!nextInvoked) {
-        terminate();
-      }
+      invokeHandler(output as DataType, index + 1);
     };
 
-    const result: PipelineResult<T> = {
+    const result: PipelineResult<DataType, ResultType> = {
       ok: true,
+      data: [],
       errors: [],
     };
 
     try {
       await invokeHandler(input, 0);
-      await execution.promise;
+      const ret = await execution.promise;
+      if (ret !== undefined) {
+        result.data.push(ret);
+      }
     } catch (err) {
-      result.ok = false;
       const message = err instanceof Error ? err.message : String(err);
+      result.ok = false;
       result.errors.push(createPipelineError(message, input, err));
     }
 
     const innerResults = await Promise.all(nestedExecutions);
-    const failedInnerResults = innerResults.filter((res) => !res.ok);
+    const [succeededInner, failedInner] = partition(
+      (res) => res.ok,
+      innerResults
+    );
 
-    if (failedInnerResults.length > 0) {
+    if (failedInner.length > 0) {
       result.ok = false;
     }
 
-    failedInnerResults.forEach((failedResult) => {
+    succeededInner.forEach((okResult) => {
+      result.data.push(...okResult.data);
+    });
+
+    failedInner.forEach((failedResult) => {
       const { errors } = failedResult;
 
       // add current input to the input stack trace
