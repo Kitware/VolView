@@ -102,7 +102,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       seriesInstanceUID: volumeInfo.SeriesInstanceUID,
       sopInstanceUID: middleInstance.SopInstanceUID,
     };
-    return fetchInstanceThumbnail(cleanHost.value!, instance);
+    return fetchInstanceThumbnail(cleanHost.value, instance);
   };
 
   const fetchPatientMeta = async (patientKey: string) => {
@@ -110,29 +110,37 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const series = await Promise.all(
       dicoms.patientStudies[patientKey]
         .map((studyKey) => dicoms.studyInfo[studyKey])
-        .map(({ StudyInstanceUID }) =>
-          retrieveStudyMetadata(cleanHost.value!, {
-            studyInstanceUID: StudyInstanceUID,
-          })
-        )
+        .map(async (studyMeta) => {
+          const seriesMetas = await retrieveStudyMetadata(cleanHost.value, {
+            studyInstanceUID: studyMeta.StudyInstanceUID,
+          });
+          return seriesMetas.map((seriesMeta) => ({
+            ...studyMeta,
+            ...seriesMeta,
+          }));
+        })
     );
     series.flat().forEach((instance) => dicoms.importMeta(instance));
   };
 
   const fetchVolumesMeta = async (volumeKeys: string[]) => {
     const dicoms = useDicomMetaStore();
-    const studies = await Promise.all(
-      volumeKeys.map((volumeKey) => {
-        const { SeriesInstanceUID } = dicoms.volumeInfo[volumeKey];
-        const { StudyInstanceUID } =
-          dicoms.studyInfo[dicoms.volumeStudy[volumeKey]];
-        return retrieveSeriesMetadata(cleanHost.value!, {
-          studyInstanceUID: StudyInstanceUID,
-          seriesInstanceUID: SeriesInstanceUID,
+    const series = await Promise.all(
+      volumeKeys.map(async (volumeKey) => {
+        const volumeMeta = dicoms.volumeInfo[volumeKey];
+        const studyMeta = dicoms.studyInfo[dicoms.volumeStudy[volumeKey]];
+        const instanceMetas = await retrieveSeriesMetadata(cleanHost.value, {
+          studyInstanceUID: studyMeta.StudyInstanceUID,
+          seriesInstanceUID: volumeMeta.SeriesInstanceUID,
         });
+        return instanceMetas.map((instanceMeta) => ({
+          ...studyMeta,
+          ...volumeMeta,
+          ...instanceMeta,
+        }));
       })
     );
-    studies.flat().forEach((instance) => dicoms.importMeta(instance));
+    series.flat().forEach((instance) => dicoms.importMeta(instance));
   };
 
   const volumes = ref({} as Progress);
@@ -166,7 +174,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
     try {
       const files = await fetchSeries(
-        cleanHost.value!,
+        cleanHost.value,
         seriesInfo,
         progressCallback
       );
