@@ -5,10 +5,14 @@ import { computed, ref } from '@vue/composition-api';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
-import { DatasetFile, isRemote, useFileStore } from './datasets-files';
-import { StateFile, DatasetType, Dataset } from '../io/state-file/schema';
+import { DatasetFile, useFileStore } from './datasets-files';
+import { StateFile, Dataset } from '../io/state-file/schema';
 import { useErrorMessage } from '../composables/useErrorMessage';
-import { DataSource, importDataSources } from '../core/importDataSources';
+import {
+  DataSource,
+  convertDatasetFileToDataSource,
+  importDataSources,
+} from '../core/importDataSources';
 
 export const DataType = {
   Image: 'Image',
@@ -192,20 +196,9 @@ export const useDatasetStore = defineStore('dataset', () => {
   async function loadFiles(files: DatasetFile[]) {
     const resources = files.map((file): DataSource => {
       // treat empty remote files as just URLs to download
-      if (isRemote(file) && file.file.size === 0) {
-        return {
-          uriSrc: {
-            uri: file.url,
-            name: file.remoteFilename,
-          },
-        };
-      }
-      return {
-        fileSrc: {
-          file: file.file,
-          fileType: '',
-        },
-      };
+      return convertDatasetFileToDataSource(file, {
+        forceRemoteOnly: file.file.size === 0,
+      });
     });
 
     const { dicoms, results } = await importDataSources(resources);
@@ -261,29 +254,11 @@ export const useDatasetStore = defineStore('dataset', () => {
   }
 
   async function deserialize(dataSet: Dataset, files: DatasetFile[]) {
-    // dicom
-    if (dataSet.type === DatasetType.DICOM) {
-      return dicomStore
-        .deserialize(files)
-        .then((volumeKey) => makeDICOMSuccessStatus(volumeKey))
-        .catch((err) => makeDICOMFailureStatus(err));
-    }
-
-    // image
-    if (files.length !== 1) {
+    const loadResults = await loadFiles(files);
+    if (loadResults.length !== 1) {
       throw new Error('Invalid state file.');
     }
-    const datasetFile = files[0];
-    const { file } = datasetFile;
-    return imageStore
-      .deserialize(datasetFile)
-      .then((dataID) => makeFileSuccessStatus(file, 'image', dataID))
-      .catch((err) =>
-        makeFileFailureStatus(
-          file.name,
-          `Reading ${file.name} gave an error: ${err}`
-        )
-      );
+    return loadResults[0];
   }
 
   // --- watch for deletion --- //

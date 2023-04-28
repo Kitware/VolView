@@ -10,6 +10,7 @@ import { canFetchUrl, fetchFile } from '../utils/fetch';
 import { useImageStore } from '../store/datasets-images';
 import {
   DatasetFile,
+  isRemote,
   makeLocal,
   makeRemote,
   useFileStore,
@@ -107,6 +108,45 @@ export function convertDataSourceToDatasetFile(
 
   // local file case
   return makeLocal(fileDataSource.fileSrc!.file);
+}
+
+/**
+ * Converts a DatasetFile to a DataSource.
+ *
+ * This is an imperfect conversion, since DatasetFile contains less information
+ * (e.g. hierarchical provenance info).
+ * @param dataset
+ * @returns
+ */
+export function convertDatasetFileToDataSource(
+  dataset: DatasetFile,
+  options?: {
+    forceRemoteOnly: boolean;
+  }
+): DataSource {
+  const forceRemoteOnly = options?.forceRemoteOnly ?? false;
+  let parent: DataSource | undefined;
+
+  if (isRemote(dataset)) {
+    parent = {
+      uriSrc: {
+        uri: dataset.url,
+        name: dataset.remoteFilename,
+      },
+    };
+
+    if (forceRemoteOnly) {
+      return parent;
+    }
+  }
+
+  return {
+    fileSrc: {
+      file: dataset.file,
+      fileType: '',
+    },
+    parent,
+  };
 }
 
 function isArchive(r: DataSource): r is DataSource & { fileSrc: FileSource } {
