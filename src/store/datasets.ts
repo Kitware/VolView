@@ -5,7 +5,7 @@ import { computed, ref } from '@vue/composition-api';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
-import { DatasetFile, useFileStore } from './datasets-files';
+import { DatasetFile, isRemote, useFileStore } from './datasets-files';
 import { StateFile, DatasetType, Dataset } from '../io/state-file/schema';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { DataSource, importDataSources } from '../core/importDataSources';
@@ -190,7 +190,16 @@ export const useDatasetStore = defineStore('dataset', () => {
   }
 
   async function loadFiles(files: DatasetFile[]) {
-    const resources: DataSource[] = files.map((file) => {
+    const resources = files.map((file): DataSource => {
+      // treat empty remote files as just URLs to download
+      if (isRemote(file) && file.file.size === 0) {
+        return {
+          uriSrc: {
+            uri: file.url,
+            name: file.remoteFilename,
+          },
+        };
+      }
       return {
         fileSrc: {
           file: file.file,

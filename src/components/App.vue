@@ -229,7 +229,7 @@ import {
   DICOMLoadFailure,
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
-import { makeRemote, makeLocal, DatasetFile } from '../store/datasets-files';
+import { makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
@@ -238,8 +238,7 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { partition, pluck, wrapInArray, isFulfilled } from '../utils';
-import { fetchFile } from '../utils/fetch';
+import { wrapInArray } from '../utils';
 
 async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
   const dataStore = useDatasetStore();
@@ -302,42 +301,17 @@ async function loadRemoteFilesFromURLParams(
 ) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const fetchParams = urls.map((url, idx) => ({
+  const resources: DatasetFile[] = urls.map((url, idx) => ({
     url,
     remoteFilename:
       names[idx] ||
       new URL(url, window.location.href).pathname.split('/').at(-1) ||
-      '',
+      url,
+    // loadFiles will treat empty files as URLs to download
+    file: new File([], ''),
   }));
 
-  const fetchResults = await Promise.allSettled(
-    fetchParams.map(({ url, remoteFilename }) => fetchFile(url, remoteFilename))
-  );
-
-  const withParams = fetchResults.map((result, idx) => ({
-    result,
-    ...fetchParams[idx],
-  }));
-
-  const [downloaded, rejected] = partition(
-    ({ result }) => isFulfilled(result) && result.value.size !== 0,
-    withParams
-  );
-
-  if (rejected.length) {
-    setError(
-      new Error(
-        `Failed to download URLs:\n${rejected.map(pluck('url')).join('\n')}`
-      )
-    );
-  }
-
-  const datasetFiles = downloaded.map(({ result, url }) =>
-    makeRemote(url, (result as PromiseFulfilledResult<File>).value)
-  );
-
-  // must await for setError to work
-  await loadFiles(datasetFiles, setError);
+  await loadFiles(resources, setError);
 }
 
 export default defineComponent({
