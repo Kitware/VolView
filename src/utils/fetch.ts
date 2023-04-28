@@ -62,21 +62,7 @@ const HTTPHandler: URLHandler = {
   },
 };
 
-/**
- * Handles Google Bucket URLs
- */
-const GoogleBucketHandler: URLHandler = {
-  testURL: (url) => new URL(url, window.location.href).protocol === 'gs:',
-  fetchURL: async (url, options = {}) => {
-    const urlComponents = new URL(url, window.location.href);
-    const bucket = urlComponents.hostname;
-    const path = urlComponents.pathname;
-    const httpURL = `https://storage.googleapis.com/${bucket}${path}`;
-    return HTTPHandler.fetchURL(httpURL, options);
-  },
-};
-
-const HANDLERS = [GoogleBucketHandler, HTTPHandler];
+const HANDLERS = [HTTPHandler];
 
 export function canFetchUrl(url: string) {
   return !!HANDLERS.find((h) => h.testURL(url));
@@ -102,4 +88,24 @@ export async function fetchFile(
   }
 
   return new File([blob], name);
+}
+
+/**
+ * Fetches json.
+ * @returns json data
+ */
+export async function fetchJSON<T>(url: string, options?: FetchOptions) {
+  const handler = HANDLERS.find((h) => h.testURL(url));
+  if (!handler) {
+    throw new Error(`Cannot find a handler for URL: ${url}`);
+  }
+
+  const blob = await handler.fetchURL(url, options);
+  if (!blob) {
+    throw new Error(`Failed to download ${url}`);
+  }
+
+  const buffer = await blob.arrayBuffer();
+  const decoder = new TextDecoder();
+  return JSON.parse(decoder.decode(new Uint8Array(buffer))) as T;
 }
