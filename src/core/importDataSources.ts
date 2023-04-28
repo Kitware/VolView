@@ -8,8 +8,14 @@ import { extractFilesFromZip } from '../io/zip';
 import Pipeline, { Handler } from './pipeline';
 import { canFetchUrl, fetchFile } from '../utils/fetch';
 import { useImageStore } from '../store/datasets-images';
-import { DatasetFile, useFileStore } from '../store/datasets-files';
+import {
+  DatasetFile,
+  makeLocal,
+  makeRemote,
+  useFileStore,
+} from '../store/datasets-files';
 import { useModelStore } from '../store/datasets-models';
+import { Maybe } from '../types';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -58,6 +64,51 @@ export interface ImportResult {
 
 type ImportHandler = Handler<DataSource, ImportResult>;
 
+/**
+ * Flattens a data source hierarchy, ordered by descendant first.
+ *
+ * For a given data source `ds`, `ds` is the descendant and `ds.parent` is the
+ * ancestor.
+ *
+ * @param ds
+ * @returns
+ */
+export function flattenDataSourceHierarchy(ds: DataSource): DataSource[] {
+  const sources: DataSource[] = [];
+  let cur: Maybe<DataSource> = ds;
+  while (cur) {
+    sources.push(cur);
+    cur = cur.parent;
+  }
+  return sources;
+}
+
+/**
+ * This helper converts a more flexible DataSource into a simpler DatasetFile.
+ * @param source
+ */
+export function convertDataSourceToDatasetFile(
+  source: DataSource
+): DatasetFile {
+  const provenance = flattenDataSourceHierarchy(source);
+  const fileDataSource = provenance.find((ds) => ds.fileSrc?.file);
+  if (!fileDataSource) {
+    throw new Error('DataSource has no file source!');
+  }
+
+  // remote file case
+  const remoteDataSource = provenance.find((ds) => ds.uriSrc);
+  if (remoteDataSource) {
+    return makeRemote(
+      remoteDataSource.uriSrc!.uri,
+      fileDataSource.fileSrc!.file
+    );
+  }
+
+  // local file case
+  return makeLocal(fileDataSource.fileSrc!.file);
+}
+
 function isArchive(r: DataSource): r is DataSource & { fileSrc: FileSource } {
   return !!r.fileSrc && ARCHIVE_FILE_TYPES.has(r.fileSrc.fileType);
 }
@@ -97,7 +148,7 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
         fileSrc.file.name,
         dataObject as vtkImageData
       );
-      fileStore.add(dataID, [{ file: fileSrc.file }]);
+      fileStore.add(dataID, [convertDataSourceToDatasetFile(dataSource)]);
 
       return done({
         dataID,
@@ -111,7 +162,7 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
         fileSrc.file.name,
         dataObject as vtkPolyData
       );
-      fileStore.add(dataID, [{ file: fileSrc.file }]);
+      fileStore.add(dataID, [convertDataSourceToDatasetFile(dataSource)]);
 
       return done({
         dataID,
@@ -203,9 +254,7 @@ export async function importDataSources(dataSources: DataSource[]) {
   const dicoms: DatasetFile[] = [];
   const importDicomFile: ImportHandler = (dataSource, { done }) => {
     if (dataSource.fileSrc?.fileType === 'application/dicom') {
-      dicoms.push({
-        file: dataSource.fileSrc.file,
-      });
+      dicoms.push(convertDataSourceToDatasetFile(dataSource));
       return done();
     }
     return dataSource;
