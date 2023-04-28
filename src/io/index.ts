@@ -7,5 +7,7 @@ export type FileReaderMap = Map<string, ReaderType>;
 
 /**
  * A map of the currently registered file readers.
+ *
+ * Maps mime type to reader.
  */
 export const FILE_READERS: FileReaderMap = new Map();

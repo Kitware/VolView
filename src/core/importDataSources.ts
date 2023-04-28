@@ -1,11 +1,15 @@
 import { URL } from 'whatwg-url';
-import { getFileMimeType } from '../io';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
+import { FILE_READERS, getFileMimeType } from '../io';
 import { readRemoteManifestFile } from '../io/manifest';
 import { ARCHIVE_FILE_TYPES } from '../io/mimeTypes';
 import { extractFilesFromZip } from '../io/zip';
 import Pipeline, { Handler } from './pipeline';
 import { canFetchUrl, fetchFile } from '../utils/fetch';
-import { DatasetFile } from '../store/datasets-files';
+import { useImageStore } from '../store/datasets-images';
+import { DatasetFile, useFileStore } from '../store/datasets-files';
+import { useModelStore } from '../store/datasets-models';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -49,6 +53,7 @@ export interface DataSource {
 export interface ImportResult {
   dataID: string;
   dataSource: DataSource;
+  dataType: 'image' | 'model';
 }
 
 type ImportHandler = Handler<DataSource, ImportResult>;
@@ -80,10 +85,42 @@ const retypeFile: ImportHandler = async (dataSource) => {
 };
 
 const importSingleFile: ImportHandler = async (dataSource, { done }) => {
-  if (dataSource.fileSrc) {
-    // pass to readers
-    console.log('importing single file', dataSource);
-    return done();
+  const { fileSrc } = dataSource;
+  if (fileSrc && FILE_READERS.has(fileSrc.fileType)) {
+    const reader = FILE_READERS.get(fileSrc.fileType)!;
+    const dataObject = await reader(fileSrc.file);
+
+    const fileStore = useFileStore();
+
+    if (dataObject.isA('vtkImageData')) {
+      const dataID = useImageStore().addVTKImageData(
+        fileSrc.file.name,
+        dataObject as vtkImageData
+      );
+      fileStore.add(dataID, [{ file: fileSrc.file }]);
+
+      return done({
+        dataID,
+        dataSource,
+        dataType: 'image',
+      });
+    }
+
+    if (dataObject.isA('vtkPolyData')) {
+      const dataID = useModelStore().addVTKPolyData(
+        fileSrc.file.name,
+        dataObject as vtkPolyData
+      );
+      fileStore.add(dataID, [{ file: fileSrc.file }]);
+
+      return done({
+        dataID,
+        dataSource,
+        dataType: 'model',
+      });
+    }
+
+    throw new Error('Data reader did not produce a valid dataset');
   }
   return dataSource;
 };
@@ -192,7 +229,8 @@ export async function importDataSources(dataSources: DataSource[]) {
     dataSources.map((r) => pipeline.execute(r))
   );
 
-  console.log('dicoms:', dicoms);
-
-  return results;
+  return {
+    dicoms,
+    results,
+  };
 }

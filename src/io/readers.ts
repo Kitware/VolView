@@ -4,9 +4,14 @@ import { FileReaderMap } from '.';
 
 import { readFileAsArrayBuffer } from './io';
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
+import { FILE_EXT_TO_MIME } from './mimeTypes';
 
-export const ITK_IMAGE_EXTENSIONS = Array.from(
-  new Set(Array.from(extensionToImageIO.keys()).map((ext) => ext.toLowerCase()))
+export const ITK_IMAGE_MIME_TYPES = Array.from(
+  new Set(
+    Array.from(extensionToImageIO.keys()).map(
+      (ext) => FILE_EXT_TO_MIME[ext.toLowerCase()]
+    )
+  )
 );
 
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
@@ -30,11 +35,11 @@ async function itkReader(file: File) {
  * Resets the file reader map to the default values.
  */
 export function registerAllReaders(readerMap: FileReaderMap) {
-  readerMap.set('vti', vtiReader);
-  readerMap.set('vtp', vtpReader);
-  readerMap.set('stl', stlReader);
+  readerMap.set('application/vnd.unknown.vti', vtiReader);
+  readerMap.set('application/vnd.unknown.vtp', vtpReader);
+  readerMap.set('model/stl', stlReader);
 
-  ITK_IMAGE_EXTENSIONS.forEach((ext) => {
-    readerMap.set(ext, itkReader);
+  ITK_IMAGE_MIME_TYPES.forEach((mime) => {
+    readerMap.set(mime, itkReader);
   });
 }
