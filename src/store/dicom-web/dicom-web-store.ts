@@ -19,6 +19,8 @@ import {
 } from '../../core/dicom-web-api';
 import { makeLocal } from '../datasets-files';
 
+const DICOM_WEB_URL_PARAM = 'dicomweb';
+
 export type ProgressState = 'Remote' | 'Pending' | 'Error' | 'Done';
 
 export interface VolumeProgress {
@@ -45,13 +47,15 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
-  const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
-  const dicomWebFromURLParam = urlParams.dicomweb as string | undefined;
-  const initialHost = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
+  const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
 
-  const host = initialHost
-    ? ref(initialHost)
-    : useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
+  // URL param overrides env var which overrides local storage
+  const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+  const dicomWebFromURLParam = urlParams[DICOM_WEB_URL_PARAM] as
+    | string
+    | undefined;
+  const hostConfig = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
+  if (hostConfig) host.value = hostConfig;
 
   // Remove trailing slash
   const cleanHost = computed(() => host.value?.replace(/\/$/, '') ?? '');
