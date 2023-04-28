@@ -181,7 +181,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, Ref, ref, watch } from 'vue';
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onMounted,
+  Ref,
+  ref,
+  watch,
+} from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -405,9 +413,15 @@ export default defineComponent({
       if (!urlParams.urls) {
         return;
       }
-      runAsLoading((setError) =>
-        loadRemoteFilesFromURLParams(urlParams, setError)
-      );
+
+      // TODO remove this nextTick when we switch away from
+      // vue-toastification.
+      // We run in nextTick to ensure the library is mounted.
+      nextTick(() => {
+        runAsLoading((setError) =>
+          loadRemoteFilesFromURLParams(urlParams, setError)
+        );
+      });
     });
 
     // --- template vars --- //
