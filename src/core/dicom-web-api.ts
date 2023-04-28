@@ -122,7 +122,6 @@ export async function fetchInstanceThumbnail(
   const thumbnail = await client.retrieveInstanceRendered({
     ...instance,
     mediaTypes: [{ mediaType: 'image/jpeg' }],
-    queryParams: { quality: '10' },
   });
   const arrayBufferView = new Uint8Array(thumbnail);
   const blob = new Blob([arrayBufferView], { type: 'image/jpeg' });
