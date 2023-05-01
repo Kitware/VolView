@@ -40,7 +40,7 @@ export interface FileSource {
 /**
  * If an archive source is specified, then it is assumed that the data source
  * has a FileSource (representing the file inside the archive), and a parent
- * data source that has a FileSource of the containing archive.
+ * data source that refers to the archive.
  */
 export interface ArchiveSource {
   // Full path + filename inside the archive
@@ -88,6 +88,22 @@ export function flattenDataSourceHierarchy(ds: DataSource): DataSource[] {
 }
 
 /**
+ * Gets the name associated with a data source, if any.
+ * @param ds
+ */
+export function getDataSourceName(ds: Maybe<DataSource>): Maybe<string> {
+  if (ds?.fileSrc) {
+    return ds.fileSrc.file.name;
+  }
+
+  if (ds?.uriSrc) {
+    return ds.uriSrc.name;
+  }
+
+  return null;
+}
+
+/**
  * This helper converts a more flexible DataSource into a simpler DatasetFile.
  *
  * This will create a new File object with the type derived from
@@ -113,11 +129,10 @@ export function convertDataSourceToDatasetFile(
   const remoteDataSource = provenance.find((ds) => ds.uriSrc);
   if (remoteDataSource) {
     dataset = makeRemote(remoteDataSource.uriSrc!.uri, dataset);
-    // if from archive, then the remoteFilename is the archive name
-    const { parent } = fileDataSource;
-    if (fileDataSource.archiveSrc && parent?.fileSrc) {
-      const remoteFilename = parent.fileSrc.file.name;
-      (dataset as RemoteDatasetFile).remoteFilename = remoteFilename;
+    // if from archive, then the remoteFilename is the parent archive name
+    const parentName = getDataSourceName(fileDataSource.parent);
+    if (fileDataSource.archiveSrc && parentName) {
+      (dataset as RemoteDatasetFile).remoteFilename = parentName;
     }
   }
 
@@ -170,7 +185,7 @@ export function convertDatasetFileToDataSource(
     parent,
   };
 
-  if ('archivePath' in dataset) {
+  if ('archivePath' in dataset && parent) {
     source.archiveSrc = {
       // assumes the archive name is the same as the file name
       path: `${dataset.archivePath}/${source.fileSrc!.file.name}`,
