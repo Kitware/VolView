@@ -205,9 +205,9 @@ export const useDatasetStore = defineStore('dataset', () => {
     const statuses: LoadResult[] = [];
 
     try {
-      const keys = await dicomStore.importFiles(dicoms);
-      keys.forEach((key) => {
-        statuses.push(makeDICOMSuccessStatus(key.volumeKey));
+      const volumeKeys = await dicomStore.importFiles(dicoms);
+      volumeKeys.forEach((key) => {
+        statuses.push(makeDICOMSuccessStatus(key));
       });
     } catch (err) {
       statuses.push(makeDICOMFailureStatus(err as any));
