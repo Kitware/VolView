@@ -11,36 +11,10 @@ import { Maybe } from '../types';
 import { getFileMimeFromMagic } from './magic';
 
 /**
- * Retypes a given File.
+ * Determines the file's mime type.
  *
- * Handy for when a file object has no type given.
- * Type is inferred from extension or magic.
- *
- * If type is not supported, file.type will be "".
- * @param file
+ * Returns the file's mime type for supported mime types.
  */
-export async function retypeFile(file: File): Promise<File> {
-  if (file.type) return file;
-
-  let type: Maybe<string>;
-
-  type =
-    [...FILE_EXTENSIONS].find((ext) =>
-      file.name.toLowerCase().endsWith(`.${ext}`)
-    ) ?? null;
-
-  if (!type) {
-    type = await getFileMimeFromMagic(file);
-  }
-
-  if (!type) {
-    type = '';
-  }
-
-  const retypedFile = new File([file], file.name, { type: type.toLowerCase() });
-  return retypedFile;
-}
-
 export async function getFileMimeType(file: File): Promise<Maybe<string>> {
   const fileType = file.type.toLowerCase();
   if (MIME_TYPES.has(fileType)) {
@@ -64,6 +38,20 @@ export async function getFileMimeType(file: File): Promise<Maybe<string>> {
   }
 
   return null;
+}
+
+/**
+ * Retypes a given File.
+ *
+ * Handy for when a file object has no type given.
+ * Type is inferred from extension or magic.
+ *
+ * If type is not supported, file.type will be "".
+ * @param file
+ */
+export async function retypeFile(file: File): Promise<File> {
+  const type = (await getFileMimeType(file)) ?? '';
+  return new File([file], file.name, { type: type.toLowerCase() });
 }
 
 const isZip = (datasetFile: DatasetFile) =>

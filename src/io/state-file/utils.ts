@@ -1,3 +1,4 @@
+import { Awaitable } from '@vueuse/core';
 import { fetchFile } from '@/src/utils/fetch';
 import { partition } from '@/src/utils';
 import {
@@ -16,6 +17,7 @@ import {
 } from '../../store/datasets-files';
 import { FileEntry } from '../types';
 import { extractArchivesRecursively, retypeFile } from '../io';
+import { normalize as pathNormalize } from '../../utils/path';
 
 export async function serializeData(
   stateFile: StateFile,
@@ -59,7 +61,7 @@ export async function serializeData(
   });
 }
 
-type RemoteFileCache = Record<string, DatasetFile[] | Promise<DatasetFile[]>>;
+type RemoteFileCache = Record<string, Awaitable<DatasetFile[]>>;
 
 const getRemoteFile = () => {
   // url to DatasetFiles
@@ -68,7 +70,7 @@ const getRemoteFile = () => {
   return async ({
     url,
     remoteFilename,
-    archivePath: savedArchivePath,
+    archivePath,
     name: savedFilename,
   }: RemoteFile) => {
     // First time seeing URL?
@@ -83,10 +85,12 @@ const getRemoteFile = () => {
     // Ensure parallel remote file requests for same URL have resolved.
     const remoteFiles = await cache[url];
 
+    const savedArchivePath = pathNormalize(archivePath ?? '');
     const file = remoteFiles.find(
       (remote) =>
         remote.file.name === savedFilename &&
-        (!('archivePath' in remote) || remote.archivePath === savedArchivePath)
+        (!('archivePath' in remote) ||
+          pathNormalize(remote.archivePath) === savedArchivePath)
     );
 
     if (!file)

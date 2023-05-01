@@ -10,6 +10,8 @@ import { canFetchUrl, fetchFile } from '../utils/fetch';
 import { useImageStore } from '../store/datasets-images';
 import {
   DatasetFile,
+  DatasetPath,
+  RemoteDatasetFile,
   isRemote,
   makeLocal,
   makeRemote,
@@ -17,6 +19,7 @@ import {
 } from '../store/datasets-files';
 import { useModelStore } from '../store/datasets-models';
 import { Maybe } from '../types';
+import { dirname } from '../utils/path';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -86,6 +89,9 @@ export function flattenDataSourceHierarchy(ds: DataSource): DataSource[] {
 
 /**
  * This helper converts a more flexible DataSource into a simpler DatasetFile.
+ *
+ * This will create a new File object with the type derived from
+ * DataSource.fileSrc.fileType.
  * @param source
  */
 export function convertDataSourceToDatasetFile(
@@ -97,17 +103,33 @@ export function convertDataSourceToDatasetFile(
     throw new Error('DataSource has no file source!');
   }
 
+  // local file case
+  const { file, fileType } = fileDataSource.fileSrc!;
+  let dataset: DatasetFile = makeLocal(
+    new File([file], file.name, { type: fileType })
+  );
+
   // remote file case
   const remoteDataSource = provenance.find((ds) => ds.uriSrc);
   if (remoteDataSource) {
-    return makeRemote(
-      remoteDataSource.uriSrc!.uri,
-      fileDataSource.fileSrc!.file
-    );
+    dataset = makeRemote(remoteDataSource.uriSrc!.uri, dataset);
+    // if from archive, then the remoteFilename is the archive name
+    const { parent } = fileDataSource;
+    if (fileDataSource.archiveSrc && parent?.fileSrc) {
+      const remoteFilename = parent.fileSrc.file.name;
+      (dataset as RemoteDatasetFile).remoteFilename = remoteFilename;
+    }
   }
 
-  // local file case
-  return makeLocal(fileDataSource.fileSrc!.file);
+  // add archive information
+  if (fileDataSource.archiveSrc) {
+    dataset = {
+      ...dataset,
+      archivePath: dirname(fileDataSource.archiveSrc.path) as DatasetPath,
+    };
+  }
+
+  return dataset;
 }
 
 /**
@@ -140,13 +162,22 @@ export function convertDatasetFileToDataSource(
     }
   }
 
-  return {
+  const source: DataSource = {
     fileSrc: {
       file: dataset.file,
-      fileType: '',
+      fileType: dataset.file.type,
     },
     parent,
   };
+
+  if ('archivePath' in dataset) {
+    source.archiveSrc = {
+      // assumes the archive name is the same as the file name
+      path: `${dataset.archivePath}/${source.fileSrc!.file.name}`,
+    };
+  }
+
+  return source;
 }
 
 function isArchive(r: DataSource): r is DataSource & { fileSrc: FileSource } {
