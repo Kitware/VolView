@@ -49,7 +49,7 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
 export const useDicomWebStore = defineStore('dicom-web', () => {
   const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
 
-  // URL param overrides env var which overrides local storage
+  // URL param overrides env var, which overrides local storage
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
   const dicomWebFromURLParam = urlParams[DICOM_WEB_URL_PARAM] as
     | string
@@ -61,30 +61,32 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const cleanHost = computed(() => host.value?.replace(/\/$/, '') ?? '');
   const isConfigured = computed(() => !!cleanHost.value);
 
+  // Just a display name
   const hostName = process.env.VUE_APP_DICOM_WEB_NAME
     ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
     : useLocalStorage<string>('dicomWebHostName', '');
 
+  const fetchError = ref<undefined | unknown>(undefined);
   let hasFetchedPatients = false;
-  const message = ref('');
-  const patients = ref([] as PatientInfo[]);
-
   const fetchPatients = async () => {
     hasFetchedPatients = true;
-    patients.value = [];
-    message.value = '';
+    fetchError.value = undefined;
     const dicoms = useDicomMetaStore();
     dicoms.$reset();
     if (!cleanHost.value) return;
-    try {
-      patients.value = await getAllPatients(cleanHost.value);
 
-      if (patients.value.length === 0) {
-        message.value = 'Found zero dicoms.';
-      }
+    // const [ studies, studyID] = cleanHost.value.split('/').slice(-2);
+    const [studies, studyID] = cleanHost.value.split('/');
+
+    if (studies === 'studies' && studyID) {
+      console.log('studies', studies, studyID);
+    }
+
+    try {
+      // side effect: populates dicom meta store
+      await getAllPatients(cleanHost.value);
     } catch (e) {
-      message.value =
-        'Failed to fetch list of DICOM metadata.  Check address in settings.';
+      fetchError.value = e;
       console.error(e);
     }
   };
@@ -95,6 +97,14 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       fetchPatients();
     }
   };
+
+  const message = computed(() => {
+    if (fetchError) return `Error fetching DICOMWeb data ${fetchError.value}`;
+    const dicoms = useDicomMetaStore();
+    if (Object.values(dicoms.patientInfo).length === 0)
+      return 'Found zero dicoms.';
+    return '';
+  });
 
   const fetchVolumeThumbnail = async (volumeKey: string) => {
     const dicoms = useDicomMetaStore();
@@ -238,7 +248,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     isConfigured,
     hostName,
     message,
-    patients,
     volumes,
     fetchPatients,
     fetchPatientsOnce,

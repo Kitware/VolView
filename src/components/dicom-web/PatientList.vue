@@ -1,8 +1,10 @@
 <script lang="ts">
 import { computed, defineComponent } from '@vue/composition-api';
 
+import { useDicomWebStore } from '@/src/store/dicom-web/dicom-web-store';
+import { useDicomMetaStore } from '@/src/store/dicom-web/dicom-meta-store';
+
 import PatientDetails from './PatientDetails.vue';
-import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';
 
 export default defineComponent({
   components: {
@@ -10,10 +12,11 @@ export default defineComponent({
   },
   setup() {
     const dicomWeb = useDicomWebStore();
+    const dicomWebMeta = useDicomMetaStore();
     dicomWeb.fetchPatientsOnce();
 
     const patients = computed(() =>
-      dicomWeb.patients
+      Object.values(dicomWebMeta.patientInfo)
         .map((info) => ({
           key: info.PatientID,
           name: info.PatientName,
