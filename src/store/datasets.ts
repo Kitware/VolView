@@ -5,67 +5,14 @@ import { computed, ref } from '@vue/composition-api';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useModelStore } from './datasets-models';
-import { DatasetFile, useFileStore } from './datasets-files';
-import { StateFile, Dataset } from '../io/state-file/schema';
+import { useFileStore } from './datasets-files';
+import { StateFile } from '../io/state-file/schema';
 import { useErrorMessage } from '../composables/useErrorMessage';
-import {
-  DataSource,
-  convertDatasetFileToDataSource,
-  importDataSources,
-} from '../core/importDataSources';
 
 export const DataType = {
   Image: 'Image',
   Model: 'Model',
 };
-
-const makeFileSuccessStatus = (
-  file: File | string,
-  type: 'model' | 'image',
-  dataID: string
-) =>
-  ({
-    type: 'file',
-    loaded: true,
-    filename: typeof file === 'string' ? file : file.name,
-    dataID,
-    dataType: type,
-  } as const);
-
-export type FileLoadSuccess = ReturnType<typeof makeFileSuccessStatus>;
-
-export const makeFileFailureStatus = (file: File | string, reason: string) =>
-  ({
-    type: 'file',
-    loaded: false,
-    filename: typeof file === 'string' ? file : file.name,
-    error: new Error(reason),
-  } as const);
-
-export type FileLoadFailure = ReturnType<typeof makeFileFailureStatus>;
-
-const makeDICOMSuccessStatus = (volumeKey: string) =>
-  ({
-    type: 'dicom',
-    loaded: true,
-    dataID: volumeKey,
-    dataType: 'dicom',
-  } as const);
-
-export type DICOMLoadSuccess = ReturnType<typeof makeDICOMSuccessStatus>;
-
-const makeDICOMFailureStatus = (error: Error) =>
-  ({
-    type: 'dicom',
-    loaded: false,
-    error,
-  } as const);
-
-export type DICOMLoadFailure = ReturnType<typeof makeDICOMFailureStatus>;
-
-export type FileLoadResult = FileLoadSuccess | FileLoadFailure;
-export type DICOMLoadResult = DICOMLoadSuccess | DICOMLoadFailure;
-export type LoadResult = FileLoadResult | DICOMLoadResult;
 
 export const makeDICOMSelection = (volumeKey: string) =>
   ({
@@ -130,20 +77,6 @@ export function selectionEquals(s1: DataSelection, s2: DataSelection) {
   return false;
 }
 
-export function convertSuccessResultToDataSelection(
-  result: FileLoadSuccess | DICOMLoadSuccess
-) {
-  if (result.type === 'dicom') {
-    return makeDICOMSelection(result.dataID);
-  }
-  if (result.type === 'file') {
-    if (result.dataType === 'image') {
-      return makeImageSelection(result.dataID);
-    }
-  }
-  return null;
-}
-
 export const useDatasetStore = defineStore('dataset', () => {
   type _This = ReturnType<typeof useDatasetStore>;
 
@@ -193,66 +126,6 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
   }
 
-  async function loadFiles(files: DatasetFile[]) {
-    const resources = files.map((file): DataSource => {
-      // treat empty remote files as just URLs to download
-      return convertDatasetFileToDataSource(file, {
-        forceRemoteOnly: file.file.size === 0,
-      });
-    });
-
-    const { dicoms, results } = await importDataSources(resources);
-    const statuses: LoadResult[] = [];
-
-    try {
-      const volumeKeys = await dicomStore.importFiles(dicoms);
-      volumeKeys.forEach((key) => {
-        statuses.push(makeDICOMSuccessStatus(key));
-      });
-    } catch (err) {
-      statuses.push(makeDICOMFailureStatus(err as any));
-    }
-
-    // map import results to load statuses
-    statuses.push(
-      ...results.flatMap((result) => [
-        ...result.data
-          .filter(({ dataSource }) => !!dataSource.fileSrc)
-          .map(({ dataID, dataType, dataSource }) =>
-            makeFileSuccessStatus(dataSource.fileSrc!.file, dataType, dataID)
-          ),
-        ...result.errors
-          .map((error) => {
-            // find the innermost data source that has a fileSrc and get the
-            // file
-            let file = error.inputDataStackTrace.find((src) => !!src.fileSrc)
-              ?.fileSrc?.file;
-
-            // if no file, then find innermost uri resource and make a dummy
-            // file with the uri as the name
-            if (!file) {
-              const uri = error.inputDataStackTrace.find((src) => !!src.uriSrc)
-                ?.uriSrc?.uri;
-              file = uri ? new File([], uri) : file;
-            }
-
-            // default to blank
-            if (!file) {
-              file = new File([], '');
-            }
-
-            return {
-              reason: error.message,
-              file,
-            };
-          })
-          .map(({ file, reason }) => makeFileFailureStatus(file!, reason)),
-      ])
-    );
-
-    return statuses;
-  }
-
   async function serialize(stateFile: StateFile) {
     await dicomStore.serialize(stateFile);
     await imageStore.serialize(stateFile);
@@ -268,14 +141,6 @@ export const useDatasetStore = defineStore('dataset', () => {
       const { manifest } = stateFile;
       manifest.primarySelection = id;
     }
-  }
-
-  async function deserialize(dataSet: Dataset, files: DatasetFile[]) {
-    const loadResults = await loadFiles(files);
-    if (loadResults.length !== 1) {
-      throw new Error('Invalid state file.');
-    }
-    return loadResults[0];
   }
 
   // --- watch for deletion --- //
@@ -317,8 +182,6 @@ export const useDatasetStore = defineStore('dataset', () => {
     allDataIDs,
     getDataProxyByID,
     setPrimarySelection,
-    loadFiles,
     serialize,
-    deserialize,
   };
 });

@@ -4,10 +4,10 @@ import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 
 import { omit, remapKeys } from '@/src/utils';
-import {
+import importFiles, {
   convertSuccessResultToDataSelection,
-  useDatasetStore,
-} from '../datasets';
+} from '@/src/io/import/importFiles';
+import { useDatasetStore } from '../datasets';
 import { useDICOMStore } from '../datasets-dicom';
 import { useMessageStore } from '../messages';
 import { useDicomMetaStore } from './dicom-meta-store';
@@ -172,21 +172,25 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         seriesInfo,
         progressCallback
       );
-      if (files) {
-        const [loadResult] = await datasets.loadFiles(files.map(makeLocal));
-        if (loadResult?.loaded) {
-          const selection = convertSuccessResultToDataSelection(loadResult);
-          datasets.setPrimarySelection(selection);
-          set(volumes.value, volumeKey, {
-            ...volumes.value[volumeKey],
-            state: 'Done',
-          });
-        } else {
-          throw new Error('Failed to load DICOM.');
-        }
-      } else {
-        throw new Error('Fetch came back falsy.');
+      if (!files) {
+        throw new Error('Could not fetch series');
       }
+
+      const [loadResult] = await importFiles(files.map(makeLocal));
+      if (!loadResult) {
+        throw new Error('Did not receive a load result');
+      }
+
+      if (!loadResult.ok) {
+        throw loadResult.errors[0].cause;
+      }
+
+      const selection = convertSuccessResultToDataSelection(loadResult);
+      datasets.setPrimarySelection(selection);
+      set(volumes.value, volumeKey, {
+        ...volumes.value[volumeKey],
+        state: 'Done',
+      });
     } catch (error) {
       const messageStore = useMessageStore();
       messageStore.addError('Failed to load DICOM', error as Error);

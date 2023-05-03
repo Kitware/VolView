@@ -7,11 +7,11 @@ import {
   computed,
 } from '@vue/composition-api';
 import ImageListCard from '@/src/components/ImageListCard.vue';
-import { SAMPLE_DATA } from '../config';
-import {
+import { useDatasetStore } from '@/src/store/datasets';
+import importFiles, {
   convertSuccessResultToDataSelection,
-  useDatasetStore,
-} from '../store/datasets';
+} from '@/src/io/import/importFiles';
+import { SAMPLE_DATA } from '../config';
 import { useMessageStore } from '../store/messages';
 import { SampleDataset } from '../types';
 import { useImageStore } from '../store/datasets-images';
@@ -94,23 +94,25 @@ export default defineComponent({
         });
         status.progress[sample.name].state = ProgressState.Done;
 
-        if (sampleFile) {
-          const [loadResult] = await datasetStore.loadFiles([
-            makeRemote(sample.url, sampleFile),
-          ]);
-          if (loadResult?.loaded) {
-            const selection = convertSuccessResultToDataSelection(loadResult);
-            if (selection) {
-              const id =
-                selection.type === 'image'
-                  ? selection.dataID
-                  : selection.volumeKey;
-              set(loaded.idToURL, id, sample.url);
-              set(loaded.urlToID, sample.url, id);
-            }
-            datasetStore.setPrimarySelection(selection);
-          }
+        const [loadResult] = await importFiles([
+          makeRemote(sample.url, sampleFile),
+        ]);
+
+        if (!loadResult) {
+          throw new Error('Did not receive a load result');
         }
+        if (!loadResult.ok) {
+          throw loadResult.errors[0].cause;
+        }
+
+        const selection = convertSuccessResultToDataSelection(loadResult);
+        if (selection) {
+          const id =
+            selection.type === 'image' ? selection.dataID : selection.volumeKey;
+          set(loaded.idToURL, id, sample.url);
+          set(loaded.urlToID, sample.url, id);
+        }
+        datasetStore.setPrimarySelection(selection);
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();

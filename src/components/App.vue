@@ -207,6 +207,7 @@ import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { URL } from 'whatwg-url';
 
+import { useDatasetStore } from '@/src/store/datasets';
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
@@ -219,78 +220,55 @@ import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import VolViewLogo from './icons/VolViewLogo.vue';
-import {
-  useDatasetStore,
+import importFiles, {
   convertSuccessResultToDataSelection,
-  LoadResult,
-  FileLoadSuccess,
-  DICOMLoadSuccess,
-  FileLoadFailure,
-  DICOMLoadFailure,
-} from '../store/datasets';
+  ImportFilesResult,
+} from '../io/import/importFiles';
+import { getDataSourceName } from '../io/import/dataSource';
 import { useImageStore } from '../store/datasets-images';
-import { makeLocal, DatasetFile, makeRemote } from '../store/datasets-files';
+import { makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
-import { isStateFile, loadState, serialize } from '../io/state-file';
+import { serialize } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { isFulfilled, partition, pluck, wrapInArray } from '../utils';
-import { canFetchUrl, fetchFile } from '../utils/fetch';
-import { basename } from '../utils/path';
+import { partition, wrapInArray } from '../utils';
 
 async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
   const dataStore = useDatasetStore();
 
-  const loadFirstDataset = !dataStore.primarySelection;
-
-  let statuses: LoadResult[] = [];
-  let stateFile = false;
+  let results: ImportFilesResult[];
   try {
-    // For now only support restoring from a single state files.
-    stateFile = files.length === 1 && (await isStateFile(files[0].file));
-    if (stateFile) {
-      statuses = await loadState(files[0].file);
-    } else {
-      statuses = await dataStore.loadFiles(files);
-    }
+    results = await importFiles(files);
   } catch (error) {
     setError(error as Error);
     return;
   }
 
-  const loaded = statuses.filter((s) => s.loaded) as (
-    | FileLoadSuccess
-    | DICOMLoadSuccess
-  )[];
-  const errored = statuses.filter((s) => !s.loaded) as (
-    | FileLoadFailure
-    | DICOMLoadFailure
-  )[];
+  const [succeeded, errored] = partition((result) => result.ok, results);
 
-  if (
-    loaded.length &&
-    !stateFile &&
-    (loadFirstDataset || loaded.length === 1)
-  ) {
-    const selection = convertSuccessResultToDataSelection(loaded[0]);
+  if (!dataStore.primarySelection && succeeded.length) {
+    const selection = convertSuccessResultToDataSelection(succeeded[0]);
     if (selection) {
       dataStore.setPrimarySelection(selection);
     }
   }
 
   if (errored.length) {
-    const failedFilenames = errored.map((result) => {
-      if (result.type === 'file') {
-        return result.filename;
-      }
-      return 'DICOM files';
+    const errorMessages = errored.map((errResult) => {
+      // pick first error
+      const [firstError] = errResult.errors;
+      // pick innermost dataset that errored
+      const name = getDataSourceName(firstError.inputDataStackTrace[0]);
+      // log error for debugging
+      console.error(firstError.cause);
+      return `- ${name}: ${firstError.message}`;
     });
     const failedError = new Error(
-      `These files failed to load:\n${failedFilenames.join('\n')}`
+      `These files failed to load:\n${errorMessages.join('\n')}`
     );
 
     setError(failedError);
@@ -303,49 +281,17 @@ async function loadRemoteFilesFromURLParams(
 ) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const datasets = urls.map((url, idx) => ({
+  const resources: DatasetFile[] = urls.map((url, idx) => ({
     url,
     remoteFilename:
       names[idx] ||
-      basename(new URL(url, window.location.href).pathname) ||
+      new URL(url, window.location.href).pathname.split('/').at(-1) ||
       url,
     // loadFiles will treat empty files as URLs to download
     file: new File([], ''),
   }));
 
-  const [downloadNow, downloadLater] = partition(
-    (dataset) => canFetchUrl(dataset.url),
-    datasets
-  );
-
-  const fetchResults = await Promise.allSettled(
-    downloadNow.map(({ url, remoteFilename }) => fetchFile(url, remoteFilename))
-  );
-
-  const withParams = fetchResults.map((result, idx) => ({
-    result,
-    ...downloadNow[idx],
-  }));
-
-  const [downloaded, rejected] = partition(
-    ({ result }) => isFulfilled(result) && result.value.size !== 0,
-    withParams
-  );
-
-  if (rejected.length) {
-    setError(
-      new Error(
-        `Failed to download URLs:\n${rejected.map(pluck('url')).join('\n')}`
-      )
-    );
-  }
-
-  const downloadedDatasetFiles = downloaded.map(({ result, url }) =>
-    makeRemote(url, (result as PromiseFulfilledResult<File>).value)
-  );
-
-  // must await for setError to work
-  await loadFiles([...downloadedDatasetFiles, ...downloadLater], setError);
+  await loadFiles(resources, setError);
 }
 
 export default defineComponent({
