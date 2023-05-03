@@ -78,6 +78,10 @@ const GoogleBucketHandler: URLHandler = {
 
 const HANDLERS = [GoogleBucketHandler, HTTPHandler];
 
+export function canFetchUrl(url: string) {
+  return !!HANDLERS.find((h) => h.testURL(url));
+}
+
 /**
  * Fetches a file.
  * @returns a File instance.
