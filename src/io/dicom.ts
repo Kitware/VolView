@@ -47,7 +47,7 @@ export class DICOMIO {
    * @async
    * @throws Error initialization failed
    */
-  private async initialize() {
+  async initialize() {
     if (!this.initializeCheck) {
       this.initializeCheck = new Promise<void>((resolve, reject) => {
         this.runTask('dicom', [], [], [])
