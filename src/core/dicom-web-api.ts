@@ -47,11 +47,21 @@ function parseTag(value: any) {
   return v;
 }
 
-function parseInstance(instance: any): Instance {
-  return Object.entries(tags).reduce(
+// remove undefined properties
+function cleanUndefined(obj: Object) {
+  return Object.entries(obj).reduce(
+    (cleaned, [key, value]) =>
+      value === undefined ? cleaned : { ...cleaned, [key]: value },
+    {}
+  );
+}
+
+function parseInstance(instance: any) {
+  const withNamedTags = Object.entries(tags).reduce(
     (info, [key, tag]) => ({ ...info, [key]: parseTag(instance[tag]) }),
     {}
-  ) as Instance;
+  );
+  return cleanUndefined(withNamedTags) as Instance;
 }
 
 // Create unique file names so loader utils work
@@ -112,7 +122,6 @@ export async function fetchInstanceThumbnail(
   const thumbnail = await client.retrieveInstanceRendered({
     ...instance,
     mediaTypes: [{ mediaType: 'image/jpeg' }],
-    queryParams: { quality: '10' },
   });
   const arrayBufferView = new Uint8Array(thumbnail);
   const blob = new Blob([arrayBufferView], { type: 'image/jpeg' });
