@@ -298,7 +298,7 @@ const Cropping = z.record(LPSCroppingPlanes);
 
 const Tools = z.object({
   rulers: Ruler.array(),
-  rectangles: Rectangle.array(),
+  rectangles: Rectangle.array().optional(),
   crosshairs: Crosshairs,
   paint: Paint,
   crop: Cropping,

@@ -41,7 +41,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
     manifest: Manifest,
     dataIDMap: Record<string, string>
   ) {
-    deserializeTools.call(this, manifest.tools.rectangles, dataIDMap);
+    deserializeTools.call(this, manifest.tools.rectangles ?? [], dataIDMap);
   }
 
   return {
