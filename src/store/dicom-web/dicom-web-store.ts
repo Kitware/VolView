@@ -47,6 +47,11 @@ async function getAllPatients(host: string): Promise<PatientInfo[]> {
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
+  // GUI display name
+  const hostName = process.env.VUE_APP_DICOM_WEB_NAME
+    ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
+    : useLocalStorage<string>('dicomWebHostName', '');
+
   const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
 
   // URL param overrides env var, which overrides local storage
@@ -57,29 +62,40 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const hostConfig = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
   if (hostConfig) host.value = hostConfig;
 
+  let studies = '';
+  let studyID = '';
   // Remove trailing slash
-  const cleanHost = computed(() => host.value?.replace(/\/$/, '') ?? '');
+  const cleanHost = computed(() => {
+    const sansSlash = host.value?.replace(/\/$/, '') ?? '';
+    const tokenized = sansSlash.split('/');
+    [studies, studyID] = tokenized.slice(-2);
+    if (studies === 'studies' && studyID) {
+      return tokenized.slice(0, -2).join('/');
+    }
+    return sansSlash;
+  });
   const isConfigured = computed(() => !!cleanHost.value);
-
-  // Just a display name
-  const hostName = process.env.VUE_APP_DICOM_WEB_NAME
-    ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
-    : useLocalStorage<string>('dicomWebHostName', '');
 
   const fetchError = ref<undefined | unknown>(undefined);
   let hasFetchedPatients = false;
-  const fetchPatients = async () => {
+  const fetchInitialDicoms = async () => {
     hasFetchedPatients = true;
     fetchError.value = undefined;
     const dicoms = useDicomMetaStore();
     dicoms.$reset();
     if (!cleanHost.value) return;
 
-    // const [ studies, studyID] = cleanHost.value.split('/').slice(-2);
-    const [studies, studyID] = cleanHost.value.split('/');
-
     if (studies === 'studies' && studyID) {
-      console.log('studies', studies, studyID);
+      const studyMeta = { StudyInstanceUID: studyID };
+      const seriesMetas = await retrieveStudyMetadata(cleanHost.value, {
+        studyInstanceUID: studyID,
+      });
+      const fullMeta = seriesMetas.map((seriesMeta) => ({
+        ...studyMeta,
+        ...seriesMeta,
+      }));
+      fullMeta.forEach((instance) => dicoms.importMeta(instance));
+      return;
     }
 
     try {
@@ -92,14 +108,15 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   };
 
   // Safe to call in ephemeral components' setup()
-  const fetchPatientsOnce = () => {
+  const fetchInitialDicomsOnce = () => {
     if (!hasFetchedPatients) {
-      fetchPatients();
+      fetchInitialDicoms();
     }
   };
 
   const message = computed(() => {
-    if (fetchError) return `Error fetching DICOMWeb data ${fetchError.value}`;
+    if (fetchError.value)
+      return `Error fetching DICOMWeb data: ${fetchError.value}`;
     const dicoms = useDicomMetaStore();
     if (Object.values(dicoms.patientInfo).length === 0)
       return 'Found zero dicoms.';
@@ -249,8 +266,8 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     hostName,
     message,
     volumes,
-    fetchPatients,
-    fetchPatientsOnce,
+    fetchInitialDicoms,
+    fetchInitialDicomsOnce,
     fetchPatientMeta,
     fetchVolumesMeta,
     fetchVolumeThumbnail,
