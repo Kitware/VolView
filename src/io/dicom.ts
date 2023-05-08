@@ -23,6 +23,25 @@ export type VolumesToFileNamesMap = Record<string, string[]>;
 // volume ID => files
 export type VolumesToFilesMap = Record<string, File[]>;
 
+/**
+ * Filenames must be sanitized prior to being passed into itk-wasm.
+ *
+ * In particular, forward slashes cause FS errors in itk-wasm.
+ * @param name
+ * @returns
+ */
+function sanitizeFileName(name: string) {
+  return name.replace(/\//g, '_');
+}
+
+/**
+ * Returns a new File instance with a sanitized name.
+ * @param file
+ */
+function sanitizeFile(file: File) {
+  return new File([file], sanitizeFileName(file.name));
+}
+
 export class DICOMIO {
   private webWorker: any;
   private initializeCheck: Promise<void> | null;
@@ -137,7 +156,11 @@ export class DICOMIO {
   ): Promise<Record<T[number]['name'], string>> {
     const tagsArgs = tags.map((t) => t.tag);
 
-    const result = await readDICOMTags(this.webWorker, file, tagsArgs);
+    const result = await readDICOMTags(
+      this.webWorker,
+      sanitizeFile(file),
+      tagsArgs
+    );
     const tagValues = result.tags;
 
     return tags.reduce((info, t) => {
@@ -165,7 +188,7 @@ export class DICOMIO {
       {
         type: InterfaceTypes.BinaryFile,
         data: {
-          path: file.name,
+          path: sanitizeFileName(file.name),
           data: new Uint8Array(buffer),
         },
       },
@@ -177,7 +200,7 @@ export class DICOMIO {
       '--thumbnail',
       asThumbnail.toString(),
       '--file',
-      file.name,
+      sanitizeFileName(file.name),
       '--memory-io',
       '0',
     ];
@@ -228,7 +251,9 @@ export class DICOMIO {
   async buildImage(seriesFiles: File[]) {
     await this.initialize();
 
-    const result = await readImageDICOMFileSeries(seriesFiles);
+    const result = await readImageDICOMFileSeries(
+      seriesFiles.map((file) => sanitizeFile(file))
+    );
 
     return result.image;
   }

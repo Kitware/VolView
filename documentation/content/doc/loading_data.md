@@ -25,6 +25,17 @@ The URL is constructed with two parts, as shown below. The required parameter is
 https://volview.netlify.com/?<strong>names=[prostate-mri.zip,neck.mha]</strong>&<strong>urls=[https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download,https://data.kitware.com/api/v1/item/620db4b84acac99f42e75420/download]</strong>
 </pre>
 
+### Google Cloud Storage Bucket Support
+
+VolView supports Google Cloud Storage links of the form `gs://<bucket>/<object>`. VolView can either download a single object,
+or download everything underneath a given object prefix/folder. As an example, VolView will download and load every file that
+exists in the `gs://my-public-bucket/my-patient-folder/` folder.
+
+As a note of caution, there are no checks on the size of the total download. As such, be careful when specifying bucket-level prefixes!
+
+This feature currently only supports public buckets that are anonymously accessible. Authenticated support may be added at a future date.
+If you have a strong use-case for it, please request it via [our issue page](https://github.com/Kitware/VolView/issues)!
+
 ### CORS
 
 In order for VolView to download and display your remote datasets, your server must be configured with the correct [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) configuration. CORS is a browser security mechanism that restricts how web applications can access remote resources. Without proper CORS configuration, VolView will be unable to download and display your datasets. Configuring your web server with CORS is beyond the scope of this documentation; please refer to your server's documentation.

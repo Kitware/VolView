@@ -20,6 +20,10 @@ import {
 import { useModelStore } from '../store/datasets-models';
 import { Maybe } from '../types';
 import { dirname } from '../utils/path';
+import {
+  getObjectsFromGsUri,
+  isGoogleCloudStorageUri,
+} from '../io/googleCloudStorage';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -316,6 +320,26 @@ const handleRemoteManifest: ImportHandler = async (
   return dataSource;
 };
 
+const handleGoogleCloudStorage: ImportHandler = async (
+  dataSource,
+  { execute, done }
+) => {
+  const { uriSrc } = dataSource;
+  if (uriSrc && isGoogleCloudStorageUri(uriSrc.uri)) {
+    await getObjectsFromGsUri(uriSrc.uri, (object) => {
+      execute({
+        uriSrc: {
+          uri: object.mediaLink,
+          name: object.name,
+        },
+        parent: dataSource,
+      });
+    });
+    return done();
+  }
+  return dataSource;
+};
+
 const downloadUrl: ImportHandler = async (dataSource, { execute, done }) => {
   const { uriSrc } = dataSource;
   if (uriSrc && canFetchUrl(uriSrc.uri)) {
@@ -350,6 +374,7 @@ export async function importDataSources(dataSources: DataSource[]) {
     // retyping should be first in the pipeline
     retypeFile,
     handleRemoteManifest,
+    handleGoogleCloudStorage,
     downloadUrl,
     extractArchive,
     // should be before importSingleFile, since DICOM is more specific
