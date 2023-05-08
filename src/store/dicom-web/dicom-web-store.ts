@@ -68,12 +68,15 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const cleanHost = computed(() => {
     const sansSlash = host.value?.replace(/\/$/, '') ?? '';
     const tokenized = sansSlash.split('/');
+
     [studies, studyID] = tokenized.slice(-2);
     if (studies === 'studies' && studyID) {
       return tokenized.slice(0, -2).join('/');
     }
+
     return sansSlash;
   });
+
   const isConfigured = computed(() => !!cleanHost.value);
 
   const fetchError = ref<undefined | unknown>(undefined);
