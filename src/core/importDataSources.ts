@@ -24,6 +24,7 @@ import {
   getObjectsFromGsUri,
   isGoogleCloudStorageUri,
 } from '../io/googleCloudStorage';
+import { getObjectsFromS3, isAmazonS3Uri } from '../io/amazonS3';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -340,6 +341,23 @@ const handleGoogleCloudStorage: ImportHandler = async (
   return dataSource;
 };
 
+const handleAmazonS3: ImportHandler = async (dataSource, { execute, done }) => {
+  const { uriSrc } = dataSource;
+  if (uriSrc && isAmazonS3Uri(uriSrc.uri)) {
+    await getObjectsFromS3(uriSrc.uri, (name, url) => {
+      execute({
+        uriSrc: {
+          uri: url,
+          name,
+        },
+        parent: dataSource,
+      });
+    });
+    return done();
+  }
+  return dataSource;
+};
+
 const downloadUrl: ImportHandler = async (dataSource, { execute, done }) => {
   const { uriSrc } = dataSource;
   if (uriSrc && canFetchUrl(uriSrc.uri)) {
@@ -375,6 +393,7 @@ export async function importDataSources(dataSources: DataSource[]) {
     retypeFile,
     handleRemoteManifest,
     handleGoogleCloudStorage,
+    handleAmazonS3,
     downloadUrl,
     extractArchive,
     // should be before importSingleFile, since DICOM is more specific

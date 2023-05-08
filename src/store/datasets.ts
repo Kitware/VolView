@@ -222,13 +222,30 @@ export const useDatasetStore = defineStore('dataset', () => {
             makeFileSuccessStatus(dataSource.fileSrc!.file, dataType, dataID)
           ),
         ...result.errors
-          .map((error) => ({
-            reason: error.message,
-            // find the innermost data source that has a fileSrc and get the file
-            file: error.inputDataStackTrace.find((src) => !!src.fileSrc)
-              ?.fileSrc?.file,
-          }))
-          .filter(({ file }) => !!file)
+          .map((error) => {
+            // find the innermost data source that has a fileSrc and get the
+            // file
+            let file = error.inputDataStackTrace.find((src) => !!src.fileSrc)
+              ?.fileSrc?.file;
+
+            // if no file, then find innermost uri resource and make a dummy
+            // file with the uri as the name
+            if (!file) {
+              const uri = error.inputDataStackTrace.find((src) => !!src.uriSrc)
+                ?.uriSrc?.uri;
+              file = uri ? new File([], uri) : file;
+            }
+
+            // default to blank
+            if (!file) {
+              file = new File([], '');
+            }
+
+            return {
+              reason: error.message,
+              file,
+            };
+          })
           .map(({ file, reason }) => makeFileFailureStatus(file!, reason)),
       ])
     );
