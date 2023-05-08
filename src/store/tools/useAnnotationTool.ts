@@ -13,14 +13,16 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import useViewSliceStore from '../view-configs/slicing';
+import { useLabelStore } from './labels';
 
 type AnnotationTool = {
   id: string;
   color: typeof TOOL_COLORS[number];
   imageID: string;
   slice: number;
-  placing?: boolean;
   frameOfReference: FrameOfReference;
+  placing?: boolean;
+  label?: string;
 };
 
 // Must return addTool in consuming Pinia store.
@@ -49,14 +51,18 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     return TOOL_COLORS[colorIndex];
   }
 
+  const labelStore = useLabelStore();
+
   function addTool(this: Store, tool: ToolPatch): ToolID {
     const id = this.$id.nextID() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
-    const color = tool.color ?? getNextColor();
+    const color = tool.color ?? labelStore.selectedColor ?? getNextColor();
+    const label = labelStore.selectedName;
     toolByID.value[id] = {
       ...toolDefaults,
+      ...(label && { label }),
       ...tool,
       id,
       color,
@@ -114,9 +120,8 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     toolIDs.value
       .map((toolID) => toolByID.value[toolID])
       .filter((tool) => !tool.placing)
-      // If parent image is DICOM, save VolumeKey
       .map(({ imageID, ...rest }) => ({
-        imageID: getDataID(imageID),
+        imageID: getDataID(imageID), // If parent image is DICOM, save VolumeKey
         ...rest,
       }));
 
@@ -127,10 +132,11 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
   ) {
     serialized
       .map(
-        ({ imageID, ...rest }) =>
+        ({ imageID, label = undefined, ...rest }) =>
           ({
             ...rest,
             imageID: findImageID(dataIDMap[imageID]),
+            label,
           } as Tool)
       )
       .forEach((tool) => addTool.call(this, tool));
