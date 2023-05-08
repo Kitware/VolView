@@ -77,6 +77,8 @@ async function fetchObjectsWithPagination(
 /**
  * Gets all objects from a given gs:// URI.
  *
+ * Signed/credentialed requests are currently not supported.
+ *
  * This is a simplified entrypoint for GCS. We're not using
  * @google-cloud/storage due to node dependencies. As such, this will most
  * definitely be incomplete (slight API missteps, no retries, etc.) For the
