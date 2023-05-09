@@ -59,6 +59,7 @@ import {
 } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { Rectangle, RectangleID } from '@/src/types/rectangle';
+import { useLabelStore } from '@/src/store/tools/labels';
 
 type ToolID = RectangleID;
 type Tool = Rectangle;
@@ -133,12 +134,27 @@ export default defineComponent({
       { immediate: true }
     );
 
+    const labelStore = storeToRefs(useLabelStore());
+    watch(
+      labelStore.selectedName,
+      (name) => {
+        if (placingToolID.value != null) {
+          activeToolStore.updateTool(placingToolID.value, {
+            label: name,
+            color: labelStore.selectedColor.value,
+          });
+        }
+      },
+      { immediate: true }
+    );
+
     onUnmounted(() => {
       if (placingToolID.value != null) {
         activeToolStore.removeTool(placingToolID.value);
         placingToolID.value = null;
       }
     });
+
     const onToolPlaced = () => {
       if (currentImageID.value) {
         placingToolID.value = activeToolStore.addTool({

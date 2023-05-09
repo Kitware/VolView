@@ -31,6 +31,7 @@ export interface Ruler {
   id: string;
   name: string;
   color: string;
+  label?: string; // label name
   /**
    * Is this ruler in placing mode
    */

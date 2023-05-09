@@ -102,6 +102,46 @@
         @click="toggle"
       />
     </groupable-item>
+
+    <v-menu v-model="labelMenu" offset-x :close-on-content-click="false">
+      <template v-slot:activator="{ on, attrs }">
+        <div>
+          <tool-button
+            size="40"
+            icon="mdi-palette"
+            name="Labels"
+            v-bind="attrs"
+            v-on="on"
+            :disabled="!showLabelsButton"
+          />
+        </div>
+      </template>
+      <v-card>
+        <v-card-text>
+          <v-radio-group
+            :value="selectedLabelName"
+            v-on:change="setSelectedLabel"
+            class="mt-0"
+            hide-details
+          >
+            <v-radio
+              v-for="(color, name) in labels"
+              :key="name"
+              :label="name"
+              :value="name"
+            >
+              <template v-slot:label>
+                <v-icon :color="color" size="18" class="pr-2">
+                  mdi-square
+                </v-icon>
+                {{ name }}
+              </template>
+            </v-radio>
+          </v-radio-group>
+        </v-card-text>
+      </v-card>
+    </v-menu>
+
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
       <v-menu
@@ -145,6 +185,7 @@ import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import CropControls from './tools/crop/CropControls.vue';
+import { useLabelStore } from '../store/tools/labels';
 
 export default defineComponent({
   components: {
@@ -161,12 +202,19 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
 
+    const labelStore = useLabelStore();
+    const showLabelsButton = computed(
+      () => Object.keys(labelStore.labels).length > 0
+    );
+
     const paintMenu = ref(false);
     const cropMenu = ref(false);
+    const labelMenu = ref(false);
 
     onKeyDown('Escape', () => {
       paintMenu.value = false;
       cropMenu.value = false;
+      labelMenu.value = false;
     });
 
     return {
@@ -176,6 +224,11 @@ export default defineComponent({
       Tools,
       paintMenu,
       cropMenu,
+      labelMenu,
+      labels: labelStore.labels,
+      showLabelsButton,
+      selectedLabelName: labelStore.selectedName,
+      setSelectedLabel: labelStore.setSelected,
     };
   },
 });

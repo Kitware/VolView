@@ -271,6 +271,7 @@ const Rectangle: z.ZodType<Rectangle> = z.object({
   id: z.string() as unknown as z.ZodType<Rectangle['id']>,
   name: z.string(),
   color: z.string(),
+  label: z.string().optional(),
 });
 
 const Crosshairs = z.object({

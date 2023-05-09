@@ -60,6 +60,7 @@ import {
 } from '@/src/utils/frameOfReference';
 import { Ruler } from '@/src/types/ruler';
 import { vec3 } from 'gl-matrix';
+import { useLabelStore } from '@/src/store/tools/labels';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -122,6 +123,20 @@ export default defineComponent({
           placingRulerID.value = rulerStore.addRuler({
             imageID,
             placing: true,
+          });
+        }
+      },
+      { immediate: true }
+    );
+
+    const labelStore = storeToRefs(useLabelStore());
+    watch(
+      labelStore.selectedName,
+      (name) => {
+        if (placingRulerID.value != null) {
+          rulerStore.updateRuler(placingRulerID.value, {
+            label: name,
+            color: labelStore.selectedColor.value,
           });
         }
       },

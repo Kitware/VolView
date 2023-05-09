@@ -12,7 +12,7 @@ import { retypeFile } from '../io';
 import { ARCHIVE_FILE_TYPES } from '../mimeTypes';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '1.0.0';
+export const MANIFEST_VERSION = '1.0.1';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
