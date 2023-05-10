@@ -3,11 +3,12 @@ import { useLocalStorage, UrlParams } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 
+import { omit, remapKeys } from '@/src/utils';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../datasets';
-import { PatientInfo, useDICOMStore } from '../datasets-dicom';
+import { useDICOMStore } from '../datasets-dicom';
 import { useMessageStore } from '../messages';
 import { useDicomMetaStore } from './dicom-meta-store';
 import {
@@ -16,6 +17,7 @@ import {
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
+  parseUrl,
 } from '../../core/dicom-web-api';
 import { makeLocal } from '../datasets-files';
 
@@ -36,12 +38,21 @@ interface Progress {
 export const isDownloadable = (progress?: VolumeProgress) =>
   !progress || ['Pending', 'Done'].every((state) => state !== progress.state);
 
-async function getAllPatients(host: string): Promise<PatientInfo[]> {
-  const instances = await searchForStudies(host);
-  const dicoms = useDicomMetaStore();
-  instances.forEach((instance) => dicoms.importMeta(instance));
-  return Object.values(dicoms.patientInfo);
-}
+const fetchFunctions = {
+  host: searchForStudies,
+  studies: retrieveStudyMetadata,
+  series: retrieveSeriesMetadata,
+};
+
+const levelToFetchKey = {
+  studies: 'studyInstanceUID',
+  series: 'seriesInstanceUID',
+};
+
+const levelToMetaKey = {
+  studies: 'StudyInstanceUID',
+  series: 'SeriesInstanceUID',
+};
 
 /**
  * Collect DICOM data from DICOMWeb
@@ -62,69 +73,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const hostConfig = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
   if (hostConfig) host.value = hostConfig;
 
-  let studies = '';
-  let studyID = '';
-  // Remove trailing slash
-  const cleanHost = computed(() => {
-    const sansSlash = host.value?.replace(/\/$/, '') ?? '';
-    const tokenized = sansSlash.split('/');
+  // Remove trailing slash and pull study/series IDs from URL
+  const parsedURL = computed(() => parseUrl(host.value ?? ''));
 
-    [studies, studyID] = tokenized.slice(-2);
-    if (studies === 'studies' && studyID) {
-      return tokenized.slice(0, -2).join('/');
-    }
-
-    return sansSlash;
-  });
-
+  const cleanHost = computed(() => parsedURL.value.host);
   const isConfigured = computed(() => !!cleanHost.value);
-
-  const fetchError = ref<undefined | unknown>(undefined);
-  let hasFetchedPatients = false;
-  const fetchInitialDicoms = async () => {
-    hasFetchedPatients = true;
-    fetchError.value = undefined;
-    const dicoms = useDicomMetaStore();
-    dicoms.$reset();
-    if (!cleanHost.value) return;
-
-    if (studies === 'studies' && studyID) {
-      const studyMeta = { StudyInstanceUID: studyID };
-      const seriesMetas = await retrieveStudyMetadata(cleanHost.value, {
-        studyInstanceUID: studyID,
-      });
-      const fullMeta = seriesMetas.map((seriesMeta) => ({
-        ...studyMeta,
-        ...seriesMeta,
-      }));
-      fullMeta.forEach((instance) => dicoms.importMeta(instance));
-      return;
-    }
-
-    try {
-      // side effect: populates dicom meta store
-      await getAllPatients(cleanHost.value);
-    } catch (e) {
-      fetchError.value = e;
-      console.error(e);
-    }
-  };
-
-  // Safe to call in ephemeral components' setup()
-  const fetchInitialDicomsOnce = () => {
-    if (!hasFetchedPatients) {
-      fetchInitialDicoms();
-    }
-  };
-
-  const message = computed(() => {
-    if (fetchError.value)
-      return `Error fetching DICOMWeb data: ${fetchError.value}`;
-    const dicoms = useDicomMetaStore();
-    if (Object.values(dicoms.patientInfo).length === 0)
-      return 'Found zero dicoms.';
-    return '';
-  });
 
   const fetchVolumeThumbnail = async (volumeKey: string) => {
     const dicoms = useDicomMetaStore();
@@ -244,6 +197,62 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       });
     }
   };
+
+  const fetchError = ref<undefined | unknown>(undefined);
+  let hasFetchedPatients = false;
+  const fetchInitialDicoms = async () => {
+    hasFetchedPatients = true;
+    fetchError.value = undefined;
+    const dicoms = useDicomMetaStore();
+    dicoms.$reset();
+    if (!cleanHost.value) return;
+
+    const deepestLevel = Object.keys(
+      parsedURL.value
+    ).pop() as keyof typeof fetchFunctions; // at least host key guaranteed to exist
+
+    const fetchFunc = fetchFunctions[deepestLevel];
+    const urlIDs = omit(parsedURL.value, 'host');
+    const fetchOptions = remapKeys(urlIDs, levelToFetchKey);
+    try {
+      const fetchedMetas = await fetchFunc(
+        cleanHost.value,
+        fetchOptions as any
+      );
+
+      const urlMetaIDs = remapKeys(urlIDs, levelToMetaKey);
+
+      const fullMeta = fetchedMetas.map((fetchedMeta) => ({
+        ...urlMetaIDs,
+        ...fetchedMeta,
+      }));
+      fullMeta.forEach((instance) => dicoms.importMeta(instance));
+    } catch (error) {
+      fetchError.value = error;
+      console.error(error);
+    }
+
+    if (deepestLevel === 'series') {
+      const seriesID = Object.values(parsedURL.value).pop() as string;
+      downloadVolume(seriesID);
+    }
+  };
+
+  // Safe to call in ephemeral components' setup()
+  const fetchInitialDicomsOnce = () => {
+    if (!hasFetchedPatients) {
+      fetchInitialDicoms();
+    }
+  };
+
+  const message = computed(() => {
+    if (fetchError.value)
+      return `Error fetching DICOMWeb data: ${fetchError.value}`;
+    const dicoms = useDicomMetaStore();
+    if (Object.values(dicoms.patientInfo).length === 0)
+      return 'Found zero dicoms.';
+    return '';
+  });
 
   const loadedDicoms = useDICOMStore();
   loadedDicoms.$onAction(({ name, args, after }) => {

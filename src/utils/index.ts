@@ -205,3 +205,31 @@ export function roundIfCloseToInteger(value: number, eps = EPSILON) {
   }
   return value;
 }
+
+export function hasKey<O extends Object>(
+  obj: O,
+  key: PropertyKey
+): key is keyof O {
+  return key in obj;
+}
+
+export function remapKeys<O extends Object, K extends keyof O>(
+  obj: O,
+  keyMap: Record<K, K>
+) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => {
+      if (hasKey(keyMap, key)) return [keyMap[key], value];
+      throw new Error(`Key ${key} not found in keyMap`);
+    })
+  );
+}
+
+// return object without the given keys
+export const omit = <T extends Record<string, unknown>, K extends keyof T>(
+  obj: T,
+  keys: K[] | K
+) =>
+  Object.fromEntries(
+    Object.entries(obj).filter(([key]) => !wrapInArray(keys).includes(key as K))
+  ) as Omit<T, K>;

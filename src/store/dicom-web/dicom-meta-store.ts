@@ -180,7 +180,9 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         this.volumeInfo[volumeKey].NumberOfSlices += 1;
       }
 
-      // clean orphaned patients
+      // Clean orphaned patients. Anonymous Patient loses its only study
+      // when slices are loaded with full DICOM tags. Study was anonymous
+      // because url deep linked into a study
       Object.entries(this.patientStudies).forEach(([key, studies]) => {
         if (studies.length === 0) {
           this.deletePatient(key);
