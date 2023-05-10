@@ -144,7 +144,7 @@ export default defineComponent({
         >
           <v-expansion-panel-header>
             <v-icon class="collection-header-icon">mdi-cloud-download</v-icon>
-            <span>
+            <span class="text-truncate">
               {{ `${dicomWeb.hostName || dicomWeb.host} | DICOMWeb` }}
             </span>
           </v-expansion-panel-header>
