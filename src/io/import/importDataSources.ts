@@ -24,7 +24,7 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 function toMeaningfulErrorString(thrown: unknown) {
   const strThrown = String(thrown);
   if (!strThrown || strThrown === '[object Object]') {
-    return 'Internal error. More details in the dev console.';
+    return 'Unknown error. More details in the dev console.';
   }
   return strThrown;
 }

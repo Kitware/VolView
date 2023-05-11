@@ -14,17 +14,23 @@ const downloadUrl: ImportHandler = async (
 ) => {
   const { uriSrc } = dataSource;
   if (uriSrc && canFetchUrl(uriSrc.uri)) {
-    const file = await fetchFile(uriSrc.uri, uriSrc.name, {
-      cache: extra?.fetchFileCache,
-    });
-    execute({
-      fileSrc: {
-        file,
-        fileType: '',
-      },
-      parent: dataSource,
-    });
-    return done();
+    try {
+      const file = await fetchFile(uriSrc.uri, uriSrc.name, {
+        cache: extra?.fetchFileCache,
+      });
+      execute({
+        fileSrc: {
+          file,
+          fileType: '',
+        },
+        parent: dataSource,
+      });
+      return done();
+    } catch (err) {
+      throw new Error(`Could not download URL ${uriSrc.uri}`, {
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
   }
   return dataSource;
 };

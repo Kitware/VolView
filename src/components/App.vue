@@ -208,6 +208,7 @@ import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { URL } from 'whatwg-url';
 
 import { useDatasetStore } from '@/src/store/datasets';
+import { logError } from '@/src/utils/loggers';
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
@@ -264,7 +265,7 @@ async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
       // pick innermost dataset that errored
       const name = getDataSourceName(firstError.inputDataStackTrace[0]);
       // log error for debugging
-      console.error(firstError.cause);
+      logError(firstError.cause);
       return `- ${name}: ${firstError.message}`;
     });
     const failedError = new Error(

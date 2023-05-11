@@ -10,16 +10,22 @@ const handleGoogleCloudStorage: ImportHandler = async (
 ) => {
   const { uriSrc } = dataSource;
   if (uriSrc && isGoogleCloudStorageUri(uriSrc.uri)) {
-    await getObjectsFromGsUri(uriSrc.uri, (object) => {
-      execute({
-        uriSrc: {
-          uri: object.mediaLink,
-          name: object.name,
-        },
-        parent: dataSource,
+    try {
+      await getObjectsFromGsUri(uriSrc.uri, (object) => {
+        execute({
+          uriSrc: {
+            uri: object.mediaLink,
+            name: object.name,
+          },
+          parent: dataSource,
+        });
       });
-    });
-    return done();
+      return done();
+    } catch (err) {
+      throw new Error(`Could not download GCS URI ${uriSrc.uri}`, {
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
   }
   return dataSource;
 };
