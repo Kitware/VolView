@@ -518,7 +518,7 @@ export default defineComponent({
 
       resizeToFitScene();
 
-      viewProxy.value.render();
+      viewProxy.value.renderLater();
     };
 
     manageVTKSubscription(
@@ -559,7 +559,7 @@ export default defineComponent({
           restoreCameraConfig(cameraConfig);
 
           viewProxy.value.getRenderer().resetCameraClippingRange();
-          viewProxy.value.render();
+          viewProxy.value.renderLater();
 
           // Prevent resize
           resizeToFit.value = false;
@@ -596,7 +596,7 @@ export default defineComponent({
         lRep.setSlice(slice);
       });
 
-      viewProxy.value.render();
+      viewProxy.value.renderLater();
     });
 
     // --- apply labelmap opacity --- //
@@ -717,7 +717,7 @@ export default defineComponent({
               rep.setOpacity(blendConfig.opacity);
 
               // Need to trigger a render for when we are restoring from a state file
-              viewProxy.value.render();
+              viewProxy.value.renderLater();
             }
           );
       },
