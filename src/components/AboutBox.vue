@@ -140,18 +140,35 @@
           >
         </li>
       </ul>
+      <v-divider class="my-4" />
+      <p>Current versions:</p>
+      <ul>
+        <li>VolView: {{ versions.volview }}</li>
+        <li>vtk.js: {{ versions['vtk.js'] }}</li>
+        <li>itk-wasm: {{ versions['itk-wasm'] }}</li>
+      </ul>
     </v-card-text>
   </v-card>
 </template>
 
 <script>
 import { defineComponent } from 'vue';
+import pkgLock from '@/package-lock.json';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 
 export default defineComponent({
   name: 'AboutBox',
   components: {
     VolViewFullLogo,
+  },
+  setup() {
+    return {
+      versions: {
+        volview: pkgLock.version,
+        'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,
+        'itk-wasm': pkgLock.dependencies['itk-wasm'].version,
+      },
+    };
   },
 });
 </script>

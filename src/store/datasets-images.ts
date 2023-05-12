@@ -7,8 +7,7 @@ import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
-import { FILE_READERS } from '../io';
-import { DatasetFile, useFileStore } from './datasets-files';
+import { useFileStore } from './datasets-files';
 import { ImageMetadata } from '../types/image';
 
 export const defaultImageMetadata = () => ({
@@ -84,23 +83,6 @@ export const useImageStore = defineStore('images', {
       const dataIDs = this.idList.filter((id) => id in fileStore.byDataID);
 
       await serializeData(stateFile, dataIDs, DatasetType.IMAGE);
-    },
-
-    async deserialize(datasetFile: DatasetFile) {
-      const { file } = datasetFile;
-      const reader = FILE_READERS.get(file.type);
-      if (reader) {
-        const dataObj = await reader(
-          new File([file], file.name, { type: file.type })
-        );
-        if (dataObj.isA('vtkImageData')) {
-          const id = this.addVTKImageData(file.name, dataObj as vtkImageData);
-          useFileStore().add(id, [datasetFile]);
-          return id;
-        }
-      }
-
-      throw new Error(`No reader for ${file.name}`);
     },
   },
 });

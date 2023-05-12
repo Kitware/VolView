@@ -12,7 +12,7 @@ export const RemoteDataManifest = z.object({
   resources: z.array(RemoteResource),
 });
 
-async function fetchRemoteManifest(
+export async function fetchRemoteManifest(
   manifest: z.infer<typeof RemoteDataManifest>
 ) {
   return Promise.all(
@@ -33,5 +33,5 @@ export async function readRemoteManifestFile(manifestFile: File) {
   const ab = await manifestFile.arrayBuffer();
   const text = decoder.decode(new Uint8Array(ab));
   const manifest = RemoteDataManifest.parse(JSON.parse(text));
-  return fetchRemoteManifest(manifest);
+  return manifest;
 }

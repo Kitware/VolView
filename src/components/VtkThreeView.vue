@@ -189,6 +189,7 @@ function useCvrEffect(
         mapper.setSampleDistance(0.75);
         mapper.setMaximumSamplesPerRay(1000);
         mapper.setGlobalIlluminationReach(0);
+        mapper.setComputeNormalFromOpacity(false);
       } else {
         const dims = image_.getDimensions();
         const spacing = image_.getSpacing();
@@ -203,12 +204,16 @@ function useCvrEffect(
         // Use the average spacing for sampling by default
         let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
         // Adjust the volume sampling by the quality slider value
-        sampleDistance /= 0.5 * (volumeQuality_ * volumeQuality_);
+        sampleDistance /=
+          volumeQuality_ > 1
+            ? 0.5 * (volumeQuality_ ** 2)
+            : 1.0;
         const samplesPerRay = spatialDiagonal / sampleDistance + 1;
         mapper.setMaximumSamplesPerRay(samplesPerRay);
         mapper.setSampleDistance(sampleDistance);
         // Adjust the global illumination reach by volume quality slider
         mapper.setGlobalIlluminationReach(enabled ? 0.25 * volumeQuality_ : 0);
+        mapper.setComputeNormalFromOpacity(!enabled && volumeQuality_ > 2);
       }
 
       requestRender();

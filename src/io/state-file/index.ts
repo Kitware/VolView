@@ -15,14 +15,11 @@ import {
 import { useDICOMStore } from '../../store/datasets-dicom';
 import { useLayersStore } from '../../store/datasets-layers';
 import { makeLocal, ZipDatasetFile } from '../../store/datasets-files';
-import {
-  ARCHIVE_FILE_TYPES,
-  extractArchivesRecursively,
-  retypeFile,
-} from '../io';
+import { extractArchivesRecursively, retypeFile } from '../io';
 import { FileEntry } from '../types';
 import { Manifest, ManifestSchema } from './schema';
 import { deserializeDatasetFiles } from './utils';
+import { ARCHIVE_FILE_TYPES } from '../mimeTypes';
 
 const MANIFEST = 'manifest.json';
 const VERSION = '0.0.5';

@@ -46,30 +46,6 @@ export interface VolumeInfo {
   SeriesDescription: string;
 }
 
-/**
- * Generate a synthetic multi-key patient key from a Patient object.
- *
- * This key is used to try to uniquely identify a patient, since the PatientID
- * is not guaranteed to be unique (especially in the anonymous case).
- *
- * Required keys in the Patient object:
- * - PatientName
- * - PatientID
- * - PatientBirthDate
- * - PatientSex
- *
- * @param {Patient} patient
- */
-export function genSynPatientKey(patient: PatientInfo) {
-  const pid = patient.PatientID.trim();
-  const name = patient.PatientName.trim();
-  const bdate = patient.PatientBirthDate.trim();
-  const sex = patient.PatientSex.trim();
-  // we only care about making a unique key here. The
-  // data doesn't actually matter.
-  return [pid, name, bdate, sex].map((s) => s.replace('|', '_')).join('|');
-}
-
 interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
   sliceData: Record<string, Record<string, Image>>;
@@ -160,8 +136,6 @@ export const useDICOMStore = defineStore('dicom', {
         fileStore.add(volumeKey, volumeDatasetFiles);
       });
 
-      const updatedVolumeKeys: VolumeKeys[] = [];
-
       await Promise.all(
         Object.entries(volumeToFiles).map(async ([volumeKey, files]) => {
           // Read tags of first file
@@ -174,9 +148,7 @@ export const useDICOMStore = defineStore('dicom', {
               PatientBirthDate: tags.PatientBirthDate || '',
               PatientSex: tags.PatientSex || '',
             };
-            const patientKey = genSynPatientKey(patient);
 
-            const studyKey = tags.StudyInstanceUID;
             const study = pick(
               tags,
               'StudyID',
@@ -199,12 +171,6 @@ export const useDICOMStore = defineStore('dicom', {
               VolumeID: volumeKey,
             };
 
-            updatedVolumeKeys.push({
-              patientKey,
-              studyKey,
-              volumeKey,
-            });
-
             this._updateDatabase(patient, study, volumeInfo);
           }
 
@@ -216,7 +182,7 @@ export const useDICOMStore = defineStore('dicom', {
         })
       );
 
-      return updatedVolumeKeys;
+      return Object.keys(volumeToFiles);
     },
 
     _updateDatabase(
@@ -311,7 +277,7 @@ export const useDICOMStore = defineStore('dicom', {
           throw new Error('Invalid state file.');
         }
 
-        return volumeKeys[0].volumeKey;
+        return volumeKeys[0];
       });
     },
 

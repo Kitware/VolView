@@ -218,7 +218,7 @@ import {
   DICOMLoadFailure,
 } from '../store/datasets';
 import { useImageStore } from '../store/datasets-images';
-import { makeRemote, makeLocal, DatasetFile } from '../store/datasets-files';
+import { makeLocal, DatasetFile, makeRemote } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
@@ -227,8 +227,9 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { partition, pluck, wrapInArray, isFulfilled } from '../utils';
-import { fetchFile } from '../utils/fetch';
+import { isFulfilled, partition, pluck, wrapInArray } from '../utils';
+import { canFetchUrl, fetchFile } from '../utils/fetch';
+import { basename } from '../utils/path';
 
 async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
   const dataStore = useDatasetStore();
@@ -291,21 +292,28 @@ async function loadRemoteFilesFromURLParams(
 ) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const fetchParams = urls.map((url, idx) => ({
+  const datasets = urls.map((url, idx) => ({
     url,
     remoteFilename:
       names[idx] ||
-      new URL(url, window.location.href).pathname.split('/').at(-1) ||
-      '',
+      basename(new URL(url, window.location.href).pathname) ||
+      url,
+    // loadFiles will treat empty files as URLs to download
+    file: new File([], ''),
   }));
 
+  const [downloadNow, downloadLater] = partition(
+    (dataset) => canFetchUrl(dataset.url),
+    datasets
+  );
+
   const fetchResults = await Promise.allSettled(
-    fetchParams.map(({ url, remoteFilename }) => fetchFile(url, remoteFilename))
+    downloadNow.map(({ url, remoteFilename }) => fetchFile(url, remoteFilename))
   );
 
   const withParams = fetchResults.map((result, idx) => ({
     result,
-    ...fetchParams[idx],
+    ...downloadNow[idx],
   }));
 
   const [downloaded, rejected] = partition(
@@ -321,12 +329,12 @@ async function loadRemoteFilesFromURLParams(
     );
   }
 
-  const datasetFiles = downloaded.map(({ result, url }) =>
+  const downloadedDatasetFiles = downloaded.map(({ result, url }) =>
     makeRemote(url, (result as PromiseFulfilledResult<File>).value)
   );
 
   // must await for setError to work
-  await loadFiles(datasetFiles, setError);
+  await loadFiles([...downloadedDatasetFiles, ...downloadLater], setError);
 }
 
 export default defineComponent({
