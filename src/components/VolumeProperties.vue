@@ -112,6 +112,7 @@ export default defineComponent({
         border="top"
         variant="tonal"
         type="warning"
+        color="grey"
         elevation="2"
         close-text="Close Warning"
         transition="slide-y-transition"
