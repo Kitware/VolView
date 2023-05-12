@@ -204,10 +204,7 @@ function useCvrEffect(
         // Use the average spacing for sampling by default
         let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
         // Adjust the volume sampling by the quality slider value
-        sampleDistance /=
-          volumeQuality_ > 1
-            ? 0.5 * (volumeQuality_ ** 2)
-            : 1.0;
+        sampleDistance /= volumeQuality_ > 1 ? 0.5 * volumeQuality_ ** 2 : 1.0;
         const samplesPerRay = spatialDiagonal / sampleDistance + 1;
         mapper.setMaximumSamplesPerRay(samplesPerRay);
         mapper.setSampleDistance(sampleDistance);
