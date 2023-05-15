@@ -36,6 +36,7 @@ export const useRulerStore = defineStore('ruler', () => {
     deserialize: deserializeTools,
     activateTool,
     deactivateTool,
+    ...rest // label tools
   } = useAnnotationTool({
     toolDefaults: rulerDefaults,
   });
@@ -65,6 +66,7 @@ export const useRulerStore = defineStore('ruler', () => {
   }
 
   return {
+    ...rest,
     rulerIDs,
     rulerByID,
     rulers,

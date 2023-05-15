@@ -60,7 +60,6 @@ import {
 } from '@/src/utils/frameOfReference';
 import { Ruler } from '@/src/types/ruler';
 import { vec3 } from 'gl-matrix';
-import { useLabelStore } from '@/src/store/tools/labels';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -89,7 +88,7 @@ export default defineComponent({
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
-    const { rulers } = storeToRefs(rulerStore);
+    const { rulers, activeLabel } = storeToRefs(rulerStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
@@ -129,14 +128,13 @@ export default defineComponent({
       { immediate: true }
     );
 
-    const labelStore = storeToRefs(useLabelStore());
     watch(
-      labelStore.selectedName,
+      activeLabel,
       (name) => {
         if (placingRulerID.value != null) {
           rulerStore.updateRuler(placingRulerID.value, {
             label: name,
-            color: labelStore.selectedColor.value,
+            color: rulerStore.activeColor,
           });
         }
       },

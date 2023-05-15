@@ -95,12 +95,14 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <tool-button
-        size="40"
+      <label-tool-button
         icon="mdi-ruler"
         name="Ruler"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :labelControls="rulerStore"
+        :activeLabel="rulerStore.activeLabel"
+        :active="active"
         :disabled="noCurrentImage"
+        size="40"
         @click="toggle"
       />
     </groupable-item>
@@ -150,6 +152,7 @@ import PaintControls from './PaintControls.vue';
 import LabelToolButton from './LabelToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
 import { useRectangleStore } from '../store/tools/rectangles';
+import { useRulerStore } from '../store/tools/rulers';
 
 export default defineComponent({
   components: {
@@ -168,6 +171,7 @@ export default defineComponent({
     const currentTool = computed(() => toolStore.currentTool);
 
     const rectangleStore = useRectangleStore();
+    const rulerStore = useRulerStore();
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -185,6 +189,7 @@ export default defineComponent({
       paintMenu,
       cropMenu,
       rectangleStore,
+      rulerStore,
     };
   },
 });
