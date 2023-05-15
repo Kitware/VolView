@@ -16,7 +16,13 @@ When the paint tool is selected, you can paint in any 2D window. Click on the pa
 
 ### Ruler
 
-When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler. ![Paint and Ruler](../gallery/11-volview-paint-notes.jpg)
+When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
+
+### Rectangle
+
+When the rectangle tool selected, the left mouse button is used to place and adjust rectangle control points. Right click a rectangle end-marker to delete it. The "Annotations" tab lists all rectangles and provides jump-to, color editing, and delete controls.
+
+![2D Annotations](../gallery/11-volview-paint-notes.jpg)
 
 ## 3D Crop
 
