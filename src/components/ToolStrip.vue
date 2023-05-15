@@ -111,7 +111,6 @@
             icon="mdi-palette"
             name="Labels"
             v-bind="attrs"
-            v-on="on"
             :disabled="!showLabelsButton"
           />
         </div>
@@ -119,8 +118,8 @@
       <v-card>
         <v-card-text>
           <v-radio-group
-            :value="selectedLabelName"
-            v-on:change="setSelectedLabel"
+            :value="activeLabelName"
+            v-on:change="setActiveLabel"
             class="mt-0"
             hide-details
           >
@@ -185,7 +184,7 @@ import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import CropControls from './tools/crop/CropControls.vue';
-import { useLabelStore } from '../store/tools/labels';
+import { useRectangleStore } from '../store/tools/rectangles';
 
 export default defineComponent({
   components: {
@@ -202,7 +201,7 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
 
-    const labelStore = useLabelStore();
+    const labelStore = useRectangleStore();
     const showLabelsButton = computed(
       () => Object.keys(labelStore.labels).length > 0
     );
@@ -227,8 +226,8 @@ export default defineComponent({
       labelMenu,
       labels: labelStore.labels,
       showLabelsButton,
-      selectedLabelName: labelStore.selectedName,
-      setSelectedLabel: labelStore.setSelected,
+      activeLabelName: labelStore.activeLabel,
+      setActiveLabel: labelStore.setActiveLabel,
     };
   },
 });

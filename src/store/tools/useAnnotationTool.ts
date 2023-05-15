@@ -13,7 +13,7 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import useViewSliceStore from '../view-configs/slicing';
-import { useLabelStore } from './labels';
+import { useLabels } from './useLabels';
 
 type AnnotationTool = {
   id: string;
@@ -31,6 +31,8 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
 }: {
   toolDefaults: Tool;
 }) => {
+  const labels = useLabels();
+
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
   type ToolID = Tool['id'];
 
@@ -51,15 +53,13 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     return TOOL_COLORS[colorIndex];
   }
 
-  const labelStore = useLabelStore();
-
   function addTool(this: Store, tool: ToolPatch): ToolID {
     const id = this.$id.nextID() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
-    const color = tool.color ?? labelStore.selectedColor ?? getNextColor();
-    const label = labelStore.selectedName;
+    const color = tool.color ?? labels.activeColor.value ?? getNextColor();
+    const label = labels.activeLabel.value;
     toolByID.value[id] = {
       ...toolDefaults,
       ...(label && { label }),
@@ -143,6 +143,7 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
   }
 
   return {
+    ...labels,
     toolIDs,
     toolByID,
     tools,

@@ -1,5 +1,4 @@
 import { computed, ref } from 'vue';
-import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { UrlParams } from '@vueuse/core';
 import { chunk } from '@/src/utils';
@@ -34,22 +33,22 @@ const parseLabelUrlParam = () => {
   return labelMap;
 };
 
-export const useLabelStore = defineStore('labels', () => {
+export const useLabels = () => {
   const initialLabels = parseLabelUrlParam();
   const labels = ref(initialLabels);
 
-  const initialName = Object.keys(labels.value)[0] ?? undefined;
-  const selectedName = ref(initialName);
-  const setSelected = (name: string) => {
-    selectedName.value = name;
+  const initialLabel = Object.keys(labels.value)[0] ?? undefined;
+  const activeLabel = ref(initialLabel);
+  const setActiveLabel = (name: string) => {
+    activeLabel.value = name;
   };
 
-  const selectedColor = computed(() => labels.value[selectedName.value]);
+  const activeColor = computed(() => labels.value[activeLabel.value]);
 
   return {
     labels,
-    selectedName,
-    setSelected,
-    selectedColor,
+    activeLabel,
+    setActiveLabel,
+    activeColor,
   };
-});
+};

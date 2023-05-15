@@ -16,14 +16,15 @@
     </svg>
     <v-menu
       v-model="contextMenu.show"
-      :position-x="contextMenu.x"
-      :position-y="contextMenu.y"
-      absolute
-      offset-y
+      class="position-absolute"
+      :style="{
+        top: `${contextMenu.y}px`,
+        left: `${contextMenu.x}px`,
+      }"
       close-on-click
       close-on-content-click
     >
-      <v-list dense>
+      <v-list density="compact">
         <v-list-item @click="deleteToolFromContextMenu">
           <v-list-item-title>Delete</v-list-item-title>
         </v-list-item>
@@ -59,7 +60,6 @@ import {
 } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { Rectangle, RectangleID } from '@/src/types/rectangle';
-import { useLabelStore } from '@/src/store/tools/labels';
 
 type ToolID = RectangleID;
 type Tool = Rectangle;
@@ -92,7 +92,7 @@ export default defineComponent({
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { tools } = storeToRefs(activeToolStore);
+    const { tools, activeLabel } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(
@@ -134,14 +134,13 @@ export default defineComponent({
       { immediate: true }
     );
 
-    const labelStore = storeToRefs(useLabelStore());
     watch(
-      labelStore.selectedName,
+      activeLabel,
       (name) => {
         if (placingToolID.value != null) {
           activeToolStore.updateTool(placingToolID.value, {
             label: name,
-            color: labelStore.selectedColor.value,
+            color: activeToolStore.activeColor,
           });
         }
       },
