@@ -83,12 +83,14 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <tool-button
-        size="40"
+      <label-tool-button
         icon="mdi-vector-square"
         name="Rectangle"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :labelControls="rectangleStore"
+        :activeLabel="rectangleStore.activeLabel"
+        :active="active"
         :disabled="noCurrentImage"
+        size="40"
         @click="toggle"
       />
     </groupable-item>
@@ -102,44 +104,6 @@
         @click="toggle"
       />
     </groupable-item>
-
-    <v-menu v-model="labelMenu" offset-x :close-on-content-click="false">
-      <template v-slot:activator="{ on, attrs }">
-        <div>
-          <tool-button
-            size="40"
-            icon="mdi-palette"
-            name="Labels"
-            v-bind="attrs"
-            :disabled="!showLabelsButton"
-          />
-        </div>
-      </template>
-      <v-card>
-        <v-card-text>
-          <v-radio-group
-            :value="activeLabelName"
-            v-on:change="setActiveLabel"
-            class="mt-0"
-            hide-details
-          >
-            <v-radio
-              v-for="(color, name) in labels"
-              :key="name"
-              :label="name"
-              :value="name"
-            >
-              <template v-slot:label>
-                <v-icon :color="color" size="18" class="pr-2">
-                  mdi-square
-                </v-icon>
-                {{ name }}
-              </template>
-            </v-radio>
-          </v-radio-group>
-        </v-card-text>
-      </v-card>
-    </v-menu>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
@@ -183,12 +147,14 @@ import GroupableItem from './GroupableItem.vue';
 import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
+import LabelToolButton from './LabelToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
 import { useRectangleStore } from '../store/tools/rectangles';
 
 export default defineComponent({
   components: {
     ToolButton,
+    LabelToolButton,
     ItemGroup,
     GroupableItem,
     PaintControls,
@@ -201,19 +167,14 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
 
-    const labelStore = useRectangleStore();
-    const showLabelsButton = computed(
-      () => Object.keys(labelStore.labels).length > 0
-    );
+    const rectangleStore = useRectangleStore();
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
-    const labelMenu = ref(false);
 
     onKeyDown('Escape', () => {
       paintMenu.value = false;
       cropMenu.value = false;
-      labelMenu.value = false;
     });
 
     return {
@@ -223,11 +184,7 @@ export default defineComponent({
       Tools,
       paintMenu,
       cropMenu,
-      labelMenu,
-      labels: labelStore.labels,
-      showLabelsButton,
-      activeLabelName: labelStore.activeLabel,
-      setActiveLabel: labelStore.setActiveLabel,
+      rectangleStore,
     };
   },
 });
