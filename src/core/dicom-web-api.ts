@@ -127,3 +127,28 @@ export async function fetchInstanceThumbnail(
   const blob = new Blob([arrayBufferView], { type: 'image/jpeg' });
   return URL.createObjectURL(blob);
 }
+
+const LEVELS = ['series', 'studies'] as const;
+
+// takes a url like http://localhost:3000/dicom-web/studies/someid/series/anotherid
+// returns { host: 'http://localhost:3000/dicom-web', studies: 'someid', series: 'anotherid' }
+export function parseUrl(deepDicomWebUrl: string) {
+  // remove trailing slash
+  const sansSlash = deepDicomWebUrl.replace(/\/$/, '');
+
+  let paths = sansSlash.split('/');
+  const parentIDs = LEVELS.reduce((idObj, dicomLevel) => {
+    const [urlLevel, dicomID] = paths.slice(-2);
+    if (urlLevel === dicomLevel) {
+      paths = paths.slice(0, -2);
+      return { [dicomLevel]: dicomID, ...idObj };
+    }
+    return idObj;
+  }, {});
+
+  const pathsToSlice = Object.keys(parentIDs).length * 2;
+  const allPaths = sansSlash.split('/');
+  const host = allPaths.slice(0, allPaths.length - pathsToSlice).join('/');
+
+  return { host, ...parentIDs };
+}

@@ -3,11 +3,12 @@ import { useLocalStorage, UrlParams } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 
+import { omit, remapKeys } from '@/src/utils';
 import {
   convertSuccessResultToDataSelection,
   useDatasetStore,
 } from '../datasets';
-import { PatientInfo, useDICOMStore } from '../datasets-dicom';
+import { useDICOMStore } from '../datasets-dicom';
 import { useMessageStore } from '../messages';
 import { useDicomMetaStore } from './dicom-meta-store';
 import {
@@ -16,6 +17,7 @@ import {
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
+  parseUrl,
 } from '../../core/dicom-web-api';
 import { makeLocal } from '../datasets-files';
 
@@ -36,20 +38,34 @@ interface Progress {
 export const isDownloadable = (progress?: VolumeProgress) =>
   !progress || ['Pending', 'Done'].every((state) => state !== progress.state);
 
-async function getAllPatients(host: string): Promise<PatientInfo[]> {
-  const instances = await searchForStudies(host);
-  const dicoms = useDicomMetaStore();
-  instances.forEach((instance) => dicoms.importMeta(instance));
-  return Object.values(dicoms.patientInfo);
-}
+const fetchFunctions = {
+  host: searchForStudies,
+  studies: retrieveStudyMetadata,
+  series: retrieveSeriesMetadata,
+};
+
+const levelToFetchKey = {
+  studies: 'studyInstanceUID',
+  series: 'seriesInstanceUID',
+};
+
+const levelToMetaKey = {
+  studies: 'StudyInstanceUID',
+  series: 'SeriesInstanceUID',
+};
 
 /**
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
+  // GUI display name
+  const hostName = process.env.VUE_APP_DICOM_WEB_NAME
+    ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
+    : useLocalStorage<string>('dicomWebHostName', '');
+
   const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
 
-  // URL param overrides env var which overrides local storage
+  // URL param overrides env var, which overrides local storage
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
   const dicomWebFromURLParam = urlParams[DICOM_WEB_URL_PARAM] as
     | string
@@ -57,44 +73,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const hostConfig = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
   if (hostConfig) host.value = hostConfig;
 
-  // Remove trailing slash
-  const cleanHost = computed(() => host.value?.replace(/\/$/, '') ?? '');
+  // Remove trailing slash and pull study/series IDs from URL
+  const parsedURL = computed(() => parseUrl(host.value ?? ''));
+
+  const cleanHost = computed(() => parsedURL.value.host);
   const isConfigured = computed(() => !!cleanHost.value);
-
-  const hostName = process.env.VUE_APP_DICOM_WEB_NAME
-    ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
-    : useLocalStorage<string>('dicomWebHostName', '');
-
-  let hasFetchedPatients = false;
-  const message = ref('');
-  const patients = ref([] as PatientInfo[]);
-
-  const fetchPatients = async () => {
-    hasFetchedPatients = true;
-    patients.value = [];
-    message.value = '';
-    const dicoms = useDicomMetaStore();
-    dicoms.$reset();
-    if (!cleanHost.value) return;
-    try {
-      patients.value = await getAllPatients(cleanHost.value);
-
-      if (patients.value.length === 0) {
-        message.value = 'Found zero dicoms.';
-      }
-    } catch (e) {
-      message.value =
-        'Failed to fetch list of DICOM metadata.  Check address in settings.';
-      console.error(e);
-    }
-  };
-
-  // Safe to call in ephemeral components' setup()
-  const fetchPatientsOnce = () => {
-    if (!hasFetchedPatients) {
-      fetchPatients();
-    }
-  };
 
   const fetchVolumeThumbnail = async (volumeKey: string) => {
     const dicoms = useDicomMetaStore();
@@ -215,6 +198,62 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     }
   };
 
+  const fetchError = ref<undefined | unknown>(undefined);
+  let hasFetchedPatients = false;
+  const fetchInitialDicoms = async () => {
+    hasFetchedPatients = true;
+    fetchError.value = undefined;
+    const dicoms = useDicomMetaStore();
+    dicoms.$reset();
+    if (!cleanHost.value) return;
+
+    const deepestLevel = Object.keys(
+      parsedURL.value
+    ).pop() as keyof typeof fetchFunctions; // at least host key guaranteed to exist
+
+    const fetchFunc = fetchFunctions[deepestLevel];
+    const urlIDs = omit(parsedURL.value, 'host');
+    const fetchOptions = remapKeys(urlIDs, levelToFetchKey);
+    try {
+      const fetchedMetas = await fetchFunc(
+        cleanHost.value,
+        fetchOptions as any
+      );
+
+      const urlMetaIDs = remapKeys(urlIDs, levelToMetaKey);
+
+      const fullMeta = fetchedMetas.map((fetchedMeta) => ({
+        ...urlMetaIDs,
+        ...fetchedMeta,
+      }));
+      fullMeta.forEach((instance) => dicoms.importMeta(instance));
+    } catch (error) {
+      fetchError.value = error;
+      console.error(error);
+    }
+
+    if (deepestLevel === 'series') {
+      const seriesID = Object.values(parsedURL.value).pop() as string;
+      downloadVolume(seriesID);
+    }
+  };
+
+  // Safe to call in ephemeral components' setup()
+  const fetchInitialDicomsOnce = () => {
+    if (!hasFetchedPatients) {
+      fetchInitialDicoms();
+    }
+  };
+
+  const message = computed(() => {
+    if (fetchError.value)
+      return `Error fetching DICOMWeb data: ${fetchError.value}`;
+    const dicoms = useDicomMetaStore();
+    if (Object.values(dicoms.patientInfo).length === 0)
+      return 'Found zero dicoms.';
+    return '';
+  });
+
   const loadedDicoms = useDICOMStore();
   loadedDicoms.$onAction(({ name, args, after }) => {
     if (name !== 'deleteVolume') return;
@@ -238,10 +277,9 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     isConfigured,
     hostName,
     message,
-    patients,
     volumes,
-    fetchPatients,
-    fetchPatientsOnce,
+    fetchInitialDicoms,
+    fetchInitialDicomsOnce,
     fetchPatientMeta,
     fetchVolumesMeta,
     fetchVolumeThumbnail,

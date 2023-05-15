@@ -1,4 +1,4 @@
-import { set } from '@vue/composition-api';
+import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import {
   ANONYMOUS_PATIENT,
@@ -7,7 +7,7 @@ import {
   StudyInfo,
   VolumeInfo,
 } from '../datasets-dicom';
-import { pick } from '../../utils';
+import { pick, removeFromArray } from '../../utils';
 import { Instance } from '../../core/dicom-web-api';
 
 interface InstanceInfo {
@@ -20,11 +20,6 @@ interface InstanceInfo {
 type VolumeInfoForUi = Omit<VolumeInfo, 'layers'>;
 
 interface State {
-  // volumeKey -> imageID
-  volumeToImageID: Record<string, string>;
-  // imageID -> volumeKey
-  imageIDToVolumeKey: Record<string, string>;
-
   // volume invalidation information
   needsRebuild: Record<string, boolean>;
 
@@ -57,8 +52,6 @@ interface State {
 
 export const useDicomMetaStore = defineStore('dicom-meta', {
   state: (): State => ({
-    volumeToImageID: {},
-    imageIDToVolumeKey: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -111,6 +104,45 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
       this._updateDatabase(patient, study, volumeInfo, instanceInfo);
     },
 
+    deleteVolume(volumeKey: string) {
+      if (volumeKey in this.volumeInfo) {
+        const studyKey = this.volumeStudy[volumeKey];
+        del(this.volumeInfo, volumeKey);
+        del(this.volumeStudy, volumeKey);
+
+        removeFromArray(this.studyVolumes[studyKey], volumeKey);
+        if (this.studyVolumes[studyKey].length === 0) {
+          this.deleteStudy(studyKey);
+        }
+      }
+    },
+
+    deleteStudy(studyKey: string) {
+      if (studyKey in this.studyInfo) {
+        const patientKey = this.studyPatient[studyKey];
+        del(this.studyInfo, studyKey);
+        del(this.studyPatient, studyKey);
+
+        del(this.studyVolumes, studyKey);
+
+        removeFromArray(this.patientStudies[patientKey], studyKey);
+        if (this.patientStudies[patientKey].length === 0) {
+          this.deletePatient(patientKey);
+        }
+      }
+    },
+
+    deletePatient(patientKey: string) {
+      if (patientKey in this.patientInfo) {
+        del(this.patientInfo, patientKey);
+
+        [...this.patientStudies[patientKey]].forEach((studyKey) =>
+          this.deleteStudy(studyKey)
+        );
+        del(this.patientStudies, patientKey);
+      }
+    },
+
     _updateDatabase(
       patient: PatientInfo,
       study: StudyInfo,
@@ -147,6 +179,15 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
 
         this.volumeInfo[volumeKey].NumberOfSlices += 1;
       }
+
+      // Clean orphaned patients. Anonymous Patient loses its only study
+      // when slices are loaded with full DICOM tags. Study was anonymous
+      // because url deep linked into a study
+      Object.entries(this.patientStudies).forEach(([key, studies]) => {
+        if (studies.length === 0) {
+          this.deletePatient(key);
+        }
+      });
     },
   },
 });
