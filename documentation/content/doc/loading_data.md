@@ -10,9 +10,20 @@ VolView can load multiple DICOM files, folders containing multiple DICOM files, 
 
 VolView includes links to a variety of sample data. Clicking on those thumbnails in the Data tab will download that data from Kitware data.kitware.com website into your local machine.
 
-## DICOM Web
+## DICOMWeb
 
-DICOMWeb support is being added to VolView. It will allow data from compliant DICOMWeb servers to be browsed, searched, and downloaded into VolView with only a few clicks.
+VolView lists and downloads DICOM files served by a DICOMWeb service. The host address of the DICOMWeb service is configurable by:
+
+- VolView settings menu
+- `dicomweb` URL parameter. Example: `https://volview.netlify.com/?dicomweb=https://dicomweb-server.com`
+- At VolView build time with the `VUE_APP_DICOM_WEB_URL` environment variable.
+
+The DICOMWeb address can point to a specific series in a study, and VolView will
+automatically load the whole series. Example URL:
+
+```
+https://volview.netlify.com/?dicomweb=https://dicomweb-server.com/studies/unique-study-id-here/series/unique-series-id-here
+```
 
 ## Loading Remote Data via URLs
 
@@ -20,9 +31,9 @@ VolView supports loading remote datasets at application start through URL parame
 
 The URL is constructed with two parts, as shown below. The required parameter is the `urls` parameter, which specifies a list of URLs to download. An optional `names` parameter specifies the filename to go along with the file. If VolView cannot infer the file type, the filename's extension is used as a fallback. Loading multiple URLs is achieved by separating them with a comma.
 
-<pre>
-https://volview.netlify.com/?<strong>names=[prostate-mri.zip,neck.mha]</strong>&<strong>urls=[https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download,https://data.kitware.com/api/v1/item/620db4b84acac99f42e75420/download]</strong>
-</pre>
+```
+https://volview.netlify.com/?names=[prostate-mri.zip,neck.mha]&urls=[https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download,https://data.kitware.com/api/v1/item/620db4b84acac99f42e75420/download]
+```
 
 ### Google Cloud Storage Bucket and AWS S3 Support
 
