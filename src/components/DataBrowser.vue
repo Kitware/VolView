@@ -131,7 +131,7 @@ export default defineComponent({
         <v-expansion-panel v-if="dicomWeb.isConfigured" :value="DICOM_WEB_KEY">
           <v-expansion-panel-title>
             <v-icon class="collection-header-icon">mdi-cloud-download</v-icon>
-            <span>
+            <span class="text-truncate">
               {{ `${dicomWeb.hostName || dicomWeb.host} | DICOMWeb` }}
             </span>
           </v-expansion-panel-title>
