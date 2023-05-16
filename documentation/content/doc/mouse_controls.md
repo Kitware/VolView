@@ -1,5 +1,4 @@
-title: Keyboard shortcuts
-----
+# Keyboard shortcuts
 
 <style>
 table {
@@ -9,23 +8,22 @@ table {
 
 ## Data management
 
-| Shortcut       | Action               |
-| -------------- | -------------------- |
+| Shortcut | Action |
+| -------- | ------ |
 
+## Slice
 
-## Slice 
-
-| Shortcut       | Action          |
-| -------------- | --------------- |
-| Up arrow       | Next Slice      |
-| Right arrow    | Next Slice      |
-| Down array     | Previous Slice  |
-| Left array     | Previous Slice  |
+| Shortcut    | Action         |
+| ----------- | -------------- |
+| Up arrow    | Next Slice     |
+| Right arrow | Next Slice     |
+| Down array  | Previous Slice |
+| Left array  | Previous Slice |
 
 ## Mouse Controls
 
 | Action       | 2D              | 3D     |
-| ------------ | --------------- | -------|
+| ------------ | --------------- | ------ |
 | Left         | grayscale       | rotate |
 | Mid          | pan             | pan    |
 | Right        | zoom            | zoom   |
