@@ -77,6 +77,7 @@
             hide-mode-switch
             hide-sliders
             show-swatches
+            elevation="0"
             :swatches="swatches"
             :model-value="brushColor"
             @update:model-value="setBrushColor"

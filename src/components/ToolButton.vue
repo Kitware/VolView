@@ -1,36 +1,50 @@
 <template>
-  <v-btn
-    variant="text"
-    :rounded="0"
-    dark
-    :height="sizeV"
-    :width="sizeV"
-    :min-width="sizeV"
-    :max-width="sizeV"
-    :class="classV"
-    v-bind="$attrs"
+  <v-menu
+    location="end"
+    :close-on-content-click="false"
+    :disabled="!!$slots.menu"
+    v-bind="menu"
   >
-    <v-icon :size="iconSize">{{ icon }}</v-icon>
-    <v-tooltip
-      :location="tooltipLocation"
-      activator="parent"
-      transition="slide-x-transition"
-    >
-      <span>{{ name }}</span>
-    </v-tooltip>
-    <slot />
-  </v-btn>
+    <template #activator="{ props: menuProps }">
+      <v-tooltip
+        location="right"
+        transition="slide-x-transition"
+        v-bind="tooltip"
+      >
+        <template #activator="{ props: tooltipProps }">
+          <v-btn
+            variant="text"
+            :rounded="0"
+            dark
+            :height="sizeV"
+            :width="sizeV"
+            :min-width="sizeV"
+            :max-width="sizeV"
+            v-bind="mergeProps(menuProps, tooltipProps, button, $attrs)"
+          >
+            <v-icon :size="iconSize">{{ icon }}</v-icon>
+            <slot />
+          </v-btn>
+        </template>
+        <span>{{ name }}</span>
+      </v-tooltip>
+    </template>
+    <slot name="menu" />
+  </v-menu>
 </template>
 
 <script>
+import { mergeProps } from 'vue';
+
 export default {
   name: 'ToolButton',
   props: {
     icon: { type: String, required: true },
     name: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
-    buttonClass: [String, Array, Object],
-    tooltipLocation: { type: String, default: 'right' },
+    button: { type: Object, default: () => ({}) },
+    tooltip: { type: Object, default: () => ({}) },
+    menu: { type: Object, default: () => ({}) },
   },
 
   computed: {
@@ -40,21 +54,10 @@ export default {
     iconSize() {
       return Math.floor(0.6 * this.sizeV);
     },
-    classV() {
-      const classSpec = this.buttonClass;
-      if (typeof classSpec === 'string') {
-        return classSpec;
-      }
-      if (Array.isArray(classSpec)) {
-        return classSpec.join(' ');
-      }
-      if (classSpec && Object.keys(classSpec).length) {
-        return Object.keys(this.buttonClass)
-          .filter((key) => this.buttonClass[key])
-          .join(' ');
-      }
-      return '';
-    },
+  },
+
+  methods: {
+    mergeProps,
   },
 };
 </script>

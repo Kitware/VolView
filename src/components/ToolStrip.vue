@@ -13,7 +13,7 @@
         size="40"
         icon="mdi-circle-half-full"
         name="Window & Level"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
         :disabled="noCurrentImage"
         @click="toggle"
       />
@@ -23,7 +23,7 @@
         size="40"
         icon="mdi-cursor-move"
         name="Pan"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
         :disabled="noCurrentImage"
         @click="toggle"
       />
@@ -33,7 +33,7 @@
         size="40"
         icon="mdi-magnify-plus-outline"
         name="Zoom"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
         :disabled="noCurrentImage"
         @click="toggle"
       />
@@ -46,38 +46,28 @@
         size="40"
         icon="mdi-crosshairs"
         name="Crosshairs"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
         :disabled="noCurrentImage"
         @click="toggle"
       />
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <v-menu
-        v-model="paintMenu"
-        location="end"
-        :close-on-content-click="false"
-        :disabled="!active"
+      <tool-button
+        size="40"
+        icon="mdi-brush"
+        name="Paint"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
+        :disabled="noCurrentImage"
+        @click.stop="toggle"
       >
-        <template v-slot:activator="{ props }">
-          <div>
-            <tool-button
-              size="40"
-              icon="mdi-brush"
-              name="Paint"
-              :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-              :disabled="noCurrentImage"
-              @click.stop="toggle"
-              v-bind="props"
-            >
-              <v-icon v-if="active" class="menu-more" size="18">
-                mdi-menu-right
-              </v-icon>
-            </tool-button>
-          </div>
+        <v-icon v-if="active" class="menu-more" size="18">
+          mdi-menu-right
+        </v-icon>
+        <template #menu>
+          <paint-controls />
         </template>
-        <paint-controls />
-      </v-menu>
+      </tool-button>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
@@ -87,7 +77,7 @@
         size="40"
         icon="mdi-vector-square"
         name="Rectangle"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
         :disabled="noCurrentImage"
         @click="toggle"
       />
@@ -97,46 +87,35 @@
         size="40"
         icon="mdi-ruler"
         name="Ruler"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
         :disabled="noCurrentImage"
         @click="toggle"
       />
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <v-menu
-        v-model="cropMenu"
-        location="end"
-        open-on-hover
-        close-on-content-click
+      <tool-button
+        size="40"
+        icon="mdi-crop"
+        name="Crop"
+        :tooltip="{ location: 'bottom', transition: 'slide-y-transition' }"
+        :button="{ class: ['tool-btn', active ? 'tool-btn-selected' : ''] }"
+        :disabled="noCurrentImage"
+        @click.stop="toggle"
       >
-        <template v-slot:activator="{ props }">
-          <div>
-            <tool-button
-              size="40"
-              icon="mdi-crop"
-              name="Crop"
-              tooltipLocation="bottom"
-              :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-              :disabled="noCurrentImage"
-              @click.stop="toggle"
-              v-bind="props"
-            >
-              <v-icon v-if="active" class="menu-more" size="18">
-                mdi-menu-right
-              </v-icon>
-            </tool-button>
-          </div>
+        <v-icon v-if="active" class="menu-more" size="18">
+          mdi-menu-right
+        </v-icon>
+        <template #menu>
+          <crop-controls />
         </template>
-        <crop-controls />
-      </v-menu>
+      </tool-button>
     </groupable-item>
   </item-group>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
-import { onKeyDown } from '@vueuse/core';
+import { computed, defineComponent } from 'vue';
 import { Tools } from '@/src/store/tools/types';
 import ToolButton from './ToolButton.vue';
 import ItemGroup from './ItemGroup.vue';
@@ -161,21 +140,11 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
 
-    const paintMenu = ref(false);
-    const cropMenu = ref(false);
-
-    onKeyDown('Escape', () => {
-      paintMenu.value = false;
-      cropMenu.value = false;
-    });
-
     return {
       currentTool,
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
       Tools,
-      paintMenu,
-      cropMenu,
     };
   },
 });
@@ -190,7 +159,7 @@ export default defineComponent({
 <style scoped>
 .menu-more {
   position: absolute;
-  right: -10%;
+  right: -12%;
 }
 
 .tool-separator {
