@@ -141,12 +141,12 @@
         </v-main>
 
         <v-dialog v-model="aboutBoxDialog" :width="mobile ? '100%' : '80%'">
-          <about-box />
+          <about-box @close="aboutBoxDialog = false" />
         </v-dialog>
 
         <v-dialog
           v-model="messageDialog"
-          width="75%"
+          :width="mobile ? '100%' : '75%'"
           content-class="fill-height"
         >
           <message-center @close="messageDialog = false" />
@@ -154,11 +154,11 @@
 
         <message-notifications @open-notifications="messageDialog = true" />
 
-        <v-dialog v-model="settingsDialog" width="50%">
+        <v-dialog v-model="settingsDialog" :width="mobile ? '100%' : '50%'">
           <settings @close="settingsDialog = false" v-if="settingsDialog" />
         </v-dialog>
 
-        <v-dialog v-model="saveDialog" width="30%">
+        <v-dialog v-model="saveDialog" :width="mobile ? '100%' : '30%'">
           <save-session @close="saveDialog = false" />
         </v-dialog>
       </v-app>

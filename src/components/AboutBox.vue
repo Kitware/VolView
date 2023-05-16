@@ -1,5 +1,11 @@
 <template>
   <v-card class="py-4">
+    <v-btn
+      variant="text"
+      class="close-button"
+      icon="mdi-close"
+      @click="$emit('close')"
+    />
     <v-card-title class="d-flex flex-row justify-center">
       <vol-view-full-logo />
     </v-card-title>
@@ -171,13 +177,10 @@
 </template>
 
 <style scoped>
-.version-row {
-  width: 40%;
-  margin: 0 auto;
-  display: flex;
-  flex-flow: column;
-  align-items: center;
-  justify-content: space-evenly;
+.close-button {
+  position: absolute;
+  right: 12px;
+  top: 12px;
 }
 </style>
 
