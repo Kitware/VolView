@@ -10,28 +10,6 @@
       <vol-view-full-logo />
     </v-card-title>
     <v-card-text>
-      <h2>Version Info</h2>
-      <v-divider class="mb-2" />
-      <ul class="pl-6">
-        <li>
-          <div class="d-flex flex-flow align-center text-no-wrap">
-            <span>VolView: </span>
-            <v-badge inline :content="versions.volview" />
-          </div>
-        </li>
-        <li>
-          <div class="d-flex flex-flow align-center text-no-wrap">
-            <span>vtk.js: </span>
-            <v-badge inline :content="versions['vtk.js']" />
-          </div>
-        </li>
-        <li>
-          <div class="d-flex flex-flow align-center text-no-wrap">
-            <span>itk-wasm: </span>
-            <v-badge inline :content="versions['itk-wasm']" />
-          </div>
-        </li>
-      </ul>
       <h2 class="mt-2">About VolView</h2>
       <v-divider class="mb-2" />
       <p class="float-right">
@@ -140,6 +118,28 @@
           >
             https://github.com/Kitware/VolView/issues
           </a>
+        </li>
+      </ul>
+      <h2>Version Info</h2>
+      <v-divider class="mb-2" />
+      <ul class="pl-6">
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>VolView: </span>
+            <v-badge inline :content="versions.volview" />
+          </div>
+        </li>
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>vtk.js: </span>
+            <v-badge inline :content="versions['vtk.js']" />
+          </div>
+        </li>
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>itk-wasm: </span>
+            <v-badge inline :content="versions['itk-wasm']" />
+          </div>
         </li>
       </ul>
       <h2 class="mt-2">Acknowledgments</h2>
