@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { watch, ref, computed, defineComponent } from 'vue';
 import { useDisplay } from 'vuetify/lib/framework.mjs';
 import ToolButton from './ToolButton.vue';
 
@@ -18,22 +18,30 @@ export default defineComponent({
   components: {
     ToolButton,
   },
-  setup() {
+  setup(props) {
     const display = useDisplay();
     const showLeft = computed(() => !display.mobile);
-    return { showLeft };
+    // Turn off menu if tool deselected
+    const menuOn = ref(false);
+    const active = computed(() => props.active);
+    watch(active, (on) => {
+      if (!on) {
+        menuOn.value = false;
+      }
+    });
+    return { showLeft, menuOn };
   },
 });
 </script>
 
 <template>
   <v-menu
+    v-model="menuOn"
     offset-x
     :left="showLeft"
     :right="!showLeft"
     :close-on-content-click="false"
     :close-on-click="false"
-    :disabled="!active"
   >
     <template v-slot:activator="{ props }">
       <!-- div needed for popup menu positioning -->
