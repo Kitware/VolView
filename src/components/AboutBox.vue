@@ -15,24 +15,24 @@
       <ul class="pl-6">
         <li>
           <div class="d-flex flex-flow align-center text-no-wrap">
-            <span>VolView:</span>
-            <v-badge class="pl-1" inline :content="versions.volview" />
+            <span>VolView: </span>
+            <v-badge inline :content="versions.volview" />
           </div>
         </li>
         <li>
           <div class="d-flex flex-flow align-center text-no-wrap">
-            <span>vtk.js:</span>
-            <v-badge class="pl-1" inline :content="versions['vtk.js']" />
+            <span>vtk.js: </span>
+            <v-badge inline :content="versions['vtk.js']" />
           </div>
         </li>
         <li>
           <div class="d-flex flex-flow align-center text-no-wrap">
-            <span>itk-wasm:</span>
-            <v-badge class="pl-1" inline :content="versions['itk-wasm']" />
+            <span>itk-wasm: </span>
+            <v-badge inline :content="versions['itk-wasm']" />
           </div>
         </li>
       </ul>
-      <h2 class="mt-2">About</h2>
+      <h2 class="mt-2">About VolView</h2>
       <v-divider class="mb-2" />
       <p class="float-right">
         <v-img
@@ -108,11 +108,11 @@
         href="https://www.kitware.com/contact/project/"
         >Contact Kitware!</a
       >
-      <br />
-      <br />
-      VolView source code:
+      <h2 class="mt-2">Useful Links</h2>
+      <v-divider class="mb-2" />
       <ul class="pl-6">
         <li>
+          <span>VolView source code repo: </span>
           <a
             rel="noopener noreferrer"
             target="_blank"
@@ -121,11 +121,18 @@
             https://github.com/Kitware/VolView
           </a>
         </li>
-      </ul>
-      <br />
-      VolView bug reports and feature requests:
-      <ul class="pl-6">
         <li>
+          <span>Discuss on our Discourse: </span>
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://discourse.vtk.org/c/web/volview/14"
+          >
+            https://discourse.vtk.org/c/web/volview/14
+          </a>
+        </li>
+        <li>
+          <span>File an bug report or feature request: </span>
           <a
             rel="noopener noreferrer"
             target="_blank"
@@ -135,7 +142,8 @@
           </a>
         </li>
       </ul>
-      <br />
+      <h2 class="mt-2">Acknowledgments</h2>
+      <v-divider class="mb-2" />
       This work was funded, in part, by the NIH via NIBIB and NIGMS R01EB021396,
       NIBIB R01EB014955, NCI R01CA220681, and NINDS R42NS086295
       <br />
