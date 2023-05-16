@@ -1,14 +1,40 @@
 <template>
-  <v-card>
+  <v-card class="py-4">
     <v-card-title class="d-flex flex-row justify-center">
       <vol-view-full-logo />
     </v-card-title>
     <v-card-text>
-      <p align="center">
-        <img
+      <h2>Version Info</h2>
+      <v-divider class="mb-2" />
+      <ul class="pl-6">
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>VolView:</span>
+            <v-badge class="pl-1" inline :content="versions.volview" />
+          </div>
+        </li>
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>vtk.js:</span>
+            <v-badge class="pl-1" inline :content="versions['vtk.js']" />
+          </div>
+        </li>
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>itk-wasm:</span>
+            <v-badge class="pl-1" inline :content="versions['itk-wasm']" />
+          </div>
+        </li>
+      </ul>
+      <h2 class="mt-2">About</h2>
+      <v-divider class="mb-2" />
+      <p class="float-right">
+        <v-img
+          v-show="!mobile"
           src="../assets/KitwareHeadAndNeck.jpg"
           alt="Head and neck CT rendering"
-          style="width: 200px"
+          width="200px"
+          class="ma-1"
           align="center"
         /><br />
       </p>
@@ -18,7 +44,7 @@
           target="_blank"
           href="https://volview.kitware.com/"
         >
-          VolView
+          <span>VolView</span>
         </a>
         is an open-source web application developed at
         <a
@@ -26,12 +52,12 @@
           target="_blank"
           href="https://kitware.com/"
         >
-          Kitware
+          <span>Kitware</span>
         </a>
         for visualizing and annotating medical images. It key features include:
       </p>
 
-      <ul>
+      <ul class="pl-6">
         <li>Fast: Drag-and-drop DICOM files for quick viewing</li>
         <li>
           Beautiful: Cinematic volume rendering to generate high-quality 3D
@@ -55,7 +81,7 @@
         target="_blank"
         href="https://github.com/InsightSoftwareConsortium/itk-wasm/"
       >
-        itk-wasm
+        <span>itk-wasm</span>
       </a>
       for DICOM I/O and image processing, and
       <a
@@ -63,7 +89,7 @@
         target="_blank"
         href="https://github.com/Kitware/vtk-js"
       >
-        vtk.js
+        <span>vtk.js</span>
       </a>
       for in-browser scientific visualization.
       <br />
@@ -79,7 +105,7 @@
       <br />
       <br />
       VolView source code:
-      <ul>
+      <ul class="pl-6">
         <li>
           <a
             rel="noopener noreferrer"
@@ -92,7 +118,7 @@
       </ul>
       <br />
       VolView bug reports and feature requests:
-      <ul>
+      <ul class="pl-6">
         <li>
           <a
             rel="noopener noreferrer"
@@ -109,7 +135,7 @@
       <br />
       <br />
       Sample data provided by the following sources:
-      <ul>
+      <ul class="pl-6">
         <li>
           PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz,
           Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge data",
@@ -140,19 +166,24 @@
           >
         </li>
       </ul>
-      <v-divider class="my-4" />
-      <p>Current versions:</p>
-      <ul>
-        <li>VolView: {{ versions.volview }}</li>
-        <li>vtk.js: {{ versions['vtk.js'] }}</li>
-        <li>itk-wasm: {{ versions['itk-wasm'] }}</li>
-      </ul>
     </v-card-text>
   </v-card>
 </template>
 
+<style scoped>
+.version-row {
+  width: 40%;
+  margin: 0 auto;
+  display: flex;
+  flex-flow: column;
+  align-items: center;
+  justify-content: space-evenly;
+}
+</style>
+
 <script>
 import { defineComponent } from 'vue';
+import { useDisplay } from 'vuetify';
 import pkgLock from '@/package-lock.json';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 
@@ -162,7 +193,10 @@ export default defineComponent({
     VolViewFullLogo,
   },
   setup() {
+    const display = useDisplay();
+
     return {
+      mobile: display.xs,
       versions: {
         volview: pkgLock.version,
         'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,

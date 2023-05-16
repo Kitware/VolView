@@ -38,8 +38,11 @@ const vuetify = createVuetify({
       },
     },
   },
-  breakpoint: {
-    mobileBreakpoint: 'sm',
+  display: {
+    mobileBreakpoint: 'lg',
+    thresholds: {
+      lg: 1024,
+    },
   },
 });
 

@@ -140,7 +140,7 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="aboutBoxDialog" :width="mobile ? '35%' : '80%'">
+        <v-dialog v-model="aboutBoxDialog" :width="mobile ? '100%' : '80%'">
           <about-box />
         </v-dialog>
 
