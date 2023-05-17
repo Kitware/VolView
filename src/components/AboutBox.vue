@@ -33,7 +33,9 @@
 
       <ul>
         <li>Fast: Drag-and-drop DICOM files for quick viewing</li>
-        <li>Flexible: Designed to be easily integrated into existing systems</li>
+        <li>
+          Flexible: Designed to be easily integrated into existing systems
+        </li>
         <li>
           Beautiful: Cinematic volume rendering to generate high-quality 3D
           visualizations
