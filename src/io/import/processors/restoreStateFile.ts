@@ -43,9 +43,7 @@ const resolveUriSource: ImportHandler = async (dataSource, { extra, done }) => {
       doneWithDataSource,
     ]).execute(dataSource, extra);
     if (!result.ok) {
-      throw new Error(`Could not resolve UriSource ${uriSrc.uri}`, {
-        cause: ensureError(result.errors[0].cause),
-      });
+      throw result.errors[0].cause;
     }
     // downloadUrl returns the fully resolved data source.
     // We call done here since we've resolved the UriSource
@@ -91,9 +89,7 @@ const resolveArchiveMember: ImportHandler = async (
     ]);
     const result = await pipeline.execute(dataSource, extra);
     if (!result.ok) {
-      throw new Error('Failed to resolve archive member', {
-        cause: ensureError(result.errors[0].cause),
-      });
+      throw result.errors[0].cause;
     }
     // extractArchiveTarget returns the fully resolved data source.
     return done({
@@ -211,6 +207,8 @@ async function restoreDatasets(
         }
 
         stateIDToStoreID[dataset.id] = dataID;
+      } else {
+        throw new Error('Could not load any data from the session');
       }
     })
   );
@@ -278,7 +276,6 @@ const restoreStateFile: ImportHandler = async (
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-    // TODO return statuses
     return done();
   }
   return dataSource;
