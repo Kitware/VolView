@@ -72,6 +72,7 @@ export default defineComponent({
     <v-card>
       <v-card-text>
         <v-radio-group
+          v-if="labelControls.labels.length > 0"
           :value="activeLabel"
           v-on:change="labelControls.setActiveLabel"
           class="mt-0"
@@ -91,6 +92,7 @@ export default defineComponent({
             </template>
           </v-radio>
         </v-radio-group>
+        <div v-else>No labels configured</div>
       </v-card-text>
     </v-card>
   </v-menu>

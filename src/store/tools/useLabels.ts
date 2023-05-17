@@ -37,7 +37,7 @@ export const useLabels = () => {
   const initialLabels = parseLabelUrlParam();
   const labels = ref(initialLabels);
 
-  const initialLabel = Object.keys(labels.value)[0] ?? undefined;
+  const initialLabel = Object.keys(labels.value)[0] ?? '';
   const activeLabel = ref(initialLabel);
   const setActiveLabel = (name: string) => {
     activeLabel.value = name;
