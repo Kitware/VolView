@@ -1,83 +1,27 @@
 import { expect } from 'chai';
-import {
-  RemoteDatasetFile,
-  ZipDatasetFile,
-  isRemote,
-} from '@/src/store/datasets-files';
-import { convertDataSourceToDatasetFile } from '@/src/io/import/dataSource';
-import * as path from '@/src/utils/path';
+import { DataSource, serializeDataSource } from '@/src/io/import/dataSource';
 
-describe('convertDataSourceToDatasetFile', () => {
-  it('should convert a basic file source to a DatasetFile', () => {
-    const fileSrc = {
-      file: new File([], 'myfile.dcm'),
-      fileType: 'application/dicom',
-    };
-
-    const dataset = convertDataSourceToDatasetFile({ fileSrc });
-
-    expect(dataset.file.name).to.equal(fileSrc.file.name);
-    expect(dataset.file.type).to.equal(fileSrc.fileType);
-  });
-
-  it('should convert a remote file source to a DatasetFile', () => {
-    const source = {
+describe('serializeDataSource', () => {
+  it('should remove FileSources', () => {
+    const input: DataSource = {
       fileSrc: {
-        file: new File([], 'myfile.dcm'),
+        file: new File([], '1.dcm'),
         fileType: 'application/dicom',
       },
-      parent: {
-        uriSrc: {
-          uri: 'https://my-dataset-uri',
-          name: 'myfile.dcm',
-        },
-      },
     };
+    const output = serializeDataSource(input);
 
-    const dataset = convertDataSourceToDatasetFile(source) as RemoteDatasetFile;
-
-    expect(isRemote(dataset)).to.be.true;
-    expect(dataset.remoteFilename).to.equal(source.parent.uriSrc.name);
-    expect(dataset.url).to.equal(source.parent.uriSrc.uri);
+    expect(output).to.deep.equal({});
   });
 
-  it('should convert a file derived from a remote archive to a DatasetFile', () => {
-    const source = {
+  it('should preserve archive status', () => {
+    const input: DataSource = {
       fileSrc: {
-        file: new File([], 'myfile.dcm'),
+        file: new File([], '1.dcm'),
         fileType: 'application/dicom',
       },
       archiveSrc: {
-        path: 'innerPath/',
-      },
-      parent: {
-        uriSrc: {
-          uri: 'https://my-dataset-uri',
-          name: 'myfile.dcm',
-        },
-      },
-    };
-
-    const dataset = convertDataSourceToDatasetFile(
-      source
-    ) as RemoteDatasetFile & ZipDatasetFile;
-
-    expect(isRemote(dataset)).to.be.true;
-    expect(dataset.remoteFilename).to.equal(source.parent.uriSrc.name);
-    expect(dataset.url).to.equal(source.parent.uriSrc.uri);
-    expect(path.normalize(dataset.archivePath)).to.equal(
-      path.normalize(source.archiveSrc.path)
-    );
-  });
-
-  it('should convert a file derived from a local archive to a DatasetFile', () => {
-    const source = {
-      fileSrc: {
-        file: new File([], 'myfile.dcm'),
-        fileType: 'application/dicom',
-      },
-      archiveSrc: {
-        path: 'innerPath/',
+        path: 'a/b/c',
       },
       parent: {
         fileSrc: {
@@ -86,15 +30,71 @@ describe('convertDataSourceToDatasetFile', () => {
         },
       },
     };
+    const output = serializeDataSource(input);
 
-    const dataset = convertDataSourceToDatasetFile(
-      source
-    ) as RemoteDatasetFile & ZipDatasetFile;
+    expect(output).to.deep.equal({
+      archiveSrc: {
+        path: 'a/b/c',
+      },
+      parent: {},
+    });
+  });
 
-    expect(dataset.file.name).to.equal(source.fileSrc.file.name);
-    expect(dataset.file.type).to.equal(source.fileSrc.fileType);
-    expect(path.normalize(dataset.archivePath)).to.equal(
-      path.normalize(source.archiveSrc.path)
-    );
+  it('should preserve UriSource', () => {
+    const input: DataSource = {
+      uriSrc: {
+        uri: 'https://example.com/image.jpg',
+        name: 'image.jpg',
+      },
+      parent: {
+        uriSrc: {
+          uri: 's3://example/bucket',
+          name: '',
+        },
+      },
+    };
+    const output = serializeDataSource(input);
+
+    expect(output).to.deep.equal(input);
+  });
+
+  it('should serialize remote archive members', () => {
+    const input: DataSource = {
+      fileSrc: {
+        file: new File([], '1.dcm'),
+        fileType: 'application/dicom',
+      },
+      archiveSrc: {
+        path: 'a/b/c',
+      },
+      parent: {
+        fileSrc: {
+          file: new File([], 'archive.zip'),
+          fileType: 'application/zip',
+        },
+        parent: {
+          uriSrc: {
+            uri: 'https://example.com/archive.zip',
+            name: 'archive.zip',
+          },
+        },
+      },
+    };
+    const output = serializeDataSource(input);
+
+    expect(output).to.deep.equal({
+      archiveSrc: {
+        path: 'a/b/c',
+      },
+      parent: {
+        // empty parent b/c archive FileSource cannot be serialized
+        parent: {
+          uriSrc: {
+            uri: 'https://example.com/archive.zip',
+            name: 'archive.zip',
+          },
+        },
+      },
+    });
   });
 });

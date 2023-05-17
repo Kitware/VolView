@@ -1,9 +1,6 @@
 import Pipeline, { PipelineResult } from '@/src/core/pipeline';
 import { ImportHandler, ImportResult } from '@/src/io/import/common';
-import {
-  DataSource,
-  convertDataSourceToDatasetFile,
-} from '@/src/io/import/dataSource';
+import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import extractArchive from '@/src/io/import/processors/extractArchive';
@@ -15,6 +12,32 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { makeDICOMSelection, makeImageSelection } from '@/src/store/datasets';
+
+export type ImportDataSourcesResult = PipelineResult<DataSource, ImportResult>;
+
+export function convertSuccessResultToDataSelection(
+  result: ImportDataSourcesResult
+) {
+  if (result.data.length === 0) {
+    return null;
+  }
+
+  const { dataID, dataType } = result.data[0];
+  if (!dataID) {
+    return null;
+  }
+
+  if (dataType === 'dicom') {
+    return makeDICOMSelection(dataID);
+  }
+
+  if (dataType === 'image') {
+    return makeImageSelection(dataID);
+  }
+
+  return null;
+}
 
 /**
  * Tries to turn a thrown object into a meaningful error string.
@@ -53,7 +76,7 @@ export async function importDataSources(dataSources: DataSource[]) {
 
   const importContext = {
     fetchFileCache: new Map<string, File>(),
-    dicomDataSources: [] as DataSource[],
+    dicomDataSources: [] as DataSourceWithFile[],
   };
 
   const pipeline = new Pipeline(middleware);
@@ -80,9 +103,7 @@ export async function importDataSources(dataSources: DataSource[]) {
 
   try {
     const volumeKeys = await useDICOMStore().importFiles(
-      importContext.dicomDataSources.map((ds) =>
-        convertDataSourceToDatasetFile(ds)
-      )
+      importContext.dicomDataSources
     );
     dicomResult.data.push(
       ...volumeKeys.map((key) => ({

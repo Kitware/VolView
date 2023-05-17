@@ -1,11 +1,10 @@
 import { partition } from '@/src/utils';
-import { StateFile, DatasetType } from './schema';
 import {
-  DatasetFile,
-  isRemote,
-  RemoteDatasetFile,
-  useFileStore,
-} from '../../store/datasets-files';
+  isRemoteDataSource,
+  serializeDataSource,
+} from '@/src/io/import/dataSource';
+import { StateFile, DatasetType } from './schema';
+import { useFileStore } from '../../store/datasets-files';
 
 export async function serializeData(
   stateFile: StateFile,
@@ -19,24 +18,19 @@ export async function serializeData(
   } = stateFile;
 
   dataIDs.forEach((id) => {
-    const files = fileStore.getDatasetFiles(id);
-    if (!files.length) {
+    const sources = fileStore.getDataSources(id);
+    if (!sources.length) {
       throw new Error(`No files for dataID: ${id}`);
     }
 
-    const [remotes, toZip] = partition(isRemote, files) as [
-      Array<RemoteDatasetFile>,
-      Array<DatasetFile>
-    ];
+    const [remotes, toZip] = partition(isRemoteDataSource, sources);
 
-    remoteFiles[id] = remotes.map(({ file: { name }, ...rest }) => ({
-      name,
-      ...rest,
-    }));
+    remoteFiles[id] = remotes.map(serializeDataSource);
 
     const dataPath = `data/${id}/`;
 
-    toZip.forEach(({ file }) => {
+    toZip.forEach((ds) => {
+      const { file } = ds.fileSrc;
       const filePath = `${dataPath}/${file.name}`;
       zip.file(filePath, file);
     });

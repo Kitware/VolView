@@ -219,3 +219,16 @@ export const omit = <T extends Record<string, unknown>, K extends keyof T>(
   Object.fromEntries(
     Object.entries(obj).filter(([key]) => !wrapInArray(keys).includes(key as K))
   ) as Omit<T, K>;
+
+export function ensureError(e: unknown) {
+  return e instanceof Error ? e : new Error(JSON.stringify(e));
+}
+
+// remove undefined properties
+export function cleanUndefined(obj: Object) {
+  return Object.entries(obj).reduce(
+    (cleaned, [key, value]) =>
+      value === undefined ? cleaned : { ...cleaned, [key]: value },
+    {}
+  );
+}

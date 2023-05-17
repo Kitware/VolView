@@ -9,16 +9,14 @@ import {
 } from '@/src/io/import/common';
 import {
   DataSource,
-  convertDataSourceToDatasetFile,
-  convertDatasetFileToDataSource,
+  DataSourceWithFile,
+  fileToDataSource,
 } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
-import { ZipDatasetFile } from '@/src/store/datasets-files';
-import { partition } from '@/src/utils';
+import { ensureError, partition } from '@/src/utils';
 import Pipeline, { PipelineContext } from '@/src/core/pipeline';
 import { Awaitable } from '@vueuse/core';
 import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
-import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useViewStore } from '@/src/store/views';
 import {
@@ -31,6 +29,79 @@ import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
+import downloadUrl from '@/src/io/import/processors/downloadUrl';
+import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
+import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
+
+const resolveUriSource: ImportHandler = async (dataSource, { extra, done }) => {
+  const { uriSrc } = dataSource;
+
+  if (uriSrc) {
+    const result = await new Pipeline([
+      downloadUrl,
+      updateFileMimeType,
+      doneWithDataSource,
+    ]).execute(dataSource, extra);
+    if (!result.ok) {
+      throw new Error(`Could not resolve UriSource ${uriSrc.uri}`, {
+        cause: ensureError(result.errors[0].cause),
+      });
+    }
+    // downloadUrl returns the fully resolved data source.
+    // We call done here since we've resolved the UriSource
+    // and no more processing is needed.
+    return done({
+      dataSource: result.data[0].dataSource,
+    });
+  }
+
+  return dataSource;
+};
+
+const processParentIfNoFile: ImportHandler = async (
+  dataSource,
+  { execute }
+) => {
+  const { fileSrc, parent } = dataSource;
+  if (!fileSrc && parent) {
+    const result = await execute(parent);
+    if (!result.ok) {
+      throw new Error('Could not process parent', {
+        cause: ensureError(result.errors[0].cause),
+      });
+    }
+    // update the parent
+    return {
+      ...dataSource,
+      parent: result.data[0].dataSource,
+    };
+  }
+  return dataSource;
+};
+
+const resolveArchiveMember: ImportHandler = async (
+  dataSource,
+  { extra, done }
+) => {
+  if (dataSource.archiveSrc) {
+    const pipeline = new Pipeline([
+      extractArchiveTarget,
+      updateFileMimeType,
+      doneWithDataSource,
+    ]);
+    const result = await pipeline.execute(dataSource, extra);
+    if (!result.ok) {
+      throw new Error('Failed to resolve archive member', {
+        cause: ensureError(result.errors[0].cause),
+      });
+    }
+    // extractArchiveTarget returns the fully resolved data source.
+    return done({
+      dataSource: result.data[0].dataSource,
+    });
+  }
+  return dataSource;
+};
 
 function getDataSourcesForDataset(
   dataset: Dataset,
@@ -42,37 +113,17 @@ function getDataSourcesForDataset(
       (entry) =>
         path.normalize(entry.archivePath) === path.normalize(dataset.path)
     )
-    .map((entry) => convertDatasetFileToDataSource(entry));
-
-  // constructs a DataSource of the following form:
-  // { archiveSrc, parent: { uriSrc } }
-  const remotes = (manifest.remoteFiles[dataset.id] ?? []).map((entry) => {
-    const source = convertDatasetFileToDataSource({
-      ...entry,
-      // dummy file used to get the file name.
-      // We will delete the fileSrc afterwards.
-      file: new File([], entry.name),
-    });
-    delete source.fileSrc;
-    return source;
-  });
-
+    .map((entry) => fileToDataSource(entry.file));
+  const remotes = manifest.remoteFiles[dataset.id] ?? [];
   return [...inStateFile, ...remotes];
 }
 
-type Context = PipelineContext<DataSource, ImportResult, ImportContext>;
-
 async function restoreDatasets(
   manifest: Manifest,
-  datasetFiles: ZipDatasetFile[],
-  { extra, execute }: Context
+  datasetFiles: FileEntry[],
+  { extra, execute }: PipelineContext<DataSource, ImportResult, ImportContext>
 ) {
   const archiveCache = new Map<File, Awaitable<ArchiveContents>>();
-
-  const resolvePipeline = new Pipeline([
-    extractArchiveTarget,
-    doneWithDataSource,
-  ]);
 
   // normalize archive paths for comparison
   const stateDatasetFiles = datasetFiles.map((datasetFile) => {
@@ -85,6 +136,17 @@ async function restoreDatasets(
   const { datasets } = manifest;
   // Mapping of the state file ID => new store ID
   const stateIDToStoreID: Record<string, string> = {};
+
+  // This pipeline resolves data sources that have remote provenance.
+  const resolvePipeline = new Pipeline([
+    updateFileMimeType,
+    resolveUriSource,
+    // process parent after resolving the uri source, so we don't
+    // unnecessarily download ancestor UriSources.
+    processParentIfNoFile,
+    resolveArchiveMember,
+    doneWithDataSource,
+  ]);
 
   await Promise.all(
     datasets.map(async (dataset) => {
@@ -109,7 +171,7 @@ async function restoreDatasets(
       );
 
       // do the import
-      const dicomSources: DataSource[] = [];
+      const dicomSources: DataSourceWithFile[] = [];
       const importResults = await Promise.all(
         datasetDataSources.map((source) =>
           execute(source, {
@@ -122,9 +184,7 @@ async function restoreDatasets(
 
       if (dicomSources.length) {
         const dicomStore = useDICOMStore();
-        const volumeKeys = await dicomStore.importFiles(
-          dicomSources.map((src) => convertDataSourceToDatasetFile(src))
-        );
+        const volumeKeys = await dicomStore.importFiles(dicomSources);
         if (volumeKeys.length !== 1) {
           throw new Error('Obtained more than one volume from DICOM import');
         }
@@ -164,9 +224,7 @@ const restoreStateFile: ImportHandler = async (
 ) => {
   const { fileSrc } = dataSource;
   if (fileSrc && (await isStateFile(fileSrc.file))) {
-    const stateFileContents = (await extractFilesFromZip(
-      fileSrc.file
-    )) as Array<ZipDatasetFile>;
+    const stateFileContents = await extractFilesFromZip(fileSrc.file);
 
     const [manifests, restOfStateFile] = partition(
       (dataFile) => dataFile.file.name === MANIFEST,

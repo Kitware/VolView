@@ -1,16 +1,10 @@
-import {
-  DatasetFile,
-  DatasetPath,
-  RemoteDatasetFile,
-  isRemote,
-  makeLocal,
-  makeRemote,
-} from '@/src/store/datasets-files';
 import { Maybe } from '@/src/types';
-import { dirname } from '@/src/utils/path';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
+ *
+ * This can optionally be paired with a FileSource, indicating that the
+ * FileSource is a remote FileSource.
  */
 export interface UriSource {
   uri: string;
@@ -19,6 +13,8 @@ export interface UriSource {
 
 /**
  * Represents a user-specified file.
+ *
+ * This can optionally be paired with an ArchiveSource.
  */
 export interface FileSource {
   file: File;
@@ -28,7 +24,7 @@ export interface FileSource {
 /**
  * If an archive source is specified, then it is assumed that the data source
  * has a FileSource (representing the file inside the archive), and a parent
- * data source that refers to the archive.
+ * data source with a FileSource that refers to the archive.
  */
 export interface ArchiveSource {
   // Full path + filename inside the archive
@@ -47,17 +43,71 @@ export interface DicomSource {
 }
 
 /**
- * Represents a source of datasets.
+ * Represents a source of data.
  *
  * If the parent property is set, it represents the DataSource from which this
  * DataSource was derived.
+ *
+ * Examples:
+ * - { uriSrc }: a file that has yet to be downloaded.
+ * - { fileSrc, parent: { uriSrc } }: a file with URI provenance info.
+ * - { fileSrc, archiveSrc, parent }: a file originating from an archive.
+ * - { dicomSrc }: a list of dicom data sources.
  */
 export interface DataSource {
-  uriSrc?: UriSource;
   fileSrc?: FileSource;
+  uriSrc?: UriSource;
   archiveSrc?: ArchiveSource;
   dicomSrc?: DicomSource;
   parent?: DataSource;
+}
+
+export type DataSourceWithFile = DataSource & { fileSrc: FileSource };
+
+/**
+ * Creates a DataSource from a single file.
+ * @param file
+ * @returns
+ */
+export const fileToDataSource = (file: File): DataSource => ({
+  fileSrc: {
+    file,
+    fileType: file.type,
+  },
+});
+
+/**
+ * Creates a DataSource from a URI.
+ * @param uri
+ * @returns
+ */
+export const uriToDataSource = (uri: string, name: string): DataSource => ({
+  uriSrc: {
+    uri,
+    name,
+  },
+});
+
+/**
+ * Creates a DataSource from a file downloaded from a URI.
+ * @param uri
+ * @returns
+ */
+export const remoteFileToDataSource = (
+  file: File,
+  uri: string
+): DataSource => ({
+  ...fileToDataSource(file),
+  ...uriToDataSource(uri, file.name),
+});
+
+/**
+ * Determines if a data source has remote provenance.
+ * @param ds
+ * @returns
+ */
+export function isRemoteDataSource(ds: DataSource): boolean {
+  return !!ds.uriSrc || (!!ds.parent && isRemoteDataSource(ds.parent));
 }
 
 /**
@@ -103,93 +153,18 @@ export function getDataSourceName(ds: Maybe<DataSource>): Maybe<string> {
 }
 
 /**
- * This helper converts a more flexible DataSource into a simpler DatasetFile.
+ * Serializes a data source into a JSON formattable object.
  *
- * This will create a new File object with the type derived from
- * DataSource.fileSrc.fileType.
- * @param source
+ * FileSources are stripped, as they cannot be properly serialized. This
+ * includes the fileType property, which should be inferred when retyping the
+ * file.
+ * @param ds
  */
-export function convertDataSourceToDatasetFile(
-  source: DataSource
-): DatasetFile {
-  const provenance = flattenDataSourceHierarchy(source);
-  const fileDataSource = provenance.find((ds) => ds.fileSrc?.file);
-  if (!fileDataSource) {
-    throw new Error('DataSource has no file source!');
+export function serializeDataSource(ds: DataSource) {
+  const output = { ...ds };
+  delete output.fileSrc;
+  if (output.parent) {
+    output.parent = serializeDataSource(output.parent);
   }
-
-  // local file case
-  const { file, fileType } = fileDataSource.fileSrc!;
-  let dataset: DatasetFile = makeLocal(
-    new File([file], file.name, { type: fileType })
-  );
-
-  // remote file case
-  const remoteDataSource = provenance.find((ds) => ds.uriSrc);
-  if (remoteDataSource) {
-    dataset = makeRemote(remoteDataSource.uriSrc!.uri, dataset);
-    // if from archive, then the remoteFilename is the parent archive name
-    const parentName = getDataSourceName(fileDataSource.parent);
-    if (fileDataSource.archiveSrc && parentName) {
-      (dataset as RemoteDatasetFile).remoteFilename = parentName;
-    }
-  }
-
-  // add archive information
-  if (fileDataSource.archiveSrc) {
-    dataset = {
-      ...dataset,
-      archivePath: dirname(fileDataSource.archiveSrc.path) as DatasetPath,
-    };
-  }
-
-  return dataset;
-}
-
-/**
- * Converts a DatasetFile to a DataSource.
- *
- * This is an imperfect conversion, since DatasetFile contains less information
- * (e.g. hierarchical provenance info).
- * @param dataset
- * @returns
- */
-export function convertDatasetFileToDataSource(
-  dataset: DatasetFile,
-  options?: {
-    forceRemoteOnly: boolean;
-  }
-): DataSource {
-  const forceRemoteOnly = options?.forceRemoteOnly ?? false;
-  let parent: DataSource | undefined;
-
-  if (isRemote(dataset)) {
-    parent = {
-      uriSrc: {
-        uri: dataset.url,
-        name: dataset.remoteFilename,
-      },
-    };
-
-    if (forceRemoteOnly) {
-      return parent;
-    }
-  }
-
-  const source: DataSource = {
-    fileSrc: {
-      file: dataset.file,
-      fileType: dataset.file.type,
-    },
-    parent,
-  };
-
-  if ('archivePath' in dataset && parent) {
-    source.archiveSrc = {
-      // assumes the archive name is the same as the file name
-      path: `${dataset.archivePath}/${source.fileSrc!.file.name}`,
-    };
-  }
-
-  return source;
+  return output;
 }

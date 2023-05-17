@@ -8,16 +8,17 @@ import {
 } from '@vue/composition-api';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { useDatasetStore } from '@/src/store/datasets';
-import importFiles, {
+import {
   convertSuccessResultToDataSelection,
-} from '@/src/io/import/importFiles';
+  importDataSources,
+} from '@/src/io/import/importDataSources';
+import { remoteFileToDataSource } from '@/src/io/import/dataSource';
 import { SAMPLE_DATA } from '../config';
 import { useMessageStore } from '../store/messages';
 import { SampleDataset } from '../types';
 import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { fetchFile } from '../utils/fetch';
-import { makeRemote } from '../store/datasets-files';
 
 enum ProgressState {
   Pending,
@@ -94,8 +95,8 @@ export default defineComponent({
         });
         status.progress[sample.name].state = ProgressState.Done;
 
-        const [loadResult] = await importFiles([
-          makeRemote(sample.url, sampleFile),
+        const [loadResult] = await importDataSources([
+          remoteFileToDataSource(sampleFile, sample.url),
         ]);
 
         if (!loadResult) {

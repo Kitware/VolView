@@ -5,7 +5,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
 import { FILE_READERS } from '@/src/io';
 import { ImportHandler } from '@/src/io/import/common';
-import { convertDataSourceToDatasetFile } from '@/src/io/import/dataSource';
+import { DataSourceWithFile } from '@/src/io/import/dataSource';
 
 /**
  * Reads and imports a file DataSource.
@@ -13,44 +13,49 @@ import { convertDataSourceToDatasetFile } from '@/src/io/import/dataSource';
  * @returns
  */
 const importSingleFile: ImportHandler = async (dataSource, { done }) => {
-  const { fileSrc } = dataSource;
-  if (fileSrc && FILE_READERS.has(fileSrc.fileType)) {
-    const reader = FILE_READERS.get(fileSrc.fileType)!;
-    const dataObject = await reader(fileSrc.file);
-
-    const fileStore = useFileStore();
-
-    if (dataObject.isA('vtkImageData')) {
-      const dataID = useImageStore().addVTKImageData(
-        fileSrc.file.name,
-        dataObject as vtkImageData
-      );
-      fileStore.add(dataID, [convertDataSourceToDatasetFile(dataSource)]);
-
-      return done({
-        dataID,
-        dataSource,
-        dataType: 'image',
-      });
-    }
-
-    if (dataObject.isA('vtkPolyData')) {
-      const dataID = useModelStore().addVTKPolyData(
-        fileSrc.file.name,
-        dataObject as vtkPolyData
-      );
-      fileStore.add(dataID, [convertDataSourceToDatasetFile(dataSource)]);
-
-      return done({
-        dataID,
-        dataSource,
-        dataType: 'model',
-      });
-    }
-
-    throw new Error('Data reader did not produce a valid dataset');
+  if (!dataSource.fileSrc) {
+    return dataSource;
   }
-  return dataSource;
+
+  const { fileSrc } = dataSource;
+  if (!FILE_READERS.has(fileSrc.fileType)) {
+    return dataSource;
+  }
+
+  const reader = FILE_READERS.get(fileSrc.fileType)!;
+  const dataObject = await reader(fileSrc.file);
+
+  const fileStore = useFileStore();
+
+  if (dataObject.isA('vtkImageData')) {
+    const dataID = useImageStore().addVTKImageData(
+      fileSrc.file.name,
+      dataObject as vtkImageData
+    );
+    fileStore.add(dataID, [dataSource as DataSourceWithFile]);
+
+    return done({
+      dataID,
+      dataSource,
+      dataType: 'image',
+    });
+  }
+
+  if (dataObject.isA('vtkPolyData')) {
+    const dataID = useModelStore().addVTKPolyData(
+      fileSrc.file.name,
+      dataObject as vtkPolyData
+    );
+    fileStore.add(dataID, [dataSource as DataSourceWithFile]);
+
+    return done({
+      dataID,
+      dataSource,
+      dataType: 'model',
+    });
+  }
+
+  throw new Error('Data reader did not produce a valid dataset');
 };
 
 export default importSingleFile;

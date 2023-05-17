@@ -207,8 +207,14 @@ import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { URL } from 'whatwg-url';
 
+import { basename } from '@/src/utils/path';
 import { useDatasetStore } from '@/src/store/datasets';
 import { logError } from '@/src/utils/loggers';
+import {
+  importDataSources,
+  ImportDataSourcesResult,
+  convertSuccessResultToDataSelection,
+} from '@/src/io/import/importDataSources';
 import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
@@ -221,13 +227,13 @@ import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import VolViewLogo from './icons/VolViewLogo.vue';
-import importFiles, {
-  convertSuccessResultToDataSelection,
-  ImportFilesResult,
-} from '../io/import/importFiles';
-import { getDataSourceName } from '../io/import/dataSource';
+import {
+  DataSource,
+  fileToDataSource,
+  getDataSourceName,
+  uriToDataSource,
+} from '../io/import/dataSource';
 import { useImageStore } from '../store/datasets-images';
-import { makeLocal, DatasetFile } from '../store/datasets-files';
 import { useViewStore } from '../store/views';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
@@ -238,12 +244,15 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
 
-async function loadFiles(files: DatasetFile[], setError: (err: Error) => void) {
+async function loadFiles(
+  sources: DataSource[],
+  setError: (err: Error) => void
+) {
   const dataStore = useDatasetStore();
 
-  let results: ImportFilesResult[];
+  let results: ImportDataSourcesResult[];
   try {
-    results = await importFiles(files);
+    results = await importDataSources(sources);
   } catch (error) {
     setError(error as Error);
     return;
@@ -282,17 +291,14 @@ async function loadRemoteFilesFromURLParams(
 ) {
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const resources: DatasetFile[] = urls.map((url, idx) => ({
-    url,
-    remoteFilename:
-      names[idx] ||
-      new URL(url, window.location.href).pathname.split('/').at(-1) ||
+  const sources = urls.map((url, idx) =>
+    uriToDataSource(
       url,
-    // loadFiles will treat empty files as URLs to download
-    file: new File([], ''),
-  }));
+      names[idx] || basename(new URL(url, window.location.href).pathname) || url
+    )
+  );
 
-  await loadFiles(resources, setError);
+  await loadFiles(sources, setError);
 }
 
 export default defineComponent({
@@ -356,8 +362,8 @@ export default defineComponent({
         return;
       }
 
-      const datasetFiles = Array.from(files).map(makeLocal);
-      runAsLoading((setError) => loadFiles(datasetFiles, setError));
+      const dataSources = Array.from(files).map(fileToDataSource);
+      runAsLoading((setError) => loadFiles(dataSources, setError));
     }
 
     const fileEl = document.createElement('input');

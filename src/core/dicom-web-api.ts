@@ -1,3 +1,4 @@
+import { cleanUndefined } from '@/src/utils';
 import { api } from 'dicomweb-client-typed';
 
 export interface FetchStudyOptions {
@@ -45,15 +46,6 @@ function parseTag(value: any) {
   const alpha = v?.Alphabetic;
   if (alpha) return alpha;
   return v;
-}
-
-// remove undefined properties
-function cleanUndefined(obj: Object) {
-  return Object.entries(obj).reduce(
-    (cleaned, [key, value]) =>
-      value === undefined ? cleaned : { ...cleaned, [key]: value },
-    {}
-  );
 }
 
 function parseInstance(instance: any) {

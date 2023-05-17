@@ -4,9 +4,11 @@ import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 
 import { omit, remapKeys } from '@/src/utils';
-import importFiles, {
+import { fileToDataSource } from '@/src/io/import/dataSource';
+import {
   convertSuccessResultToDataSelection,
-} from '@/src/io/import/importFiles';
+  importDataSources,
+} from '@/src/io/import/importDataSources';
 import { useDatasetStore } from '../datasets';
 import { useDICOMStore } from '../datasets-dicom';
 import { useMessageStore } from '../messages';
@@ -19,7 +21,6 @@ import {
   retrieveSeriesMetadata,
   parseUrl,
 } from '../../core/dicom-web-api';
-import { makeLocal } from '../datasets-files';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 
@@ -176,7 +177,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         throw new Error('Could not fetch series');
       }
 
-      const [loadResult] = await importFiles(files.map(makeLocal));
+      const [loadResult] = await importDataSources(files.map(fileToDataSource));
       if (!loadResult) {
         throw new Error('Did not receive a load result');
       }

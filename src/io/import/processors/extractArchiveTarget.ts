@@ -1,8 +1,38 @@
-import Pipeline from '@/src/core/pipeline';
-import { ImportHandler } from '@/src/io/import/common';
-import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
-import resolveArchiveParent from '@/src/io/import/processors/resolveArchiveParent';
+import {
+  ArchiveCache,
+  ArchiveContents,
+  ImportHandler,
+  isArchive,
+} from '@/src/io/import/common';
+import { extractFilesFromZip } from '@/src/io/zip';
+import { Maybe } from '@/src/types';
 import * as path from '@/src/utils/path';
+import { Awaitable } from '@vueuse/core';
+
+async function extractArchiveContents(archiveFile: File, cache?: ArchiveCache) {
+  let contentsPromise: Maybe<Awaitable<ArchiveContents>> =
+    cache?.get(archiveFile);
+  if (contentsPromise) {
+    return contentsPromise;
+  }
+
+  contentsPromise = extractFilesFromZip(archiveFile).then((files) => {
+    return files.reduce((mapping, fileEntry) => {
+      const fullPath = path.normalize(
+        `${fileEntry.archivePath}/${fileEntry.file.name}`
+      );
+      return Object.assign(mapping, {
+        [fullPath]: fileEntry.file,
+      });
+    }, {} as ArchiveContents);
+  });
+
+  if (cache) {
+    cache.set(archiveFile, contentsPromise);
+  }
+
+  return contentsPromise;
+}
 
 /**
  * Extracts a single target file from an archive.
@@ -11,30 +41,32 @@ import * as path from '@/src/utils/path';
  * extract the file from the parent archive.
  *
  * Input data source must be of the following form:
- * { archiveSrc, parent: DataSource }
+ * { archiveSrc, parent: DataSource with a fileSrc }
  * @param dataSource
  * @returns
  */
-const extractArchiveTarget: ImportHandler = async (dataSource, { extra }) => {
+const extractArchiveTarget: ImportHandler = async (
+  dataSource,
+  { extra, execute, done }
+) => {
   const { fileSrc, archiveSrc, parent } = dataSource;
-  if (extra?.archiveCache && !fileSrc && archiveSrc && parent) {
-    // ensure parent is resolved
-    const pipeline = new Pipeline([resolveArchiveParent, doneWithDataSource]);
-    const results = await pipeline.execute(dataSource, extra);
-    if (!results.ok) {
-      throw results.errors[0].cause;
+  const { archiveCache } = extra ?? {};
+
+  if (!fileSrc && archiveSrc && parent) {
+    if (!parent?.fileSrc) {
+      throw new Error(
+        'Cannot extract an archive target with an unresolved parent'
+      );
     }
 
-    const resolvedSource = results.data[0].dataSource;
-    const archiveFile = resolvedSource.parent?.fileSrc?.file;
-    if (!archiveFile) {
-      throw new Error('Failed to get archive file from parent');
+    if (!isArchive(parent)) {
+      throw new Error('Parent is not a supported archive file');
     }
 
-    const archiveContents = await extra.archiveCache.get(archiveFile);
-    if (!archiveContents) {
-      throw new Error(`Failed to find a cache for ${archiveFile.name}`);
-    }
+    const archiveContents = await extractArchiveContents(
+      parent.fileSrc.file,
+      archiveCache
+    );
 
     const targetName = path.normalize(archiveSrc.path);
     const targetFile = archiveContents[targetName];
@@ -42,14 +74,16 @@ const extractArchiveTarget: ImportHandler = async (dataSource, { extra }) => {
       throw new Error(`Failed to find archive member ${targetName}`);
     }
 
-    return {
-      ...resolvedSource,
+    execute({
+      ...dataSource,
       fileSrc: {
         file: targetFile,
         fileType: '',
       },
-    };
+    });
+    return done();
   }
+
   return dataSource;
 };
 
