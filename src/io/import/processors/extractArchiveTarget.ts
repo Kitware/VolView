@@ -18,9 +18,7 @@ async function extractArchiveContents(archiveFile: File, cache?: ArchiveCache) {
 
   contentsPromise = extractFilesFromZip(archiveFile).then((files) => {
     return files.reduce((mapping, fileEntry) => {
-      const fullPath = path.normalize(
-        `${fileEntry.archivePath}/${fileEntry.file.name}`
-      );
+      const fullPath = path.join(fileEntry.archivePath, fileEntry.file.name);
       return Object.assign(mapping, {
         [fullPath]: fileEntry.file,
       });

@@ -3,6 +3,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
+import { join, normalize } from '@/src/utils/path';
 import vtkLabelMap from '../vtk/LabelMap';
 import { LABELMAP_PALETTE } from '../config';
 import { StateFile, Manifest } from '../io/state-file/schema';
@@ -113,7 +114,8 @@ export const useLabelmapStore = defineStore('labelmap', {
         const [file] = stateFiles
           .filter(
             (entry) =>
-              `${entry.archivePath}${entry.file.name}` === labelMap.path
+              join(entry.archivePath, entry.file.name) ===
+              normalize(labelMap.path)
           )
           .map((entry) => entry.file);
 
