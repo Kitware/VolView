@@ -34,6 +34,9 @@
       <ul>
         <li>Fast: Drag-and-drop DICOM files for quick viewing</li>
         <li>
+          Flexible: Designed to be easily integrated into existing systems
+        </li>
+        <li>
           Beautiful: Cinematic volume rendering to generate high-quality 3D
           visualizations
         </li>
@@ -87,6 +90,19 @@
             href="https://github.com/Kitware/VolView"
           >
             https://github.com/Kitware/VolView
+          </a>
+        </li>
+      </ul>
+      <br />
+      VolView community support forum:
+      <ul>
+        <li>
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://discourse.vtk.org/c/web/volview/14"
+          >
+            https://discourse.vtk.org/c/web/volview/14
           </a>
         </li>
       </ul>
