@@ -1,12 +1,4 @@
-import { extractFilesFromZip } from './zip';
-import { DatasetFile } from '../store/datasets-files';
-import { partition } from '../utils';
-import {
-  ARCHIVE_FILE_TYPES,
-  FILE_EXTENSIONS,
-  FILE_EXT_TO_MIME,
-  MIME_TYPES,
-} from './mimeTypes';
+import { FILE_EXTENSIONS, FILE_EXT_TO_MIME, MIME_TYPES } from './mimeTypes';
 import { Maybe } from '../types';
 import { getFileMimeFromMagic } from './magic';
 
@@ -52,36 +44,6 @@ export async function getFileMimeType(file: File): Promise<Maybe<string>> {
 export async function retypeFile(file: File): Promise<File> {
   const type = (await getFileMimeType(file)) ?? '';
   return new File([file], file.name, { type: type.toLowerCase() });
-}
-
-const isZip = (datasetFile: DatasetFile) =>
-  ARCHIVE_FILE_TYPES.has(datasetFile.file.type);
-
-export async function extractArchivesRecursively(
-  files: DatasetFile[]
-): Promise<DatasetFile[]> {
-  if (!files.length) return [];
-
-  const [archives, loadableFiles] = partition(isZip, files);
-
-  const unzipped = await Promise.all(
-    archives.flatMap(async (zip) => {
-      const entries = await extractFilesFromZip(zip.file);
-      return entries.map((datasetFileWithPath) => ({
-        ...zip, // preserve zip's remote provenance
-        ...datasetFileWithPath,
-      }));
-    })
-  );
-
-  const retyped = await Promise.all(
-    unzipped.flat().map(async ({ file, ...rest }) => {
-      return { file: await retypeFile(file), ...rest };
-    })
-  );
-
-  const moreEntries = await extractArchivesRecursively(retyped);
-  return [...loadableFiles, ...moreEntries];
 }
 
 export type ReadAsType = 'ArrayBuffer' | 'Text';

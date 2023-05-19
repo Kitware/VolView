@@ -1,3 +1,4 @@
+import { Awaitable } from '@vueuse/core';
 import { URL } from 'whatwg-url';
 
 /**
@@ -5,13 +6,16 @@ import { URL } from 'whatwg-url';
  */
 export type ProgressCallback = (percent: number) => void;
 
-export interface FetchOptions {
+export interface FetchCache<T> extends Map<string, Awaitable<T>> {}
+
+export interface FetchOptions<T> {
   progress?: ProgressCallback;
+  cache?: FetchCache<T>;
 }
 
 interface URLHandler {
   testURL(url: string): boolean;
-  fetchURL(url: string, options?: FetchOptions): Promise<Blob | null>;
+  fetchURL(url: string, options?: FetchOptions<unknown>): Promise<Blob | null>;
 }
 
 /**
@@ -28,12 +32,17 @@ const HTTPHandler: URLHandler = {
     const { progress } = options;
 
     const response = await fetch(url);
-    const contentLength = Number(response.headers.get('content-length')) ?? -1;
+    if (response.status !== 200) {
+      throw new Error(
+        `Fetching resource failed (HTTP code ${response.status})`
+      );
+    }
 
     if (!progress) {
       return response.blob();
     }
 
+    const contentLength = Number(response.headers.get('content-length')) ?? -1;
     if (contentLength < 0) {
       progress(Infinity);
       return response.blob();
@@ -75,26 +84,39 @@ export function canFetchUrl(url: string) {
 export async function fetchFile(
   url: string,
   name: string,
-  options?: FetchOptions
+  options?: FetchOptions<File>
 ) {
   const handler = HANDLERS.find((h) => h.testURL(url));
   if (!handler) {
     throw new Error(`Cannot find a handler for URL: ${url}`);
   }
 
-  const blob = await handler.fetchURL(url, options);
-  if (!blob) {
-    throw new Error(`Failed to download ${url}`);
+  const cache = options?.cache;
+  if (cache?.has(url)) {
+    return cache.get(url)!;
   }
 
-  return new File([blob], name);
+  const promise = handler.fetchURL(url, options).then((blob) => {
+    if (!blob) {
+      throw new Error(`Failed to download ${url}`);
+    }
+    return new File([blob], name);
+  });
+
+  // allow trying again on the off-chance the error is transient
+  promise.catch(() => {
+    cache?.delete(url);
+  });
+
+  cache?.set(url, promise);
+  return promise;
 }
 
 /**
  * Fetches json.
  * @returns json data
  */
-export async function fetchJSON<T>(url: string, options?: FetchOptions) {
+export async function fetchJSON<T>(url: string, options?: FetchOptions<T>) {
   const handler = HANDLERS.find((h) => h.testURL(url));
   if (!handler) {
     throw new Error(`Cannot find a handler for URL: ${url}`);

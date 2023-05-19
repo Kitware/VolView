@@ -7,17 +7,18 @@ import {
   computed,
 } from '@vue/composition-api';
 import ImageListCard from '@/src/components/ImageListCard.vue';
-import { SAMPLE_DATA } from '../config';
+import { useDatasetStore } from '@/src/store/datasets';
 import {
   convertSuccessResultToDataSelection,
-  useDatasetStore,
-} from '../store/datasets';
+  importDataSources,
+} from '@/src/io/import/importDataSources';
+import { remoteFileToDataSource } from '@/src/io/import/dataSource';
+import { SAMPLE_DATA } from '../config';
 import { useMessageStore } from '../store/messages';
 import { SampleDataset } from '../types';
 import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { fetchFile } from '../utils/fetch';
-import { makeRemote } from '../store/datasets-files';
 
 enum ProgressState {
   Pending,
@@ -94,23 +95,25 @@ export default defineComponent({
         });
         status.progress[sample.name].state = ProgressState.Done;
 
-        if (sampleFile) {
-          const [loadResult] = await datasetStore.loadFiles([
-            makeRemote(sample.url, sampleFile),
-          ]);
-          if (loadResult?.loaded) {
-            const selection = convertSuccessResultToDataSelection(loadResult);
-            if (selection) {
-              const id =
-                selection.type === 'image'
-                  ? selection.dataID
-                  : selection.volumeKey;
-              set(loaded.idToURL, id, sample.url);
-              set(loaded.urlToID, sample.url, id);
-            }
-            datasetStore.setPrimarySelection(selection);
-          }
+        const [loadResult] = await importDataSources([
+          remoteFileToDataSource(sampleFile, sample.url),
+        ]);
+
+        if (!loadResult) {
+          throw new Error('Did not receive a load result');
         }
+        if (!loadResult.ok) {
+          throw loadResult.errors[0].cause;
+        }
+
+        const selection = convertSuccessResultToDataSelection(loadResult);
+        if (selection) {
+          const id =
+            selection.type === 'image' ? selection.dataID : selection.volumeKey;
+          set(loaded.idToURL, id, sample.url);
+          set(loaded.urlToID, sample.url, id);
+        }
+        datasetStore.setPrimarySelection(selection);
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();
