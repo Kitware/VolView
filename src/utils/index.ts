@@ -49,20 +49,6 @@ export async function fetchFileWithProgress(
   return new File([bytes], name);
 }
 
-/**
- * Fetches a file.
- * @returns a File instance
- */
-export async function fetchFile(
-  url: string,
-  name: string,
-  options?: RequestInit
-) {
-  const response = await fetch(url, options);
-  const blob = await response.blob();
-  return new File([blob], name);
-}
-
 export const isFulfilled = <T>(
   input: PromiseSettledResult<T>
 ): input is PromiseFulfilledResult<T> => input.status === 'fulfilled';
@@ -250,3 +236,16 @@ export const omit = <T extends Record<string, unknown>, K extends keyof T>(
   Object.fromEntries(
     Object.entries(obj).filter(([key]) => !wrapInArray(keys).includes(key as K))
   ) as Omit<T, K>;
+
+export function ensureError(e: unknown) {
+  return e instanceof Error ? e : new Error(JSON.stringify(e));
+}
+
+// remove undefined properties
+export function cleanUndefined(obj: Object) {
+  return Object.entries(obj).reduce(
+    (cleaned, [key, value]) =>
+      value === undefined ? cleaned : { ...cleaned, [key]: value },
+    {}
+  );
+}

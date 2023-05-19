@@ -175,6 +175,52 @@ describe('Pipeline', () => {
     expect(result.errors[0].message).to.equal(error.message);
   });
 
+  it('should handle nested executions', async () => {
+    // handlers encode fibonacci
+    const handlers: Array<Handler<number, number>> = [
+      async (idx, { done }) => {
+        if (idx === 0 || idx === 1) {
+          return done(1);
+        }
+        return idx;
+      },
+      async (idx, { execute, done }) => {
+        let fnum = (await execute(idx - 1)).data[0];
+        if (idx > 1) {
+          fnum += (await execute(idx - 2)).data[0];
+        }
+        return done(fnum);
+      },
+    ];
+
+    const pipeline = new Pipeline(handlers);
+    const N = 5;
+    const result = await pipeline.execute(N);
+
+    expect(result.ok).to.be.true;
+    // pick first result data, which is the top-level pipeline result
+    expect(result.data[0]).to.equal(8);
+  });
+
+  it('should handle allow extra context overriding', async () => {
+    type Extra = number;
+    const handlers: Array<Handler<number, number, Extra>> = [
+      (val, { done, execute, extra }) => {
+        if (extra === 42) {
+          return done(extra);
+        }
+        execute(val, 42);
+        return val;
+      },
+    ];
+
+    const pipeline = new Pipeline(handlers);
+    const result = await pipeline.execute(0, 21);
+
+    expect(result.ok).to.be.true;
+    expect(result.data).to.deep.equal([42]);
+  });
+
   it('should handle nested async errors', async () => {
     const error = new Error('Some failure');
     const handlers: Array<Handler<number>> = [

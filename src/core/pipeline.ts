@@ -1,4 +1,5 @@
 import { Awaitable } from '@vueuse/core';
+import { Maybe } from '@/src/types';
 import { defer, partition } from '../utils';
 
 /**
@@ -55,7 +56,7 @@ const DoneSentinel: symbol = Symbol('DoneSentinel');
 type DoneSentinelType = symbol;
 export type Done<Out> = (out?: Out) => DoneSentinelType;
 
-export interface PipelineContext<DataType, ResultType> {
+export interface PipelineContext<DataType, ResultType, ExtraContext> {
   /**
    * Terminate the pipeline with an optional pipeline return value.
    * @param pipelineReturn
@@ -65,7 +66,14 @@ export interface PipelineContext<DataType, ResultType> {
    * Execute the pipeline with the given input.
    * @param input
    */
-  execute(input: DataType): Promise<PipelineResult<DataType, ResultType>>;
+  execute(
+    input: DataType,
+    extra?: ExtraContext
+  ): Promise<PipelineResult<DataType, ResultType>>;
+  /**
+   * Any extra user-supplied data.
+   */
+  extra?: ExtraContext;
 }
 
 /**
@@ -96,9 +104,13 @@ export interface PipelineContext<DataType, ResultType> {
  * in a handler, handlers are typed to return either the DataType or the return
  * value of done().
  */
-export type Handler<DataType, ResultType = void> = (
+export type Handler<
+  DataType,
+  ResultType = undefined,
+  ExtraContext = undefined
+> = (
   input: DataType,
-  context: PipelineContext<DataType, ResultType>
+  context: PipelineContext<DataType, ResultType, ExtraContext>
 ) => Awaitable<DataType | DoneSentinelType>;
 
 /**
@@ -112,12 +124,15 @@ export type Handler<DataType, ResultType = void> = (
  * - Reporting errors. This includes un-nesting errors from nested executions.
  * - Reporting data returned from terminating handlers, if any.
  */
-export default class Pipeline<DataType, ResultType = void>
-  implements IPipeline<DataType, ResultType>
+export default class Pipeline<
+  DataType,
+  ResultType = undefined,
+  ExtraContext = undefined
+> implements IPipeline<DataType, ResultType>
 {
-  private handlers: Handler<DataType, ResultType>[];
+  private handlers: Handler<DataType, ResultType, ExtraContext>[];
 
-  constructor(handlers?: Handler<DataType, ResultType>[]) {
+  constructor(handlers?: Handler<DataType, ResultType, ExtraContext>[]) {
     this.handlers = Array.from(handlers ?? []);
   }
 
@@ -127,21 +142,31 @@ export default class Pipeline<DataType, ResultType = void>
    * This method will resolve once this execution context and all
    * nested execution contexts have finished, allowing for aggregate
    * error reporting.
+   *
+   * Extra context data can be passed to all handlers via the `.extra` property.
+   * In nested execution scenarios, handlers may choose to pass their own extra
+   * context data into `execute(arg, extra)`. If none is supplied, the extra
+   * context data from the outermost `execute()` call is used.
+   *
    * @param input
+   * @param extraContext
    * @returns {PipelineResult}
    */
-  async execute(input: DataType) {
-    return this.startExecutionContext(input);
+  async execute(input: DataType, extraContext?: ExtraContext) {
+    return this.startExecutionContext(input, extraContext);
   }
 
-  private async startExecutionContext(input: DataType) {
+  private async startExecutionContext(
+    input: DataType,
+    extraContext?: ExtraContext
+  ) {
     const handlers = [...this.handlers];
     const nestedExecutions: Array<
       Promise<PipelineResult<DataType, ResultType>>
     > = [];
-    const execution = defer<ResultType | void>();
+    const execution = defer<Maybe<ResultType>>();
 
-    const terminate = (result: ResultType | void, error?: Error) => {
+    const terminate = (result: Maybe<ResultType>, error?: Error) => {
       if (error) {
         execution.reject(error);
       } else {
@@ -155,7 +180,7 @@ export default class Pipeline<DataType, ResultType = void>
       let pipelineResult: ResultType | undefined = undefined;
       const endOfPipeline = index >= handlers.length;
 
-      const context: PipelineContext<DataType, ResultType> = {
+      const context: PipelineContext<DataType, ResultType, ExtraContext> = {
         done: (out?: ResultType): DoneSentinelType => {
           if (doneInvoked) {
             throw new Error('done() called twice!');
@@ -165,11 +190,12 @@ export default class Pipeline<DataType, ResultType = void>
           pipelineResult = out;
           return DoneSentinel;
         },
-        execute: async (arg: DataType) => {
-          const promise = this.execute(arg);
+        execute: async (arg: DataType, innerExtra?: ExtraContext) => {
+          const promise = this.execute(arg, innerExtra ?? extraContext);
           nestedExecutions.push(promise);
           return promise;
         },
+        extra: extraContext,
       };
 
       let output: DataType | DoneSentinelType;
@@ -211,7 +237,7 @@ export default class Pipeline<DataType, ResultType = void>
     try {
       await invokeHandler(input, 0);
       const ret = await execution.promise;
-      if (ret !== undefined) {
+      if (ret != null) {
         result.data.push(ret);
       }
     } catch (err) {

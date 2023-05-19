@@ -44,6 +44,9 @@
       <ul class="pl-6">
         <li>Fast: Drag-and-drop DICOM files for quick viewing</li>
         <li>
+          Flexible: Designed to be easily integrated into existing systems
+        </li>
+        <li>
           Beautiful: Cinematic volume rendering to generate high-quality 3D
           visualizations
         </li>
@@ -100,7 +103,7 @@
           </a>
         </li>
         <li>
-          <span>Discuss on our Discourse: </span>
+          <span>Community support forum: </span>
           <a
             rel="noopener noreferrer"
             target="_blank"

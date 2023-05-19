@@ -57,11 +57,22 @@ const Dataset = z.object({
 });
 export type Dataset = z.infer<typeof Dataset>;
 
-const RemoteFile = z.object({
-  archivePath: z.string().optional(),
-  url: z.string(),
-  remoteFilename: z.string(),
-  name: z.string(),
+const baseRemoteFileSchema = z.object({
+  archiveSrc: z.object({ path: z.string() }).optional(),
+  uriSrc: z.object({ uri: z.string(), name: z.string() }).optional(),
+});
+
+type RemoteFileType = z.infer<typeof baseRemoteFileSchema> & {
+  parent?: RemoteFileType;
+};
+
+// This is a serialized DataSource that has a UriSource ancestor.
+const RemoteFile: z.ZodType<RemoteFileType> = baseRemoteFileSchema.extend({
+  parent: z.lazy(() => RemoteFile.optional()),
+  // archivePath: z.string().optional(),
+  // url: z.string(),
+  // remoteFilename: z.string(),
+  // name: z.string(),
 });
 export type RemoteFile = z.infer<typeof RemoteFile>;
 

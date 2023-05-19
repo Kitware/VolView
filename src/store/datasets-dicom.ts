@@ -1,9 +1,10 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
+import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import { pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
-import { DatasetFile, useFileStore } from './datasets-files';
+import { useFileStore } from './datasets-files';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { DICOMIO } from '../io/dicom';
@@ -111,15 +112,15 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importFiles(datasetFiles: DatasetFile[]) {
-      if (!datasetFiles.length) return [];
+    async importFiles(datasets: DataSourceWithFile[]) {
+      if (!datasets.length) return [];
 
       const dicomIO = this.$dicomIO;
 
-      const fileToDatasetFile = new Map(
-        datasetFiles.map((df) => [df.file, df])
+      const fileToDataSource = new Map(
+        datasets.map((ds) => [ds.fileSrc.file, ds])
       );
-      const allFiles = [...fileToDatasetFile.keys()];
+      const allFiles = [...fileToDataSource.keys()];
 
       const volumeToFiles = await dicomIO.categorizeFiles(allFiles);
 
@@ -128,10 +129,10 @@ export const useDICOMStore = defineStore('dicom', {
       // Link VolumeKey and DatasetFiles in fileStore
       Object.entries(volumeToFiles).forEach(([volumeKey, files]) => {
         const volumeDatasetFiles = files.map((file) => {
-          const datasetFile = fileToDatasetFile.get(file);
-          if (!datasetFile)
-            throw new Error('Did not match File with source DatasetFile');
-          return datasetFile;
+          const source = fileToDataSource.get(file);
+          if (!source)
+            throw new Error('Did not match File with source DataSource');
+          return source;
         });
         fileStore.add(volumeKey, volumeDatasetFiles);
       });
@@ -270,7 +271,7 @@ export const useDICOMStore = defineStore('dicom', {
       await serializeData(stateFile, dataIDs, DatasetType.DICOM);
     },
 
-    async deserialize(files: DatasetFile[]) {
+    async deserialize(files: DataSourceWithFile[]) {
       return this.importFiles(files).then((volumeKeys) => {
         if (volumeKeys.length !== 1) {
           // Volumes are store individually so we should get one back.

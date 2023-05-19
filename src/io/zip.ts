@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { basename, dirname } from '@/src/utils/path';
 import { FileEntry } from './types';
 
 export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
@@ -7,13 +8,12 @@ export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
   const paths: string[] = [];
   zip.forEach((relPath, file) => {
     if (!file.dir) {
-      const splitPath = file.name.split('/');
-      const baseName = splitPath[splitPath.length - 1];
-      const path = [...splitPath.slice(0, splitPath.length - 1), ''].join('/');
+      const fileName = basename(file.name);
+      const path = dirname(file.name);
       const fileEntry = zip.file(file.name);
       if (fileEntry) {
         promises.push(
-          fileEntry.async('blob').then((blob) => new File([blob], baseName))
+          fileEntry.async('blob').then((blob) => new File([blob], fileName))
         );
         paths.push(path);
       }
