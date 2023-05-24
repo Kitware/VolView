@@ -1,14 +1,24 @@
 <template>
-  <v-card>
+  <v-card class="py-4">
+    <v-btn
+      variant="text"
+      class="close-button"
+      icon="mdi-close"
+      @click="$emit('close')"
+    />
     <v-card-title class="d-flex flex-row justify-center">
       <vol-view-full-logo />
     </v-card-title>
     <v-card-text>
-      <p align="center">
-        <img
+      <h2 class="mt-2">About VolView</h2>
+      <v-divider class="mb-2" />
+      <p class="float-right">
+        <v-img
+          v-show="!mobile"
           src="../assets/KitwareHeadAndNeck.jpg"
           alt="Head and neck CT rendering"
-          style="width: 200px"
+          width="200px"
+          class="ma-1"
           align="center"
         /><br />
       </p>
@@ -18,7 +28,7 @@
           target="_blank"
           href="https://volview.kitware.com/"
         >
-          VolView
+          <span>VolView</span>
         </a>
         is an open-source web application developed at
         <a
@@ -26,12 +36,12 @@
           target="_blank"
           href="https://kitware.com/"
         >
-          Kitware
+          <span>Kitware</span>
         </a>
         for visualizing and annotating medical images. It key features include:
       </p>
 
-      <ul>
+      <ul class="pl-6">
         <li>Fast: Drag-and-drop DICOM files for quick viewing</li>
         <li>
           Flexible: Designed to be easily integrated into existing systems
@@ -58,7 +68,7 @@
         target="_blank"
         href="https://github.com/InsightSoftwareConsortium/itk-wasm/"
       >
-        itk-wasm
+        <span>itk-wasm</span>
       </a>
       for DICOM I/O and image processing, and
       <a
@@ -66,7 +76,7 @@
         target="_blank"
         href="https://github.com/Kitware/vtk-js"
       >
-        vtk.js
+        <span>vtk.js</span>
       </a>
       for in-browser scientific visualization.
       <br />
@@ -79,11 +89,11 @@
         href="https://www.kitware.com/contact/project/"
         >Contact Kitware!</a
       >
-      <br />
-      <br />
-      VolView source code:
-      <ul>
+      <h2 class="mt-2">Useful Links</h2>
+      <v-divider class="mb-2" />
+      <ul class="pl-6">
         <li>
+          <span>VolView source code repo: </span>
           <a
             rel="noopener noreferrer"
             target="_blank"
@@ -92,11 +102,8 @@
             https://github.com/Kitware/VolView
           </a>
         </li>
-      </ul>
-      <br />
-      VolView community support forum:
-      <ul>
         <li>
+          <span>Community support forum: </span>
           <a
             rel="noopener noreferrer"
             target="_blank"
@@ -105,11 +112,8 @@
             https://discourse.vtk.org/c/web/volview/14
           </a>
         </li>
-      </ul>
-      <br />
-      VolView bug reports and feature requests:
-      <ul>
         <li>
+          <span>File an bug report or feature request: </span>
           <a
             rel="noopener noreferrer"
             target="_blank"
@@ -119,13 +123,36 @@
           </a>
         </li>
       </ul>
-      <br />
+      <h2>Version Info</h2>
+      <v-divider class="mb-2" />
+      <ul class="pl-6">
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>VolView: </span>
+            <v-badge inline :content="versions.volview" />
+          </div>
+        </li>
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>vtk.js: </span>
+            <v-badge inline :content="versions['vtk.js']" />
+          </div>
+        </li>
+        <li>
+          <div class="d-flex flex-flow align-center text-no-wrap">
+            <span>itk-wasm: </span>
+            <v-badge inline :content="versions['itk-wasm']" />
+          </div>
+        </li>
+      </ul>
+      <h2 class="mt-2">Acknowledgments</h2>
+      <v-divider class="mb-2" />
       This work was funded, in part, by the NIH via NIBIB and NIGMS R01EB021396,
       NIBIB R01EB014955, NCI R01CA220681, and NINDS R42NS086295
       <br />
       <br />
       Sample data provided by the following sources:
-      <ul>
+      <ul class="pl-6">
         <li>
           PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz,
           Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge data",
@@ -156,19 +183,21 @@
           >
         </li>
       </ul>
-      <v-divider class="my-4" />
-      <p>Current versions:</p>
-      <ul>
-        <li>VolView: {{ versions.volview }}</li>
-        <li>vtk.js: {{ versions['vtk.js'] }}</li>
-        <li>itk-wasm: {{ versions['itk-wasm'] }}</li>
-      </ul>
     </v-card-text>
   </v-card>
 </template>
 
+<style scoped>
+.close-button {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+</style>
+
 <script>
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
+import { useDisplay } from 'vuetify';
 import pkgLock from '@/package-lock.json';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 
@@ -178,7 +207,10 @@ export default defineComponent({
     VolViewFullLogo,
   },
   setup() {
+    const display = useDisplay();
+
     return {
+      mobile: display.xs,
       versions: {
         volview: pkgLock.version,
         'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,

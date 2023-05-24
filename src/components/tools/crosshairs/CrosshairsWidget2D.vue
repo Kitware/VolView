@@ -8,7 +8,7 @@ import {
   ref,
   toRefs,
   watchEffect,
-} from '@vue/composition-api';
+} from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';

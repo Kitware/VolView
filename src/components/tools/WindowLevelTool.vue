@@ -6,34 +6,37 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+  h,
+} from 'vue';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
-import { useViewConfigStore } from '@/src/store/view-configs';
+import useWindowingStore, {
+  defaultWindowLevelConfig,
+} from '@/src/store/view-configs/windowing';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
-import { CreateElement, RenderContext } from 'vue';
 import { useViewStore } from '@/src/store/views';
-import { defaultWindowLevelConfig } from '@/src/store/view-configs/windowing';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
 }
 
-const PROPS = {
-  viewId: {
-    type: String,
-    required: true,
-  },
-} as const;
+interface Props {
+  viewId: string;
+}
 
-const WindowLevelTool = defineComponent({
+const WindowLevelToolComponent = defineComponent({
   name: 'WindowLevelTool',
-  props: PROPS,
+  props: {
+    viewId: {
+      type: String,
+      required: true,
+    },
+  },
   setup(props) {
     const { viewId: viewID } = toRefs(props);
-    const viewConfigStore = useViewConfigStore();
+    const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const { currentImageID } = useCurrentImage();
 
@@ -43,40 +46,35 @@ const WindowLevelTool = defineComponent({
 
     const windowConfigDefaults = defaultWindowLevelConfig();
     const wlConfig = computed(() =>
-      currentImageID.value !== null
-        ? viewConfigStore.getWindowingConfig(
-            viewID.value,
-            currentImageID.value
-          )!
-        : null
+      windowingStore.getConfig(viewID.value, currentImageID.value)
     );
 
     const wwRange = computed(() => ({
       min: 1e-12, // ensure we don't hit zero and jump to white
       max:
-        wlConfig.value !== null
+        wlConfig.value != null
           ? wlConfig.value.max - wlConfig.value.min
           : windowConfigDefaults.max,
       step:
-        wlConfig.value !== null
+        wlConfig.value != null
           ? computeStep(wlConfig.value.min, wlConfig.value.max)
           : computeStep(windowConfigDefaults.min, windowConfigDefaults.max),
       default:
-        wlConfig.value !== null
+        wlConfig.value != null
           ? wlConfig.value.width
           : windowConfigDefaults.width,
     }));
     const wlRange = computed(() => ({
       min:
-        wlConfig.value !== null ? wlConfig.value.min : windowConfigDefaults.min,
+        wlConfig.value != null ? wlConfig.value.min : windowConfigDefaults.min,
       max:
-        wlConfig.value !== null ? wlConfig.value.max : windowConfigDefaults.max,
+        wlConfig.value != null ? wlConfig.value.max : windowConfigDefaults.max,
       step:
-        wlConfig.value !== null
+        wlConfig.value != null
           ? computeStep(wlConfig.value.min, wlConfig.value.max)
           : computeStep(windowConfigDefaults.min, windowConfigDefaults.max),
       default:
-        wlConfig.value !== null
+        wlConfig.value != null
           ? wlConfig.value.level
           : windowConfigDefaults.level,
     }));
@@ -86,24 +84,16 @@ const WindowLevelTool = defineComponent({
 
     watch(vertVal, (ww) => {
       if (currentImageID.value !== null) {
-        viewConfigStore.updateWindowingConfig(
-          viewID.value,
-          currentImageID.value,
-          {
-            width: ww,
-          }
-        );
+        windowingStore.updateConfig(viewID.value, currentImageID.value, {
+          width: ww,
+        });
       }
     });
     watch(horizVal, (wl) => {
       if (currentImageID.value !== null) {
-        viewConfigStore.updateWindowingConfig(
-          viewID.value,
-          currentImageID.value,
-          {
-            level: wl,
-          }
-        );
+        windowingStore.updateConfig(viewID.value, currentImageID.value, {
+          level: wl,
+        });
       }
     });
 
@@ -178,14 +168,9 @@ const WindowLevelTool = defineComponent({
   },
 });
 
-export default {
-  functional: true,
-  render(h: CreateElement, ctx: RenderContext<typeof PROPS>) {
-    const toolStore = useToolStore();
-    const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
-    // TODO vue 3 does away with VNodeData, so
-    // remove the props key
-    return active.value ? h(WindowLevelTool, { props: ctx.props }) : [];
-  },
-};
+export default function WindowLevelTool(props: Props) {
+  const toolStore = useToolStore();
+  const active = computed(() => toolStore.currentTool === Tools.WindowLevel);
+  return active.value ? h(WindowLevelToolComponent, props) : [];
+}
 </script>

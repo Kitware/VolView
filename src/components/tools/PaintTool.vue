@@ -11,7 +11,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, PropType } from '@vue/composition-api';
+import { computed, defineComponent, PropType } from 'vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { LPSAxisDir } from '@/src/types/lps';

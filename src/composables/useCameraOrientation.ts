@@ -1,4 +1,4 @@
-import { computed, Ref, unref } from '@vue/composition-api';
+import { computed, Ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { mat3 } from 'gl-matrix';
 import { ImageMetadata } from '../types/image';

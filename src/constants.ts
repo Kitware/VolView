@@ -1,12 +1,14 @@
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { ComputedRef, InjectionKey } from '@vue/composition-api';
-
-export const NO_PROXY = -1;
-export const NO_SELECTION = -1;
-export const NO_WIDGET = -1;
+import { ComputedRef, InjectionKey } from 'vue';
 
 export const EPSILON = 10e-6;
 export const NOOP = () => {};
+
+// themes
+export const ThemeStorageKey = 'app-theme';
+export const DarkTheme = 'kw-dark';
+export const LightTheme = 'kw-light';
+export const DefaultTheme = DarkTheme;
 
 /**
  * Retrieves the parent VtkTwoView's widget manager.

@@ -1,7 +1,7 @@
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { computed, ref, watch } from '@vue/composition-api';
+import { computed, ref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { Tools } from './types';

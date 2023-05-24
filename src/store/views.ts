@@ -1,4 +1,3 @@
-import { set, del } from '@vue/composition-api';
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { defineStore } from 'pinia';
@@ -57,12 +56,12 @@ export const useViewStore = defineStore('view', {
     },
     addView(id: string) {
       if (!(id in this.viewSpecs)) {
-        set(this.viewSpecs, id, structuredClone(DefaultViewSpec));
+        this.viewSpecs[id] = structuredClone(DefaultViewSpec);
       }
     },
     removeView(id: string) {
       if (id in this.viewSpecs) {
-        del(this.viewSpecs, id);
+        delete this.viewSpecs[id];
         this.$proxies.removeView(id);
       }
     },

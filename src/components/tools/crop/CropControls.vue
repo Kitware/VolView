@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
+import { defineComponent } from 'vue';
 import ToolButton from '@/src/components/ToolButton.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';

@@ -17,7 +17,7 @@ import {
   toRefs,
   watch,
   watchEffect,
-} from '@vue/composition-api';
+} from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
@@ -31,7 +31,7 @@ import { watchOnce } from '@vueuse/core';
 
 export default defineComponent({
   name: 'RulerWidget2D',
-  emits: ['placed'],
+  emits: ['placed', 'contextmenu'],
   props: {
     rulerId: {
       type: String,
@@ -201,7 +201,7 @@ export default defineComponent({
       );
       onModified(() => updateVisibility());
 
-      watchOnce(widget, () => updateVisibility());
+      watchOnce(pointState, () => updateVisibility());
 
       return visible;
     };

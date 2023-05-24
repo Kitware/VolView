@@ -2,6 +2,10 @@ import { URL } from 'whatwg-url';
 import { TypedArray } from 'itk-wasm';
 import { EPSILON } from '../constants';
 
+export function identity<T>(arg: T) {
+  return arg;
+}
+
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */
@@ -152,6 +156,19 @@ export function arrayEquals<T>(a: ArrayLike<T>, b: ArrayLike<T>) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+type ComparatorFunction<T> = (a: T, b: T) => boolean;
+export function arrayEqualsWithComparator<T>(
+  a: T[],
+  b: T[],
+  cmp: ComparatorFunction<T>
+) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!cmp(a[i], b[i])) return false;
   }
   return true;
 }

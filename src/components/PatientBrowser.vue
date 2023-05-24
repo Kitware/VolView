@@ -1,6 +1,6 @@
 <script lang="ts">
-import { computed, defineComponent, ref, toRefs } from '@vue/composition-api';
-import type { Ref } from '@vue/composition-api';
+import { computed, defineComponent, ref, toRefs, watch } from 'vue';
+import type { Ref } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
@@ -11,7 +11,6 @@ import {
 } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import PatientStudyVolumeBrowser from './PatientStudyVolumeBrowser.vue';
-import { usePanels } from '../composables/usePanels';
 
 export default defineComponent({
   name: 'PatientBrowser',
@@ -38,7 +37,7 @@ export default defineComponent({
     const studies = computed(() => {
       const selPatient = patientKey.value;
       const { patientStudies, studyInfo, studyVolumes } = dicomStore;
-      return patientStudies[selPatient].map((studyKey) => {
+      return (patientStudies[selPatient] ?? []).map((studyKey) => {
         const info = studyInfo[studyKey];
         return {
           ...info,
@@ -51,9 +50,15 @@ export default defineComponent({
     });
 
     const studyKeys = computed(() => studies.value.map((study) => study.key));
-    const studyKeysSet = computed(() => new Set(studyKeys.value));
+    const panels = ref<string[]>([]);
 
-    const { handlePanelChange, openPanels } = usePanels(studyKeysSet);
+    watch(
+      studyKeys,
+      (keys) => {
+        panels.value = Array.from(new Set([...panels.value, ...keys]));
+      },
+      { immediate: true }
+    );
 
     // --- selection --- //
 
@@ -84,8 +89,7 @@ export default defineComponent({
       setPrimarySelection: (sel: DataSelection) => {
         dataStore.setPrimarySelection(sel);
       },
-      openPanels,
-      handlePanelChange,
+      panels,
     };
   },
 });
@@ -93,9 +97,9 @@ export default defineComponent({
 
 <template>
   <item-group
-    :value="primarySelection"
-    :testFunction="selectionEquals"
-    @change="setPrimarySelection"
+    :model-value="primarySelection"
+    :equals-test="selectionEquals"
+    @update:model-value="setPrimarySelection"
   >
     <v-container class="pa-0">
       <v-row no-gutters justify="space-between" class="mb-2">
@@ -105,42 +109,38 @@ export default defineComponent({
             :indeterminate="selectedSome && !selectedAll"
             label="Select All Studies"
             v-model="selectedAll"
-            dense
+            density="compact"
             hide-details
           />
         </v-col>
         <v-col cols="6" align-self="center" class="d-flex justify-end mt-2">
-          <v-tooltip left>
-            <template v-slot:activator="{ on, attrs }">
-              <v-btn
-                icon
-                small
-                :disabled="!selectedSome"
-                @click.stop="removeSelectedStudies"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon>mdi-delete</v-icon>
-              </v-btn>
-            </template>
-            Delete selected
-          </v-tooltip>
+          <v-btn
+            icon
+            variant="text"
+            :disabled="!selectedSome"
+            @click.stop="removeSelectedStudies"
+          >
+            <v-icon>mdi-delete</v-icon>
+            <v-tooltip activator="parent" location="left">
+              Delete Selected
+            </v-tooltip>
+          </v-btn>
         </v-col>
       </v-row>
     </v-container>
     <v-expansion-panels
+      v-model="panels"
       id="patient-data-studies"
       accordion
       multiple
-      :value="openPanels"
     >
       <v-expansion-panel
         v-for="study in studies"
         :key="study.StudyInstanceUID"
+        :value="study.StudyInstanceUID"
         class="patient-data-study-panel"
-        @change="handlePanelChange(study.StudyInstanceUID)"
       >
-        <v-expansion-panel-header
+        <v-expansion-panel-title
           color="#1976fa0a"
           class="pl-3 no-select"
           :title="study.StudyDate"
@@ -148,13 +148,15 @@ export default defineComponent({
           <div class="study-header">
             <div class="study-header-title">
               <v-checkbox
-                dense
+                class="study-selector"
+                density="compact"
+                hide-details
                 :key="study.StudyInstanceUID"
                 :value="study.StudyInstanceUID"
                 v-model="selected"
                 @click.stop
               />
-              <v-icon class="mb-2">mdi-folder-table</v-icon>
+              <v-icon>mdi-folder-table</v-icon>
               <div class="ml-2 overflow-hidden text-no-wrap">
                 <div class="text-subtitle-2 text-truncate" :title="study.title">
                   {{ study.title }}
@@ -169,78 +171,42 @@ export default defineComponent({
             </div>
 
             <div class="d-flex flex-column align-center justify-end mx-2">
-              <v-tooltip bottom>
-                Total series in study
-                <template v-slot:activator="{ on }">
-                  <div class="d-flex flex-row align-center mr-2" v-on="on">
-                    <v-icon small>mdi-folder-open</v-icon>
-                    <span class="text-caption text--secondary text-no-wrap">
-                      : {{ study.volumeKeys.length }}
-                    </span>
-                  </div>
-                </template>
-              </v-tooltip>
+              <div class="d-flex flex-row align-center mr-2">
+                <v-icon small>mdi-folder-open</v-icon>
+                <span class="text-caption text--secondary text-no-wrap">
+                  : {{ study.volumeKeys.length }}
+                </span>
+                <v-tooltip location="bottom" activator="parent">
+                  Total series in study
+                </v-tooltip>
+              </div>
             </div>
           </div>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
           <patient-study-volume-browser :volume-keys="study.volumeKeys" />
-        </v-expansion-panel-content>
+        </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
   </item-group>
 </template>
 
 <style>
-#patient-data-studies .v-expansion-panel--active > .v-expansion-panel-header {
-  min-height: unset;
-}
-
-#patient-data-studies .v-expansion-panel-content__wrap {
-  padding: 0 8px;
-}
-
 #patient-data-studies .v-expansion-panel::before {
   box-shadow: none;
 }
 </style>
 
 <style scoped>
-.theme--light .patient-data-study-panel {
-  border: 1px solid #ddd;
-}
-
-.theme--dark .patient-data-study-panel {
-  border: 1px solid #171519;
-}
-
-.volume-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  grid-auto-rows: 200px;
-  justify-content: center;
-}
-
-.volume-card {
-  padding: 8px;
-  cursor: pointer;
-}
-
-.theme--light.volume-card-active {
-  background-color: #b3e5fc;
-  border-color: #b3e5fc;
-}
-
-.theme--dark.volume-card-active {
-  background-color: #01579b;
-  border-color: #01579b;
-}
-
 .study-header {
   display: flex;
   flex-flow: row;
   align-items: center;
   width: calc(100% - 24px);
+}
+
+.study-selector {
+  flex: 0 0 auto;
 }
 
 .study-header-title {
@@ -250,31 +216,5 @@ export default defineComponent({
   flex-grow: 1;
   /* used to ensure that the text can truncate */
   min-width: 0;
-}
-
-.study-header-content {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.study-header-line {
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.series-desc {
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.thumbnail-overlay >>> .v-overlay__content {
-  height: 100%;
-  width: 100%;
-}
-
-.volume-list >>> .theme--light.v-sheet--outlined {
-  border: none;
 }
 </style>

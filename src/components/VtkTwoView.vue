@@ -8,21 +8,16 @@
     @focusout="hover = false"
   >
     <div class="vtk-gutter">
-      <v-tooltip right transition="slide-x-transition">
-        <template v-slot:activator="{ on, attrs }">
-          <v-btn
-            dark
-            x-small
-            icon
-            @click="enableResizeToFit"
-            v-bind="attrs"
-            v-on="on"
-          >
-            <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
-          </v-btn>
-        </template>
-        <span>Reset camera</span>
-      </v-tooltip>
+      <v-btn dark icon size="medium" variant="text" @click="enableResizeToFit">
+        <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
+        <v-tooltip
+          location="right"
+          activator="parent"
+          transition="slide-x-transition"
+        >
+          Reset Camera
+        </v-tooltip>
+      </v-btn>
       <slice-slider
         class="slice-slider"
         :slice="currentSlice"
@@ -96,64 +91,56 @@
           <div class="annotation-cell">
             <v-menu
               open-on-hover
-              offset-y
+              location="bottom left"
               left
               nudge-left="10"
               dark
               v-if="dicomInfo !== null"
               max-width="300px"
             >
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
+              <template v-slot:activator="{ props }">
+                <v-icon
+                  v-bind="props"
                   dark
-                  small
-                  icon
-                  v-bind="attrs"
-                  v-on="on"
-                  class="pointer-events-all"
+                  size="x-large"
+                  class="pointer-events-all hover-info"
                 >
-                  <v-icon dark> mdi-information </v-icon>
-                </v-btn>
+                  mdi-information
+                </v-icon>
               </template>
-              <v-list class="grey darken-3">
+              <v-list class="bg-grey-darken-3">
                 <v-list-item>
-                  <v-list-item-content>
-                    <v-list-item-title class="font-weight-bold">
-                      PATIENT / CASE
-                    </v-list-item-title>
-                    <v-divider />
-                    <v-list-item-title>
-                      ID: {{ dicomInfo.patientID }}
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title class="font-weight-bold">
+                    PATIENT / CASE
+                  </v-list-item-title>
+                  <v-divider />
+                  <v-list-item-title>
+                    ID: {{ dicomInfo.patientID }}
+                  </v-list-item-title>
                 </v-list-item>
                 <v-list-item>
-                  <v-list-item-content>
-                    <v-list-item-title class="font-weight-bold">
-                      STUDY
-                    </v-list-item-title>
-                    <v-divider />
-                    <v-list-item-title>
-                      ID: {{ dicomInfo.studyID }}
-                    </v-list-item-title>
-                    <v-list-item-title>
-                      {{ dicomInfo.studyDescription }}
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title class="font-weight-bold">
+                    STUDY
+                  </v-list-item-title>
+                  <v-divider />
+                  <v-list-item-title>
+                    ID: {{ dicomInfo.studyID }}
+                  </v-list-item-title>
+                  <v-list-item-title>
+                    {{ dicomInfo.studyDescription }}
+                  </v-list-item-title>
                 </v-list-item>
                 <v-list-item>
-                  <v-list-item-content>
-                    <v-list-item-title class="font-weight-bold">
-                      SERIES
-                    </v-list-item-title>
-                    <v-divider />
-                    <v-list-item-title>
-                      Series #: {{ dicomInfo.seriesNumber }}
-                    </v-list-item-title>
-                    <v-list-item-title>
-                      {{ dicomInfo.seriesDescription }}
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <v-list-item-title class="font-weight-bold">
+                    SERIES
+                  </v-list-item-title>
+                  <v-divider />
+                  <v-list-item-title>
+                    Series #: {{ dicomInfo.seriesNumber }}
+                  </v-list-item-title>
+                  <v-list-item-title>
+                    {{ dicomInfo.seriesDescription }}
+                  </v-list-item-title>
                 </v-list-item>
               </v-list>
             </v-menu>
@@ -185,7 +172,7 @@ import {
   toRefs,
   watch,
   watchEffect,
-} from '@vue/composition-api';
+} from 'vue';
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
@@ -214,21 +201,23 @@ import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
-import { useViewConfigStore } from '../store/view-configs';
+import useWindowingStore from '../store/view-configs/windowing';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
-import { CameraConfig } from '../store/view-configs/types';
-import { defaultSliceConfig } from '../store/view-configs/slicing';
-import { useWindowingSync } from '../composables/sync/useWindowingSync';
+import useViewSliceStore, {
+  defaultSliceConfig,
+} from '../store/view-configs/slicing';
 import CropTool from './tools/CropTool.vue';
 import { VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
+import { useViewCameraStore } from '../store/view-configs/camera';
+import useLayerColoringStore from '../store/view-configs/layers';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -267,7 +256,10 @@ export default defineComponent({
     CropTool,
   },
   setup(props) {
-    const viewConfigStore = useViewConfigStore();
+    const windowingStore = useWindowingStore();
+    const viewSliceStore = useViewSliceStore();
+    const viewCameraStore = useViewCameraStore();
+    const layerColoringStore = useLayerColoringStore();
     const paintStore = usePaintToolStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -290,43 +282,24 @@ export default defineComponent({
 
     const sliceConfigDefaults = defaultSliceConfig();
     const sliceConfig = computed(() =>
-      curImageID.value !== null
-        ? viewConfigStore.getSliceConfig(viewID.value, curImageID.value)!
-        : null
+      viewSliceStore.getConfig(viewID.value, curImageID.value)
     );
-    const currentSlice = computed(() =>
-      sliceConfig.value !== null
-        ? sliceConfig.value.slice
-        : sliceConfigDefaults.slice
+    const currentSlice = computed(
+      () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
     );
-    const sliceMin = computed(() =>
-      sliceConfig.value !== null
-        ? sliceConfig.value.min
-        : sliceConfigDefaults.min
+    const sliceMin = computed(
+      () => sliceConfig.value?.min ?? sliceConfigDefaults.min
     );
-    const sliceMax = computed(() =>
-      sliceConfig.value !== null
-        ? sliceConfig.value.max
-        : sliceConfigDefaults.max
+    const sliceMax = computed(
+      () => sliceConfig.value?.max ?? sliceConfigDefaults.max
     );
 
     const wlConfig = computed({
-      get: () => {
-        const _viewID = viewID.value;
-        const imageID = curImageID.value;
-        if (imageID !== null) {
-          return viewConfigStore.getWindowingConfig(_viewID, imageID) ?? null;
-        }
-        return null;
-      },
+      get: () => windowingStore.getConfig(viewID.value, curImageID.value),
       set: (newValue) => {
         const imageID = curImageID.value;
         if (imageID !== null && newValue != null) {
-          viewConfigStore.updateWindowingConfig(
-            viewID.value,
-            imageID,
-            newValue
-          );
+          windowingStore.updateConfig(viewID.value, imageID, newValue);
         }
       },
     });
@@ -378,7 +351,7 @@ export default defineComponent({
 
     const setSlice = (slice: number) => {
       if (curImageID.value !== null) {
-        viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
           slice,
         });
       }
@@ -413,19 +386,18 @@ export default defineComponent({
 
     watch(
       [viewID, curImageID, viewDirection],
-      () => {
-        if (
-          curImageID.value &&
-          !viewConfigStore.getSliceConfig(viewID.value, curImageID.value)
-        ) {
-          viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
-            ...sliceDomain.value,
-            axisDirection: viewDirection.value,
-          });
-          viewConfigStore.resetSlice(viewID.value, curImageID.value);
+      ([viewID_, imageID, viewDir]) => {
+        if (!imageID || sliceConfig.value != null) {
+          return;
         }
+
+        viewSliceStore.updateConfig(viewID_, imageID, {
+          ...sliceDomain.value,
+          axisDirection: viewDir,
+        });
+        viewSliceStore.resetSlice(viewID_, imageID);
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     // --- arrows change slice --- //
@@ -436,7 +408,7 @@ export default defineComponent({
 
       const sliceOffset = SLICE_OFFSET_KEYS[event.key] ?? 0;
       if (sliceOffset) {
-        viewConfigStore.updateSliceConfig(viewID.value, curImageID.value, {
+        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
           slice: currentSlice.value + sliceOffset,
         });
 
@@ -458,34 +430,23 @@ export default defineComponent({
 
     watch(
       curImageData,
-      (imageData, oldImageData) => {
-        if (imageData && imageData !== oldImageData) {
-          // TODO listen to changes in point data
-          const range = imageData.getPointData().getScalars().getRange();
-          if (
-            curImageID.value !== null &&
-            !viewConfigStore.getWindowingConfig(viewID.value, curImageID.value)
-          ) {
-            viewConfigStore.updateWindowingConfig(
-              viewID.value,
-              curImageID.value,
-              {
-                min: range[0],
-                max: range[1],
-              }
-            );
-            viewConfigStore.resetWindowLevel(viewID.value, curImageID.value);
-          }
+      (imageData) => {
+        if (curImageID.value == null || wlConfig.value != null || !imageData) {
+          return;
         }
+
+        // TODO listen to changes in point data
+        const range = imageData.getPointData().getScalars().getRange();
+        windowingStore.updateConfig(viewID.value, curImageID.value, {
+          min: range[0],
+          max: range[1],
+        });
+        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
       },
       {
         immediate: true,
       }
     );
-
-    // --- sync windowing parameters --- //
-
-    useWindowingSync(curImageID, wlConfig);
 
     // --- scene setup --- //
 
@@ -557,7 +518,7 @@ export default defineComponent({
 
       resizeToFitScene();
 
-      viewProxy.value.render();
+      viewProxy.value.renderLater();
     };
 
     manageVTKSubscription(
@@ -588,20 +549,17 @@ export default defineComponent({
     watch(
       [curImageID, cameraDirVec, cameraUpVec],
       () => {
-        let cameraConfig: CameraConfig | undefined;
-        if (curImageID.value !== null) {
-          cameraConfig = viewConfigStore.getCameraConfig(
-            viewID.value,
-            curImageID.value
-          );
-        }
+        const cameraConfig = viewCameraStore.getConfig(
+          viewID.value,
+          curImageID.value
+        );
 
         // If we have a saved camera configuration restore it
         if (cameraConfig) {
           restoreCameraConfig(cameraConfig);
 
           viewProxy.value.getRenderer().resetCameraClippingRange();
-          viewProxy.value.render();
+          viewProxy.value.renderLater();
 
           // Prevent resize
           resizeToFit.value = false;
@@ -622,7 +580,7 @@ export default defineComponent({
     // --- apply windowing and slice configs --- //
 
     watchEffect(() => {
-      if (sliceConfig.value === null || wlConfig.value === null) {
+      if (sliceConfig.value == null || wlConfig.value == null) {
         return;
       }
 
@@ -638,7 +596,7 @@ export default defineComponent({
         lRep.setSlice(slice);
       });
 
-      viewProxy.value.render();
+      viewProxy.value.renderLater();
     });
 
     // --- apply labelmap opacity --- //
@@ -653,9 +611,7 @@ export default defineComponent({
     // --- layers setup --- //
 
     const layersConfigs = computed(() =>
-      layerIDs.value.map((id) =>
-        viewConfigStore.layers.getComputedConfig(viewID, id)
-      )
+      layerIDs.value.map((id) => layerColoringStore.getConfig(viewID.value, id))
     );
 
     const layersStore = useLayersStore();
@@ -664,9 +620,9 @@ export default defineComponent({
       () => {
         currentLayers.value.forEach(({ id }, layerIndex) => {
           const image = layersStore.layerImages[id];
-          const layerConfig = layersConfigs.value[layerIndex].value;
+          const layerConfig = layersConfigs.value[layerIndex];
           if (image && !layerConfig) {
-            viewConfigStore.layers.resetToDefault(viewID.value, id, image);
+            layerColoringStore.resetToDefault(viewID.value, id, image);
           }
         });
       },
@@ -678,16 +634,16 @@ export default defineComponent({
     const proxyManager = useProxyManager()!;
 
     const colorBys = computed(() =>
-      layersConfigs.value.map((config) => config.value?.colorBy)
+      layersConfigs.value.map((config) => config?.colorBy)
     );
     const transferFunctions = computed(() =>
-      layersConfigs.value.map((config) => config.value?.transferFunction)
+      layersConfigs.value.map((config) => config?.transferFunction)
     );
     const opacityFunctions = computed(() =>
-      layersConfigs.value.map((config) => config.value?.opacityFunction)
+      layersConfigs.value.map((config) => config?.opacityFunction)
     );
     const blendConfigs = computed(() =>
-      layersConfigs.value.map((config) => config.value?.blendConfig)
+      layersConfigs.value.map((config) => config?.blendConfig)
     );
 
     watch(
@@ -755,11 +711,13 @@ export default defineComponent({
                 default:
               }
 
+              // control color range manually
+              rep.setRescaleOnColorBy(false);
               rep.setColorBy(arrayName, location);
               rep.setOpacity(blendConfig.opacity);
 
               // Need to trigger a render for when we are restoring from a state file
-              viewProxy.value.render();
+              viewProxy.value.renderLater();
             }
           );
       },
@@ -794,3 +752,10 @@ export default defineComponent({
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
 <style scoped src="@/src/components/styles/utils.css"></style>
+<style scoped>
+.hover-info {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+</style>

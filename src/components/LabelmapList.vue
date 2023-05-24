@@ -1,12 +1,9 @@
 <template>
-  <v-list dense v-if="labelmaps.length">
-    <v-list-item v-for="lm in labelmaps" :key="lm.id" two-line>
-      <v-list-item-content>
-        <v-list-item-title>Labelmap (ID = {{ lm.id }})</v-list-item-title>
-      </v-list-item-content>
+  <v-list density="compact" v-if="labelmaps.length">
+    <v-list-item v-for="lm in labelmaps" :key="lm.id" lines="two">
+      <v-list-item-title>Labelmap (ID = {{ lm.id }})</v-list-item-title>
     </v-list-item>
   </v-list>
-  <div v-else class="caption empty-state">No labelmaps yet</div>
 </template>
 
 <style scoped>
@@ -16,7 +13,7 @@
 </style>
 
 <script lang="ts">
-import { computed, defineComponent } from '@vue/composition-api';
+import { computed, defineComponent } from 'vue';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
 
 export default defineComponent({

@@ -1,4 +1,3 @@
-import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -40,11 +39,11 @@ export const useImageStore = defineStore('images', {
       const id = this.$id.nextID();
 
       this.idList.push(id);
-      set(this.dataIndex, id, imageData);
+      this.dataIndex[id] = imageData;
 
       this.$proxies.addData(id, imageData);
 
-      set(this.metadata, id, { ...defaultImageMetadata(), name });
+      this.metadata[id] = { ...defaultImageMetadata(), name };
       this.updateData(id, imageData);
       return id;
     },
@@ -63,16 +62,16 @@ export const useImageStore = defineStore('images', {
           indexToWorld: imageData.getIndexToWorld(),
         };
 
-        set(this.metadata, id, metadata);
+        this.metadata[id] = metadata;
       }
       this.$proxies.updateData(id, imageData);
-      set(this.dataIndex, id, imageData);
+      this.dataIndex[id] = imageData;
     },
 
     deleteData(id: string) {
       if (id in this.dataIndex) {
-        del(this.dataIndex, id);
-        del(this.metadata, id);
+        delete this.dataIndex[id];
+        delete this.metadata[id];
         removeFromArray(this.idList, id);
       }
     },

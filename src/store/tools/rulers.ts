@@ -1,4 +1,4 @@
-import { computed } from '@vue/composition-api';
+import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { TOOL_COLORS } from '@/src/config';

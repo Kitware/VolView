@@ -1,4 +1,4 @@
-import { ref } from '@vue/composition-api';
+import { ref } from 'vue';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import { vec3 } from 'gl-matrix';

@@ -1,5 +1,5 @@
 <script>
-import { VRangeSlider } from 'vuetify/lib';
+import { VRangeSlider } from 'vuetify/lib/components';
 
 const DEFAULT_TRACK_COLOR = 'rgba(128, 128, 128, 0.2)';
 const CLASS_COLOR_FUNCTION = 'volview__color-function';

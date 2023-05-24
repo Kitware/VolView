@@ -1,5 +1,5 @@
 <script>
-import { VNavigationDrawer } from 'vuetify/lib';
+import { VNavigationDrawer } from 'vuetify/lib/components';
 
 export const RESIZE_CURSOR = 'ew-resize';
 
@@ -38,7 +38,7 @@ export default {
     this.setEvents();
   },
 
-  beforeDestroy() {
+  beforeUnmount() {
     this.clearEvents();
     this.stopResize();
   },
@@ -48,14 +48,8 @@ export default {
     return h(
       VNavigationDrawer,
       {
-        props: {
-          // this.$attrs is the non-prop attrs we receive, which should
-          // be forwarded to v-navigation-drawer
-          ...this.$attrs,
-          width: this.internalWidth,
-        },
-        on: this.$listeners,
-        scopedSlots: this.$scopedSlots,
+        ...this.$attrs,
+        width: this.internalWidth,
         ref: 'infoPane',
       },
       this.$slots.default

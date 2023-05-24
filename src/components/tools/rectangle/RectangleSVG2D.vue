@@ -46,7 +46,7 @@ import {
   unref,
   ref,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 type SVGPoint = {
   x: number;
@@ -148,5 +148,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style scoped></style>

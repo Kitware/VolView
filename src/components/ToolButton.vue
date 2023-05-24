@@ -1,24 +1,25 @@
 <template>
-  <v-tooltip right transition="slide-x-transition">
-    <template v-slot:activator="{ on }">
-      <v-btn
-        text
-        tile
-        dark
-        :height="sizeV"
-        :width="sizeV"
-        :min-width="sizeV"
-        :max-width="sizeV"
-        :class="classV"
-        v-bind="$attrs"
-        v-on="{ ...on, ...$listeners }"
-      >
-        <v-icon :size="iconSize">{{ icon }}</v-icon>
-        <slot />
-      </v-btn>
-    </template>
-    <span>{{ name }}</span>
-  </v-tooltip>
+  <v-btn
+    variant="text"
+    :rounded="0"
+    dark
+    :height="sizeV"
+    :width="sizeV"
+    :min-width="sizeV"
+    :max-width="sizeV"
+    :class="classV"
+    v-bind="$attrs"
+  >
+    <v-icon :size="iconSize">{{ icon }}</v-icon>
+    <v-tooltip
+      :location="tooltipLocation"
+      activator="parent"
+      transition="slide-x-transition"
+    >
+      <span>{{ name }}</span>
+    </v-tooltip>
+    <slot />
+  </v-btn>
 </template>
 
 <script>
@@ -29,6 +30,7 @@ export default {
     name: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
     buttonClass: [String, Array, Object],
+    tooltipLocation: { type: String, default: 'right' },
   },
 
   computed: {

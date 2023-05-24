@@ -1,4 +1,4 @@
-import { inject } from '@vue/composition-api';
+import { inject } from 'vue';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 
 const defaultKey = 'ProxyManager';

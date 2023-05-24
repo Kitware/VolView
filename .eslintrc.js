@@ -104,7 +104,7 @@ module.exports = {
   ],
 
   extends: [
-    'plugin:vue/essential',
+    'plugin:vue/vue3-essential',
     '@vue/airbnb',
     'prettier',
     'prettier/vue',

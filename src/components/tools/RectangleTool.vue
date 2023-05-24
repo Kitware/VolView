@@ -42,7 +42,7 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { storeToRefs } from 'pinia';
 import { vec3 } from 'gl-matrix';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';

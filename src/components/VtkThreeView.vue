@@ -11,22 +11,25 @@
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>
           <div class="annotation-cell">
-            <v-tooltip bottom transition="slide-x-transition">
-              <template v-slot:activator="{ on, attrs }">
-                <v-btn
-                  class="pointer-events-all"
-                  dark
-                  x-small
-                  icon
-                  @click="resetCamera"
-                  v-bind="attrs"
-                  v-on="on"
-                >
-                  <v-icon small class="py-1">mdi-camera-flip-outline</v-icon>
-                </v-btn>
-              </template>
-              <span>Reset camera</span>
-            </v-tooltip>
+            <v-btn
+              class="pointer-events-all"
+              dark
+              icon
+              size="medium"
+              variant="text"
+              @click="resetCamera"
+            >
+              <v-icon size="medium" class="py-1">
+                mdi-camera-flip-outline
+              </v-icon>
+              <v-tooltip
+                location="right"
+                activator="parent"
+                transition="slide-x-transition"
+              >
+                Reset Camera
+              </v-tooltip>
+            </v-btn>
             <span class="ml-3">{{ topLeftLabel }}</span>
           </div>
         </template>
@@ -54,7 +57,10 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+  Ref,
+  nextTick,
+} from 'vue';
+import { computedWithControl } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
@@ -72,14 +78,13 @@ import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
-import { useViewConfigStore } from '../store/view-configs';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import { useModelStore } from '../store/datasets-models';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
-import { CameraConfig } from '../store/view-configs/types';
-import {
+import { VolumeColorConfig } from '../store/view-configs/types';
+import useVolumeColoringStore, {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
@@ -89,8 +94,293 @@ import CropTool from './tools/CropTool.vue';
 import PanTool from './tools/PanTool.vue';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { VTKThreeViewWidgetManager } from '../constants';
-import { useCropStore } from '../store/tools/crop';
+import { useCropStore, croppingPlanesEqual } from '../store/tools/crop';
 import { isViewAnimating } from '../composables/isViewAnimating';
+import { ColoringConfig } from '../types/views';
+import useViewCameraStore from '../store/view-configs/camera';
+import { Maybe } from '../types';
+
+function useCvrEffect(
+  config: Ref<Maybe<VolumeColorConfig>>,
+  imageRep: Ref<vtkVolumeRepresentationProxy | null>,
+  viewProxy: Ref<vtkLPSView3DProxy>
+) {
+  const cvrParams = computed(() => config.value?.cvr);
+  const repMapper = computedWithControl(
+    imageRep,
+    () => imageRep.value?.getMapper() as vtkVolumeMapper | undefined
+  );
+  const image = computedWithControl(
+    imageRep,
+    () => imageRep.value?.getInputDataSet() as vtkImageData | null | undefined
+  );
+  const volume = computedWithControl(
+    imageRep,
+    () => imageRep.value?.getVolumes()[0]
+  );
+  const renderer = computed(() => viewProxy.value.getRenderer());
+  const isAnimating = isViewAnimating(viewProxy);
+  const cvrEnabled = computed(() => {
+    const enabled = !!cvrParams.value?.enabled;
+    const animating = isAnimating.value;
+    return enabled && !animating;
+  });
+
+  const requestRender = () => {
+    if (!isAnimating.value) {
+      viewProxy.value.renderLater();
+    }
+  };
+
+  // lights
+  const volumeCenter = computed(() => {
+    if (!volume.value) return null;
+    const volumeBounds = volume.value.getBounds();
+    return [
+      (volumeBounds[0] + volumeBounds[1]) / 2,
+      (volumeBounds[2] + volumeBounds[3]) / 2,
+      (volumeBounds[4] + volumeBounds[5]) / 2,
+    ] as Vector3;
+  });
+  const lightFollowsCamera = computed(
+    () => cvrParams.value?.lightFollowsCamera ?? true
+  );
+
+  watch(
+    [volumeCenter, renderer, cvrEnabled, lightFollowsCamera],
+    ([center, ren, enabled, lightFollowsCamera_]) => {
+      if (!center) return;
+
+      if (ren.getLights().length === 0) {
+        ren.createLight();
+      }
+      const light = ren.getLights()[0];
+      if (enabled) {
+        light.setFocalPoint(...center);
+        light.setColor(1, 1, 1);
+        light.setIntensity(1);
+        light.setConeAngle(90);
+        light.setPositional(true);
+        ren.setTwoSidedLighting(false);
+        if (lightFollowsCamera_) {
+          light.setLightTypeToHeadLight();
+          ren.updateLightsGeometryToFollowCamera();
+        } else {
+          light.setLightTypeToSceneLight();
+        }
+      } else {
+        light.setPositional(false);
+      }
+
+      requestRender();
+    },
+    { immediate: true }
+  );
+
+  // sampling distance
+  const volumeQuality = computed(() => cvrParams.value?.volumeQuality);
+
+  watch(
+    [volume, image, repMapper, volumeQuality, cvrEnabled, isAnimating],
+    ([volume_, image_, mapper, volumeQuality_, enabled, animating]) => {
+      if (!volume_ || !mapper || volumeQuality_ == null || !image_) return;
+
+      if (animating) {
+        mapper.setSampleDistance(0.75);
+        mapper.setMaximumSamplesPerRay(1000);
+        mapper.setGlobalIlluminationReach(0);
+        mapper.setComputeNormalFromOpacity(false);
+      } else {
+        const dims = image_.getDimensions();
+        const spacing = image_.getSpacing();
+        const spatialDiagonal = vec3.length(
+          vec3.fromValues(
+            dims[0] * spacing[0],
+            dims[1] * spacing[1],
+            dims[2] * spacing[2]
+          )
+        );
+
+        // Use the average spacing for sampling by default
+        let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
+        // Adjust the volume sampling by the quality slider value
+        sampleDistance /= volumeQuality_ > 1 ? 0.5 * volumeQuality_ ** 2 : 1.0;
+        const samplesPerRay = spatialDiagonal / sampleDistance + 1;
+        mapper.setMaximumSamplesPerRay(samplesPerRay);
+        mapper.setSampleDistance(sampleDistance);
+        // Adjust the global illumination reach by volume quality slider
+        mapper.setGlobalIlluminationReach(enabled ? 0.25 * volumeQuality_ : 0);
+        mapper.setComputeNormalFromOpacity(!enabled && volumeQuality_ > 2);
+      }
+
+      requestRender();
+    },
+    { immediate: true }
+  );
+
+  // volume properties
+  const ambient = computed(() => cvrParams.value?.ambient ?? 0);
+  const diffuse = computed(() => cvrParams.value?.diffuse ?? 0);
+  const specular = computed(() => cvrParams.value?.specular ?? 0);
+
+  watch(
+    [volume, image, ambient, diffuse, specular, cvrEnabled],
+    ([volume_, image_, ambient_, diffuse_, specular_, enabled]) => {
+      if (!volume_ || !image_) return;
+
+      const property = volume_.getProperty();
+      property.setScalarOpacityUnitDistance(
+        0,
+        (0.5 * getDiagonalLength(image_.getBounds())) /
+          Math.max(...image_.getDimensions())
+      );
+
+      property.setShade(true);
+      property.setUseGradientOpacity(0, !enabled);
+      property.setGradientOpacityMinimumValue(0, 0.0);
+      const dataRange = image_.getPointData().getScalars().getRange();
+      property.setGradientOpacityMaximumValue(
+        0,
+        (dataRange[1] - dataRange[0]) * 0.01
+      );
+      property.setGradientOpacityMinimumOpacity(0, 0.0);
+      property.setGradientOpacityMinimumOpacity(0, 1.0);
+
+      // do not toggle these parameters when animating
+      property.setAmbient(enabled ? ambient_ : DEFAULT_AMBIENT);
+      property.setDiffuse(enabled ? diffuse_ : DEFAULT_DIFFUSE);
+      property.setSpecular(enabled ? specular_ : DEFAULT_SPECULAR);
+
+      requestRender();
+    },
+    { immediate: true }
+  );
+
+  // volumetric scattering blending
+  const useVolumetricScatteringBlending = computed(
+    () => cvrParams.value?.useVolumetricScatteringBlending ?? false
+  );
+  const volumetricScatteringBlending = computed(
+    () => cvrParams.value?.volumetricScatteringBlending ?? 0
+  );
+
+  watch(
+    [
+      useVolumetricScatteringBlending,
+      volumetricScatteringBlending,
+      repMapper,
+      cvrEnabled,
+    ],
+    ([useVsb, vsb, mapper, enabled]) => {
+      if (!mapper) return;
+
+      if (enabled && useVsb) {
+        mapper.setVolumetricScatteringBlending(vsb);
+      } else {
+        mapper.setVolumetricScatteringBlending(0);
+      }
+
+      requestRender();
+    },
+    { immediate: true }
+  );
+
+  // local ambient occlusion
+  const useLocalAmbientOcclusion = computed(
+    () => cvrParams.value?.useLocalAmbientOcclusion ?? false
+  );
+  const laoKernelSize = computed(() => cvrParams.value?.laoKernelSize ?? 0);
+  const laoKernelRadius = computed(() => cvrParams.value?.laoKernelRadius ?? 0);
+
+  watch(
+    [
+      useLocalAmbientOcclusion,
+      laoKernelSize,
+      laoKernelRadius,
+      repMapper,
+      cvrEnabled,
+    ],
+    ([useLao, kernelSize, kernelRadius, mapper, enabled]) => {
+      if (!mapper) return;
+
+      if (enabled && useLao) {
+        mapper.setLocalAmbientOcclusion(true);
+        mapper.setLAOKernelSize(kernelSize);
+        mapper.setLAOKernelRadius(kernelRadius);
+      } else {
+        mapper.setLocalAmbientOcclusion(false);
+        mapper.setLAOKernelSize(0);
+        mapper.setLAOKernelRadius(0);
+      }
+
+      requestRender();
+    },
+    { immediate: true }
+  );
+}
+
+function useColoringEffect(
+  config: Ref<Maybe<ColoringConfig>>,
+  imageRep: Ref<vtkVolumeRepresentationProxy | null>,
+  viewProxy: Ref<vtkLPSView3DProxy>
+) {
+  const colorBy = computed(() => config.value?.colorBy);
+  const colorTransferFunction = computed(() => config.value?.transferFunction);
+  const opacityFunction = computed(() => config.value?.opacityFunction);
+
+  const proxyManager = useProxyManager();
+
+  watch(
+    [imageRep, colorBy, colorTransferFunction, opacityFunction],
+    ([rep, colorBy_, colorFunc, opacityFunc]) => {
+      if (!rep || !colorBy_ || !colorFunc || !opacityFunc || !proxyManager) {
+        return;
+      }
+
+      const { arrayName, location } = colorBy_;
+
+      const lut = proxyManager.getLookupTable(arrayName);
+      lut.setMode(LookupTableProxyMode.Preset);
+      lut.setPresetName(colorFunc.preset);
+      lut.setDataRange(...colorFunc.mappingRange);
+
+      const pwf = proxyManager.getPiecewiseFunction(arrayName);
+      pwf.setMode(opacityFunc.mode);
+      pwf.setDataRange(...opacityFunc.mappingRange);
+
+      switch (opacityFunc.mode) {
+        case vtkPiecewiseFunctionProxy.Mode.Gaussians:
+          pwf.setGaussians(opacityFunc.gaussians);
+          break;
+        case vtkPiecewiseFunctionProxy.Mode.Points: {
+          const opacityPoints = getShiftedOpacityFromPreset(
+            opacityFunc.preset,
+            opacityFunc.mappingRange,
+            opacityFunc.shift
+          );
+          if (opacityPoints) {
+            pwf.setPoints(opacityPoints);
+          }
+          break;
+        }
+        case vtkPiecewiseFunctionProxy.Mode.Nodes:
+          pwf.setNodes(opacityFunc.nodes);
+          break;
+        default:
+      }
+
+      if (rep) {
+        // control color range manually
+        rep.setRescaleOnColorBy(false);
+        rep.setColorBy(arrayName, location);
+      }
+
+      // Need to trigger a render for when we are restoring from a state file
+      viewProxy.value.renderLater();
+    },
+    { immediate: true }
+  );
+}
 
 export default defineComponent({
   props: {
@@ -114,8 +404,8 @@ export default defineComponent({
   },
   setup(props) {
     const modelStore = useModelStore();
-    const proxyManager = useProxyManager()!;
-    const viewConfigStore = useViewConfigStore();
+    const volumeColoringStore = useVolumeColoringStore();
+    const viewCameraStore = useViewCameraStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
 
@@ -199,28 +489,26 @@ export default defineComponent({
         center
       );
       viewProxy.value.resetCamera();
-      viewProxy.value.render();
+      viewProxy.value.renderLater();
     };
 
     watch(
       [baseImageRep, cameraDirVec, cameraUpVec],
       () => {
-        let cameraConfig: CameraConfig | undefined;
-        if (curImageID.value !== null) {
-          cameraConfig = viewConfigStore.getCameraConfig(
-            viewID.value,
-            curImageID.value
-          );
-        }
+        const cameraConfig = viewCameraStore.getConfig(
+          viewID.value,
+          curImageID.value
+        );
 
         // We don't want to reset the camera if we have a config we are restoring
         if (!cameraConfig) {
-          resetCamera();
+          // nextTick ensures resetCamera gets called after
+          // useSceneBuilder refreshes the scene.
+          nextTick(resetCamera);
         }
       },
       {
         immediate: true,
-        deep: true,
       }
     );
 
@@ -236,27 +524,23 @@ export default defineComponent({
 
     watch(curImageID, () => {
       // See if we have a camera configuration to restore
-      let cameraConfig = null;
-      if (curImageID.value !== null) {
-        cameraConfig = viewConfigStore.getCameraConfig(
-          viewID.value,
-          curImageID.value
-        );
-      }
+      const cameraConfig = viewCameraStore.getConfig(
+        viewID.value,
+        curImageID.value
+      );
 
       if (cameraConfig) {
         restoreCameraConfig(cameraConfig);
 
         viewProxy.value.getRenderer().resetCameraClippingRange();
-        viewProxy.value.render();
+        viewProxy.value.renderLater();
       }
     });
 
     // --- coloring setup --- //
 
-    const volumeColorConfig = viewConfigStore.getComputedVolumeColorConfig(
-      viewID,
-      curImageID
+    const volumeColorConfig = computed(() =>
+      volumeColoringStore.getConfig(viewID.value, curImageID.value)
     );
 
     watch(
@@ -267,7 +551,7 @@ export default defineComponent({
           currentImageData.value &&
           !volumeColorConfig.value
         ) {
-          viewConfigStore.resetToDefaultColoring(
+          volumeColoringStore.resetToDefaultColoring(
             viewID.value,
             curImageID.value,
             currentImageData.value
@@ -279,204 +563,11 @@ export default defineComponent({
 
     // --- CVR parameters --- //
 
-    const cvrParams = computed(() => volumeColorConfig.value?.cvr);
-    const isAnimating = isViewAnimating(viewProxy);
-
-    watch(
-      [cvrParams, baseImageRep, isAnimating],
-      ([params, rep, animating]) => {
-        const image = rep?.getInputDataSet() as vtkImageData | null | undefined;
-        if (!rep || !image || !params) {
-          return;
-        }
-
-        // disable CVR while animating for smoother interaction
-        const enabled = params.enabled && !animating;
-
-        const renderer = viewProxy.value.getRenderer();
-        const mapper = rep.getMapper() as vtkVolumeMapper;
-        const volume = rep.getVolumes()[0];
-        const property = volume.getProperty();
-
-        const volumeBounds = volume.getBounds();
-        const center = [
-          (volumeBounds[0] + volumeBounds[1]) / 2,
-          (volumeBounds[2] + volumeBounds[3]) / 2,
-          (volumeBounds[4] + volumeBounds[5]) / 2,
-        ] as Vector3;
-
-        if (renderer.getLights().length === 0) {
-          renderer.createLight();
-        }
-        const light = renderer.getLights()[0];
-        if (enabled) {
-          light.setFocalPoint(...center);
-          light.setColor(1, 1, 1);
-          light.setIntensity(1);
-          light.setConeAngle(90);
-          light.setPositional(true);
-          renderer.setTwoSidedLighting(false);
-          if (params.lightFollowsCamera) {
-            light.setLightTypeToHeadLight();
-            renderer.updateLightsGeometryToFollowCamera();
-          } else {
-            light.setLightTypeToSceneLight();
-          }
-        } else {
-          light.setPositional(false);
-        }
-
-        property.setScalarOpacityUnitDistance(
-          0,
-          (0.5 * getDiagonalLength(image.getBounds())) /
-            Math.max(...image.getDimensions())
-        );
-        if (animating) {
-          mapper.setSampleDistance(0.75);
-          mapper.setMaximumSamplesPerRay(1000);
-          mapper.setGlobalIlluminationReach(0);
-          mapper.setComputeNormalFromOpacity(false);
-        } else {
-          const dims = image.getDimensions();
-          const spacing = image.getSpacing();
-          const spatialDiagonal = vec3.length(
-            vec3.fromValues(
-              dims[0] * spacing[0],
-              dims[1] * spacing[1],
-              dims[2] * spacing[2]
-            )
-          );
-
-          // Use the average spacing for sampling by default
-          let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
-          // Adjust the volume sampling by the quality slider value
-          sampleDistance /=
-            params.volumeQuality > 1
-              ? 0.5 * (params.volumeQuality * params.volumeQuality)
-              : 1.0;
-          const samplesPerRay = spatialDiagonal / sampleDistance + 1;
-          mapper.setMaximumSamplesPerRay(samplesPerRay);
-          mapper.setSampleDistance(sampleDistance);
-          // Adjust the global illumination reach by volume quality slider
-          mapper.setGlobalIlluminationReach(
-            enabled ? 0.25 * params.volumeQuality : 0
-          );
-        }
-
-        property.setShade(true);
-        mapper.setComputeNormalFromOpacity(
-          !enabled && params.volumeQuality > 2
-        );
-        property.setUseGradientOpacity(0, !enabled);
-        property.setGradientOpacityMinimumValue(0, 0.0);
-        const dataRange = image.getPointData().getScalars().getRange();
-        property.setGradientOpacityMaximumValue(
-          0,
-          (dataRange[1] - dataRange[0]) * 0.01
-        );
-        property.setGradientOpacityMinimumOpacity(0, 0.0);
-        property.setGradientOpacityMinimumOpacity(0, 1.0);
-
-        if (enabled && params.useVolumetricScatteringBlending) {
-          mapper.setVolumetricScatteringBlending(
-            params.volumetricScatteringBlending
-          );
-        } else {
-          mapper.setVolumetricScatteringBlending(0);
-        }
-
-        // Local ambient occlusion
-        if (enabled && params.useLocalAmbientOcclusion) {
-          mapper.setLocalAmbientOcclusion(true);
-          mapper.setLAOKernelSize(params.laoKernelSize);
-          mapper.setLAOKernelRadius(params.laoKernelRadius);
-        } else {
-          mapper.setLocalAmbientOcclusion(false);
-          mapper.setLAOKernelSize(0);
-          mapper.setLAOKernelRadius(0);
-        }
-
-        // do not toggle these parameters when animating
-        property.setAmbient(params.enabled ? params.ambient : DEFAULT_AMBIENT);
-        property.setDiffuse(params.enabled ? params.diffuse : DEFAULT_DIFFUSE);
-        property.setSpecular(
-          params.enabled ? params.specular : DEFAULT_SPECULAR
-        );
-
-        if (!animating) {
-          viewProxy.value.render();
-        }
-      },
-      { deep: true, immediate: true }
-    );
+    useCvrEffect(volumeColorConfig, baseImageRep, viewProxy);
 
     // --- coloring --- //
 
-    const colorBy = computed(() => volumeColorConfig.value?.colorBy);
-    const colorTransferFunction = computed(
-      () => volumeColorConfig.value?.transferFunction
-    );
-    const opacityFunction = computed(
-      () => volumeColorConfig.value?.opacityFunction
-    );
-
-    watch(
-      [baseImageRep, colorBy, colorTransferFunction, opacityFunction],
-      () => {
-        if (
-          !baseImageRep.value ||
-          !colorBy.value ||
-          !colorTransferFunction.value ||
-          !opacityFunction.value
-        ) {
-          return;
-        }
-
-        const rep = baseImageRep.value;
-
-        const { arrayName, location } = colorBy.value;
-        const ctFunc = colorTransferFunction.value;
-        const opFunc = opacityFunction.value;
-
-        const lut = proxyManager.getLookupTable(arrayName);
-        lut.setMode(LookupTableProxyMode.Preset);
-        lut.setPresetName(ctFunc.preset);
-        lut.setDataRange(...ctFunc.mappingRange);
-
-        const pwf = proxyManager.getPiecewiseFunction(arrayName);
-        pwf.setMode(opFunc.mode);
-        pwf.setDataRange(...opFunc.mappingRange);
-
-        switch (opFunc.mode) {
-          case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-            pwf.setGaussians(opFunc.gaussians);
-            break;
-          case vtkPiecewiseFunctionProxy.Mode.Points: {
-            const opacityPoints = getShiftedOpacityFromPreset(
-              opFunc.preset,
-              opFunc.mappingRange,
-              opFunc.shift
-            );
-            if (opacityPoints) {
-              pwf.setPoints(opacityPoints);
-            }
-            break;
-          }
-          case vtkPiecewiseFunctionProxy.Mode.Nodes:
-            pwf.setNodes(opFunc.nodes);
-            break;
-          default:
-        }
-
-        if (rep) {
-          rep.setColorBy(arrayName, location);
-        }
-
-        // Need to trigger a render for when we are restoring from a state file
-        viewProxy.value.render();
-      },
-      { immediate: true, deep: true }
-    );
+    useColoringEffect(volumeColorConfig, baseImageRep, viewProxy);
 
     // --- cropping planes --- //
 
@@ -485,14 +576,19 @@ export default defineComponent({
 
     watch(
       croppingPlanes,
-      (planes) => {
+      (planes, oldPlanes) => {
         const mapper = baseImageRep.value?.getMapper();
-        if (planes && mapper) {
-          mapper.removeAllClippingPlanes();
-          planes.forEach((plane) => mapper.addClippingPlane(plane));
-          mapper.modified();
-          viewProxy.value.render();
-        }
+        if (
+          !mapper ||
+          !planes ||
+          (oldPlanes && croppingPlanesEqual(planes, oldPlanes))
+        )
+          return;
+
+        mapper.removeAllClippingPlanes();
+        planes.forEach((plane) => mapper.addClippingPlane(plane));
+        mapper.modified();
+        viewProxy.value.renderLater();
       },
       { immediate: true }
     );
@@ -504,7 +600,9 @@ export default defineComponent({
       viewID,
       active: false,
       topLeftLabel: computed(
-        () => colorTransferFunction.value?.preset.replace(/-/g, ' ') ?? ''
+        () =>
+          volumeColorConfig.value?.transferFunction.preset.replace(/-/g, ' ') ??
+          ''
       ),
       isImageLoading,
       resetCamera,

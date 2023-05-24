@@ -1,10 +1,5 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  PropType,
-  toRefs,
-} from '@vue/composition-api';
+import { computed, defineComponent, PropType, toRefs } from 'vue';
 import { Message, MessageType } from '../store/messages';
 
 const MessageTypeClass: Record<MessageType, string> = {
@@ -41,19 +36,23 @@ export default defineComponent({
 
 <template>
   <v-expansion-panel>
-    <v-expansion-panel-header :class="headerClass">
+    <v-expansion-panel-title :class="headerClass">
       <div class="header">
         <span>{{ message.title }}</span>
-        <v-btn icon small class="mr-3" @click.stop="$emit('delete')">
-          <v-icon small>mdi-delete</v-icon>
-        </v-btn>
+        <v-btn
+          icon="mdi-delete"
+          variant="text"
+          size="small"
+          class="mr-3"
+          @click.stop="$emit('delete')"
+        />
       </div>
-    </v-expansion-panel-header>
-    <v-expansion-panel-content v-if="message.options.details">
+    </v-expansion-panel-title>
+    <v-expansion-panel-text v-if="message.options.details">
       <div class="mt-4">
         <pre class="details">{{ message.options.details }}</pre>
       </div>
-    </v-expansion-panel-content>
+    </v-expansion-panel-text>
   </v-expansion-panel>
 </template>
 
@@ -71,6 +70,7 @@ export default defineComponent({
 }
 
 .header {
+  width: 100%;
   display: flex;
   flex-flow: row;
   justify-content: space-between;

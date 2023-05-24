@@ -1,18 +1,19 @@
 <template>
   <v-card>
-    <v-card-title>
+    <v-card-title class="d-flex flex-row align-center">
       Saving Session State
       <v-spacer />
-      <v-btn icon @click="$emit('close')"><v-icon>mdi-close</v-icon></v-btn>
+      <v-btn variant="text" icon="mdi-close" @click="$emit('close')" />
     </v-card-title>
     <v-card-text>
       <v-form v-model="valid">
         <v-text-field
-          v-on:keyup.enter="saveSession"
+          v-on:keydown.enter="saveSession"
           v-model="fileName"
           hint="The filename to use for the session state file."
           label="Session State Filename"
           :rules="[validFileName]"
+          required
         />
       </v-form>
     </v-card-text>
@@ -27,7 +28,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from '@vue/composition-api';
+import { defineComponent, onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 
 import { serialize } from '../io/state-file';
@@ -35,15 +36,21 @@ import { serialize } from '../io/state-file';
 const DEFAULT_FILENAME = 'session.volview.zip';
 
 export default defineComponent({
-  setup(props, { emit }) {
-    const fileName = ref(DEFAULT_FILENAME);
+  setup(_, { emit }) {
+    const fileName = ref('');
     const valid = ref(true);
 
     async function saveSession() {
-      const blob = await serialize();
-      saveAs(blob, fileName.value);
-      emit('close');
+      if (fileName.value.trim().length >= 0) {
+        const blob = await serialize();
+        saveAs(blob, fileName.value);
+        emit('close');
+      }
     }
+
+    onMounted(() => {
+      fileName.value = DEFAULT_FILENAME;
+    });
 
     function validFileName(name: string) {
       return name.trim().length > 0 || 'Required';

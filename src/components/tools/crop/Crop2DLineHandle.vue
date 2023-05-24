@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent, PropType, ref } from '@vue/composition-api';
+import { defineComponent, PropType, ref } from 'vue';
 import { CropLine } from './types';
 
 export default defineComponent({
@@ -87,7 +87,6 @@ export default defineComponent({
       @pointerleave="onHover(false)"
       @pointerdown="onPointer(true, $event)"
       @pointerup="onPointer(false, $event)"
-      v-on="$listeners"
       :x1="line.startEdge[0]"
       :y1="line.startEdge[1]"
       :x2="line.endEdge[0]"
@@ -96,6 +95,7 @@ export default defineComponent({
       stroke-opacity="0"
       stroke-dasharray="none"
       :stroke-width="Number($attrs['stroke-width'] || 0) + clickWidth || 0"
+      v-bind="$attrs"
     />
   </g>
 </template>

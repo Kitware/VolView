@@ -1,4 +1,3 @@
-import { del, set } from '@vue/composition-api';
 import { defineStore } from 'pinia';
 import {
   ANONYMOUS_PATIENT,
@@ -107,8 +106,8 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     deleteVolume(volumeKey: string) {
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
-        del(this.volumeInfo, volumeKey);
-        del(this.volumeStudy, volumeKey);
+        delete this.volumeInfo[volumeKey];
+        delete this.volumeStudy[volumeKey];
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
         if (this.studyVolumes[studyKey].length === 0) {
@@ -120,10 +119,10 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     deleteStudy(studyKey: string) {
       if (studyKey in this.studyInfo) {
         const patientKey = this.studyPatient[studyKey];
-        del(this.studyInfo, studyKey);
-        del(this.studyPatient, studyKey);
+        delete this.studyInfo[studyKey];
+        delete this.studyPatient[studyKey];
 
-        del(this.studyVolumes, studyKey);
+        delete this.studyVolumes[studyKey];
 
         removeFromArray(this.patientStudies[patientKey], studyKey);
         if (this.patientStudies[patientKey].length === 0) {
@@ -134,12 +133,12 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
 
     deletePatient(patientKey: string) {
       if (patientKey in this.patientInfo) {
-        del(this.patientInfo, patientKey);
+        delete this.patientInfo[patientKey];
 
         [...this.patientStudies[patientKey]].forEach((studyKey) =>
           this.deleteStudy(studyKey)
         );
-        del(this.patientStudies, patientKey);
+        delete this.patientStudies[patientKey];
       }
     },
 
@@ -151,30 +150,30 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     ) {
       const patientKey = patient.PatientID;
       if (patientKey && !(patientKey in this.patientInfo)) {
-        set(this.patientInfo, patientKey, patient);
-        set(this.patientStudies, patientKey, []);
+        this.patientInfo[patientKey] = patient;
+        this.patientStudies[patientKey] = [];
       }
 
       const studyKey = study.StudyInstanceUID;
       if (studyKey && !(studyKey in this.studyInfo)) {
-        set(this.studyInfo, studyKey, study);
-        set(this.studyVolumes, studyKey, []);
-        set(this.studyPatient, studyKey, patientKey);
+        this.studyInfo[studyKey] = study;
+        this.studyVolumes[studyKey] = [];
+        this.studyPatient[studyKey] = patientKey;
         this.patientStudies[patientKey].push(studyKey);
       }
 
       const volumeKey = volume.VolumeID;
       if (volumeKey && !(volumeKey in this.volumeInfo)) {
-        set(this.volumeInfo, volumeKey, volume);
-        set(this.volumeInstances, volumeKey, []);
-        set(this.volumeStudy, volumeKey, studyKey);
+        this.volumeInfo[volumeKey] = volume;
+        this.volumeInstances[volumeKey] = [];
+        this.volumeStudy[volumeKey] = studyKey;
         this.studyVolumes[studyKey].push(volumeKey);
       }
 
       const instanceKey = instance.SopInstanceUID;
       if (instanceKey && !(instanceKey in this.instanceInfo)) {
-        set(this.instanceInfo, instanceKey, instance);
-        set(this.instanceVolume, instanceKey, volumeKey);
+        this.instanceInfo[instanceKey] = instance;
+        this.instanceVolume[instanceKey] = volumeKey;
         this.volumeInstances[volumeKey].push(instanceKey);
 
         this.volumeInfo[volumeKey].NumberOfSlices += 1;

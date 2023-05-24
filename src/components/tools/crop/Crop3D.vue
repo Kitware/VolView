@@ -23,7 +23,7 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 function isValidCroppingPlanes(planes: LPSCroppingPlanes) {
   return (
@@ -107,7 +107,7 @@ export default defineComponent({
         });
 
         // show widget
-        viewProxy.value.render();
+        viewProxy.value.renderLater();
       }
     });
 
@@ -138,9 +138,8 @@ export default defineComponent({
       // prevent infinite loops
       if (!arrayEquals(planes, state.getCroppingPlanes().getPlanes())) {
         state.getCroppingPlanes().setPlanes(planes);
+        viewProxy.value.renderLater();
       }
-      // render any changes
-      viewProxy.value.render();
     };
 
     watch(

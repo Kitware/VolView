@@ -1,6 +1,6 @@
 import { TYPE } from 'vue-toastification';
 import { useToast } from '@/src/composables/useToast';
-import { ToastID } from 'vue-toastification/dist/types/src/types';
+import { ToastID } from 'vue-toastification/dist/types/types';
 import { useMessageStore } from '../store/messages';
 
 export function useAppLoadingNotifications() {

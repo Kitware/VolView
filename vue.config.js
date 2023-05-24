@@ -32,6 +32,12 @@ module.exports = {
     });
   },
   publicPath: process.env.VUE_APP_PUBLIC_PATH || '/',
+  pluginOptions: {
+    // vue-cli-plugin-vuetify injects VuetifyPlugin with these args for us
+    vuetify: {
+      autoImport: true,
+    },
+  },
   configureWebpack: {
     devtool: 'source-map',
     resolve: {

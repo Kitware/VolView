@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 
-import { setupSlicingConfig } from './view-configs/slicing';
-import { setupWindowingConfig } from './view-configs/windowing';
-import { setupLayersConfig } from './view-configs/layers';
-import { setupCameraConfig } from './view-configs/camera';
-import { setupVolumeColorConfig } from './view-configs/volume-coloring';
+import useViewSliceStore from './view-configs/slicing';
+import useWindowingStore from './view-configs/windowing';
+import useLayerColoringStore from './view-configs/layers';
+import useViewCameraStore from './view-configs/camera';
+import useVolumeColoringStore from './view-configs/volume-coloring';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 import { useImageStore } from './datasets-images';
 
@@ -13,34 +13,34 @@ import { useImageStore } from './datasets-images';
  * view. The key is a synthetic id generated from the view ID and data ID.
  */
 export const useViewConfigStore = defineStore('viewConfig', () => {
-  const sliceConfig = setupSlicingConfig();
-  const windowingConfig = setupWindowingConfig();
-  const layersConfig = setupLayersConfig();
-  const cameraConfig = setupCameraConfig();
-  const volumeColorConfig = setupVolumeColorConfig();
+  const viewSliceStore = useViewSliceStore();
+  const windowingStore = useWindowingStore();
+  const layerColoringStore = useLayerColoringStore();
+  const viewCameraStore = useViewCameraStore();
+  const volumeColoringStore = useVolumeColoringStore();
 
   const removeView = (viewID: string) => {
-    sliceConfig.removeView(viewID);
-    windowingConfig.removeView(viewID);
-    layersConfig.removeView(viewID);
-    cameraConfig.removeView(viewID);
-    volumeColorConfig.removeView(viewID);
+    viewSliceStore.removeView(viewID);
+    windowingStore.removeView(viewID);
+    layerColoringStore.removeView(viewID);
+    viewCameraStore.removeView(viewID);
+    volumeColoringStore.removeView(viewID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
-    sliceConfig.removeData(dataID, viewID);
-    windowingConfig.removeData(dataID, viewID);
-    layersConfig.removeData(dataID, viewID);
-    cameraConfig.removeData(dataID, viewID);
-    volumeColorConfig.removeData(dataID, viewID);
+    viewSliceStore.removeData(dataID, viewID);
+    windowingStore.removeData(dataID, viewID);
+    layerColoringStore.removeData(dataID, viewID);
+    viewCameraStore.removeData(dataID, viewID);
+    volumeColoringStore.removeData(dataID, viewID);
   };
 
   const serialize = (stateFile: StateFile) => {
-    sliceConfig.serialize(stateFile);
-    windowingConfig.serialize(stateFile);
-    layersConfig.serialize(stateFile);
-    cameraConfig.serialize(stateFile);
-    volumeColorConfig.serialize(stateFile);
+    viewSliceStore.serialize(stateFile);
+    windowingStore.serialize(stateFile);
+    layerColoringStore.serialize(stateFile);
+    viewCameraStore.serialize(stateFile);
+    volumeColoringStore.serialize(stateFile);
   };
 
   const deserialize = (
@@ -55,11 +55,11 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
       updatedConfig[newDataID] = viewConfig;
     });
 
-    sliceConfig.deserialize(viewID, updatedConfig);
-    windowingConfig.deserialize(viewID, updatedConfig);
-    layersConfig.deserialize(viewID, updatedConfig);
-    cameraConfig.deserialize(viewID, updatedConfig);
-    volumeColorConfig.deserialize(viewID, updatedConfig);
+    viewSliceStore.deserialize(viewID, updatedConfig);
+    windowingStore.deserialize(viewID, updatedConfig);
+    layerColoringStore.deserialize(viewID, updatedConfig);
+    viewCameraStore.deserialize(viewID, updatedConfig);
+    volumeColoringStore.deserialize(viewID, updatedConfig);
   };
 
   // delete hook
@@ -76,10 +76,5 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     removeData,
     serialize,
     deserialize,
-    ...sliceConfig.actions,
-    ...windowingConfig.actions,
-    ...cameraConfig.actions,
-    ...volumeColorConfig.actions,
-    layers: layersConfig.actions,
   };
 });

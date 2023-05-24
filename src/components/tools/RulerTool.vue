@@ -16,14 +16,15 @@
     </svg>
     <v-menu
       v-model="contextMenu.show"
-      :position-x="contextMenu.x"
-      :position-y="contextMenu.y"
-      absolute
-      offset-y
+      class="position-absolute"
+      :style="{
+        top: `${contextMenu.y}px`,
+        left: `${contextMenu.x}px`,
+      }"
       close-on-click
       close-on-content-click
     >
-      <v-list dense>
+      <v-list density="compact">
         <v-list-item @click="deleteRulerFromContextMenu">
           <v-list-item-title>Delete</v-list-item-title>
         </v-list-item>
@@ -42,7 +43,7 @@ import {
   ref,
   toRefs,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';

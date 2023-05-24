@@ -1,11 +1,13 @@
 <script lang="ts">
-import { defineComponent } from '@vue/composition-api';
-import MeasurementsList from './MeasurementsList.vue';
+import { defineComponent } from 'vue';
+import MeasurementsRulerList from './MeasurementsRulerList.vue';
+import MeasurementsRectangleList from './MeasurementsRectangleList.vue';
 import LabelmapList from './LabelmapList.vue';
 
 export default defineComponent({
   components: {
-    MeasurementsList,
+    MeasurementsRulerList,
+    MeasurementsRectangleList,
     LabelmapList,
   },
   setup() {},
@@ -14,12 +16,17 @@ export default defineComponent({
 
 <template>
   <div class="overflow-y-auto mx-2 fill-height">
-    <v-list dense>
-      <v-subheader class="annot-subheader">Measurements</v-subheader>
-      <measurements-list />
-      <v-subheader class="annot-subheader">Labelmaps</v-subheader>
+    <div class="header">Measurements</div>
+    <div class="content">
+      <measurements-ruler-list />
+      <measurements-rectangle-list />
+    </div>
+    <div class="text-caption text-center empty-state">No measurements</div>
+    <div class="header">Labelmaps</div>
+    <div class="content">
       <labelmap-list />
-    </v-list>
+    </div>
+    <div class="text-caption text-center empty-state">No labelmaps</div>
   </div>
 </template>
 
@@ -27,11 +34,21 @@ export default defineComponent({
 .annot-subheader {
   margin: 8px 0;
 }
-.theme--dark.annot-subheader {
-  background: rgba(255, 255, 255, 0.08);
+.header {
+  background: rgba(var(--v-theme-surface-variant), 0.08);
+  padding: 4px;
+  margin: 8px 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
 }
 
-.theme--light.annot-subheader {
-  background: rgba(0, 0, 0, 0.08);
+.empty-state {
+  display: none;
+}
+
+.content:empty + .empty-state {
+  display: block;
 }
 </style>

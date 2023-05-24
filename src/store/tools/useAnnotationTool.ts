@@ -1,4 +1,4 @@
-import { Ref, computed, del, ref, set } from '@vue/composition-api';
+import { Ref, computed, ref } from 'vue';
 import { Store } from 'pinia';
 import { removeFromArray } from '@/src/utils';
 
@@ -10,9 +10,9 @@ import {
 } from '@/src/utils/frameOfReference';
 import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-import { useViewConfigStore } from '@/src/store/view-configs';
 import { LPSAxisDir } from '@/src/types/lps';
 import { findImageID, getDataID } from '@/src/store/datasets';
+import useViewSliceStore from '../view-configs/slicing';
 
 type AnnotationTool = {
   id: string;
@@ -55,12 +55,12 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
       throw new Error('Cannot add tool with conflicting ID');
     }
     const color = tool.color ?? getNextColor();
-    set(toolByID.value, id, {
+    toolByID.value[id] = {
       ...toolDefaults,
       ...tool,
       id,
       color,
-    });
+    };
     toolIDs.value.push(id);
     return id;
   }
@@ -69,13 +69,13 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     if (!(id in toolByID.value)) return;
 
     removeFromArray(toolIDs.value, id);
-    del(toolByID.value, id);
+    delete toolByID.value[id];
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
 
-    set(toolByID.value, id, { ...toolByID.value[id], ...patch, id });
+    toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
 
   function jumpToTool(toolID: ToolID) {
@@ -99,9 +99,9 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
       return viewDir && getLPSAxisFromDir(viewDir) === toolImageFrame.axis;
     });
 
-    const viewConfigStore = useViewConfigStore();
+    const viewSliceStore = useViewSliceStore();
     relevantViewIDs.forEach((viewID) => {
-      viewConfigStore.updateSliceConfig(viewID, imageID, {
+      viewSliceStore.updateConfig(viewID, imageID, {
         slice: tool.slice!,
       });
     });

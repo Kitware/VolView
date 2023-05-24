@@ -1,4 +1,3 @@
-import { set } from '@vue/composition-api';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
@@ -75,8 +74,8 @@ export const useLabelmapStore = defineStore('labelmap', {
       const labelmap = createLabelmapFromImage(imageData);
 
       this.idList.push(id);
-      set(this.parentImage, id, imageID);
-      set(this.labelmaps, id, labelmap);
+      this.parentImage[id] = imageID;
+      this.labelmaps[id] = labelmap;
 
       this.$proxies.addData(id, labelmap);
 
@@ -130,8 +129,8 @@ export const useLabelmapStore = defineStore('labelmap', {
         const imageData = await vtiReader(file);
         const labelMapObj = toLabelMap(imageData as vtkImageData);
         this.idList.push(id);
-        set(this.parentImage, id, findImageID(parent));
-        set(this.labelmaps, id, labelMapObj);
+        this.parentImage[id] = findImageID(parent);
+        this.labelmaps[id] = labelMapObj;
         this.$proxies.addData(id, labelMapObj);
       });
 

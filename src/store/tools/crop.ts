@@ -3,10 +3,11 @@ import { LPSAxis } from '@/src/types/lps';
 import { getAxisBounds } from '@/src/utils/lps';
 import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
 import { Vector2, Vector3 } from '@kitware/vtk.js/types';
-import { computed, reactive, readonly, set, unref } from '@vue/composition-api';
+import { computed, reactive, readonly, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
+import { arrayEqualsWithComparator } from '@/src/utils';
 import { useImageStore } from '../datasets-images';
 import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
@@ -41,6 +42,15 @@ function convertCropBoundsToVTKPlane(
   ] as Vector3;
 
   return vtkPlane.newInstance({ origin, normal });
+}
+
+export function croppingPlanesEqual(a1: vtkPlane[], a2: vtkPlane[]) {
+  return arrayEqualsWithComparator<vtkPlane>(a1, a2, (p1, p2) => {
+    return (
+      vec3.equals(p1.getOrigin(), p2.getOrigin()) &&
+      vec3.equals(p1.getNormal(), p2.getNormal())
+    );
+  });
 }
 
 export const useCropStore = defineStore('crop', () => {
@@ -82,7 +92,7 @@ export const useCropStore = defineStore('crop', () => {
   };
 
   const setCropping = (imageID: string, planes: LPSCroppingPlanes) => {
-    set(state.croppingByImageID, imageID, clampCroppingPlanes(imageID, planes));
+    state.croppingByImageID[imageID] = clampCroppingPlanes(imageID, planes);
   };
 
   const setCroppingForAxis = (

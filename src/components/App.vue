@@ -2,46 +2,39 @@
   <drag-and-drop enabled @drop-files="openFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
-        <v-app-bar app dense clipped-left>
+        <v-app-bar app clipped-left :height="48">
           <v-btn
-            v-if="$vuetify.breakpoint.mobile"
-            icon
+            v-if="mobile"
+            icon="mdi-menu"
             @click="leftSideBar = !leftSideBar"
-          >
-            <v-icon>mdi-menu</v-icon>
-          </v-btn>
-          <v-toolbar-title class="d-flex flex-row align-center mt-1">
-            <vol-view-logo v-if="$vuetify.breakpoint.mobile" />
+          />
+          <v-toolbar-title class="d-flex flex-row align-center mt-3">
+            <vol-view-logo v-if="mobile" />
             <vol-view-full-logo v-else />
           </v-toolbar-title>
-          <v-spacer />
           <v-btn
-            tile
-            icon
+            variant="text"
+            icon="mdi-help-circle-outline"
+            :rounded="0"
             class="toolbar-button"
             @click="aboutBoxDialog = !aboutBoxDialog"
-          >
-            <v-icon>mdi-help-circle-outline</v-icon>
-          </v-btn>
+          />
         </v-app-bar>
-        <resizable-nav-drawer
-          id="left-nav"
+        <v-navigation-drawer
           v-model="leftSideBar"
           app
           clipped
           touchless
-          :min-width="450"
-          :max-width="550"
-          :width="450"
-          :handle-size="4"
+          width="450"
+          id="left-nav"
         >
           <module-panel @close="leftSideBar = false" />
-        </resizable-nav-drawer>
+        </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
             <div
               id="tools-strip"
-              class="grey darken-4 d-flex flex-column align-center"
+              class="bg-grey-darken-4 d-flex flex-column align-center"
             >
               <tool-button
                 size="40"
@@ -50,28 +43,21 @@
                 @click="userPromptFiles"
               />
               <tool-button
-                v-if="!saveHappening"
                 size="40"
                 icon="mdi-content-save-all"
                 name="Save session"
+                :loading="saveHappening"
                 @click="handleSave"
               />
-              <v-progress-circular
-                v-if="saveHappening"
-                indeterminate
-                size="40"
-                color="grey lighten-5"
-              />
               <div class="my-1 tool-separator" />
-              <v-menu offset-x>
-                <template v-slot:activator="{ on, attrs }">
+              <v-menu location="right">
+                <template v-slot:activator="{ props }">
                   <div>
                     <tool-button
+                      v-bind="props"
                       size="40"
                       icon="mdi-view-dashboard"
                       name="Layouts"
-                      v-bind="attrs"
-                      v-on="on"
                     />
                   </div>
                 </template>
@@ -97,12 +83,11 @@
               </template>
               <v-spacer />
               <v-badge
-                overlap
-                offset-x="20"
-                offset-y="20"
+                offset-x="10"
+                offset-y="10"
                 :content="messageCount"
                 :color="messageBadgeColor"
-                :value="messageCount > 0"
+                :model-value="messageCount > 0"
               >
                 <tool-button
                   size="40"
@@ -124,7 +109,7 @@
                 v-show="!hasData"
                 no-gutters
                 align="center"
-                class="clickable grey darken-3"
+                class="clickable bg-grey-darken-3"
                 @click="userPromptFiles"
               >
                 <v-col>
@@ -155,13 +140,13 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="aboutBoxDialog" width="35%">
-          <about-box />
+        <v-dialog v-model="aboutBoxDialog" :width="mobile ? '100%' : '80%'">
+          <about-box @close="aboutBoxDialog = false" />
         </v-dialog>
 
         <v-dialog
           v-model="messageDialog"
-          width="75%"
+          :width="mobile ? '100%' : '75%'"
           content-class="fill-height"
         >
           <message-center @close="messageDialog = false" />
@@ -169,26 +154,28 @@
 
         <message-notifications @open-notifications="messageDialog = true" />
 
-        <v-dialog v-model="settingsDialog" width="50%">
+        <v-dialog v-model="settingsDialog" :width="mobile ? '100%' : '50%'">
           <settings @close="settingsDialog = false" v-if="settingsDialog" />
         </v-dialog>
 
-        <v-dialog v-model="saveDialog" width="30%">
+        <v-dialog v-model="saveDialog" :width="mobile ? '100%' : '30%'">
           <save-session @close="saveDialog = false" />
         </v-dialog>
-
-        <v-overlay
-          :value="dragHover"
-          color="#fff"
-          z-index="100"
-          class="text-center"
-        >
-          <v-icon color="black" size="4.75rem">mdi-download</v-icon>
-          <div class="text-h2 font-weight-bold black--text">
-            Drop your files to open
-          </div>
-        </v-overlay>
       </v-app>
+      <persistent-overlay
+        :disabled="!dragHover"
+        color="#000"
+        :opacity="0.3"
+        :z-index="2000"
+        class="text-center"
+      >
+        <div class="d-flex flex-column align-center justify-center h-100">
+          <div class="dnd-prompt">
+            <v-icon size="4.75rem">mdi-download</v-icon>
+            <div class="text-h2 font-weight-bold">Drop your files to open</div>
+          </div>
+        </div>
+      </persistent-overlay>
     </template>
   </drag-and-drop>
 </template>
@@ -197,15 +184,17 @@
 import {
   computed,
   defineComponent,
+  nextTick,
   onMounted,
   Ref,
   ref,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { URL } from 'whatwg-url';
+import { useDisplay } from 'vuetify';
 
 import { basename } from '@/src/utils/path';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -215,7 +204,6 @@ import {
   ImportDataSourcesResult,
   convertSuccessResultToDataSelection,
 } from '@/src/io/import/importDataSources';
-import ResizableNavDrawer from './ResizableNavDrawer.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -225,6 +213,7 @@ import ToolStrip from './ToolStrip.vue';
 import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
+import PersistentOverlay from './PersistentOverlay.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import VolViewLogo from './icons/VolViewLogo.vue';
 import {
@@ -305,7 +294,6 @@ export default defineComponent({
   name: 'App',
 
   components: {
-    ResizableNavDrawer,
     ToolButton,
     LayoutGrid,
     DragAndDrop,
@@ -318,9 +306,10 @@ export default defineComponent({
     VolViewLogo,
     Settings,
     SaveSession,
+    PersistentOverlay,
   },
 
-  setup(props: {}, { root }) {
+  setup() {
     const imageStore = useImageStore();
     const messageStore = useMessageStore();
     const viewStore = useViewStore();
@@ -385,9 +374,15 @@ export default defineComponent({
       if (!urlParams.urls) {
         return;
       }
-      runAsLoading((setError) =>
-        loadRemoteFilesFromURLParams(urlParams, setError)
-      );
+
+      // TODO remove this nextTick when we switch away from
+      // vue-toastification.
+      // We run in nextTick to ensure the library is mounted.
+      nextTick(() => {
+        runAsLoading((setError) =>
+          loadRemoteFilesFromURLParams(urlParams, setError)
+        );
+      });
     });
 
     // --- template vars --- //
@@ -447,6 +442,8 @@ export default defineComponent({
       }
     };
 
+    const display = useDisplay();
+
     return {
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
@@ -454,7 +451,8 @@ export default defineComponent({
       saveDialog,
       handleSave,
       saveHappening,
-      leftSideBar: ref(!root.$vuetify.breakpoint.mobile),
+      leftSideBar: ref(!display.mobile.value),
+      mobile: display.mobile,
       messageCount,
       messageBadgeColor,
       layoutName,
@@ -475,6 +473,10 @@ export default defineComponent({
   width: 100%;
   height: 100%;
   position: fixed;
+}
+
+#left-nav {
+  border-right: 1px solid rgb(var(--v-theme-background));
 }
 
 #content-main > .v-content__wrap {
@@ -500,11 +502,6 @@ export default defineComponent({
   height: 100%;
 }
 
-#left-nav {
-  display: flex;
-  flex-flow: column;
-}
-
 #tools-strip {
   border-left: 1px solid #212121;
   flex: 0 0 40px;
@@ -523,5 +520,13 @@ export default defineComponent({
 
 .vertical-offset-margin {
   margin-top: 128px;
+}
+
+.dnd-prompt {
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.4);
+  padding: 64px;
 }
 </style>

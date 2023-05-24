@@ -1,12 +1,17 @@
 <template>
   <v-card>
-    <v-card-title>
+    <v-card-title class="d-flex flex-row align-center">
       Settings
       <v-spacer />
-      <v-btn icon @click="$emit('close')"><v-icon>mdi-close</v-icon></v-btn>
+      <v-btn
+        variant="text"
+        density="compact"
+        icon="mdi-close"
+        @click="$emit('close')"
+      />
     </v-card-title>
     <v-card-text>
-      <v-switch label="Enable Dark Theme" v-model="dark"></v-switch>
+      <v-switch label="Dark Theme" v-model="dark"></v-switch>
 
       <v-divider class="mt-2 mb-6"></v-divider>
       <dicom-web-settings />
@@ -15,25 +20,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, watchEffect } from '@vue/composition-api';
+import { defineComponent, ref, watch } from 'vue';
+import { useTheme } from 'vuetify';
 import { useLocalStorage } from '@vueuse/core';
-import vuetify from '../plugins/vuetify';
 
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
+import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
 
 export default defineComponent({
   setup() {
-    const store = useLocalStorage<boolean>(
-      'dark',
-      vuetify.framework.theme.dark ?? true
-    );
+    const theme = useTheme();
+    const store = useLocalStorage(ThemeStorageKey, theme.global.name.value);
+    const dark = ref(theme.global.name.value === DarkTheme);
 
-    watchEffect(() => {
-      vuetify.framework.theme.dark = store.value;
+    watch(dark, (isDark) => {
+      theme.global.name.value = isDark ? DarkTheme : LightTheme;
+      store.value = theme.global.name.value;
     });
 
     return {
-      dark: store,
+      dark,
     };
   },
   components: {

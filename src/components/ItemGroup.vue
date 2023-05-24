@@ -1,74 +1,67 @@
-<script>
-/**
- * This is meant as a smaller, more specific version of
- * vuetify's v-item-group + v-item.
- */
-export default {
-  name: 'ItemGroup',
-  provide() {
-    return {
-      group: {
-        selectItem: this.selectItem,
-        isSelected: this.isSelected,
-      },
-    };
-  },
+<script lang="ts">
+import {
+  defineComponent,
+  onMounted,
+  PropType,
+  provide,
+  ref,
+  toRefs,
+  watch,
+} from 'vue';
+
+type EqualsTestFunc<T> = (a: T, b: T) => boolean;
+
+export const ItemGroupProvider = Symbol('ItemGroup');
+
+export interface ItemGroupProviderValue {
+  selectItem: (item: unknown) => void;
+  isSelected: (item: unknown) => boolean;
+}
+
+export default defineComponent({
   props: {
-    value: {
-      type: null,
-      required: false,
-    },
-    mandatory: {
-      type: Boolean,
-      default: false,
-    },
-    testFunction: {
-      type: Function,
-      required: false,
-    },
+    modelValue: null,
+    mandatory: Boolean,
+    equalsTest: Function as PropType<EqualsTestFunc<any>>,
   },
-  model: {
-    prop: 'value',
-    event: 'change',
-  },
-  data() {
-    return {
-      internalValue: null,
+  setup(props, { emit, slots }) {
+    const { modelValue, mandatory, equalsTest } = toRefs(props);
+    const internalValue = ref<unknown>();
+
+    watch(modelValue, (v) => {
+      if (v !== internalValue.value) {
+        internalValue.value = v;
+      }
+    });
+
+    onMounted(() => {
+      internalValue.value = modelValue.value;
+    });
+
+    const selectItem = (item: unknown) => {
+      if (mandatory.value && !item) {
+        return;
+      }
+      internalValue.value = item;
+      emit('update:modelValue', internalValue.value);
     };
-  },
-  watch: {
-    value(v) {
-      if (v !== this.internalValue) {
-        this.internalValue = v;
-      }
-    },
-  },
-  mounted() {
-    this.internalValue = this.value;
-  },
-  render(h) {
-    return h(
-      'div',
-      { props: this.$attrs, on: this.$listeners },
-      this.$slots.default
-    );
-  },
-  methods: {
-    selectItem(itemValue) {
-      if (!(this.mandatory && !itemValue)) {
-        this.internalValue = itemValue;
-        this.$emit('change', this.internalValue);
-      }
-    },
-    isSelected(valueToTest) {
-      if (this.internalValue === null || this.internalValue === undefined) {
+
+    const isSelected = (item: unknown) => {
+      if (internalValue.value == null) {
         return false;
       }
-      if (this.testFunction) {
-        return this.testFunction(valueToTest, this.internalValue);
-      }
-      return valueToTest === this.internalValue;
-    },
+
+      return equalsTest.value
+        ? equalsTest.value(item, internalValue.value)
+        : item === internalValue.value;
+    };
+
+    provide<ItemGroupProviderValue>(ItemGroupProvider, {
+      selectItem,
+      isSelected,
+    });
+
+    return () => slots.default?.();
   },
-};
+});
 </script>

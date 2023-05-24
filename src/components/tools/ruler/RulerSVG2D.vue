@@ -62,7 +62,7 @@ import {
   unref,
   ref,
   watch,
-} from '@vue/composition-api';
+} from 'vue';
 
 type SVGPoint = {
   x: number;

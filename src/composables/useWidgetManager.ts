@@ -1,7 +1,7 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { CaptureOn } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
-import { computed, onUnmounted, Ref, watch } from '@vue/composition-api';
+import { computed, onUnmounted, Ref, watch } from 'vue';
 import { useViewProxyMounted, useViewProxyUnmounted } from './useViewProxy';
 
 export function useWidgetManager(viewProxy: Ref<vtkViewProxy>) {

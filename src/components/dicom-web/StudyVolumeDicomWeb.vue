@@ -1,14 +1,6 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  reactive,
-  ref,
-  set,
-  toRefs,
-  watch,
-} from '@vue/composition-api';
-import type { PropType } from '@vue/composition-api';
+import { computed, defineComponent, reactive, ref, toRefs, watch } from 'vue';
+import type { PropType } from 'vue';
 import { useDicomMetaStore } from '../../store/dicom-web/dicom-meta-store';
 import {
   useDicomWebStore,
@@ -16,6 +8,7 @@ import {
   VolumeProgress,
 } from '../../store/dicom-web/dicom-web-store';
 import { formatBytes } from '../../utils';
+import PersistentOverlay from '../PersistentOverlay.vue';
 
 const percentDone = (progress: VolumeProgress): number => {
   if (!progress || progress.total === 0) return 0;
@@ -31,7 +24,7 @@ export default defineComponent({
       required: true,
     },
   },
-  components: {},
+  components: { PersistentOverlay },
   setup(props) {
     const { volumeKeys } = toRefs(props);
 
@@ -76,7 +69,7 @@ export default defineComponent({
           .forEach(async (key) => {
             const thumb = await dicomWebStore.fetchVolumeThumbnail(key);
             if (thumb !== null) {
-              set(thumbnailCache, key, thumb);
+              thumbnailCache[key] = thumb;
             }
           });
       },
@@ -106,109 +99,95 @@ export default defineComponent({
           <v-progress-circular v-if="isFetching" class="fetching" indeterminate>
           </v-progress-circular>
 
-          <v-container v-for="volume in volumes" :key="volume.info.VolumeID">
-            <v-card
-              outlined
-              :class="{
-                'volume-card': true,
-              }"
-              min-height="180px"
-              min-width="180px"
-              :title="volume.info.SeriesDescription"
-              :disabled="volume.isDisabled"
-              :ripple="!volume.isDisabled"
-              @click="downloadDicom(volume.info.VolumeID)"
-            >
-              <v-row no-gutters class="pa-0" justify="center">
-                <div>
-                  <v-img
-                    contain
-                    height="150px"
-                    width="150px"
-                    :src="(thumbnailCache || {})[volume.key] || ''"
-                  >
-                    <v-overlay
-                      absolute
-                      class="thumbnail-overlay"
-                      :value="true"
-                      opacity="0"
-                    >
-                      <v-tooltip top>
-                        <template v-slot:activator="{ on }">
-                          <v-row no-gutters>
-                            <div class="mb-1 ml-1 text-caption" v-on="on">
-                              {{ volume.widthHeightFrames }}
-                            </div>
-                          </v-row>
-                        </template>
-                        Width by height by frames
-                      </v-tooltip>
-                    </v-overlay>
-
-                    <v-overlay
-                      v-if="
-                        volume.progress &&
-                        volume.progress.state &&
-                        volume.progress.state !== 'Remote'
-                      "
-                      absolute
-                      class="thumbnail-overlay"
-                      :value="true"
-                      opacity="0"
-                    >
-                      <div class="d-flex flex-column fill-height ma-0">
-                        <v-row no-gutters justify="center" align="end">
-                          <v-progress-circular
-                            color="white"
-                            :indeterminate="
-                              volume.progress.percent === 0 &&
-                              volume.progress.state !== 'Done'
-                            "
-                            :value="volume.progress.percent"
-                          >
-                            <v-icon
-                              v-if="volume.progress.state === 'Done'"
-                              color="white"
-                              >mdi-check</v-icon
-                            >
-                            <v-icon
-                              v-else-if="volume.progress.state === 'Error'"
-                              color="white"
-                            >
-                              mdi-alert-circle
-                            </v-icon>
-                            <span
-                              v-else-if="volume.progress.percent !== 0"
-                              class="caption text--white"
-                            >
-                              {{ volume.progress.percent }}
-                            </span>
-                          </v-progress-circular>
-                        </v-row>
-                        <v-row no-gutters justify="center" align="end">
-                          <div
-                            v-if="volume.progress.loaded !== 0"
-                            class="mb-1 text-caption"
-                          >
-                            {{ formatBytes(volume.progress.loaded) }}
-                          </div>
-                        </v-row>
+          <v-card
+            v-for="volume in volumes"
+            :key="volume.info.VolumeID"
+            variant="outlined"
+            class="volume-card mt-1"
+            min-height="180px"
+            min-width="180px"
+            :html-title="volume.info.SeriesDescription"
+            :disabled="volume.isDisabled"
+            :ripple="!volume.isDisabled"
+            @click="downloadDicom(volume.info.VolumeID)"
+          >
+            <v-row no-gutters class="pa-0" justify="center">
+              <div class="thumbnail-container">
+                <v-img
+                  cover
+                  height="150"
+                  width="150"
+                  :src="(thumbnailCache || {})[volume.key] || ''"
+                >
+                  <persistent-overlay>
+                    <v-row no-gutters>
+                      <div class="mb-1 ml-1 text-caption">
+                        {{ volume.widthHeightFrames }}
+                        <v-tooltip location="top" activator="parent">
+                          Width by height by frames
+                        </v-tooltip>
                       </div>
-                    </v-overlay>
-                  </v-img>
-                </div>
-              </v-row>
-              <v-card-text
-                class="text--primary text-caption text-center series-desc mt-n3"
-              >
-                <div class="text-ellipsis">
-                  {{
-                    volume.info.SeriesDescription || '(no series description)'
-                  }}
-                </div>
-              </v-card-text>
-            </v-card>
-          </v-container>
+                    </v-row>
+                  </persistent-overlay>
+
+                  <persistent-overlay
+                    v-if="
+                      volume.progress &&
+                      volume.progress.state &&
+                      volume.progress.state !== 'Remote'
+                    "
+                  >
+                    <div class="d-flex flex-column fill-height ma-0">
+                      <v-row no-gutters justify="center" align="end">
+                        <v-progress-circular
+                          color="white"
+                          :indeterminate="
+                            volume.progress.percent === 0 &&
+                            volume.progress.state !== 'Done'
+                          "
+                          :model-value="volume.progress.percent"
+                        >
+                          <v-icon
+                            v-if="volume.progress.state === 'Done'"
+                            color="white"
+                          >
+                            mdi-check
+                          </v-icon>
+                          <v-icon
+                            v-else-if="volume.progress.state === 'Error'"
+                            color="white"
+                          >
+                            mdi-alert-circle
+                          </v-icon>
+                          <span
+                            v-else-if="volume.progress.percent !== 0"
+                            class="text-caption text--white"
+                          >
+                            {{ volume.progress.percent }}
+                          </span>
+                        </v-progress-circular>
+                      </v-row>
+                      <v-row no-gutters justify="center" align="end">
+                        <div
+                          v-if="volume.progress.loaded !== 0"
+                          class="mb-1 text-caption"
+                        >
+                          {{ formatBytes(volume.progress.loaded) }}
+                        </div>
+                      </v-row>
+                    </div>
+                  </persistent-overlay>
+                </v-img>
+              </div>
+            </v-row>
+            <v-card-text
+              class="text--primary text-caption text-center series-desc mt-n3"
+            >
+              <div class="text-ellipsis">
+                {{ volume.info.SeriesDescription || '(no series description)' }}
+              </div>
+            </v-card-text>
+          </v-card>
         </div>
       </v-col>
     </v-row>
@@ -234,13 +213,9 @@ export default defineComponent({
   overflow: hidden;
 }
 
-.thumbnail-overlay >>> .v-overlay__content {
-  height: 100%;
-  width: 100%;
-}
-
-.volume-list >>> .theme--light.v-sheet--outlined {
-  border: none;
+.thumbnail-container {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
 }
 
 .fetching {

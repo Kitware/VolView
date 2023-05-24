@@ -1,12 +1,5 @@
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  set,
-  del,
-  reactive,
-  watch,
-} from '@vue/composition-api';
+import { computed, defineComponent, reactive, watch } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
@@ -113,7 +106,7 @@ export default defineComponent({
             const imageURI = thumbnailer.imageDataToDataURI(canvasIM, 100, 100);
             const dims = imageData.getDimensions();
             const aspectRatio = dims[0] / dims[1];
-            set(thumbnails, cacheKey, { imageURI, aspectRatio });
+            thumbnails[cacheKey] = { imageURI, aspectRatio };
           }
         });
 
@@ -121,7 +114,7 @@ export default defineComponent({
         const idLookup = new Set(imageIDs.map((id) => imageCacheKey(id)));
         Object.keys(thumbnails).forEach((cacheKey) => {
           if (!idLookup.has(cacheKey)) {
-            del(thumbnails, cacheKey);
+            delete thumbnails[cacheKey];
           }
         });
       },
@@ -161,37 +154,40 @@ export default defineComponent({
   <div>
     <div v-if="images.length === 0" class="text-center">No images loaded</div>
     <v-container v-show="images.length" class="pa-0">
-      <v-row no-gutters justify="space-between">
-        <v-col cols="6" align-self="center">
+      <v-row no-gutters justify="space-between" align="center" class="mb-1">
+        <v-col cols="6">
           <v-checkbox
-            class="ml-3 align-center justify-center"
+            class="ml-3"
             :indeterminate="selectedSome && !selectedAll"
             label="Select All"
             v-model="selectedAll"
-          ></v-checkbox>
+            density="compact"
+            hide-details
+          />
         </v-col>
         <v-col cols="6" align-self="center" class="d-flex justify-end">
-          <v-tooltip left>
-            <template v-slot:activator="{ on, attrs }">
-              <v-btn
-                icon
-                :disabled="!selectedSome"
-                @click.stop="removeSelection"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon>mdi-delete</v-icon>
-              </v-btn>
-            </template>
-            Delete selected
-          </v-tooltip>
+          <v-btn
+            icon
+            variant="text"
+            :disabled="!selectedSome"
+            @click.stop="removeSelection"
+          >
+            <v-icon>mdi-delete</v-icon>
+            <v-tooltip
+              :disabled="!selectedSome"
+              location="left"
+              activator="parent"
+            >
+              Delete selected
+            </v-tooltip>
+          </v-btn>
         </v-col>
       </v-row>
     </v-container>
     <item-group
-      :value="primarySelection"
-      :testFunction="selectionEquals"
-      @change="setPrimarySelection"
+      :model-value="primarySelection"
+      :equals-test="selectionEquals"
+      @update:model-value="setPrimarySelection"
     >
       <groupable-item
         v-for="image in images"
@@ -200,43 +196,39 @@ export default defineComponent({
         :value="image.selectionKey"
       >
         <image-list-card
+          v-model="selected"
+          class="mt-1"
           selectable
+          :inputValue="image.id"
           :active="active"
-          :title="image.name"
+          :html-title="image.name"
           :image-url="(thumbnails[image.cacheKey] || {}).imageURI || ''"
           :image-size="100"
-          @click="select"
           :id="image.id"
-          :inputValue="image.id"
-          v-model="selected"
+          @click="select"
         >
           <div class="text-body-2 font-weight-bold text-no-wrap text-truncate">
             {{ image.name }}
           </div>
-          <div class="caption">Dims: ({{ image.dimensions.join(', ') }})</div>
-          <div class="caption">Spacing: ({{ image.spacing.join(', ') }})</div>
-
-          <v-tooltip top>
-            <template v-slot:activator="{ on, attrs }">
-              <v-btn
-                icon
-                :disabled="!image.layerable"
-                @click.stop="image.layerHandler()"
-                v-bind="attrs"
-                v-on="on"
-                class="mt-1"
-              >
-                <v-progress-circular
-                  v-if="image.loading"
-                  indeterminate
-                  size="20"
-                  color="grey lighten-5"
-                />
-                <v-icon v-else>{{ image.layerIcon }}</v-icon>
-              </v-btn>
-            </template>
-            {{ image.layerTooltip }}
-          </v-tooltip>
+          <div class="text-caption">
+            Dims: ({{ image.dimensions.join(', ') }})
+          </div>
+          <div class="text-caption">
+            Spacing: ({{ image.spacing.join(', ') }})
+          </div>
+          <v-btn
+            icon
+            variant="text"
+            :disabled="!image.layerable"
+            :loading="image.loading"
+            @click.stop="image.layerHandler()"
+            class="mt-1"
+          >
+            <v-icon :icon="image.layerIcon" />
+            <v-tooltip location="top" activator="parent">
+              {{ image.layerTooltip }}
+            </v-tooltip>
+          </v-btn>
         </image-list-card>
       </groupable-item>
     </item-group>

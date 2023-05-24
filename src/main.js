@@ -1,11 +1,12 @@
-import '@/public/global.css';
-import '@kitware/vtk.js/Rendering/Profiles/All';
+import 'vuetify/styles';
 import 'vue-toastification/dist/index.css';
+import '@/public/global.css';
 
-import Vue from 'vue';
-import VueCompositionAPI from '@vue/composition-api';
+import '@kitware/vtk.js/Rendering/Profiles/All';
+
+import { createApp } from 'vue';
 import VueToast from 'vue-toastification';
-import { createPinia, PiniaVuePlugin } from 'pinia';
+import { createPinia } from 'pinia';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
@@ -19,12 +20,6 @@ import proxyConfiguration from './vtk/proxy';
 import { CorePiniaProviderPlugin } from './core/provider';
 import ProxyWrapper from './core/proxies';
 import { patchExitPointerLock } from './utils/hacks';
-
-Vue.config.productionTip = false;
-
-Vue.use(VueCompositionAPI);
-Vue.use(VueToast);
-Vue.use(PiniaVuePlugin);
 
 // patches
 patchExitPointerLock();
@@ -53,14 +48,9 @@ pinia.use(
   })
 );
 
-const app = new Vue({
-  vuetify,
-  proxyManager,
-  pinia,
-  provide: {
-    ProxyManager: proxyManager,
-  },
-  render: (h) => h(App),
-});
-
-app.$mount('#app');
+const app = createApp(App);
+app.provide('ProxyManager', proxyManager);
+app.use(pinia);
+app.use(VueToast);
+app.use(vuetify);
+app.mount('#app');

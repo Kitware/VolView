@@ -1,7 +1,8 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-import { computed, Ref, watch } from '@vue/composition-api';
+import { computed, Ref, watch } from 'vue';
 import { useViewStore } from '../store/views';
 import { vtkLPSViewProxy } from '../types/vtk-types';
+import { arrayEquals } from '../utils';
 
 interface Scene {
   baseImage?: Ref<string | null>;
@@ -24,32 +25,22 @@ export function useSceneBuilder<
   );
 
   const baseImageRep = computed(() => {
-    const _viewID = viewID.value;
-    if (sceneIDs.baseImage) {
-      const imageID = sceneIDs.baseImage.value;
-      if (imageID) {
-        return viewStore.getDataRepresentationForView<BaseImageType>(
-          imageID,
-          _viewID
-        );
-      }
-    }
-    return null;
+    const imageID = sceneIDs.baseImage?.value;
+    if (!imageID) return null;
+
+    return viewStore.getDataRepresentationForView<BaseImageType>(
+      imageID,
+      viewID.value
+    );
   });
 
   const labelmapReps = computed(() => {
-    const _viewID = viewID.value;
-    if (sceneIDs.labelmaps) {
-      const labelmapIDs = sceneIDs.labelmaps.value;
-      if (labelmapIDs) {
-        return labelmapIDs
-          .map((id) =>
-            viewStore.getDataRepresentationForView<LabelMapType>(id, _viewID)
-          )
-          .filter(Boolean) as LabelMapType[];
-      }
-    }
-    return [];
+    const labelmapIDs = sceneIDs.labelmaps?.value ?? [];
+    return labelmapIDs
+      .map((id) =>
+        viewStore.getDataRepresentationForView<LabelMapType>(id, viewID.value)
+      )
+      .filter(Boolean) as LabelMapType[];
   });
 
   const layerReps = computed(
@@ -62,46 +53,49 @@ export function useSceneBuilder<
   );
 
   const modelReps = computed(() => {
-    const _viewID = viewID.value;
-    if (sceneIDs.models) {
-      const modelIDs = sceneIDs.models.value;
-      if (modelIDs) {
-        return modelIDs
-          .map((id) =>
-            viewStore.getDataRepresentationForView<ModelType>(id, _viewID)
-          )
-          .filter(Boolean) as ModelType[];
-      }
-    }
-    return [];
+    const modelIDs = sceneIDs.models?.value ?? [];
+    return modelIDs
+      .map((id) =>
+        viewStore.getDataRepresentationForView<ModelType>(id, viewID.value)
+      )
+      .filter(Boolean) as ModelType[];
+  });
+
+  type SceneObject = BaseImageType | LabelMapType | LayerType | ModelType;
+
+  const allRepresentations = computed<SceneObject[]>(() => {
+    return [
+      baseImageRep.value,
+      ...labelmapReps.value,
+      ...layerReps.value,
+      ...modelReps.value,
+    ].filter(Boolean) as SceneObject[];
   });
 
   watch(
-    [viewProxy, baseImageRep, labelmapReps, layerReps, modelReps],
-    ([view, baseRep, lmReps, layReps, mReps]) => {
+    [viewProxy, allRepresentations],
+    ([view, reps], [, oldReps]) => {
       if (!view) {
         throw new Error('[useSceneBuilder] No view available');
       }
 
-      view.removeAllRepresentations();
-
-      if (baseRep) {
-        // we control the color mapping range manually
-        baseRep.setRescaleOnColorBy(false);
-        view.addRepresentation(baseRep);
+      if (oldReps && arrayEquals(reps, oldReps)) {
+        return;
       }
-      [...lmReps, ...layReps, ...mReps].forEach((rep) =>
-        view.addRepresentation(rep)
-      );
+
+      view.removeAllRepresentations();
+      reps.forEach((rep) => {
+        view.addRepresentation(rep);
+      });
 
       // TODO not sure why I need this, but might as well keep
       // the renderer up to date.
       // For reference, this doesn't get invoked when resetting the
       // camera with a supplied bounds, so we manually invoke it here.
       view.getRenderer().computeVisiblePropBounds();
-      view.render();
+      view.renderLater();
     },
-    { deep: true, immediate: true }
+    { immediate: true }
   );
 
   return { baseImageRep, labelmapReps, layerReps, modelReps };

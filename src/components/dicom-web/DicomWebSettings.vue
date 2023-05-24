@@ -1,10 +1,5 @@
 <script lang="ts">
-import {
-  defineComponent,
-  onMounted,
-  onUnmounted,
-  ref,
-} from '@vue/composition-api';
+import { defineComponent, onMounted, onUnmounted, ref } from 'vue';
 import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';
 
 export default defineComponent({

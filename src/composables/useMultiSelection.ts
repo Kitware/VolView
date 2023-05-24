@@ -1,10 +1,4 @@
-import {
-  computed,
-  Ref,
-  ref,
-  UnwrapRefSimple,
-  watch,
-} from '@vue/composition-api';
+import { computed, Ref, ref, watch, UnwrapRef } from 'vue';
 
 export function useMultiSelection<T = string>(allItems: Ref<T[]>) {
   const selected = ref<T[]>([]);
@@ -19,7 +13,7 @@ export function useMultiSelection<T = string>(allItems: Ref<T[]>) {
 
   watch(selectedAll, (yn) => {
     if (yn) {
-      selected.value = allItems.value as UnwrapRefSimple<T[]>;
+      selected.value = allItems.value as UnwrapRef<T[]>;
     } else {
       selected.value = [];
     }
