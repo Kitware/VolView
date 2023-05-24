@@ -82,17 +82,17 @@ const WindowLevelToolComponent = defineComponent({
     const vertVal = ref(0);
     const horizVal = ref(0);
 
-    watch(vertVal, (ww) => {
-      if (currentImageID.value !== null) {
-        windowingStore.updateConfig(viewID.value, currentImageID.value, {
-          width: ww,
-        });
-      }
-    });
-    watch(horizVal, (wl) => {
+    watch(vertVal, (wl) => {
       if (currentImageID.value !== null) {
         windowingStore.updateConfig(viewID.value, currentImageID.value, {
           level: wl,
+        });
+      }
+    });
+    watch(horizVal, (ww) => {
+      if (currentImageID.value !== null) {
+        windowingStore.updateConfig(viewID.value, currentImageID.value, {
+          width: ww,
         });
       }
     });
@@ -130,8 +130,8 @@ const WindowLevelToolComponent = defineComponent({
 
     function updateManipulator() {
       rangeManipulator.removeAllListeners();
-      const vertRange = wwRange.value;
-      const horizRange = wlRange.value;
+      const vertRange = wlRange.value;
+      const horizRange = wwRange.value;
 
       rangeManipulator.setVerticalListener(
         vertRange.min,
@@ -157,8 +157,8 @@ const WindowLevelToolComponent = defineComponent({
     watch(
       () => [wwRange.value, wlRange.value],
       ([ww, wl]) => {
-        vertVal.value = ww.default;
-        horizVal.value = wl.default;
+        vertVal.value = wl.default;
+        horizVal.value = ww.default;
         updateManipulator();
       },
       { immediate: true }
