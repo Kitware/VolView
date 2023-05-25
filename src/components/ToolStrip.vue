@@ -53,31 +53,16 @@
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <v-menu
-        v-model="paintMenu"
-        location="end"
-        :close-on-content-click="false"
-        :disabled="!active"
+      <MenuToolButton
+        icon="mdi-brush"
+        name="Paint"
+        :active="active"
+        :disabled="noCurrentImage"
+        size="40"
+        @click="toggle"
       >
-        <template v-slot:activator="{ props }">
-          <div>
-            <tool-button
-              size="40"
-              icon="mdi-brush"
-              name="Paint"
-              :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-              :disabled="noCurrentImage"
-              @click.stop="toggle"
-              v-bind="props"
-            >
-              <v-icon v-if="active" class="menu-more" size="18">
-                mdi-menu-right
-              </v-icon>
-            </tool-button>
-          </div>
-        </template>
         <paint-controls />
-      </v-menu>
+      </MenuToolButton>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
@@ -108,41 +93,25 @@
         @click="toggle"
       >
         <LabelMenu
-          :labels="rectangleStore.labels"
-          :set-active-label="rectangleStore.setActiveLabel"
-          :active-label="rectangleStore.activeLabel"
+          :labels="rulerStore.labels"
+          :set-active-label="rulerStore.setActiveLabel"
+          :active-label="rulerStore.activeLabel"
         />
       </MenuToolButton>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <v-menu
-        v-model="cropMenu"
-        location="end"
-        open-on-hover
-        close-on-content-click
+      <MenuToolButton
+        icon="mdi-crop"
+        name="Crop"
+        :active="active"
+        :disabled="noCurrentImage"
+        size="40"
+        @click="toggle"
       >
-        <template v-slot:activator="{ props }">
-          <div>
-            <tool-button
-              size="40"
-              icon="mdi-crop"
-              name="Crop"
-              tooltipLocation="bottom"
-              :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-              :disabled="noCurrentImage"
-              @click.stop="toggle"
-              v-bind="props"
-            >
-              <v-icon v-if="active" class="menu-more" size="18">
-                mdi-menu-right
-              </v-icon>
-            </tool-button>
-          </div>
-        </template>
         <crop-controls />
-      </v-menu>
+      </MenuToolButton>
     </groupable-item>
   </item-group>
 </template>
