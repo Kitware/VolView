@@ -20,7 +20,7 @@ export default defineComponent({
   },
   setup(props) {
     const display = useDisplay();
-    const showLeft = computed(() => !display.mobile);
+    const showLeft = computed(() => !display.mobile.value);
     // Turn off menu if tool deselected
     const menuOn = ref(false);
     const active = computed(() => props.active);
@@ -29,6 +29,7 @@ export default defineComponent({
         menuOn.value = false;
       }
     });
+
     return { showLeft, menuOn };
   },
 });
@@ -37,11 +38,9 @@ export default defineComponent({
 <template>
   <v-menu
     v-model="menuOn"
-    offset-x
-    :left="showLeft"
-    :right="!showLeft"
     :close-on-content-click="false"
     :close-on-click="false"
+    :location="showLeft ? 'left' : 'right'"
   >
     <template v-slot:activator="{ props }">
       <!-- div needed for popup menu positioning -->
@@ -69,7 +68,7 @@ export default defineComponent({
       </div>
     </template>
 
-    <v-card>
+    <v-card class="menu-content">
       <v-card-text>
         <v-radio-group
           v-if="labelControls.labels.length > 0"
@@ -101,11 +100,11 @@ export default defineComponent({
 <style scoped>
 .menu-more-left {
   position: absolute;
-  left: -50%;
+  left: -12%;
 }
 .menu-more-right {
   position: absolute;
-  right: -50%;
+  right: -12%;
 }
 
 .tool-separator {
@@ -113,5 +112,10 @@ export default defineComponent({
   height: 1px;
   border: none;
   border-top: 1px solid rgb(112, 112, 112);
+}
+
+.menu-content {
+  /* Show on top of button tooltip */
+  z-index: 1;
 }
 </style>
