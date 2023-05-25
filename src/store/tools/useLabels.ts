@@ -4,7 +4,7 @@ import { UrlParams } from '@vueuse/core';
 import { chunk } from '@/src/utils';
 
 type LabelColor = string;
-type Labels = Record<string, LabelColor>;
+export type Labels = Record<string, LabelColor>;
 
 const ensureHash = (color: string | number) => {
   const colorStr = color.toString();
@@ -52,3 +52,5 @@ export const useLabels = () => {
     activeColor,
   };
 };
+
+export type SetActiveLabel = ReturnType<typeof useLabels>['setActiveLabel'];

@@ -83,11 +83,12 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <label-tool-button
+      <LabelToolButton
         icon="mdi-vector-square"
         name="Rectangle"
-        :labelControls="rectangleStore"
-        :activeLabel="rectangleStore.activeLabel"
+        :labels="rectangleStore.labels"
+        :set-active-label="rectangleStore.setActiveLabel"
+        :active-label="rectangleStore.activeLabel"
         :active="active"
         :disabled="noCurrentImage"
         size="40"
@@ -95,11 +96,12 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <label-tool-button
+      <LabelToolButton
         icon="mdi-ruler"
         name="Ruler"
-        :labelControls="rulerStore"
-        :activeLabel="rulerStore.activeLabel"
+        :labels="rulerStore.labels"
+        :set-active-label="rulerStore.setActiveLabel"
+        :active-label="rulerStore.activeLabel"
         :active="active"
         :disabled="noCurrentImage"
         size="40"

@@ -1,14 +1,20 @@
 <script lang="ts">
-import { watch, ref, computed, defineComponent } from 'vue';
+import { watch, ref, computed, defineComponent, PropType } from 'vue';
 import { useDisplay } from 'vuetify/lib/framework.mjs';
+import { Labels, SetActiveLabel } from '@/src/store/tools/useLabels';
 import ToolButton from './ToolButton.vue';
+import LabelMenu from './LabelMenu.vue';
 
 export default defineComponent({
   name: 'LabelToolButton',
   props: {
     icon: { type: String, required: true },
     name: { type: String, required: true },
-    labelControls: { type: Object, required: true },
+    labels: { type: Object as PropType<Labels>, required: true },
+    setActiveLabel: {
+      type: Function as PropType<SetActiveLabel>,
+      required: true,
+    },
     activeLabel: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
     buttonClass: [String, Array, Object],
@@ -17,6 +23,7 @@ export default defineComponent({
   },
   components: {
     ToolButton,
+    LabelMenu,
   },
   setup(props) {
     const display = useDisplay();
@@ -56,10 +63,7 @@ export default defineComponent({
         >
           <v-icon
             v-if="active"
-            :class="[
-              'tool-separator',
-              showLeft ? 'menu-more-left' : 'menu-more-right',
-            ]"
+            :class="[showLeft ? 'menu-more-left' : 'menu-more-right']"
             size="18"
           >
             {{ showLeft ? 'mdi-menu-left' : 'mdi-menu-right' }}
@@ -68,32 +72,12 @@ export default defineComponent({
       </div>
     </template>
 
-    <v-card class="menu-content">
-      <v-card-text>
-        <v-radio-group
-          v-if="labelControls.labels.length > 0"
-          :value="activeLabel"
-          v-on:change="labelControls.setActiveLabel"
-          class="mt-0"
-          hide-details
-        >
-          <v-radio
-            v-for="(color, name) in labelControls.labels"
-            :key="name"
-            :label="name"
-            :value="name"
-          >
-            <template v-slot:label>
-              <v-icon :color="color" size="18" class="pr-2">
-                mdi-square
-              </v-icon>
-              {{ name }}
-            </template>
-          </v-radio>
-        </v-radio-group>
-        <div v-else>No labels configured</div>
-      </v-card-text>
-    </v-card>
+    <LabelMenu
+      class="menu-content"
+      :labels="labels"
+      :setActiveLabel="setActiveLabel"
+      :active-label="activeLabel"
+    />
   </v-menu>
 </template>
 
@@ -105,13 +89,6 @@ export default defineComponent({
 .menu-more-right {
   position: absolute;
   right: -12%;
-}
-
-.tool-separator {
-  width: 75%;
-  height: 1px;
-  border: none;
-  border-top: 1px solid rgb(112, 112, 112);
 }
 
 .menu-content {
