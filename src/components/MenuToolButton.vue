@@ -1,21 +1,13 @@
 <script lang="ts">
-import { watch, ref, computed, defineComponent, PropType } from 'vue';
+import { watch, ref, computed, defineComponent } from 'vue';
 import { useDisplay } from 'vuetify/lib/framework.mjs';
-import { Labels, SetActiveLabel } from '@/src/store/tools/useLabels';
 import ToolButton from './ToolButton.vue';
-import LabelMenu from './LabelMenu.vue';
 
 export default defineComponent({
   name: 'LabelToolButton',
   props: {
     icon: { type: String, required: true },
     name: { type: String, required: true },
-    labels: { type: Object as PropType<Labels>, required: true },
-    setActiveLabel: {
-      type: Function as PropType<SetActiveLabel>,
-      required: true,
-    },
-    activeLabel: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
     buttonClass: [String, Array, Object],
     active: Boolean,
@@ -23,7 +15,6 @@ export default defineComponent({
   },
   components: {
     ToolButton,
-    LabelMenu,
   },
   setup(props) {
     const display = useDisplay();
@@ -49,7 +40,7 @@ export default defineComponent({
     :close-on-click="false"
     :location="showLeft ? 'left' : 'right'"
   >
-    <template v-slot:activator="{ props }">
+    <template #activator="{ props }">
       <!-- div needed for popup menu positioning -->
       <div>
         <tool-button
@@ -72,12 +63,9 @@ export default defineComponent({
       </div>
     </template>
 
-    <LabelMenu
-      class="menu-content"
-      :labels="labels"
-      :setActiveLabel="setActiveLabel"
-      :active-label="activeLabel"
-    />
+    <div class="menu-content">
+      <slot />
+    </div>
   </v-menu>
 </template>
 

@@ -83,30 +83,36 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <LabelToolButton
+      <MenuToolButton
         icon="mdi-vector-square"
         name="Rectangle"
-        :labels="rectangleStore.labels"
-        :set-active-label="rectangleStore.setActiveLabel"
-        :active-label="rectangleStore.activeLabel"
         :active="active"
         :disabled="noCurrentImage"
         size="40"
         @click="toggle"
-      />
+      >
+        <LabelMenu
+          :labels="rectangleStore.labels"
+          :set-active-label="rectangleStore.setActiveLabel"
+          :active-label="rectangleStore.activeLabel"
+        />
+      </MenuToolButton>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <LabelToolButton
+      <MenuToolButton
         icon="mdi-ruler"
         name="Ruler"
-        :labels="rulerStore.labels"
-        :set-active-label="rulerStore.setActiveLabel"
-        :active-label="rulerStore.activeLabel"
         :active="active"
         :disabled="noCurrentImage"
         size="40"
         @click="toggle"
-      />
+      >
+        <LabelMenu
+          :labels="rectangleStore.labels"
+          :set-active-label="rectangleStore.setActiveLabel"
+          :active-label="rectangleStore.activeLabel"
+        />
+      </MenuToolButton>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
@@ -151,19 +157,21 @@ import GroupableItem from './GroupableItem.vue';
 import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
-import LabelToolButton from './LabelToolButton.vue';
+import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
+import LabelMenu from './LabelMenu.vue';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 
 export default defineComponent({
   components: {
     ToolButton,
-    LabelToolButton,
+    MenuToolButton,
     ItemGroup,
     GroupableItem,
     PaintControls,
     CropControls,
+    LabelMenu,
   },
   setup() {
     const dataStore = useDatasetStore();
