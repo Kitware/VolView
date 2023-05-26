@@ -6,9 +6,8 @@
       <v-btn variant="text" icon="mdi-close" @click="$emit('close')" />
     </v-card-title>
     <v-card-text>
-      <v-form v-model="valid">
+      <v-form v-model="valid" @submit.prevent="saveSession">
         <v-text-field
-          v-on:keydown.enter="saveSession"
           v-model="fileName"
           hint="The filename to use for the session state file."
           label="Session State Filename"
@@ -19,7 +18,12 @@
     </v-card-text>
     <v-card-actions>
       <v-spacer />
-      <v-btn color="secondary" @click="saveSession" :disabled="!valid">
+      <v-btn
+        :loading="saving"
+        color="secondary"
+        @click="saveSession"
+        :disabled="!valid"
+      >
         <v-icon class="mr-2">mdi-content-save-all</v-icon>
         <span>Save</span>
       </v-btn>
@@ -39,12 +43,18 @@ export default defineComponent({
   setup(_, { emit }) {
     const fileName = ref('');
     const valid = ref(true);
+    const saving = ref(false);
 
     async function saveSession() {
       if (fileName.value.trim().length >= 0) {
-        const blob = await serialize();
-        saveAs(blob, fileName.value);
-        emit('close');
+        saving.value = true;
+        try {
+          const blob = await serialize();
+          saveAs(blob, fileName.value);
+          emit('close');
+        } finally {
+          saving.value = false;
+        }
       }
     }
 
@@ -57,6 +67,7 @@ export default defineComponent({
     }
 
     return {
+      saving,
       saveSession,
       fileName,
       validFileName,
