@@ -58,8 +58,8 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
-    const color = tool.color ?? labels.activeColor.value ?? getNextColor();
-    const label = labels.activeLabel.value;
+    const label = tool.label ?? labels.activeLabel.value;
+    const color = labels.labels.value[label] ?? tool.color ?? getNextColor();
     toolByID.value[id] = {
       ...toolDefaults,
       ...(label && { label }),
