@@ -16,11 +16,19 @@ export default defineComponent({
   components: {
     ToolButton,
   },
-  setup(props) {
+  setup(props, { emit }) {
     const display = useDisplay();
     const showLeft = computed(() => !display.mobile.value);
-    // Turn off menu if tool deselected
+
     const menuOn = ref(false);
+
+    // Turn off menu if tool clicked and already on
+    const handleActivatorClicked = () => {
+      menuOn.value = !menuOn.value;
+      emit('click');
+    };
+
+    // Turn off menu if tool deselected
     const active = computed(() => props.active);
     watch(active, (on) => {
       if (!on) {
@@ -28,39 +36,38 @@ export default defineComponent({
       }
     });
 
-    return { showLeft, menuOn };
+    return { showLeft, menuOn, handleActivatorClicked };
   },
 });
 </script>
 
 <template>
   <v-menu
-    v-model="menuOn"
+    persistent
+    no-click-animation
     :close-on-content-click="false"
-    :close-on-click="false"
+    v-model="menuOn"
     :location="showLeft ? 'left' : 'right'"
+    class="overflow-auto"
   >
     <template #activator="{ props }">
-      <!-- div needed for popup menu positioning -->
-      <div>
-        <tool-button
-          :icon="icon"
-          :name="name"
-          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-          :disabled="disabled"
-          :size="size"
-          @click="$emit('click')"
-          v-bind="props"
+      <tool-button
+        :icon="icon"
+        :name="name"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="disabled"
+        :size="size"
+        @click="handleActivatorClicked"
+        v-bind="props"
+      >
+        <v-icon
+          v-if="active"
+          :class="[showLeft ? 'menu-more-left' : 'menu-more-right']"
+          size="18"
         >
-          <v-icon
-            v-if="active"
-            :class="[showLeft ? 'menu-more-left' : 'menu-more-right']"
-            size="18"
-          >
-            {{ showLeft ? 'mdi-menu-left' : 'mdi-menu-right' }}
-          </v-icon>
-        </tool-button>
-      </div>
+          {{ showLeft ? 'mdi-menu-left' : 'mdi-menu-right' }}
+        </v-icon>
+      </tool-button>
     </template>
 
     <div class="menu-content">

@@ -23,10 +23,11 @@ defineProps<{
           :key="name"
           :label="name"
           :value="name"
+          class="full-icon-opacity"
         >
           <template v-slot:label>
             <v-icon :color="color" size="18" class="pr-2"> mdi-square </v-icon>
-            {{ name }}
+            <span>{{ name }}</span>
           </template>
         </v-radio>
       </v-radio-group>
@@ -34,3 +35,14 @@ defineProps<{
     </v-card-text>
   </v-card>
 </template>
+
+<style>
+/* avoid washed out color square */
+.full-icon-opacity .v-label,
+.full-icon-opacity .v-label .v-icon {
+  opacity: 1;
+}
+.full-icon-opacity .v-label > * {
+  opacity: var(--v-medium-emphasis-opacity);
+}
+</style>
