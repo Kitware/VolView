@@ -167,9 +167,9 @@ export const SAMPLE_DATA: SampleDataset[] = [
 ];
 
 export const TOOL_COLORS = [
+  '#58f24c',
   '#8de4d3',
   '#f0a4b1',
-  '#58f24c',
   '#a3c9fe',
   '#c8f251',
   '#fea53b',

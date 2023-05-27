@@ -1,31 +1,22 @@
 import { computed } from 'vue';
-import { defineStore } from 'pinia';
-import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
-import { TOOL_COLORS } from '@/src/config';
-import { Manifest, StateFile } from '@/src/io/state-file/schema';
-
-import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { UrlParams } from '@vueuse/core';
+import { defineStore } from 'pinia';
+import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
+import { Vector3 } from '@kitware/vtk.js/types';
+import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
+
+import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { chunk } from '@/src/utils';
 
 import { Ruler } from '../../types/ruler';
 import { useAnnotationTool } from './useAnnotationTool';
 import { Labels } from './useLabels';
 
-const rulerDefaults: Ruler = {
-  firstPoint: [0, 0, 0],
-  secondPoint: [0, 0, 0],
-  frameOfReference: {
-    planeOrigin: [0, 0, 0],
-    planeNormal: [1, 0, 0],
-  },
-  slice: -1,
-  imageID: '',
+const rulerDefaults = {
+  firstPoint: [0, 0, 0] as Vector3,
+  secondPoint: [0, 0, 0] as Vector3,
   id: '',
   name: 'Ruler',
-  color: TOOL_COLORS[0],
-  labelProps: ['color'],
-  placing: false,
 };
 
 const ensureHash = (color: string | number) => {

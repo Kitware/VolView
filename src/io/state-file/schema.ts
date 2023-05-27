@@ -11,6 +11,7 @@ import { Ruler } from '@/src/types/ruler';
 import { Rectangle } from '@/src/types/rectangle';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
+import { Optional } from '@/src/types';
 
 import {
   CameraConfig,
@@ -251,7 +252,7 @@ const FrameOfReference: z.ZodType<FrameOfReference> = z.object({
   planeNormal: Vector3,
 });
 
-const Ruler: z.ZodType<Omit<Ruler, 'labelProps'>> = z.object({
+const Ruler: z.ZodType<Ruler> = z.object({
   firstPoint: Vector3,
   secondPoint: Vector3,
   imageID: z.string(),
@@ -263,7 +264,7 @@ const Ruler: z.ZodType<Omit<Ruler, 'labelProps'>> = z.object({
   label: z.string().optional(),
 });
 
-const Rectangle: z.ZodType<Omit<Rectangle, 'labelProps'>> = z.object({
+const Rectangle: z.ZodType<Optional<Rectangle, 'fillColor'>> = z.object({
   firstPoint: Vector3,
   secondPoint: Vector3,
   imageID: z.string(),
@@ -272,7 +273,7 @@ const Rectangle: z.ZodType<Omit<Rectangle, 'labelProps'>> = z.object({
   id: z.string() as unknown as z.ZodType<Rectangle['id']>,
   name: z.string(),
   color: z.string(),
-  fillColor: z.string(),
+  fillColor: z.string().optional(),
   label: z.string().optional(),
 });
 

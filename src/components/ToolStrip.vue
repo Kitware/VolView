@@ -10,7 +10,6 @@
       :value="Tools.WindowLevel"
     >
       <tool-button
-        size="40"
         icon="mdi-circle-half-full"
         name="Window & Level"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -20,7 +19,6 @@
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
       <tool-button
-        size="40"
         icon="mdi-cursor-move"
         name="Pan"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -30,7 +28,6 @@
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Zoom">
       <tool-button
-        size="40"
         icon="mdi-magnify-plus-outline"
         name="Zoom"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -43,7 +40,6 @@
       :value="Tools.Crosshairs"
     >
       <tool-button
-        size="40"
         icon="mdi-crosshairs"
         name="Crosshairs"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -58,7 +54,6 @@
         name="Paint"
         :active="active"
         :disabled="noCurrentImage"
-        size="40"
         @click="toggle"
       >
         <paint-controls />
@@ -73,7 +68,6 @@
         name="Rectangle"
         :active="active"
         :disabled="noCurrentImage"
-        size="40"
         @click="toggle"
       >
         <LabelMenu
@@ -89,7 +83,6 @@
         name="Ruler"
         :active="active"
         :disabled="noCurrentImage"
-        size="40"
         @click="toggle"
       >
         <LabelMenu
@@ -107,7 +100,6 @@
         name="Crop"
         :active="active"
         :disabled="noCurrentImage"
-        size="40"
         @click="toggle"
       >
         <crop-controls />

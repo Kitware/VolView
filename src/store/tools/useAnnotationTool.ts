@@ -1,39 +1,41 @@
 import { Ref, computed, ref } from 'vue';
 import { Store } from 'pinia';
 
+import { PartialWithRequired } from '@/src/types';
+import { TOOL_COLORS } from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
+import { AnnotationTool } from '@/src/types/annotationTool';
 import { findImageID, getDataID } from '@/src/store/datasets';
+
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, Labels } from './useLabels';
 
-type AnnotationTool<Tool> = {
-  id: string;
-  imageID: string;
-  slice: number;
-  frameOfReference: FrameOfReference;
-  placing?: boolean;
-  label?: string;
-  labelProps: Array<keyof Tool>;
+const annotationToolDefaults = {
+  frameOfReference: {
+    planeOrigin: [0, 0, 0],
+    planeNormal: [1, 0, 0],
+  },
+  slice: -1,
+  imageID: '',
+  placing: false,
+  color: TOOL_COLORS[0],
+  name: 'baseAnnotationTool',
 };
 
 // Must return addTool in consuming Pinia store.
-export const useAnnotationTool = <Tool extends AnnotationTool<Tool>>({
+export const useAnnotationTool = <ToolDefaults>({
   toolDefaults,
   initialLabels,
 }: {
-  toolDefaults: Tool;
-  initialLabels: Labels<Tool>;
+  toolDefaults: ToolDefaults;
+  initialLabels: Labels<ToolDefaults>;
 }) => {
-  const labels = useLabels<Tool>(initialLabels);
-
+  type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
   type ToolID = Tool['id'];
 
@@ -48,12 +50,15 @@ export const useAnnotationTool = <Tool extends AnnotationTool<Tool>>({
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  function getLabelProps(tool: ToolPatch) {
-    const label = tool.label ?? labels.activeLabel.value;
-    if (!label || !tool.labelProps) return {};
+  const labels = useLabels<ToolDefaults>(initialLabels);
+  const labelKeys = Object.keys(initialLabels) as Array<keyof ToolDefaults>;
+
+  function makePropsFromLabel(currentLabel: string | undefined) {
+    const label = currentLabel ?? labels.activeLabel.value;
+    if (!label || labelKeys.length === 0) return {};
     const activeLabelProps = labels.labels.value[label];
     return Object.fromEntries(
-      tool.labelProps.map((prop) => [prop, activeLabelProps[prop]])
+      labelKeys.map((prop) => [prop, activeLabelProps[prop]])
     );
   }
 
@@ -62,14 +67,17 @@ export const useAnnotationTool = <Tool extends AnnotationTool<Tool>>({
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
-    const labelProps = getLabelProps(tool);
+    const propsFromLabel = makePropsFromLabel(tool.label);
+
     toolByID.value[id] = {
+      ...annotationToolDefaults,
       ...toolDefaults,
       label: labels.activeLabel.value,
       ...tool,
-      ...labelProps,
+      ...propsFromLabel,
       id,
     };
+
     toolIDs.value.push(id);
     return id;
   }
@@ -130,16 +138,15 @@ export const useAnnotationTool = <Tool extends AnnotationTool<Tool>>({
 
   function deserialize(
     this: Store,
-    serialized: Omit<Tool, 'labelProps'>[],
+    serialized: PartialWithRequired<Tool, 'imageID'>[],
     dataIDMap: Record<string, string>
   ) {
     serialized
       .map(
-        ({ imageID, label = undefined, ...rest }) =>
+        ({ imageID, ...rest }) =>
           ({
             ...rest,
             imageID: findImageID(dataIDMap[imageID]),
-            label,
           } as Tool)
       )
       .forEach((tool) => addTool.call(this, tool));
