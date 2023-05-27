@@ -31,7 +31,7 @@ export interface Ruler {
   id: string;
   name: string;
   label?: string; // label name
-  labelProps: ['color'];
+  labelProps: Array<keyof Ruler>;
   color: string;
   /**
    * Is this ruler in placing mode

@@ -140,9 +140,7 @@ export default defineComponent({
         if (placingTool != null) {
           activeToolStore.updateTool(placingTool, {
             label,
-            ...(label && {
-              color: activeToolStore.labels[label].color,
-            }),
+            ...(label && activeToolStore.labels[label]),
           });
         }
       },

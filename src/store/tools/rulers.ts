@@ -39,7 +39,7 @@ const parseLabelUrlParam = () => {
   const rawLabels = urlParams.labels;
   if (!rawLabels || !Array.isArray(rawLabels)) return {};
 
-  const labelMap = chunk(rawLabels, 2)
+  return chunk(rawLabels, 2)
     .map(([name, color]) => ({
       name,
       color: ensureHash(color),
@@ -51,8 +51,6 @@ const parseLabelUrlParam = () => {
       }),
       {} as Labels<Ruler>
     );
-
-  return labelMap;
 };
 
 export const useRulerStore = defineStore('ruler', () => {

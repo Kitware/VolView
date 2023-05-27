@@ -7,7 +7,7 @@
       :height="rectangle.height"
       :stroke="color"
       stroke-width="1"
-      fill="transparent"
+      :fill="fillColor"
     />
     <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
     <circle
@@ -58,6 +58,7 @@ export default defineComponent({
     point1: Array as PropType<Array<number>>,
     point2: Array as PropType<Array<number>>,
     color: String,
+    fillColor: String,
     viewId: {
       type: String,
       required: true,

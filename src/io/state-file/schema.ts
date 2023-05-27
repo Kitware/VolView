@@ -272,6 +272,7 @@ const Rectangle: z.ZodType<Omit<Rectangle, 'labelProps'>> = z.object({
   id: z.string() as unknown as z.ZodType<Rectangle['id']>,
   name: z.string(),
   color: z.string(),
+  fillColor: z.string(),
   label: z.string().optional(),
 });
 

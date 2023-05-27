@@ -134,9 +134,7 @@ export default defineComponent({
         if (placingTool != null) {
           rulerStore.updateRuler(placingTool, {
             label,
-            ...(label && {
-              color: rulerStore.labels[label].color,
-            }),
+            ...(label && rulerStore.labels[label]),
           });
         }
       },

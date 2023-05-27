@@ -22,7 +22,8 @@ const rectangleDefaults: Rectangle = {
   id: '' as RectangleID,
   name: 'Rectangle',
   color: TOOL_COLORS[0],
-  labelProps: ['color'],
+  fillColor: '#10000000',
+  labelProps: ['color', 'fillColor'],
   placing: false,
 };
 
@@ -34,23 +35,22 @@ const ensureHash = (color: string | number) => {
 
 const parseLabelUrlParam = () => {
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
-  const rawLabels = urlParams.labels;
+  const rawLabels = urlParams.rectangleLabels;
   if (!rawLabels || !Array.isArray(rawLabels)) return {};
 
-  const labelMap = chunk(rawLabels, 2)
-    .map(([name, color]) => ({
+  return chunk(rawLabels, 3)
+    .map(([name, color, fillColor]) => ({
       name,
       color: ensureHash(color),
+      fillColor: ensureHash(fillColor),
     }))
     .reduce(
-      (labels, { name, color }) => ({
+      (labels, { name, color, fillColor }) => ({
         ...labels,
-        [name]: { color },
+        [name]: { color, fillColor },
       }),
       {} as Labels<Rectangle>
     );
-
-  return labelMap;
 };
 
 export const useRectangleStore = defineStore('rectangles', () => {
