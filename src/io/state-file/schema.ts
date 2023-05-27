@@ -251,7 +251,7 @@ const FrameOfReference: z.ZodType<FrameOfReference> = z.object({
   planeNormal: Vector3,
 });
 
-const Ruler: z.ZodType<Ruler> = z.object({
+const Ruler: z.ZodType<Omit<Ruler, 'labelProps'>> = z.object({
   firstPoint: Vector3,
   secondPoint: Vector3,
   imageID: z.string(),
@@ -260,9 +260,10 @@ const Ruler: z.ZodType<Ruler> = z.object({
   id: z.string(),
   name: z.string(),
   color: z.string(),
+  label: z.string().optional(),
 });
 
-const Rectangle: z.ZodType<Rectangle> = z.object({
+const Rectangle: z.ZodType<Omit<Rectangle, 'labelProps'>> = z.object({
   firstPoint: Vector3,
   secondPoint: Vector3,
   imageID: z.string(),

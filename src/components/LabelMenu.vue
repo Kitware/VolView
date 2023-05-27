@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { Labels, SetActiveLabel } from '@/src/store/tools/useLabels';
+import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
 
 const props = defineProps<{
   labels: Labels;
-  activeLabel: string;
+  activeLabel: ReturnType<typeof useLabels>['activeLabel']['value'];
   setActiveLabel: SetActiveLabel;
 }>();
 
@@ -42,7 +42,7 @@ onUnmounted(() => {
         hide-details
       >
         <v-radio
-          v-for="(color, name) in labels"
+          v-for="({ color }, name) in labels"
           :key="name"
           :label="name"
           :value="name"

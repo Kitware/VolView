@@ -10,7 +10,10 @@ import { RequiredWithPartial } from '@/src/types';
 
 chai.use(chaiSubset);
 
-function createRuler(): RequiredWithPartial<Ruler, 'id' | 'color' | 'label'> {
+function createRuler(): RequiredWithPartial<
+  Ruler,
+  'id' | 'color' | 'label' | 'labelProps'
+> {
   return {
     firstPoint: [1, 1, 1],
     secondPoint: [2, 2, 2],

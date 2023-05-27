@@ -129,12 +129,14 @@ export default defineComponent({
     );
 
     watch(
-      activeLabel,
-      (name) => {
-        if (placingRulerID.value != null) {
-          rulerStore.updateRuler(placingRulerID.value, {
-            label: name,
-            color: rulerStore.activeColor,
+      [activeLabel, placingRulerID],
+      ([label, placingTool]) => {
+        if (placingTool != null) {
+          rulerStore.updateRuler(placingTool, {
+            label,
+            ...(label && {
+              color: rulerStore.labels[label].color,
+            }),
           });
         }
       },

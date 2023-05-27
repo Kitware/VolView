@@ -135,12 +135,14 @@ export default defineComponent({
     );
 
     watch(
-      activeLabel,
-      (name) => {
-        if (placingToolID.value != null) {
-          activeToolStore.updateTool(placingToolID.value, {
-            label: name,
-            color: activeToolStore.activeColor,
+      [activeLabel, placingToolID],
+      ([label, placingTool]) => {
+        if (placingTool != null) {
+          activeToolStore.updateTool(placingTool, {
+            label,
+            ...(label && {
+              color: activeToolStore.labels[label].color,
+            }),
           });
         }
       },
