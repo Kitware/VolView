@@ -1,11 +1,34 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue';
 import { Labels, SetActiveLabel } from '@/src/store/tools/useLabels';
 
-defineProps<{
+const props = defineProps<{
   labels: Labels;
   activeLabel: string;
   setActiveLabel: SetActiveLabel;
 }>();
+
+const handleKeyDown = (event: KeyboardEvent) => {
+  let offset = 0;
+  if (event.key === 'q') {
+    offset = -1;
+  }
+  if (event.key === 'w') {
+    offset = 1;
+  }
+
+  const labels = Object.entries(props.labels);
+  const labelIndex = labels.findIndex(([name]) => name === props.activeLabel);
+  const [nextLabel] = labels.at((labelIndex + offset) % labels.length)!;
+  props.setActiveLabel(nextLabel);
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+});
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <template>
