@@ -1,16 +1,14 @@
 import { computed } from 'vue';
-import { UrlParams } from '@vueuse/core';
 import { defineStore } from 'pinia';
-import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
+import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { chunk } from '@/src/utils';
 
 import { Ruler } from '../../types/ruler';
 import { useAnnotationTool } from './useAnnotationTool';
-import { Labels } from './useLabels';
+import { ensureHash, parseLabelUrlParam } from './useLabels';
 
 const rulerDefaults = {
   firstPoint: [0, 0, 0] as Vector3,
@@ -19,35 +17,13 @@ const rulerDefaults = {
   name: 'Ruler',
 };
 
-const ensureHash = (color: string | number) => {
-  const colorStr = color.toString();
-  if (colorStr.startsWith('#')) return colorStr;
-  return `#${color}`;
-};
-
-const parseLabelUrlParam = () => {
-  const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
-  const rawLabels = urlParams.labels;
-  if (!rawLabels || !Array.isArray(rawLabels)) return {};
-
-  return chunk(rawLabels, 2)
-    .map(([name, color]) => ({
-      name,
-      color: ensureHash(color),
-    }))
-    .reduce(
-      (labels, { name, color }) => ({
-        ...labels,
-        [name]: { color },
-      }),
-      {} as Labels<Ruler>
-    );
-};
-
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
 
-  const initialLabels = parseLabelUrlParam();
+  const initialLabels =
+    parseLabelUrlParam<Ruler>('labels', {
+      color: ensureHash,
+    }) ?? RULER_LABEL_DEFAULTS;
 
   const {
     toolIDs: rulerIDs,

@@ -175,6 +175,18 @@ export const TOOL_COLORS = [
   '#fea53b',
 ];
 
+export const RULER_LABEL_DEFAULTS = {
+  red: { color: '#ff0000' },
+  green: { color: '#00ff00' },
+  gray: { color: '#888888' },
+};
+
+export const RECTANGLE_LABEL_DEFAULTS = {
+  lesion: { color: '#ff0000', fillColor: '#10000000' },
+  innocuous: { color: '#00ff00', fillColor: '#00ff0020' },
+  artifact: { color: '#888888', fillColor: '#ffbf0040' },
+};
+
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
   MR: 'CT-Coronary-Arteries-2',
