@@ -51,15 +51,11 @@ export const useAnnotationTool = <ToolDefaults>({
   });
 
   const labels = useLabels<ToolDefaults>(initialLabels);
-  const labelKeys = Object.keys(initialLabels) as Array<keyof ToolDefaults>;
 
   function makePropsFromLabel(currentLabel: string | undefined) {
     const label = currentLabel ?? labels.activeLabel.value;
-    if (!label || labelKeys.length === 0) return {};
-    const activeLabelProps = labels.labels.value[label];
-    return Object.fromEntries(
-      labelKeys.map((prop) => [prop, activeLabelProps[prop]])
-    );
+    if (!label) return {};
+    return labels.labels.value[label];
   }
 
   function addTool(this: Store, tool: ToolPatch): ToolID {
@@ -67,6 +63,7 @@ export const useAnnotationTool = <ToolDefaults>({
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
+    // updates label props if changed between sessions
     const propsFromLabel = makePropsFromLabel(tool.label);
 
     toolByID.value[id] = {
@@ -147,7 +144,7 @@ export const useAnnotationTool = <ToolDefaults>({
           ({
             ...rest,
             imageID: findImageID(dataIDMap[imageID]),
-          } as Tool)
+          } as ToolPatch)
       )
       .forEach((tool) => addTool.call(this, tool));
   }
