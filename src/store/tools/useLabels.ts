@@ -37,6 +37,8 @@ export const parseLabelUrlParam = <Tool>(
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
   const rawLabels = urlParams[paramKey];
   if (!rawLabels || !Array.isArray(rawLabels)) return undefined;
+  // if URL param is empty array, disable labels
+  if (rawLabels.length === 1 && rawLabels[0] === '') return {};
 
   const keys = Object.keys(labelPropParsers);
   const parsers = Object.values(labelPropParsers) as Array<

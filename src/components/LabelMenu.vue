@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
 import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
+import { AnnotationTool } from '@/src/types/annotationTool';
 
 const props = defineProps<{
-  labels: Labels;
+  labels: Labels<AnnotationTool>;
   activeLabel: ReturnType<typeof useLabels>['activeLabel']['value'];
   setActiveLabel: SetActiveLabel;
 }>();
