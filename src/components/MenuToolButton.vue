@@ -1,15 +1,14 @@
 <script lang="ts">
 import { watch, ref, computed, defineComponent } from 'vue';
-import { useDisplay } from 'vuetify/lib/framework.mjs';
+import { useDisplay } from 'vuetify';
 import ToolButton from './ToolButton.vue';
 
 export default defineComponent({
-  name: 'LabelToolButton',
+  name: 'MenuToolButton',
   props: {
     icon: { type: String, required: true },
     name: { type: String, required: true },
     size: { type: [Number, String], default: 40 },
-    buttonClass: [String, Array, Object],
     active: Boolean,
     disabled: Boolean,
   },

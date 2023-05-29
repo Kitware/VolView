@@ -49,7 +49,7 @@
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <MenuToolButton
+      <menu-tool-button
         icon="mdi-brush"
         name="Paint"
         :active="active"
@@ -57,45 +57,45 @@
         @click="toggle"
       >
         <paint-controls />
-      </MenuToolButton>
+      </menu-tool-button>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <MenuToolButton
+      <menu-tool-button
         icon="mdi-vector-square"
         name="Rectangle"
         :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
       >
-        <LabelMenu
+        <label-menu
           :labels="rectangleStore.labels"
           :set-active-label="rectangleStore.setActiveLabel"
           :active-label="rectangleStore.activeLabel"
         />
-      </MenuToolButton>
+      </menu-tool-button>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <MenuToolButton
+      <menu-tool-button
         icon="mdi-ruler"
         name="Ruler"
         :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
       >
-        <LabelMenu
+        <label-menu
           :labels="rulerStore.labels"
           :set-active-label="rulerStore.setActiveLabel"
           :active-label="rulerStore.activeLabel"
         />
-      </MenuToolButton>
+      </menu-tool-button>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <MenuToolButton
+      <menu-tool-button
         icon="mdi-crop"
         name="Crop"
         :active="active"
@@ -103,7 +103,7 @@
         @click="toggle"
       >
         <crop-controls />
-      </MenuToolButton>
+      </menu-tool-button>
     </groupable-item>
   </item-group>
 </template>
