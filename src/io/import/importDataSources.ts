@@ -11,6 +11,7 @@ import importSingleFile from '@/src/io/import/processors/importSingleFile';
 import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
+import handleConfig from '@/src/io/import/processors/handleConfig';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { makeDICOMSelection, makeImageSelection } from '@/src/store/datasets';
 
@@ -60,6 +61,7 @@ export async function importDataSources(dataSources: DataSource[]) {
   const middleware: Array<ImportHandler> = [
     // updating the file type should be first in the pipeline
     updateFileMimeType,
+    handleConfig, // must be for restoreStateFile for label props to be applied
     restoreStateFile,
     handleRemoteManifest,
     handleGoogleCloudStorage,
