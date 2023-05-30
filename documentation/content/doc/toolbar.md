@@ -31,12 +31,44 @@ https://volview.netlify.app/?labels=[artifact,888888,innocuous,00ff00]
 
 When the rectangle tool selected, the left mouse button is used to place and adjust rectangle control points. Right click a rectangle end-marker to delete it. The "Annotations" tab lists all rectangles and provides jump-to, color editing, and delete controls.
 
-Rectangle annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label. Configure rectangle labels with
-the `rectangleLabels` URL parameter. `rectangleLabels` is a list with `name, color, fillColor` tuples.
+Rectangle annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
 
 https://volview.netlify.app/?rectangleLabels=[artifact,888888,ff000033,innocuous,00ff00,10000000]
 
 ![2D Annotations](../gallery/11-volview-paint-notes.jpg)
+
+### Label Configuration
+
+If VolView loads a JSON file matching the below example schema, it will add labels to the 2D annotation tools.
+Example configuration JSON:
+
+```yml
+# used by ruler tool
+labels:
+  artifact: # label name
+    color: 'gray'
+  needs-review:
+    color: '#FFBF00'
+
+rectangleLabels:
+  lesion:
+    color: '#ff0000'
+    fillColor: 'transparent'
+  innocuous:
+    color: 'white'
+    fillColor: '#00ff0030'
+  tumor:
+    color: 'green'
+    fillColor: 'transparent'
+```
+
+Label sections could be empty.
+
+```yml
+labels:
+
+rectangleLabels:
+```
 
 ## 3D Crop
 
