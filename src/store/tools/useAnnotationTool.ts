@@ -28,12 +28,15 @@ const annotationToolDefaults = {
 };
 
 // Must return addTool in consuming Pinia store.
-export const useAnnotationTool = <ToolDefaults>({
+export const useAnnotationTool = <
+  ToolDefaults,
+  ToolActiveProps extends ToolDefaults & AnnotationTool
+>({
   toolDefaults,
   initialLabels,
 }: {
   toolDefaults: ToolDefaults;
-  initialLabels: Labels<ToolDefaults>;
+  initialLabels: Labels<ToolActiveProps>;
 }) => {
   type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
@@ -50,7 +53,7 @@ export const useAnnotationTool = <ToolDefaults>({
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  const labels = useLabels<ToolDefaults>(initialLabels);
+  const labels = useLabels<Tool>(initialLabels);
 
   function makePropsFromLabel(currentLabel: string | undefined) {
     const label = currentLabel ?? labels.activeLabel.value;

@@ -1,28 +1,21 @@
 import { defineStore } from 'pinia';
 import { Vector3 } from '@kitware/vtk.js/types';
-import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { Rectangle, RectangleID } from '@/src/types/rectangle';
+import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
+import { RectangleID } from '@/src/types/rectangle';
 
 import { useAnnotationTool } from './useAnnotationTool';
-import { ensureHash, parseLabelUrlParam } from './useLabels';
 
 const rectangleDefaults = {
   firstPoint: [0, 0, 0] as Vector3,
   secondPoint: [0, 0, 0] as Vector3,
   id: '' as RectangleID,
   name: 'Rectangle',
-  fillColor: '#10000000',
+  fillColor: 'transparent',
 };
 
 export const useRectangleStore = defineStore('rectangles', () => {
   type _This = ReturnType<typeof useRectangleStore>;
-
-  const initialLabels =
-    parseLabelUrlParam<Rectangle>('rectangleLabels', {
-      color: ensureHash,
-      fillColor: ensureHash,
-    }) ?? RECTANGLE_LABEL_DEFAULTS;
 
   const {
     serialize: serializeTools,
@@ -30,7 +23,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
     ...toolStoreProps
   } = useAnnotationTool({
     toolDefaults: rectangleDefaults,
-    initialLabels,
+    initialLabels: RECTANGLE_LABEL_DEFAULTS,
   });
 
   // --- serialization --- //

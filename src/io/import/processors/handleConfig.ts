@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
 import { ImportHandler } from '@/src/io/import/common';
-// import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useRulerStore } from '@/src/store/tools/rulers';
 
-const Color = z.union([z.string(), z.number()]);
+const Color = z.string();
 
 const Label = z.object({
-  lineColor: Color,
+  color: Color,
 });
 
 const RectangleLabel = z.intersection(
@@ -16,22 +17,21 @@ const RectangleLabel = z.intersection(
   })
 );
 
-const ConfigJson = z.object({
-  labels: z.record(Label),
-  rectangleLabels: z.record(RectangleLabel),
+const Config = z.object({
+  labels: z.record(Label).or(z.null()),
+  rectangleLabels: z.record(RectangleLabel).or(z.null()),
 });
 
-const readConfigFile = async (manifestFile: File) => {
+const readConfigFile = async (configFile: File) => {
   const decoder = new TextDecoder();
-  const ab = await manifestFile.arrayBuffer();
+  const ab = await configFile.arrayBuffer();
   const text = decoder.decode(new Uint8Array(ab));
-  const manifest = ConfigJson.parse(JSON.parse(text));
-  return manifest;
+  return Config.parse(JSON.parse(text));
 };
 
-const applyConfig = (manifest: z.infer<typeof ConfigJson>) => {
-  console.log(manifest);
-  //   useRectangleStore().setLabels(manifest.rectangleLabels);
+const applyConfig = (manifest: z.infer<typeof Config>) => {
+  useRectangleStore().setLabels(manifest.rectangleLabels);
+  useRulerStore().setLabels(manifest.labels);
 };
 
 /**
@@ -48,7 +48,6 @@ const handleConfig: ImportHandler = async (dataSource, { done }) => {
     } catch (err) {
       return dataSource;
     }
-
     return done();
   }
   return dataSource;
