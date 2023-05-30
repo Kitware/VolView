@@ -187,6 +187,9 @@ export const RECTANGLE_LABEL_DEFAULTS = {
   artifact: { color: '#888888', fillColor: '#ffbf0040' },
 };
 
+export const DECREMENT_LABEL_KEY = 'q';
+export const INCREMENT_LABEL_KEY = 'w';
+
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
   MR: 'CT-Coronary-Arteries-2',

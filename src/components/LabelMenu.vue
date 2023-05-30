@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue';
 import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
+import { DECREMENT_LABEL_KEY, INCREMENT_LABEL_KEY } from '../config';
 
 const props = defineProps<{
   labels: Labels<AnnotationTool>;
@@ -11,10 +12,10 @@ const props = defineProps<{
 
 const handleKeyDown = (event: KeyboardEvent) => {
   let offset = 0;
-  if (event.key === 'q') {
+  if (event.key === DECREMENT_LABEL_KEY) {
     offset = -1;
   }
-  if (event.key === 'w') {
+  if (event.key === INCREMENT_LABEL_KEY) {
     offset = 1;
   }
 
