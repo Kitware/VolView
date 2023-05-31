@@ -1,3 +1,4 @@
+import { Maybe } from '@/src/types';
 import { ref } from 'vue';
 
 type LabelProps<Tool> = Partial<Tool>;
@@ -11,7 +12,7 @@ export const useLabels = <Tool>(initialLabels: Labels<Tool>) => {
     activeLabel.value = name;
   };
 
-  const setLabels = (newLabels: Labels<Tool> | null | undefined) => {
+  const setLabels = (newLabels: Maybe<Labels<Tool>>) => {
     labels.value = newLabels ?? {};
     setActiveLabel(Object.keys(labels.value)[0]);
   };

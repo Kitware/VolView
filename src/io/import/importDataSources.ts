@@ -54,7 +54,7 @@ function toMeaningfulErrorString(thrown: unknown) {
 }
 
 const unhandledResource: ImportHandler = () => {
-  throw new Error(`Failed to handle resource`);
+  throw new Error('Failed to handle resource');
 };
 
 export async function importDataSources(dataSources: DataSource[]) {

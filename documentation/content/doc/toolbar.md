@@ -22,18 +22,13 @@ When the paint tool is selected, you can paint in any 2D window. Click on the pa
 
 When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
 
-Ruler annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label. Configure labels with
-the `labels` URL parameter. `labels` is a list with `name, color` tuples.
-
-https://volview.netlify.app/?labels=[artifact,888888,innocuous,00ff00]
+Ruler annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
 
 ### Rectangle
 
 When the rectangle tool selected, the left mouse button is used to place and adjust rectangle control points. Right click a rectangle end-marker to delete it. The "Annotations" tab lists all rectangles and provides jump-to, color editing, and delete controls.
 
 Rectangle annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
-
-https://volview.netlify.app/?rectangleLabels=[artifact,888888,ff000033,innocuous,00ff00,10000000]
 
 ![2D Annotations](../gallery/11-volview-paint-notes.jpg)
 
@@ -68,6 +63,17 @@ Label sections could be empty.
 labels:
 
 rectangleLabels:
+```
+
+Rectangle tool will use `labels` section if no `rectangleLabels` block.
+
+```yml
+# used by ruler and rectangle tool
+labels:
+  artifact:
+    color: 'gray'
+  needs-review:
+    color: '#FFBF00'
 ```
 
 ## 3D Crop
