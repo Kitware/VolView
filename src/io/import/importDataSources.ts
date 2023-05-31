@@ -54,14 +54,14 @@ function toMeaningfulErrorString(thrown: unknown) {
 }
 
 const unhandledResource: ImportHandler = () => {
-  throw new Error('Failed to handle resource');
+  throw new Error(`Failed to handle resource`);
 };
 
 export async function importDataSources(dataSources: DataSource[]) {
   const middleware: Array<ImportHandler> = [
     // updating the file type should be first in the pipeline
     updateFileMimeType,
-    // handleConfig must be for restoreStateFile for label props to be applied to deserialized tools
+    // handleConfig must before restoreStateFile for label props to be applied to deserialized tools
     handleConfig,
     restoreStateFile,
     handleRemoteManifest,

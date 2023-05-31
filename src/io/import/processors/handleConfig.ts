@@ -19,7 +19,7 @@ const RectangleLabel = z.intersection(
 
 const Config = z.object({
   labels: z.record(Label).or(z.null()),
-  rectangleLabels: z.record(RectangleLabel).or(z.null()),
+  rectangleLabels: z.record(RectangleLabel).or(z.null()).optional(),
 });
 
 const readConfigFile = async (configFile: File) => {
@@ -30,8 +30,8 @@ const readConfigFile = async (configFile: File) => {
 };
 
 const applyConfig = (manifest: z.infer<typeof Config>) => {
-  useRectangleStore().setLabels(manifest.rectangleLabels);
   useRulerStore().setLabels(manifest.labels);
+  useRectangleStore().setLabels(manifest.rectangleLabels ?? manifest.labels);
 };
 
 /**
