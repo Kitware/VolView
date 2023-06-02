@@ -34,46 +34,51 @@ Rectangle annotations can be tagged with a label. Use the popup menu or the `q` 
 
 ### Label Configuration
 
-If VolView loads a JSON file matching the below example schema, it will add labels to the 2D annotation tools.
+If VolView loads a JSON file matching the schemas below, labels are added to the 2D annotation tools.
 Example configuration JSON:
 
-```yml
-# used by ruler tool
-labels:
-  artifact: # label name
-    color: 'gray'
-  needs-review:
-    color: '#FFBF00'
-
-rectangleLabels:
-  lesion:
-    color: '#ff0000'
-    fillColor: 'transparent'
-  innocuous:
-    color: 'white'
-    fillColor: '#00ff0030'
-  tumor:
-    color: 'green'
-    fillColor: 'transparent'
+```json
+{
+  "rulerLabels": {
+    "big": { "color": "#ff0000" },
+    "small": { "color": "white" }
+  },
+  "rectangleLabels": {
+    "innocuous": { "color": "white", "fillColor": "#00ff0030" },
+    "lesion": { "color": "#ff0000", "fillColor": "transparent" },
+    "tumor": { "color": "green", "fillColor": "transparent" }
+  }
+}
 ```
 
-Label sections could be empty.
+Label sections could be null to disable labels for a tool.
 
-```yml
-labels:
-
-rectangleLabels:
+```json
+{
+  "rulerLabels": null,
+  "rectangleLabels": {
+    "innocuous": {
+      "color": "white",
+      "fillColor": "#00ff0030"
+    },
+    "lesion": {
+      "color": "#ff0000",
+      "fillColor": "transparent"
+    }
+  }
+}
 ```
 
-Rectangle tool will use `labels` section if no `rectangleLabels` block.
+Tools will fallback to `labels` section if the tool has no specific labels property,
+ie `rectangleLabels` or `rulerLabels`.
 
-```yml
-# used by ruler and rectangle tool
-labels:
-  artifact:
-    color: 'gray'
-  needs-review:
-    color: '#FFBF00'
+```json
+{
+  "labels": {
+    "artifact": { "color": "gray" },
+    "needs-review": { "color": "#FFBF00" }
+  }
+}
 ```
 
 ## 3D Crop
