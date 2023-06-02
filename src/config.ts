@@ -167,13 +167,28 @@ export const SAMPLE_DATA: SampleDataset[] = [
 ];
 
 export const TOOL_COLORS = [
+  '#58f24c',
   '#8de4d3',
   '#f0a4b1',
-  '#58f24c',
   '#a3c9fe',
   '#c8f251',
   '#fea53b',
 ];
+
+export const RULER_LABEL_DEFAULTS = {
+  red: { color: 'red' },
+  green: { color: '#00ff00' },
+  gray: { color: '#888888' },
+};
+
+export const RECTANGLE_LABEL_DEFAULTS = {
+  lesion: { color: 'red', fillColor: 'transparent' },
+  innocuous: { color: '#00ff00', fillColor: '#00ff0020' },
+  artifact: { color: '#888888', fillColor: '#ffbf0040' },
+};
+
+export const DECREMENT_LABEL_KEY = 'q';
+export const INCREMENT_LABEL_KEY = 'w';
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',

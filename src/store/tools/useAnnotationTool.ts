@@ -1,34 +1,44 @@
 import { Ref, computed, ref } from 'vue';
 import { Store } from 'pinia';
-import { removeFromArray } from '@/src/utils';
 
+import { PartialWithRequired } from '@/src/types';
 import { TOOL_COLORS } from '@/src/config';
+import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
+import { AnnotationTool } from '@/src/types/annotationTool';
 import { findImageID, getDataID } from '@/src/store/datasets';
-import useViewSliceStore from '../view-configs/slicing';
 
-type AnnotationTool = {
-  id: string;
-  color: typeof TOOL_COLORS[number];
-  imageID: string;
-  slice: number;
-  placing?: boolean;
-  frameOfReference: FrameOfReference;
+import useViewSliceStore from '../view-configs/slicing';
+import { useLabels, Labels } from './useLabels';
+
+const annotationToolDefaults = {
+  frameOfReference: {
+    planeOrigin: [0, 0, 0],
+    planeNormal: [1, 0, 0],
+  },
+  slice: -1,
+  imageID: '',
+  placing: false,
+  color: TOOL_COLORS[0],
+  name: 'baseAnnotationTool',
 };
 
 // Must return addTool in consuming Pinia store.
-export const useAnnotationTool = <Tool extends AnnotationTool>({
+export const useAnnotationTool = <
+  ToolDefaults,
+  ToolActiveProps extends ToolDefaults & AnnotationTool
+>({
   toolDefaults,
+  initialLabels,
 }: {
-  toolDefaults: Tool;
+  toolDefaults: ToolDefaults;
+  initialLabels: Labels<ToolActiveProps>;
 }) => {
+  type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
   type ToolID = Tool['id'];
 
@@ -43,10 +53,12 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  let colorIndex = -1;
-  function getNextColor() {
-    colorIndex = (colorIndex + 1) % TOOL_COLORS.length;
-    return TOOL_COLORS[colorIndex];
+  const labels = useLabels<Tool>(initialLabels);
+
+  function makePropsFromLabel(currentLabel: string | undefined) {
+    const label = currentLabel ?? labels.activeLabel.value;
+    if (!label) return {};
+    return labels.labels.value[label];
   }
 
   function addTool(this: Store, tool: ToolPatch): ToolID {
@@ -54,13 +66,18 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
-    const color = tool.color ?? getNextColor();
+    // updates label props if changed between sessions
+    const propsFromLabel = makePropsFromLabel(tool.label);
+
     toolByID.value[id] = {
+      ...annotationToolDefaults,
       ...toolDefaults,
+      label: labels.activeLabel.value,
       ...tool,
+      ...propsFromLabel,
       id,
-      color,
     };
+
     toolIDs.value.push(id);
     return id;
   }
@@ -114,15 +131,14 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
     toolIDs.value
       .map((toolID) => toolByID.value[toolID])
       .filter((tool) => !tool.placing)
-      // If parent image is DICOM, save VolumeKey
       .map(({ imageID, ...rest }) => ({
-        imageID: getDataID(imageID),
+        imageID: getDataID(imageID), // If parent image is DICOM, save VolumeKey
         ...rest,
       }));
 
   function deserialize(
     this: Store,
-    serialized: Tool[],
+    serialized: PartialWithRequired<Tool, 'imageID'>[],
     dataIDMap: Record<string, string>
   ) {
     serialized
@@ -131,12 +147,13 @@ export const useAnnotationTool = <Tool extends AnnotationTool>({
           ({
             ...rest,
             imageID: findImageID(dataIDMap[imageID]),
-          } as Tool)
+          } as ToolPatch)
       )
       .forEach((tool) => addTool.call(this, tool));
   }
 
   return {
+    ...labels,
     toolIDs,
     toolByID,
     tools,

@@ -11,6 +11,7 @@ import { Ruler } from '@/src/types/ruler';
 import { Rectangle } from '@/src/types/rectangle';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
+import { Optional } from '@/src/types';
 
 import {
   CameraConfig,
@@ -260,9 +261,10 @@ const Ruler: z.ZodType<Ruler> = z.object({
   id: z.string(),
   name: z.string(),
   color: z.string(),
+  label: z.string().optional(),
 });
 
-const Rectangle: z.ZodType<Rectangle> = z.object({
+const Rectangle: z.ZodType<Optional<Rectangle, 'fillColor'>> = z.object({
   firstPoint: Vector3,
   secondPoint: Vector3,
   imageID: z.string(),
@@ -271,6 +273,8 @@ const Rectangle: z.ZodType<Rectangle> = z.object({
   id: z.string() as unknown as z.ZodType<Rectangle['id']>,
   name: z.string(),
   color: z.string(),
+  fillColor: z.string().optional(),
+  label: z.string().optional(),
 });
 
 const Crosshairs = z.object({
@@ -298,7 +302,7 @@ const Cropping = z.record(LPSCroppingPlanes);
 
 const Tools = z.object({
   rulers: Ruler.array(),
-  rectangles: Rectangle.array(),
+  rectangles: Rectangle.array().optional(),
   crosshairs: Crosshairs,
   paint: Paint,
   crop: Cropping,

@@ -88,7 +88,7 @@ export default defineComponent({
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
-    const { rulers } = storeToRefs(rulerStore);
+    const { rulers, activeLabel } = storeToRefs(rulerStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
@@ -122,6 +122,19 @@ export default defineComponent({
           placingRulerID.value = rulerStore.addRuler({
             imageID,
             placing: true,
+          });
+        }
+      },
+      { immediate: true }
+    );
+
+    watch(
+      [activeLabel, placingRulerID],
+      ([label, placingTool]) => {
+        if (placingTool != null) {
+          rulerStore.updateRuler(placingTool, {
+            label,
+            ...(label && rulerStore.labels[label]),
           });
         }
       },

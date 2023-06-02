@@ -22,11 +22,64 @@ When the paint tool is selected, you can paint in any 2D window. Click on the pa
 
 When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
 
+Ruler annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
+
 ### Rectangle
 
 When the rectangle tool selected, the left mouse button is used to place and adjust rectangle control points. Right click a rectangle end-marker to delete it. The "Annotations" tab lists all rectangles and provides jump-to, color editing, and delete controls.
 
+Rectangle annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
+
 ![2D Annotations](../gallery/11-volview-paint-notes.jpg)
+
+### Label Configuration
+
+If VolView loads a JSON file matching the schemas below, labels are added to the 2D annotation tools.
+Example configuration JSON:
+
+```json
+{
+  "rulerLabels": {
+    "big": { "color": "#ff0000" },
+    "small": { "color": "white" }
+  },
+  "rectangleLabels": {
+    "innocuous": { "color": "white", "fillColor": "#00ff0030" },
+    "lesion": { "color": "#ff0000", "fillColor": "transparent" },
+    "tumor": { "color": "green", "fillColor": "transparent" }
+  }
+}
+```
+
+Label sections could be null to disable labels for a tool.
+
+```json
+{
+  "rulerLabels": null,
+  "rectangleLabels": {
+    "innocuous": {
+      "color": "white",
+      "fillColor": "#00ff0030"
+    },
+    "lesion": {
+      "color": "#ff0000",
+      "fillColor": "transparent"
+    }
+  }
+}
+```
+
+Tools will fallback to `labels` section if the tool has no specific labels property,
+ie `rectangleLabels` or `rulerLabels`.
+
+```json
+{
+  "labels": {
+    "artifact": { "color": "gray" },
+    "needs-review": { "color": "#FFBF00" }
+  }
+}
+```
 
 ## 3D Crop
 

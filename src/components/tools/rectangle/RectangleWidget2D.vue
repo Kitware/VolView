@@ -239,5 +239,6 @@ export default defineComponent({
     :point1="firstPoint"
     :point2="secondPoint"
     :color="tool.color"
+    :fill-color="tool.fillColor"
   />
 </template>

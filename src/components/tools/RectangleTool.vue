@@ -16,14 +16,15 @@
     </svg>
     <v-menu
       v-model="contextMenu.show"
-      :position-x="contextMenu.x"
-      :position-y="contextMenu.y"
-      absolute
-      offset-y
+      class="position-absolute"
+      :style="{
+        top: `${contextMenu.y}px`,
+        left: `${contextMenu.x}px`,
+      }"
       close-on-click
       close-on-content-click
     >
-      <v-list dense>
+      <v-list density="compact">
         <v-list-item @click="deleteToolFromContextMenu">
           <v-list-item-title>Delete</v-list-item-title>
         </v-list-item>
@@ -91,7 +92,7 @@ export default defineComponent({
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { tools } = storeToRefs(activeToolStore);
+    const { tools, activeLabel } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(
@@ -133,12 +134,26 @@ export default defineComponent({
       { immediate: true }
     );
 
+    watch(
+      [activeLabel, placingToolID],
+      ([label, placingTool]) => {
+        if (placingTool != null) {
+          activeToolStore.updateTool(placingTool, {
+            label,
+            ...(label && activeToolStore.labels[label]),
+          });
+        }
+      },
+      { immediate: true }
+    );
+
     onUnmounted(() => {
       if (placingToolID.value != null) {
         activeToolStore.removeTool(placingToolID.value);
         placingToolID.value = null;
       }
     });
+
     const onToolPlaced = () => {
       if (currentImageID.value) {
         placingToolID.value = activeToolStore.addTool({

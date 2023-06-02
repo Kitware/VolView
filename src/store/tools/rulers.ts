@@ -1,24 +1,18 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
+import { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
-import { TOOL_COLORS } from '@/src/config';
+
+import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { Ruler } from '../../types/ruler';
+
 import { useAnnotationTool } from './useAnnotationTool';
 
-const rulerDefaults: Ruler = {
-  firstPoint: [0, 0, 0],
-  secondPoint: [0, 0, 0],
-  frameOfReference: {
-    planeOrigin: [0, 0, 0],
-    planeNormal: [1, 0, 0],
-  },
-  slice: -1,
-  imageID: '',
+const rulerDefaults = {
+  firstPoint: [0, 0, 0] as Vector3,
+  secondPoint: [0, 0, 0] as Vector3,
   id: '',
   name: 'Ruler',
-  color: TOOL_COLORS[0],
-  placing: false,
 };
 
 export const useRulerStore = defineStore('ruler', () => {
@@ -36,8 +30,10 @@ export const useRulerStore = defineStore('ruler', () => {
     deserialize: deserializeTools,
     activateTool,
     deactivateTool,
+    ...rest // label tools
   } = useAnnotationTool({
     toolDefaults: rulerDefaults,
+    initialLabels: RULER_LABEL_DEFAULTS,
   });
 
   const lengthByID = computed<Record<string, number>>(() => {
@@ -65,6 +61,7 @@ export const useRulerStore = defineStore('ruler', () => {
   }
 
   return {
+    ...rest,
     rulerIDs,
     rulerByID,
     rulers,

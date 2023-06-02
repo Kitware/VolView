@@ -134,6 +134,11 @@ export function partition<T>(
   return partitioned;
 }
 
+export const chunk = <T>(arr: T[], size: number) =>
+  Array.from({ length: Math.ceil(arr.length / size) }, (_: any, i: number) =>
+    arr.slice(i * size, i * size + size)
+  );
+
 export function plural(n: number, word: string, pluralWord?: string) {
   return n > 1 ? pluralWord ?? `${word}s` : word;
 }
