@@ -15,17 +15,11 @@ export default defineComponent({
   components: {
     ToolButton,
   },
-  setup(props, { emit }) {
+  setup(props) {
     const display = useDisplay();
     const showLeft = computed(() => !display.mobile.value);
 
     const menuOn = ref(false);
-
-    // Turn off menu if tool clicked and already on
-    const handleActivatorClicked = () => {
-      menuOn.value = !menuOn.value;
-      emit('click');
-    };
 
     // Turn off menu if tool deselected
     const active = computed(() => props.active);
@@ -35,14 +29,13 @@ export default defineComponent({
       }
     });
 
-    return { showLeft, menuOn, handleActivatorClicked };
+    return { showLeft, menuOn };
   },
 });
 </script>
 
 <template>
   <v-menu
-    persistent
     no-click-animation
     :close-on-content-click="false"
     v-model="menuOn"
@@ -56,7 +49,7 @@ export default defineComponent({
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="disabled"
         :size="size"
-        @click="handleActivatorClicked"
+        @click="$emit('click')"
         v-bind="props"
       >
         <v-icon
