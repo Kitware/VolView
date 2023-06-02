@@ -10,6 +10,8 @@ const Label = z.object({
   color: Color,
 });
 
+const RulerLabel = Label;
+
 const RectangleLabel = z.intersection(
   Label,
   z.object({
@@ -18,7 +20,8 @@ const RectangleLabel = z.intersection(
 );
 
 const Config = z.object({
-  labels: z.record(Label).or(z.null()),
+  labels: z.record(Label).or(z.null()).optional(),
+  rulerLabels: z.record(RulerLabel).or(z.null()).optional(),
   rectangleLabels: z.record(RectangleLabel).or(z.null()).optional(),
 });
 
@@ -30,8 +33,13 @@ const readConfigFile = async (configFile: File) => {
 };
 
 const applyConfig = (manifest: z.infer<typeof Config>) => {
-  useRulerStore().setLabels(manifest.labels);
-  useRectangleStore().setLabels(manifest.rectangleLabels ?? manifest.labels);
+  // pass through null labels, use fallback labels if undefined
+  const labelsIfUndefined = (toolLabels: typeof manifest.labels) => {
+    if (toolLabels === undefined) return manifest.labels;
+    return toolLabels;
+  };
+  useRulerStore().setLabels(labelsIfUndefined(manifest.rulerLabels));
+  useRectangleStore().setLabels(labelsIfUndefined(manifest.rectangleLabels));
 };
 
 /**
