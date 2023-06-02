@@ -69,7 +69,7 @@ export default defineComponent({
       </tool-button>
     </template>
 
-    <div class="menu-content">
+    <div class="menu-content elevation-24">
       <slot />
     </div>
   </v-menu>
