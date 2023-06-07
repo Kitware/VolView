@@ -25,7 +25,7 @@ export default defineComponent({
       <measurements-rectangle-list />
     </div>
     <div class="text-caption text-center empty-state">No measurements</div>
-    <div class="header">Labelmaps</div>
+    <div class="annotation-header">Labelmaps</div>
     <div class="content">
       <labelmap-list />
     </div>

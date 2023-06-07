@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { useRulerStore } from '@src/store/tools/rulers';
-import LabelMenu from '@src/components/LabelMenu.vue';
+import LabelControls from '@src/components/LabelControls.vue';
 
-const { labels, setActiveLabel, activeLabel } = useRulerStore();
+const activeToolStore = useRulerStore();
 </script>
 
 <template>
-  <label-menu
-    :labels="labels"
-    :set-active-label="setActiveLabel"
-    :active-label="activeLabel"
+  <label-controls
+    :labels="activeToolStore.labels"
+    :set-active-label="activeToolStore.setActiveLabel"
+    :active-label="activeToolStore.activeLabel"
   />
 </template>

@@ -16,7 +16,7 @@ const tool = computed(() => tools.get(toolStore.currentTool));
 </script>
 
 <template>
-  <div v-if="tool?.label">
+  <div v-if="tool">
     <div class="annotation-header">{{ tool.label }}</div>
     <div class="content">
       <component :is="tool.component" />
