@@ -17,19 +17,20 @@ const activeLabelIndex = computed(() => {
 </script>
 
 <template>
-  <v-card>
-    <v-item-group
-      v-if="labels.length"
-      :model-value="activeLabelIndex"
-      selected-class="card-active"
-    >
-      <v-container>
+  <v-container>
+    <v-card>
+      <v-card-title class="pt-0">Labels</v-card-title>
+      <v-item-group
+        v-if="labels.length"
+        :model-value="activeLabelIndex"
+        selected-class="card-active"
+      >
         <v-row>
           <v-col cols="6" v-for="[name, { color }] in labels" :key="name">
             <v-item v-slot="{ selectedClass, toggle }">
-              <v-card
+              <v-chip
                 variant="tonal"
-                :class="['px-2', selectedClass]"
+                :class="['w-100 px-2', selectedClass]"
                 @click="
                   () => {
                     toggle();
@@ -41,14 +42,16 @@ const activeLabelIndex = computed(() => {
                   mdi-square
                 </v-icon>
                 <span>{{ name }}</span>
-              </v-card>
+              </v-chip>
             </v-item>
           </v-col>
         </v-row>
-      </v-container>
-    </v-item-group>
-    <div v-else class="text-caption text-center pa-2">No labels configured</div>
-  </v-card>
+      </v-item-group>
+      <div v-else class="text-caption text-center pa-2">
+        No labels configured
+      </div>
+    </v-card>
+  </v-container>
 </template>
 
 <style scoped>
