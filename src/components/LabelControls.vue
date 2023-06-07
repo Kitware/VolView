@@ -17,36 +17,38 @@ const activeLabelIndex = computed(() => {
 </script>
 
 <template>
-  <v-item-group
-    v-if="labels.length"
-    :model-value="activeLabelIndex"
-    selected-class="card-active"
-  >
-    <v-container>
-      <v-row>
-        <v-col cols="6" v-for="[name, { color }] in labels" :key="name">
-          <v-item v-slot="{ selectedClass, toggle }">
-            <v-card
-              variant="tonal"
-              :class="['px-2', selectedClass]"
-              @click="
-                () => {
-                  toggle();
-                  setActiveLabel(name);
-                }
-              "
-            >
-              <v-icon :color="color" size="18" class="mr-2">
-                mdi-square
-              </v-icon>
-              <span>{{ name }}</span>
-            </v-card>
-          </v-item>
-        </v-col>
-      </v-row>
-    </v-container>
-  </v-item-group>
-  <div v-else class="text-caption text-center">No labels configured</div>
+  <v-card>
+    <v-item-group
+      v-if="labels.length"
+      :model-value="activeLabelIndex"
+      selected-class="card-active"
+    >
+      <v-container>
+        <v-row>
+          <v-col cols="6" v-for="[name, { color }] in labels" :key="name">
+            <v-item v-slot="{ selectedClass, toggle }">
+              <v-card
+                variant="tonal"
+                :class="['px-2', selectedClass]"
+                @click="
+                  () => {
+                    toggle();
+                    setActiveLabel(name);
+                  }
+                "
+              >
+                <v-icon :color="color" size="18" class="mr-2">
+                  mdi-square
+                </v-icon>
+                <span>{{ name }}</span>
+              </v-card>
+            </v-item>
+          </v-col>
+        </v-row>
+      </v-container>
+    </v-item-group>
+    <div v-else class="text-caption text-center pa-2">No labels configured</div>
+  </v-card>
 </template>
 
 <style scoped>

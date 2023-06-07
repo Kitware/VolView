@@ -70,7 +70,7 @@
         :disabled="noCurrentImage"
         @click="toggle"
       >
-        <label-menu
+        <label-controls
           :labels="rectangleStore.labels"
           :set-active-label="rectangleStore.setActiveLabel"
           :active-label="rectangleStore.activeLabel"
@@ -85,10 +85,11 @@
         :disabled="noCurrentImage"
         @click="toggle"
       >
-        <label-menu
+        <label-controls
           :labels="rulerStore.labels"
           :set-active-label="rulerStore.setActiveLabel"
           :active-label="rulerStore.activeLabel"
+          class="popup-menu"
         />
       </menu-tool-button>
     </groupable-item>
@@ -120,7 +121,7 @@ import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
-import LabelMenu from './LabelMenu.vue';
+import LabelControls from './LabelControls.vue';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 
@@ -132,7 +133,7 @@ export default defineComponent({
     GroupableItem,
     PaintControls,
     CropControls,
-    LabelMenu,
+    LabelControls,
   },
   setup() {
     const dataStore = useDatasetStore();
@@ -183,5 +184,9 @@ export default defineComponent({
   height: 1px;
   border: none;
   border-top: 1px solid rgb(112, 112, 112);
+}
+
+.popup-menu {
+  max-width: 400px; /* a little less than v-navigation-drawer in App.vue */
 }
 </style>
