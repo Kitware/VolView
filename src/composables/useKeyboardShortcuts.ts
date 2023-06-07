@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted } from 'vue';
+import { onKeyDown } from '@vueuse/core';
 
 import { DECREMENT_LABEL_KEY, INCREMENT_LABEL_KEY } from '../config';
 import { useToolStore } from '../store/tools';
@@ -6,11 +6,7 @@ import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 
-type AnnotationToolStore =
-  | ReturnType<typeof useRectangleStore>
-  | ReturnType<typeof useRulerStore>;
-
-const handleLabelSection = (event: KeyboardEvent) => {
+const applyLabelOffset = (offset: number) => {
   const toolToStore = {
     [Tools.Rectangle]: useRectangleStore(),
     [Tools.Ruler]: useRulerStore(),
@@ -18,18 +14,8 @@ const handleLabelSection = (event: KeyboardEvent) => {
   const toolStore = useToolStore();
 
   // @ts-ignore - map may not have all keys of tools
-  const activeToolStore = toolToStore[toolStore.currentTool] as
-    | AnnotationToolStore
-    | undefined;
+  const activeToolStore = toolToStore[toolStore.currentTool];
   if (!activeToolStore) return;
-
-  let offset = 0;
-  if (event.key === DECREMENT_LABEL_KEY) {
-    offset = -1;
-  }
-  if (event.key === INCREMENT_LABEL_KEY) {
-    offset = 1;
-  }
 
   const labels = Object.entries(activeToolStore.labels);
   const activeLabelIndex = labels.findIndex(
@@ -41,14 +27,6 @@ const handleLabelSection = (event: KeyboardEvent) => {
 };
 
 export function useKeyboardShortcuts() {
-  const handleKeyDown = (event: KeyboardEvent) => {
-    handleLabelSection(event);
-  };
-
-  onMounted(() => {
-    window.addEventListener('keydown', handleKeyDown);
-  });
-  onUnmounted(() => {
-    window.removeEventListener('keydown', handleKeyDown);
-  });
+  onKeyDown(DECREMENT_LABEL_KEY, () => applyLabelOffset(-1));
+  onKeyDown(INCREMENT_LABEL_KEY, () => applyLabelOffset(1));
 }

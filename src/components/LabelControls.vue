@@ -24,6 +24,7 @@ const activeLabelIndex = computed(() => {
         v-if="labels.length"
         :model-value="activeLabelIndex"
         selected-class="card-active"
+        mandatory
       >
         <v-row>
           <v-col cols="6" v-for="[name, { color }] in labels" :key="name">

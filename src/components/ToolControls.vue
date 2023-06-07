@@ -17,9 +17,11 @@ const tool = computed(() => tools.get(toolStore.currentTool));
 
 <template>
   <div v-if="tool">
-    <div class="annotation-header">{{ tool.label }}</div>
+    <div class="header">{{ tool.label }}</div>
     <div class="content">
       <component :is="tool.component" />
     </div>
   </div>
 </template>
+
+<style scoped src="./styles/annotations.css"></style>

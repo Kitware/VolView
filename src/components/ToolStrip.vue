@@ -74,6 +74,7 @@
           :labels="rectangleStore.labels"
           :set-active-label="rectangleStore.setActiveLabel"
           :active-label="rectangleStore.activeLabel"
+          class="popup-menu"
         />
       </menu-tool-button>
     </groupable-item>

@@ -34,7 +34,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref , watch } from 'vue';
+import { defineComponent, ref, watch } from 'vue';
 
 import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
@@ -65,6 +65,8 @@ export const Modules = [
   // },
 ];
 
+const autoSwitchToAnnotationsTools = [Tools.Rectangle, Tools.Ruler];
+
 export default defineComponent({
   name: 'ModulePanel',
   setup() {
@@ -74,7 +76,7 @@ export default defineComponent({
     watch(
       () => toolStore.currentTool,
       (newTool) => {
-        if ([Tools.Rectangle, Tools.Ruler].includes(newTool))
+        if (autoSwitchToAnnotationsTools.includes(newTool))
           selectedModuleIndex.value = 1;
       }
     );

@@ -19,13 +19,13 @@ export default defineComponent({
 <template>
   <div class="overflow-y-auto mx-2 fill-height">
     <tool-controls />
-    <div class="annotation-header">Measurements</div>
+    <div class="header">Measurements</div>
     <div class="content">
       <measurements-ruler-list />
       <measurements-rectangle-list />
     </div>
     <div class="text-caption text-center empty-state">No measurements</div>
-    <div class="annotation-header">Labelmaps</div>
+    <div class="header">Labelmaps</div>
     <div class="content">
       <labelmap-list />
     </div>
@@ -33,18 +33,9 @@ export default defineComponent({
   </div>
 </template>
 
-<style>
+<style scoped>
 .annot-subheader {
   margin: 8px 0;
-}
-.annotation-header {
-  background: rgba(var(--v-theme-surface-variant), 0.08);
-  padding: 4px;
-  margin: 8px 0;
-  width: 100%;
-  text-align: center;
-  font-size: 0.875rem;
-  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
 }
 
 .empty-state {
@@ -55,3 +46,5 @@ export default defineComponent({
   display: block;
 }
 </style>
+
+<style scoped src="./styles/annotations.css"></style>
