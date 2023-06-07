@@ -17,9 +17,9 @@ const activeLabelIndex = computed(() => {
 </script>
 
 <template>
-  <v-container>
-    <v-card>
-      <v-card-title class="pt-0">Labels</v-card-title>
+  <v-card>
+    <v-card-title>Labels</v-card-title>
+    <v-container>
       <v-item-group
         v-if="labels.length"
         :model-value="activeLabelIndex"
@@ -50,8 +50,8 @@ const activeLabelIndex = computed(() => {
       <div v-else class="text-caption text-center pa-2">
         No labels configured
       </div>
-    </v-card>
-  </v-container>
+    </v-container>
+  </v-card>
 </template>
 
 <style scoped>
