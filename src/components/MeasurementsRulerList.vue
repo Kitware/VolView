@@ -18,6 +18,7 @@ export default defineComponent({
           name: ruler.name,
           length: lengthByID[ruler.id],
           color: ruler.color,
+          label: ruler.label,
         }));
     });
 
@@ -46,6 +47,7 @@ export default defineComponent({
 <template>
   <v-list-item v-for="ruler in rulers" :key="ruler.id" lines="two">
     <template #prepend>
+      <v-icon class="tool-icon">mdi-ruler</v-icon>
       <v-menu location="end" :close-on-content-click="false">
         <template v-slot:activator="{ props }">
           <div
@@ -63,13 +65,19 @@ export default defineComponent({
       </v-menu>
     </template>
     <v-list-item-title v-bind="$attrs">
-      {{ ruler.name }} (ID = {{ ruler.id }})
+      Label: {{ ruler.label }}
     </v-list-item-title>
     <v-list-item-subtitle>
-      Length: {{ ruler.length.toFixed(2) }}mm
+      <v-row>
+        <v-col
+          >Length:
+          <span class="value">{{ ruler.length.toFixed(2) }}mm</span>
+        </v-col>
+        <v-col>ID: {{ ruler.id }}</v-col>
+      </v-row>
     </v-list-item-subtitle>
     <template #append>
-      <v-row no-gutters>
+      <v-row>
         <v-btn
           class="mr-2"
           icon="mdi-target"
@@ -102,5 +110,9 @@ export default defineComponent({
   height: 24px;
   background: yellow;
   border-radius: 16px;
+}
+
+.tool-icon {
+  margin-inline-end: 12px;
 }
 </style>
