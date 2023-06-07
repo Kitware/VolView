@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed } from 'vue';
+import { computed } from 'vue';
 import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
-import { DECREMENT_LABEL_KEY, INCREMENT_LABEL_KEY } from '../config';
 
 const props = defineProps<{
   labels: Labels<AnnotationTool>;
@@ -14,28 +13,6 @@ const labels = computed(() => Object.entries(props.labels));
 // item groups need an index, not a value
 const activeLabelIndex = computed(() => {
   return labels.value.findIndex(([name]) => name === props.activeLabel);
-});
-
-const handleKeyDown = (event: KeyboardEvent) => {
-  let offset = 0;
-  if (event.key === DECREMENT_LABEL_KEY) {
-    offset = -1;
-  }
-  if (event.key === INCREMENT_LABEL_KEY) {
-    offset = 1;
-  }
-
-  const [nextLabel] = labels.value.at(
-    (activeLabelIndex.value + offset) % labels.value.length
-  )!;
-  props.setActiveLabel(nextLabel);
-};
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown);
-});
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
 });
 </script>
 

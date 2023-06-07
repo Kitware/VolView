@@ -232,6 +232,7 @@ import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
 
 async function loadFiles(
   sources: DataSource[],
@@ -316,6 +317,7 @@ export default defineComponent({
 
     useGlobalErrorHook();
     useWebGLWatchdog();
+    useKeyboardShortcuts();
 
     const { runAsLoading } = useAppLoadingNotifications();
 

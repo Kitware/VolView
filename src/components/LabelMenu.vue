@@ -1,36 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
 import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
-import { DECREMENT_LABEL_KEY, INCREMENT_LABEL_KEY } from '../config';
 
-const props = defineProps<{
+defineProps<{
   labels: Labels<AnnotationTool>;
   activeLabel: ReturnType<typeof useLabels>['activeLabel']['value'];
   setActiveLabel: SetActiveLabel;
 }>();
-
-const handleKeyDown = (event: KeyboardEvent) => {
-  let offset = 0;
-  if (event.key === DECREMENT_LABEL_KEY) {
-    offset = -1;
-  }
-  if (event.key === INCREMENT_LABEL_KEY) {
-    offset = 1;
-  }
-
-  const labels = Object.entries(props.labels);
-  const labelIndex = labels.findIndex(([name]) => name === props.activeLabel);
-  const [nextLabel] = labels.at((labelIndex + offset) % labels.length)!;
-  props.setActiveLabel(nextLabel);
-};
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown);
-});
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-});
 </script>
 
 <template>
