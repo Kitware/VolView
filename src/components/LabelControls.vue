@@ -18,7 +18,7 @@ const activeLabelIndex = computed(() => {
 
 <template>
   <v-card>
-    <v-card-title>Labels</v-card-title>
+    <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <v-item-group
         v-if="labels.length"
@@ -26,12 +26,12 @@ const activeLabelIndex = computed(() => {
         selected-class="card-active"
         mandatory
       >
-        <v-row>
+        <v-row dense>
           <v-col cols="6" v-for="[name, { color }] in labels" :key="name">
             <v-item v-slot="{ selectedClass, toggle }">
               <v-chip
                 variant="tonal"
-                :class="['w-100 px-2', selectedClass]"
+                :class="['w-100', selectedClass]"
                 @click="
                   () => {
                     toggle();
@@ -39,9 +39,10 @@ const activeLabelIndex = computed(() => {
                   }
                 "
               >
-                <v-icon :color="color" size="18" class="mr-2">
-                  mdi-square
-                </v-icon>
+                <div
+                  class="color-dot mr-3"
+                  :style="{ backgroundColor: color }"
+                />
                 <span>{{ name }}</span>
               </v-chip>
             </v-item>
@@ -59,5 +60,12 @@ const activeLabelIndex = computed(() => {
 .card-active {
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));
+}
+
+.color-dot {
+  width: 18px;
+  height: 18px;
+  background: yellow;
+  border-radius: 16px;
 }
 </style>
