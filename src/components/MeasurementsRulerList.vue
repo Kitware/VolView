@@ -48,24 +48,10 @@ export default defineComponent({
   <v-list-item v-for="ruler in rulers" :key="ruler.id" lines="two">
     <template #prepend>
       <v-icon class="tool-icon">mdi-ruler</v-icon>
-      <v-menu location="end" :close-on-content-click="false">
-        <template v-slot:activator="{ props }">
-          <div
-            class="color-dot clickable mr-3"
-            :style="{ backgroundColor: ruler.color }"
-            v-bind="props"
-          />
-        </template>
-        <v-color-picker
-          :model-value="ruler.color"
-          @update:model-value="updateColor(ruler.id, $event)"
-          hide-inputs
-          class="overflow-hidden"
-        />
-      </v-menu>
+      <div class="color-dot mr-3" :style="{ backgroundColor: ruler.color }" />
     </template>
     <v-list-item-title v-bind="$attrs">
-      Label: {{ ruler.label }}
+      {{ ruler.label }}
     </v-list-item-title>
     <v-list-item-subtitle>
       <v-row>

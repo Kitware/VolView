@@ -47,24 +47,10 @@ export default defineComponent({
   <v-list-item v-for="rect in rects" :key="rect.id" lines="two">
     <template #prepend>
       <v-icon class="tool-icon">mdi-vector-square</v-icon>
-      <v-menu location="end" :close-on-content-click="false">
-        <template v-slot:activator="{ props }">
-          <div
-            class="color-dot clickable mr-3"
-            :style="{ backgroundColor: rect.color }"
-            v-bind="props"
-          />
-        </template>
-        <v-color-picker
-          :model-value="rect.color"
-          @update:model-value="updateColor(rect.id, $event)"
-          hide-inputs
-          class="overflow-hidden"
-        />
-      </v-menu>
+      <div class="color-dot mr-3" :style="{ backgroundColor: rect.color }" />
     </template>
     <v-list-item-title v-bind="$attrs">
-      Label: {{ rect.label }}
+      {{ rect.label }}
     </v-list-item-title>
 
     <v-list-item-subtitle>
