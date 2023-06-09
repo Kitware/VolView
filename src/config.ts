@@ -61,6 +61,11 @@ export const DefaultViewSpec = InitViewSpecs[InitViewIDs.Axial];
  */
 export const Layouts: Record<string, Layout> = [
   {
+    name: 'Axial Only',
+    direction: LayoutDirection.H,
+    items: [InitViewIDs.Axial],
+  },
+  {
     name: 'Axial Primary',
     direction: LayoutDirection.V,
     items: [
