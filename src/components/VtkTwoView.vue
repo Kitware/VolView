@@ -32,7 +32,7 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
-      <div v-if="viewProxyMounted" class="overlay-no-events tool-layer">
+      <div class="overlay-no-events tool-layer">
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
@@ -206,11 +206,7 @@ import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
-import {
-  useViewProxy,
-  useViewProxyMounted,
-  useViewProxyUnmounted,
-} from '../composables/useViewProxy';
+import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore, {
   defaultSliceConfig,
@@ -379,18 +375,6 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       setViewProxyContainer(null);
-    });
-
-    // delays mounting of vtkWidgets components until the view proxy has a container
-    // and vtkWidgetManager gets linked with view proxy
-    const viewProxyMounted = ref(false);
-
-    useViewProxyMounted(viewProxy, () => {
-      viewProxyMounted.value = true;
-    });
-
-    useViewProxyUnmounted(viewProxy, () => {
-      viewProxyMounted.value = false;
     });
 
     // --- Slicing setup --- //
@@ -761,7 +745,6 @@ export default defineComponent({
         resizeToFit.value = true;
       },
       hover,
-      viewProxyMounted,
     };
   },
 });
