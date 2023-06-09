@@ -32,7 +32,7 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
-      <div class="overlay-no-events tool-layer">
+      <div class="overlay-no-events tool-layer" ref="toolContainer">
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
@@ -212,7 +212,7 @@ import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
 import CropTool from './tools/CropTool.vue';
-import { VTKTwoViewWidgetManager } from '../constants';
+import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
@@ -420,6 +420,10 @@ export default defineComponent({
     // --- resizing --- //
 
     useResizeObserver(vtkContainerRef, () => viewProxy.value.resize());
+
+    // Used by SVG tool widgets for resizeCallback
+    const toolContainer = ref<HTMLElement>();
+    provide(ToolContainer, toolContainer);
 
     // --- widget manager --- //
 
@@ -726,6 +730,7 @@ export default defineComponent({
 
     return {
       vtkContainerRef,
+      toolContainer,
       viewID,
       viewProxy,
       viewAxis,
