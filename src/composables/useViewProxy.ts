@@ -48,15 +48,27 @@ function onViewProxyModified<T extends vtkViewProxy = vtkViewProxy>(
   onModified(callback);
 }
 
+function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
+  viewProxy: MaybeRef<T>
+) {
+  const mounted = ref(false);
+
+  const updateMounted = () => {
+    mounted.value = !!unref(viewProxy).getContainer();
+  };
+
+  updateMounted();
+
+  onViewProxyModified(viewProxy, updateMounted);
+
+  return mounted;
+}
+
 export function useViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<T>,
   callback: () => void
 ) {
-  const mounted = ref(false);
-
-  onViewProxyModified(viewProxy, () => {
-    mounted.value = !!unref(viewProxy).getContainer();
-  });
+  const mounted = useMountedViewProxy(viewProxy);
 
   watch(
     mounted,
@@ -71,11 +83,7 @@ export function useViewProxyUnmounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<T>,
   callback: () => void
 ) {
-  const mounted = ref(false);
-
-  onViewProxyModified(viewProxy, () => {
-    mounted.value = !!unref(viewProxy).getContainer();
-  });
+  const mounted = useMountedViewProxy(viewProxy);
 
   watch(
     mounted,
