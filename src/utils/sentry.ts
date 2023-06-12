@@ -5,7 +5,6 @@ export const SENTRY_OFF_KEY = 'SENTRY_OFF';
 
 export const init = (app: App<Element>) => {
   const sentryOff = localStorage.getItem(SENTRY_OFF_KEY);
-  console.log(sentryOff);
   if (sentryOff !== 'true')
     Sentry.init({
       app,

@@ -38,6 +38,7 @@ export default defineComponent({
     const theme = useTheme();
     const store = useLocalStorage(ThemeStorageKey, theme.global.name.value);
     const dark = ref(theme.global.name.value === DarkTheme);
+
     watch(dark, (isDark) => {
       theme.global.name.value = isDark ? DarkTheme : LightTheme;
       store.value = theme.global.name.value;
@@ -45,6 +46,7 @@ export default defineComponent({
 
     const disableReportingStore = useLocalStorage(SENTRY_OFF_KEY, 'false');
     const disableReporting = ref(disableReportingStore.value === 'true');
+
     watch(disableReporting, () => {
       if (disableReporting.value) disable();
       else enable();

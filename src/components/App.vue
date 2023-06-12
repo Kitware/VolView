@@ -128,10 +128,19 @@
                         <v-icon size="64">mdi-arrow-down-bold</v-icon>
                       </div>
                       <div>Drag &amp; drop your DICOM files.</div>
+
                       <div class="vertical-offset-margin">
                         <v-icon size="64">mdi-cloud-off-outline</v-icon>
                       </div>
-                      <div>Secure: Your data never leaves your machine.</div>
+                      <div>Secure: Image data never leaves your machine.</div>
+
+                      <div class="vertical-offset-margin">
+                        Opt out of error reporting
+                        <v-btn
+                          icon="mdi-cog"
+                          @click.stop="settingsDialog = true"
+                        ></v-btn>
+                      </div>
                     </v-card>
                   </v-row>
                 </v-col>
