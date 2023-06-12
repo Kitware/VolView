@@ -1,5 +1,6 @@
 import { Maybe } from '@/src/types';
 import { Deferred, defer } from '@/src/utils';
+import { debug } from '@/src/utils/loggers';
 import { nanoid } from 'nanoid';
 import { Socket, io } from 'socket.io-client';
 import { z } from 'zod';
@@ -88,6 +89,10 @@ export function validateRpcCall(data: unknown): data is RpcCall {
   return RpcCallSchema.safeParse(data).success;
 }
 
+export interface RpcApi {
+  [name: string]: (...args: any[]) => any;
+}
+
 /**
  * Represents a bidirectional socket.io RPC client.
  *
@@ -96,13 +101,16 @@ export function validateRpcCall(data: unknown): data is RpcCall {
 export default class RpcClient {
   protected clientId: string;
   protected socket: Socket;
+  protected api: RpcApi;
 
   private waiting: Map<string, Promise<unknown>>;
   private pendingRpcs: Map<string, Deferred<any>>;
   private activeStreams: Map<string, StreamCallback<any>>;
 
-  constructor(url: string) {
+  constructor(url: string, api: RpcApi) {
     this.clientId = `cid_${nanoid(CLIENT_ID_SIZE)}`;
+    this.api = api;
+
     this.waiting = new Map();
     this.pendingRpcs = new Map();
     this.activeStreams = new Map();
@@ -114,6 +122,7 @@ export default class RpcClient {
       autoConnect: false,
     });
 
+    this.socket.on(RPC_CALL_EVENT, this.onRpcCallEvent.bind(this));
     this.socket.on(RPC_RESULT_EVENT, this.onRpcResultEvent.bind(this));
     this.socket.on(STREAM_RESULT_EVENT, this.onStreamResultEvent.bind(this));
   }
@@ -194,12 +203,15 @@ export default class RpcClient {
 
   private onRpcResultEvent(result: RpcResult<unknown>) {
     if (!validateRpcResult(result)) {
-      throw new Error('Failed to validate RPC result');
+      // ignore invalid RPC responses
+      debug.warn('Received invalid RPC result:', result);
+      return;
     }
 
     const deferred = this.pendingRpcs.get(result.rpcId);
     if (!deferred) {
       // ignore untracked RPCs
+      debug.warn('Received unknown RPC ID:', result.rpcId);
       return;
     }
 
@@ -270,6 +282,7 @@ export default class RpcClient {
     const callback = this.activeStreams.get(result.rpcId);
     if (!deferred || !callback) {
       // ignore untracked RPCs
+      debug.warn('Received unknown RPC ID:', result.rpcId);
       return;
     }
 
@@ -293,5 +306,36 @@ export default class RpcClient {
 
   protected sendRpcCall(eventType: string, payload: RpcCall) {
     this.socket.emit(eventType, payload);
+  }
+
+  protected async onRpcCallEvent(rpcInfo: unknown) {
+    if (!validateRpcCall(rpcInfo)) {
+      debug.warn('Received invalid RPC call:', rpcInfo);
+      return;
+    }
+
+    const { rpcId, name, args } = rpcInfo;
+    const result = await this.tryRpcCall(name, args ?? []);
+    result.rpcId = rpcId;
+    this.socket.emit(RPC_RESULT_EVENT, result);
+  }
+
+  protected async tryRpcCall(
+    name: string,
+    args: unknown[]
+  ): Promise<RpcResult<unknown>> {
+    if (!(name in this.api)) {
+      return makeRpcErrorResult(
+        `${name} is not a registered client RPC endpoint`
+      );
+    }
+
+    try {
+      type RpcMethod = (...args: unknown[]) => unknown;
+      const data = await (this.api[name] as RpcMethod)(...args);
+      return makeRpcOkResult(data);
+    } catch (err) {
+      return makeRpcErrorResult(String(err));
+    }
   }
 }

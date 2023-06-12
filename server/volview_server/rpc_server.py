@@ -2,8 +2,10 @@ import asyncio
 import enum
 import inspect
 import traceback
-from typing import Any, Callable, Union, List, Generator
+import uuid
+from typing import Any, Callable, Union, List, Generator, Dict
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context, ContextVar
 from dataclasses import dataclass, field, asdict
 from urllib.parse import parse_qs
 
@@ -24,6 +26,13 @@ EXPOSE_INFO_ATTR = "_rpc_expose_info"
 class ExposeType(enum.Enum):
     RPC = "rpc"
     STREAM = "stream"
+
+
+@dataclass
+class RpcCall:
+    rpcId: str
+    name: str
+    args: List[Any]
 
 
 def validate_rpc_call(data: Any):
@@ -78,6 +87,17 @@ class RpcErrorResult:
     error: str
 
 
+def validate_rpc_result(result: Any):
+    if type(result) is not dict:
+        raise TypeError("Result is not a dict")
+    return (
+        result["rpcId"],
+        result["ok"],
+        result.get("data", None),
+        result.get("error", None),
+    )
+
+
 @dataclass
 class StreamDataResult(RpcOkResult):
     done: bool = field(default=False)
@@ -100,6 +120,8 @@ class RpcServer:
         self.clients = {}
 
         self._thread_pool = ThreadPoolExecutor(num_threads)
+        self._client_id_cvar: ContextVar[str] = ContextVar("client_id")
+        self._pending_rpcs: Dict[str, asyncio.Future] = {}
 
         @self.sio.event
         def connect(sid: str, environ: dict):
@@ -117,17 +139,51 @@ class RpcServer:
         async def on_stream_call(sid: str, data: Any):
             await self._on_stream_call(self.clients[sid], data)
 
+        @self.sio.on(RPC_RESULT_EVENT)
+        async def on_rpc_result(sid: str, data: Any):
+            await self._on_rpc_result(self.clients[sid], data)
+
+    @property
+    def current_client_id(self):
+        return self._client_id_cvar.get()
+
     def teardown(self):
         """Does internal cleanup."""
         # break circular dependency
         self.api = None
 
-    def call(self, client_id: str, rpc_name: str, args: List[Any]):
-        """Calls an RPC method on a given client.
+    async def call_client(self, rpc_name: str, args: List[Any] = None, client_id=None):
+        """Calls an RPC method on a given client or current client.
 
-        Does not support invoking remote generators.
+        Does not support invoking client generators.
         """
-        raise NotImplementedError
+        rpc_id = uuid.uuid4().hex
+        client_id = client_id or self.current_client_id
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        self._pending_rpcs[rpc_id] = future
+
+        await self.sio.emit(
+            RPC_CALL_EVENT,
+            asdict(RpcCall(rpc_id, rpc_name, args)),
+            room=client_id,
+        )
+        return await future
+
+    async def _on_rpc_result(self, client_id: str, result: Any):
+        try:
+            rpc_id, ok, data, error = validate_rpc_result(result)
+            future = self._pending_rpcs.get(rpc_id, None)
+        except (TypeError, KeyError):
+            # ignore invalid RPC result
+            print("Received invalid RPC result")
+        else:
+            del self._pending_rpcs[rpc_id]
+            if ok:
+                future.set_result(data)
+            else:
+                future.set_exception(Exception(error))
 
     def _on_connect(self, sid: str, environ: dict):
         qs = parse_qs(environ.get("QUERY_STRING", ""))
@@ -176,12 +232,16 @@ class RpcServer:
         if not rpc_fn:
             return RpcErrorResult(f"{name} is not a registered RPC")
 
+        self._client_id_cvar.set(client_id)
         try:
             if inspect.iscoroutinefunction(rpc_fn):
                 result = await rpc_fn(*args)
             else:
                 loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(self._thread_pool, rpc_fn, *args)
+                ctx = copy_context()
+                result = await loop.run_in_executor(
+                    self._thread_pool, ctx.run, rpc_fn, *args
+                )
             return RpcOkResult(result)
         except Exception as exc:
             traceback.print_exc()
