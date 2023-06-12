@@ -1,0 +1,9 @@
+.header {
+  background: rgba(var(--v-theme-surface-variant), 0.08);
+  padding: 4px;
+  margin: 8px 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
+}

@@ -3,12 +3,14 @@ import { defineComponent } from 'vue';
 import MeasurementsRulerList from './MeasurementsRulerList.vue';
 import MeasurementsRectangleList from './MeasurementsRectangleList.vue';
 import LabelmapList from './LabelmapList.vue';
+import ToolControls from './ToolControls.vue';
 
 export default defineComponent({
   components: {
     MeasurementsRulerList,
     MeasurementsRectangleList,
     LabelmapList,
+    ToolControls,
   },
   setup() {},
 });
@@ -16,6 +18,7 @@ export default defineComponent({
 
 <template>
   <div class="overflow-y-auto mx-2 fill-height">
+    <tool-controls />
     <div class="header">Measurements</div>
     <div class="content">
       <measurements-ruler-list />
@@ -34,15 +37,6 @@ export default defineComponent({
 .annot-subheader {
   margin: 8px 0;
 }
-.header {
-  background: rgba(var(--v-theme-surface-variant), 0.08);
-  padding: 4px;
-  margin: 8px 0;
-  width: 100%;
-  text-align: center;
-  font-size: 0.875rem;
-  color: rgba(var(--v-theme-on-surface), var(--v-medium-emphasis-opacity));
-}
 
 .empty-state {
   display: none;
@@ -52,3 +46,5 @@ export default defineComponent({
   display: block;
 }
 </style>
+
+<style scoped src="./styles/annotations.css"></style>

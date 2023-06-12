@@ -18,6 +18,7 @@ export default defineComponent({
           name: ruler.name,
           length: lengthByID[ruler.id],
           color: ruler.color,
+          label: ruler.label,
         }));
     });
 
@@ -46,30 +47,23 @@ export default defineComponent({
 <template>
   <v-list-item v-for="ruler in rulers" :key="ruler.id" lines="two">
     <template #prepend>
-      <v-menu location="end" :close-on-content-click="false">
-        <template v-slot:activator="{ props }">
-          <div
-            class="color-dot clickable mr-3"
-            :style="{ backgroundColor: ruler.color }"
-            v-bind="props"
-          />
-        </template>
-        <v-color-picker
-          :model-value="ruler.color"
-          @update:model-value="updateColor(ruler.id, $event)"
-          hide-inputs
-          class="overflow-hidden"
-        />
-      </v-menu>
+      <v-icon class="tool-icon">mdi-ruler</v-icon>
+      <div class="color-dot mr-3" :style="{ backgroundColor: ruler.color }" />
     </template>
     <v-list-item-title v-bind="$attrs">
-      {{ ruler.name }} (ID = {{ ruler.id }})
+      {{ ruler.label }}
     </v-list-item-title>
     <v-list-item-subtitle>
-      Length: {{ ruler.length.toFixed(2) }}mm
+      <v-row>
+        <v-col
+          >Length:
+          <span class="value">{{ ruler.length.toFixed(2) }}mm</span>
+        </v-col>
+        <v-col>ID: {{ ruler.id }}</v-col>
+      </v-row>
     </v-list-item-subtitle>
     <template #append>
-      <v-row no-gutters>
+      <v-row>
         <v-btn
           class="mr-2"
           icon="mdi-target"
@@ -102,5 +96,9 @@ export default defineComponent({
   height: 24px;
   background: yellow;
   border-radius: 16px;
+}
+
+.tool-icon {
+  margin-inline-end: 12px;
 }
 </style>

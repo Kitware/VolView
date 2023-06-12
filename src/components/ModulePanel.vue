@@ -34,11 +34,13 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
+import { defineComponent, ref, watch } from 'vue';
 
 import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
+import { useToolStore } from '../store/tools';
+import { Tools } from '../store/tools/types';
 
 export const Modules = [
   {
@@ -63,10 +65,21 @@ export const Modules = [
   // },
 ];
 
+const autoSwitchToAnnotationsTools = [Tools.Rectangle, Tools.Ruler];
+
 export default defineComponent({
   name: 'ModulePanel',
   setup() {
     const selectedModuleIndex = ref(0);
+
+    const toolStore = useToolStore();
+    watch(
+      () => toolStore.currentTool,
+      (newTool) => {
+        if (autoSwitchToAnnotationsTools.includes(newTool))
+          selectedModuleIndex.value = 1;
+      }
+    );
 
     return {
       selectedModuleIndex,

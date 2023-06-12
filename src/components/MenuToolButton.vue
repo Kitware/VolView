@@ -11,15 +11,26 @@ export default defineComponent({
     size: { type: [Number, String], default: 40 },
     active: Boolean,
     disabled: Boolean,
+    mobileOnlyMenu: Boolean,
   },
   components: {
     ToolButton,
   },
   setup(props) {
     const display = useDisplay();
+
     const showLeft = computed(() => !display.mobile.value);
 
     const menuOn = ref(false);
+
+    const enableMenu = computed(
+      () => !props.mobileOnlyMenu || display.mobile.value
+    );
+
+    // Disable menu if mobile only
+    watch(menuOn, (on) => {
+      menuOn.value = on && enableMenu.value;
+    });
 
     // Turn off menu if tool deselected
     const active = computed(() => props.active);
@@ -29,7 +40,7 @@ export default defineComponent({
       }
     });
 
-    return { showLeft, menuOn };
+    return { showLeft, menuOn, enableMenu };
   },
 });
 </script>
@@ -53,7 +64,7 @@ export default defineComponent({
         v-bind="props"
       >
         <v-icon
-          v-if="active"
+          v-if="active && enableMenu"
           :class="[showLeft ? 'menu-more-left' : 'menu-more-right']"
           size="18"
         >

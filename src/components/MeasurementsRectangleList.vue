@@ -17,6 +17,7 @@ export default defineComponent({
           id: rect.id,
           name: rect.name,
           color: rect.color,
+          label: rect.label,
         }));
     });
 
@@ -45,27 +46,20 @@ export default defineComponent({
 <template>
   <v-list-item v-for="rect in rects" :key="rect.id" lines="two">
     <template #prepend>
-      <v-menu location="end" :close-on-content-click="false">
-        <template v-slot:activator="{ props }">
-          <div
-            class="color-dot clickable mr-3"
-            :style="{ backgroundColor: rect.color }"
-            v-bind="props"
-          />
-        </template>
-        <v-color-picker
-          :model-value="rect.color"
-          @update:model-value="updateColor(rect.id, $event)"
-          hide-inputs
-          class="overflow-hidden"
-        />
-      </v-menu>
+      <v-icon class="tool-icon">mdi-vector-square</v-icon>
+      <div class="color-dot mr-3" :style="{ backgroundColor: rect.color }" />
     </template>
     <v-list-item-title v-bind="$attrs">
-      {{ rect.name }} (ID = {{ rect.id }})
+      {{ rect.label }}
     </v-list-item-title>
+
+    <v-list-item-subtitle>
+      <v-row>
+        <v-col>ID: {{ rect.id }}</v-col>
+      </v-row>
+    </v-list-item-subtitle>
     <template #append>
-      <v-row no-gutters>
+      <v-row>
         <v-btn
           class="mr-2"
           icon="mdi-target"
@@ -98,5 +92,9 @@ export default defineComponent({
   height: 24px;
   background: yellow;
   border-radius: 16px;
+}
+
+.tool-icon {
+  margin-inline-end: 12px;
 }
 </style>
