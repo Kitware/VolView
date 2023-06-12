@@ -134,7 +134,10 @@
                       </div>
                       <div>Secure: Image data never leaves your machine.</div>
 
-                      <div class="vertical-offset-margin">
+                      <div
+                        v-if="errorReportingConfigured"
+                        class="vertical-offset-margin"
+                      >
                         Opt out of error reporting
                         <v-btn
                           icon="mdi-cog"
@@ -242,6 +245,7 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
+import { errorReportingConfigured } from '../utils/errorReporting';
 
 async function loadFiles(
   sources: DataSource[],
@@ -472,6 +476,7 @@ export default defineComponent({
       userPromptFiles,
       openFiles,
       hasData,
+      errorReportingConfigured,
     };
   },
 });
