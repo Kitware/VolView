@@ -129,10 +129,12 @@
                       </div>
                       <div>Drag &amp; drop your DICOM files.</div>
 
-                      <div class="vertical-offset-margin">
+                      <div v-if="!saveUrl" class="vertical-offset-margin">
                         <v-icon size="64">mdi-cloud-off-outline</v-icon>
                       </div>
-                      <div>Secure: Image data never leaves your machine.</div>
+                      <div v-if="!saveUrl">
+                        Secure: Image data never leaves your machine.
+                      </div>
 
                       <div
                         v-if="errorReportingConfigured"
@@ -477,6 +479,7 @@ export default defineComponent({
       openFiles,
       hasData,
       errorReportingConfigured,
+      saveUrl,
     };
   },
 });
