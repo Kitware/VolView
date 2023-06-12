@@ -66,6 +66,7 @@
       <menu-tool-button
         icon="mdi-vector-square"
         name="Rectangle"
+        :mobileOnlyMenu="true"
         :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -74,7 +75,7 @@
           :labels="rectangleStore.labels"
           :set-active-label="rectangleStore.setActiveLabel"
           :active-label="rectangleStore.activeLabel"
-          class="popup-menu"
+          class="popup-menu pt-2"
         />
       </menu-tool-button>
     </groupable-item>
@@ -82,6 +83,7 @@
       <menu-tool-button
         icon="mdi-ruler"
         name="Ruler"
+        :mobileOnlyMenu="true"
         :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
@@ -90,7 +92,7 @@
           :labels="rulerStore.labels"
           :set-active-label="rulerStore.setActiveLabel"
           :active-label="rulerStore.activeLabel"
-          class="popup-menu"
+          class="popup-menu pt-2"
         />
       </menu-tool-button>
     </groupable-item>
