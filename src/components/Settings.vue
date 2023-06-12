@@ -13,6 +13,11 @@
     <v-card-text>
       <v-switch label="Dark Theme" v-model="dark"></v-switch>
 
+      <v-switch
+        label="Disable Error Reporting"
+        v-model="disableReporting"
+      ></v-switch>
+
       <v-divider class="mt-2 mb-6"></v-divider>
       <dicom-web-settings />
     </v-card-text>
@@ -26,20 +31,28 @@ import { useLocalStorage } from '@vueuse/core';
 
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
+import { SENTRY_OFF_KEY, disable, enable } from '../utils/sentry';
 
 export default defineComponent({
   setup() {
     const theme = useTheme();
     const store = useLocalStorage(ThemeStorageKey, theme.global.name.value);
     const dark = ref(theme.global.name.value === DarkTheme);
-
     watch(dark, (isDark) => {
       theme.global.name.value = isDark ? DarkTheme : LightTheme;
       store.value = theme.global.name.value;
     });
 
+    const disableReportingStore = useLocalStorage(SENTRY_OFF_KEY, 'false');
+    const disableReporting = ref(disableReportingStore.value === 'true');
+    watch(disableReporting, () => {
+      if (disableReporting.value) disable();
+      else enable();
+    });
+
     return {
       dark,
+      disableReporting,
     };
   },
   components: {

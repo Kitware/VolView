@@ -20,6 +20,7 @@ import proxyConfiguration from './vtk/proxy';
 import { CorePiniaProviderPlugin } from './core/provider';
 import ProxyWrapper from './core/proxies';
 import { patchExitPointerLock } from './utils/hacks';
+import { init as sentryInit } from './utils/sentry';
 
 // patches
 patchExitPointerLock();
@@ -49,6 +50,9 @@ pinia.use(
 );
 
 const app = createApp(App);
+
+sentryInit(app);
+
 app.provide('ProxyManager', proxyManager);
 app.use(pinia);
 app.use(VueToast);
