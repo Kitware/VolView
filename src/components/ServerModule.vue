@@ -4,16 +4,17 @@ import vtk from '@kitware/vtk.js/vtk';
 import { computed, defineComponent, onMounted, ref } from 'vue';
 import { Maybe } from '@/src/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import RemoteConnection from '@/src/core/remote/remote-connection';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useDatasetStore } from '@/src/store/datasets';
+import RpcClient from '@/src/core/remote/client';
+import { StoreApi } from '@/src/core/remote/storeApi';
 
 export default defineComponent({
   setup() {
     const url = process.env.VUE_APP_REMOTE_SERVER_URL || '';
 
     const ready = ref(false);
-    const rconn = new RemoteConnection(url);
+    const rconn = new RpcClient(url, StoreApi);
 
     onMounted(async () => {
       await rconn.connect();
@@ -67,7 +68,7 @@ export default defineComponent({
 
     const startStream = async () => {
       streamLoading.value = true;
-      await rconn.stream('number_stream', onStreamData);
+      await rconn.stream('progress', onStreamData);
     };
 
     // --- median filter --- //

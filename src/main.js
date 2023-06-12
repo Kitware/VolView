@@ -23,6 +23,7 @@ import { CorePiniaProviderPlugin } from './core/provider';
 import ProxyWrapper from './core/proxies';
 import { patchExitPointerLock } from './utils/hacks';
 import { init as initErrorReporting } from './utils/errorReporting';
+import { StoreRegistry } from './plugins/storeRegistry';
 
 // patches
 patchExitPointerLock();
@@ -50,6 +51,7 @@ pinia.use(
     dicomIO,
   })
 );
+pinia.use(StoreRegistry);
 
 const app = createApp(App);
 
