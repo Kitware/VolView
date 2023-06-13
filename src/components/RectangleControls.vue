@@ -10,5 +10,6 @@ const activeToolStore = useRectangleStore();
     :labels="activeToolStore.labels"
     :set-active-label="activeToolStore.setActiveLabel"
     :active-label="activeToolStore.activeLabel"
+    :update-label="activeToolStore.updateLabel"
   />
 </template>

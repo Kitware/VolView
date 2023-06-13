@@ -19,12 +19,18 @@ export const useLabels = <Tool>(initialLabels: Labels<Tool>) => {
 
   setLabels(initialLabels);
 
+  const updateLabel = (name: string, props: LabelProps<Tool>) => {
+    labels.value[name] = props;
+  };
+
   return {
     labels,
     activeLabel,
     setActiveLabel,
     setLabels,
+    updateLabel,
   };
 };
 
 export type SetActiveLabel = ReturnType<typeof useLabels>['setActiveLabel'];
+export type UpdateLabel = ReturnType<typeof useLabels>['updateLabel'];

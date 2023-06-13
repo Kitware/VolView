@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
+import { computed, ref } from 'vue';
+import { useDisplay } from 'vuetify';
+import {
+  Labels,
+  SetActiveLabel,
+  UpdateLabel,
+  useLabels,
+} from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
+import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
   labels: Labels<AnnotationTool>;
   activeLabel: ReturnType<typeof useLabels>['activeLabel']['value'];
   setActiveLabel: SetActiveLabel;
+  updateLabel: UpdateLabel;
 }>();
 
 const labels = computed(() => Object.entries(props.labels));
@@ -14,6 +22,11 @@ const labels = computed(() => Object.entries(props.labels));
 const activeLabelIndex = computed(() => {
   return labels.value.findIndex(([name]) => name === props.activeLabel);
 });
+
+const editDialog = ref(false);
+
+const display = useDisplay();
+const mobile = computed(() => display.mobile.value);
 </script>
 
 <template>
@@ -31,7 +44,7 @@ const activeLabelIndex = computed(() => {
             <v-item v-slot="{ selectedClass, toggle }">
               <v-chip
                 variant="tonal"
-                :class="['w-100', selectedClass]"
+                :class="['w-100 d-flex', selectedClass]"
                 @click="
                   () => {
                     toggle();
@@ -39,21 +52,33 @@ const activeLabelIndex = computed(() => {
                   }
                 "
               >
-                <div
-                  class="color-dot mr-3"
-                  :style="{ backgroundColor: color }"
-                />
-                <span>{{ name }}</span>
+                <!-- dot container keeps overflowing name from squishing dot width  -->
+                <div class="dot-container mr-3">
+                  <div class="color-dot" :style="{ background: color }" />
+                </div>
+                <span class="overflow-hidden">{{ name }}</span>
               </v-chip>
             </v-item>
           </v-col>
+
+          <!-- Add Label button -->
+          <v-col cols="6">
+            <v-chip variant="outlined" class="w-100" @click="editDialog = true">
+              <v-icon class="mr-2">mdi-plus</v-icon>
+              Add Label
+            </v-chip>
+          </v-col>
         </v-row>
       </v-item-group>
-      <div v-else class="text-caption text-center pa-2">
+      <div v-if="!labels.length" class="text-caption text-center pa-2">
         No labels configured
       </div>
     </v-container>
   </v-card>
+
+  <v-dialog v-model="editDialog" :width="mobile ? '100%' : '50%'">
+    <LabelEditor @close="editDialog = false" v-if="editDialog" />
+  </v-dialog>
 </template>
 
 <style scoped>
@@ -65,7 +90,9 @@ const activeLabelIndex = computed(() => {
 .color-dot {
   width: 18px;
   height: 18px;
-  background: yellow;
   border-radius: 16px;
+}
+.dot-container {
+  width: 18px;
 }
 </style>
