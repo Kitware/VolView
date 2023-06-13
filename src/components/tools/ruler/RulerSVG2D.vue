@@ -1,5 +1,5 @@
 <template>
-  <g ref="containerEl">
+  <g>
     <line
       v-if="first && second"
       :x1="first.x"
@@ -50,6 +50,7 @@
 <script lang="ts">
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -62,6 +63,7 @@ import {
   unref,
   ref,
   watch,
+  inject,
 } from 'vue';
 
 type SVGPoint = {
@@ -159,7 +161,7 @@ export default defineComponent({
 
     // --- resize --- //
 
-    const containerEl = ref<Element | null>(null);
+    const containerEl = inject(ToolContainer)!;
 
     useResizeObserver(containerEl, () => {
       updatePoints();
@@ -173,7 +175,6 @@ export default defineComponent({
       first: firstPoint,
       second: secondPoint,
       rulerLength: computed(() => length?.value?.toFixed(2) ?? ''),
-      containerEl,
     };
   },
 });

@@ -32,7 +32,7 @@
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
       </div>
-      <div v-if="viewProxyMounted" class="overlay-no-events tool-layer">
+      <div class="overlay-no-events tool-layer" ref="toolContainer">
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
@@ -206,17 +206,13 @@ import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
-import {
-  useViewProxy,
-  useViewProxyMounted,
-  useViewProxyUnmounted,
-} from '../composables/useViewProxy';
+import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
 import CropTool from './tools/CropTool.vue';
-import { VTKTwoViewWidgetManager } from '../constants';
+import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
@@ -381,18 +377,6 @@ export default defineComponent({
       setViewProxyContainer(null);
     });
 
-    // delays mounting of vtkWidgets components until the view proxy has a container
-    // and vtkWidgetManager gets linked with view proxy
-    const viewProxyMounted = ref(false);
-
-    useViewProxyMounted(viewProxy, () => {
-      viewProxyMounted.value = true;
-    });
-
-    useViewProxyUnmounted(viewProxy, () => {
-      viewProxyMounted.value = false;
-    });
-
     // --- Slicing setup --- //
 
     watchEffect(() => {
@@ -436,6 +420,10 @@ export default defineComponent({
     // --- resizing --- //
 
     useResizeObserver(vtkContainerRef, () => viewProxy.value.resize());
+
+    // Used by SVG tool widgets for resizeCallback
+    const toolContainer = ref<HTMLElement>();
+    provide(ToolContainer, toolContainer);
 
     // --- widget manager --- //
 
@@ -742,6 +730,7 @@ export default defineComponent({
 
     return {
       vtkContainerRef,
+      toolContainer,
       viewID,
       viewProxy,
       viewAxis,
@@ -761,7 +750,6 @@ export default defineComponent({
         resizeToFit.value = true;
       },
       hover,
-      viewProxyMounted,
     };
   },
 });

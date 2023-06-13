@@ -1,5 +1,5 @@
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { ComputedRef, InjectionKey } from 'vue';
+import { ComputedRef, InjectionKey, Ref } from 'vue';
 
 export const EPSILON = 10e-6;
 export const NOOP = () => {};
@@ -23,6 +23,12 @@ export const VTKTwoViewWidgetManager: InjectionKey<
 export const VTKThreeViewWidgetManager: InjectionKey<
   ComputedRef<vtkWidgetManager>
 > = Symbol('VTKThreeViewWidgetManager');
+
+/**
+ * Retrieves the parent tool HTML element.
+ */
+export const ToolContainer: InjectionKey<Ref<HTMLElement>> =
+  Symbol('ToolContainer');
 
 export const DataTypes = {
   Image: 'Image',
