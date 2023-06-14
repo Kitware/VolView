@@ -1,10 +1,6 @@
 <script lang="ts">
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { computed, defineComponent, onMounted, ref } from 'vue';
-import { Maybe } from '@/src/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useImageStore } from '@/src/store/datasets-images';
-import { useDatasetStore } from '@/src/store/datasets';
 import RpcClient from '@/src/core/remote/client';
 import { StoreApi } from '@/src/core/remote/storeApi';
 
@@ -73,47 +69,22 @@ export default defineComponent({
     // --- median filter --- //
 
     const medianFilterLoading = ref(false);
-    const medianFilterImageID = ref<Maybe<string>>(null);
-    const { currentImageData } = useCurrentImage();
+    const { currentImageID } = useCurrentImage();
     const medianFilterRadius = ref(2);
 
-    const viewBlurredImage = () => {
-      if (medianFilterImageID.value) {
-        const dataStore = useDatasetStore();
-        dataStore.setPrimarySelection({
-          type: 'image',
-          dataID: medianFilterImageID.value,
-        });
-      }
-    };
-
     const doMedianFilter = async () => {
-      const image = currentImageData.value;
-      if (!image) return;
+      const id = currentImageID.value;
+      if (!id) return;
 
       medianFilterLoading.value = true;
       try {
-        const blurredImage = await rconn.call<vtkImageData>('medianFilter', [
-          image,
-          medianFilterRadius.value,
-        ]);
-
-        const imageStore = useImageStore();
-        if (medianFilterImageID.value) {
-          imageStore.updateData(medianFilterImageID.value, blurredImage);
-        } else {
-          medianFilterImageID.value = imageStore.addVTKImageData(
-            'Blurred image',
-            blurredImage
-          );
-        }
-        viewBlurredImage();
+        await rconn.call('medianFilter', [id, medianFilterRadius.value]);
       } finally {
         medianFilterLoading.value = false;
       }
     };
 
-    const hasCurrentImage = computed(() => !!currentImageData.value);
+    const hasCurrentImage = computed(() => !!currentImageID.value);
 
     return {
       ready,
