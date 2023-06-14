@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass, field
 
 
 import aiohttp
@@ -6,6 +7,12 @@ import itk
 
 from volview_server import VolViewApi, expose
 from volview_server.transformers import default_serializers, default_deserializers
+
+
+@dataclass
+class ClientState:
+    image_id_map: dict = field(init=False, default_factory=dict)
+    blurred_ids: set = field(init=False, default_factory=set)
 
 
 class Api(VolViewApi):
@@ -17,8 +24,13 @@ class Api(VolViewApi):
             **kwargs
         )
 
-        self.image_id_map = {}
-        self.blurred_ids = set()
+        self.client_states = {}
+
+    def get_current_client_state(self) -> ClientState:
+        cid = self._server.current_client_id
+        if cid not in self.client_states:
+            self.client_states[cid] = ClientState()
+        return self.client_states[cid]
 
     ## add example ##
 
@@ -50,6 +62,7 @@ class Api(VolViewApi):
     @expose("medianFilter")
     async def median_filter(self, img_id, radius):
         store = self.get_client_store("images")
+        state = self.get_current_client_state()
 
         # Behavior: when a median filter request occurs on a
         # blurred image, we instead assume we are re-running
@@ -59,7 +72,7 @@ class Api(VolViewApi):
 
         output = self._do_median_filter(img, radius)
 
-        blurred_id = self.image_id_map.get(base_image_id)
+        blurred_id = state.image_id_map.get(base_image_id)
         if not blurred_id:
             blurred_id = await store.addVTKImageData("Blurred image", output)
             # Associate the blurred image ID with the base image ID.
@@ -76,16 +89,19 @@ class Api(VolViewApi):
         median_filter.SetInput(img)
         median_filter.SetRadius(radius)
         median_filter.Update()
+
         return median_filter.GetOutput()
 
     def _associate_images(self, image_id, blurred_id):
-        self.blurred_ids.add(blurred_id)
-        self.image_id_map[image_id] = blurred_id
-        self.image_id_map[blurred_id] = image_id
+        state = self.get_current_client_state()
+        state.blurred_ids.add(blurred_id)
+        state.image_id_map[image_id] = blurred_id
+        state.image_id_map[blurred_id] = image_id
 
     def _get_base_image(self, img_id):
-        if img_id in self.blurred_ids:
-            return self.image_id_map[img_id]
+        state = self.get_current_client_state()
+        if img_id in state.blurred_ids:
+            return state.image_id_map[img_id]
         return img_id
 
     async def _show_image(self, img_id):
