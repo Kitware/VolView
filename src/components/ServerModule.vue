@@ -1,6 +1,5 @@
 <script lang="ts">
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import vtk from '@kitware/vtk.js/vtk';
 import { computed, defineComponent, onMounted, ref } from 'vue';
 import { Maybe } from '@/src/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -94,11 +93,10 @@ export default defineComponent({
 
       medianFilterLoading.value = true;
       try {
-        const blurredImageJSON = await rconn.call('median_filter', [
-          image.toJSON(),
+        const blurredImage = await rconn.call<vtkImageData>('medianFilter', [
+          image,
           medianFilterRadius.value,
         ]);
-        const blurredImage = vtk(blurredImageJSON) as vtkImageData;
 
         const imageStore = useImageStore();
         if (medianFilterImageID.value) {
