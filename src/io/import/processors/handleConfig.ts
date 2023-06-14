@@ -38,8 +38,8 @@ const applyConfig = (manifest: z.infer<typeof Config>) => {
     if (toolLabels === undefined) return manifest.labels;
     return toolLabels;
   };
-  useRulerStore().setLabels(labelsIfUndefined(manifest.rulerLabels));
-  useRectangleStore().setLabels(labelsIfUndefined(manifest.rectangleLabels));
+  useRulerStore().addLabels(labelsIfUndefined(manifest.rulerLabels));
+  useRectangleStore().addLabels(labelsIfUndefined(manifest.rectangleLabels));
 };
 
 /**

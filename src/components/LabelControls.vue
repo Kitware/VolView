@@ -1,29 +1,32 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useDisplay } from 'vuetify';
-import {
-  Labels,
-  SetActiveLabel,
-  UpdateLabel,
-  useLabels,
-} from '@/src/store/tools/useLabels';
+import { LabelsStore } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
+import { ValueOf } from '@/src/types';
 import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
-  labels: Labels<AnnotationTool>;
-  activeLabel: ReturnType<typeof useLabels>['activeLabel']['value'];
-  setActiveLabel: SetActiveLabel;
-  updateLabel: UpdateLabel;
+  labelsStore: LabelsStore<AnnotationTool>;
 }>();
 
-const labels = computed(() => Object.entries(props.labels));
+const labels = computed(() => Object.entries(props.labelsStore.labels));
 // item groups need an index, not a value
 const activeLabelIndex = computed(() => {
-  return labels.value.findIndex(([name]) => name === props.activeLabel);
+  return labels.value.findIndex(
+    ([name]) => name === props.labelsStore.activeLabel
+  );
 });
 
 const editDialog = ref(false);
+const editingLabel = ref<ValueOf<typeof props.labelsStore.labels> | undefined>(
+  undefined
+);
+const createLabel = () => {
+  const newID = props.labelsStore.addLabel();
+  editingLabel.value = props.labelsStore.labels[newID];
+  editDialog.value = true;
+};
 
 const display = useDisplay();
 const mobile = computed(() => display.mobile.value);
@@ -40,7 +43,11 @@ const mobile = computed(() => display.mobile.value);
         mandatory
       >
         <v-row dense>
-          <v-col cols="6" v-for="[name, { color }] in labels" :key="name">
+          <v-col
+            cols="6"
+            v-for="[id, { labelName, color }] in labels"
+            :key="id"
+          >
             <v-item v-slot="{ selectedClass, toggle }">
               <v-chip
                 variant="tonal"
@@ -48,7 +55,7 @@ const mobile = computed(() => display.mobile.value);
                 @click="
                   () => {
                     toggle();
-                    setActiveLabel(name);
+                    labelsStore.setActiveLabel(id);
                   }
                 "
               >
@@ -56,7 +63,7 @@ const mobile = computed(() => display.mobile.value);
                 <div class="dot-container mr-3">
                   <div class="color-dot" :style="{ background: color }" />
                 </div>
-                <span class="overflow-hidden">{{ name }}</span>
+                <span class="overflow-hidden">{{ labelName }}</span>
               </v-chip>
             </v-item>
           </v-col>
@@ -77,7 +84,7 @@ const mobile = computed(() => display.mobile.value);
   </v-card>
 
   <v-dialog v-model="editDialog" :width="mobile ? '100%' : '50%'">
-    <LabelEditor @close="editDialog = false" v-if="editDialog" />
+    <LabelEditor @close="createLabel" v-if="editDialog" />
   </v-dialog>
 </template>
 
