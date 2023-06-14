@@ -1,6 +1,13 @@
+import {
+  DefaultDeserializeTransformers,
+  DefaultSerializeTransformers,
+  transformObject,
+  transformObjects,
+} from '@/src/core/remote/transformers';
 import { Maybe } from '@/src/types';
 import { Deferred, defer } from '@/src/utils';
 import { debug } from '@/src/utils/loggers';
+import pipe from '@/src/utils/pipe';
 import { nanoid } from 'nanoid';
 import { Socket, io } from 'socket.io-client';
 import { z } from 'zod';
@@ -93,6 +100,11 @@ export interface RpcApi {
   [name: string]: (...args: any[]) => any;
 }
 
+export interface RpcClientOptions {
+  serializers?: Array<(input: any) => any>;
+  deserializers?: Array<(input: any) => any>;
+}
+
 /**
  * Represents a bidirectional socket.io RPC client.
  *
@@ -102,14 +114,19 @@ export default class RpcClient {
   protected clientId: string;
   protected socket: Socket;
   protected api: RpcApi;
+  protected serializers = DefaultSerializeTransformers;
+  protected deserializers = DefaultDeserializeTransformers;
 
   private waiting: Map<string, Promise<unknown>>;
   private pendingRpcs: Map<string, Deferred<any>>;
   private activeStreams: Map<string, StreamCallback<any>>;
 
-  constructor(url: string, api: RpcApi) {
+  constructor(url: string, api: RpcApi, options?: RpcClientOptions) {
     this.clientId = `cid_${nanoid(CLIENT_ID_SIZE)}`;
     this.api = api;
+    this.serializers = options?.serializers ?? DefaultSerializeTransformers;
+    this.deserializers =
+      options?.deserializers ?? DefaultDeserializeTransformers;
 
     this.waiting = new Map();
     this.pendingRpcs = new Map();
@@ -125,6 +142,17 @@ export default class RpcClient {
     this.socket.on(RPC_CALL_EVENT, this.onRpcCallEvent.bind(this));
     this.socket.on(RPC_RESULT_EVENT, this.onRpcResultEvent.bind(this));
     this.socket.on(STREAM_RESULT_EVENT, this.onStreamResultEvent.bind(this));
+
+    this.serialize = this.serialize.bind(this);
+    this.deserialize = this.deserialize.bind(this);
+  }
+
+  protected serialize(obj: any) {
+    return pipe(...this.serializers)(obj);
+  }
+
+  protected deserialize(obj: any) {
+    return pipe(...this.deserializers)(obj);
   }
 
   async connect() {
@@ -195,7 +223,7 @@ export default class RpcClient {
     this.sendRpcCall(RPC_CALL_EVENT, {
       rpcId,
       name: rpcName,
-      args,
+      args: transformObjects(args ?? [], this.serialize),
     });
 
     return pending.promise;
@@ -218,7 +246,7 @@ export default class RpcClient {
     this.pendingRpcs.delete(result.rpcId);
 
     if (result.ok) {
-      deferred.resolve(result.data);
+      deferred.resolve(transformObject(result.data, this.deserialize));
     } else {
       deferred.reject(new Error(result.error));
     }
@@ -267,7 +295,7 @@ export default class RpcClient {
     this.sendRpcCall(STREAM_CALL_EVENT, {
       rpcId,
       name: methodName,
-      args,
+      args: transformObjects(args ?? [], this.serialize),
     });
 
     return deferred.promise;
@@ -296,7 +324,7 @@ export default class RpcClient {
         clearListeners();
         deferred.resolve();
       } else {
-        callback(result.data);
+        callback(transformObject(result.data, this.deserialize));
       }
     } else {
       clearListeners();
@@ -331,9 +359,10 @@ export default class RpcClient {
     }
 
     try {
+      const deserializedArgs = transformObjects(args, this.deserialize);
       type RpcMethod = (...args: unknown[]) => unknown;
-      const data = await (this.api[name] as RpcMethod)(...args);
-      return makeRpcOkResult(data);
+      const data = await (this.api[name] as RpcMethod)(...deserializedArgs);
+      return makeRpcOkResult(transformObject(data, this.serialize));
     } catch (err) {
       return makeRpcErrorResult(String(err));
     }

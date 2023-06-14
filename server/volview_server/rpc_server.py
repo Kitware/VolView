@@ -13,6 +13,8 @@ import socketio
 from aiohttp import web
 from socketio.exceptions import ConnectionRefusedError
 
+from volview_server.transformers import transform_object, transform_objects, pipe
+
 RPC_CALL_EVENT = "rpc:call"
 RPC_RESULT_EVENT = "rpc:result"
 STREAM_CALL_EVENT = "stream:call"
@@ -114,14 +116,17 @@ class RpcServer:
         self.app = web.Application()
         self.sio.attach(self.app)
 
-        self.api = ApiClass(self)
-
         # sid -> client ID
         self.clients = {}
 
         self._thread_pool = ThreadPoolExecutor(num_threads)
         self._client_id_cvar: ContextVar[str] = ContextVar("client_id")
         self._pending_rpcs: Dict[str, asyncio.Future] = {}
+        self._serializers: List[Callable] = []
+        self._deserializers: List[Callable] = []
+
+        # initialize ApiClass last
+        self.api = ApiClass(self)
 
         @self.sio.event
         def connect(sid: str, environ: dict):
@@ -147,6 +152,18 @@ class RpcServer:
     def current_client_id(self):
         return self._client_id_cvar.get()
 
+    def set_serializers(self, serializers: List[Callable]):
+        self._serializers = serializers
+
+    def set_deserializers(self, deserializers: List[Callable]):
+        self._deserializers = deserializers
+
+    def _serialize(self, obj: Any):
+        return pipe(obj, *self._serializers)
+
+    def _deserialize(self, obj: Any):
+        return pipe(obj, *self._deserializers)
+
     def teardown(self):
         """Does internal cleanup."""
         # break circular dependency
@@ -164,6 +181,7 @@ class RpcServer:
         future: asyncio.Future = loop.create_future()
         self._pending_rpcs[rpc_id] = future
 
+        args = transform_objects(args or [], self._serialize)
         await self.sio.emit(
             RPC_CALL_EVENT,
             asdict(RpcCall(rpc_id, rpc_name, args)),
@@ -181,6 +199,7 @@ class RpcServer:
         else:
             del self._pending_rpcs[rpc_id]
             if ok:
+                data = transform_object(data, self._deserialize)
                 future.set_result(data)
             else:
                 future.set_exception(Exception(error))
@@ -234,6 +253,7 @@ class RpcServer:
 
         self._client_id_cvar.set(client_id)
         try:
+            args = transform_objects(args, self._deserialize)
             if inspect.iscoroutinefunction(rpc_fn):
                 result = await rpc_fn(*args)
             else:
@@ -242,6 +262,7 @@ class RpcServer:
                 result = await loop.run_in_executor(
                     self._thread_pool, ctx.run, rpc_fn, *args
                 )
+            result = transform_object(result, self._serialize)
             return RpcOkResult(result)
         except Exception as exc:
             traceback.print_exc()
@@ -268,7 +289,9 @@ class RpcServer:
 
         self._client_id_cvar.set(client_id)
         try:
+            args = transform_objects(args, self._deserialize)
             async for data in stream_fn(*args):
+                data = transform_object(data, self._serialize)
                 yield StreamDataResult(done=False, data=data)
             yield StreamDataResult(done=True)
         except Exception as exc:

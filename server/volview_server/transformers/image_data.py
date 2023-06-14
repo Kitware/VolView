@@ -3,11 +3,11 @@ from typing import Dict
 import itk
 import numpy as np
 
-from volview_server.itk_helpers import itk_image_pixel_type_to_js, JS_TO_NPY_TYPEMAP
-
-
-class ConvertError(Exception):
-    """An error occurred while converting."""
+from volview_server.transformers.itk_helpers import (
+    itk_image_pixel_type_to_js,
+    TYPE_ARRAY_JS_TO_NUMPY,
+)
+from volview_server.transformers.exceptions import ConvertError
 
 
 def vtk_to_itk_image(vtk_image: Dict):
@@ -25,22 +25,21 @@ def vtk_to_itk_image(vtk_image: Dict):
             extent[3] - extent[2] + 1,
             extent[1] - extent[0] + 1,
         ]
-        direction = np.zeros((3, 3))
-        for x in range(3):
-            for y in range(3):
-                direction[x][y] = vtk_image["direction"][x * 3 + y]
+        direction = (
+            np.frombuffer(vtk_image["direction"], dtype=np.dtype(float)).reshape((3, 3))
+            # vtk.js direction matrix is column-major
+            .transpose()
+        )
 
         pixel_data_array = vtk_image["pointData"]["arrays"][0]["data"]
         pixel_js_datatype = pixel_data_array["dataType"]
-        pixel_type_info = JS_TO_NPY_TYPEMAP.get(pixel_js_datatype)
-        if not pixel_type_info:
+        pixel_dtype = TYPE_ARRAY_JS_TO_NUMPY.get(pixel_js_datatype)
+        if not pixel_dtype:
             raise ConvertError(
                 f"Failed to map vtkImageData pixel type {pixel_js_datatype}"
             )
 
-        pixel_data = np.array(
-            pixel_data_array["values"], dtype=np.dtype(pixel_type_info["dtype"])
-        )
+        pixel_data = np.frombuffer(pixel_data_array["values"], dtype=pixel_dtype)
         itk_image = itk.GetImageFromArray(np.reshape(pixel_data, dims))
 
         # https://discourse.itk.org/t/set-image-direction-from-numpy-array/844/10
@@ -88,7 +87,7 @@ def itk_to_vtk_image(itk_image):
                     "data": {
                         "vtkClass": "vtkDataArray",
                         "size": len(values),
-                        "values": values,
+                        "values": values.tobytes(),
                         "dataType": itk_image_pixel_type_to_js(itk_image),
                         "numberOfComponents": itk_image.GetNumberOfComponentsPerPixel(),
                         "name": "Scalars",
@@ -103,11 +102,11 @@ def convert_vtkjs_to_itk_image(obj):
     try:
         return vtk_to_itk_image(obj)
     except ConvertError:
-        return None
+        return obj
 
 
 def convert_itk_to_vtkjs_image(obj):
     try:
         return itk_to_vtk_image(obj)
     except ConvertError:
-        return None
+        return obj

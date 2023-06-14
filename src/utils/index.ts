@@ -277,3 +277,15 @@ export function zodEnumFromObjKeys<K extends string>(
 export function nonNullable<T>(value: T): value is NonNullable<T> {
   return value != null;
 }
+
+export const TypedArrayConstructorNames = [
+  'Uint8Array',
+  'Uint8ClampedArray',
+  'Uint16Array',
+  'Uint32Array',
+  'Int8Array',
+  'Int16Array',
+  'Int32Array',
+  'Float32Array',
+  'Float64Array',
+];
