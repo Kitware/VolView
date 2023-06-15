@@ -1,12 +1,12 @@
 import * as Sentry from '@sentry/vue';
 import { App } from 'vue';
 
-export const ERROR_REPORTING_OFF_KEY = 'ERROR_REPORTING_OFF';
+export const LOCAL_STORAGE_KEY = 'error-reporting-off';
 
 export const errorReportingConfigured = !!process.env.VUE_APP_SENTRY_DSN;
 
 export const init = (app: App<Element>) => {
-  const sentryOff = localStorage.getItem(ERROR_REPORTING_OFF_KEY);
+  const sentryOff = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (sentryOff !== 'true' && errorReportingConfigured)
     Sentry.init({
       app,
@@ -21,11 +21,11 @@ export const init = (app: App<Element>) => {
 };
 
 export const disable = () => {
-  localStorage.setItem(ERROR_REPORTING_OFF_KEY, 'true');
+  localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
   Sentry.close(200);
 };
 
 // only turns Sentry back on after reload
 export const enable = () => {
-  localStorage.setItem(ERROR_REPORTING_OFF_KEY, 'false');
+  localStorage.setItem(LOCAL_STORAGE_KEY, 'false');
 };
