@@ -33,8 +33,8 @@ import { useLocalStorage } from '@vueuse/core';
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
 import {
+  useErrorReporting,
   errorReportingConfigured,
-  useDisableErrorReporting,
 } from '../utils/errorReporting';
 
 export default defineComponent({
@@ -48,7 +48,11 @@ export default defineComponent({
       store.value = theme.global.name.value;
     });
 
-    const disableReporting = useDisableErrorReporting();
+    const errorReportingStore = useErrorReporting();
+    const disableReporting = ref(errorReportingStore.disableReporting);
+    watch(disableReporting, (disable) => {
+      errorReportingStore.disableReporting = disable;
+    });
 
     return {
       dark,

@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/vue';
 import { useLocalStorage } from '@vueuse/core';
+import { defineStore } from 'pinia';
 import { App, ref, watch } from 'vue';
 
 export const LOCAL_STORAGE_KEY = 'error-reporting-off';
@@ -25,15 +26,16 @@ const disable = () => {
   Sentry.close(200);
 };
 
-export const useDisableErrorReporting = () => {
-  const disableReportingStore = useLocalStorage(LOCAL_STORAGE_KEY, 'false');
+export const useErrorReporting = defineStore('error-reporting', () => {
+  const disableReportingStorage = useLocalStorage(LOCAL_STORAGE_KEY, 'false');
 
-  const disableReporting = ref(disableReportingStore.value === 'true');
+  const disableReporting = ref(disableReportingStorage.value === 'true');
+
+  // sync boolean to local storage
   watch(disableReporting, () => {
-    disableReportingStore.value = String(disableReporting.value);
-
+    disableReportingStorage.value = String(disableReporting.value);
     if (disableReporting.value) disable();
   });
 
-  return disableReporting;
-};
+  return { disableReporting };
+});
