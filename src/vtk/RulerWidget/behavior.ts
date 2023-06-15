@@ -1,5 +1,5 @@
 import macro from '@kitware/vtk.js/macro';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 
 export enum InteractionState {
   PlacingFirst = 'PlacingFirst',

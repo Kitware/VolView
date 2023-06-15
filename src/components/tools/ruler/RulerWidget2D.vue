@@ -21,7 +21,7 @@ import {
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useRulerStore } from '@/src/store/tools/rulers';

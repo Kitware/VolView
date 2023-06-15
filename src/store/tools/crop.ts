@@ -2,7 +2,7 @@ import { getImageSpatialExtent } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '@/src/types/lps';
 import { getAxisBounds } from '@/src/utils/lps';
 import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
-import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { computed, reactive, readonly, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';

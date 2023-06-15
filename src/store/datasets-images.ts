@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { Bounds } from '@kitware/vtk.js/types';
+import type { Bounds } from '@kitware/vtk.js/types';
 
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';

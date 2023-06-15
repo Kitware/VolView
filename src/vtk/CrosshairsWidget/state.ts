@@ -1,4 +1,4 @@
-import { Bounds, Vector3 } from '@kitware/vtk.js/types';
+import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import vtkStateBuilder from '@kitware/vtk.js/Widgets/Core/StateBuilder';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import { mat4 } from 'gl-matrix';

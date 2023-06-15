@@ -13,8 +13,8 @@
     "sourceMap": true,
     "baseUrl": ".",
     "resolveJsonModule": true,
+    "isolatedModules": true,
     "types": [
-      "webpack-env",
       "mocha",
       "chai"
     ],
@@ -30,7 +30,8 @@
       "esnext",
       "dom",
       "dom.iterable",
-      "scripthost"
+      "scripthost",
+      "WebWorker"
     ]
   },
   "include": [

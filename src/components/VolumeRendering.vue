@@ -9,7 +9,7 @@ import {
 } from 'vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
-import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';

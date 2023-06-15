@@ -2,7 +2,7 @@
 import { defineComponent, watch } from 'vue';
 import { useToast } from '@/src/composables/useToast';
 import { storeToRefs } from 'pinia';
-import { ToastID } from 'vue-toastification/dist/types/types';
+import type { ToastID } from 'vue-toastification/dist/types/types';
 import { Message, MessageType, useMessageStore } from '../store/messages';
 import MessageNotificationContent from './MessageNotificationContent.vue';
 

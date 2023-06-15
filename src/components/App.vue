@@ -430,7 +430,7 @@ export default defineComponent({
 
     const saveDialog = ref(false);
     const saveUrl =
-      process.env.VUE_APP_ENABLE_REMOTE_SAVE && (urlParams.save as string);
+      import.meta.env.VITE_ENABLE_REMOTE_SAVE && (urlParams.save as string);
     const saveHappening = ref(false);
 
     const handleSave = async () => {

@@ -10,7 +10,7 @@ import { createLPSBounds, createLPSPoint, LPSAxes } from '@/src/utils/lps';
 import { intersectMouseEventWithPlane } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
-import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import {
   computed,
   ComputedRef,

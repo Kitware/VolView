@@ -1,6 +1,6 @@
-import 'vuetify/styles';
 import 'vue-toastification/dist/index.css';
-import '@/public/global.css';
+import 'vuetify/lib/styles/main.css';
+import '@/src/global.css';
 
 import '@kitware/vtk.js/Rendering/Profiles/All';
 

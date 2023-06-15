@@ -1,3 +1,4 @@
+import { join } from '@/src/utils/path';
 import {
   runPipeline,
   TextStream,
@@ -57,7 +58,15 @@ export class DICOMIO {
     inputs: any[],
     outputs: any[]
   ) {
-    return runPipeline(this.webWorker, module, args, outputs, inputs);
+    return runPipeline(
+      this.webWorker,
+      module,
+      args,
+      outputs,
+      inputs,
+      join(import.meta.env.BASE_URL, '/itk/pipelines'),
+      join(import.meta.env.BASE_URL, '/itk/pipeline.worker.js')
+    );
   }
 
   /**

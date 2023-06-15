@@ -16,7 +16,7 @@ VolView lists and downloads DICOM files served by a DICOMWeb service. The host a
 
 - VolView settings menu
 - `dicomweb` URL parameter. Example: `https://volview.netlify.com/?dicomweb=https://dicomweb-server.com`
-- At VolView build time with the `VUE_APP_DICOM_WEB_URL` environment variable.
+- At VolView build time with the `VITE_DICOM_WEB_URL` environment variable.
 
 The DICOMWeb address can point to a specific series in a study, and VolView will
 automatically load the whole series. Example URL:

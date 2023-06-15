@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import { defineStore } from 'pinia';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
 import { RULER_LABEL_DEFAULTS } from '@/src/config';

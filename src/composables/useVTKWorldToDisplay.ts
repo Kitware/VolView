@@ -1,6 +1,6 @@
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
-import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { computed, ref, unref, watchEffect } from 'vue';
 import { MaybeRef, useResizeObserver } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
