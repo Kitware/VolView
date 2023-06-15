@@ -196,9 +196,10 @@
 </style>
 
 <script>
+/* global __VERSIONS__ */
+
 import { defineComponent } from 'vue';
 import { useDisplay } from 'vuetify';
-import pkgLock from '@/package-lock.json';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 
 export default defineComponent({
@@ -212,9 +213,9 @@ export default defineComponent({
     return {
       mobile: display.xs,
       versions: {
-        volview: pkgLock.version,
-        'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,
-        'itk-wasm': pkgLock.dependencies['itk-wasm'].version,
+        volview: __VERSIONS__.volview,
+        'vtk.js': __VERSIONS__['vtk.js'],
+        'itk-wasm': __VERSIONS__['itk-wasm'],
       },
     };
   },
