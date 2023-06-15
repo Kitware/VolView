@@ -1,5 +1,5 @@
 import macro from '@kitware/vtk.js/macro';
-import { Bounds } from '@kitware/vtk.js/types';
+import type { Bounds } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 
 function clampPointToBounds(bounds: Bounds, point: vec3) {

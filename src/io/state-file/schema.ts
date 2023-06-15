@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { z } from 'zod';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkPiecewiseFunctionProxy, {
   PiecewiseGaussian,
   PiecewiseNode,

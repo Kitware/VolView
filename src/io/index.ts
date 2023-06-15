@@ -1,4 +1,4 @@
-import { vtkObject } from '@kitware/vtk.js/interfaces';
+import type { vtkObject } from '@kitware/vtk.js/interfaces';
 
 export * from './io';
 

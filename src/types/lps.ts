@@ -1,4 +1,4 @@
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 
 export type LPSAxis = 'Axial' | 'Sagittal' | 'Coronal';

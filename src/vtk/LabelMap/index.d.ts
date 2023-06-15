@@ -1,5 +1,5 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { Vector4 } from '@kitware/vtk.js/types';
+import type { Vector4 } from '@kitware/vtk.js/types';
 
 export interface vtkLabelMap extends vtkImageData {
   setLabelColor(label: number, color: Vector4): void;

@@ -1,5 +1,5 @@
 import { vec3 } from 'gl-matrix';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxis } from '../types/lps';
 import { EPSILON } from '../constants';
 import { roundIfCloseToInteger } from '.';

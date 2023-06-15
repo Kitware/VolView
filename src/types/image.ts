@@ -1,5 +1,5 @@
 import { mat3, mat4, vec3 } from 'gl-matrix';
-import { Bounds } from '@kitware/vtk.js/types';
+import type { Bounds } from '@kitware/vtk.js/types';
 import { LPSDirections } from './lps';
 
 export interface ImageMetadata {

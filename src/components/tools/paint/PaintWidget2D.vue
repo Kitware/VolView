@@ -15,7 +15,7 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { useViewStore } from '@/src/store/views';

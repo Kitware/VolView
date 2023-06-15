@@ -1,6 +1,6 @@
 import { computed, Ref, ref } from 'vue';
 import { vec3 } from 'gl-matrix';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { EPSILON } from '../constants';
 import { useVTKCallback } from './useVTKCallback';
