@@ -3,10 +3,14 @@ import { ref } from 'vue';
 import { StoreActions, StoreState } from 'pinia';
 import { getIDMaker } from '../ids';
 
-type LabelProps<Tool> = Partial<Tool & { labelName: string }>;
+export type LabelProps<Tool> = Partial<Tool & { labelName: string }>;
 export type Labels<Tool> = Record<string, LabelProps<Tool>>;
 
-export const useLabels = <Tool>(initialLabels: Maybe<Labels<Tool>>) => {
+type LabelID = string;
+
+const labelDefault = { labelName: 'New Label' };
+
+export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
   const labels = ref<Labels<Tool>>({});
 
   const activeLabel = ref<string | undefined>();
@@ -18,7 +22,8 @@ export const useLabels = <Tool>(initialLabels: Maybe<Labels<Tool>>) => {
   const addLabel = (props: LabelProps<Tool> = {}) => {
     const id = idMaker.nextID();
     labels.value[id] = {
-      // ...defaultLabelProps,
+      ...labelDefault,
+      ...newLabelDefault,
       ...props,
     };
 
@@ -38,10 +43,10 @@ export const useLabels = <Tool>(initialLabels: Maybe<Labels<Tool>>) => {
     if (labelIDs.length !== 0) setActiveLabel(labelIDs[0]);
   };
 
-  setLabels(initialLabels);
+  const updateLabel = (id: LabelID, patch: LabelProps<Tool>) => {
+    if (!(id in labels.value)) throw new Error('Label does not exist');
 
-  const updateLabel = (name: string, props: LabelProps<Tool>) => {
-    labels.value[name] = props;
+    labels.value[id] = { ...labels.value[id], ...patch, id };
   };
 
   return {

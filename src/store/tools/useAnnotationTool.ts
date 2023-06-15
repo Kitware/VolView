@@ -13,7 +13,7 @@ import { AnnotationTool } from '@/src/types/annotationTool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
-import { useLabels, Labels } from './useLabels';
+import { useLabels, Labels, LabelProps } from './useLabels';
 
 const annotationToolDefaults = {
   frameOfReference: {
@@ -34,9 +34,11 @@ export const useAnnotationTool = <
 >({
   toolDefaults,
   initialLabels,
+  newLabelDefault = {},
 }: {
   toolDefaults: ToolDefaults;
   initialLabels: Labels<ToolActiveProps>;
+  newLabelDefault: LabelProps<ToolActiveProps>;
 }) => {
   type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
@@ -53,7 +55,8 @@ export const useAnnotationTool = <
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  const labels = useLabels<Tool>(initialLabels);
+  const labels = useLabels<Tool>(newLabelDefault);
+  labels.setLabels(initialLabels);
 
   function makePropsFromLabel(currentLabel: string | undefined) {
     const label = currentLabel ?? labels.activeLabel.value;

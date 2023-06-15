@@ -3,6 +3,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
 import { RectangleID } from '@/src/types/rectangle';
+import { pick } from '@/src/utils';
 
 import { useAnnotationTool } from './useAnnotationTool';
 
@@ -14,6 +15,8 @@ const rectangleDefaults = {
   fillColor: 'transparent',
 };
 
+const newLabelDefault = pick(rectangleDefaults, 'fillColor');
+
 export const useRectangleStore = defineStore('rectangles', () => {
   type _This = ReturnType<typeof useRectangleStore>;
 
@@ -24,6 +27,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
   } = useAnnotationTool({
     toolDefaults: rectangleDefaults,
     initialLabels: RECTANGLE_LABEL_DEFAULTS,
+    newLabelDefault,
   });
 
   // --- serialization --- //
