@@ -27,7 +27,9 @@ export const useLabels = <Tool>(initialLabels: Maybe<Labels<Tool>>) => {
   };
 
   // param newLabels: each key is the label name
-  const addLabels = (newLabels: Maybe<Labels<Tool>>) => {
+  const setLabels = (newLabels: Maybe<Labels<Tool>>) => {
+    labels.value = {};
+
     Object.entries(newLabels ?? {}).forEach(([labelName, props]) => {
       addLabel({ ...props, labelName });
     });
@@ -36,7 +38,7 @@ export const useLabels = <Tool>(initialLabels: Maybe<Labels<Tool>>) => {
     if (labelIDs.length !== 0) setActiveLabel(labelIDs[0]);
   };
 
-  addLabels(initialLabels);
+  setLabels(initialLabels);
 
   const updateLabel = (name: string, props: LabelProps<Tool>) => {
     labels.value[name] = props;
@@ -47,7 +49,7 @@ export const useLabels = <Tool>(initialLabels: Maybe<Labels<Tool>>) => {
     activeLabel,
     setActiveLabel,
     addLabel,
-    addLabels,
+    setLabels,
     updateLabel,
   };
 };
