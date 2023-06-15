@@ -30,15 +30,10 @@ export default defineComponent({
       rulerStore.jumpToRuler(id);
     }
 
-    function updateColor(id: string, color: string) {
-      rulerStore.updateRuler(id, { color });
-    }
-
     return {
       rulers,
       remove,
       jumpTo,
-      updateColor,
     };
   },
 });

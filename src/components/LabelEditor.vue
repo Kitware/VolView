@@ -1,16 +1,22 @@
 <script setup lang="ts">
-// import { computed, ref } from 'vue';
-// import { UpdateLabel } from '@/src/store/tools/useLabels';
+import { computed } from 'vue';
+import { LabelsStore } from '@/src/store/tools/useLabels';
+import { AnnotationTool } from '../types/annotationTool';
 
-// const props = defineProps<{
-//   //   updateLabel: UpdateLabel;
-//   //   label: LabelProps<AnnotationTool>;
-// }>();
+const props = defineProps<{
+  label: string;
+  labelsStore: LabelsStore<AnnotationTool>;
+}>();
+
+const label = computed(() => props.labelsStore.labels[props.label]);
 </script>
 
 <template>
   <v-card>
     <v-card-title>Edit Label</v-card-title>
+
+    <v-text-field v-model="label.labelName" label="Name" outlined dense />
+    <v-color-picker v-model="label.color" label="Color" outlined dense />
 
     <v-btn
       variant="text"

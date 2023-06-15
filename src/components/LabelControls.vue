@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import { useDisplay } from 'vuetify';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
-import { ValueOf } from '@/src/types';
 import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
@@ -19,12 +18,11 @@ const activeLabelIndex = computed(() => {
 });
 
 const editDialog = ref(false);
-const editingLabel = ref<ValueOf<typeof props.labelsStore.labels> | undefined>(
+const editingLabel = ref<keyof typeof props.labelsStore.labels | undefined>(
   undefined
 );
 const createLabel = () => {
-  const newID = props.labelsStore.addLabel();
-  editingLabel.value = props.labelsStore.labels[newID];
+  editingLabel.value = props.labelsStore.addLabel();
   editDialog.value = true;
 };
 
@@ -70,7 +68,7 @@ const mobile = computed(() => display.mobile.value);
 
           <!-- Add Label button -->
           <v-col cols="6">
-            <v-chip variant="outlined" class="w-100" @click="editDialog = true">
+            <v-chip variant="outlined" class="w-100" @click="createLabel">
               <v-icon class="mr-2">mdi-plus</v-icon>
               Add Label
             </v-chip>
@@ -84,7 +82,12 @@ const mobile = computed(() => display.mobile.value);
   </v-card>
 
   <v-dialog v-model="editDialog" :width="mobile ? '100%' : '50%'">
-    <LabelEditor @close="createLabel" v-if="editDialog" />
+    <LabelEditor
+      @close="editDialog = false"
+      v-if="editDialog"
+      :label="editingLabel"
+      :labelsStore="labelsStore"
+    />
   </v-dialog>
 </template>
 

@@ -29,15 +29,10 @@ export default defineComponent({
       rectStore.jumpToTool(id);
     }
 
-    function updateColor(id: RectangleID, color: string) {
-      rectStore.updateTool(id, { color });
-    }
-
     return {
       rects,
       remove,
       jumpTo,
-      updateColor,
     };
   },
 });
