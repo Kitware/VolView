@@ -9,3 +9,5 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare const __VERSIONS__: Record<string, string>;

@@ -6,6 +6,8 @@ import { createHtmlPlugin } from 'vite-plugin-html';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { visualizer } from 'rollup-plugin-visualizer';
 
+import pkgLock from './package-lock.json';
+
 function resolve(...args) {
   return normalizePath(resolvePath(...args));
 }
@@ -17,6 +19,29 @@ const distDir = resolve(rootDir, 'dist');
 export default defineConfig({
   build: {
     outDir: distDir,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('vuetify')) {
+            return 'vuetify';
+          }
+          if (id.includes('vtk.js')) {
+            return 'vtk.js';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
+  define: {
+    __VERSIONS__: {
+      volview: pkgLock.version,
+      'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,
+      'itk-wasm': pkgLock.dependencies['itk-wasm'].version,
+    },
   },
   resolve: {
     alias: [
@@ -31,6 +56,29 @@ export default defineConfig({
     ],
   },
   plugins: [
+    {
+      name: 'virtual-modules',
+      load(id) {
+        if (id.includes('@kitware/vtk.js')) {
+          if (id.includes('ColorMaps.json.js')) {
+            // We don't use the built-in colormaps
+            return 'export const v = []';
+          }
+
+          // We don't use these classes
+          if (id.includes('CubeAxesActor') || id.includes('ScalarBarActor')) {
+            return 'export default {}';
+          }
+
+          // TODO: vtk.js WebGPU isn't ready as of mid-2023
+          if (id.includes('WebGPU')) {
+            return 'export default {}';
+          }
+        }
+
+        return null;
+      },
+    },
     vue({ template: { transformAssetUrls } }),
     vuetify({
       autoImport: true,
