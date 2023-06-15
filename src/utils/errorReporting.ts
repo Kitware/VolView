@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/vue';
-import { App } from 'vue';
+import { useLocalStorage } from '@vueuse/core';
+import { App, ref, watch } from 'vue';
 
 export const LOCAL_STORAGE_KEY = 'error-reporting-off';
 
@@ -20,12 +21,19 @@ export const init = (app: App<Element>) => {
     });
 };
 
-export const disable = () => {
-  localStorage.setItem(LOCAL_STORAGE_KEY, 'true');
+const disable = () => {
   Sentry.close(200);
 };
 
-// only turns Sentry back on after reload
-export const enable = () => {
-  localStorage.setItem(LOCAL_STORAGE_KEY, 'false');
+export const useDisableErrorReporting = () => {
+  const disableReportingStore = useLocalStorage(LOCAL_STORAGE_KEY, 'false');
+
+  const disableReporting = ref(disableReportingStore.value === 'true');
+  watch(disableReporting, () => {
+    disableReportingStore.value = String(disableReporting.value);
+
+    if (disableReporting.value) disable();
+  });
+
+  return disableReporting;
 };
