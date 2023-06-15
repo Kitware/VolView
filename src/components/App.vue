@@ -140,11 +140,12 @@
                         v-if="errorReportingConfigured"
                         class="vertical-offset-margin"
                       >
-                        Opt out of error reporting
+                        Opt out of error reporting:
                         <v-btn
                           icon="mdi-cog"
                           @click.stop="settingsDialog = true"
-                        ></v-btn>
+                          density="comfortable"
+                        />
                       </div>
                     </v-card>
                   </v-row>
