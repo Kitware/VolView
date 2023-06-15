@@ -4,6 +4,7 @@ import vue from '@vitejs/plugin-vue';
 import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 import { createHtmlPlugin } from 'vite-plugin-html';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 function resolve(...args) {
   return normalizePath(resolvePath(...args));
@@ -66,5 +67,13 @@ export default defineConfig({
         },
       ],
     }),
-  ],
+    process.env.ANALYZE_BUNDLE &&
+      visualizer({
+        template: 'treemap',
+        open: true,
+        gzipSize: true,
+        brotliSize: true,
+        filename: 'bundle-analysis.html',
+      }),
+  ].filter(Boolean),
 });
