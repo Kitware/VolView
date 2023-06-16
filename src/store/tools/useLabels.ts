@@ -1,7 +1,7 @@
 import { Maybe } from '@/src/types';
 import { ref } from 'vue';
 import { StoreActions, StoreState } from 'pinia';
-import { getIDMaker } from '../ids';
+import { useIdStore } from '../id';
 
 export type LabelProps<Tool> = Partial<Tool & { labelName: string }>;
 export type Labels<Tool> = Record<string, LabelProps<Tool>>;
@@ -18,9 +18,8 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
     activeLabel.value = id;
   };
 
-  const idMaker = getIDMaker();
   const addLabel = (props: LabelProps<Tool> = {}) => {
-    const id = idMaker.nextID();
+    const id = useIdStore().nextId();
     labels.value[id] = {
       ...labelDefault,
       ...newLabelDefault,
