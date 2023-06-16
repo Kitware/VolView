@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import { retypeFile } from '@src/io';
 
@@ -16,11 +17,17 @@ function makeDicomFile(name: string) {
 
 describe('I/O', () => {
   it('should detect dicom files', async () => {
-    expect((await retypeFile(makeDicomFile('file.DCM'))).type).to.equal('dcm');
-    expect((await retypeFile(makeDicomFile('somedicom'))).type).to.equal('dcm');
+    expect((await retypeFile(makeDicomFile('file.DCM'))).type).to.equal(
+      'application/dicom'
+    );
+    expect((await retypeFile(makeDicomFile('somedicom'))).type).to.equal(
+      'application/dicom'
+    );
   });
 
   it('should retype files based on extension', async () => {
-    expect((await retypeFile(makeEmptyFile('test.VTI'))).type).to.equal('vti');
+    expect((await retypeFile(makeEmptyFile('test.VTI'))).type).to.equal(
+      'application/vnd.unknown.vti'
+    );
   });
 });

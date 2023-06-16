@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import chai, { expect } from 'chai';
 import chaiAlmost from 'chai-almost';
 import { vec3, mat3, mat4 } from 'gl-matrix';

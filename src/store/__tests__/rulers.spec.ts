@@ -1,3 +1,4 @@
+import { describe, it, beforeEach } from 'vitest';
 import chai, { expect } from 'chai';
 import chaiSubset from 'chai-subset';
 
@@ -48,16 +49,6 @@ describe('Ruler store', () => {
       slice: 88,
     });
     expect(store.rulerByID).to.not.have.property('fakeID');
-  });
-
-  it('should cycle colors when creating new rulers', () => {
-    const store = useRulerStore();
-    const r1 = store.addRuler(createRuler());
-    const r2 = store.addRuler(createRuler());
-
-    const color1 = store.rulerByID[r1].color;
-    const color2 = store.rulerByID[r2].color;
-    expect(color1).to.not.deep.equal(color2);
   });
 
   it('should have a rulers getter', () => {

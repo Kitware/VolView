@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { expect } from 'chai';

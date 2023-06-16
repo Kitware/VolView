@@ -1,3 +1,4 @@
+import { describe, it, beforeEach } from 'vitest';
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 

@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { resolve as resolvePath } from 'path';
 import { Plugin, defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -125,4 +126,13 @@ export default defineConfig({
         })
       : ({} as Plugin),
   ],
+  test: {
+    environment: 'jsdom',
+    // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
+    threads: false,
+    deps: {
+      // needed for unit tests on components utilizing vuetify
+      inline: ['vuetify'],
+    },
+  },
 });
