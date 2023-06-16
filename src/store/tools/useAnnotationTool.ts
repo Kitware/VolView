@@ -1,4 +1,4 @@
-import { Ref, computed, ref } from 'vue';
+import { Ref, computed, ref, watch } from 'vue';
 import { Store } from 'pinia';
 
 import { PartialWithRequired } from '@/src/types';
@@ -69,15 +69,14 @@ export const useAnnotationTool = <
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }
-    // updates label props if changed between sessions
-    const propsFromLabel = makePropsFromLabel(tool.label);
 
     toolByID.value[id] = {
       ...annotationToolDefaults,
       ...toolDefaults,
       label: labels.activeLabel.value,
       ...tool,
-      ...propsFromLabel,
+      // updates label props if changed between sessions
+      ...makePropsFromLabel(tool.label),
       id,
     };
 
@@ -97,6 +96,15 @@ export const useAnnotationTool = <
 
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
+
+  // updates props controlled by labels
+  watch(labels.labels, () => {
+    toolIDs.value.forEach((id) => {
+      const tool = toolByID.value[id];
+      const propsFromLabel = makePropsFromLabel(tool.label);
+      updateTool(id, propsFromLabel);
+    });
+  });
 
   function jumpToTool(toolID: ToolID) {
     const tool = toolByID.value[toolID];

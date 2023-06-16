@@ -17,6 +17,7 @@ export type AnnotationTool = {
    */
   placing?: boolean;
   label?: string;
+  labelName?: string;
 
   color: string;
   name: string;

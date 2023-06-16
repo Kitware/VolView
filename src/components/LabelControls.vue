@@ -62,6 +62,18 @@ const mobile = computed(() => display.mobile.value);
                   <div class="color-dot" :style="{ background: color }" />
                 </div>
                 <span class="overflow-hidden">{{ labelName }}</span>
+                <v-btn
+                  icon="mdi-pencil"
+                  density="compact"
+                  class="ml-auto"
+                  variant="tonal"
+                  @click.stop="
+                    () => {
+                      editingLabel = id;
+                      editDialog = true;
+                    }
+                  "
+                />
               </v-chip>
             </v-item>
           </v-col>

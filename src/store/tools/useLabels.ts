@@ -46,7 +46,7 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
   const updateLabel = (id: LabelID, patch: LabelProps<Tool>) => {
     if (!(id in labels.value)) throw new Error('Label does not exist');
 
-    labels.value[id] = { ...labels.value[id], ...patch, id };
+    labels.value = { ...labels.value, [id]: { ...labels.value[id], ...patch } };
   };
 
   return {
