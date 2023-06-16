@@ -9,12 +9,11 @@ export default defineComponent({
     const rectStore = useRectangleStore();
     const { currentImageID } = useCurrentImage();
 
-    const rects = computed(() => {
-      const imageID = currentImageID.value;
-      return rectStore.tools.filter(
-        (rect) => rect.imageID === imageID && !rect.placing
-      );
-    });
+    const rects = computed(() =>
+      rectStore.tools.filter(
+        (rect) => !rect.placing && rect.imageID === currentImageID.value
+      )
+    );
 
     function remove(id: RectangleID) {
       rectStore.removeTool(id);

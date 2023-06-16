@@ -31,6 +31,13 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
     return id;
   };
 
+  const deleteLabel = (id: LabelID) => {
+    if (!(id in labels.value)) throw new Error('Label does not exist');
+
+    delete labels.value[id];
+    labels.value = { ...labels.value }; // trigger reactive update for measurement list
+  };
+
   // param newLabels: each key is the label name
   const setLabels = (newLabels: Maybe<Labels<Tool>>) => {
     labels.value = {};
@@ -54,6 +61,7 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
     activeLabel,
     setActiveLabel,
     addLabel,
+    deleteLabel,
     setLabels,
     updateLabel,
   };

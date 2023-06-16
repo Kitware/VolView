@@ -16,6 +16,7 @@ export type AnnotationTool = {
    * Is this tool in placing mode
    */
   placing?: boolean;
+
   label?: string;
   labelName?: string;
 

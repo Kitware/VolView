@@ -19,6 +19,12 @@ const colorLocal = ref(label.value.color);
 watch(colorLocal, (color) => {
   props.labelsStore.updateLabel(props.label, { color });
 });
+
+const emit = defineEmits(['close']);
+const deleteLabel = () => {
+  emit('close');
+  props.labelsStore.deleteLabel(props.label);
+};
 </script>
 
 <template>
@@ -28,12 +34,8 @@ watch(colorLocal, (color) => {
     <v-text-field v-model="labelName" label="Name" outlined dense />
     <v-color-picker v-model="colorLocal" label="Color" outlined dense />
 
-    <v-btn
-      variant="text"
-      density="compact"
-      icon="mdi-close"
-      @click="$emit('close')"
-    />
+    <v-btn prepend-icon="mdi-close" @click="deleteLabel">Delete</v-btn>
+    <v-btn icon="mdi-close" @click="$emit('close')" />
   </v-card>
 </template>
 
