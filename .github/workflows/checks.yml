@@ -1,12 +1,12 @@
-name: PR Checks
+name: Checks and Tests
 on:
   pull_request:
   merge_group:
 
 jobs:
-  pr-checks:
+  checks:
     runs-on: ubuntu-20.04
-    name: Check and lint PR
+    name: Code check and tests
     steps:
       - uses: actions/checkout@v2
       - name: Setup node
@@ -16,3 +16,5 @@ jobs:
       - run: npm ci
       - name: Enforce code style
         run: npx prettier --config ./prettier.config.js --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
+      - name: Tests
+        run: npm test

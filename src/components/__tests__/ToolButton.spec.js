@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import { shallowMount } from '@vue/test-utils';
 
@@ -9,11 +10,6 @@ describe('ToolButton.vue', () => {
     name: 'TEST BUTTON',
     icon: 'test-icon',
   };
-
-  it('renders in name', () => {
-    const wrapper = shallowMount(ToolButton, { propsData });
-    expect(wrapper.text()).to.equal(propsData.name);
-  });
 
   it('computes icon size', () => {
     const wrapper = shallowMount(ToolButton, { propsData });

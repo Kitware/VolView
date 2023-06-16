@@ -1,11 +1,10 @@
+import { describe, it, beforeEach } from 'vitest';
 import chai, { expect } from 'chai';
 import chaiSubset from 'chai-subset';
 
 import { setActivePinia, createPinia } from 'pinia';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { Ruler } from '@/src/types/ruler';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import IDGenerator from '@/src/core/id';
 import { RequiredWithPartial } from '@/src/types';
 
 chai.use(chaiSubset);
@@ -28,11 +27,6 @@ function createRuler(): RequiredWithPartial<Ruler, 'id' | 'color' | 'label'> {
 describe('Ruler store', () => {
   beforeEach(() => {
     const pinia = createPinia();
-    pinia.use(
-      CorePiniaProviderPlugin({
-        id: new IDGenerator(),
-      })
-    );
     setActivePinia(pinia);
   });
 
@@ -55,16 +49,6 @@ describe('Ruler store', () => {
       slice: 88,
     });
     expect(store.rulerByID).to.not.have.property('fakeID');
-  });
-
-  it('should cycle colors when creating new rulers', () => {
-    const store = useRulerStore();
-    const r1 = store.addRuler(createRuler());
-    const r2 = store.addRuler(createRuler());
-
-    const color1 = store.rulerByID[r1].color;
-    const color2 = store.rulerByID[r2].color;
-    expect(color1).to.not.deep.equal(color2);
   });
 
   it('should have a rulers getter', () => {

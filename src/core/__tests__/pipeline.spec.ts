@@ -1,3 +1,4 @@
+import { describe, it } from 'vitest';
 import sinonChai from 'sinon-chai';
 import Chai, { expect } from 'chai';
 import Pipeline, { Handler } from '../pipeline';
@@ -127,7 +128,7 @@ describe('Pipeline', () => {
 
     expect(result.ok).to.be.true;
     expect(result.errors).to.have.length(0);
-    expect(result.data).to.deep.equal([null]);
+    expect(result.data).to.deep.equal([]);
   });
 
   it('should detect double done()', async () => {

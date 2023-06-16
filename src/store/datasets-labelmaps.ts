@@ -3,6 +3,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
+import { useIdStore } from '@/src/store/id';
 import vtkLabelMap from '../vtk/LabelMap';
 import { LABELMAP_PALETTE } from '../config';
 import { StateFile, Manifest } from '../io/state-file/schema';
@@ -70,7 +71,7 @@ export const useLabelmapStore = defineStore('labelmap', {
         return null;
       }
 
-      const id = this.$id.nextID();
+      const id = useIdStore().nextId();
       const labelmap = createLabelmapFromImage(imageData);
 
       this.idList.push(id);
@@ -123,7 +124,7 @@ export const useLabelmapStore = defineStore('labelmap', {
         labelMap.parent = dataIDMap[labelMap.parent];
 
         const { parent } = labelMap;
-        const id = this.$id.nextID();
+        const id = useIdStore().nextId();
         labelmapIDMap[labelMap.id] = id;
 
         const imageData = await vtiReader(file);
