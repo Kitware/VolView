@@ -1,4 +1,4 @@
-import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { VtkProxy } from '@kitware/vtk.js/macros';
 import { onBeforeUnmount } from 'vue';
 import { withProxyManager } from './proxyManager';

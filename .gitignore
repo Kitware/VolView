@@ -23,3 +23,5 @@ yarn-error.log*
 
 __pycache__
 venv
+
+bundle-analysis.html

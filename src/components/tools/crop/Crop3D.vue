@@ -8,7 +8,7 @@ import { useViewStore } from '@/src/store/views';
 import { arrayEquals } from '@/src/utils';
 import { getAxisBounds, LPSAxes } from '@/src/utils/lps';
 import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
-import { Bounds } from '@kitware/vtk.js/types';
+import type { Bounds } from '@kitware/vtk.js/types';
 import vtkImageCroppingWidget, {
   ImageCroppingWidgetState,
   vtkImageCroppingViewWidget,

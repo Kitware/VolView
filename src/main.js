@@ -1,8 +1,10 @@
-import 'vuetify/styles';
 import 'vue-toastification/dist/index.css';
-import '@/public/global.css';
+import 'vuetify/lib/styles/main.css';
+import '@/src/global.css';
 
-import '@kitware/vtk.js/Rendering/Profiles/All';
+import '@kitware/vtk.js/Rendering/OpenGL/Profiles/Geometry';
+import '@kitware/vtk.js/Rendering/OpenGL/Profiles/Volume';
+import '@kitware/vtk.js/Rendering/OpenGL/Profiles/Glyph';
 
 import { createApp } from 'vue';
 import VueToast from 'vue-toastification';

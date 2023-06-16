@@ -1,6 +1,6 @@
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';

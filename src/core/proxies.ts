@@ -1,4 +1,4 @@
-import { vtkObject } from '@kitware/vtk.js/interfaces';
+import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { VtkProxy } from '@kitware/vtk.js/macros';
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';

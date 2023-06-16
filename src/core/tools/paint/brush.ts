@@ -1,4 +1,4 @@
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 
 export interface IBrushStencil {
   pixels: Uint8Array;

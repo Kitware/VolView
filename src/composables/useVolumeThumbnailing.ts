@@ -3,7 +3,7 @@ import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupT
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';

@@ -19,7 +19,9 @@ type ReadResult = SuccessReadResult | FailResult;
 
 export const runAsyncVTKReader = (readerName: string) => async (file: File) => {
   const worker = new PromiseWorker(
-    new Worker(new URL('./async.reader.worker.ts', import.meta.url))
+    new Worker(new URL('./async.reader.worker.ts', import.meta.url), {
+      type: 'module',
+    })
   );
   const data = (await worker.postMessage({
     file,
@@ -40,7 +42,9 @@ type WriteResult = SuccessWriteResult | FailResult;
 export const runAsyncVTKWriter =
   (writerName: string) => async (dataSet: vtkDataSet) => {
     const worker = new PromiseWorker(
-      new Worker(new URL('./async.writer.worker.ts', import.meta.url))
+      new Worker(new URL('./async.writer.worker.ts', import.meta.url), {
+        type: 'module',
+      })
     );
     const result = (await worker.postMessage({
       obj: dataSet.getState(),

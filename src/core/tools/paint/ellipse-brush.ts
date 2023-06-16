@@ -1,4 +1,4 @@
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { IBrushStencil, IPaintBrush } from './brush';
 
 // Adapted from http://members.chello.at/easyfilter/bresenham.html

@@ -59,9 +59,10 @@ const levelToMetaKey = {
  * Collect DICOM data from DICOMWeb
  */
 export const useDicomWebStore = defineStore('dicom-web', () => {
+  const { VITE_DICOM_WEB_NAME, VITE_DICOM_WEB_URL } = import.meta.env;
   // GUI display name
-  const hostName = process.env.VUE_APP_DICOM_WEB_NAME
-    ? ref(process.env.VUE_APP_DICOM_WEB_NAME)
+  const hostName = VITE_DICOM_WEB_NAME
+    ? ref(VITE_DICOM_WEB_NAME)
     : useLocalStorage<string>('dicomWebHostName', '');
 
   const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
@@ -71,7 +72,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const dicomWebFromURLParam = urlParams[DICOM_WEB_URL_PARAM] as
     | string
     | undefined;
-  const hostConfig = dicomWebFromURLParam ?? process.env.VUE_APP_DICOM_WEB_URL;
+  const hostConfig = dicomWebFromURLParam ?? VITE_DICOM_WEB_URL;
   if (hostConfig) host.value = hostConfig;
 
   // Remove trailing slash and pull study/series IDs from URL

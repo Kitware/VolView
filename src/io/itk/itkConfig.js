@@ -1,4 +1,4 @@
-const base = process.env.VUE_APP_PUBLIC_PATH ?? '';
+const base = import.meta.env.BASE_URL ?? '';
 const itkConfig = {
   pipelineWorkerUrl: `${base}/itk/pipeline.worker.js`,
   imageIOUrl: `${base}/itk/image-io`,

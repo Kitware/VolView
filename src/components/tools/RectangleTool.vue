@@ -52,7 +52,7 @@ import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RectangleWidget2D from '@/src/components/tools/rectangle/RectangleWidget2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import {
   FrameOfReference,

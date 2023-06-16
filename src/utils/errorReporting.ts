@@ -3,16 +3,18 @@ import { useLocalStorage } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import { App, ref, watch } from 'vue';
 
+const { VITE_SENTRY_DSN } = import.meta.env;
+
 export const LOCAL_STORAGE_KEY = 'error-reporting-off';
 
-export const errorReportingConfigured = !!process.env.VUE_APP_SENTRY_DSN;
+export const errorReportingConfigured = !!VITE_SENTRY_DSN;
 
 export const init = (app: App<Element>) => {
   const sentryOff = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (sentryOff !== 'true' && errorReportingConfigured)
     Sentry.init({
       app,
-      dsn: process.env.VUE_APP_SENTRY_DSN,
+      dsn: VITE_SENTRY_DSN,
       integrations: [new Sentry.Replay()],
       // Performance Monitoring
       tracesSampleRate: 0.1, // Capture 10% of the transactions

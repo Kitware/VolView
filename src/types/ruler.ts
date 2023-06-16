@@ -1,4 +1,4 @@
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { AnnotationTool } from './annotationTool';
 
 export type Ruler = {

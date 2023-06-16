@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
 import { RectangleID } from '@/src/types/rectangle';
