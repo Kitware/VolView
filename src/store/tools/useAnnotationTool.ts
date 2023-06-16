@@ -11,7 +11,7 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { AnnotationTool } from '@/src/types/annotationTool';
 import { findImageID, getDataID } from '@/src/store/datasets';
-
+import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, Labels } from './useLabels';
 
@@ -62,7 +62,7 @@ export const useAnnotationTool = <
   }
 
   function addTool(this: Store, tool: ToolPatch): ToolID {
-    const id = this.$id.nextID() as ToolID;
+    const id = useIdStore().nextId() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
     }

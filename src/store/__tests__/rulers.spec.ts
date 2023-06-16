@@ -4,8 +4,6 @@ import chaiSubset from 'chai-subset';
 import { setActivePinia, createPinia } from 'pinia';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { Ruler } from '@/src/types/ruler';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import IDGenerator from '@/src/core/id';
 import { RequiredWithPartial } from '@/src/types';
 
 chai.use(chaiSubset);
@@ -28,11 +26,6 @@ function createRuler(): RequiredWithPartial<Ruler, 'id' | 'color' | 'label'> {
 describe('Ruler store', () => {
   beforeEach(() => {
     const pinia = createPinia();
-    pinia.use(
-      CorePiniaProviderPlugin({
-        id: new IDGenerator(),
-      })
-    );
     setActivePinia(pinia);
   });
 
