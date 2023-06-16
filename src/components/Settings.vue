@@ -13,6 +13,12 @@
     <v-card-text>
       <v-switch label="Dark Theme" v-model="dark"></v-switch>
 
+      <v-switch
+        v-if="errorReportingConfigured"
+        label="Disable Error Reporting"
+        v-model="disableReporting"
+      ></v-switch>
+
       <v-divider class="mt-2 mb-6"></v-divider>
       <dicom-web-settings />
     </v-card-text>
@@ -26,6 +32,10 @@ import { useLocalStorage } from '@vueuse/core';
 
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
+import {
+  useErrorReporting,
+  errorReportingConfigured,
+} from '../utils/errorReporting';
 
 export default defineComponent({
   setup() {
@@ -38,8 +48,16 @@ export default defineComponent({
       store.value = theme.global.name.value;
     });
 
+    const errorReportingStore = useErrorReporting();
+    const disableReporting = ref(errorReportingStore.disableReporting);
+    watch(disableReporting, (disable) => {
+      errorReportingStore.disableReporting = disable;
+    });
+
     return {
       dark,
+      disableReporting,
+      errorReportingConfigured,
     };
   },
   components: {

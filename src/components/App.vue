@@ -128,10 +128,25 @@
                         <v-icon size="64">mdi-arrow-down-bold</v-icon>
                       </div>
                       <div>Drag &amp; drop your DICOM files.</div>
-                      <div class="vertical-offset-margin">
+
+                      <div v-if="!saveUrl" class="vertical-offset-margin">
                         <v-icon size="64">mdi-cloud-off-outline</v-icon>
                       </div>
-                      <div>Secure: Your data never leaves your machine.</div>
+                      <div v-if="!saveUrl">
+                        Secure: Image data never leaves your machine.
+                      </div>
+
+                      <div
+                        v-if="showErrorReporting"
+                        class="vertical-offset-margin"
+                      >
+                        Opt out of error reporting:
+                        <v-btn
+                          icon="mdi-cog"
+                          @click.stop="settingsDialog = true"
+                          density="comfortable"
+                        />
+                      </div>
                     </v-card>
                   </v-row>
                 </v-col>
@@ -233,6 +248,10 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
+import {
+  useErrorReporting,
+  errorReportingConfigured,
+} from '../utils/errorReporting';
 
 async function loadFiles(
   sources: DataSource[],
@@ -446,6 +465,11 @@ export default defineComponent({
 
     const display = useDisplay();
 
+    const errorReportingStore = useErrorReporting();
+    const showErrorReporting = computed(() => {
+      return errorReportingConfigured && !errorReportingStore.disableReporting;
+    });
+
     return {
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
@@ -463,6 +487,8 @@ export default defineComponent({
       userPromptFiles,
       openFiles,
       hasData,
+      showErrorReporting,
+      saveUrl,
     };
   },
 });
