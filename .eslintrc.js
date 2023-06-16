@@ -71,7 +71,7 @@ module.exports = {
 
   overrides: [
     {
-      files: ['vite.config.js'],
+      files: ['vite.config.ts'],
       rules: {
         'import/no-extraneous-dependencies': 'off',
       },

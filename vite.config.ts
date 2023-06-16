@@ -1,5 +1,5 @@
 import { resolve as resolvePath } from 'path';
-import { defineConfig, normalizePath } from 'vite';
+import { Plugin, defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 import { createHtmlPlugin } from 'vite-plugin-html';
@@ -115,13 +115,14 @@ export default defineConfig({
         },
       ],
     }),
-    process.env.ANALYZE_BUNDLE &&
-      visualizer({
-        template: 'treemap',
-        open: true,
-        gzipSize: true,
-        brotliSize: true,
-        filename: 'bundle-analysis.html',
-      }),
-  ].filter(Boolean),
+    process.env.ANALYZE_BUNDLE
+      ? visualizer({
+          template: 'treemap',
+          open: true,
+          gzipSize: true,
+          brotliSize: true,
+          filename: 'bundle-analysis.html',
+        })
+      : ({} as Plugin),
+  ],
 });
