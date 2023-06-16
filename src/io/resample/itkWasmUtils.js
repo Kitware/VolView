@@ -1,3 +1,4 @@
+import { join } from '@/src/utils/path';
 import {
   runPipeline,
   InterfaceTypes,
@@ -43,7 +44,9 @@ export async function runWasm(
       data: imageSharedBufferOrCopy(image),
     }));
 
-    return [pipeline, taskArgs, outputs, inputs];
+    return [pipeline, taskArgs, outputs, inputs, join(import.meta.env.BASE_URL, '/itk/pipelines'),
+      join(import.meta.env.BASE_URL, '/itk/pipeline.worker.js')];
+      
   });
 
   const workerPool = new WorkerPool(numberOfWorkers, runPipeline);
