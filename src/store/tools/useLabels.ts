@@ -35,6 +35,12 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
 
     delete labels.value[id];
     labels.value = { ...labels.value }; // trigger reactive update for measurement list
+
+    if (id === activeLabel.value) {
+      const labelIDs = Object.keys(labels.value);
+      if (labelIDs.length !== 0) setActiveLabel(labelIDs[0]);
+      else setActiveLabel('');
+    }
   };
 
   // param newLabels: each key is the label name

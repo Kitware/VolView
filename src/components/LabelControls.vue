@@ -35,7 +35,6 @@ const mobile = computed(() => display.mobile.value);
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <v-item-group
-        v-if="labels.length"
         :model-value="activeLabelIndex"
         selected-class="card-active"
         mandatory
@@ -87,9 +86,6 @@ const mobile = computed(() => display.mobile.value);
           </v-col>
         </v-row>
       </v-item-group>
-      <div v-if="!labels.length" class="text-caption text-center pa-2">
-        No labels configured
-      </div>
     </v-container>
   </v-card>
 
