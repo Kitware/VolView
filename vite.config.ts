@@ -85,7 +85,7 @@ export default defineConfig({
     }),
     createHtmlPlugin({
       minify: true,
-      template: 'public/index.html',
+      template: 'index.html',
       inject: {
         data: {
           gaId: process.env.VOLVIEW_GA_ID || null,
