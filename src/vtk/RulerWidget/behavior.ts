@@ -89,7 +89,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     const { worldCoords } = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
-    );
+    )?.worldCoords;
     if (!worldCoords.length) {
       return macro.VOID;
     }
@@ -144,7 +144,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     const { worldCoords } = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
-    );
+    )?.worldCoords;
     if (!worldCoords.length) {
       return macro.VOID;
     }
@@ -184,7 +184,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       const { worldCoords } = model.manipulator.handleEvent(
         eventData,
         model._apiSpecificRenderWindow
-      );
+      )?.worldCoords;
       if (worldCoords.length) {
         draggingState.setOrigin(worldCoords);
       }
