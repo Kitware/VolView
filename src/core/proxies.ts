@@ -9,6 +9,7 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 export enum ViewProxyType {
   Volume = 'View3D',
   Slice = 'View2D',
+  Oblique = 'Oblique',
 }
 
 /**

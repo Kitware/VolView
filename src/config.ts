@@ -15,6 +15,9 @@ export const InitViewIDs: Record<string, string> = {
   Coronal: 'Coronal',
   Sagittal: 'Sagittal',
   Axial: 'Axial',
+  ObliqueCoronal: 'ObliqueCoronal',
+  ObliqueSagittal: 'ObliqueSagittal',
+  ObliqueAxial: 'ObliqueAxial',
   Three: '3D',
 };
 
@@ -25,19 +28,40 @@ export const InitViewSpecs: Record<string, ViewSpec> = {
   [InitViewIDs.Coronal]: {
     viewType: '2D',
     props: {
-      viewDirection: 'Right',
+      viewDirection: 'Posterior',
       viewUp: 'Superior',
     },
   },
   [InitViewIDs.Sagittal]: {
     viewType: '2D',
     props: {
-      viewDirection: 'Posterior',
+      viewDirection: 'Right',
       viewUp: 'Superior',
     },
   },
   [InitViewIDs.Axial]: {
     viewType: '2D',
+    props: {
+      viewDirection: 'Superior',
+      viewUp: 'Anterior',
+    },
+  },
+  [InitViewIDs.ObliqueCoronal]: {
+    viewType: 'Oblique',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueSagittal]: {
+    viewType: 'Oblique',
+    props: {
+      viewDirection: 'Right',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueAxial]: {
+    viewType: 'Oblique',
     props: {
       viewDirection: 'Superior',
       viewUp: 'Anterior',
@@ -64,7 +88,7 @@ export const Layouts: Record<string, Layout> = [
   {
     name: 'Axial Only',
     direction: LayoutDirection.H,
-    items: [InitViewIDs.Axial],
+    items: [InitViewIDs.Sagittal],
   },
   {
     name: 'Axial Primary',
@@ -101,6 +125,12 @@ export const Layouts: Record<string, Layout> = [
         items: [InitViewIDs.Sagittal, InitViewIDs.Axial],
       },
     ],
+  },
+  {
+    name: 'Oblique Only',
+    direction: LayoutDirection.V,
+    // items: [InitViewIDs.ObliqueAxial, InitViewIDs.Axial],
+    items: [InitViewIDs.ObliqueAxial, InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueSagittal],
   },
   {
     name: '3D Only',
