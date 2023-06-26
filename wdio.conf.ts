@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import type { Options } from '@wdio/types';
 import { projectRoot } from './tests/e2eTestUtils';
 
@@ -108,7 +109,13 @@ export const config: Options.Testrunner = {
     timeout: 60000,
   },
 
+  //
   // hooks
+
+  onPrepare() {
+    fs.mkdirSync(path.resolve(ROOT, '.tmp/'), { recursive: true });
+  },
+
   async before(caps, spec, browser) {
     await browser.setWindowSize(...WINDOW_SIZE);
   },
