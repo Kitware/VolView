@@ -254,3 +254,12 @@ export function cleanUndefined(obj: Object) {
     {}
   );
 }
+
+// converts named colors (red, antiquewhite, etc) to hex
+export function standardizeColor(color: string | undefined) {
+  if (!color) return '#000000';
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) throw new Error('Could not create canvas context');
+  ctx.fillStyle = color;
+  return ctx.fillStyle;
+}

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '../types/annotationTool';
+import { standardizeColor } from '../utils';
 
 const props = defineProps<{
   label: string;
@@ -15,7 +16,7 @@ watch(labelName, (name) => {
   props.labelsStore.updateLabel(props.label, { labelName: name });
 });
 
-const colorLocal = ref(label.value.color);
+const colorLocal = ref(standardizeColor(label.value.color));
 watch(colorLocal, (color) => {
   props.labelsStore.updateLabel(props.label, { color });
 });
