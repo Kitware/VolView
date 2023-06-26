@@ -64,7 +64,7 @@
         <crop-tool :view-id="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
-        <template v-slot:top-middle>
+        <template v-slot:top-center>
           <div class="annotation-cell">
             <span>{{ topLabel }}</span>
           </div>

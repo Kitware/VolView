@@ -5,7 +5,7 @@
         <slot name="top-left" />
       </div>
       <div :class="[$style.center, $style.cell]">
-        <slot name="top-middle" />
+        <slot name="top-center" />
       </div>
       <div :class="[$style.right, $style.cell]">
         <slot name="top-right" />
