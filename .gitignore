@@ -28,3 +28,7 @@ bundle-analysis.html
 
 # Local Netlify folder
 .netlify
+
+reports
+*.log
+.tmp/
