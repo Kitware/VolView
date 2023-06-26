@@ -12,6 +12,7 @@ import { Rectangle } from '@/src/types/rectangle';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { Optional } from '@/src/types';
+import { AnnotationTool } from '@/src/types/annotationTool';
 
 import {
   CameraConfig,
@@ -252,9 +253,7 @@ const FrameOfReference: z.ZodType<FrameOfReference> = z.object({
   planeNormal: Vector3,
 });
 
-const Ruler: z.ZodType<Ruler> = z.object({
-  firstPoint: Vector3,
-  secondPoint: Vector3,
+const AnnotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
@@ -262,20 +261,25 @@ const Ruler: z.ZodType<Ruler> = z.object({
   name: z.string(),
   color: z.string(),
   label: z.string().optional(),
-});
+  labelName: z.string().optional(),
+}) satisfies z.ZodType<AnnotationTool>;
 
-const Rectangle: z.ZodType<Optional<Rectangle, 'fillColor'>> = z.object({
+const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
+  z.object({ tools: z.array(tool), labels: z.record(tool.partial()) });
+
+const Ruler = AnnotationTool.extend({
   firstPoint: Vector3,
   secondPoint: Vector3,
-  imageID: z.string(),
-  frameOfReference: FrameOfReference,
-  slice: z.number(),
+}) satisfies z.ZodType<Ruler>;
+
+const Rulers = makeToolEntry(Ruler);
+
+const Rectangle = Ruler.extend({
   id: z.string() as unknown as z.ZodType<Rectangle['id']>,
-  name: z.string(),
-  color: z.string(),
   fillColor: z.string().optional(),
-  label: z.string().optional(),
-});
+}) satisfies z.ZodType<Optional<Rectangle, 'fillColor'>>;
+
+const Rectangles = makeToolEntry(Rectangle);
 
 const Crosshairs = z.object({
   position: Vector3,
@@ -301,8 +305,8 @@ const LPSCroppingPlanes: z.ZodType<LPSCroppingPlanes> = z.object({
 const Cropping = z.record(LPSCroppingPlanes);
 
 const Tools = z.object({
-  rulers: Ruler.array(),
-  rectangles: Rectangle.array().optional(),
+  rulers: Rulers.optional(),
+  rectangles: Rectangles.optional(),
   crosshairs: Crosshairs,
   paint: Paint,
   crop: Cropping,

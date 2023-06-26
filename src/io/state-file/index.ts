@@ -12,7 +12,7 @@ import { retypeFile } from '../io';
 import { ARCHIVE_FILE_TYPES } from '../mimeTypes';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '1.1.0';
+export const MANIFEST_VERSION = '2.1.0';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
@@ -28,8 +28,6 @@ export async function serialize() {
     remoteFiles: {},
     labelMaps: [],
     tools: {
-      rulers: [],
-      rectangles: [],
       crosshairs: {
         position: [0, 0, 0],
       },

@@ -26,8 +26,8 @@ export const useRulerStore = defineStore('ruler', () => {
     updateTool: updateRuler,
     removeTool: removeRuler,
     jumpToTool: jumpToRuler,
-    serialize: serializeTools,
-    deserialize: deserializeTools,
+    serialize: serializeTool,
+    deserialize: deserializeTool,
     activateTool,
     deactivateTool,
     ...rest // label tools
@@ -49,7 +49,7 @@ export const useRulerStore = defineStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.rulers = serializeTools();
+    state.manifest.tools.rulers = serializeTool();
   }
 
   function deserialize(
@@ -57,7 +57,7 @@ export const useRulerStore = defineStore('ruler', () => {
     manifest: Manifest,
     dataIDMap: Record<string, string>
   ) {
-    deserializeTools.call(this, manifest.tools.rulers, dataIDMap);
+    deserializeTool.call(this, manifest.tools.rulers, dataIDMap);
   }
 
   return {

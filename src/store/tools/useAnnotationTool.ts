@@ -38,7 +38,7 @@ export const useAnnotationTool = <
 }: {
   toolDefaults: ToolDefaults;
   initialLabels: Labels<ToolActiveProps>;
-  newLabelDefault: LabelProps<ToolActiveProps>;
+  newLabelDefault?: LabelProps<ToolActiveProps>;
 }) => {
   type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch =
@@ -81,7 +81,7 @@ export const useAnnotationTool = <
       label: labels.activeLabel.value,
       ...tool,
       // updates label props if changed between sessions
-      ...makePropsFromLabel(tool.label ?? labels.activeLabel.value),
+      ...makePropsFromLabel(tool.label),
       id,
     };
 
@@ -143,26 +143,45 @@ export const useAnnotationTool = <
   const activateTool = () => true;
   const deactivateTool = () => {};
 
-  const serialize = () =>
-    toolIDs.value
+  const serialize = () => {
+    const toolsSerialized = toolIDs.value
       .map((toolID) => toolByID.value[toolID])
       .filter((tool) => !tool.placing)
       .map(({ imageID, ...rest }) => ({
-        imageID: getDataID(imageID), // If parent image is DICOM, save VolumeKey
+        // If parent image is DICOM, save VolumeKey
+        imageID: getDataID(imageID),
         ...rest,
       }));
 
+    return {
+      tools: toolsSerialized,
+      labels: labels.labels.value,
+    };
+  };
+
+  type Serialized = {
+    tools: PartialWithRequired<Tool, 'imageID'>[];
+    labels: Labels<Tool>;
+  };
   function deserialize(
     this: Store,
-    serialized: PartialWithRequired<Tool, 'imageID'>[],
+    serialized: Serialized | undefined,
     dataIDMap: Record<string, string>
   ) {
-    serialized
+    const labelIDMap = Object.fromEntries(
+      Object.entries(serialized?.labels ?? {}).map(([id, label]) => {
+        const newID = labels.addLabel(label); // side effect
+        return [id, newID];
+      })
+    );
+
+    serialized?.tools
       .map(
-        ({ imageID, ...rest }) =>
+        ({ imageID, label, ...rest }) =>
           ({
             ...rest,
             imageID: findImageID(dataIDMap[imageID]),
+            label: (label && labelIDMap[label]) || '',
           } as ToolPatch)
       )
       .forEach((tool) => addTool.call(this, tool));
