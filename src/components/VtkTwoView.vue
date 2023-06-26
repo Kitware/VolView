@@ -30,7 +30,11 @@
     </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
-        <div class="vtk-view" ref="vtkContainerRef" />
+        <div
+          class="vtk-view"
+          ref="vtkContainerRef"
+          data-testid="vtk-view vtk-two-view"
+        />
       </div>
       <div class="overlay-no-events tool-layer" ref="toolContainer">
         <pan-tool :view-id="viewID" />

@@ -2,7 +2,11 @@
   <div class="vtk-container-wrapper vtk-three-container">
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
-        <div class="vtk-view" ref="vtkContainerRef" />
+        <div
+          class="vtk-view"
+          ref="vtkContainerRef"
+          data-testid="vtk-view vtk-three-view"
+        />
       </div>
       <div class="overlay-no-events tool-layer">
         <crop-tool :view-id="viewID" />
