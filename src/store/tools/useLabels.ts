@@ -13,12 +13,25 @@ const labelDefault = { labelName: 'New Label' };
 export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
   const labels = ref<Labels<Tool>>({});
 
+  // Flag to indicate if addLabel should clear existing labels
+  const defaultLabels = ref(true);
+
+  const clearDefaultLabels = () => {
+    if (defaultLabels.value) labels.value = {};
+    defaultLabels.value = false;
+  };
+
   const activeLabel = ref<string | undefined>();
   const setActiveLabel = (id: string) => {
     activeLabel.value = id;
   };
 
-  const addLabel = (props: LabelProps<Tool> = {}) => {
+  const addLabel = (
+    props: LabelProps<Tool> = {},
+    clearDefault: boolean = true
+  ) => {
+    if (clearDefault) clearDefaultLabels();
+
     const id = useIdStore().nextId();
     labels.value[id] = {
       ...labelDefault,
@@ -43,12 +56,16 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
     }
   };
 
-  // param newLabels: each key is the label name
-  const setLabels = (newLabels: Maybe<Labels<Tool>>) => {
-    labels.value = {};
-
+  /*
+   * param newLabels: each key is the label name
+   * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
+   */
+  const addLabels = (
+    newLabels: Maybe<Labels<Tool>>,
+    clearDefault: boolean = true
+  ) => {
     Object.entries(newLabels ?? {}).forEach(([labelName, props]) => {
-      addLabel({ ...props, labelName });
+      addLabel({ ...props, labelName }, clearDefault);
     });
 
     const labelIDs = Object.keys(labels.value);
@@ -67,7 +84,7 @@ export const useLabels = <Tool>(newLabelDefault: LabelProps<Tool>) => {
     setActiveLabel,
     addLabel,
     deleteLabel,
-    setLabels,
+    addLabels,
     updateLabel,
   };
 };

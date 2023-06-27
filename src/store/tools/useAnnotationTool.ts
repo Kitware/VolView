@@ -58,7 +58,7 @@ export const useAnnotationTool = <
   });
 
   const labels = useLabels<Tool>(newLabelDefault);
-  labels.setLabels(initialLabels);
+  labels.addLabels(initialLabels, false);
 
   function makePropsFromLabel(label: string | undefined) {
     if (!label) return {};
