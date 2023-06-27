@@ -14,6 +14,11 @@ const rectangleDefaults = {
   fillColor: 'transparent',
 };
 
+const newLabelDefault = {
+  color: '#ffffff',
+  fillColor: 'transparent',
+};
+
 export const useRectangleStore = defineStore('rectangles', () => {
   type _This = ReturnType<typeof useRectangleStore>;
 
@@ -24,6 +29,7 @@ export const useRectangleStore = defineStore('rectangles', () => {
   } = useAnnotationTool({
     toolDefaults: rectangleDefaults,
     initialLabels: RECTANGLE_LABEL_DEFAULTS,
+    newLabelDefault,
   });
 
   // --- serialization --- //

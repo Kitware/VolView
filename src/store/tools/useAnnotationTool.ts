@@ -34,11 +34,11 @@ export const useAnnotationTool = <
 >({
   toolDefaults,
   initialLabels,
-  newLabelDefault = {},
+  newLabelDefault,
 }: {
   toolDefaults: ToolDefaults;
   initialLabels: Labels<ToolActiveProps>;
-  newLabelDefault?: Label<ToolActiveProps>;
+  newLabelDefault: Label<ToolActiveProps>;
 }) => {
   type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch =

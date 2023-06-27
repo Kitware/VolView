@@ -15,6 +15,10 @@ const rulerDefaults = {
   name: 'Ruler',
 };
 
+const newLabelDefault = {
+  color: '#ffffff',
+};
+
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
 
@@ -34,6 +38,7 @@ export const useRulerStore = defineStore('ruler', () => {
   } = useAnnotationTool({
     toolDefaults: rulerDefaults,
     initialLabels: RULER_LABEL_DEFAULTS,
+    newLabelDefault,
   });
 
   const lengthByID = computed<Record<string, number>>(() => {

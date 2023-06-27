@@ -10,6 +10,8 @@ type LabelID = string;
 
 const labelDefault = { labelName: 'New Label' };
 
+// param newLabelDefault should contain all label controlled props
+// of the tool so placing tool does hold any last active label props.
 export const useLabels = <Tool>(newLabelDefault: Label<Tool>) => {
   type ToolLabel = Label<Tool>;
 
@@ -52,7 +54,7 @@ export const useLabels = <Tool>(newLabelDefault: Label<Tool>) => {
     labels.value = { ...labels.value, [id]: { ...labels.value[id], ...patch } };
   };
 
-  // Flag to indicate if addLabel should clear existing labels
+  // Flag to indicate if should clear existing labels
   const defaultLabels = ref(true);
 
   const clearDefaultLabels = () => {
@@ -60,6 +62,12 @@ export const useLabels = <Tool>(newLabelDefault: Label<Tool>) => {
     defaultLabels.value = false;
   };
 
+  /*
+   * If new label have the same name as existing label, overwrite existing label.
+   *
+   * param label: label to merge
+   * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
+   */
   const mergeLabel = (label: ToolLabel, clearDefault: boolean = true) => {
     if (clearDefault) clearDefaultLabels();
 
