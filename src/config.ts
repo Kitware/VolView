@@ -183,13 +183,13 @@ export const TOOL_COLORS = [
 export const RULER_LABEL_DEFAULTS = {
   red: { color: 'red' },
   green: { color: '#00ff00' },
-  gray: { color: '#888888' },
+  white: { color: '#ffffff' },
 };
 
 export const RECTANGLE_LABEL_DEFAULTS = {
-  lesion: { color: 'red', fillColor: 'transparent' },
-  innocuous: { color: '#00ff00', fillColor: '#00ff0020' },
   artifact: { color: '#888888', fillColor: '#ffbf0040' },
+  innocuous: { color: '#00ff00', fillColor: '#00ff0020' },
+  lesion: { color: 'red', fillColor: 'transparent' },
 };
 
 export const DECREMENT_LABEL_KEY = 'q';
