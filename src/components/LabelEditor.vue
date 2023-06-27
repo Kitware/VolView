@@ -45,12 +45,17 @@ const deleteLabel = () => {
       <div class="flex-grow-1 d-flex flex-column">
         <v-text-field
           v-model="labelName"
+          @keydown.stop
           label="Name"
           outlined
           dense
           class="flex-grow-0"
         />
-        <v-btn prepend-icon="mdi-delete" @click="deleteLabel">
+        <v-btn
+          prepend-icon="mdi-delete"
+          @click="deleteLabel"
+          class="delete-button"
+        >
           Delete Label
         </v-btn>
       </div>
@@ -59,4 +64,9 @@ const deleteLabel = () => {
   </v-card>
 </template>
 
-<style scoped></style>
+<style scoped>
+.delete-button {
+  max-width: 200px;
+  align-self: center;
+}
+</style>
