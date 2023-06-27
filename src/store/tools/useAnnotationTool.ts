@@ -13,7 +13,7 @@ import { AnnotationTool } from '@/src/types/annotationTool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
-import { useLabels, Labels, LabelProps } from './useLabels';
+import { useLabels, Labels, Label } from './useLabels';
 
 const annotationToolDefaults = {
   frameOfReference: {
@@ -38,7 +38,7 @@ export const useAnnotationTool = <
 }: {
   toolDefaults: ToolDefaults;
   initialLabels: Labels<ToolActiveProps>;
-  newLabelDefault?: LabelProps<ToolActiveProps>;
+  newLabelDefault?: Label<ToolActiveProps>;
 }) => {
   type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch =
@@ -58,7 +58,7 @@ export const useAnnotationTool = <
   });
 
   const labels = useLabels<Tool>(newLabelDefault);
-  labels.addLabels(initialLabels, false);
+  labels.mergeLabels(initialLabels, false);
 
   function makePropsFromLabel(label: string | undefined) {
     if (!label) return {};
@@ -170,7 +170,7 @@ export const useAnnotationTool = <
   ) {
     const labelIDMap = Object.fromEntries(
       Object.entries(serialized?.labels ?? {}).map(([id, label]) => {
-        const newID = labels.addLabel(label); // side effect
+        const newID = labels.mergeLabel(label); // side effect
         return [id, newID];
       })
     );
