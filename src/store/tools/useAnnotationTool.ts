@@ -41,9 +41,7 @@ export const useAnnotationTool = <
   newLabelDefault: Label<ToolActiveProps>;
 }) => {
   type Tool = ToolDefaults & AnnotationTool;
-  type ToolPatch =
-    | Partial<Omit<Tool, 'id'>>
-    | Partial<Omit<AnnotationTool, 'id'>>; // AnnotationTool union for passing output of makePropsFromLabel to updateTool
+  type ToolPatch = Partial<Omit<Tool, 'id'>>;
   type ToolID = Tool['id'];
 
   // cast to Ref<ToolID[]> needed. https://github.com/vuejs/core/issues/2136#issuecomment-693524663
@@ -61,12 +59,13 @@ export const useAnnotationTool = <
   labels.mergeLabels(initialLabels, false);
 
   function makePropsFromLabel(label: string | undefined) {
-    if (!label) return {};
+    if (!label) return { labelName: '' };
 
     const labelProps = labels.labels.value[label];
     if (labelProps) return labelProps;
 
-    return { label: '', labelName: '' };
+    // if label deleted, remove label name from tool
+    return { labelName: '' };
   }
 
   function addTool(this: Store, tool: ToolPatch): ToolID {
@@ -107,7 +106,7 @@ export const useAnnotationTool = <
     toolIDs.value.forEach((id) => {
       const tool = toolByID.value[id];
       const propsFromLabel = makePropsFromLabel(tool.label);
-      updateTool(id, propsFromLabel);
+      updateTool(id, { ...tool, ...propsFromLabel });
     });
   });
 
