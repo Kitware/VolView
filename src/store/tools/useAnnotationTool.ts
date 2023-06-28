@@ -1,7 +1,7 @@
 import { Ref, computed, ref, watch } from 'vue';
 import { Store } from 'pinia';
 
-import { PartialWithRequired } from '@/src/types';
+import { Maybe, PartialWithRequired } from '@/src/types';
 import { TOOL_COLORS } from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -164,7 +164,7 @@ export const useAnnotationTool = <
   };
   function deserialize(
     this: Store,
-    serialized: Serialized | undefined,
+    serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>
   ) {
     const labelIDMap = Object.fromEntries(

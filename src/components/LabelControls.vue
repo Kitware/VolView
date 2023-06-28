@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 import { useDisplay } from 'vuetify';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
+import { Maybe } from '@/src/types';
 import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
@@ -17,14 +18,17 @@ const activeLabelIndex = computed(() => {
   );
 });
 
-const editDialog = ref(false);
-const editingLabel = ref<keyof typeof props.labelsStore.labels | undefined>(
-  undefined
-);
+const editingLabel =
+  ref<Maybe<keyof typeof props.labelsStore.labels>>(undefined);
+
 const createLabel = () => {
   editingLabel.value = props.labelsStore.addLabel();
-  editDialog.value = true;
 };
+
+const editDialog = ref(false);
+watchEffect(() => {
+  editDialog.value = !!editingLabel.value;
+});
 
 const display = useDisplay();
 const mobile = computed(() => display.mobile.value);
@@ -91,8 +95,8 @@ const mobile = computed(() => display.mobile.value);
 
   <v-dialog v-model="editDialog" :width="mobile ? '100%' : '50%'">
     <LabelEditor
-      @close="editDialog = false"
-      v-if="editDialog"
+      @close="editingLabel = undefined"
+      v-if="editingLabel"
       :label="editingLabel"
       :labelsStore="labelsStore"
     />
