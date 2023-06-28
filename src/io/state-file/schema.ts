@@ -43,14 +43,14 @@ export enum DatasetType {
 
 const DatasetTypeNative = z.nativeEnum(DatasetType);
 
-const LPSAxisDir: z.ZodType<LPSAxisDir> = z.union([
+const LPSAxisDir = z.union([
   z.literal('Left'),
   z.literal('Right'),
   z.literal('Posterior'),
   z.literal('Anterior'),
   z.literal('Superior'),
   z.literal('Inferior'),
-]);
+]) satisfies z.ZodType<LPSAxisDir>;
 
 const Dataset = z.object({
   id: z.string(),
@@ -71,10 +71,6 @@ type RemoteFileType = z.infer<typeof baseRemoteFileSchema> & {
 // This is a serialized DataSource that has a UriSource ancestor.
 const RemoteFile: z.ZodType<RemoteFileType> = baseRemoteFileSchema.extend({
   parent: z.lazy(() => RemoteFile.optional()),
-  // archivePath: z.string().optional(),
-  // url: z.string(),
-  // remoteFilename: z.string(),
-  // name: z.string(),
 });
 export type RemoteFile = z.infer<typeof RemoteFile>;
 
@@ -94,72 +90,72 @@ const Layout: z.ZodType<Layout> = z.lazy(() =>
   })
 );
 
-const Vector3: z.ZodType<Vector3> = z.tuple([
+const Vector3 = z.tuple([
   z.number(),
   z.number(),
   z.number(),
-]);
+]) satisfies z.ZodType<Vector3>;
 
-const WindowLevelConfig: z.ZodType<WindowLevelConfig> = z.object({
+const WindowLevelConfig = z.object({
   width: z.number(),
   level: z.number(),
   min: z.number(),
   max: z.number(),
-});
+}) satisfies z.ZodType<WindowLevelConfig>;
 
-const SliceConfig: z.ZodType<SliceConfig> = z.object({
+const SliceConfig = z.object({
   slice: z.number(),
   min: z.number(),
   max: z.number(),
   axisDirection: LPSAxisDir,
-});
+}) satisfies z.ZodType<SliceConfig>;
 
-const CameraConfig: z.ZodType<CameraConfig> = z.object({
+const CameraConfig = z.object({
   parallelScale: z.number().optional(),
   position: Vector3.optional(),
   focalPoint: Vector3.optional(),
   directionOfProjection: Vector3.optional(),
   viewUp: Vector3.optional(),
-});
+}) satisfies z.ZodType<CameraConfig>;
 
-const ColorBy: z.ZodType<ColorBy> = z.object({
+const ColorBy = z.object({
   arrayName: z.string(),
   location: z.string(),
-});
+}) satisfies z.ZodType<ColorBy>;
 
-const PiecewiseGaussian: z.ZodType<PiecewiseGaussian> = z.object({
+const PiecewiseGaussian = z.object({
   position: z.number(),
   height: z.number(),
   width: z.number(),
   xBias: z.number(),
   yBias: z.number(),
-});
+}) satisfies z.ZodType<PiecewiseGaussian>;
 
-const PiecewiseNode: z.ZodType<PiecewiseNode> = z.object({
+const PiecewiseNode = z.object({
   x: z.number(),
   y: z.number(),
   midpoint: z.number(),
   sharpness: z.number(),
-});
+}) as z.ZodType<PiecewiseNode>;
 
-const OpacityGaussians: z.ZodType<OpacityGaussians> = z.object({
+const OpacityGaussians = z.object({
   mode: z.literal(vtkPiecewiseFunctionProxy.Mode.Gaussians),
   gaussians: PiecewiseGaussian.array(),
   mappingRange: z.tuple([z.number(), z.number()]),
-});
+}) satisfies z.ZodType<OpacityGaussians>;
 
-const OpacityPoints: z.ZodType<OpacityPoints> = z.object({
+const OpacityPoints = z.object({
   mode: z.literal(vtkPiecewiseFunctionProxy.Mode.Points),
   preset: z.string(),
   shift: z.number(),
   mappingRange: z.tuple([z.number(), z.number()]),
-});
+}) satisfies z.ZodType<OpacityPoints>;
 
-const OpacityNodes: z.ZodType<OpacityNodes> = z.object({
+const OpacityNodes = z.object({
   mode: z.literal(vtkPiecewiseFunctionProxy.Mode.Nodes),
   nodes: PiecewiseNode.array(),
   mappingRange: z.tuple([z.number(), z.number()]),
-});
+}) satisfies z.ZodType<OpacityNodes>;
 
 const OpacityFunction = z.union([
   OpacityGaussians,
@@ -167,18 +163,18 @@ const OpacityFunction = z.union([
   OpacityNodes,
 ]);
 
-const ColorTransferFunction: z.ZodType<ColorTransferFunction> = z.object({
+const ColorTransferFunction = z.object({
   preset: z.string(),
   mappingRange: z.tuple([z.number(), z.number()]),
-});
+}) satisfies z.ZodType<ColorTransferFunction>;
 
-const ColoringConfig: z.ZodType<ColoringConfig> = z.object({
+const ColoringConfig = z.object({
   colorBy: ColorBy,
   transferFunction: ColorTransferFunction,
   opacityFunction: OpacityFunction,
-});
+}) satisfies z.ZodType<ColoringConfig>;
 
-const CVRConfig: z.ZodType<CVRConfig> = z.object({
+const CVRConfig = z.object({
   enabled: z.boolean(),
   lightFollowsCamera: z.boolean(),
   volumeQuality: z.number(),
@@ -190,25 +186,25 @@ const CVRConfig: z.ZodType<CVRConfig> = z.object({
   ambient: z.number(),
   diffuse: z.number(),
   specular: z.number(),
-});
+}) satisfies z.ZodType<CVRConfig>;
 
-const VolumeColorConfig: z.ZodType<VolumeColorConfig> = z.object({
+const VolumeColorConfig = z.object({
   colorBy: ColorBy,
   transferFunction: ColorTransferFunction,
   opacityFunction: OpacityFunction,
   cvr: CVRConfig,
-});
+}) satisfies z.ZodType<VolumeColorConfig>;
 
-const BlendConfig: z.ZodType<BlendConfig> = z.object({
+const BlendConfig = z.object({
   opacity: z.number(),
-});
+}) satisfies z.ZodType<BlendConfig>;
 
-const LayersConfig: z.ZodType<LayersConfig> = z.object({
+const LayersConfig = z.object({
   colorBy: ColorBy,
   transferFunction: ColorTransferFunction,
   opacityFunction: OpacityFunction,
   blendConfig: BlendConfig,
-});
+}) satisfies z.ZodType<LayersConfig>;
 
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
@@ -218,10 +214,10 @@ const ViewConfig = z.object({
   volumeColorConfig: VolumeColorConfig.optional(),
 });
 
-const ViewType: z.ZodType<ViewType> = z.union([
+const ViewType = z.union([
   z.literal('2D'),
   z.literal('3D'),
-]);
+]) satisfies z.ZodType<ViewType>;
 
 export type ViewConfig = z.infer<typeof ViewConfig>;
 
@@ -242,16 +238,16 @@ export const LabelMap = z.object({
 
 export type LabelMap = z.infer<typeof LabelMap>;
 
-const LPSAxis: z.ZodType<LPSAxis> = z.union([
+const LPSAxis = z.union([
   z.literal('Axial'),
   z.literal('Sagittal'),
   z.literal('Coronal'),
-]);
+]) satisfies z.ZodType<LPSAxis>;
 
-const FrameOfReference: z.ZodType<FrameOfReference> = z.object({
+const FrameOfReference = z.object({
   planeOrigin: Vector3,
   planeNormal: Vector3,
-});
+}) satisfies z.ZodType<FrameOfReference>;
 
 const AnnotationTool = z.object({
   imageID: z.string(),
@@ -296,11 +292,11 @@ const Paint = z.object({
   labelmapOpacity: z.number(),
 });
 
-const LPSCroppingPlanes: z.ZodType<LPSCroppingPlanes> = z.object({
+const LPSCroppingPlanes = z.object({
   Sagittal: z.tuple([z.number(), z.number()]),
   Coronal: z.tuple([z.number(), z.number()]),
   Axial: z.tuple([z.number(), z.number()]),
-});
+}) satisfies z.ZodType<LPSCroppingPlanes>;
 
 const Cropping = z.record(LPSCroppingPlanes);
 
