@@ -47,8 +47,6 @@ const deleteLabel = () => {
           v-model="labelName"
           @keydown.stop
           label="Name"
-          outlined
-          dense
           class="flex-grow-0"
         />
         <v-btn
@@ -59,7 +57,7 @@ const deleteLabel = () => {
           Delete Label
         </v-btn>
       </div>
-      <v-color-picker v-model="colorLocal" label="Color" outlined dense />
+      <v-color-picker v-model="colorLocal" label="Color" />
     </div>
   </v-card>
 </template>
