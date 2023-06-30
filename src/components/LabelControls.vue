@@ -69,7 +69,7 @@ const mobile = computed(() => display.mobile.value);
                   icon="mdi-pencil"
                   density="compact"
                   class="ml-auto"
-                  variant="tonal"
+                  variant="plain"
                   @click.stop="
                     () => {
                       editingLabel = id;

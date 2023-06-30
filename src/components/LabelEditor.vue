@@ -41,24 +41,30 @@ const deleteLabel = () => {
       />
     </v-card-title>
 
-    <div class="d-flex flex-row">
-      <div class="flex-grow-1 d-flex flex-column">
-        <v-text-field
-          v-model="labelName"
-          @keydown.stop
-          label="Name"
-          class="flex-grow-0"
-        />
-        <v-btn
-          prepend-icon="mdi-delete"
-          @click="deleteLabel"
-          class="delete-button"
-        >
-          Delete Label
-        </v-btn>
+    <v-card-item>
+      <div class="d-flex flex-row">
+        <div class="flex-grow-1 d-flex flex-column mr-4">
+          <v-text-field
+            v-model="labelName"
+            @keydown.stop
+            label="Name"
+            class="flex-grow-0"
+          />
+          <v-btn
+            prepend-icon="mdi-delete"
+            @click="deleteLabel"
+            class="delete-button"
+          >
+            Delete Label
+          </v-btn>
+        </div>
+        <v-color-picker v-model="colorLocal" label="Color" />
       </div>
-      <v-color-picker v-model="colorLocal" label="Color" />
-    </div>
+    </v-card-item>
+
+    <v-card-actions>
+      <v-btn @click="$emit('close')">Close</v-btn>
+    </v-card-actions>
   </v-card>
 </template>
 
