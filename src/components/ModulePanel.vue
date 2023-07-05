@@ -67,7 +67,7 @@ export const Modules: Module[] = [
   },
 ];
 
-if (process.env.VUE_APP_REMOTE_SERVER_URL) {
+if (import.meta.env.VITE_REMOTE_SERVER_URL) {
   Modules.push({
     name: 'Remote Functions',
     icon: 'server-network',

@@ -6,7 +6,7 @@ import { StoreApi } from '@/src/core/remote/storeApi';
 
 export default defineComponent({
   setup() {
-    const url = process.env.VUE_APP_REMOTE_SERVER_URL || '';
+    const url = import.meta.env.VITE_REMOTE_SERVER_URL || '';
 
     const ready = ref(false);
     const rconn = new RpcClient(url, StoreApi);
