@@ -7,7 +7,7 @@ from aiohttp import web
 
 from volview_server.rpc_server import RpcServer
 
-MAX_HTTP_BUFFER_SIZE = 4 * 1024 * 1024 * 1024
+MAX_HTTP_BUFFER_SIZE = sys.maxsize
 
 
 def parse_args():
@@ -22,7 +22,7 @@ def parse_args():
         "--max-message-size",
         type=int,
         default=MAX_HTTP_BUFFER_SIZE,
-        help="Max message size. Set to 0 for the max allowable size.",
+        help="Max message size. Defaults to maximum allowable size.",
     )
     parser.add_argument(
         "--verbose", default=False, action="store_true", help="Enable verbose logging."
@@ -39,34 +39,33 @@ def load_api_script(api_script: str):
 
 
 def run_server(ApiClass, *, host: str, port: int, **kwargs):
-    rpc_server = RpcServer(ApiClass, **kwargs)
-    web.run_app(rpc_server.app, host=host, port=port)
+    rpc_server = RpcServer(ApiClass, async_mode="aiohttp", **kwargs)
+    app = web.Application()
+    rpc_server.sio.attach(app)
 
-    # cleanup
-    rpc_server.teardown()
+    try:
+        web.run_app(app, host=host, port=port)
+    finally:
+        # cleanup
+        rpc_server.teardown()
 
 
 def main(args):
     ApiClass = load_api_script(args.api_script)
 
-    max_http_buffer_size = args.max_message_size
-    if max_http_buffer_size == 0:
-        max_http_buffer_size = sys.maxsize
-
     if args.verbose:
-        print(f"Using a max message size of {max_http_buffer_size}")
+        print(f"Using a max message size of {args.max_message_size}")
 
     run_server(
         ApiClass,
         host=args.host,
         port=args.port,
         # AsyncServer kwargs
-        async_mode="aiohttp",
         async_handlers=True,
         cors_allowed_origins="*",
         logger=args.verbose,
         engineio_logger=args.verbose,
-        max_http_buffer_size=max_http_buffer_size,
+        max_http_buffer_size=args.max_message_size,
     )
 
 
