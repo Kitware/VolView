@@ -9,3 +9,4 @@ doc:
     mouse_controls: mouse_controls.html
     rendering: rendering.html
     state_files: state_files.html
+    server: server.html
