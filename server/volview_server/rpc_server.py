@@ -10,7 +10,6 @@ from dataclasses import dataclass, field, asdict
 from urllib.parse import parse_qs
 
 import socketio
-from aiohttp import web
 from socketio.exceptions import ConnectionRefusedError
 
 from volview_server.transformers import transform_object, transform_objects, pipe
@@ -113,8 +112,6 @@ class RpcServer:
 
     def __init__(self, ApiClass, num_threads=NUM_THREADS, **kwargs):
         self.sio = socketio.AsyncServer(**kwargs)
-        self.app = web.Application()
-        self.sio.attach(self.app)
 
         # sid -> client ID
         self.clients = {}
