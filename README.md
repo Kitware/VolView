@@ -4,7 +4,7 @@
 
 ## Try it
 
-Try VolView online: https://volview.netlify.app/
+Try VolView online: https://volview.kitware.app/
 
 ## Introduction
 
