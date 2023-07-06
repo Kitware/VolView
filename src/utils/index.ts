@@ -1,6 +1,7 @@
 import { URL } from 'whatwg-url';
 import { TypedArray } from 'itk-wasm';
 import { EPSILON } from '../constants';
+import { Maybe } from '../types';
 
 export function identity<T>(arg: T) {
   return arg;
@@ -253,4 +254,13 @@ export function cleanUndefined(obj: Object) {
       value === undefined ? cleaned : { ...cleaned, [key]: value },
     {}
   );
+}
+
+// converts named colors (red, antiquewhite, etc) to hex
+export function standardizeColor(color: Maybe<string>) {
+  if (!color) return '#ffffff';
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) throw new Error('Could not create canvas context');
+  ctx.fillStyle = color;
+  return ctx.fillStyle;
 }

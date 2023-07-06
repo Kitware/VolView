@@ -9,17 +9,11 @@ export default defineComponent({
     const rectStore = useRectangleStore();
     const { currentImageID } = useCurrentImage();
 
-    const rects = computed(() => {
-      const imageID = currentImageID.value;
-      return rectStore.tools
-        .filter((rect) => rect.imageID === imageID && !rect.placing)
-        .map((rect) => ({
-          id: rect.id,
-          name: rect.name,
-          color: rect.color,
-          label: rect.label,
-        }));
-    });
+    const rects = computed(() =>
+      rectStore.tools.filter(
+        (rect) => !rect.placing && rect.imageID === currentImageID.value
+      )
+    );
 
     function remove(id: RectangleID) {
       rectStore.removeTool(id);
@@ -29,15 +23,10 @@ export default defineComponent({
       rectStore.jumpToTool(id);
     }
 
-    function updateColor(id: RectangleID, color: string) {
-      rectStore.updateTool(id, { color });
-    }
-
     return {
       rects,
       remove,
       jumpTo,
-      updateColor,
     };
   },
 });
@@ -50,7 +39,7 @@ export default defineComponent({
       <div class="color-dot mr-3" :style="{ backgroundColor: rect.color }" />
     </template>
     <v-list-item-title v-bind="$attrs">
-      {{ rect.label }}
+      {{ rect.labelName }}
     </v-list-item-title>
 
     <v-list-item-subtitle>

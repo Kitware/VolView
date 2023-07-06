@@ -1,19 +1,37 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Labels, SetActiveLabel, useLabels } from '@/src/store/tools/useLabels';
+import { computed, ref, watchEffect } from 'vue';
+import { useDisplay } from 'vuetify';
+import { LabelsStore } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
+import { Maybe } from '@/src/types';
+import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
-  labels: Labels<AnnotationTool>;
-  activeLabel: ReturnType<typeof useLabels>['activeLabel']['value'];
-  setActiveLabel: SetActiveLabel;
+  labelsStore: LabelsStore<AnnotationTool>;
 }>();
 
-const labels = computed(() => Object.entries(props.labels));
+const labels = computed(() => Object.entries(props.labelsStore.labels));
 // item groups need an index, not a value
 const activeLabelIndex = computed(() => {
-  return labels.value.findIndex(([name]) => name === props.activeLabel);
+  return labels.value.findIndex(
+    ([name]) => name === props.labelsStore.activeLabel
+  );
 });
+
+const editingLabel =
+  ref<Maybe<keyof typeof props.labelsStore.labels>>(undefined);
+
+const createLabel = () => {
+  editingLabel.value = props.labelsStore.addLabel();
+};
+
+const editDialog = ref(false);
+watchEffect(() => {
+  editDialog.value = !!editingLabel.value;
+});
+
+const display = useDisplay();
+const mobile = computed(() => display.mobile.value);
 </script>
 
 <template>
@@ -21,39 +39,68 @@ const activeLabelIndex = computed(() => {
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <v-item-group
-        v-if="labels.length"
         :model-value="activeLabelIndex"
         selected-class="card-active"
         mandatory
       >
         <v-row dense>
-          <v-col cols="6" v-for="[name, { color }] in labels" :key="name">
+          <v-col
+            cols="6"
+            v-for="[id, { labelName, color }] in labels"
+            :key="id"
+          >
             <v-item v-slot="{ selectedClass, toggle }">
               <v-chip
                 variant="tonal"
-                :class="['w-100', selectedClass]"
+                :class="['w-100 d-flex', selectedClass]"
                 @click="
                   () => {
                     toggle();
-                    setActiveLabel(name);
+                    labelsStore.setActiveLabel(id);
                   }
                 "
               >
-                <div
-                  class="color-dot mr-3"
-                  :style="{ backgroundColor: color }"
+                <!-- dot container keeps overflowing name from squishing dot width  -->
+                <div class="dot-container mr-3">
+                  <div class="color-dot" :style="{ background: color }" />
+                </div>
+                <span class="overflow-hidden">{{ labelName }}</span>
+                <v-btn
+                  icon="mdi-pencil"
+                  density="compact"
+                  class="ml-auto"
+                  variant="plain"
+                  @click.stop="
+                    () => {
+                      editingLabel = id;
+                      editDialog = true;
+                    }
+                  "
                 />
-                <span>{{ name }}</span>
               </v-chip>
             </v-item>
           </v-col>
+
+          <!-- Add Label button -->
+          <v-col cols="6">
+            <v-chip variant="outlined" class="w-100" @click="createLabel">
+              <v-icon class="mr-2">mdi-plus</v-icon>
+              Add Label
+            </v-chip>
+          </v-col>
         </v-row>
       </v-item-group>
-      <div v-else class="text-caption text-center pa-2">
-        No labels configured
-      </div>
     </v-container>
   </v-card>
+
+  <v-dialog v-model="editDialog" :width="mobile ? '100%' : '50%'">
+    <LabelEditor
+      @close="editingLabel = undefined"
+      v-if="editingLabel"
+      :label="editingLabel"
+      :labelsStore="labelsStore"
+    />
+  </v-dialog>
 </template>
 
 <style scoped>
@@ -65,7 +112,9 @@ const activeLabelIndex = computed(() => {
 .color-dot {
   width: 18px;
   height: 18px;
-  background: yellow;
   border-radius: 16px;
+}
+.dot-container {
+  width: 18px;
 }
 </style>

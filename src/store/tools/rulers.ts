@@ -15,6 +15,10 @@ const rulerDefaults = {
   name: 'Ruler',
 };
 
+const newLabelDefault = {
+  color: '#ffffff',
+};
+
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
 
@@ -26,14 +30,15 @@ export const useRulerStore = defineStore('ruler', () => {
     updateTool: updateRuler,
     removeTool: removeRuler,
     jumpToTool: jumpToRuler,
-    serialize: serializeTools,
-    deserialize: deserializeTools,
+    serialize: serializeTool,
+    deserialize: deserializeTool,
     activateTool,
     deactivateTool,
     ...rest // label tools
   } = useAnnotationTool({
     toolDefaults: rulerDefaults,
     initialLabels: RULER_LABEL_DEFAULTS,
+    newLabelDefault,
   });
 
   const lengthByID = computed<Record<string, number>>(() => {
@@ -49,7 +54,7 @@ export const useRulerStore = defineStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.rulers = serializeTools();
+    state.manifest.tools.rulers = serializeTool();
   }
 
   function deserialize(
@@ -57,7 +62,7 @@ export const useRulerStore = defineStore('ruler', () => {
     manifest: Manifest,
     dataIDMap: Record<string, string>
   ) {
-    deserializeTools.call(this, manifest.tools.rulers, dataIDMap);
+    deserializeTool.call(this, manifest.tools.rulers, dataIDMap);
   }
 
   return {

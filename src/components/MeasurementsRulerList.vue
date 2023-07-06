@@ -14,11 +14,8 @@ export default defineComponent({
       return rulerStore.rulers
         .filter((ruler) => ruler.imageID === imageID && !ruler.placing)
         .map((ruler) => ({
-          id: ruler.id,
-          name: ruler.name,
+          ...ruler,
           length: lengthByID[ruler.id],
-          color: ruler.color,
-          label: ruler.label,
         }));
     });
 
@@ -30,15 +27,10 @@ export default defineComponent({
       rulerStore.jumpToRuler(id);
     }
 
-    function updateColor(id: string, color: string) {
-      rulerStore.updateRuler(id, { color });
-    }
-
     return {
       rulers,
       remove,
       jumpTo,
-      updateColor,
     };
   },
 });
@@ -51,7 +43,7 @@ export default defineComponent({
       <div class="color-dot mr-3" :style="{ backgroundColor: ruler.color }" />
     </template>
     <v-list-item-title v-bind="$attrs">
-      {{ ruler.label }}
+      {{ ruler.labelName }}
     </v-list-item-title>
     <v-list-item-subtitle>
       <v-row>
