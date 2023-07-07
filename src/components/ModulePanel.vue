@@ -69,7 +69,7 @@ export const Modules: Module[] = [
 
 if (import.meta.env.VITE_REMOTE_SERVER_URL) {
   Modules.push({
-    name: 'Remote Functions',
+    name: 'Remote',
     icon: 'server-network',
     component: ServerModule,
   });

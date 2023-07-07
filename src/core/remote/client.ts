@@ -107,21 +107,20 @@ export interface RpcClientOptions {
 
 /**
  * Represents a bidirectional socket.io RPC client.
- *
- * TODO: are listeners cleared after the socket disconnects?
  */
 export default class RpcClient {
-  protected clientId: string;
-  protected socket: Socket;
-  protected api: RpcApi;
-  protected serializers = DefaultSerializeTransformers;
-  protected deserializers = DefaultDeserializeTransformers;
+  public readonly clientId: string;
+  public readonly socket: Socket;
+  public readonly api: RpcApi;
+
+  public serializers = DefaultSerializeTransformers;
+  public deserializers = DefaultDeserializeTransformers;
 
   private waiting: Map<string, Promise<unknown>>;
   private pendingRpcs: Map<string, Deferred<any>>;
   private activeStreams: Map<string, StreamCallback<any>>;
 
-  constructor(url: string, api: RpcApi, options?: RpcClientOptions) {
+  constructor(api: RpcApi, options?: RpcClientOptions) {
     this.clientId = `cid_${nanoid(CLIENT_ID_SIZE)}`;
     this.api = api;
     this.serializers = options?.serializers ?? DefaultSerializeTransformers;
@@ -132,38 +131,38 @@ export default class RpcClient {
     this.pendingRpcs = new Map();
     this.activeStreams = new Map();
 
-    this.socket = io(url, {
+    this.socket = io('', {
       query: {
         clientId: this.clientId,
       },
       autoConnect: false,
     });
 
-    this.socket.on(RPC_CALL_EVENT, this.onRpcCallEvent.bind(this));
-    this.socket.on(RPC_RESULT_EVENT, this.onRpcResultEvent.bind(this));
-    this.socket.on(STREAM_RESULT_EVENT, this.onStreamResultEvent.bind(this));
-
-    this.serialize = this.serialize.bind(this);
-    this.deserialize = this.deserialize.bind(this);
+    this.socket.on(RPC_CALL_EVENT, this.onRpcCallEvent);
+    this.socket.on(RPC_RESULT_EVENT, this.onRpcResultEvent);
+    this.socket.on(STREAM_RESULT_EVENT, this.onStreamResultEvent);
   }
 
-  protected serialize(obj: any) {
+  protected serialize = (obj: any) => {
     return pipe(...this.serializers)(obj);
-  }
+  };
 
-  protected deserialize(obj: any) {
+  protected deserialize = (obj: any) => {
     return pipe(...this.deserializers)(obj);
-  }
+  };
 
-  async connect() {
-    if (this.socket.connected) {
-      return Promise.resolve();
-    }
+  async connect(uri: string) {
+    await this.disconnect();
+    // @ts-ignore reset socket.io URI
+    this.socket.io.uri = uri;
 
     let promise = this.waiting.get('connect');
     if (!promise) {
       promise = this.connectHelper();
       this.waiting.set('connect', promise);
+      promise.finally(() => {
+        this.waiting.delete('connect');
+      });
     }
     return promise;
   }
@@ -171,9 +170,10 @@ export default class RpcClient {
   private connectHelper() {
     let resolve: () => void;
     let reject: (reason?: any) => void;
-    const cancel = () => {
+
+    const cleanup = () => {
       this.socket.off('connect', resolve);
-      this.socket.off('connect', reject);
+      this.socket.off('connect_error', reject);
     };
 
     const promise = new Promise<void>((res, rej) => {
@@ -184,15 +184,13 @@ export default class RpcClient {
 
       this.socket.connect();
     });
-
-    promise.then(cancel);
-    promise.catch(cancel);
+    promise.finally(cleanup);
 
     return promise;
   }
 
   async disconnect() {
-    if (this.socket.disconnected) {
+    if (!this.socket.connected) {
       return Promise.resolve();
     }
 
@@ -203,6 +201,9 @@ export default class RpcClient {
         this.socket.disconnect();
       });
       this.waiting.set('disconnect', promise);
+      promise.finally(() => {
+        this.waiting.delete('disconnect');
+      });
     }
     return promise;
   }
@@ -213,7 +214,9 @@ export default class RpcClient {
    * @param args
    */
   async call<R = unknown>(rpcName: string, args?: unknown[]) {
-    await this.connect();
+    if (!this.socket.connected) {
+      throw new Error('Not connected to server');
+    }
 
     const rpcId = `rpcid_${nanoid(RPC_ID_SIZE)}`;
 
@@ -229,7 +232,7 @@ export default class RpcClient {
     return pending.promise;
   }
 
-  private onRpcResultEvent(result: RpcResult<unknown>) {
+  private onRpcResultEvent = (result: RpcResult<unknown>) => {
     if (!validateRpcResult(result)) {
       // ignore invalid RPC responses
       debug.warn('Received invalid RPC result:', result);
@@ -250,7 +253,7 @@ export default class RpcClient {
     } else {
       deferred.reject(new Error(result.error));
     }
-  }
+  };
 
   /**
    * Calls a remote streaming method.
@@ -279,7 +282,9 @@ export default class RpcClient {
     argsOrCallback: unknown[] | StreamCallback<D>,
     maybeCallback?: StreamCallback<D>
   ) {
-    await this.connect();
+    if (!this.socket.connected) {
+      throw new Error('Not connected to server');
+    }
 
     const args = Array.isArray(argsOrCallback) ? argsOrCallback : [];
     const callback = Array.isArray(argsOrCallback)
@@ -301,7 +306,7 @@ export default class RpcClient {
     return deferred.promise;
   }
 
-  private onStreamResultEvent(result: StreamResult<unknown>) {
+  private onStreamResultEvent = (result: StreamResult<unknown>) => {
     if (!validateStreamResult(result)) {
       throw new Error('Failed to validate RPC stream result');
     }
@@ -330,13 +335,13 @@ export default class RpcClient {
       clearListeners();
       deferred.reject(new Error(result.error));
     }
-  }
+  };
 
   protected sendRpcCall(eventType: string, payload: RpcCall) {
     this.socket.emit(eventType, payload);
   }
 
-  protected async onRpcCallEvent(rpcInfo: unknown) {
+  protected onRpcCallEvent = async (rpcInfo: unknown) => {
     if (!validateRpcCall(rpcInfo)) {
       debug.warn('Received invalid RPC call:', rpcInfo);
       return;
@@ -346,7 +351,7 @@ export default class RpcClient {
     const result = await this.tryRpcCall(name, args ?? []);
     result.rpcId = rpcId;
     this.socket.emit(RPC_RESULT_EVENT, result);
-  }
+  };
 
   protected async tryRpcCall(
     name: string,
