@@ -83,6 +83,7 @@
               </template>
               <v-spacer />
               <tool-button
+                v-if="serverUrl"
                 size="40"
                 :icon="serverConnectionIcon"
                 name="Open Server Settings"
@@ -416,6 +417,7 @@ export default defineComponent({
     // --- remote server --- //
 
     const serverStore = useServerStore();
+    const { url: serverUrl } = storeToRefs(serverStore);
 
     const serverConnectionIcon = computed(() => {
       switch (serverStore.connState) {
@@ -518,6 +520,7 @@ export default defineComponent({
       showErrorReporting,
       saveUrl,
       serverConnectionIcon,
+      serverUrl,
     };
   },
 });

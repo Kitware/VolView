@@ -49,7 +49,7 @@ interface Module {
   component: Component;
 }
 
-export const Modules: Module[] = [
+const Modules: Module[] = [
   {
     name: 'Data',
     icon: 'database',
@@ -65,15 +65,12 @@ export const Modules: Module[] = [
     icon: 'cube',
     component: RenderingModule,
   },
-];
-
-if (import.meta.env.VITE_REMOTE_SERVER_URL) {
-  Modules.push({
+  {
     name: 'Remote',
     icon: 'server-network',
     component: ServerModule,
-  });
-}
+  },
+];
 
 const autoSwitchToAnnotationsTools = [Tools.Rectangle, Tools.Ruler];
 
