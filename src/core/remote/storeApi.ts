@@ -2,10 +2,29 @@ import { getPiniaStore } from '@/src/plugins/storeRegistry';
 
 type PropKey = number | string;
 
+type RestrictHook = (storeName: string, propPath: PropKey[]) => boolean;
+
+const restrictServerStore: RestrictHook = (storeName) => {
+  return storeName === 'server';
+};
+
+const restrictPiniaProperties: RestrictHook = (storeName, propPath) => {
+  return propPath.includes('_p');
+};
+
+const RestrictHooks: RestrictHook[] = [
+  restrictServerStore,
+  restrictPiniaProperties,
+];
+
 function getStoreProperty<T = unknown>(
   storeName: string,
   propPath: PropKey[]
 ): T {
+  if (RestrictHooks.some((hook) => hook(storeName, propPath))) {
+    throw new Error('Cannot access the requested store and property');
+  }
+
   const store = getPiniaStore(storeName);
   if (!store) {
     throw new Error(`${storeName} does not exist or is not initialized`);

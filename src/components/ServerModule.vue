@@ -1,118 +1,88 @@
-<script lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+<script setup lang="ts">
+import { computed, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import RpcClient from '@/src/core/remote/client';
-import { StoreApi } from '@/src/core/remote/storeApi';
+import { useServerStore, ConnectionState } from '@/src/store/server';
 
-export default defineComponent({
-  setup() {
-    const url = import.meta.env.VITE_REMOTE_SERVER_URL || '';
+const serverStore = useServerStore();
+const { client } = serverStore;
+const ready = computed(
+  () => serverStore.connState === ConnectionState.Connected
+);
 
-    const ready = ref(false);
-    const rconn = new RpcClient(url, StoreApi);
+// --- adding --- //
 
-    onMounted(async () => {
-      await rconn.connect();
-      ready.value = true;
-    });
+const sum = ref(0);
+const sumOp1 = ref(0);
+const sumOp2 = ref(0);
+const doSumLoading = ref(false);
 
-    // --- adding --- //
+const doSum = async () => {
+  doSumLoading.value = true;
+  try {
+    sum.value = await client.call('add', [sumOp1.value, sumOp2.value]);
+  } finally {
+    doSumLoading.value = false;
+  }
+};
 
-    const sum = ref(0);
-    const sumOp1 = ref(0);
-    const sumOp2 = ref(0);
-    const doSumLoading = ref(false);
+// --- number trivia --- //
 
-    const doSum = async () => {
-      doSumLoading.value = true;
-      try {
-        sum.value = await rconn.call('add', [sumOp1.value, sumOp2.value]);
-      } finally {
-        doSumLoading.value = false;
-      }
-    };
+const trivia = ref('');
+const triviaLoading = ref(false);
 
-    // --- number trivia --- //
+const getTrivia = async () => {
+  triviaLoading.value = true;
+  try {
+    trivia.value = (await client.call('number_trivia')) as string;
+  } finally {
+    triviaLoading.value = false;
+  }
+};
 
-    const trivia = ref('');
-    const triviaLoading = ref(false);
+// --- stream test --- //
 
-    const getTrivia = async () => {
-      triviaLoading.value = true;
-      try {
-        trivia.value = (await rconn.call('number_trivia')) as string;
-      } finally {
-        triviaLoading.value = false;
-      }
-    };
+const streamProgress = ref(0);
+const streamLoading = ref(false);
 
-    // --- stream test --- //
-
-    const streamProgress = ref(0);
-    const streamLoading = ref(false);
-
-    type StreamData = { progress: number };
-
-    const onStreamData = (data: StreamData) => {
-      const { progress } = data;
-      streamProgress.value = progress;
-      if (progress === 100) {
-        streamLoading.value = false;
-      }
-    };
-
-    const startStream = async () => {
-      streamLoading.value = true;
-      await rconn.stream('progress', onStreamData);
-    };
-
-    // --- median filter --- //
-
-    const medianFilterLoading = ref(false);
-    const { currentImageID } = useCurrentImage();
-    const medianFilterRadius = ref(2);
-
-    const doMedianFilter = async () => {
-      const id = currentImageID.value;
-      if (!id) return;
-
-      medianFilterLoading.value = true;
-      try {
-        await rconn.call('medianFilter', [id, medianFilterRadius.value]);
-      } finally {
-        medianFilterLoading.value = false;
-      }
-    };
-
-    const hasCurrentImage = computed(() => !!currentImageID.value);
-
-    return {
-      ready,
-
-      doSum,
-      doSumLoading,
-      sum,
-      sumOp1,
-      sumOp2,
-
-      getTrivia,
-      trivia,
-      triviaLoading,
-
-      startStream,
-      streamLoading,
-      streamProgress: computed(() => {
-        const p = streamProgress.value;
-        return p < 100 ? p : 'Done!';
-      }),
-
-      doMedianFilter,
-      medianFilterLoading,
-      hasCurrentImage,
-      medianFilterRadius,
-    };
-  },
+const streamProgressText = computed(() => {
+  const p = streamProgress.value;
+  return p < 100 ? p : 'Done!';
 });
+
+type StreamData = { progress: number };
+
+const onStreamData = (data: StreamData) => {
+  const { progress } = data;
+  streamProgress.value = progress;
+  if (progress === 100) {
+    streamLoading.value = false;
+  }
+};
+
+const startStream = async () => {
+  streamLoading.value = true;
+  await client.stream('progress', onStreamData);
+};
+
+// --- median filter --- //
+
+const medianFilterLoading = ref(false);
+const { currentImageID } = useCurrentImage();
+const medianFilterRadius = ref(2);
+
+const doMedianFilter = async () => {
+  const id = currentImageID.value;
+  if (!id) return;
+
+  medianFilterLoading.value = true;
+  try {
+    await client.call('medianFilter', [id, medianFilterRadius.value]);
+  } finally {
+    medianFilterLoading.value = false;
+  }
+};
+
+const hasCurrentImage = computed(() => !!currentImageID.value);
 </script>
 
 <template>
@@ -178,7 +148,7 @@ export default defineComponent({
         <v-btn @click="startStream" :loading="streamLoading" :disabled="!ready">
           Start progress
         </v-btn>
-        <span class="ml-3"> Progress: {{ streamProgress }} </span>
+        <span class="ml-3"> Progress: {{ streamProgressText }} </span>
       </v-col>
     </v-row>
     <v-divider />
