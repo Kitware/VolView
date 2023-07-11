@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
-import { AnnotationTool } from '@/src/types/annotationTool';
+import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import LabelEditor from './LabelEditor.vue';

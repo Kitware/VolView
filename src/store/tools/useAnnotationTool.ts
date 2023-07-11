@@ -9,7 +9,7 @@ import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReferenc
 import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
-import { AnnotationTool } from '@/src/types/annotationTool';
+import { AnnotationTool } from '@/src/types/annotation-tool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';

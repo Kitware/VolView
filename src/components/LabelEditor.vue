@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
-import { AnnotationTool } from '../types/annotationTool';
+import type { AnnotationTool } from '../types/annotation-tool';
 import { standardizeColor } from '../utils';
 
 const props = defineProps<{

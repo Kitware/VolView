@@ -6,13 +6,13 @@ import vtkPiecewiseFunctionProxy, {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
+import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
 import { Ruler } from '@/src/types/ruler';
 import { Rectangle } from '@/src/types/rectangle';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { Optional } from '@/src/types';
-import { AnnotationTool } from '@/src/types/annotationTool';
 
 import {
   CameraConfig,
@@ -49,8 +49,9 @@ const LPSAxisDir = z.union([
   z.literal('Posterior'),
   z.literal('Anterior'),
   z.literal('Superior'),
-  z.literal('Inferior'),
-]) satisfies z.ZodType<LPSAxisDir>;
+  z.literal('Inferior')
+]);
+
 
 const Dataset = z.object({
   id: z.string(),
@@ -249,7 +250,7 @@ const FrameOfReference = z.object({
   planeNormal: Vector3,
 }) satisfies z.ZodType<FrameOfReference>;
 
-const AnnotationTool = z.object({
+const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
@@ -263,7 +264,7 @@ const AnnotationTool = z.object({
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({ tools: z.array(tool), labels: z.record(tool.partial()) });
 
-const Ruler = AnnotationTool.extend({
+const Ruler = annotationTool.extend({
   firstPoint: Vector3,
   secondPoint: Vector3,
 }) satisfies z.ZodType<Ruler>;
