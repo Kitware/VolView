@@ -35,7 +35,7 @@ const mobile = computed(() => display.mobile.value);
 </script>
 
 <template>
-  <v-card>
+  <v-card class="pt-2">
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <v-item-group

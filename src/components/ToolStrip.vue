@@ -71,12 +71,7 @@
         :disabled="noCurrentImage"
         @click="toggle"
       >
-        <label-controls
-          :labels="rectangleStore.labels"
-          :set-active-label="rectangleStore.setActiveLabel"
-          :active-label="rectangleStore.activeLabel"
-          class="popup-menu pt-2"
-        />
+        <rectangle-controls />
       </menu-tool-button>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
@@ -88,12 +83,7 @@
         :disabled="noCurrentImage"
         @click="toggle"
       >
-        <label-controls
-          :labels="rulerStore.labels"
-          :set-active-label="rulerStore.setActiveLabel"
-          :active-label="rulerStore.activeLabel"
-          class="popup-menu pt-2"
-        />
+        <ruler-controls />
       </menu-tool-button>
     </groupable-item>
 
@@ -124,9 +114,10 @@ import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
-import LabelControls from './LabelControls.vue';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
+import RulerControls from './RulerControls.vue';
+import RectangleControls from './RectangleControls.vue';
 
 export default defineComponent({
   components: {
@@ -136,7 +127,8 @@ export default defineComponent({
     GroupableItem,
     PaintControls,
     CropControls,
-    LabelControls,
+    RulerControls,
+    RectangleControls,
   },
   setup() {
     const dataStore = useDatasetStore();
