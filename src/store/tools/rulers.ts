@@ -8,12 +8,12 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
 import { useAnnotationTool } from './useAnnotationTool';
 
-const rulerDefaults = {
+const rulerDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,
   secondPoint: [0, 0, 0] as Vector3,
   id: '',
   name: 'Ruler',
-};
+});
 
 const newLabelDefault = {
   color: '#ffffff',

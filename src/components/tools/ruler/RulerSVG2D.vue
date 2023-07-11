@@ -38,7 +38,7 @@
       :text-anchor="anchor"
       stroke-width="0.75"
       stroke="black"
-      :fill="color"
+      fill="white"
       :font-size="`${textSize}px`"
       font-weight="bold"
     >
