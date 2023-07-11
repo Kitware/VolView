@@ -6,13 +6,13 @@ import { RectangleID } from '@/src/types/rectangle';
 
 import { useAnnotationTool } from './useAnnotationTool';
 
-const rectangleDefaults = {
+const rectangleDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,
   secondPoint: [0, 0, 0] as Vector3,
   id: '' as RectangleID,
   name: 'Rectangle',
   fillColor: 'transparent',
-};
+});
 
 const newLabelDefault = {
   color: '#ffffff',

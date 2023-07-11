@@ -15,7 +15,7 @@ import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, Labels, Label } from './useLabels';
 
-const annotationToolDefaults = {
+const makeAnnotationToolDefaults = () => ({
   frameOfReference: {
     planeOrigin: [0, 0, 0],
     planeNormal: [1, 0, 0],
@@ -25,21 +25,22 @@ const annotationToolDefaults = {
   placing: false,
   color: TOOL_COLORS[0],
   name: 'baseAnnotationTool',
-};
+});
 
 // Must return addTool in consuming Pinia store.
 export const useAnnotationTool = <
-  ToolDefaults,
-  ToolActiveProps extends ToolDefaults & AnnotationTool
+  MakeToolDefaults extends (...args: any) => any,
+  ToolActiveProps extends ReturnType<MakeToolDefaults> & AnnotationTool
 >({
   toolDefaults,
   initialLabels,
   newLabelDefault,
 }: {
-  toolDefaults: ToolDefaults;
+  toolDefaults: MakeToolDefaults;
   initialLabels: Labels<ToolActiveProps>;
   newLabelDefault: Label<ToolActiveProps>;
 }) => {
+  type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
   type ToolID = Tool['id'];
@@ -75,8 +76,8 @@ export const useAnnotationTool = <
     }
 
     toolByID.value[id] = {
-      ...annotationToolDefaults,
-      ...toolDefaults,
+      ...makeAnnotationToolDefaults(),
+      ...toolDefaults(),
       label: labels.activeLabel.value,
       ...tool,
       // updates label props if changed between sessions
