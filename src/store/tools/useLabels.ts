@@ -3,8 +3,8 @@ import { ref } from 'vue';
 import { StoreActions, StoreState } from 'pinia';
 import { useIdStore } from '../id';
 
-export type Label<Tool> = Partial<Tool & { labelName: string }>;
-export type Labels<Tool> = Record<string, Label<Tool>>;
+export type Label<Props> = Partial<Props & { labelName: string }>;
+export type Labels<Props> = Record<string, Label<Props>>;
 
 type LabelID = string;
 
@@ -12,10 +12,10 @@ const labelDefault = { labelName: 'New Label' };
 
 // param newLabelDefault should contain all label controlled props
 // of the tool so placing tool does hold any last active label props.
-export const useLabels = <Tool>(newLabelDefault: Label<Tool>) => {
-  type ToolLabel = Label<Tool>;
+export const useLabels = <Props>(newLabelDefault: Label<Props>) => {
+  type ToolLabel = Label<Props>;
 
-  const labels = ref<Labels<Tool>>({});
+  const labels = ref<Labels<Props>>({});
 
   const activeLabel = ref<string | undefined>();
   const setActiveLabel = (id: string) => {
@@ -92,7 +92,7 @@ export const useLabels = <Tool>(newLabelDefault: Label<Tool>) => {
    * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
    */
   const mergeLabels = (
-    newLabels: Maybe<Labels<Tool>>,
+    newLabels: Maybe<Labels<Props>>,
     clearDefault: boolean = true
   ) => {
     Object.entries(newLabels ?? {}).forEach(([labelName, props]) =>
