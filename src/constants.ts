@@ -1,3 +1,4 @@
+import { Maybe } from '@/src/types';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { ComputedRef, InjectionKey, Ref } from 'vue';
 
@@ -27,7 +28,7 @@ export const VTKThreeViewWidgetManager: InjectionKey<
 /**
  * Retrieves the parent tool HTML element.
  */
-export const ToolContainer: InjectionKey<Ref<HTMLElement>> =
+export const ToolContainer: InjectionKey<Ref<Maybe<HTMLElement>>> =
   Symbol('ToolContainer');
 
 export const DataTypes = {

@@ -7,6 +7,8 @@ import MouseManipulatorTool from './MouseManipulatorTool.vue';
 
 interface Props {
   viewId: string;
+  // workaround for vue not detecting kebab-transformed props
+  'view-id'?: string;
 }
 
 export default function ZoomTool(props: Props) {
