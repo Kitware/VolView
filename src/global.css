@@ -24,6 +24,6 @@ body {
 }
 
 ul:not([class]), ol:not([class]) {
-    padding-left: 20px;
-    margin-bottom: 16px;
+  padding-left: 20px;
+  margin-bottom: 16px;
 }

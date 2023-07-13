@@ -1,0 +1,56 @@
+<script setup lang="ts">
+import { ref } from 'vue';
+
+const errorReporting = ref(true);
+</script>
+
+<template>
+  <v-card class="text-grey-lighten-2">
+    <v-card-title>Data Security Notice</v-card-title>
+    <v-card-text>
+      <p class="mb-4">
+        VolView takes data security seriously. Here is how we keep your data
+        safe.
+      </p>
+      <ul class="bullet-points">
+        <li>
+          <span class="font-weight-bold">Data Loading</span>: Your image data
+          never leaves your computer. Images are loaded into your browser and
+          are never sent to any remote server or cloud service.
+        </li>
+        <li>
+          <span class="font-weight-bold">Error Reporting</span>: We collect
+          error reports in the event that VolView encounters issues. These
+          reports help us improve VolView's stability and only consist of code
+          stack traces where applicable. We do not collect your data, nor any
+          other identifiable information.
+        </li>
+      </ul>
+      <p>
+        If you would like to opt-out of error reporting, you may turn it off
+        using the following setting. Your choice will be respected for future
+        VolView sessions that you run on this machine.
+      </p>
+      <p class="mt-2 ml-4">
+        <v-switch
+          v-model="errorReporting"
+          :label="`Error Reporting: ${errorReporting ? 'On' : 'Off'}`"
+          color="primary"
+          density="compact"
+          hide-details
+        />
+      </p>
+    </v-card-text>
+  </v-card>
+</template>
+
+<style scoped>
+.bullet-points {
+  padding-left: 20px;
+  margin-bottom: 16px;
+}
+
+.bullet-points > li:not(:last-child) {
+  margin-bottom: 8px;
+}
+</style>
