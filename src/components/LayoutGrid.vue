@@ -19,14 +19,20 @@
 </template>
 
 <script lang="ts">
-import { Component, computed, defineComponent, PropType, toRefs } from 'vue';
+import { Component, computed, defineComponent, PropType, provide, ref, toRefs, watch } from 'vue';
 import { storeToRefs } from 'pinia';
+import vtkResliceCursorWidget, { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import vtkMath from '@kitware/vtk.js/Common/Core/Math';
+import type { Matrix3x3 } from '@kitware/vtk.js/types';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkObliqueView from './VtkObliqueView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewStore } from '../store/views';
 import { ViewType } from '../types/views';
+import { VTKResliceCursor } from '../constants';
 
 const TYPE_TO_COMPONENT: Record<ViewType, Component> = {
   '2D': VtkTwoView,
@@ -46,6 +52,7 @@ export default defineComponent({
     const { layout } = toRefs(props);
     const viewStore = useViewStore();
     const { viewSpecs } = storeToRefs(viewStore);
+    const { currentImageData } = useCurrentImage();
 
     const flexFlow = computed(() => {
       return layout.value.direction === LayoutDirection.H
@@ -70,6 +77,50 @@ export default defineComponent({
           ...item,
         };
       });
+    });
+
+    // Construct the common instance of vtkResliceCursorWidget and provide it
+    // to all the child ObliqueView components.
+    const resliceCursor = ref<vtkResliceCursorWidget>();
+    resliceCursor.value = vtkResliceCursorWidget.newInstance();
+    // Orient the planes of the vtkResliceCursorWidget to the orientation
+    // of the currently set image.
+    const resliceCursorState = resliceCursor.value.getWidgetState() as ResliceCursorWidgetState;
+    provide(VTKResliceCursor, resliceCursor);
+
+    watch(currentImageData, (image) => {
+      if (image && resliceCursor.value) {
+        resliceCursor.value.setImage(image);
+        // Reset to default plane values before transforming based on current image-data.
+        resliceCursorState.setPlanes({
+          [ViewTypes.YZ_PLANE]: {
+            normal: [1, 0, 0],
+            viewUp: [0, 0, 1],
+            color3: [255, 0, 0],
+          },
+          [ViewTypes.XZ_PLANE]: {
+            normal: [0, -1, 0],
+            viewUp: [0, 0, 1],
+            color3: [0, 255, 0],
+          },
+          [ViewTypes.XY_PLANE]: {
+            normal: [0, 0, -1],
+            viewUp: [0, -1, 0],
+            color3: [0, 0, 255],
+          }
+        });
+        const planes = resliceCursorState.getPlanes();
+
+        const d9 = image.getDirection();
+        const mat = Array.from(d9) as Matrix3x3;
+        vtkMath.invert3x3(mat, mat);
+
+        Object.values(planes).forEach((plane) => {
+          const {normal, viewUp} = plane;
+          vtkMath.multiply3x3_vect3(mat as Matrix3x3, normal, normal);
+          vtkMath.multiply3x3_vect3(mat as Matrix3x3, viewUp, viewUp);
+        });
+      }
     });
 
     return {

@@ -67,7 +67,6 @@ export default {
     },
     Oblique: {
       vtkImageData: { name: 'ImageReslice' },
-      // vtkLabelMap: { name: 'LabelMapSlice' },
     },
   },
 };

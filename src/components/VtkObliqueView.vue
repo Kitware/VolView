@@ -35,27 +35,18 @@
       <div class="overlay-no-events tool-layer" ref="toolContainer">
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
+        <reslice-cursor-tool :view-id="viewID" :view-direction="viewDirection" />
         <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
-        <template v-slot:top-middle>
-          <div class="annotation-cell">
-            <span>{{ topLabel }}</span>
-          </div>
-        </template>
-        <template v-slot:middle-left>
-          <div class="annotation-cell">
-            <span>{{ leftLabel }}</span>
-          </div>
-        </template>
         <template v-slot:bottom-left>
           <div class="annotation-cell">
             <div>Slice: {{ currentSlice }}/{{ sliceMax }}</div>
             <div
               v-if="
-                typeof windowWidth === 'number' &&
-                typeof windowLevel === 'number'
+                windowWidth != null &&
+                windowLevel != null
               "
             >
               W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
@@ -138,6 +129,7 @@
 import {
   computed,
   defineComponent,
+  inject,
   onBeforeMount,
   onBeforeUnmount,
   onMounted,
@@ -157,16 +149,15 @@ import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import vtkMath from '@kitware/vtk.js/Common/Core/Math';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
-import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
 import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
-import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
+import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
@@ -174,13 +165,10 @@ import WindowLevelTool from './tools/WindowLevelTool.vue';
 import SliceScrollTool from './tools/SliceScrollTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
+import ResliceCursorTool from './tools/ResliceCursorTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
-import { useLabelmapStore } from '../store/datasets-labelmaps';
-import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
-import { usePaintToolStore } from '../store/tools/paint';
 import useWindowingStore from '../store/view-configs/windowing';
-import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
@@ -188,12 +176,7 @@ import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
-import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
-import { useProxyManager } from '../composables/proxyManager';
-import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
-import { useLayersStore } from '../store/datasets-layers';
-import { useViewCameraStore } from '../store/view-configs/camera';
-import useLayerColoringStore from '../store/view-configs/layers';
+import { ToolContainer, VTKTwoViewWidgetManager, VTKResliceCursor } from '../constants';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -211,12 +194,10 @@ export default defineComponent({
     },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
-      // type: vec3,
       required: true,
     },
     viewUp: {
       type: String as PropType<LPSAxisDir>,
-      // type: vec3,
       required: true,
     },
   },
@@ -227,13 +208,11 @@ export default defineComponent({
     SliceScrollTool,
     PanTool,
     ZoomTool,
+    ResliceCursorTool
   },
   setup(props) {
     const windowingStore = useWindowingStore();
     const viewSliceStore = useViewSliceStore();
-    const viewCameraStore = useViewCameraStore();
-    const layerColoringStore = useLayerColoringStore();
-    const paintStore = usePaintToolStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
 
@@ -248,7 +227,6 @@ export default defineComponent({
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
       isImageLoading,
-      currentLayers,
     } = useCurrentImage();
 
     const dicomStore = useDICOMStore();
@@ -324,6 +302,27 @@ export default defineComponent({
     const { viewProxy, setContainer: setViewProxyContainer } =
       useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Oblique);
 
+    const resliceCursorRef = inject(VTKResliceCursor);
+    if (!resliceCursorRef) {
+      throw Error('Cannot access global ResliceCursor instance.');
+    }
+
+    const VTKViewType = computed(() => {
+      const viewAxisValue = viewAxis?.value;
+      switch(viewAxisValue) {
+        case 'Coronal': return ViewTypes.XZ_PLANE;
+        case 'Sagittal': return ViewTypes.YZ_PLANE;
+        default:
+          return ViewTypes.XY_PLANE;
+      }
+    });
+
+    const { baseImageRep } = useSceneBuilder<
+      vtkResliceRepresentationProxy
+    >(viewID, {
+      baseImage: curImageID
+    });
+
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
       // before this component does.
@@ -333,6 +332,30 @@ export default defineComponent({
     onMounted(() => {
       setViewProxyContainer(vtkContainerRef.value);
       viewProxy.value.setOrientationAxesVisibility(false);
+
+      // Initialize camera points during construction
+      if (curImageData.value) {
+        resliceCursorRef.value.updateCameraPoints(viewProxy.value.getRenderer(), VTKViewType.value, true, false, true);
+      }
+
+      const onPlanesUpdated = useVTKCallback(
+        resliceCursorRef.value.getWidgetState().onModified
+      );
+
+      onPlanesUpdated(() => {
+        const rep = baseImageRep?.value;
+        const resliceCursor = resliceCursorRef?.value;
+        const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
+        if (resliceCursor && rep) {
+          const planeOrigin = state.getCenter();
+          const planeNormal = resliceCursorRef.value.getPlaneNormalFromViewType(VTKViewType.value);
+          rep.getSlicePlane().setNormal(planeNormal);
+          rep.getSlicePlane().setOrigin(planeOrigin);
+          if (curImageData.value) {
+            resliceCursorRef.value.updateCameraPoints( viewProxy.value.getRenderer(), VTKViewType.value, false, false, true);
+          }
+        }
+      });
     });
 
     onBeforeUnmount(() => {
@@ -347,7 +370,6 @@ export default defineComponent({
 
     // Function to compute float range of slicing for oblique slicing.
     // Range is calculated as distance along the plane normal (as originating from {0,0,0} ).
-    // function slicePlaneRange(bounds: Bounds, sliceNormal: number[]): [number, number] {
     function slicePlaneRange(cornerPoints: number[][], sliceNormal: number[]): [number, number] {
       if (!cornerPoints || !sliceNormal)
         return [0, 1];
@@ -358,8 +380,6 @@ export default defineComponent({
         .identity()
         .rotateFromDirections(sliceNormal, [1, 0, 0]);
 
-      // Array.from(cornerPoints).forEach((pt) => transform.apply(pt));
-      // const corners = Array.from(cornerPoints);
       const corners = cornerPoints.map(x => x.slice());
       corners.forEach((pt) => transform.apply(pt));
 
@@ -380,13 +400,6 @@ export default defineComponent({
     }
 
     // --- Slicing setup --- //
-
-    /*
-    watchEffect(() => {
-      const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
-      viewProxy.value.setSlicingMode('IJK'[ijkIndex]);
-    });
-    */
 
     // --- arrows change slice --- //
 
@@ -442,26 +455,6 @@ export default defineComponent({
 
     // --- scene setup --- //
 
-    const labelmapStore = useLabelmapStore();
-
-    const labelmapIDs = computed(() => {
-      return labelmapStore.idList.filter(
-        (id) => labelmapStore.parentImage[id] === curImageID.value
-      );
-    });
-
-    const layerIDs = computed(() => currentLayers.value.map(({ id }) => id));
-
-    const { baseImageRep, labelmapReps, layerReps } = useSceneBuilder<
-      vtkResliceRepresentationProxy,
-      vtkLabelMapSliceRepProxy,
-      vtkIJKSliceRepresentationProxy
-    >(viewID, {
-      baseImage: curImageID,
-      labelmaps: labelmapIDs,
-      layers: layerIDs,
-    });
-
     const { cameraDirVec, cameraUpVec } = useCameraOrientation(
       viewDirection,
       viewUp,
@@ -511,12 +504,10 @@ export default defineComponent({
     );
 
     // --- camera setup --- //
-
     
     // Set default cutting plane parameters.
 
-    // watch([baseImageRep, cameraDirVec], () => {
-    watchEffect(() => {
+    watch([baseImageRep, cameraDirVec], () => {
       const rep = baseImageRep?.value;
       if (rep) {
         if (cameraDirVec) {
@@ -587,34 +578,11 @@ export default defineComponent({
       }
     });
 
-    const { restoreCameraConfig } = usePersistCameraConfig(
-      viewID,
-      curImageID,
-      viewProxy,
-      'parallelScale',
-      'position',
-      'focalPoint',
-      'viewUp'
-    );
-
     watch(
       [curImageID, cameraDirVec, cameraUpVec],
       () => {
-        const cameraConfig = viewCameraStore.getConfig(
-          viewID.value,
-          curImageID.value
-        );
-
         // If we have a saved camera configuration restore it
-        if (cameraConfig) {
-          restoreCameraConfig(cameraConfig);
-
-          viewProxy.value.getRenderer().resetCameraClippingRange();
-          viewProxy.value.renderLater();
-
-          // Prevent resize
-          resizeToFit.value = false;
-        } else if (resizeToFit.value) {
+        if (resizeToFit.value) {
           resetCamera();
         } else {
           // this will trigger a resetCamera() call
@@ -625,8 +593,6 @@ export default defineComponent({
     );
 
     // --- viewport orientation/camera labels --- //
-
-    const { top: topLabel, left: leftLabel } = useOrientationLabels(viewProxy);
 
     watchEffect(() => {
       if (sliceConfig.value == null || wlConfig.value == null) {
@@ -653,137 +619,9 @@ export default defineComponent({
         const origin = vtkMath.add(imc, dispVector, [0, 0, 0] as Vector3);
         rep.getSlicePlane().setOrigin(origin);
       }
-      [...layerReps.value, ...labelmapReps.value].forEach((lRep) => {
-        lRep.setSlice(slice);
-      });
 
       viewProxy.value.renderLater();
     });
-
-    // --- apply labelmap opacity --- //
-
-    watchEffect(() => {
-      const { labelmapOpacity } = paintStore;
-      labelmapReps.value.forEach((lmRep) => {
-        lmRep.setOpacity(labelmapOpacity);
-      });
-    });
-
-    // --- layers setup --- //
-
-    const layersConfigs = computed(() =>
-      layerIDs.value.map((id) => layerColoringStore.getConfig(viewID.value, id))
-    );
-
-    const layersStore = useLayersStore();
-    watch(
-      [viewID, currentLayers],
-      () => {
-        currentLayers.value.forEach(({ id }, layerIndex) => {
-          const image = layersStore.layerImages[id];
-          const layerConfig = layersConfigs.value[layerIndex];
-          if (image && !layerConfig) {
-            layerColoringStore.resetToDefault(viewID.value, id, image);
-          }
-        });
-      },
-      { immediate: true }
-    );
-
-    // --- layer coloring --- //
-
-    const proxyManager = useProxyManager()!;
-
-    const colorBys = computed(() =>
-      layersConfigs.value.map((config) => config?.colorBy)
-    );
-    const transferFunctions = computed(() =>
-      layersConfigs.value.map((config) => config?.transferFunction)
-    );
-    const opacityFunctions = computed(() =>
-      layersConfigs.value.map((config) => config?.opacityFunction)
-    );
-    const blendConfigs = computed(() =>
-      layersConfigs.value.map((config) => config?.blendConfig)
-    );
-
-    watch(
-      [layerReps, colorBys, transferFunctions, opacityFunctions, blendConfigs],
-      () => {
-        layerReps.value
-          .map(
-            (layerRep, idx) =>
-              [
-                layerRep,
-                colorBys.value[idx],
-                transferFunctions.value[idx],
-                opacityFunctions.value[idx],
-                blendConfigs.value[idx],
-              ] as const
-          )
-          .forEach(
-            ([
-              rep,
-              colorBy,
-              transferFunction,
-              opacityFunction,
-              blendConfig,
-            ]) => {
-              if (
-                !colorBy ||
-                !transferFunction ||
-                !opacityFunction ||
-                !blendConfig
-              ) {
-                return;
-              }
-
-              const { arrayName, location } = colorBy;
-              const ctFunc = transferFunction;
-              const opFunc = opacityFunction;
-
-              const lut = proxyManager.getLookupTable(arrayName);
-              lut.setMode(LookupTableProxyMode.Preset);
-              lut.setPresetName(ctFunc.preset);
-              lut.setDataRange(...ctFunc.mappingRange);
-
-              const pwf = proxyManager.getPiecewiseFunction(arrayName);
-              pwf.setMode(opFunc.mode);
-              pwf.setDataRange(...opFunc.mappingRange);
-
-              switch (opFunc.mode) {
-                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-                  pwf.setGaussians(opFunc.gaussians);
-                  break;
-                case vtkPiecewiseFunctionProxy.Mode.Points: {
-                  const opacityPoints = getShiftedOpacityFromPreset(
-                    opFunc.preset,
-                    opFunc.mappingRange,
-                    opFunc.shift
-                  );
-                  if (opacityPoints) {
-                    pwf.setPoints(opacityPoints);
-                  }
-                  break;
-                }
-                case vtkPiecewiseFunctionProxy.Mode.Nodes:
-                  pwf.setNodes(opFunc.nodes);
-                  break;
-                default:
-              }
-
-              // control color range manually
-              rep.setRescaleOnColorBy(false);
-              rep.setColorBy(arrayName, location);
-              rep.setOpacity(blendConfig.opacity);
-
-              // Need to trigger a render for when we are restoring from a state file
-              viewProxy.value.renderLater();
-            }
-          );
-      },
-      { immediate: true, deep: true }
-    );
 
     return {
       vtkContainerRef,
@@ -797,8 +635,6 @@ export default defineComponent({
       sliceMax,
       windowWidth,
       windowLevel,
-      topLabel,
-      leftLabel,
       isImageLoading,
       setSlice,
       widgetManager,
