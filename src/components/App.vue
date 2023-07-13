@@ -14,11 +14,26 @@
           </v-toolbar-title>
           <v-btn
             variant="text"
-            icon="mdi-help-circle-outline"
+            icon
+            :rounded="0"
+            class="toolbar-button"
+            href="mailto:volview@kitware.com?subject=VolView Question/Feedback"
+          >
+            <v-icon icon="mdi-comment-question-outline"></v-icon>
+            <v-tooltip activator="parent" location="bottom">
+              Ask Question/Submit Feedback
+            </v-tooltip>
+          </v-btn>
+          <v-btn
+            variant="text"
+            icon
             :rounded="0"
             class="toolbar-button"
             @click="aboutBoxDialog = !aboutBoxDialog"
-          />
+          >
+            <v-icon icon="mdi-information-outline"></v-icon>
+            <v-tooltip activator="parent" location="bottom">About</v-tooltip>
+          </v-btn>
         </v-app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
