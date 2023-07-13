@@ -30,15 +30,15 @@ const makeAnnotationToolDefaults = () => ({
 // Must return addTool in consuming Pinia store.
 export const useAnnotationTool = <
   MakeToolDefaults extends (...args: any) => any,
-  ToolActiveProps extends ReturnType<MakeToolDefaults> & AnnotationTool
+  LabelProps
 >({
   toolDefaults,
   initialLabels,
   newLabelDefault,
 }: {
   toolDefaults: MakeToolDefaults;
-  initialLabels: Labels<ToolActiveProps>;
-  newLabelDefault: Label<ToolActiveProps>;
+  initialLabels: Labels<LabelProps>;
+  newLabelDefault: Label<LabelProps>;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -56,7 +56,7 @@ export const useAnnotationTool = <
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  const labels = useLabels<Tool>(newLabelDefault);
+  const labels = useLabels<LabelProps>(newLabelDefault);
   labels.mergeLabels(initialLabels, false);
 
   function makePropsFromLabel(label: string | undefined) {
