@@ -22,3 +22,8 @@ body {
 .v-card--variant-outlined {
   border: thin solid rgb(var(--v-theme-on-surface-variant)) !important;
 }
+
+ul:not([class]), ol:not([class]) {
+    padding-left: 20px;
+    margin-bottom: 16px;
+}

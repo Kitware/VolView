@@ -2,8 +2,6 @@
   <v-card>
     <v-card-title class="d-flex flex-row align-center">
       Saving Session State
-      <v-spacer />
-      <v-btn variant="text" icon="mdi-close" @click="$emit('close')" />
     </v-card-title>
     <v-card-text>
       <v-form v-model="valid" @submit.prevent="saveSession">

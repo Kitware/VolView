@@ -155,27 +155,23 @@
           </div>
         </v-main>
 
-        <v-dialog v-model="aboutBoxDialog" :width="mobile ? '100%' : '80%'">
-          <about-box @close="aboutBoxDialog = false" />
-        </v-dialog>
+        <closeable-dialog v-model="aboutBoxDialog">
+          <about-box />
+        </closeable-dialog>
 
-        <v-dialog
-          v-model="messageDialog"
-          :width="mobile ? '100%' : '75%'"
-          content-class="fill-height"
-        >
-          <message-center @close="messageDialog = false" />
-        </v-dialog>
+        <closeable-dialog v-model="messageDialog" content-class="fill-height">
+          <message-center />
+        </closeable-dialog>
 
         <message-notifications @open-notifications="messageDialog = true" />
 
-        <v-dialog v-model="settingsDialog" :width="mobile ? '100%' : '50%'">
-          <settings @close="settingsDialog = false" v-if="settingsDialog" />
-        </v-dialog>
+        <closeable-dialog v-model="settingsDialog">
+          <settings />
+        </closeable-dialog>
 
-        <v-dialog v-model="saveDialog" :width="mobile ? '100%' : '30%'">
-          <save-session @close="saveDialog = false" />
-        </v-dialog>
+        <closeable-dialog v-model="saveDialog" max-width="30%">
+          <save-session />
+        </closeable-dialog>
       </v-app>
       <persistent-overlay
         :disabled="!dragHover"
@@ -223,6 +219,7 @@ import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
 import DragAndDrop from './DragAndDrop.vue';
+import CloseableDialog from './CloseableDialog.vue';
 import AboutBox from './AboutBox.vue';
 import ToolStrip from './ToolStrip.vue';
 import MessageCenter from './MessageCenter.vue';
@@ -317,6 +314,7 @@ export default defineComponent({
     ToolButton,
     LayoutGrid,
     DragAndDrop,
+    CloseableDialog,
     AboutBox,
     ToolStrip,
     ModulePanel,

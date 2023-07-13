@@ -6,7 +6,7 @@
       </div>
       <div class="overlay-no-events tool-layer">
         <crop-tool :view-id="viewID" />
-        <pan-tool :view-id="viewID" />
+        <pan-tool :viewId="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:top-left>

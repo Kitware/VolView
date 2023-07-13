@@ -52,8 +52,6 @@ export default defineComponent({
   <v-card class="fill-height message-center">
     <v-card-title class="d-flex flex-row align-center">
       <span>Notifications</span>
-      <v-spacer />
-      <v-btn variant="text" icon="mdi-close" @click="$emit('close')"></v-btn>
     </v-card-title>
     <v-card-text class="content-container pt-4">
       <div class="action-bar ma-2">

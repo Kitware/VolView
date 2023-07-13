@@ -1,11 +1,5 @@
 <template>
-  <v-card class="py-4">
-    <v-btn
-      variant="text"
-      class="close-button"
-      icon="mdi-close"
-      @click="$emit('close')"
-    />
+  <v-card>
     <v-card-title class="d-flex flex-row justify-center">
       <vol-view-full-logo />
     </v-card-title>
@@ -41,7 +35,7 @@
         for visualizing and annotating medical images. It key features include:
       </p>
 
-      <ul class="pl-6">
+      <ul>
         <li>Fast: Drag-and-drop DICOM files for quick viewing</li>
         <li>
           Flexible: Designed to be easily integrated into existing systems
@@ -91,7 +85,7 @@
       >
       <h2 class="mt-2">Useful Links</h2>
       <v-divider class="mb-2" />
-      <ul class="pl-6">
+      <ul>
         <li>
           <span>VolView source code repo: </span>
           <a
@@ -125,7 +119,7 @@
       </ul>
       <h2>Version Info</h2>
       <v-divider class="mb-2" />
-      <ul class="pl-6">
+      <ul>
         <li>
           <div class="d-flex flex-flow align-center text-no-wrap">
             <span>VolView: </span>
@@ -152,7 +146,7 @@
       <br />
       <br />
       Sample data provided by the following sources:
-      <ul class="pl-6">
+      <ul>
         <li>
           PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz,
           Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge data",
