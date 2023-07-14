@@ -2,6 +2,7 @@ import sys
 
 import socketio
 from volview_server.rpc_server import RpcServer
+from volview_server.chunking import CHUNK_SIZE
 
 
 def VolViewMiddleware(app, ApiClass=None, **kwargs):
@@ -33,8 +34,8 @@ def VolViewMiddleware(app, ApiClass=None, **kwargs):
         async_handlers=True,
         # allow upstream handling of CORS
         cors_allowed_origins=[],
-        # default to unrestricted message size
-        max_http_buffer_size=sys.maxsize,
+        # default to chunk size
+        max_http_buffer_size=CHUNK_SIZE,
         **kwargs
     )
     return socketio.ASGIApp(server.sio, app)

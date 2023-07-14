@@ -25,17 +25,21 @@ def vtk_to_itk_image(vtk_image: Dict):
             extent[3] - extent[2] + 1,
             extent[1] - extent[0] + 1,
         ]
-        direction = (
-            np.frombuffer(vtk_image["direction"], dtype=np.dtype(float)).reshape((3, 3))
-            # vtk.js direction matrix is column-major
-            .transpose()
-        )
+        if type(vtk_image["direction"]) is list:
+            direction = np.array(vtk_image["direction"], dtype=float)
+        elif type(vtk_image["direction"] is bytes):
+            direction = np.frombuffer(vtk_image["direction"], dtype=float)
+        else:
+            raise TypeError("Cannot parse image direction")
+
+        # vtk.js direction matrix is column-major
+        direction = direction.reshape((3, 3)).transpose()
 
         pixel_data_array = vtk_image["pointData"]["arrays"][0]["data"]
         pixel_js_datatype = pixel_data_array["dataType"]
         pixel_dtype = TYPE_ARRAY_JS_TO_NUMPY.get(pixel_js_datatype)
         if not pixel_dtype:
-            raise ConvertError(
+            raise TypeError(
                 f"Failed to map vtkImageData pixel type {pixel_js_datatype}"
             )
 
@@ -43,8 +47,7 @@ def vtk_to_itk_image(vtk_image: Dict):
         itk_image = itk.GetImageFromArray(np.reshape(pixel_data, dims))
 
         # https://discourse.itk.org/t/set-image-direction-from-numpy-array/844/10
-        vnlmat = itk.GetVnlMatrixFromArray(direction)
-        itk_image.GetDirection().GetVnlMatrix().copy_in(vnlmat.data_block())
+        itk_image.SetDirection(itk.matrix_from_array(direction))
         itk_image.SetOrigin(vtk_image["origin"])
         itk_image.SetSpacing(vtk_image["spacing"])
         return itk_image
@@ -66,7 +69,9 @@ def itk_to_vtk_image(itk_image):
         "direction": list(
             itk.GetArrayFromVnlMatrix(
                 itk_image.GetDirection().GetVnlMatrix().as_matrix()
-            ).flatten()
+            )
+            .transpose()  # vtk.js is column-major, ITK is row-major
+            .flatten()
         ),
         "extent": [
             0,

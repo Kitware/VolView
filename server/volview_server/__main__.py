@@ -2,12 +2,12 @@ import sys
 import os
 import argparse
 import importlib
+import logging
 
 from aiohttp import web
 
 from volview_server.rpc_server import RpcServer
-
-MAX_HTTP_BUFFER_SIZE = sys.maxsize
+from volview_server.chunking import CHUNK_SIZE
 
 
 def parse_args():
@@ -17,12 +17,6 @@ def parse_args():
     )
     parser.add_argument(
         "-P", "--port", default=4014, help="Port for server to listen on"
-    )
-    parser.add_argument(
-        "--max-message-size",
-        type=int,
-        default=MAX_HTTP_BUFFER_SIZE,
-        help="Max message size. Defaults to maximum allowable size.",
     )
     parser.add_argument(
         "--verbose", default=False, action="store_true", help="Enable verbose logging."
@@ -38,10 +32,20 @@ def load_api_script(api_script: str):
     return api_module.Api
 
 
-def run_server(ApiClass, *, host: str, port: int, **kwargs):
+def run_server(
+    ApiClass,
+    *,
+    host: str,
+    port: int,
+    debug: bool = False,
+    **kwargs,
+):
     rpc_server = RpcServer(ApiClass, async_mode="aiohttp", **kwargs)
-    app = web.Application()
+    app = web.Application(client_max_size=CHUNK_SIZE)
     rpc_server.sio.attach(app)
+
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     try:
         web.run_app(app, host=host, port=port)
@@ -53,19 +57,17 @@ def run_server(ApiClass, *, host: str, port: int, **kwargs):
 def main(args):
     ApiClass = load_api_script(args.api_script)
 
-    if args.verbose:
-        print(f"Using a max message size of {args.max_message_size}")
-
     run_server(
         ApiClass,
         host=args.host,
         port=args.port,
+        debug=args.verbose,
         # AsyncServer kwargs
         async_handlers=True,
         cors_allowed_origins="*",
         logger=args.verbose,
         engineio_logger=args.verbose,
-        max_http_buffer_size=args.max_message_size,
+        max_http_buffer_size=CHUNK_SIZE,
     )
 
 
