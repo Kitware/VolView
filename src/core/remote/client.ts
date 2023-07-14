@@ -11,6 +11,7 @@ import pipe from '@/src/utils/pipe';
 import { nanoid } from 'nanoid';
 import { Socket, io } from 'socket.io-client';
 import { z } from 'zod';
+import * as ChunkedParser from '@/src/core/remote/chunkedParser';
 
 const CLIENT_ID_SIZE = 24;
 const RPC_ID_SIZE = 24;
@@ -136,6 +137,7 @@ export default class RpcClient {
         clientId: this.clientId,
       },
       autoConnect: false,
+      parser: ChunkedParser,
     });
 
     this.socket.on(RPC_CALL_EVENT, this.onRpcCallEvent);

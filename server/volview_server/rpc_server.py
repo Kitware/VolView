@@ -13,6 +13,7 @@ import socketio
 from socketio.exceptions import ConnectionRefusedError
 
 from volview_server.transformers import transform_object, transform_objects, pipe
+from volview_server.chunking import ChunkingAsyncServer
 
 RPC_CALL_EVENT = "rpc:call"
 RPC_RESULT_EVENT = "rpc:result"
@@ -111,7 +112,7 @@ class RpcServer:
     """Implements a bidirectional RPC mechanism."""
 
     def __init__(self, ApiClass, num_threads=NUM_THREADS, **kwargs):
-        self.sio = socketio.AsyncServer(**kwargs)
+        self.sio = ChunkingAsyncServer(**kwargs)
 
         # sid -> client ID
         self.clients = {}
