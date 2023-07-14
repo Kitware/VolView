@@ -3,7 +3,6 @@ import {
   computed,
   defineComponent,
   onBeforeUnmount,
-  ref,
   toRefs,
   watch,
   h,
@@ -59,10 +58,6 @@ const WindowLevelToolComponent = defineComponent({
         wlConfig.value != null
           ? computeStep(wlConfig.value.min, wlConfig.value.max)
           : computeStep(windowConfigDefaults.min, windowConfigDefaults.max),
-      default:
-        wlConfig.value != null
-          ? wlConfig.value.width
-          : windowConfigDefaults.width,
     }));
     const wlRange = computed(() => ({
       min:
@@ -73,29 +68,15 @@ const WindowLevelToolComponent = defineComponent({
         wlConfig.value != null
           ? computeStep(wlConfig.value.min, wlConfig.value.max)
           : computeStep(windowConfigDefaults.min, windowConfigDefaults.max),
-      default:
-        wlConfig.value != null
-          ? wlConfig.value.level
-          : windowConfigDefaults.level,
     }));
 
-    const vertVal = ref(0);
-    const horizVal = ref(0);
+    const vertVal = computed(() =>
+      wlConfig.value != null ? wlConfig.value.width : windowConfigDefaults.width
+    );
 
-    watch(vertVal, (ww) => {
-      if (currentImageID.value !== null) {
-        windowingStore.updateConfig(viewID.value, currentImageID.value, {
-          width: ww,
-        });
-      }
-    });
-    watch(horizVal, (wl) => {
-      if (currentImageID.value !== null) {
-        windowingStore.updateConfig(viewID.value, currentImageID.value, {
-          level: wl,
-        });
-      }
-    });
+    const horizVal = computed(() =>
+      wlConfig.value != null ? wlConfig.value.level : windowConfigDefaults.level
+    );
 
     const rangeManipulator = vtkMouseRangeManipulator.newInstance({
       button: 1,
@@ -139,7 +120,11 @@ const WindowLevelToolComponent = defineComponent({
         vertRange.step,
         () => vertVal.value,
         (v) => {
-          vertVal.value = v;
+          if (currentImageID.value != null) {
+            windowingStore.updateConfig(viewID.value, currentImageID.value, {
+              width: v,
+            });
+          }
         }
       );
 
@@ -149,18 +134,20 @@ const WindowLevelToolComponent = defineComponent({
         horizRange.step,
         () => horizVal.value,
         (v) => {
-          horizVal.value = v;
+          if (currentImageID.value != null) {
+            windowingStore.updateConfig(viewID.value, currentImageID.value, {
+              level: v,
+            });
+          }
         }
       );
     }
 
     watch(
-      () => [wwRange.value, wlRange.value],
-      ([ww, wl]) => {
-        vertVal.value = ww.default;
-        horizVal.value = wl.default;
-        updateManipulator();
-      },
+      // Computed wwRange and wlRange are new objects with every mouse movement.
+      // So only updateManipulator() if min/max/step change by comparing with deep equals.
+      () => JSON.stringify({ w: wwRange.value, l: wlRange.value }),
+      updateManipulator,
       { immediate: true }
     );
 
