@@ -192,6 +192,12 @@ export const RECTANGLE_LABEL_DEFAULTS = {
   lesion: { color: 'red', fillColor: 'transparent' },
 };
 
+export const POLYGON_LABEL_DEFAULTS = {
+  red: { color: 'red' },
+  green: { color: '#00ff00' },
+  white: { color: '#ffffff' },
+};
+
 export const DECREMENT_LABEL_KEY = 'q';
 export const INCREMENT_LABEL_KEY = 'w';
 

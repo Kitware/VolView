@@ -10,6 +10,7 @@ import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
 import { Ruler } from '@/src/types/ruler';
 import { Rectangle } from '@/src/types/rectangle';
+import { Polygon } from '@/src/types/polygon';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { Optional } from '@/src/types';
@@ -278,6 +279,13 @@ const Rectangle = Ruler.extend({
 
 const Rectangles = makeToolEntry(Rectangle);
 
+const Polygon = annotationTool.extend({
+  id: z.string() as unknown as z.ZodType<Polygon['id']>,
+  points: z.array(Vector3),
+}) satisfies z.ZodType<Polygon>;
+
+const Polygons = makeToolEntry(Polygon);
+
 const Crosshairs = z.object({
   position: Vector3,
 });
@@ -304,6 +312,7 @@ const Cropping = z.record(LPSCroppingPlanes);
 const Tools = z.object({
   rulers: Rulers.optional(),
   rectangles: Rectangles.optional(),
+  polygons: Polygons.optional(),
   crosshairs: Crosshairs,
   paint: Paint,
   crop: Cropping,

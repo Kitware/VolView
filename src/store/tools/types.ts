@@ -7,4 +7,5 @@ export enum Tools {
   Rectangle = 'Rectangle',
   Crosshairs = 'Crosshairs',
   Crop = 'Crop',
+  Polygon = 'Polygon',
 }

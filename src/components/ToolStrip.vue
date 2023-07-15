@@ -114,8 +114,6 @@ import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
-import { useRectangleStore } from '../store/tools/rectangles';
-import { useRulerStore } from '../store/tools/rulers';
 import RulerControls from './RulerControls.vue';
 import RectangleControls from './RectangleControls.vue';
 
@@ -137,9 +135,6 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
 
-    const rectangleStore = useRectangleStore();
-    const rulerStore = useRulerStore();
-
     const paintMenu = ref(false);
     const cropMenu = ref(false);
 
@@ -155,8 +150,6 @@ export default defineComponent({
       Tools,
       paintMenu,
       cropMenu,
-      rectangleStore,
-      rulerStore,
     };
   },
 });
