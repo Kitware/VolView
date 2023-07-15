@@ -86,6 +86,18 @@
         <ruler-controls />
       </menu-tool-button>
     </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
+      <menu-tool-button
+        icon="mdi-vector-polygon-variant"
+        name="Polygon"
+        :mobileOnlyMenu="true"
+        :active="active"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      >
+        <polygon-controls />
+      </menu-tool-button>
+    </groupable-item>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
@@ -116,6 +128,7 @@ import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
 import RulerControls from './RulerControls.vue';
 import RectangleControls from './RectangleControls.vue';
+import PolygonControls from './PolygonControls.vue';
 
 export default defineComponent({
   components: {
@@ -127,6 +140,7 @@ export default defineComponent({
     CropControls,
     RulerControls,
     RectangleControls,
+    PolygonControls,
   },
   setup() {
     const dataStore = useDatasetStore();
