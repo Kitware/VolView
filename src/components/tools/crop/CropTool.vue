@@ -5,8 +5,8 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
-import Crop2D from './crop/Crop2D.vue';
-import Crop3D from './crop/Crop3D.vue';
+import Crop2D from './Crop2D.vue';
+import Crop3D from './Crop3D.vue';
 
 export default defineComponent({
   props: {
