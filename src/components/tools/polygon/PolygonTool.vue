@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RectangleWidget2D
+      <PolygonWidget2D
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"
@@ -57,17 +57,17 @@ import {
   FrameOfReference,
   frameOfReferenceToImageSliceAndAxis,
 } from '@/src/utils/frameOfReference';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { Rectangle, RectangleID } from '@/src/types/rectangle';
-import RectangleWidget2D from './RectangleWidget2D.vue';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { Polygon, PolygonID } from '@/src/types/polygon';
+import PolygonWidget2D from './PolygonWidget2D.vue';
 
-type ToolID = RectangleID;
-type Tool = Rectangle;
-const useActiveToolStore = useRectangleStore;
-const toolType = Tools.Rectangle;
+type ToolID = PolygonID;
+type Tool = Polygon;
+const useActiveToolStore = usePolygonStore;
+const toolType = Tools.Polygon;
 
 export default defineComponent({
-  name: 'RectangleTool',
+  name: 'PolygonTool',
   props: {
     viewId: {
       type: String,
@@ -87,7 +87,7 @@ export default defineComponent({
     },
   },
   components: {
-    RectangleWidget2D,
+    PolygonWidget2D,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -164,7 +164,6 @@ export default defineComponent({
 
     // --- updating active tool frame --- //
 
-    // TODO useCurrentFrameOfReference(viewDirection)
     const getCurrentFrameOfReference = (): FrameOfReference => {
       const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
       const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
@@ -178,8 +177,8 @@ export default defineComponent({
         planeOrigin,
       };
     };
-    // update active ruler's frame + slice, since the
-    // active ruler is not finalized.
+    // update active tool's frame + slice, since the
+    // active tool is not finalized.
     watch(
       [currentSlice, placingToolID] as const,
       ([slice, toolID]) => {

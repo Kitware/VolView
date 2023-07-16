@@ -49,12 +49,12 @@
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
-        <!-- <polygon-tool
+        <polygon-tool
           :view-id="viewID"
           :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
-        /> -->
+        />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
@@ -201,7 +201,7 @@ import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import RulerTool from './tools/ruler/RulerTool.vue';
 import RectangleTool from './tools/rectangle/RectangleTool.vue';
-// import PolygonTool from './tools/polygon/PolygonTool.vue';
+import PolygonTool from './tools/polygon/PolygonTool.vue';
 import PaintTool from './tools/paint/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
@@ -258,6 +258,7 @@ export default defineComponent({
     ZoomTool,
     RulerTool,
     RectangleTool,
+    PolygonTool,
     PaintTool,
     CrosshairsTool,
     CropTool,

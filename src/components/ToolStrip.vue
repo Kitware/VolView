@@ -74,18 +74,6 @@
         <rectangle-controls />
       </menu-tool-button>
     </groupable-item>
-    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <menu-tool-button
-        icon="mdi-ruler"
-        name="Ruler"
-        :mobileOnlyMenu="true"
-        :active="active"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      >
-        <ruler-controls />
-      </menu-tool-button>
-    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
       <menu-tool-button
         icon="mdi-vector-polygon-variant"
@@ -96,6 +84,18 @@
         @click="toggle"
       >
         <polygon-controls />
+      </menu-tool-button>
+    </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
+      <menu-tool-button
+        icon="mdi-ruler"
+        name="Ruler"
+        :mobileOnlyMenu="true"
+        :active="active"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      >
+        <ruler-controls />
       </menu-tool-button>
     </groupable-item>
 
