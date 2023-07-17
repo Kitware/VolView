@@ -1,6 +1,7 @@
 /* eslint-disable max-classes-per-file */
 /* eslint-disable class-methods-use-this */
 import { Maybe } from '@/src/types';
+import { ensureError } from '@/src/utils';
 import * as BaseParser from 'socket.io-parser';
 
 import type { Packet } from 'socket.io-parser';
@@ -122,8 +123,8 @@ class ChunkedEncoder extends BaseParser.Encoder {
     // Blob | File
     const chunks: Blob[] = [];
     let offset = 0;
-    while (offset < binary.length) {
-      const chunkEnd = Math.min(offset + CHUNK_SIZE, binary.length);
+    while (offset < binary.size) {
+      const chunkEnd = Math.min(offset + CHUNK_SIZE, binary.size);
       chunks.push(binary.slice(offset, chunkEnd));
       offset += chunkEnd;
     }
@@ -177,7 +178,9 @@ class ChunkedDecoder extends BaseParser.Decoder {
       }
       return result as number[];
     } catch (err) {
-      throw new Error('Failed to parse chunking info', { cause: err });
+      throw new Error('Failed to parse chunking info', {
+        cause: ensureError(err),
+      });
     }
   }
 
