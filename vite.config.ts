@@ -36,6 +36,7 @@ export default defineConfig({
         },
       },
     },
+    sourcemap: true,
   },
   define: {
     __VERSIONS__: {
