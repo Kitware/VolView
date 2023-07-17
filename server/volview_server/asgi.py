@@ -19,9 +19,6 @@ def VolViewMiddleware(app, ApiClass=None, **kwargs):
     Keyword arguments from python-socketio that have VolView-specific defaults
     or are generally usefl are provided below. Refer to the aforementioned
     documentation for configuring these options.
-        max_http_buffer_size (=sys.maxsize): max message size (binary or text).
-            Messages that exceed this threshold may cause the client to
-            be disconnected.
         cors_allowed_origins (=[]): allowed CORS origins. The default value
             defers CORS handling to other middleware.
         logger (=False): socket.io verbose logging.
