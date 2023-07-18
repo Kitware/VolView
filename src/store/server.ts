@@ -1,7 +1,7 @@
 import RpcClient from '@/src/core/remote/client';
 import { StoreApi } from '@/src/core/remote/storeApi';
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { markRaw, ref } from 'vue';
 
 const { VITE_REMOTE_SERVER_URL } = import.meta.env;
 
@@ -46,7 +46,7 @@ export const useServerStore = defineStore('server', () => {
 
   return {
     url,
-    client,
+    client: markRaw(client),
     connState,
     connect,
     disconnect,
