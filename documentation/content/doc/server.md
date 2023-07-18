@@ -286,33 +286,19 @@ These are exposed as keyword arguments to `VolViewApi(app, server_kwargs={}, asg
 
 ##### FastAPI middleware example
 
-Install `FastAPI` and `uvicorn`, and then create a `server.py` file with the following contents:
+FastAPI is an ASGI-compatible web framework. This guide will go through the
+FastAPI example found in `examples/example_fastapi.py`.
 
-```python
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from volview_server import VolViewMiddleware
-from custom.user_api import Api
-
-app = FastAPI()
-
-app.add_middleware(VolViewMiddleware, ApiClass=Api)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-)
-
-
-@app.get("/")
-def index():
-    return {"hello": "world"}
-```
-
-To start the FastAPI server:
+First install `FastAPI` and `uvicorn[standard]`.
 
 ```
-uvicorn server:app
+python -m pip install FastAPI 'uvicorn[standard]'
+```
+
+To start the FastAPI server, use `uvicorn` as follows.
+
+```
+uvicorn examples.example_fastapi:app
 ```
 
 Edit the VolView `.env` file to point to the FastAPI server:
@@ -321,8 +307,31 @@ Edit the VolView `.env` file to point to the FastAPI server:
 VITE_REMOTE_SERVER_URL=http://localhost:8000/
 ```
 
-Rebuild the VolView viewer app and navigate to the "Remote Functions" tab to see
-that the server works.
+Rebuild the VolView viewer app and navigate to the "Remote Functions" tab to
+verify that the server works.
+
+###### Changing the socket.io path
+
+If the default `https://your-host/socket.io/` path conflicts with an existing
+route, VolView can be configured to use a different path. In this guide, we will
+rename the default `/socket.io/` path to `/my-custom-path/`.
+
+On the server-side, the VolView middleware must be configured with the new path,
+as shown.
+
+```python
+app.add_middlware(volview, asgi_kwargs={"socketio_path": "/my-custom-path"})
+```
+
+Then, the VolView client server URL must be updated to match. The following sets
+the server URL in the `.env` file.
+
+```
+VITE_REMOTE_SERVER_URL=http://localhost:8000/my-custom-path
+```
+
+Restart both the server and the client to verify that a successful connection is
+achieved.
 
 #### Python-socketio supported deployment strategies
 

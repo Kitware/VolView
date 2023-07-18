@@ -12,6 +12,7 @@ import { nanoid } from 'nanoid';
 import { Socket, io } from 'socket.io-client';
 import { z } from 'zod';
 import * as ChunkedParser from '@/src/core/remote/chunkedParser';
+import { URL } from 'whatwg-url';
 
 const CLIENT_ID_SIZE = 24;
 const RPC_ID_SIZE = 24;
@@ -104,6 +105,20 @@ export interface RpcApi {
 export interface RpcClientOptions {
   serializers?: Array<(input: any) => any>;
   deserializers?: Array<(input: any) => any>;
+  path?: string;
+}
+
+function justHostUrl(url: string) {
+  const parts = new URL(url);
+  parts.pathname = '';
+  return String(parts);
+}
+
+function getSocketIoPath(url: string) {
+  const parts = new URL(url);
+  return parts.pathname.replace(/^\/+$/, '').length === 0
+    ? '/socket.io/'
+    : parts.pathname;
 }
 
 /**
@@ -156,7 +171,8 @@ export default class RpcClient {
   async connect(uri: string) {
     await this.disconnect();
     // @ts-ignore reset socket.io URI
-    this.socket.io.uri = uri;
+    this.socket.io.uri = justHostUrl(uri);
+    this.socket.io.opts.path = getSocketIoPath(uri);
 
     let promise = this.waiting.get('connect');
     if (!promise) {
