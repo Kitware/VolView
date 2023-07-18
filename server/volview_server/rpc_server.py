@@ -1,18 +1,17 @@
+from __future__ import annotations
+
+import time
 import asyncio
-import enum
-import inspect
-import traceback
 import uuid
-from typing import Any, Callable, Union, List, Generator, Dict
-from concurrent.futures import ThreadPoolExecutor
-from contextvars import copy_context, ContextVar
+import logging
+from typing import Any, Union, List, Generator, Dict, Tuple, Optional
+from contextvars import ContextVar
 from dataclasses import dataclass, field, asdict
 from urllib.parse import parse_qs
 
-import socketio
 from socketio.exceptions import ConnectionRefusedError
 
-from volview_server.transformers import transform_object, transform_objects, pipe
+from volview_server.api import RpcApi
 from volview_server.chunking import ChunkingAsyncServer
 
 RPC_CALL_EVENT = "rpc:call"
@@ -20,14 +19,13 @@ RPC_RESULT_EVENT = "rpc:result"
 STREAM_CALL_EVENT = "stream:call"
 STREAM_RESULT_EVENT = "stream:result"
 
-NUM_THREADS = 4
 CLIENT_ID_QS = "clientId"
-EXPOSE_INFO_ATTR = "_rpc_expose_info"
+FUTURE_TIMEOUT = 5 * 60  # seconds
 
+current_server: ContextVar[RpcServer] = ContextVar("server")
+current_client_id: ContextVar[str] = ContextVar("client_id")
 
-class ExposeType(enum.Enum):
-    RPC = "rpc"
-    STREAM = "stream"
+logger = logging.getLogger("volview_server.rpc_server")
 
 
 @dataclass
@@ -54,25 +52,6 @@ def validate_rpc_call(data: Any):
         raise TypeError("rpc args is not a list")
 
     return rpc_id, name, args
-
-
-def _add_expose_info(fn: Callable, public_name: str):
-    expose_type = ExposeType.RPC
-    if inspect.isasyncgenfunction(fn) or inspect.isgeneratorfunction(fn):
-        expose_type = ExposeType.STREAM
-    endpoints = getattr(fn, EXPOSE_INFO_ATTR, [])
-    endpoints.append({"public_name": public_name, "type": expose_type})
-    setattr(fn, EXPOSE_INFO_ATTR, endpoints)
-    return fn
-
-
-def expose(name_or_func: Union[str, Callable]):
-    if callable(name_or_func):
-        return _add_expose_info(name_or_func, name_or_func.__name__)
-    elif type(name_or_func) is str:
-        return lambda fn: _add_expose_info(fn, name_or_func)
-    else:
-        raise Exception("expose(): not given a name or function")
 
 
 @dataclass
@@ -108,23 +87,44 @@ class StreamDataResult(RpcOkResult):
 RpcResult = Union[RpcOkResult, RpcErrorResult]
 
 
+@dataclass
+class FutureMetadata:
+    transform_args: bool = True
+    creation_time: int = field(default_factory=lambda: int(time.time()))
+
+
 class RpcServer:
-    """Implements a bidirectional RPC mechanism."""
+    """Implements a bidirectional RPC mechanism.
 
-    def __init__(self, ApiClass, num_threads=NUM_THREADS, **kwargs):
+    When you are done with the server, be sure to invoke server.teardown() in
+    order to stop all background tasks.
+    """
+
+    api: RpcApi
+    # sid -> client ID
+    clients: Dict[str, str]
+    # client ID -> session object
+    sessions: Dict[str, Any]
+    future_timeout: int
+
+    def __init__(
+        self,
+        api: RpcApi,
+        future_timeout: int = FUTURE_TIMEOUT,
+        **kwargs,
+    ):
+        """
+        Keyword Arguments:
+            - future_timeout: number of seconds before an inflight RPC is ignored.
+        """
         self.sio = ChunkingAsyncServer(**kwargs)
-
-        # sid -> client ID
+        self.api = api
         self.clients = {}
+        self.sessions = {}
+        self.future_timeout = future_timeout
 
-        self._thread_pool = ThreadPoolExecutor(num_threads)
-        self._client_id_cvar: ContextVar[str] = ContextVar("client_id")
-        self._pending_rpcs: Dict[str, asyncio.Future] = {}
-        self._serializers: List[Callable] = []
-        self._deserializers: List[Callable] = []
-
-        # initialize ApiClass last
-        self.api = ApiClass(self)
+        self._inflight_rpcs: Dict[str, Tuple[asyncio.Future, FutureMetadata]] = {}
+        self._cleanup_task = None
 
         @self.sio.event
         def connect(sid: str, environ: dict):
@@ -146,40 +146,59 @@ class RpcServer:
         async def on_rpc_result(sid: str, data: Any):
             await self._on_rpc_result(self.clients[sid], data)
 
-    @property
-    def current_client_id(self):
-        return self._client_id_cvar.get()
+    def setup(self):
+        """Runs setup and starts background tasks.
 
-    def set_serializers(self, serializers: List[Callable]):
-        self._serializers = serializers
+        Needs to be run from inside an async context.
+        """
+        self._cleanup_task = asyncio.create_task(self.cleanup())
 
-    def set_deserializers(self, deserializers: List[Callable]):
-        self._deserializers = deserializers
+    async def teardown(self):
+        """Clean up, including stopping background tasks."""
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+        self._inflight_rpcs.clear()
+        for sid in self.clients.keys():
+            await self.sio.disconnect(sid)
 
-    def _serialize(self, obj: Any):
-        return pipe(obj, *self._serializers)
+    async def cleanup(self):
+        while True:
+            await asyncio.sleep(self.future_timeout)
 
-    def _deserialize(self, obj: Any):
-        return pipe(obj, *self._deserializers)
+            now = int(time.time())
+            for rpc_id, (future, metadata) in self._inflight_rpcs.items():
+                if (
+                    not future.done()
+                    and now - metadata.creation_time >= self.future_timeout
+                ):
+                    del self._inflight_rpcs[rpc_id]
 
-    def teardown(self):
-        """Does internal cleanup."""
-        # break circular dependency
-        self.api = None
-
-    async def call_client(self, rpc_name: str, args: List[Any] = None, client_id=None):
+    async def call_client(
+        self,
+        rpc_name: str,
+        args: List[Any] = None,
+        client_id: Optional[str] = None,
+        transform_args: bool = True,
+    ):
         """Calls an RPC method on a given client or current client.
 
         Does not support invoking client generators.
+
+        args: supplies a list of arguments to be sent to the client.
+        client_id: targets a specific client.
+        transform_args: whether to apply transforms to the request args and response result.
         """
         rpc_id = uuid.uuid4().hex
-        client_id = client_id or self.current_client_id
+        client_id = client_id or current_client_id.get()
 
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future = loop.create_future()
-        self._pending_rpcs[rpc_id] = future
+        future: asyncio.Future = asyncio.Future()
 
-        args = transform_objects(args or [], self._serialize)
+        if transform_args:
+            args = [self.api.serialize_object(obj) for obj in args]
+
+        info = FutureMetadata(transform_args=transform_args)
+        self._inflight_rpcs[rpc_id] = (future, info)
+
         await self.sio.emit(
             RPC_CALL_EVENT,
             asdict(RpcCall(rpc_id, rpc_name, args)),
@@ -190,14 +209,15 @@ class RpcServer:
     async def _on_rpc_result(self, client_id: str, result: Any):
         try:
             rpc_id, ok, data, error = validate_rpc_result(result)
-            future = self._pending_rpcs.get(rpc_id, None)
+            future, info = self._inflight_rpcs[rpc_id]
         except (TypeError, KeyError):
             # ignore invalid RPC result
-            print("Received invalid RPC result")
+            logger.error("Received invalid RPC result")
         else:
-            del self._pending_rpcs[rpc_id]
+            del self._inflight_rpcs[rpc_id]
             if ok:
-                data = transform_object(data, self._deserialize)
+                if info.transform_args:
+                    data = self.api.deserialize_object(data)
                 future.set_result(data)
             else:
                 future.set_exception(Exception(error))
@@ -216,27 +236,11 @@ class RpcServer:
         client_id = self.clients[sid]
         self.sio.leave_room(sid, client_id)
 
-    def _find_exposed_method(self, rpc_name: str, expose_type: str):
-        """Finds a method annotated with expose info."""
-        for attr in dir(self.api):
-            fn = getattr(self.api, attr)
-            if not callable(fn):
-                continue
-
-            endpoints = getattr(fn, EXPOSE_INFO_ATTR, [])
-            for endpoint in endpoints:
-                if (
-                    endpoint.get("type", None) == expose_type
-                    and endpoint.get("public_name", None) == rpc_name
-                ):
-                    return fn
-        return None
-
     async def _on_rpc_call(self, client_id: str, data: Any):
         try:
             rpc_id, name, args = validate_rpc_call(data)
         except TypeError:
-            print("Received invalid RPC call")
+            logger.error("Received invalid RPC call")
         else:
             result = await self._try_rpc_call(client_id, name, args)
             result.rpcId = rpc_id
@@ -245,32 +249,21 @@ class RpcServer:
     async def _try_rpc_call(
         self, client_id: str, name: str, args: List[Any]
     ) -> RpcResult:
-        rpc_fn = self._find_exposed_method(name, ExposeType.RPC)
-        if not rpc_fn:
-            return RpcErrorResult(f"{name} is not a registered RPC")
+        current_server.set(self)
+        current_client_id.set(client_id)
 
-        self._client_id_cvar.set(client_id)
         try:
-            args = transform_objects(args, self._deserialize)
-            if inspect.iscoroutinefunction(rpc_fn):
-                result = await rpc_fn(*args)
-            else:
-                loop = asyncio.get_running_loop()
-                ctx = copy_context()
-                result = await loop.run_in_executor(
-                    self._thread_pool, ctx.run, rpc_fn, *args
-                )
-            result = transform_object(result, self._serialize)
+            result = await self.api.invoke_rpc(name, *args)
             return RpcOkResult(result)
         except Exception as exc:
-            traceback.print_exc()
+            logger.exception(f"RPC {name} raised an exception", stack_info=True)
             return RpcErrorResult(str(exc))
 
     async def _on_stream_call(self, client_id: str, data: Any):
         try:
             rpc_id, name, args = validate_rpc_call(data)
         except TypeError:
-            print("Received invalid RPC call")
+            logger.error("Received invalid RPC call")
             return
 
         async for result in self._try_generate_stream(client_id, name, args):
@@ -280,16 +273,11 @@ class RpcServer:
     async def _try_generate_stream(
         self, client_id: str, name: str, args: List[Any]
     ) -> Generator[RpcResult, None, None]:
-        stream_fn = self._find_exposed_method(name, ExposeType.STREAM)
-        if not stream_fn:
-            yield RpcErrorResult(f"{name} is not a registered stream RPC")
-            return
+        current_server.set(self)
+        current_client_id.set(client_id)
 
-        self._client_id_cvar.set(client_id)
         try:
-            args = transform_objects(args, self._deserialize)
-            async for data in stream_fn(*args):
-                data = transform_object(data, self._serialize)
+            async for data in self.api.invoke_stream(name, *args):
                 yield StreamDataResult(done=False, data=data)
             yield StreamDataResult(done=True)
         except Exception as exc:

@@ -1,12 +1,14 @@
 from typing import Callable, List, Any
 
+Transformer = Callable[[Any], Any]
+
 from volview_server.transformers.image_data import (
     convert_itk_to_vtkjs_image,
     convert_vtkjs_to_itk_image,
 )
 
 
-def pipe(input, *fns: List[Callable]):
+def pipe(input, *fns: List[Transformer]):
     intermediate = input
     for fn in fns:
         intermediate = fn(intermediate)
@@ -27,9 +29,5 @@ def transform_object(input: Any, transform: Callable):
     return output
 
 
-def transform_objects(objs: List[Any], transform: Callable):
-    return [transform_object(obj, transform) for obj in objs]
-
-
-default_serializers = [convert_itk_to_vtkjs_image]
-default_deserializers = [convert_vtkjs_to_itk_image]
+default_serializers: List[Transformer] = [convert_itk_to_vtkjs_image]
+default_deserializers: List[Transformer] = [convert_vtkjs_to_itk_image]

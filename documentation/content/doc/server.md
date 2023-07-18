@@ -21,15 +21,16 @@ cd ./server/
 poetry install
 ```
 
-The VolView codebase comes with a sample server API in
-`server/custom/user_api.py` that works with the remote functions sample in the
-VolView viewer.
+The VolView codebase comes with a several sample APIs in `server/examples/` that
+work with the remote functions sample in the VolView viewer.
+- `server/examples/example_api.py`: basic set of example endpoints
+- `server/examples/example_class_api.py`: example endpoints using a class
 
-To run the server with this sample API, run the following command.
+To run the server with a sample API, run the following command.
 
 ```
 cd ./server/
-poetry run python -m volview_server -P 4014 custom/user_api.py
+poetry run python -m volview_server -P 4014 ./examples/example_api.py
 ```
 
 ### Running the Viewer
@@ -51,7 +52,7 @@ npm run preview
 
 The preview server is available at http://localhost:4173/. Navigate to the
 "Remote Functions" tab to explore the available remote functionality defined by
-the `custom/user_api.py` script.
+the `examples/example_api.py` script.
 
 - Add numbers: simple API that adds two numbers
 - Random number trivia: demonstrates async API support by fetching trivia about
@@ -79,23 +80,30 @@ cd ./server/
 poetry install
 ```
 
-### Customizing the RPC API
+### Writing your own APIs
 
-The following is a definition of a really simple RPC API that adds two numbers.
+To start, the following is a definition of a really simple RPC API that adds two
+numbers.
 
 ```python
-from volview_server import VolViewApi, expose
+from volview_server import VolViewApi
 
-class Api(VolViewApi):
-    @expose
-    def add(self, a: int, b: int):
-        return a + b
+volview = VolViewApi()
+
+@volview.expose
+def add(a: int, b: int):
+    return a + b
 ```
 
-The `expose` decorator exposes the `add` function with the public name `add`. To
-customize the name, change the decorator to `@expose("myAddFunction")`.
+The `volview.expose` decorator exposes the `add` function with the public name
+`add`. A custom public name can be passed in via `volview.expose(name)`.
 
-An example set of RPC endpoints are defined in `custom/user_api.py`.
+```python
+# Accessible via the RPC name "my_add"
+@volview.exposes("my_add")
+def add(a: int, b: int):
+    return a + b
+```
 
 #### Custom Object Encoding
 
@@ -108,7 +116,7 @@ or pass through the input if no transformation was applied.
 
 ```python
 from datetime import datetime
-from volview_server import VolViewApi, expose
+from volview_server import VolViewApi
 
 DATETIME_FORMAT = "%Y%m%dT%H:%M:%S.%f"
 
@@ -122,19 +130,14 @@ def encode_datetime(dt):
         return {"__datetime__": dt.strftime(DATETIME_FORMAT)}
     return dt
 
-class Api(VolViewApi):
-    def __init__(self, *args, **kwargs):
-        super().__init__(
-            *args,
-            serializers=[encode_datetime],
-            deserializers=[decode_datetime],
-            **kwargs
-        )
+volview = VolViewApi()
+volview.serializers.append(encode_datetime)
+volview.deserializers.append(decode_datetime)
 
-    @expose
-    def echo_datetime(self, dt: datetime):
-        print(type(dt), dt)
-        return dt
+@volview.expose
+def echo_datetime(dt: datetime):
+    print(type(dt), dt)
+    return dt
 ```
 
 #### Async Support
@@ -143,89 +146,143 @@ Async methods are supported via asyncio.
 
 ```python
 import asyncio
-from volview_server import VolViewApi, expose
+from volview_server import VolViewApi
 
-class Api(VolViewApi):
-    @expose
-    async def sleep(self):
-        await asyncio.sleep(5)
+volview = VolViewApi()
+
+@volview.expose
+async def sleep():
+    await asyncio.sleep(5)
+    return "woke up"
 ```
 
 #### Progress via Streaming Async Generators
 
 If the exposed method is an async generator, the function is automatically
-considered to be a streaming method.
+considered to be a streaming method. Streaming methods are invoked via
+`client.stream(...)` rather than `client.call(...)`. See the `client.stream`
+docs for more details.
 
 ```python
 import asyncio
-from volview_server import VolViewApi, expose
+from volview_server import VolViewApi
 
-class Api(VolViewAPI):
-    @expose
-    async def progress(self):
-        for i in range(100):
-            yield { "progress": i, "done": False }
-            await asyncio.sleep(0.1)
-        yield { "progress": 100, "done": True }
+volview = VolViewApi()
+
+@volview.expose
+async def progress():
+    for i in range(100):
+        yield { "progress": i }
+        await asyncio.sleep(0.1)
 ```
 
-On the client, instead of using `client.call(...)`, you must use
-`client.stream(...)`.
-
-```javascript
-await client.stream('progress', [/* optional args */], (data) => {
-    const { progress, done } = data;
-    ...
-})
-```
-
-### Accessing Client Stores
+#### Accessing Client Stores
 
 It is possible for RPC methods to access the client application stores using
-`self.get_client_store(store_name)`. This feature allows the server to control
-the calling client and make modifications, such as adding new images, updating
-annotations, switching the viewed image, and more!
+`get_current_client_store(store_name)`. This feature allows the server to
+control the calling client and make modifications, such as adding new images,
+updating annotations, switching the viewed image, and more.
 
-An example of this is the `medianFilter` RPC example in `custom/user_api.py`.
+An example that utilizes this feature is the `medianFilter` RPC example in
+`examples/example_api.py`.
 
 ```python
 import asyncio
-from volview_server import VolViewApi, expose
+from volview_server import VolViewApi
 
-class Api(VolViewAPI):
-    @expose
-    async def access_client(self):
-        store = self.get_client_store('images')
-        image_id_list = await store.idList
+volview = VolViewApi()
 
-        new_image = self.create_new_itk_image()
-        await store.addVTKImageData('My image', new_image)
+@volview.expose
+async def access_client():
+    store = get_current_client_store('images')
+    image_id_list = await store.idList
+
+    new_image = create_new_itk_image()
+    await store.addVTKImageData('My image', new_image)
+```
+
+#### RPC Routers
+
+RPC routers allow for custom handling of RPC routes. For instance, route methods
+can be located in namespaced or scoped scenarios, such as classes. Routers can
+also be extended for further customization if desired.
+
+See the `examples/example_class_api.py` for how to use the `RpcRouter` class and
+how to add routers to the `VolViewApi`.
+
+### Invoking RPCs from the Client
+
+VolView keeps a global client object in the server store, accessible via `const
+{ client } = useServerStore()`.
+
+Use `result = await client.call(endpoint, [arg1, arg2, ...])` to invoke a
+server-side RPC endpoint.
+
+```js
+const result = await client.call('add', [1, 2])
+```
+
+Use `await client.stream(endpoint, onStreamData)` to invoke a server-side RPC
+stream.
+
+```typescript
+const onStreamData = (data: StreamData) => {
+  const { progress } = data
+  console.log('current progress: ', progress)
+}
+
+let done = false
+await client.stream('progress', onStreamData)
+let done = true
 ```
 
 ### Deployment
 
-The VolView server comes with its own AIOHTTP-based server, which can be run via
+The VolView server comes with its own aiohttp-based server, which can be run via
 the `volview_server` module.
 
 ```
 python -m volview_server [...options] api_script.py
 ```
 
-The server supports any [deployment strategy supported by python-socketio](https://python-socketio.readthedocs.io/en/latest/server.html#deployment-strategies) as well as exposing ASGI-compatible middleware.
+By default, `volview_server` expects the `api_script.py` module to contain a
+`volview` symbol. If the VolView API is under a different name, add it to the
+end of the module filename with a colon.
+
+```python
+from volview_server import VolViewApi
+
+my_volview_api = VolViewApi()
+...
+```
+
+```
+python -m volview_server [...options] api_script.py:my_volview_api
+```
+
+The server supports any
+[deployment strategy supported by python-socketio](https://python-socketio.readthedocs.io/en/latest/server.html#deployment-strategies)
+as well as exposing ASGI-compatible middleware.
 
 #### ASGI
 
-The `volview_server` module exposes ASGI-compatible middlware that can be used
-with any ASGI framework or server.
+The `VolViewApi` object can act as middleware for any ASGI-compatible framework
+or server.
 
 ```
-from volview_server import VolViewMiddleware
+from volview_server import VolViewApi
 
-app = ...
+app = SomeASGIApp()
 
 # adds VolView middleware
-app = VolViewMiddlware(app, ApiClass=...)
+volview = VolViewApi()
+app = VolViewApi(app)
 ```
+
+The VolView API's path can be customized, as well as a host of other properties.
+These are exposed as keyword arguments to `VolViewApi(app, server_kwargs={}, asgi_kwargs={})`.
+- `server_kwargs`: see <https://python-socketio.readthedocs.io/en/latest/api.html#asyncserver-class>
+- `asgi_kwargs`: see <https://python-socketio.readthedocs.io/en/latest/api.html#asgiapp-class>
 
 ##### FastAPI middleware example
 
@@ -275,9 +332,14 @@ order to do so, you will need to get access to the underlying socket.io
 instance.
 
 ```python
+from volview_server import VolViewApi
 from volview_server.rpc_server import RpcServer
 
-server = RpcServer(ApiClass, ...)
+volview = VolViewApi()
+...
+
+server = RpcServer(volview, ...)
 # retrieve the socket.io instance
 sio = server.sio
+sio.attach(...)
 ```

@@ -1,4 +1,5 @@
 import sys
+import re
 import os
 import argparse
 import importlib
@@ -6,6 +7,7 @@ import logging
 
 from aiohttp import web
 
+from volview_server.volview_api import VolViewApi
 from volview_server.rpc_server import RpcServer
 from volview_server.chunking import CHUNK_SIZE
 
@@ -25,44 +27,61 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_api_script(api_script: str):
-    spec = importlib.util.spec_from_file_location("Api", api_script)
-    api_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(api_module)
-    return api_module.Api
+def import_api_script(api_script_file: str):
+    api_script_file = os.path.abspath(api_script_file)
+    import_target = os.path.basename(api_script_file)
+
+    script_filename, _, instance_name = import_target.partition(":")
+    instance_name = instance_name or "volview"
+    module_name = re.sub(r"\.py$", "", script_filename)
+
+    sys.path.append(os.path.dirname(api_script_file))
+    module = importlib.import_module(module_name)
+
+    instance = module
+    for attr_name in instance_name.split("."):
+        instance = getattr(instance, attr_name)
+    return instance
 
 
 def run_server(
-    ApiClass,
+    api: VolViewApi,
     *,
     host: str,
     port: int,
     debug: bool = False,
     **kwargs,
 ):
-    rpc_server = RpcServer(ApiClass, async_mode="aiohttp", **kwargs)
-    app = web.Application(client_max_size=CHUNK_SIZE)
-    rpc_server.sio.attach(app)
+    rpc_server = RpcServer(api, async_mode="aiohttp", **kwargs)
 
     if debug:
         logging.basicConfig(level=logging.DEBUG)
 
-    try:
-        web.run_app(app, host=host, port=port)
-    finally:
-        # cleanup
-        rpc_server.teardown()
+    async def stop(app):
+        await rpc_server.teardown()
+
+    async def start():
+        app = web.Application(client_max_size=CHUNK_SIZE)
+        rpc_server.sio.attach(app)
+        rpc_server.setup()
+        app.on_shutdown.append(stop)
+        return app
+
+    web.run_app(start(), host=host, port=port)
 
 
 def main(args):
-    ApiClass = load_api_script(args.api_script)
+    volview_api = import_api_script(args.api_script)
+
+    if not isinstance(volview_api, VolViewApi):
+        raise TypeError("Imported instance is not a VolViewApi")
 
     run_server(
-        ApiClass,
+        volview_api,
         host=args.host,
         port=args.port,
         debug=args.verbose,
-        # AsyncServer kwargs
+        # socketio.AsyncServer kwargs
         async_handlers=True,
         cors_allowed_origins="*",
         logger=args.verbose,
@@ -72,5 +91,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    sys.path.append(os.path.dirname(os.path.realpath(__file__)))
     main(parse_args())
