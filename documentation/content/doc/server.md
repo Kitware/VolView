@@ -59,7 +59,8 @@ the `examples/example_api.py` script.
   a random number.
 - Progress: demonstrates async generators via a simple timed progress counter.
 - Median filter: Runs a median filter on the current image. Demonstrates ITK
-  and VTK image serialization as well as client-side store access.
+  and VTK image serialization as well as client-side store access, as well as
+  running ITK filters in a subprocess to avoid thread blocking.
 
 ## In-Depth Guide
 
