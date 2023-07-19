@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
-import { useDisplay } from 'vuetify';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import { AnnotationTool } from '@/src/types/annotationTool';
 import { Maybe } from '@/src/types';
+import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
@@ -29,9 +29,6 @@ const editDialog = ref(false);
 watchEffect(() => {
   editDialog.value = !!editingLabel.value;
 });
-
-const display = useDisplay();
-const mobile = computed(() => display.mobile.value);
 </script>
 
 <template>
@@ -93,14 +90,19 @@ const mobile = computed(() => display.mobile.value);
     </v-container>
   </v-card>
 
-  <v-dialog v-model="editDialog" :width="mobile ? '100%' : '50%'">
-    <LabelEditor
-      @close="editingLabel = undefined"
-      v-if="editingLabel"
-      :label="editingLabel"
-      :labelsStore="labelsStore"
-    />
-  </v-dialog>
+  <closeable-dialog v-model="editDialog">
+    <template v-slot="{ close }">
+      <LabelEditor
+        @done="
+          editingLabel = undefined;
+          close();
+        "
+        v-if="editingLabel"
+        :label="editingLabel"
+        :labelsStore="labelsStore"
+      />
+    </template>
+  </closeable-dialog>
 </template>
 
 <style scoped>

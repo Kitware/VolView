@@ -1,15 +1,6 @@
 <template>
   <v-card>
-    <v-card-title class="d-flex flex-row align-center">
-      Settings
-      <v-spacer />
-      <v-btn
-        variant="text"
-        density="compact"
-        icon="mdi-close"
-        @click="$emit('close')"
-      />
-    </v-card-title>
+    <v-card-title class="d-flex flex-row align-center">Settings</v-card-title>
     <v-card-text>
       <v-switch label="Dark Theme" v-model="dark"></v-switch>
 

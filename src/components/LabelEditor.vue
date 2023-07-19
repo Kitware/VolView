@@ -21,10 +21,10 @@ watch(colorLocal, (color) => {
   props.labelsStore.updateLabel(props.label, { color });
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['done']);
 const deleteLabel = () => {
-  emit('close');
   props.labelsStore.deleteLabel(props.label);
+  emit('done');
 };
 </script>
 
@@ -32,13 +32,6 @@ const deleteLabel = () => {
   <v-card>
     <v-card-title class="d-flex flex-row align-center">
       Edit Label
-      <v-spacer />
-      <v-btn
-        variant="text"
-        density="compact"
-        icon="mdi-close"
-        @click="$emit('close')"
-      />
     </v-card-title>
 
     <v-card-item>
@@ -47,13 +40,13 @@ const deleteLabel = () => {
           <div>
             <v-text-field
               v-model="labelName"
-              @keydown.stop.enter="$emit('close')"
+              @keydown.stop.enter="$emit('done')"
               label="Name"
               class="flex-grow-0"
             />
           </div>
           <v-card-actions class="mb-2 px-0">
-            <v-btn color="secondary" variant="elevated" @click="$emit('close')">
+            <v-btn color="secondary" variant="elevated" @click="$emit('done')">
               Done
             </v-btn>
             <v-spacer />

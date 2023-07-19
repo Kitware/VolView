@@ -21,10 +21,6 @@ function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
 }
 
-interface Props {
-  viewId: string;
-}
-
 const WindowLevelToolComponent = defineComponent({
   name: 'WindowLevelTool',
   props: {
@@ -154,6 +150,12 @@ const WindowLevelToolComponent = defineComponent({
     return () => null;
   },
 });
+
+interface Props {
+  viewId: string;
+  // workaround for vue not detecting kebab-transformed props
+  'view-id'?: string;
+}
 
 export default function WindowLevelTool(props: Props) {
   const toolStore = useToolStore();
