@@ -1,8 +1,10 @@
-import JSZip from 'jszip';
 import { basename, dirname } from '@/src/utils/path';
 import { FileEntry } from './types';
 
+const importJSZip = () => import('@/src/lazy/lazyJSZip');
+
 export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
+  const { JSZip } = await importJSZip();
   const zip = await JSZip.loadAsync(zipFile);
   const promises: Promise<File>[] = [];
   const paths: string[] = [];

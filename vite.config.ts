@@ -10,6 +10,7 @@ import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
 
 import pkgLock from './package-lock.json';
+import { shouldAutoChunk } from './src/lazy';
 
 function resolve(...args) {
   return normalizePath(resolvePath(...args));
@@ -43,9 +44,18 @@ export default defineConfig({
             return 'vuetify';
           }
           if (id.includes('vtk.js')) {
+            if (id.includes('OpenGL')) {
+              return 'vtk.js-opengl';
+            }
             return 'vtk.js';
           }
           if (id.includes('node_modules')) {
+            if (shouldAutoChunk(id)) {
+              return undefined;
+            }
+            if (id.includes('whatwg-url')) {
+              return 'whatwg-url';
+            }
             return 'vendor';
           }
           return undefined;

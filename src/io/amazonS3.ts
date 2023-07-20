@@ -1,5 +1,6 @@
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { URL } from 'whatwg-url';
+
+const importAwsSdk = () => import('@/src/lazy/lazyAwsSdk');
 
 /**
  * Detects `s3://` uri.
@@ -19,6 +20,8 @@ async function fetchObjectsWithPagination(
   prefix: string,
   onObjectAvailable: ObjectAvailableCallback = () => {}
 ) {
+  const { S3Client, ListObjectsV2Command } = await importAwsSdk();
+
   const client = new S3Client({
     region: 'us-east-1',
     // workaround for sdk's inability to specify anonymous credentials
