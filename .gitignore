@@ -25,3 +25,6 @@ __pycache__
 venv
 
 bundle-analysis.html
+
+# Local Netlify folder
+.netlify

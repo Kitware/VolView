@@ -2,12 +2,21 @@
   <v-card>
     <v-card-title class="d-flex flex-row align-center">Settings</v-card-title>
     <v-card-text>
-      <v-switch label="Dark Theme" v-model="dark"></v-switch>
+      <v-switch
+        :label="`Dark Theme (${dark ? 'On' : 'Off'})`"
+        v-model="dark"
+        color="secondary"
+        density="compact"
+        hide-details
+      ></v-switch>
 
       <v-switch
         v-if="errorReportingConfigured"
-        label="Disable Error Reporting"
-        v-model="disableReporting"
+        :label="`Error Reporting (${reportingEnabled ? 'On' : 'Off'})`"
+        v-model="reportingEnabled"
+        color="secondary"
+        density="compact"
+        hide-details
       ></v-switch>
 
       <v-divider class="mt-2 mb-6"></v-divider>
@@ -40,14 +49,14 @@ export default defineComponent({
     });
 
     const errorReportingStore = useErrorReporting();
-    const disableReporting = ref(errorReportingStore.disableReporting);
-    watch(disableReporting, (disable) => {
-      errorReportingStore.disableReporting = disable;
+    const reportingEnabled = ref(!errorReportingStore.disableReporting);
+    watch(reportingEnabled, (enabled) => {
+      errorReportingStore.disableReporting = !enabled;
     });
 
     return {
       dark,
-      disableReporting,
+      reportingEnabled,
       errorReportingConfigured,
     };
   },

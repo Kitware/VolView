@@ -135,18 +135,14 @@
                       <div v-if="!saveUrl">
                         Secure: Image data never leaves your machine.
                       </div>
-
-                      <div
-                        v-if="showErrorReporting"
-                        class="vertical-offset-margin"
+                      <v-btn
+                        class="mt-2"
+                        variant="tonal"
+                        color="secondary"
+                        @click.stop="dataSecurityDialog = true"
                       >
-                        Opt out of error reporting:
-                        <v-btn
-                          icon="mdi-cog"
-                          @click.stop="settingsDialog = true"
-                          density="comfortable"
-                        />
-                      </div>
+                        Learn More
+                      </v-btn>
                     </v-card>
                   </v-row>
                 </v-col>
@@ -171,6 +167,10 @@
 
         <closeable-dialog v-model="saveDialog" max-width="30%">
           <save-session />
+        </closeable-dialog>
+
+        <closeable-dialog v-model="dataSecurityDialog">
+          <data-security-box />
         </closeable-dialog>
       </v-app>
       <persistent-overlay
@@ -226,6 +226,7 @@ import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
 import PersistentOverlay from './PersistentOverlay.vue';
+import DataSecurityBox from './DataSecurityBox.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import VolViewLogo from './icons/VolViewLogo.vue';
 import {
@@ -245,10 +246,6 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
-import {
-  useErrorReporting,
-  errorReportingConfigured,
-} from '../utils/errorReporting';
 
 async function loadFiles(
   sources: DataSource[],
@@ -316,6 +313,7 @@ export default defineComponent({
     DragAndDrop,
     CloseableDialog,
     AboutBox,
+    DataSecurityBox,
     ToolStrip,
     ModulePanel,
     MessageCenter,
@@ -463,15 +461,11 @@ export default defineComponent({
 
     const display = useDisplay();
 
-    const errorReportingStore = useErrorReporting();
-    const showErrorReporting = computed(() => {
-      return errorReportingConfigured && !errorReportingStore.disableReporting;
-    });
-
     return {
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
       settingsDialog: ref(false),
+      dataSecurityDialog: ref(false),
       saveDialog,
       handleSave,
       saveHappening,
@@ -485,7 +479,6 @@ export default defineComponent({
       userPromptFiles,
       openFiles,
       hasData,
-      showErrorReporting,
       saveUrl,
     };
   },

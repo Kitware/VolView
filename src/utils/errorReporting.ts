@@ -15,17 +15,13 @@ export const init = (app: App<Element>) => {
     Sentry.init({
       app,
       dsn: VITE_SENTRY_DSN,
-      integrations: [new Sentry.Replay()],
-      // Performance Monitoring
-      tracesSampleRate: 0.1, // Capture 10% of the transactions
-      // Session Replay
-      replaysSessionSampleRate: 0.1, // This sets the sample rate at 10%. You may want to change it to 100% while in development and then sample at a lower rate in production.
-      replaysOnErrorSampleRate: 1.0, // If you're not already sampling the entire session, change the sample rate to 100% when sampling sessions where errors occur.
     });
 };
 
-const disable = () => {
-  Sentry.close(200);
+const setEnabled = (enabled: boolean) => {
+  const options = Sentry.getCurrentHub().getClient()?.getOptions();
+  if (!options) return;
+  options.enabled = enabled;
 };
 
 export const useErrorReporting = defineStore('error-reporting', () => {
@@ -36,7 +32,7 @@ export const useErrorReporting = defineStore('error-reporting', () => {
   // sync boolean to local storage
   watch(disableReporting, () => {
     disableReportingStorage.value = String(disableReporting.value);
-    if (disableReporting.value) disable();
+    setEnabled(!disableReporting.value);
   });
 
   return { disableReporting };
