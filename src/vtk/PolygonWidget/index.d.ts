@@ -15,8 +15,9 @@ export interface vtkPolygonWidgetPointState extends vtkWidgetState {
 export interface vtkPolygonWidgetState extends vtkWidgetState {
   setIsPlaced(isPlaced: boolean): boolean;
   getIsPlaced(): boolean;
-  getFirstPoint(): vtkPolygonWidgetPointState;
-  getSecondPoint(): vtkPolygonWidgetPointState;
+  clearHandles(): void;
+  // getFirstPoint(): vtkPolygonWidgetPointState;
+  // getSecondPoint(): vtkPolygonWidgetPointState;
 }
 
 export interface vtkPolygonViewWidget extends vtkAbstractWidget {

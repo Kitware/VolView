@@ -35,6 +35,20 @@ declare module '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps' 
 declare module '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin' {
   export declare function extend(publicAPI: any, model: any): void;
 }
+declare module '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin' {
+  export declare function extend(
+    publicAPI: any,
+    model: any,
+    initialValue: any
+  ): void;
+}
+declare module '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin' {
+  export declare function extend(
+    publicAPI: any,
+    model: any,
+    initialValue: any
+  ): void;
+}
 
 declare module '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';

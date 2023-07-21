@@ -4,9 +4,7 @@ import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/Plane
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 
 import widgetBehavior from './behavior';
-import stateGenerator, { PointsLabel } from './state';
-
-export { InteractionState } from './behavior';
+import stateGenerator, { HandlesLabel, MoveHandleLabel } from './state';
 
 // ----------------------------------------------------------------------------
 // Factory
@@ -20,7 +18,7 @@ function vtkPolygonWidget(publicAPI, model) {
   publicAPI.getRepresentationsForViewType = () => [
     {
       builder: vtkSphereHandleRepresentation,
-      labels: [PointsLabel],
+      labels: [HandlesLabel, MoveHandleLabel],
       initialValues: {
         scaleInPixels: true,
       },

@@ -36,14 +36,14 @@ function _createPointState(
   visibleMixin.extend(publicAPI, model, { visible });
   scale1Mixin.extend(publicAPI, model, { scale1: PIXEL_SIZE });
 
-  const getPolygon = () => {
+  const getTool = () => {
     return model._store.toolByID[model.id];
   };
 
   const updatePolygon = (patch) => model._store.updateTool(model.id, patch);
 
   publicAPI.getOrigin = () => {
-    return getPolygon()?.[model.key];
+    return getTool()?.[model.key];
   };
 
   publicAPI.setOrigin = (xyz) => {
@@ -53,7 +53,7 @@ function _createPointState(
     publicAPI.modified();
   };
 
-  watchStore(publicAPI, model._store, () => getPolygon()?.[model.key]);
+  watchStore(publicAPI, model._store, () => getTool()?.[model.key]);
 }
 
 const createPointState = macro.newInstance(

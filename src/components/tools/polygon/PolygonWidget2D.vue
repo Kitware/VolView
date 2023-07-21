@@ -24,7 +24,6 @@ import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
 import { PolygonID as ToolID } from '@/src/types/polygon';
 import vtkWidgetFactory, {
   vtkPolygonViewWidget as WidgetView,
-  InteractionState,
 } from '@/src/vtk/PolygonWidget';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
@@ -98,7 +97,9 @@ export default defineComponent({
       [isPlacing, widget],
       ([placing, widget_]) => {
         if (placing && widget_) {
-          widget_.setInteractionState(InteractionState.PlacingFirst);
+          widget_.getWidgetState().clearHandles();
+          widgetManager.value.renderWidgets();
+          widgetManager.value.grabFocus(widget_);
         }
       },
       { immediate: true }
@@ -110,7 +111,7 @@ export default defineComponent({
       const isPlaced = widget.value?.getWidgetState().getIsPlaced();
       if (widget.value && !isPlaced) {
         widget.value.resetInteractions();
-        widget.value.setInteractionState(InteractionState.PlacingFirst);
+        widget.value.getWidgetState().clearHandles();
       }
     });
 
@@ -127,7 +128,7 @@ export default defineComponent({
     let rightClickSub: vtkSubscription | null = null;
 
     onMounted(() => {
-      if (!widget.value) {
+      if (!widget.value || widget.value.getWidgetState().getIsPlaced()) {
         return;
       }
       rightClickSub = widget.value.onRightClickEvent((eventData) => {

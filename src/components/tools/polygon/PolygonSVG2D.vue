@@ -1,32 +1,21 @@
 <template>
   <g>
-    <rect
-      :x="rectangle.x"
-      :y="rectangle.y"
-      :width="rectangle.width"
-      :height="rectangle.height"
-      :stroke="color"
-      stroke-width="1"
-      :fill="fillColor"
-    />
     <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
     <circle
-      v-if="first"
-      :cx="first.x"
-      :cy="first.y"
+      v-for="([x, y], index) in handlePoints"
+      :key="index"
+      :cx="x"
+      :cy="y"
       :stroke="color"
       stroke-width="1"
       fill="transparent"
       :r="10 / devicePixelRatio"
     />
-    <circle
-      v-if="second"
-      :cx="second.x"
-      :cy="second.y"
+    <polyline
+      :points="linePoints"
       :stroke="color"
       stroke-width="1"
-      fill="transparent"
-      :r="10 / devicePixelRatio"
+      fill="none"
     />
   </g>
 </template>
@@ -38,27 +27,23 @@ import { ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
-import type { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import {
   PropType,
   computed,
   defineComponent,
   toRefs,
-  unref,
   ref,
   watch,
   inject,
 } from 'vue';
 
-type SVGPoint = {
-  x: number;
-  y: number;
-};
-
 export default defineComponent({
   props: {
-    point1: Array as PropType<Array<number>>,
-    point2: Array as PropType<Array<number>>,
+    points: {
+      type: Array as PropType<Array<Vector3>>,
+      required: true,
+    },
     color: String,
     fillColor: String,
     viewId: {
@@ -67,9 +52,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { viewId: viewID, point1, point2 } = toRefs(props);
-    const firstPoint = ref<SVGPoint | null>();
-    const secondPoint = ref<SVGPoint | null>();
+    const { viewId: viewID, points } = toRefs(props);
 
     const viewStore = useViewStore();
 
@@ -77,58 +60,30 @@ export default defineComponent({
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
     );
 
+    const handlePoints = ref<Array<Vector2>>([]);
+    const linePoints = ref<string>('');
+
     const updatePoints = () => {
       const viewRenderer = viewProxy.value.getRenderer();
-      const pt1 = unref(point1) as Vector3 | undefined;
-      const pt2 = unref(point2) as Vector3 | undefined;
-      if (pt1) {
-        const point2D = worldToSVG(pt1, viewRenderer);
-        if (point2D) {
-          firstPoint.value = {
-            x: point2D[0],
-            y: point2D[1],
-          };
-        }
-      } else {
-        firstPoint.value = null;
-      }
 
-      if (pt2) {
-        const point2D = worldToSVG(pt2, viewRenderer);
-        if (point2D) {
-          secondPoint.value = {
-            x: point2D[0],
-            y: point2D[1],
-          };
-        }
-      } else {
-        secondPoint.value = null;
-      }
+      handlePoints.value = points.value.map((point) => {
+        const point2D = worldToSVG(point, viewRenderer);
+        return point2D ?? [0, 0];
+      });
+
+      linePoints.value = handlePoints.value
+        .map((point2D) => {
+          return point2D?.join(',') ?? '0,0';
+        })
+        .join(' ');
     };
-
-    const rectangle = computed(() => {
-      const [firstX, firstY] = [
-        firstPoint.value?.x ?? 0,
-        firstPoint.value?.y ?? 0,
-      ];
-      const [secondX, secondY] = [
-        secondPoint.value?.x ?? firstX,
-        secondPoint.value?.y ?? firstY,
-      ];
-      return {
-        x: Math.min(firstX, secondX),
-        y: Math.min(firstY, secondY),
-        width: Math.abs(firstX - secondX),
-        height: Math.abs(firstY - secondY),
-      };
-    });
 
     const cameraOnModified = useVTKCallback(
       computed(() => viewProxy.value.getCamera().onModified)
     );
     cameraOnModified(updatePoints);
 
-    watch([viewProxy, point1, point2], updatePoints, {
+    watch([viewProxy, points], updatePoints, {
       deep: true,
       immediate: true,
     });
@@ -143,9 +98,8 @@ export default defineComponent({
 
     return {
       devicePixelRatio,
-      first: firstPoint,
-      second: secondPoint,
-      rectangle,
+      handlePoints,
+      linePoints,
     };
   },
 });

@@ -1,183 +1,80 @@
-import macro from '@kitware/vtk.js/macro';
-import type { Vector3 } from '@kitware/vtk.js/types';
-
-export enum InteractionState {
-  PlacingFirst = 'PlacingFirst',
-  PlacingSecond = 'PlacingSecond',
-  Select = 'Select',
-  Dragging = 'Dragging',
-}
-
-export function shouldIgnoreEvent(e: any) {
-  return e.altKey || e.controlKey || e.shiftKey;
-}
+import macro from '@kitware/vtk.js/macros';
 
 export default function widgetBehavior(publicAPI: any, model: any) {
-  model.classHierarchy.push('vtkRulerWidgetProp');
+  model.classHierarchy.push('vtkPolygonWidgetProp');
+  model._isDragging = false;
 
-  model.interactionState = InteractionState.Select;
-  let draggingState: any = null;
-
-  macro.setGet(publicAPI, model, ['interactionState']);
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
   // support forwarding events
   macro.event(publicAPI, model, 'RightClickEvent');
   macro.event(publicAPI, model, 'PlacedEvent');
 
-  publicAPI.deactivateAllHandles = () => {
-    model.widgetState.deactivate();
-    model.activeState = null;
-  };
-
-  publicAPI.setFirstPoint = (coord: Vector3) => {
-    const point = model.widgetState.getFirstPoint();
-    point.setOrigin(coord);
-  };
-
-  publicAPI.setSecondPoint = (coord: Vector3) => {
-    const point = model.widgetState.getSecondPoint();
-    point.setOrigin(coord);
-  };
-
-  const originalSetInteractionState = publicAPI.setInteractionState;
-  publicAPI.setInteractionState = (state: InteractionState) => {
-    const changed = originalSetInteractionState(state);
-    if (changed && state === InteractionState.PlacingFirst) {
-      model.widgetState.setIsPlaced(false);
-      model.widgetState.getFirstPoint().setVisible(false);
-      model.widgetState.getSecondPoint().setVisible(false);
-    }
-    return changed;
-  };
-
   publicAPI.resetInteractions = () => {
     model._interactor.cancelAnimation(publicAPI, true);
   };
 
-  /**
-   * Places or drags a point.
-   */
-  publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
+  // --------------------------------------------------------------------------
+  // Interactor events
+  // --------------------------------------------------------------------------
+
+  function ignoreKey(e: any) {
+    return e.altKey || e.controlKey || e.shiftKey;
+  }
+
+  function updateMoveHandle(callData: any) {
+    const manipulator =
+      model.activeState?.getManipulator?.() ?? model.manipulator;
+    if (!manipulator) {
       return macro.VOID;
     }
 
-    // This ruler widget is passive, so if another widget
-    // is active, we don't do anything.
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (activeWidget && activeWidget !== publicAPI) {
-      return macro.VOID;
-    }
-
-    const worldCoords = model.manipulator.handleEvent(
-      eventData,
+    const worldCoords = manipulator.handleEvent(
+      callData,
       model._apiSpecificRenderWindow
     );
-    if (!worldCoords.length) {
-      return macro.VOID;
-    }
-
-    const intState = publicAPI.getInteractionState();
-
-    if (intState === InteractionState.PlacingFirst) {
-      publicAPI.setFirstPoint(worldCoords);
-      publicAPI.setSecondPoint(worldCoords);
-      model.widgetState.getFirstPoint().setVisible(true);
-      model.widgetState.getSecondPoint().setVisible(true);
-
-      model._interactor.requestAnimation(publicAPI);
-      publicAPI.invokeStartInteractionEvent();
-      publicAPI.setInteractionState(InteractionState.PlacingSecond);
-      return macro.EVENT_ABORT;
-    }
-
-    if (intState === InteractionState.PlacingSecond) {
-      publicAPI.setSecondPoint(worldCoords);
-      model.widgetState.setIsPlaced(true);
-
-      publicAPI.setInteractionState(InteractionState.Select);
-      publicAPI.invokeEndInteractionEvent();
-      publicAPI.invokePlacedEvent();
-
-      model._interactor.cancelAnimation(publicAPI);
-      return macro.EVENT_ABORT;
-    }
-
-    // dragging
-    if (model.activeState?.getActive() && model.pickable) {
-      draggingState = model.activeState;
-      publicAPI.setInteractionState(InteractionState.Dragging);
-      model._apiSpecificRenderWindow.setCursor('grabbing');
-      model._interactor.requestAnimation(publicAPI);
-      publicAPI.invokeStartInteractionEvent();
-      return macro.EVENT_ABORT;
-    }
-
-    return macro.VOID;
-  };
-
-  /**
-   * Moves a point around.
-   */
-  publicAPI.handleMouseMove = (eventData: any) => {
-    const worldCoords = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    );
-    if (!worldCoords.length) {
-      return macro.VOID;
-    }
-
-    const intState = publicAPI.getInteractionState();
-
-    if (intState === InteractionState.PlacingSecond) {
-      model.widgetState.getSecondPoint().setOrigin(worldCoords);
-      // show second point during placement
-      model.widgetState.getSecondPoint().setVisible(true);
-      publicAPI.invokeInteractionEvent();
-      return macro.EVENT_ABORT;
-    }
 
     if (
-      publicAPI.getInteractionState() === InteractionState.Dragging &&
-      draggingState
+      worldCoords.length &&
+      (model.activeState === model.widgetState.getMoveHandle() ||
+        model._isDragging) &&
+      model.activeState.setOrigin // e.g. the line is pickable but not draggable
     ) {
-      draggingState.setOrigin(worldCoords);
+      model.activeState.setOrigin(worldCoords);
       publicAPI.invokeInteractionEvent();
       return macro.EVENT_ABORT;
     }
-
     return macro.VOID;
-  };
+  }
 
-  /**
-   * Finishes dragging
-   */
-  publicAPI.handleLeftButtonRelease = (eventData: any) => {
-    if (draggingState) {
-      const worldCoords = model.manipulator.handleEvent(
-        eventData,
-        model._apiSpecificRenderWindow
-      );
-      if (worldCoords.length) {
-        draggingState.setOrigin(worldCoords);
-      }
+  // publicAPI.handleRightButtonPress = (e) => {
+  //   if (
+  //     !model.activeState ||
+  //     !model.activeState.getActive() ||
+  //     !model.pickable ||
+  //     ignoreKey(e)
+  //   ) {
+  //     return macro.VOID;
+  //   }
 
-      draggingState = null;
-      publicAPI.setInteractionState(InteractionState.Select);
-      model._apiSpecificRenderWindow.setCursor('pointer');
-      model.widgetState.deactivate();
-      model._interactor.cancelAnimation(publicAPI);
-      publicAPI.invokeEndInteractionEvent();
-      model._widgetManager.enablePicking();
-    }
-  };
+  //   if (model.activeState !== model.widgetState.getMoveHandle()) {
+  //     model._interactor.requestAnimation(publicAPI);
+  //     model.activeState.deactivate();
+  //     model.widgetState.removeHandle(model.activeState);
+  //     model.activeState = null;
+  //     model._interactor.cancelAnimation(publicAPI);
+  //   }
+
+  //   publicAPI.invokeStartInteractionEvent();
+  //   publicAPI.invokeInteractionEvent();
+  //   publicAPI.invokeEndInteractionEvent();
+  //   return macro.EVENT_ABORT;
+  // };
 
   publicAPI.handleRightButtonPress = (eventData: any) => {
     if (
-      shouldIgnoreEvent(eventData) ||
-      publicAPI.getInteractionState() !== InteractionState.Select ||
+      ignoreKey(eventData) ||
+      // publicAPI.getInteractionState() !== InteractionState.Select ||
       !model.activeState
     ) {
       return macro.VOID;
@@ -186,11 +83,136 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return macro.EVENT_ABORT;
   };
 
-  publicAPI.grabFocus = () => {
-    throw new Error('grabFocus is not implemented');
+  // --------------------------------------------------------------------------
+  // Left press: Select handle to drag / Create new handle
+  // --------------------------------------------------------------------------
+
+  publicAPI.handleLeftButtonPress = (e: any) => {
+    if (
+      !model.activeState ||
+      !model.activeState.getActive() ||
+      !model.pickable ||
+      ignoreKey(e)
+    ) {
+      return macro.VOID;
+    }
+    const manipulator =
+      model.activeState?.getManipulator?.() ?? model.manipulator;
+    if (
+      model.activeState === model.widgetState.getMoveHandle() &&
+      manipulator
+    ) {
+      updateMoveHandle(e);
+      const moveHandle = model.widgetState.getMoveHandle();
+      const newHandle = model.widgetState.addHandle();
+      newHandle.setOrigin(moveHandle.getOrigin());
+      newHandle.setScale1(moveHandle.getScale1());
+      // newHandle.setManipulator(manipulator);
+    } else if (model.dragable) {
+      model._isDragging = true;
+      model._apiSpecificRenderWindow.setCursor('grabbing');
+      model._interactor.requestAnimation(publicAPI);
+    }
+
+    publicAPI.invokeStartInteractionEvent();
+    return macro.EVENT_ABORT;
   };
 
+  // --------------------------------------------------------------------------
+  // Mouse move: Drag selected handle / Handle follow the mouse
+  // --------------------------------------------------------------------------
+
+  publicAPI.handleMouseMove = (callData: any) => {
+    if (
+      model.pickable &&
+      model.dragable &&
+      model.activeState &&
+      model.activeState.getActive() &&
+      !ignoreKey(callData)
+    ) {
+      if (updateMoveHandle(callData) === macro.EVENT_ABORT) {
+        return macro.EVENT_ABORT;
+      }
+    }
+    if (model.hasFocus) {
+      model._widgetManager.disablePicking();
+    }
+    return macro.VOID;
+  };
+
+  // --------------------------------------------------------------------------
+  // Left release: Finish drag
+  // --------------------------------------------------------------------------
+
+  publicAPI.handleLeftButtonRelease = () => {
+    if (
+      !model.activeState ||
+      !model.activeState.getActive() ||
+      !model.pickable
+    ) {
+      return macro.VOID;
+    }
+
+    if (model._isDragging) {
+      model._apiSpecificRenderWindow.setCursor('pointer');
+      model.widgetState.deactivate();
+      model._interactor.cancelAnimation(publicAPI);
+      model._isDragging = false;
+    } else if (model.activeState !== model.widgetState.getMoveHandle()) {
+      model.widgetState.deactivate();
+    }
+
+    if (
+      (model.hasFocus && !model.activeState) ||
+      (model.activeState && !model.activeState.getActive())
+    ) {
+      model._widgetManager.enablePicking();
+      model._interactor.render();
+    }
+
+    publicAPI.invokeEndInteractionEvent();
+    return macro.EVENT_ABORT;
+  };
+
+  // --------------------------------------------------------------------------
+  // Escape key: clear handles
+  // --------------------------------------------------------------------------
+
+  publicAPI.handleKeyDown = ({ key }: any) => {
+    if (key === 'Escape') {
+      model.widgetState.clearHandles();
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // Focus API - modeHandle follow mouse when widget has focus
+  // --------------------------------------------------------------------------
+
+  publicAPI.grabFocus = () => {
+    if (!model.hasFocus) {
+      model.activeState = model.widgetState.getMoveHandle();
+      model.activeState.activate();
+      model.activeState.setVisible(true);
+      model._interactor.requestAnimation(publicAPI);
+      publicAPI.invokeStartInteractionEvent();
+    }
+    model.hasFocus = true;
+  };
+
+  // --------------------------------------------------------------------------
+
   publicAPI.loseFocus = () => {
-    throw new Error('loseFocus is not implemented');
+    if (model.hasFocus) {
+      model._interactor.cancelAnimation(publicAPI);
+      publicAPI.invokeEndInteractionEvent();
+    }
+    model.widgetState.deactivate();
+    model.widgetState.getMoveHandle().deactivate();
+    model.widgetState.getMoveHandle().setVisible(false);
+    model.widgetState.getMoveHandle().setOrigin(null);
+    model.activeState = null;
+    model.hasFocus = false;
+    model._widgetManager.enablePicking();
+    model._interactor.render();
   };
 }

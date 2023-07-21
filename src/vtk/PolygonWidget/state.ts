@@ -1,10 +1,16 @@
 import macro from '@kitware/vtk.js/macros';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
+import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
+import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
+import { Vector3 } from '@kitware/vtk.js/types';
 
 import createPointState from './pointState';
 
-export const PointsLabel = 'points';
+export const MoveHandleLabel = 'moveHandle';
+export const HandlesLabel = 'handles';
+
+const PIXEL_SIZE = 20;
 
 function watchState(publicAPI: any, state: any, callback: () => {}) {
   let subscription = state.onModified(callback);
@@ -17,28 +23,71 @@ function watchState(publicAPI: any, state: any, callback: () => {}) {
 }
 
 function vtkPolygonWidgetState(publicAPI: any, model: any) {
-  const firstPoint = createPointState({
+  const moveHandle = createPointState({
     id: model.id,
     store: model._store,
-    key: 'polygon point',
+    key: 'moveHandle',
     visible: true,
   });
-  const secondPoint = createPointState({
-    id: model.id,
-    store: model._store,
-    key: 'secondPoint',
-    visible: true,
-  });
+  watchState(publicAPI, moveHandle, () => publicAPI.modified());
 
-  watchState(publicAPI, firstPoint, () => publicAPI.modified());
-  watchState(publicAPI, secondPoint, () => publicAPI.modified());
+  publicAPI.getMoveHandle = () => moveHandle;
 
-  // model.labels = {
-  //   [PointsLabel]: [firstPoint, secondPoint],
-  // };
+  // Handle list \\
 
-  publicAPI.getPoints = () => firstPoint;
-  publicAPI.addPoint = () => secondPoint;
+  const getTool = () => model._store.toolByID[model.id];
+
+  model.handles = [];
+
+  publicAPI.addHandle = () => {
+    const index = getTool().points.length;
+    const handleModel = { index };
+    const handlePublicAPI = {
+      getOrigin: () => getTool()?.points[index],
+      setOrigin: (xyz: Vector3) => {
+        getTool().points[index] = xyz;
+        publicAPI.modified();
+      },
+    };
+    vtkWidgetState.extend(handlePublicAPI, handleModel, {});
+    visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
+    scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
+
+    getTool().points.push([0, 0, 0]);
+
+    publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
+    model.handles.push(handlePublicAPI);
+    publicAPI.modified();
+    return handlePublicAPI;
+  };
+
+  publicAPI.removeHandle = (removeIndex: number) => {
+    const instance = model.handles[removeIndex];
+    if (instance) {
+      publicAPI.unbindState(instance);
+    }
+    model.handles.splice(removeIndex, 1);
+
+    getTool().points.splice(removeIndex, 1);
+
+    publicAPI.modified();
+  };
+
+  publicAPI.clearHandles = () => {
+    while (model.handles.length) {
+      const instance = model.handles.pop();
+      if (instance) {
+        publicAPI.unbindState(instance);
+      }
+    }
+    // Tool does not exist if loading new image
+    if (getTool()) getTool().points = [];
+    publicAPI.modified();
+  };
+
+  model.labels = {
+    [MoveHandleLabel]: [moveHandle],
+  };
 }
 
 const defaultValues = (initialValues: any) => ({
