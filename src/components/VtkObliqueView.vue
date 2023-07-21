@@ -144,9 +144,7 @@ import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
 import type { Vector3 } from '@kitware/vtk.js/types';
-import { getCenter } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
-import vtkMath from '@kitware/vtk.js/Common/Core/Math';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
 import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
@@ -329,6 +327,21 @@ export default defineComponent({
       viewProxy.value.getInteractorStyle2D().removeAllManipulators();
     });
 
+    const updateViewFromResliceCursor = () => {
+      const rep = baseImageRep?.value;
+      const resliceCursor = resliceCursorRef?.value;
+      const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
+      if (resliceCursor && rep) {
+        const planeOrigin = state.getCenter();
+        const planeNormal = resliceCursorRef.value.getPlaneNormalFromViewType(VTKViewType.value);
+        rep.getSlicePlane().setNormal(planeNormal);
+        rep.getSlicePlane().setOrigin(planeOrigin);
+        if (curImageData.value) {
+          resliceCursorRef.value.updateCameraPoints( viewProxy.value.getRenderer(), VTKViewType.value, false, false, true);
+        }
+      }
+    }
+
     onMounted(() => {
       setViewProxyContainer(vtkContainerRef.value);
       viewProxy.value.setOrientationAxesVisibility(false);
@@ -343,18 +356,7 @@ export default defineComponent({
       );
 
       onPlanesUpdated(() => {
-        const rep = baseImageRep?.value;
-        const resliceCursor = resliceCursorRef?.value;
-        const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
-        if (resliceCursor && rep) {
-          const planeOrigin = state.getCenter();
-          const planeNormal = resliceCursorRef.value.getPlaneNormalFromViewType(VTKViewType.value);
-          rep.getSlicePlane().setNormal(planeNormal);
-          rep.getSlicePlane().setOrigin(planeOrigin);
-          if (curImageData.value) {
-            resliceCursorRef.value.updateCameraPoints( viewProxy.value.getRenderer(), VTKViewType.value, false, false, true);
-          }
-        }
+        updateViewFromResliceCursor();
       });
     });
 
@@ -439,6 +441,8 @@ export default defineComponent({
         if (curImageID.value == null || wlConfig.value != null || !imageData) {
           return;
         }
+
+        updateViewFromResliceCursor();
 
         // TODO listen to changes in point data
         const range = imageData.getPointData().getScalars().getRange();
@@ -599,25 +603,12 @@ export default defineComponent({
         return;
       }
 
-      const { slice, min, max } = sliceConfig.value;
       const { width, level } = wlConfig.value;
       const rep = baseImageRep.value;
 
       if (rep) {
         rep.setWindowWidth(width);
         rep.setWindowLevel(level);
-
-        const bounds = curImageMetadata.value.worldBounds;
-        const sliceNormal = rep?.getSlicePlane().getNormal() as Vector3;
-        vtkMath.normalize(sliceNormal);
-        const range = [min, max];
-        const midRange = 0.5 * (range[0] + range[1]);
-        const imc = getCenter(bounds);
-        // const sliceDispFromCenter = midRange - slice / (max - min) * (range[1] - range[0]) - range[0];
-        const sliceDispFromCenter = slice - midRange;
-        const dispVector = vtkMath.multiplyScalar(sliceNormal, sliceDispFromCenter);
-        const origin = vtkMath.add(imc, dispVector, [0, 0, 0] as Vector3);
-        rep.getSlicePlane().setOrigin(origin);
       }
 
       viewProxy.value.renderLater();

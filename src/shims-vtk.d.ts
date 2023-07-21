@@ -266,6 +266,7 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
     getPlanes(): Record<number, { normal: Vector3, viewUp: Vector3, color3: Vector3 }>;
     setPlanes(planes: Record<number, { normal: Vector3, viewUp: Vector3, color3: Vector3 }>): void;
     getCenter(): Vector3;
+    setScrollingMethod(mode: number): boolean;
   }
 
   // Just forwarding vtk-js's definition as default export:

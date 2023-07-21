@@ -81,12 +81,14 @@ export default defineComponent({
 
     // Construct the common instance of vtkResliceCursorWidget and provide it
     // to all the child ObliqueView components.
-    const resliceCursor = ref<vtkResliceCursorWidget>();
-    resliceCursor.value = vtkResliceCursorWidget.newInstance();
+    const resliceCursor = ref<vtkResliceCursorWidget>(vtkResliceCursorWidget.newInstance());
+    provide(VTKResliceCursor, resliceCursor);
     // Orient the planes of the vtkResliceCursorWidget to the orientation
     // of the currently set image.
     const resliceCursorState = resliceCursor.value.getWidgetState() as ResliceCursorWidgetState;
-    provide(VTKResliceCursor, resliceCursor);
+
+    // Temporary fix to disable race between PanTool and ResliceCursorWidget
+    resliceCursorState.setScrollingMethod(-1);
 
     watch(currentImageData, (image) => {
       if (image && resliceCursor.value) {
