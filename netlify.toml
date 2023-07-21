@@ -7,3 +7,6 @@
 
 [build]
 command = "sed -i \"s|DICOM_WEB_API_KEY|${DICOM_WEB_API_KEY}|g; s|DICOM_WEB_ADDRESS|${DICOM_WEB_ADDRESS}|g\" netlify.toml && npm run build"
+
+[dev]
+targetPort = 8080

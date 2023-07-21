@@ -88,11 +88,6 @@ export default defineConfig({
     createHtmlPlugin({
       minify: true,
       template: 'index.html',
-      inject: {
-        data: {
-          gaId: process.env.VOLVIEW_GA_ID || null,
-        },
-      },
     }),
     viteStaticCopy({
       targets: [
