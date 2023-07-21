@@ -101,7 +101,7 @@ The `volview.expose` decorator exposes the `add` function with the public name
 
 ```python
 # Accessible via the RPC name "my_add"
-@volview.exposes("my_add")
+@volview.expose("my_add")
 def add(a: int, b: int):
     return a + b
 ```
