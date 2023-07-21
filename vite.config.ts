@@ -6,6 +6,8 @@ import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
 import { createHtmlPlugin } from 'vite-plugin-html';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
+import replace from '@rollup/plugin-replace';
 
 import pkgLock from './package-lock.json';
 
@@ -16,6 +18,20 @@ function resolve(...args) {
 const rootDir = resolve(__dirname);
 const nodeModulesDir = resolve(rootDir, 'node_modules');
 const distDir = resolve(rootDir, 'dist');
+
+const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
+  process.env;
+
+function configureSentryPlugin() {
+  return SENTRY_AUTH_TOKEN && SENTRY_ORG && SENTRY_PROJECT
+    ? sentryVitePlugin({
+        telemetry: false,
+        org: SENTRY_ORG,
+        project: SENTRY_PROJECT,
+        authToken: SENTRY_AUTH_TOKEN,
+      })
+    : ({} as Plugin);
+}
 
 export default defineConfig({
   build: {
@@ -81,6 +97,12 @@ export default defineConfig({
         return null;
       },
     },
+    replace({
+      preventAssignment: true,
+      // better sentry treeshaking
+      __SENTRY_DEBUG__: false,
+      __SENTRY_TRACING__: false,
+    }),
     vue({ template: { transformAssetUrls } }),
     vuetify({
       autoImport: true,
@@ -112,7 +134,7 @@ export default defineConfig({
         },
       ],
     }),
-    process.env.ANALYZE_BUNDLE
+    ANALYZE_BUNDLE
       ? visualizer({
           template: 'treemap',
           open: true,
@@ -121,6 +143,7 @@ export default defineConfig({
           filename: 'bundle-analysis.html',
         })
       : ({} as Plugin),
+    configureSentryPlugin(),
   ],
   server: {
     port: 8080,

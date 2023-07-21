@@ -1,16 +1,24 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import {
+  errorReportingConfigured,
+  useErrorReporting,
+} from '@/src/utils/errorReporting';
+import { watch, ref } from 'vue';
 
-const errorReporting = ref(true);
+const errorStore = useErrorReporting();
+const reportingEnabled = ref(!errorStore.disableReporting);
+watch(reportingEnabled, (enabled) => {
+  errorStore.disableReporting = !enabled;
+});
 </script>
 
 <template>
-  <v-card class="text-grey-lighten-2">
-    <v-card-title>Data Security Notice</v-card-title>
+  <v-card class="text-grey-lighten-1">
+    <v-card-title>Data Privacy and Security Notice</v-card-title>
     <v-card-text>
       <p class="mb-4">
-        VolView takes data security seriously. Here is how we keep your data
-        safe.
+        VolView takes data privacy and security seriously. Here is how we keep
+        your data safe.
       </p>
       <ul class="bullet-points">
         <li>
@@ -29,16 +37,19 @@ const errorReporting = ref(true);
       <p>
         If you would like to opt-out of error reporting, you may turn it off
         using the following setting. Your choice will be respected for future
-        VolView sessions that you run on this machine.
+        VolView sessions on this machine.
       </p>
-      <p class="mt-2 ml-4">
+      <p class="mt-4 ml-4">
         <v-switch
-          v-model="errorReporting"
-          :label="`Error Reporting: ${errorReporting ? 'On' : 'Off'}`"
+          v-if="errorReportingConfigured"
+          v-model="reportingEnabled"
+          :label="`Error Reporting: ${reportingEnabled ? 'On' : 'Off'}`"
           color="primary"
-          density="compact"
           hide-details
         />
+        <v-alert v-else type="info" variant="text">
+          <span>Error reporting has been turned off at build time.</span>
+        </v-alert>
       </p>
     </v-card-text>
   </v-card>

@@ -47,6 +47,8 @@
   },
   "devDependencies": {
     "@pinia/testing": "^0.0.12",
+    "@rollup/plugin-replace": "^5.0.2",
+    "@sentry/vite-plugin": "^2.4.0",
     "@types/chai": "^4.3.1",
     "@types/chai-almost": "^1.0.1",
     "@types/chai-as-promised": "^7.1.5",

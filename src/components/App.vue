@@ -143,18 +143,6 @@
                       >
                         Learn More
                       </v-btn>
-
-                      <div
-                        v-if="showErrorReporting"
-                        class="vertical-offset-margin"
-                      >
-                        Opt out of error reporting:
-                        <v-btn
-                          icon="mdi-cog"
-                          @click.stop="settingsDialog = true"
-                          density="comfortable"
-                        />
-                      </div>
                     </v-card>
                   </v-row>
                 </v-col>
@@ -176,7 +164,6 @@
         <closeable-dialog v-model="settingsDialog">
           <settings />
         </closeable-dialog>
-
 
         <closeable-dialog v-model="saveDialog" max-width="30%">
           <save-session />
@@ -259,10 +246,6 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
-import {
-  useErrorReporting,
-  errorReportingConfigured,
-} from '../utils/errorReporting';
 
 async function loadFiles(
   sources: DataSource[],
@@ -478,11 +461,6 @@ export default defineComponent({
 
     const display = useDisplay();
 
-    const errorReportingStore = useErrorReporting();
-    const showErrorReporting = computed(() => {
-      return errorReportingConfigured && !errorReportingStore.disableReporting;
-    });
-
     return {
       aboutBoxDialog: ref(false),
       messageDialog: ref(false),
@@ -501,7 +479,6 @@ export default defineComponent({
       userPromptFiles,
       openFiles,
       hasData,
-      showErrorReporting,
       saveUrl,
     };
   },
