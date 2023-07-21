@@ -138,7 +138,7 @@
                       <v-btn
                         class="mt-2"
                         variant="tonal"
-                        color="primary"
+                        color="secondary"
                         @click.stop="dataSecurityDialog = true"
                       >
                         Learn More

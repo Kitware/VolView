@@ -44,7 +44,7 @@ watch(reportingEnabled, (enabled) => {
           v-if="errorReportingConfigured"
           v-model="reportingEnabled"
           :label="`Error Reporting: ${reportingEnabled ? 'On' : 'Off'}`"
-          color="primary"
+          color="secondary"
           hide-details
         />
         <v-alert v-else type="info" variant="text">
