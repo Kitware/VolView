@@ -9,4 +9,5 @@ export type Polygon = {
    */
   points: Array<Vector3>;
   id: PolygonID;
+  movePoint: Vector3;
 } & AnnotationTool;

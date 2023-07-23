@@ -50,9 +50,8 @@ const LPSAxisDir = z.union([
   z.literal('Posterior'),
   z.literal('Anterior'),
   z.literal('Superior'),
-  z.literal('Inferior')
+  z.literal('Inferior'),
 ]);
-
 
 const Dataset = z.object({
   id: z.string(),
@@ -282,7 +281,7 @@ const Rectangles = makeToolEntry(Rectangle);
 const Polygon = annotationTool.extend({
   id: z.string() as unknown as z.ZodType<Polygon['id']>,
   points: z.array(Vector3),
-}) satisfies z.ZodType<Polygon>;
+}) satisfies z.ZodType<Omit<Polygon, 'movePoint'>>;
 
 const Polygons = makeToolEntry(Polygon);
 

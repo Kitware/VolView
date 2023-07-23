@@ -200,5 +200,7 @@ export default defineComponent({
     :view-id="viewId"
     :points="tool.points"
     :color="tool.color"
+    :move-point="tool.movePoint"
+    :placing="tool.placing"
   />
 </template>

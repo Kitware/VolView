@@ -26,7 +26,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
   const moveHandle = createPointState({
     id: model.id,
     store: model._store,
-    key: 'moveHandle',
+    key: 'movePoint',
     visible: true,
   });
   watchState(publicAPI, moveHandle, () => publicAPI.modified());

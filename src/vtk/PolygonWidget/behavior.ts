@@ -47,6 +47,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return macro.VOID;
   }
 
+  // delete handle
   // publicAPI.handleRightButtonPress = (e) => {
   //   if (
   //     !model.activeState ||

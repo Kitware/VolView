@@ -21,6 +21,7 @@
 </template>
 
 <script lang="ts">
+import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { ToolContainer } from '@/src/constants';
@@ -45,19 +46,40 @@ export default defineComponent({
       required: true,
     },
     color: String,
-    fillColor: String,
     viewId: {
       type: String,
       required: true,
     },
+    movePoint: {
+      type: Array as unknown as PropType<Vector3>,
+      required: true,
+    },
+    placing: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
-    const { viewId: viewID, points } = toRefs(props);
+    const { viewId: viewID, points, movePoint, placing } = toRefs(props);
 
     const viewStore = useViewStore();
-
     const viewProxy = computed(
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
+    );
+
+    // Hide move handle when mouse leaves the view
+    const mouseEntered = ref(false);
+
+    manageVTKSubscription(
+      viewProxy.value.getInteractor().onMouseEnter(() => {
+        mouseEntered.value = true;
+      })
+    );
+
+    manageVTKSubscription(
+      viewProxy.value.getInteractor().onMouseLeave(() => {
+        mouseEntered.value = false;
+      })
     );
 
     const handlePoints = ref<Array<Vector2>>([]);
@@ -65,15 +87,22 @@ export default defineComponent({
 
     const updatePoints = () => {
       const viewRenderer = viewProxy.value.getRenderer();
-
-      handlePoints.value = points.value.map((point) => {
+      const svgPoints = points.value.map((point) => {
         const point2D = worldToSVG(point, viewRenderer);
-        return point2D ?? [0, 0];
+        return point2D ?? ([0, 0] as Vector2);
       });
+
+      if (placing.value && mouseEntered.value && movePoint.value) {
+        const moveHandlePoint =
+          worldToSVG(movePoint.value, viewRenderer) ?? ([0, 0] as Vector2);
+        svgPoints.push(moveHandlePoint);
+      }
+
+      handlePoints.value = svgPoints;
 
       linePoints.value = handlePoints.value
         .map((point2D) => {
-          return point2D?.join(',') ?? '0,0';
+          return point2D?.join(',');
         })
         .join(' ');
     };
@@ -83,7 +112,7 @@ export default defineComponent({
     );
     cameraOnModified(updatePoints);
 
-    watch([viewProxy, points], updatePoints, {
+    watch([viewProxy, points, movePoint, placing, mouseEntered], updatePoints, {
       deep: true,
       immediate: true,
     });
