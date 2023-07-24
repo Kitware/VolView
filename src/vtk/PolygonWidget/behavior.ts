@@ -6,7 +6,6 @@ const FINISHABLE_DISTANCE = 60;
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetProp');
   model._isDragging = false;
-  model.isFinishable = false;
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
@@ -47,72 +46,79 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.activeState.setOrigin(worldCoords);
       publicAPI.invokeInteractionEvent();
 
-      // Check if finishable by distance to first point?
-      const handles = model.widgetState.getHandles();
-      if (
-        handles.length > 0 &&
-        model.activeState === model.widgetState.getMoveHandle()
-      ) {
-        const firstCoords = handles[0].getOrigin();
-        // FIXME: use distance in pixel space
-        const distance = vtkMath.distance2BetweenPoints(
-          firstCoords,
-          worldCoords
-        );
-        if (distance < FINISHABLE_DISTANCE) {
-          model.isFinishable = true;
-        } else {
-          model.isFinishable = false;
-        }
-      }
-
       return macro.EVENT_ABORT;
     }
     return macro.VOID;
   }
 
+  function computeIsFinishable() {
+    // Check if finishable by distance to first point?
+    const handles = model.widgetState.getHandles();
+    if (handles.length > 0) {
+      const moveCoords = model.widgetState.getMoveHandle().getOrigin();
+      const firstCoords = handles[0].getOrigin();
+      // FIXME: use distance in pixel space
+      const distance = vtkMath.distance2BetweenPoints(firstCoords, moveCoords);
+
+      return distance < FINISHABLE_DISTANCE;
+    }
+    return false;
+  }
+
   // --------------------------------------------------------------------------
-  // Left press: Select handle to drag / Create new handle
+  // Left press: Select handle to drag / Add new handle
   // --------------------------------------------------------------------------
 
   publicAPI.handleLeftButtonPress = (e: any) => {
+    const activeWidget = model._widgetManager.getActiveWidget();
     if (
-      !model.activeState ||
-      !model.activeState.getActive() ||
-      !model.pickable ||
-      ignoreKey(e)
+      !model.manipulator ||
+      ignoreKey(e) ||
+      // If hovering over another widget, don't consume event.
+      (activeWidget && activeWidget !== publicAPI)
     ) {
       return macro.VOID;
     }
+
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
-    if (
-      model.activeState === model.widgetState.getMoveHandle() &&
-      manipulator
-    ) {
+    if (model.widgetState.getPlacing() && manipulator) {
+      // Dropping first point?
+      if (model.widgetState.getHandles().length === 0) {
+        // For updateActiveStateHandle
+        model.activeState = model.widgetState.getMoveHandle();
+        model._widgetManager.grabFocus(publicAPI);
+      }
       updateActiveStateHandle(e);
 
-      if (model.isFinishable) {
-        model.isFinishable = false;
+      if (computeIsFinishable()) {
+        model.widgetState.setPlacing(false);
+        publicAPI.loseFocus();
         publicAPI.invokePlacedEvent();
-        // publicAPI.loseFocus();
-
+        // Don't add another point, just return
         return macro.EVENT_ABORT;
       }
 
-      // drop handle
+      // Add handle
       const moveHandle = model.widgetState.getMoveHandle();
       const newHandle = model.widgetState.addHandle();
       newHandle.setOrigin(moveHandle.getOrigin());
       newHandle.setScale1(moveHandle.getScale1());
-    } else if (model.dragable) {
+
+      publicAPI.invokeStartInteractionEvent();
+      return macro.EVENT_ABORT;
+    }
+
+    if (model.activeState?.getActive() && model.pickable && model.dragable) {
       model._isDragging = true;
       model._apiSpecificRenderWindow.setCursor('grabbing');
       model._interactor.requestAnimation(publicAPI);
+
+      publicAPI.invokeStartInteractionEvent();
+      return macro.EVENT_ABORT;
     }
 
-    publicAPI.invokeStartInteractionEvent();
-    return macro.EVENT_ABORT;
+    return macro.VOID;
   };
 
   // --------------------------------------------------------------------------
@@ -124,7 +130,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.pickable &&
       model.dragable &&
       model.activeState &&
-      model.activeState.getActive() &&
       !ignoreKey(callData)
     ) {
       if (updateActiveStateHandle(callData) === macro.EVENT_ABORT) {
@@ -177,8 +182,15 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   publicAPI.handleKeyDown = ({ key }: any) => {
     if (model.widgetState.getPlacing() && key === 'Escape') {
+      publicAPI.loseFocus();
       model.widgetState.clearHandles();
     }
+  };
+
+  // Called when mouse moves off handle.
+  publicAPI.deactivateAllHandles = () => {
+    model.widgetState.deactivate();
+    model.activeState = null; // disables right click
   };
 
   publicAPI.handleRightButtonPress = (eventData: any) => {
@@ -194,7 +206,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   // --------------------------------------------------------------------------
-  // Focus API - modeHandle follow mouse when widget has focus
+  // Focus API - After first point dropped, make moveHandle follow mouse
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {

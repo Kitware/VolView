@@ -80,8 +80,11 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
         publicAPI.unbindState(instance);
       }
     }
+
     // Tool does not exist if loading new image
-    if (getTool()) getTool().points = [];
+    const tool = getTool();
+    if (tool) tool.points = [];
+
     publicAPI.modified();
   };
 
@@ -90,6 +93,9 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
   };
 
   publicAPI.getPlacing = () => getTool().placing;
+  publicAPI.setPlacing = (placing: boolean) => {
+    getTool().placing = placing;
+  };
 
   // After deserialize, initialize handles
   getTool().points.forEach((point: Vector3) => {

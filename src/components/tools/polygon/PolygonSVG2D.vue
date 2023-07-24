@@ -21,7 +21,6 @@
 </template>
 
 <script lang="ts">
-import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { ToolContainer } from '@/src/constants';
@@ -66,21 +65,6 @@ export default defineComponent({
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
     );
 
-    // Hide move handle when mouse leaves the view
-    const mouseEntered = ref(false);
-
-    manageVTKSubscription(
-      viewProxy.value.getInteractor().onMouseEnter(() => {
-        mouseEntered.value = true;
-      })
-    );
-
-    manageVTKSubscription(
-      viewProxy.value.getInteractor().onMouseLeave(() => {
-        mouseEntered.value = false;
-      })
-    );
-
     const handlePoints = ref<Array<Vector2>>([]);
     const linePoints = ref<string>('');
 
@@ -91,7 +75,7 @@ export default defineComponent({
         return point2D ?? ([0, 0] as Vector2);
       });
 
-      if (placing.value && mouseEntered.value && movePoint.value) {
+      if (svgPoints.length > 0 && placing.value && movePoint.value) {
         const moveHandlePoint =
           worldToSVG(movePoint.value, viewRenderer) ?? ([0, 0] as Vector2);
         svgPoints.push(moveHandlePoint);
@@ -112,7 +96,7 @@ export default defineComponent({
     );
     cameraOnModified(updatePoints);
 
-    watch([viewProxy, points, movePoint, placing, mouseEntered], updatePoints, {
+    watch([viewProxy, points, movePoint, placing], updatePoints, {
       deep: true,
       immediate: true,
     });

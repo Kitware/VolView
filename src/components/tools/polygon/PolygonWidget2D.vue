@@ -92,18 +92,6 @@ export default defineComponent({
       widgetFactory.delete();
     });
 
-    watch(
-      [isPlacing, widget],
-      ([placing, widget_]) => {
-        if (placing && widget_) {
-          widget_.getWidgetState().clearHandles();
-          widgetManager.value.renderWidgets();
-          widgetManager.value.grabFocus(widget_);
-        }
-      },
-      { immediate: true }
-    );
-
     // --- reset on slice/image changes --- //
 
     watch([currentSlice, currentImageID, widget], () => {
@@ -181,7 +169,7 @@ export default defineComponent({
         return;
       }
       // hide handle visibility, but not picking visibility
-      // widget.value.setHandleVisibility(false);
+      widget.value.setHandleVisibility(false);
       widgetManager.value.renderWidgets();
     });
 
