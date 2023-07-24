@@ -76,7 +76,6 @@ export default defineComponent({
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
       store: toolStore,
-      isPlaced: !isPlacing.value,
     });
     const widget = ref<WidgetView | null>(null);
 
@@ -108,8 +107,7 @@ export default defineComponent({
     // --- reset on slice/image changes --- //
 
     watch([currentSlice, currentImageID, widget], () => {
-      const isPlaced = widget.value?.getWidgetState().getIsPlaced();
-      if (widget.value && !isPlaced) {
+      if (widget.value && isPlacing.value) {
         widget.value.resetInteractions();
         widget.value.getWidgetState().clearHandles();
       }
@@ -128,7 +126,7 @@ export default defineComponent({
     let rightClickSub: vtkSubscription | null = null;
 
     onMounted(() => {
-      if (!widget.value || widget.value.getWidgetState().getIsPlaced()) {
+      if (!widget.value) {
         return;
       }
       rightClickSub = widget.value.onRightClickEvent((eventData) => {
@@ -183,7 +181,7 @@ export default defineComponent({
         return;
       }
       // hide handle visibility, but not picking visibility
-      widget.value.setHandleVisibility(false);
+      // widget.value.setHandleVisibility(false);
       widgetManager.value.renderWidgets();
     });
 

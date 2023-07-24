@@ -33,14 +33,14 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   publicAPI.getMoveHandle = () => moveHandle;
 
-  // Handle list \\
-
   const getTool = () => model._store.toolByID[model.id];
 
   model.handles = [];
 
-  publicAPI.addHandle = () => {
-    const index = getTool().points.length;
+  publicAPI.getHandles = () => model.handles;
+
+  publicAPI.addHandle = (addPoint = true) => {
+    const index = model.handles.length;
     const handleModel = { index };
     const handlePublicAPI = {
       getOrigin: () => getTool()?.points[index],
@@ -53,7 +53,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
     scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
 
-    getTool().points.push([0, 0, 0]);
+    if (addPoint) getTool().points.push([0, 0, 0]);
 
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
     model.handles.push(handlePublicAPI);
@@ -88,10 +88,17 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
   model.labels = {
     [MoveHandleLabel]: [moveHandle],
   };
+
+  publicAPI.getPlacing = () => getTool().placing;
+
+  // After deserialize, initialize handles
+  getTool().points.forEach((point: Vector3) => {
+    const handle = publicAPI.addHandle(false);
+    handle.setOrigin(point);
+  });
 }
 
 const defaultValues = (initialValues: any) => ({
-  isPlaced: false,
   ...initialValues,
 });
 
@@ -105,7 +112,6 @@ function _createPolygonWidgetState(
   bounds.extend(publicAPI, model);
 
   macro.get(publicAPI, model, ['id']);
-  macro.setGet(publicAPI, model, ['isPlaced']);
   macro.moveToProtected(publicAPI, model, ['store']);
 
   vtkPolygonWidgetState(publicAPI, model);

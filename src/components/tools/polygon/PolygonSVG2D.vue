@@ -52,7 +52,6 @@ export default defineComponent({
     },
     movePoint: {
       type: Array as unknown as PropType<Vector3>,
-      required: true,
     },
     placing: {
       type: Boolean,
@@ -100,11 +99,12 @@ export default defineComponent({
 
       handlePoints.value = svgPoints;
 
-      linePoints.value = handlePoints.value
-        .map((point2D) => {
-          return point2D?.join(',');
-        })
-        .join(' ');
+      const lines = handlePoints.value.map((point2D) => point2D?.join(','));
+      if (!placing.value) {
+        // Close the polygon
+        lines.push(lines[0]);
+      }
+      linePoints.value = lines.join(' ');
     };
 
     const cameraOnModified = useVTKCallback(

@@ -13,11 +13,8 @@ export interface vtkPolygonWidgetPointState extends vtkWidgetState {
 }
 
 export interface vtkPolygonWidgetState extends vtkWidgetState {
-  setIsPlaced(isPlaced: boolean): boolean;
-  getIsPlaced(): boolean;
   clearHandles(): void;
-  // getFirstPoint(): vtkPolygonWidgetPointState;
-  // getSecondPoint(): vtkPolygonWidgetPointState;
+  getPlacing(): boolean;
 }
 
 export interface vtkPolygonViewWidget extends vtkAbstractWidget {
@@ -34,7 +31,6 @@ export interface vtkPolygonViewWidget extends vtkAbstractWidget {
 export interface IPolygonWidgetInitialValues {
   id: string;
   store: ReturnType<typeof usePolygonStore>;
-  isPlaced: boolean;
 }
 
 export interface vtkPolygonWidget extends vtkAbstractWidgetFactory {

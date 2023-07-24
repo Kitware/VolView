@@ -40,14 +40,14 @@ function _createPointState(
     return model._store.toolByID[model.id];
   };
 
-  const updatePolygon = (patch) => model._store.updateTool(model.id, patch);
+  const updateTool = (patch) => model._store.updateTool(model.id, patch);
 
   publicAPI.getOrigin = () => {
     return getTool()?.[model.key];
   };
 
   publicAPI.setOrigin = (xyz) => {
-    updatePolygon({
+    updateTool({
       [model.key]: xyz,
     });
     publicAPI.modified();
