@@ -176,37 +176,62 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return macro.EVENT_ABORT;
   };
 
+  const reset = () => {
+    publicAPI.loseFocus();
+    model.widgetState.clearHandles();
+  };
+
   // --------------------------------------------------------------------------
   // Escape key: clear handles
   // --------------------------------------------------------------------------
 
   publicAPI.handleKeyDown = ({ key }: any) => {
     if (model.widgetState.getPlacing() && key === 'Escape') {
-      publicAPI.loseFocus();
-      model.widgetState.clearHandles();
+      reset();
+      return macro.EVENT_ABORT;
     }
+
+    return macro.VOID;
   };
 
   // Called when mouse moves off handle.
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
-    model.activeState = null; // disables right click
+    // Context menu pops only if hovering over a handle.
+    // Stops right clicking anywhere brining up context menu.
+    model.activeState = null;
   };
 
+  const removeLastHandle = () => {
+    const handles = model.widgetState.getHandles();
+    if (handles.length > 0) {
+      model.widgetState.removeHandle(handles.length - 1);
+      if (handles.length === 0) {
+        reset();
+      }
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // Right press: Remove last handle / Pop context menu
+  // --------------------------------------------------------------------------
+
   publicAPI.handleRightButtonPress = (eventData: any) => {
-    if (
-      ignoreKey(eventData) ||
-      model.widgetState.getPlacing() ||
-      !model.activeState
-    ) {
+    if (ignoreKey(eventData) || !model.activeState) {
       return macro.VOID;
     }
+
+    if (model.widgetState.getPlacing()) {
+      removeLastHandle();
+      return macro.EVENT_ABORT;
+    }
+
     publicAPI.invokeRightClickEvent(eventData);
     return macro.EVENT_ABORT;
   };
 
   // --------------------------------------------------------------------------
-  // Focus API - After first point dropped, make moveHandle follow mouse
+  // Focus API: After first point dropped, make moveHandle follow mouse
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {

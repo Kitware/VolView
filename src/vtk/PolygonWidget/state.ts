@@ -90,6 +90,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   model.labels = {
     [MoveHandleLabel]: [moveHandle],
+    [HandlesLabel]: [model.handles],
   };
 
   publicAPI.getPlacing = () => getTool().placing;

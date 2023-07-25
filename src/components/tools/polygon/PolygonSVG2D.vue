@@ -9,7 +9,7 @@
       :stroke="color"
       stroke-width="1"
       fill="transparent"
-      :r="10 / devicePixelRatio"
+      :r="4 / devicePixelRatio"
     />
     <polyline
       :points="linePoints"
