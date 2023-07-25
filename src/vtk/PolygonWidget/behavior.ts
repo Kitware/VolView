@@ -25,6 +25,31 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return e.altKey || e.controlKey || e.shiftKey;
   }
 
+  function isFinishable() {
+    // Check distance to first point?
+    const handles = model.widgetState.getHandles();
+
+    const moveHandle = model.widgetState.getMoveHandle();
+    if (model.activeState === moveHandle && handles.length >= 3) {
+      const moveCoords = model._apiSpecificRenderWindow.worldToDisplay(
+        ...moveHandle.getOrigin(),
+        model._renderer
+      );
+      const firstCoords = model._apiSpecificRenderWindow.worldToDisplay(
+        ...handles[0].getOrigin(),
+        model._renderer
+      );
+      if (!moveCoords || !firstCoords) return false;
+
+      const cssPixelDistance =
+        FINISHABLE_DISTANCE *
+        model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
+      const distance = distance2BetweenPoints(firstCoords, moveCoords);
+      return distance < cssPixelDistance;
+    }
+    return false;
+  }
+
   function updateActiveStateHandle(callData: any) {
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
@@ -44,31 +69,20 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.activeState.setOrigin // e.g. the line is pickable but not draggable
     ) {
       model.activeState.setOrigin(worldCoords);
+
+      model.widgetState.setFinshable(isFinishable());
+
+      if (model.widgetState.getFinshable())
+        // snap to first point
+        model.activeState.setOrigin(
+          model.widgetState.getHandles()[0].getOrigin()
+        );
+
       publicAPI.invokeInteractionEvent();
 
       return macro.EVENT_ABORT;
     }
     return macro.VOID;
-  }
-
-  function isFinishable() {
-    // Check distance to first point?
-    const handles = model.widgetState.getHandles();
-    if (handles.length >= 3) {
-      const moveCoords = model._apiSpecificRenderWindow.worldToDisplay(
-        ...model.widgetState.getMoveHandle().getOrigin(),
-        model._renderer
-      );
-      const firstCoords = model._apiSpecificRenderWindow.worldToDisplay(
-        ...handles[0].getOrigin(),
-        model._renderer
-      );
-      if (moveCoords && firstCoords)
-        return (
-          distance2BetweenPoints(firstCoords, moveCoords) < FINISHABLE_DISTANCE
-        );
-    }
-    return false;
   }
 
   // --------------------------------------------------------------------------
@@ -139,7 +153,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       !ignoreKey(callData)
     ) {
       if (updateActiveStateHandle(callData) === macro.EVENT_ABORT) {
-        model.widgetState.setFinshable(isFinishable());
         return macro.EVENT_ABORT;
       }
     }

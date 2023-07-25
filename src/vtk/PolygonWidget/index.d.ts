@@ -13,6 +13,7 @@ export interface vtkPolygonWidgetPointState extends vtkWidgetState {
 }
 
 export interface vtkPolygonWidgetState extends vtkWidgetState {
+  getMoveHandle(): any;
   clearHandles(): void;
   getPlacing(): boolean;
   setPlacing(is: boolean): void;
