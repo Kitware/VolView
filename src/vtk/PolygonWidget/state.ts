@@ -98,6 +98,12 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     getTool().placing = placing;
   };
 
+  model.finishable = false;
+  publicAPI.getFinshable = () => model.finishable;
+  publicAPI.setFinshable = (is: boolean) => {
+    model.finishable = is;
+  };
+
   // After deserialize, initialize handles
   getTool().points.forEach((point: Vector3) => {
     const handle = publicAPI.addHandle(false);

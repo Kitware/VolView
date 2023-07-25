@@ -1,4 +1,4 @@
-import vtkMath from '@kitware/vtk.js/Common/Core/Math';
+import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
 
 const FINISHABLE_DISTANCE = 60;
@@ -51,16 +51,22 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return macro.VOID;
   }
 
-  function computeIsFinishable() {
-    // Check if finishable by distance to first point?
+  function isFinishable() {
+    // Check distance to first point?
     const handles = model.widgetState.getHandles();
-    if (handles.length > 0) {
-      const moveCoords = model.widgetState.getMoveHandle().getOrigin();
-      const firstCoords = handles[0].getOrigin();
-      // FIXME: use distance in pixel space
-      const distance = vtkMath.distance2BetweenPoints(firstCoords, moveCoords);
-
-      return distance < FINISHABLE_DISTANCE;
+    if (handles.length >= 3) {
+      const moveCoords = model._apiSpecificRenderWindow.worldToDisplay(
+        ...model.widgetState.getMoveHandle().getOrigin(),
+        model._renderer
+      );
+      const firstCoords = model._apiSpecificRenderWindow.worldToDisplay(
+        ...handles[0].getOrigin(),
+        model._renderer
+      );
+      if (moveCoords && firstCoords)
+        return (
+          distance2BetweenPoints(firstCoords, moveCoords) < FINISHABLE_DISTANCE
+        );
     }
     return false;
   }
@@ -91,7 +97,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       }
       updateActiveStateHandle(e);
 
-      if (computeIsFinishable()) {
+      if (model.widgetState.getFinshable()) {
         model.widgetState.setPlacing(false);
         publicAPI.loseFocus();
         publicAPI.invokePlacedEvent();
@@ -133,6 +139,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       !ignoreKey(callData)
     ) {
       if (updateActiveStateHandle(callData) === macro.EVENT_ABORT) {
+        model.widgetState.setFinshable(isFinishable());
         return macro.EVENT_ABORT;
       }
     }

@@ -173,8 +173,17 @@ export default defineComponent({
       widgetManager.value.renderWidgets();
     });
 
+    // when movePoint/mouse changes, get finishable manually as its not in store
+    const finshable = ref(false);
+    const movePoint = computed(() => tool.value?.movePoint);
+    watch([movePoint], () => {
+      finshable.value =
+        !!widget.value && widget.value.getWidgetState().getFinshable();
+    });
+
     return {
       tool,
+      finshable,
     };
   },
 });
@@ -188,5 +197,6 @@ export default defineComponent({
     :color="tool.color"
     :move-point="tool.movePoint"
     :placing="tool.placing"
+    :finshable="finshable"
   />
 </template>

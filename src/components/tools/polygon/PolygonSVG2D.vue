@@ -2,14 +2,14 @@
   <g>
     <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
     <circle
-      v-for="([x, y], index) in handlePoints"
+      v-for="({ point: [x, y], radius }, index) in handlePoints"
       :key="index"
       :cx="x"
       :cy="y"
       :stroke="color"
       stroke-width="1"
       fill="transparent"
-      :r="4 / devicePixelRatio"
+      :r="radius"
     />
     <polyline
       :points="linePoints"
@@ -56,34 +56,54 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    finshable: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
-    const { viewId: viewID, points, movePoint, placing } = toRefs(props);
+    const {
+      viewId: viewID,
+      points,
+      movePoint,
+      placing,
+      finshable,
+    } = toRefs(props);
 
     const viewStore = useViewStore();
     const viewProxy = computed(
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
     );
 
-    const handlePoints = ref<Array<Vector2>>([]);
+    const handlePoints = ref<Array<{ point: Vector2; radius: number }>>([]);
     const linePoints = ref<string>('');
 
     const updatePoints = () => {
       const viewRenderer = viewProxy.value.getRenderer();
       const svgPoints = points.value.map((point) => {
         const point2D = worldToSVG(point, viewRenderer);
-        return point2D ?? ([0, 0] as Vector2);
+        return {
+          point: point2D ?? ([0, 0] as Vector2),
+          radius: 4 / devicePixelRatio,
+        };
       });
+
+      if (finshable.value && placing.value) {
+        svgPoints[0].radius = 8 / devicePixelRatio;
+      }
 
       if (svgPoints.length > 0 && placing.value && movePoint.value) {
         const moveHandlePoint =
           worldToSVG(movePoint.value, viewRenderer) ?? ([0, 0] as Vector2);
-        svgPoints.push(moveHandlePoint);
+        svgPoints.push({
+          point: moveHandlePoint,
+          radius: 2,
+        });
       }
 
       handlePoints.value = svgPoints;
 
-      const lines = handlePoints.value.map((point2D) => point2D?.join(','));
+      const lines = handlePoints.value.map(({ point }) => point?.join(','));
       if (!placing.value) {
         // Close the polygon
         lines.push(lines[0]);
