@@ -2,7 +2,7 @@ import macro from '@kitware/vtk.js/macros';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
 
-import createPointState from './pointState';
+import createPointState from '../ToolWidgetUtils/pointState';
 
 export const PointsLabel = 'points';
 

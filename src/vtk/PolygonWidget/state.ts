@@ -5,7 +5,7 @@ import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
 import { Vector3 } from '@kitware/vtk.js/types';
 
-import createPointState from './pointState';
+import createPointState from '../ToolWidgetUtils/pointState';
 
 export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
