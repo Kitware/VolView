@@ -38,7 +38,13 @@ import { serialize } from '../io/state-file';
 const DEFAULT_FILENAME = 'session.volview.zip';
 
 export default defineComponent({
-  setup(_, { emit }) {
+  props: {
+    close: {
+      type: Function,
+      required: true,
+    },
+  },
+  setup(props) {
     const fileName = ref('');
     const valid = ref(true);
     const saving = ref(false);
@@ -49,7 +55,7 @@ export default defineComponent({
         try {
           const blob = await serialize();
           saveAs(blob, fileName.value);
-          emit('close');
+          props.close();
         } finally {
           saving.value = false;
         }

@@ -166,7 +166,9 @@
         </closeable-dialog>
 
         <closeable-dialog v-model="saveDialog" max-width="30%">
-          <save-session />
+          <template v-slot="{ close }">
+            <save-session :close="close" />
+          </template>
         </closeable-dialog>
 
         <closeable-dialog v-model="dataSecurityDialog">
