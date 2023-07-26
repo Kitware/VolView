@@ -22,6 +22,13 @@ const newLabelDefault = {
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
 
+  const annotationTool = useAnnotationTool({
+    toolDefaults: rulerDefaults,
+    initialLabels: RULER_LABEL_DEFAULTS,
+    newLabelDefault,
+  });
+
+  // prefix some props with ruler
   const {
     toolIDs: rulerIDs,
     toolByID: rulerByID,
@@ -32,14 +39,7 @@ export const useRulerStore = defineStore('ruler', () => {
     jumpToTool: jumpToRuler,
     serialize: serializeTool,
     deserialize: deserializeTool,
-    activateTool,
-    deactivateTool,
-    ...rest // label tools
-  } = useAnnotationTool({
-    toolDefaults: rulerDefaults,
-    initialLabels: RULER_LABEL_DEFAULTS,
-    newLabelDefault,
-  });
+  } = annotationTool;
 
   const lengthByID = computed<Record<string, number>>(() => {
     const byID = rulerByID.value;
@@ -66,7 +66,7 @@ export const useRulerStore = defineStore('ruler', () => {
   }
 
   return {
-    ...rest,
+    ...annotationTool, // support useAnnotationTool interface (for MeasurementsToolList)
     rulerIDs,
     rulerByID,
     rulers,
@@ -77,7 +77,5 @@ export const useRulerStore = defineStore('ruler', () => {
     jumpToRuler,
     serialize,
     deserialize,
-    activateTool,
-    deactivateTool,
   };
 });

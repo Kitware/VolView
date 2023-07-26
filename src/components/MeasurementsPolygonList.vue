@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import MeasurementsToolList from '@/src/components/MeasurementsToolList.vue';
-import { useRectangleStore } from '../store/tools/rectangles';
+import { usePolygonStore } from '@/src/store/tools/polygons';
 
-const toolStore = useRectangleStore();
+const rectStore = usePolygonStore();
 </script>
 
 <template>
   <MeasurementsToolList
-    :toolStore="toolStore as any"
-    icon="mdi-vector-square"
+    :toolStore="rectStore as any"
+    icon="mdi-vector-polygon"
   />
 </template>

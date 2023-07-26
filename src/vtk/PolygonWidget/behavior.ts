@@ -26,11 +26,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   }
 
   function isFinishable() {
-    // Check distance to first point?
     const handles = model.widgetState.getHandles();
-
     const moveHandle = model.widgetState.getMoveHandle();
+
     if (model.activeState === moveHandle && handles.length >= 3) {
+      // Check moveHandle distance to first handle
       const moveCoords = model._apiSpecificRenderWindow.worldToDisplay(
         ...moveHandle.getOrigin(),
         model._renderer
@@ -47,6 +47,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       const distance = distance2BetweenPoints(firstCoords, moveCoords);
       return distance < cssPixelDistance;
     }
+
     return false;
   }
 

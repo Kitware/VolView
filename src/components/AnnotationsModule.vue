@@ -2,6 +2,7 @@
 import { defineComponent } from 'vue';
 import MeasurementsRulerList from './MeasurementsRulerList.vue';
 import MeasurementsRectangleList from './MeasurementsRectangleList.vue';
+import MeasurementsPolygonList from './MeasurementsPolygonList.vue';
 import LabelmapList from './LabelmapList.vue';
 import ToolControls from './ToolControls.vue';
 
@@ -9,6 +10,7 @@ export default defineComponent({
   components: {
     MeasurementsRulerList,
     MeasurementsRectangleList,
+    MeasurementsPolygonList,
     LabelmapList,
     ToolControls,
   },
@@ -23,6 +25,7 @@ export default defineComponent({
     <div class="content">
       <measurements-ruler-list />
       <measurements-rectangle-list />
+      <measurements-polygon-list />
     </div>
     <div class="text-caption text-center empty-state">No measurements</div>
     <div class="header">Labelmaps</div>
