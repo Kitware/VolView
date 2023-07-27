@@ -1,8 +1,4 @@
-import * as path from 'path';
 import Page from './page';
-import { projectRoot } from '../e2eTestUtils';
-
-const ROOT = projectRoot();
 
 async function waitUntilDownloaded(sample: WebdriverIO.Element, name: string) {
   return sample.$('i[class~="mdi-check"]').waitForExist({
@@ -16,16 +12,16 @@ class VolViewPage extends Page {
     return $('div[data-testid="samples-list"]');
   }
 
-  get ctaHeadAndNeckSample() {
-    return this.samplesList.$('div[title="CTA Head and Neck"]');
+  get prostateSample() {
+    return this.samplesList.$('div[title="MRI PROSTATEx"]');
   }
 
   get layoutGrid() {
     return $('div[data-testid="layout-grid"]');
   }
 
-  async downloadHeadAndNeckSample() {
-    const sample = await this.ctaHeadAndNeckSample;
+  async downloadProstateSample() {
+    const sample = await this.prostateSample;
     await sample.click();
 
     await waitUntilDownloaded(sample, 'CTA Head and Neck');
@@ -43,16 +39,6 @@ class VolViewPage extends Page {
         views.length > 0 && views.every((view) => view.isDisplayedInViewport())
       );
     });
-
-    // This ensures the elements have been painted. No image comparison
-    // is done here.
-    await Promise.all(
-      (
-        await this.views
-      ).map(async (el, idx) => {
-        return el.saveScreenshot(path.join(ROOT, `.tmp/views-${idx}.png`));
-      })
-    );
   }
 }
 

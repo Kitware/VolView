@@ -8,28 +8,12 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
-import { NodeTransform } from '@vue/compiler-dom';
 
 import pkgLock from './package-lock.json';
-
-const IS_TESTING = process.env.BUILD_MODE === 'test';
 
 function resolve(...args) {
   return normalizePath(resolvePath(...args));
 }
-
-const TEST_ID_ATTR = 'data-testid';
-
-const removeTestIdAttrs: NodeTransform = (node) => {
-  if (node.type === 1 /* NodeTypes.ELEMENT */) {
-    // eslint-disable-next-line no-param-reassign
-    node.props = node.props.filter((prop) => {
-      return (
-        prop.type !== 6 /* NodeTypes.ATTRIBUTE */ || prop.name !== TEST_ID_ATTR
-      );
-    });
-  }
-};
 
 const rootDir = resolve(__dirname);
 const nodeModulesDir = resolve(rootDir, 'node_modules');
@@ -119,14 +103,7 @@ export default defineConfig({
       __SENTRY_DEBUG__: false,
       __SENTRY_TRACING__: false,
     }),
-    vue({
-      template: {
-        transformAssetUrls,
-        compilerOptions: {
-          nodeTransforms: !IS_TESTING ? [removeTestIdAttrs] : [],
-        },
-      },
-    }),
+    vue({ template: { transformAssetUrls } }),
     vuetify({
       autoImport: true,
     }),
