@@ -1,7 +1,7 @@
 import { FrameOfReference } from '../utils/frameOfReference';
 
-export type AnnotationTool = {
-  id: string;
+export type AnnotationTool<ID extends string> = {
+  id: ID;
   /**
    * The associated image dataset.
    *

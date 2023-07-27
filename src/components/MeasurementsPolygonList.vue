@@ -6,8 +6,5 @@ const toolStore = usePolygonStore();
 </script>
 
 <template>
-  <MeasurementsToolList
-    :toolStore="toolStore as any"
-    icon="mdi-vector-polygon"
-  />
+  <MeasurementsToolList :toolStore="toolStore" icon="mdi-vector-polygon" />
 </template>

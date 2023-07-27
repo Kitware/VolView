@@ -25,6 +25,7 @@ module.exports = {
 
   globals: {
     globalThis: false, // not writeable
+    ToolID: 'readonly', // avoids no-undef error in Vue generic components
   },
 
   rules: {

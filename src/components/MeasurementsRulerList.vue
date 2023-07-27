@@ -6,7 +6,7 @@ const toolStore = useRulerStore();
 </script>
 
 <template>
-  <MeasurementsToolList :toolStore="toolStore as any" icon="mdi-ruler">
+  <MeasurementsToolList :toolStore="toolStore" icon="mdi-ruler">
     <template v-slot:details="{ tool }">
       <v-row>
         <v-col>

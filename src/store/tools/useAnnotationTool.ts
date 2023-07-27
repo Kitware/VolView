@@ -1,5 +1,5 @@
 import { Ref, computed, ref, watch } from 'vue';
-import { Store } from 'pinia';
+import { Store, StoreActions, StoreState } from 'pinia';
 
 import { Maybe, PartialWithRequired } from '@/src/types';
 import { TOOL_COLORS } from '@/src/config';
@@ -41,9 +41,9 @@ export const useAnnotationTool = <
   newLabelDefault: Label<LabelProps>;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
-  type Tool = ToolDefaults & AnnotationTool;
+  type ToolID = ToolDefaults['id'];
+  type Tool = ToolDefaults & AnnotationTool<ToolID>;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
-  type ToolID = Tool['id'];
 
   // cast to Ref<ToolID[]> needed. https://github.com/vuejs/core/issues/2136#issuecomment-693524663
   const toolIDs = ref<ToolID[]>([]) as Ref<ToolID[]>;
@@ -202,3 +202,17 @@ export const useAnnotationTool = <
     deserialize,
   };
 };
+
+type ToolFactory<ID extends string> = (...args: any) => AnnotationTool<ID>;
+type UseAnnotationTool<ID extends string> = ReturnType<
+  typeof useAnnotationTool<ToolFactory<ID>, unknown>
+>;
+
+type UseAnnotationToolNoSerialize<ID extends string> = Omit<
+  UseAnnotationTool<ID>,
+  'serialize' | 'deserialize'
+>;
+export type AnnotationToolStore<ID extends string> = StoreState<
+  UseAnnotationToolNoSerialize<ID>
+> &
+  StoreActions<UseAnnotationToolNoSerialize<ID>>;

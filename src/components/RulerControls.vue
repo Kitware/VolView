@@ -6,5 +6,5 @@ const activeToolStore = useRulerStore();
 </script>
 
 <template>
-  <LabelControls :labels-store="activeToolStore" />
+  <LabelControls :labelsStore="activeToolStore" />
 </template>

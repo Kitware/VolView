@@ -1,19 +1,10 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="ToolID extends string">
 import { computed } from 'vue';
-import { StoreState, StoreActions } from 'pinia';
-import { useCurrentImage } from '../composables/useCurrentImage';
-import { useAnnotationTool } from '../store/tools/useAnnotationTool';
-import { AnnotationTool } from '../types/annotation-tool';
-
-type ToolFactory = (...args: any) => AnnotationTool;
-type UseAnnotationTool = ReturnType<
-  typeof useAnnotationTool<ToolFactory, unknown>
->;
-type AnnotationToolStore = StoreState<UseAnnotationTool> &
-  StoreActions<UseAnnotationTool>;
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 
 const props = defineProps<{
-  toolStore: AnnotationToolStore;
+  toolStore: AnnotationToolStore<ToolID>;
   icon: string;
 }>();
 
@@ -26,11 +17,11 @@ const tools = computed(() => {
     .filter((tool) => !tool.placing && tool.imageID === currentImageID.value);
 });
 
-const remove = (id: string) => {
+const remove = (id: ToolID) => {
   props.toolStore.removeTool(id);
 };
 
-const jumpTo = (id: string) => {
+const jumpTo = (id: ToolID) => {
   props.toolStore.jumpToTool(id);
 };
 </script>

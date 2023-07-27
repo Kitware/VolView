@@ -8,6 +8,5 @@ export type Polygon = {
    * Points is in image index space.
    */
   points: Array<Vector3>;
-  id: PolygonID;
   movePoint: Vector3;
-} & AnnotationTool;
+} & AnnotationTool<PolygonID>;

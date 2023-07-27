@@ -6,8 +6,5 @@ const toolStore = useRectangleStore();
 </script>
 
 <template>
-  <MeasurementsToolList
-    :toolStore="toolStore as any"
-    icon="mdi-vector-square"
-  />
+  <MeasurementsToolList :toolStore="toolStore" icon="mdi-vector-square" />
 </template>

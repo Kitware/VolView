@@ -259,7 +259,7 @@ const annotationTool = z.object({
   color: z.string(),
   label: z.string().optional(),
   labelName: z.string().optional(),
-}) satisfies z.ZodType<AnnotationTool>;
+}) satisfies z.ZodType<AnnotationTool<string>>;
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({ tools: z.array(tool), labels: z.record(tool.partial()) });
