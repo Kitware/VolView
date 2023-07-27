@@ -38,6 +38,10 @@ import {
   inject,
 } from 'vue';
 
+const POINT_RADIUS = 4;
+const FINISHABLE_POINT_RADIUS = 8;
+const MOVE_POINT_RADIUS = 2;
+
 export default defineComponent({
   props: {
     points: {
@@ -56,7 +60,7 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    finshable: {
+    finishable: {
       type: Boolean,
       default: false,
     },
@@ -67,7 +71,7 @@ export default defineComponent({
       points,
       movePoint,
       placing,
-      finshable,
+      finishable,
     } = toRefs(props);
 
     const viewStore = useViewStore();
@@ -75,7 +79,8 @@ export default defineComponent({
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
     );
 
-    const handlePoints = ref<Array<{ point: Vector2; radius: number }>>([]);
+    type SVGPoint = { point: Vector2; radius: number };
+    const handlePoints = ref<Array<SVGPoint>>([]);
     const linePoints = ref<string>('');
 
     const updatePoints = () => {
@@ -84,20 +89,22 @@ export default defineComponent({
         const point2D = worldToSVG(point, viewRenderer);
         return {
           point: point2D ?? ([0, 0] as Vector2),
-          radius: 4 / devicePixelRatio,
+          radius: POINT_RADIUS / devicePixelRatio,
         };
       });
 
-      if (finshable.value && placing.value) {
-        svgPoints[0].radius = 8 / devicePixelRatio;
+      // Indicate finishable
+      if (finishable.value && placing.value) {
+        svgPoints[0].radius = FINISHABLE_POINT_RADIUS / devicePixelRatio;
       }
 
+      // Show point under mouse if one point placed
       if (svgPoints.length > 0 && placing.value && movePoint.value) {
         const moveHandlePoint =
           worldToSVG(movePoint.value, viewRenderer) ?? ([0, 0] as Vector2);
         svgPoints.push({
           point: moveHandlePoint,
-          radius: 2,
+          radius: MOVE_POINT_RADIUS,
         });
       }
 

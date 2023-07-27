@@ -2,12 +2,12 @@
 import MeasurementsToolList from '@/src/components/MeasurementsToolList.vue';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 
-const rectStore = usePolygonStore();
+const toolStore = usePolygonStore();
 </script>
 
 <template>
   <MeasurementsToolList
-    :toolStore="rectStore as any"
+    :toolStore="toolStore as any"
     icon="mdi-vector-polygon"
   />
 </template>
