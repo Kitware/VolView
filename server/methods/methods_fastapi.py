@@ -6,9 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from volview_server import VolViewApi
 
-# Import the VolView example API
+# Import the VolView Methods API
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from example_api import volview
+from methods_api import volview
 
 
 app = FastAPI()
