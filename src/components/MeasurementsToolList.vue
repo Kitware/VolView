@@ -1,4 +1,5 @@
 <script setup lang="ts" generic="ToolID extends string">
+/* global ToolID:readonly */
 import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';

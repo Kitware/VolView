@@ -1,4 +1,5 @@
 <script setup lang="ts" generic="ToolID extends string">
+/* global ToolID:readonly */
 import { computed, ref, watch } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '../types/annotation-tool';

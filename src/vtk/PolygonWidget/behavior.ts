@@ -219,7 +219,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
     // Context menu pops only if hovering over a handle.
-    // Stops right clicking anywhere brining up context menu.
+    // Stops right clicking anywhere showing context menu.
     model.activeState = null;
   };
 
