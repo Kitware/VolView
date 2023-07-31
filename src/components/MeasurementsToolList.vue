@@ -2,19 +2,33 @@
 import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 
 const props = defineProps<{
   toolStore: AnnotationToolStore<ToolID>;
   icon: string;
 }>();
 
-const { currentImageID } = useCurrentImage();
+const { currentImageID, currentImageMetadata } = useCurrentImage();
 
 const tools = computed(() => {
   const byID = props.toolStore.toolByID;
   return props.toolStore.toolIDs
     .map((id) => byID[id])
-    .filter((tool) => !tool.placing && tool.imageID === currentImageID.value);
+    .filter((tool) => !tool.placing && tool.imageID === currentImageID.value)
+    .map((tool) => {
+      const { axis } = frameOfReferenceToImageSliceAndAxis(
+        tool.frameOfReference,
+        currentImageMetadata.value,
+        {
+          allowOutOfBoundsSlice: true,
+        }
+      ) ?? { axis: 'unknown' };
+      return {
+        ...tool,
+        axis,
+      };
+    });
 });
 
 const remove = (id: ToolID) => {
@@ -39,28 +53,25 @@ const jumpTo = (id: ToolID) => {
     <v-list-item-subtitle>
       <slot name="details" v-bind="{ tool }">
         <v-row>
-          <v-col>ID: {{ tool.id }}</v-col>
+          <v-col>Slice: {{ tool.slice + 1 }}</v-col>
+          <v-col>Axis: {{ tool.axis }}</v-col>
         </v-row>
       </slot>
     </v-list-item-subtitle>
     <template #append>
-      <v-row>
-        <v-btn
-          class="mr-2"
-          icon="mdi-target"
-          variant="text"
-          @click="jumpTo(tool.id)"
-        >
-          <v-icon>mdi-target</v-icon>
-          <v-tooltip location="top" activator="parent">
-            Reveal Slice
-          </v-tooltip>
-        </v-btn>
-        <v-btn icon="mdi-delete" variant="text" @click="remove(tool.id)">
-          <v-icon>mdi-delete</v-icon>
-          <v-tooltip location="top" activator="parent">Delete</v-tooltip>
-        </v-btn>
-      </v-row>
+      <v-btn
+        class="mr-2"
+        icon="mdi-target"
+        variant="text"
+        @click="jumpTo(tool.id)"
+      >
+        <v-icon>mdi-target</v-icon>
+        <v-tooltip location="top" activator="parent"> Reveal Slice </v-tooltip>
+      </v-btn>
+      <v-btn icon="mdi-delete" variant="text" @click="remove(tool.id)">
+        <v-icon>mdi-delete</v-icon>
+        <v-tooltip location="top" activator="parent">Delete</v-tooltip>
+      </v-btn>
     </template>
   </v-list-item>
 </template>
