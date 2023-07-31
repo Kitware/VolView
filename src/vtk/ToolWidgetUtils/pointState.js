@@ -58,7 +58,7 @@ function _createPointState(
 
 const createPointState = macro.newInstance(
   _createPointState,
-  'vtkPolygonWidgetStatePoint'
+  'vtkPointWidgetState'
 );
 
 export default createPointState;
