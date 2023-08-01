@@ -55,6 +55,8 @@ const levelToMetaKey = {
   series: 'SeriesInstanceUID',
 };
 
+type InitialDicomListFetchProgress = 'Idle' | 'Pending' | 'Done';
+
 /**
  * Collect DICOM data from DICOMWeb
  */
@@ -205,10 +207,10 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     }
   };
 
+  const fetchDicomsProgress = ref<InitialDicomListFetchProgress>('Idle');
   const fetchError = ref<undefined | unknown>(undefined);
-  let hasFetchedPatients = false;
   const fetchInitialDicoms = async () => {
-    hasFetchedPatients = true;
+    fetchDicomsProgress.value = 'Pending';
     fetchError.value = undefined;
     const dicoms = useDicomMetaStore();
     dicoms.$reset();
@@ -243,11 +245,13 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       const seriesID = Object.values(parsedURL.value).pop() as string;
       downloadVolume(seriesID);
     }
+
+    fetchDicomsProgress.value = 'Done';
   };
 
-  // Safe to call in ephemeral components' setup()
+  // Safe to call in components' setup()
   const fetchInitialDicomsOnce = () => {
-    if (!hasFetchedPatients) {
+    if (fetchDicomsProgress.value === 'Idle') {
       fetchInitialDicoms();
     }
   };
@@ -256,7 +260,10 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     if (fetchError.value)
       return `Error fetching DICOMWeb data: ${fetchError.value}`;
     const dicoms = useDicomMetaStore();
-    if (Object.values(dicoms.patientInfo).length === 0)
+    if (
+      fetchDicomsProgress.value === 'Done' &&
+      Object.values(dicoms.patientInfo).length === 0
+    )
       return 'Found zero dicoms.';
     return '';
   });
