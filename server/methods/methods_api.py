@@ -28,13 +28,18 @@ from median_filter_method import (
     median_filter_method,
 )
 
+
 ## Link to app ##
+
 
 volview = VolViewApi()
 
-## server-based methods ##
+
+## Allocate process pool ##
+
 
 process_pool = ProcessPoolExecutor(4)
+
 
 ## Compose the Client State ##
 
@@ -45,18 +50,9 @@ class CurrentClientState:
         self.median_filter = MedianFilterClientState()
 
 
-## The median filter is allocated to a process ##
-async def run_median_filter_process(process_pool, state):
-    loop = asyncio.get_event_loop()
-    serialized_output = await loop.run_in_executor(
-        process_pool,
-        median_filter_method,
-        state,
-    )
-    return serialized_output
+## Median filter ##
 
 
-## Median filter volview api ##
 @volview.expose("medianFilter")
 async def median_filter_api(input_image_id, radius):
     store = get_current_client_store("images")
@@ -72,8 +68,10 @@ async def median_filter_api(input_image_id, radius):
 
     # we need to run the median filter in a subprocess,
     # since itk blocks the GIL.
-    serialized_output = await run_median_filter_process(
+    loop = asyncio.get_event_loop()
+    serialized_output = await loop.run_in_executor(
         process_pool,
+        median_filter_method,
         state,
     )
 
