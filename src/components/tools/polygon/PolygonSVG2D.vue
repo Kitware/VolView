@@ -38,9 +38,9 @@ import {
   inject,
 } from 'vue';
 
-const POINT_RADIUS = 4;
-const FINISHABLE_POINT_RADIUS = 8;
-const MOVE_POINT_RADIUS = 2;
+const POINT_RADIUS = 10;
+const FINISHABLE_POINT_RADIUS = 16;
+const MOVE_POINT_RADIUS = 10;
 
 export default defineComponent({
   props: {
