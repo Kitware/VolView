@@ -7,6 +7,7 @@ import PatientBrowser from './PatientBrowser.vue';
 import PatientList from './dicom-web/PatientList.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
+import { useDataBrowserStore } from '../store/data-browser';
 import { removeFromArray } from '../utils';
 
 const SAMPLE_DATA_KEY = 'sampleData';
@@ -25,6 +26,7 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
     const imageStore = useImageStore();
     const dicomWeb = useDicomWebStore();
+    const dataBrowserStore = useDataBrowserStore();
 
     // TODO show patient ID in parens if there is a name conflict
     const patients = computed(() =>
@@ -61,6 +63,8 @@ export default defineComponent({
       }
     );
 
+    const hideSampleData = computed(() => dataBrowserStore.hideSampleData);
+
     return {
       panels,
       patients,
@@ -70,6 +74,7 @@ export default defineComponent({
       SAMPLE_DATA_KEY,
       ANONYMOUS_DATA_KEY,
       DICOM_WEB_KEY,
+      hideSampleData,
     };
   },
 });
@@ -78,7 +83,12 @@ export default defineComponent({
 <template>
   <div id="data-module" class="mx-1 fill-height">
     <div id="data-panels">
-      <v-expansion-panels v-model="panels" multiple variant="accordion">
+      <v-expansion-panels
+        v-model="panels"
+        multiple
+        variant="accordion"
+        class="no-panels"
+      >
         <v-expansion-panel
           v-if="hasAnonymousImages"
           :value="ANONYMOUS_DATA_KEY"
@@ -140,7 +150,7 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel :value="SAMPLE_DATA_KEY">
+        <v-expansion-panel v-if="!hideSampleData" :value="SAMPLE_DATA_KEY">
           <v-expansion-panel-title>
             <v-icon class="collection-header-icon">mdi-card-bulleted</v-icon>
             <span>Sample Data</span>
@@ -150,6 +160,7 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
+      <div class="empty-state ma-4 text-center">No data loaded</div>
     </div>
   </div>
 </template>
@@ -183,5 +194,13 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.empty-state {
+  display: none;
+}
+
+.no-panels:empty + .empty-state {
+  display: block;
 }
 </style>
