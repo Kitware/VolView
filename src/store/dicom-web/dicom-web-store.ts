@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useLocalStorage, UrlParams } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -67,14 +67,22 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     ? ref(VITE_DICOM_WEB_NAME)
     : useLocalStorage<string>('dicomWebHostName', '');
 
-  const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
-
   // URL param overrides env var, which overrides local storage
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
   const dicomWebFromURLParam = urlParams[DICOM_WEB_URL_PARAM] as
     | string
     | undefined;
   const hostConfig = dicomWebFromURLParam ?? VITE_DICOM_WEB_URL;
+
+  // Don't save URL param or env var to local storage. Only save user input.
+  const savedHost = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
+
+  const host = ref<string | null>(hostConfig ?? savedHost.value);
+
+  watch(savedHost, () => {
+    host.value = savedHost.value;
+  });
+
   if (hostConfig) host.value = hostConfig;
 
   // Remove trailing slash and pull study/series IDs from URL
