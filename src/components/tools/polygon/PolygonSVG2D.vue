@@ -9,7 +9,7 @@
       :stroke="color"
       stroke-width="1"
       fill="transparent"
-      :r="radius"
+      :r="radius / devicePixelRatio"
     />
     <polyline
       :points="linePoints"
@@ -40,7 +40,6 @@ import {
 
 const POINT_RADIUS = 10;
 const FINISHABLE_POINT_RADIUS = 16;
-const MOVE_POINT_RADIUS = 10;
 
 export default defineComponent({
   props: {
@@ -89,13 +88,13 @@ export default defineComponent({
         const point2D = worldToSVG(point, viewRenderer);
         return {
           point: point2D ?? ([0, 0] as Vector2),
-          radius: POINT_RADIUS / devicePixelRatio,
+          radius: POINT_RADIUS,
         };
       });
 
       // Indicate finishable
       if (finishable.value && placing.value) {
-        svgPoints[0].radius = FINISHABLE_POINT_RADIUS / devicePixelRatio;
+        svgPoints[0].radius = FINISHABLE_POINT_RADIUS;
       }
 
       // Show point under mouse if one point placed
@@ -104,7 +103,7 @@ export default defineComponent({
           worldToSVG(movePoint.value, viewRenderer) ?? ([0, 0] as Vector2);
         svgPoints.push({
           point: moveHandlePoint,
-          radius: MOVE_POINT_RADIUS,
+          radius: POINT_RADIUS,
         });
       }
 
