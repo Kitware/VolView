@@ -217,9 +217,13 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
   const fetchDicomsProgress = ref<InitialDicomListFetchProgress>('Idle');
   const fetchError = ref<undefined | unknown>(undefined);
+  // DICOMWeb DataBrowser components automatically expands panels if true
+  const linkedToStudyOrSeries = ref(false);
   const fetchInitialDicoms = async () => {
     fetchDicomsProgress.value = 'Pending';
     fetchError.value = undefined;
+    linkedToStudyOrSeries.value = false;
+
     const dicoms = useDicomMetaStore();
     dicoms.$reset();
     if (!cleanHost.value) return;
@@ -227,6 +231,9 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const deepestLevel = Object.keys(
       parsedURL.value
     ).pop() as keyof typeof fetchFunctions; // at least host key guaranteed to exist
+
+    linkedToStudyOrSeries.value =
+      deepestLevel === 'studies' || deepestLevel === 'series';
 
     const fetchFunc = fetchFunctions[deepestLevel];
     const urlIDs = omit(parsedURL.value, 'host');
@@ -267,12 +274,14 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const message = computed(() => {
     if (fetchError.value)
       return `Error fetching DICOMWeb data: ${fetchError.value}`;
+
     const dicoms = useDicomMetaStore();
     if (
       fetchDicomsProgress.value === 'Done' &&
       Object.values(dicoms.patientInfo).length === 0
     )
       return 'Found zero dicoms.';
+
     return '';
   });
 
@@ -300,6 +309,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     hostName,
     message,
     volumes,
+    linkedToStudyOrSeries,
     fetchInitialDicoms,
     fetchInitialDicomsOnce,
     fetchPatientMeta,

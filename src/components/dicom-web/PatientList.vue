@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref, watch } from 'vue';
 
 import { useDicomWebStore } from '@/src/store/dicom-web/dicom-web-store';
 import { useDicomMetaStore } from '@/src/store/dicom-web/dicom-meta-store';
@@ -11,9 +11,9 @@ export default defineComponent({
     PatientDetails,
   },
   setup() {
-    const dicomWeb = useDicomWebStore();
+    const dicomWebStore = useDicomWebStore();
     const dicomWebMeta = useDicomMetaStore();
-    dicomWeb.fetchInitialDicomsOnce();
+    dicomWebStore.fetchInitialDicomsOnce();
 
     const patients = computed(() =>
       Object.values(dicomWebMeta.patientInfo)
@@ -24,21 +24,43 @@ export default defineComponent({
         .sort((a, b) => (a.name < b.name ? -1 : 1))
     );
 
+    const patientKeys = computed(() => patients.value.map(({ key }) => key));
+    const panels = ref<string[]>([]);
+
+    watch(
+      patientKeys,
+      (keys) => {
+        if (dicomWebStore.linkedToStudyOrSeries)
+          panels.value = Array.from(new Set([...panels.value, ...keys]));
+      },
+      { immediate: true }
+    );
+
     return {
       patients,
-      dicomWeb,
+      dicomWebStore,
+      panels,
     };
   },
 });
 </script>
 
 <template>
-  <p v-if="dicomWeb.message.length > 0" class="error-message">
-    {{ dicomWeb.message }}
+  <p v-if="dicomWebStore.message.length > 0" class="error-message">
+    {{ dicomWebStore.message }}
   </p>
 
-  <v-expansion-panels v-else-if="patients.length > 0" multiple accordion>
-    <v-expansion-panel v-for="patient in patients" :key="patient.key">
+  <v-expansion-panels
+    v-else-if="patients.length > 0"
+    v-model="panels"
+    multiple
+    accordion
+  >
+    <v-expansion-panel
+      v-for="patient in patients"
+      :key="patient.key"
+      :value="patient.key"
+    >
       <v-expansion-panel-title>
         <div class="patient-header">
           <v-icon class="collection-header-icon">mdi-account</v-icon>
