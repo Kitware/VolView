@@ -18,13 +18,17 @@ from volview_server.transformers import (
     convert_vtkjs_to_itk_image,
 )
 
-from methods_utils import show_image
+from methods_utils import (
+    show_image,
+    CommonClientState,
+)
 
 from median_filter_method import (
-    MedianFilter_ClientState,
-    MedianFilter_ClientStateManager,
-    run_median_filter_process,
+    MedianFilterClientState,
+    median_filter_method,
 )
+
+## Link to app ##
 
 volview = VolViewApi()
 
@@ -32,27 +36,55 @@ volview = VolViewApi()
 
 process_pool = ProcessPoolExecutor(4)
 
-## Record the relationships between images and overlays ##
+## Compose the Client State ##
 
 
-## Median Filter Method ##
+class CurrentClientState:
+    def __init__(self):
+        self.common = CommonClientState()
+        self.median_filter = MedianFilterClientState()
 
 
+## The median filter is allocated to a process ##
+async def run_median_filter_process(process_pool, state):
+    loop = asyncio.get_event_loop()
+    serialized_output = await loop.run_in_executor(
+        process_pool,
+        median_filter_method,
+        state,
+    )
+    return serialized_output
+
+
+## Median filter volview api ##
 @volview.expose("medianFilter")
-async def median_filter(input_image_id, radius):
+async def median_filter_api(input_image_id, radius):
     store = get_current_client_store("images")
-    state = get_current_session(default_factory=MedianFilter_ClientState)
+    state = get_current_session(default_factory=CurrentClientState)
 
+    # Set state variables used by median filter - current_image
     image = await store.dataIndex[input_image_id]
+    serialized_image = convert_itk_to_vtkjs_image(image)
+    state.common.set_current_image(input_image_id, serialized_image)
+
+    # Set state variables used by median filter - radius
+    state.median_filter.set_radius(radius)
 
     # we need to run the median filter in a subprocess,
     # since itk blocks the GIL.
-    output_image = await run_median_filter_process(process_pool, image, radius)
+    serialized_output = await run_median_filter_process(
+        process_pool,
+        state,
+    )
 
-    output_image_id = await store.addVTKImageData("Median filtered image", output_image)
+    # convert image to back to itkImage
+    output_image = convert_vtkjs_to_itk_image(serialized_output)
+    output_image_id = await store.addVTKImageData(
+        "Median filtered image",
+        output_image,
+    )
+    state.common.associate_derived_image(input_image_id, output_image_id)
 
-    state_manager = MedianFilter_ClientStateManager
-    state_manager.associate_derived_image(state, input_image_id, output_image_id)
     await show_image(output_image_id)
 
 
