@@ -76,7 +76,7 @@
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
       <menu-tool-button
-        icon="mdi-vector-polygon"
+        icon="mdi-pentagon-outline"
         name="Polygon"
         :mobileOnlyMenu="true"
         :active="active"

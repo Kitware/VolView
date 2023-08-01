@@ -6,5 +6,5 @@ const toolStore = usePolygonStore();
 </script>
 
 <template>
-  <MeasurementsToolList :toolStore="toolStore" icon="mdi-vector-polygon" />
+  <MeasurementsToolList :toolStore="toolStore" icon="mdi-pentagon-outline" />
 </template>
