@@ -32,7 +32,7 @@ export default defineComponent({
     const { volumeKeys } = toRefs(props);
 
     // If deep linking for specific series, don't try to show other series initially, so filter.
-    const volumeKeysWithInstanceMeta = computed(() => {
+    const volumeKeysWithInstanceInfo = computed(() => {
       const { volumeInstances, instanceInfo } = dicomStore;
       return volumeKeys.value.filter(
         (volumeKey) => instanceInfo[volumeInstances[volumeKey][0]]
@@ -48,7 +48,7 @@ export default defineComponent({
       if (isFetching.value) return [];
 
       const { volumeInfo, volumeInstances, instanceInfo } = dicomStore;
-      return volumeKeysWithInstanceMeta.value.map((volumeKey) => {
+      return volumeKeysWithInstanceInfo.value.map((volumeKey) => {
         const { Rows: rows, Columns: columns } =
           instanceInfo[volumeInstances[volumeKey][0]];
         const info = volumeInfo[volumeKey];
@@ -68,7 +68,7 @@ export default defineComponent({
     const thumbnailCache = reactive<Record<string, string>>({});
 
     watch(
-      [volumeKeysWithInstanceMeta, isFetching],
+      [volumeKeysWithInstanceInfo, isFetching],
       ([keys, guard]) => {
         if (guard) return;
 

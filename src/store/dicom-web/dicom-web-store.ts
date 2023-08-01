@@ -83,8 +83,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     host.value = savedHost.value;
   });
 
-  if (hostConfig) host.value = hostConfig;
-
   // Remove trailing slash and pull study/series IDs from URL
   const parsedURL = computed(() => parseUrl(host.value ?? ''));
 
