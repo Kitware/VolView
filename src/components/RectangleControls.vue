@@ -6,5 +6,5 @@ const activeToolStore = useRectangleStore();
 </script>
 
 <template>
-  <LabelControls :labelsStore="activeToolStore" />
+  <label-controls :labels-store="activeToolStore" />
 </template>

@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <PolygonWidget2D
+      <polygon-widget-2D
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"

@@ -6,7 +6,7 @@ const toolStore = useRulerStore();
 </script>
 
 <template>
-  <MeasurementsToolList :toolStore="toolStore" icon="mdi-ruler">
+  <measurements-tool-list :toolStore="toolStore" icon="mdi-ruler">
     <template v-slot:details="{ tool }">
       <v-row>
         <v-col>Slice: {{ tool.slice + 1 }}</v-col>
@@ -19,5 +19,5 @@ const toolStore = useRulerStore();
         </v-col>
       </v-row>
     </template>
-  </MeasurementsToolList>
+  </measurements-tool-list>
 </template>

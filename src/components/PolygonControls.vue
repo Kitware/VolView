@@ -6,5 +6,5 @@ const activeToolStore = usePolygonStore();
 </script>
 
 <template>
-  <LabelControls :labelsStore="activeToolStore" />
+  <label-controls :labels-store="activeToolStore" />
 </template>

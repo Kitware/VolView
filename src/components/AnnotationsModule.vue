@@ -1,20 +1,25 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import MeasurementsRulerList from './MeasurementsRulerList.vue';
-import MeasurementsRectangleList from './MeasurementsRectangleList.vue';
-import MeasurementsPolygonList from './MeasurementsPolygonList.vue';
+import MeasurementsToolList from './MeasurementsToolList.vue';
 import LabelmapList from './LabelmapList.vue';
 import ToolControls from './ToolControls.vue';
+import { usePolygonStore } from '../store/tools/polygons';
+import { useRectangleStore } from '../store/tools/rectangles';
 
 export default defineComponent({
   components: {
     MeasurementsRulerList,
-    MeasurementsRectangleList,
-    MeasurementsPolygonList,
+    MeasurementsToolList,
     LabelmapList,
     ToolControls,
   },
-  setup() {},
+  setup() {
+    return {
+      rectangleStore: useRectangleStore(),
+      polygonStore: usePolygonStore(),
+    };
+  },
 });
 </script>
 
@@ -24,8 +29,14 @@ export default defineComponent({
     <div class="header">Measurements</div>
     <div class="content">
       <measurements-ruler-list />
-      <measurements-rectangle-list />
-      <measurements-polygon-list />
+      <measurements-tool-list
+        :tool-store="rectangleStore"
+        icon="mdi-vector-square"
+      />
+      <measurements-tool-list
+        :tool-store="polygonStore"
+        icon="mdi-pentagon-outline"
+      />
     </div>
     <div class="text-caption text-center empty-state">No measurements</div>
     <div class="header">Labelmaps</div>
