@@ -81,7 +81,10 @@ export default defineComponent({
 
     // Construct the common instance of vtkResliceCursorWidget and provide it
     // to all the child ObliqueView components.
-    const resliceCursor = ref<vtkResliceCursorWidget>(vtkResliceCursorWidget.newInstance());
+    const resliceCursor = ref<vtkResliceCursorWidget>(vtkResliceCursorWidget.newInstance({
+      scaleInPixels: true,
+      rotationHandlePosition: 0.75,
+    }));
     provide(VTKResliceCursor, resliceCursor);
     // Orient the planes of the vtkResliceCursorWidget to the orientation
     // of the currently set image.

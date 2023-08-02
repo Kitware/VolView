@@ -258,11 +258,17 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
     setImage(image: vtkImageData): void;
     setKeepOrthogonality(keepOrthogonality: boolean): void;
     setScaleInPixels(scaleInPixels: boolean): void;
+    setCursorStyles(styles: {
+      translateCenter: string,
+      rotateLine: string,
+      translateAxis: string,
+    }): boolean;
   }
 
   export interface ResliceCursorWidgetState extends vtkWidgetState {
     placeWidget(bounds: Bounds): void;
-    setScale1(scale: number): void;
+    setScale1(scale: number): boolean;
+    setScale3(scaleX: number, scaleY: number, scaleZ: number): boolean;
     getPlanes(): Record<number, { normal: Vector3, viewUp: Vector3, color3: Vector3 }>;
     setPlanes(planes: Record<number, { normal: Vector3, viewUp: Vector3, color3: Vector3 }>): void;
     getCenter(): Vector3;

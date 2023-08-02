@@ -54,8 +54,6 @@ export default defineComponent({
     }
 
     const state = resliceCursor.getWidgetState() as ResliceCursorWidgetState;
-    state.getStatesWithLabel('sphere').forEach((handle) => (handle as ResliceCursorWidgetState).setScale1(20));
-
     const widget = ref<vtkResliceCursorViewWidget>();
 
     const VTKViewType = computed(() => {
@@ -79,8 +77,15 @@ export default defineComponent({
           VTKViewType.value
         ) as vtkResliceCursorViewWidget;
 
-        widget.value.setScaleInPixels(true);
         widget.value.setKeepOrthogonality(true);
+        // reset mouse cursor styles
+        widget.value.setCursorStyles({
+          translateCenter: 'default',
+          rotateLine: 'default',
+          translateAxis: 'default',
+        });
+        state.getStatesWithLabel('sphere').forEach((handle) => (handle as ResliceCursorWidgetState).setScale1(10));
+        state.getStatesWithLabel('line').forEach((handle) => (handle as ResliceCursorWidgetState).setScale3(2, 2, 2));
 
         // update representation to not be as 3D
         widget.value.getRepresentations().forEach((rep) => {
