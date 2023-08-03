@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useLocalStorage, UrlParams } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -55,6 +55,8 @@ const levelToMetaKey = {
   series: 'SeriesInstanceUID',
 };
 
+type InitialDicomListFetchProgress = 'Idle' | 'Pending' | 'Done';
+
 /**
  * Collect DICOM data from DICOMWeb
  */
@@ -65,15 +67,21 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     ? ref(VITE_DICOM_WEB_NAME)
     : useLocalStorage<string>('dicomWebHostName', '');
 
-  const host = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
-
   // URL param overrides env var, which overrides local storage
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
   const dicomWebFromURLParam = urlParams[DICOM_WEB_URL_PARAM] as
     | string
     | undefined;
   const hostConfig = dicomWebFromURLParam ?? VITE_DICOM_WEB_URL;
-  if (hostConfig) host.value = hostConfig;
+
+  // Don't save URL param or env var to local storage. Only save user input.
+  const savedHost = useLocalStorage<string | null>('dicomWebHost', ''); // null if cleared by vuetify text input
+
+  const host = ref<string | null>(hostConfig ?? savedHost.value);
+
+  watch(savedHost, () => {
+    host.value = savedHost.value;
+  });
 
   // Remove trailing slash and pull study/series IDs from URL
   const parsedURL = computed(() => parseUrl(host.value ?? ''));
@@ -205,11 +213,15 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     }
   };
 
+  const fetchDicomsProgress = ref<InitialDicomListFetchProgress>('Idle');
   const fetchError = ref<undefined | unknown>(undefined);
-  let hasFetchedPatients = false;
+  // DICOMWeb DataBrowser components automatically expands panels if true
+  const linkedToStudyOrSeries = ref(false);
   const fetchInitialDicoms = async () => {
-    hasFetchedPatients = true;
+    fetchDicomsProgress.value = 'Pending';
     fetchError.value = undefined;
+    linkedToStudyOrSeries.value = false;
+
     const dicoms = useDicomMetaStore();
     dicoms.$reset();
     if (!cleanHost.value) return;
@@ -217,6 +229,9 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const deepestLevel = Object.keys(
       parsedURL.value
     ).pop() as keyof typeof fetchFunctions; // at least host key guaranteed to exist
+
+    linkedToStudyOrSeries.value =
+      deepestLevel === 'studies' || deepestLevel === 'series';
 
     const fetchFunc = fetchFunctions[deepestLevel];
     const urlIDs = omit(parsedURL.value, 'host');
@@ -243,11 +258,13 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       const seriesID = Object.values(parsedURL.value).pop() as string;
       downloadVolume(seriesID);
     }
+
+    fetchDicomsProgress.value = 'Done';
   };
 
-  // Safe to call in ephemeral components' setup()
+  // Safe to call in components' setup()
   const fetchInitialDicomsOnce = () => {
-    if (!hasFetchedPatients) {
+    if (fetchDicomsProgress.value === 'Idle') {
       fetchInitialDicoms();
     }
   };
@@ -255,9 +272,14 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const message = computed(() => {
     if (fetchError.value)
       return `Error fetching DICOMWeb data: ${fetchError.value}`;
+
     const dicoms = useDicomMetaStore();
-    if (Object.values(dicoms.patientInfo).length === 0)
+    if (
+      fetchDicomsProgress.value === 'Done' &&
+      Object.values(dicoms.patientInfo).length === 0
+    )
       return 'Found zero dicoms.';
+
     return '';
   });
 
@@ -285,6 +307,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     hostName,
     message,
     volumes,
+    linkedToStudyOrSeries,
     fetchInitialDicoms,
     fetchInitialDicomsOnce,
     fetchPatientMeta,

@@ -26,10 +26,18 @@ export default defineComponent({
   },
   components: { PersistentOverlay },
   setup(props) {
-    const { volumeKeys } = toRefs(props);
-
     const dicomStore = useDicomMetaStore();
     const dicomWebStore = useDicomWebStore();
+
+    const { volumeKeys } = toRefs(props);
+
+    // If deep linking for specific series, don't try to show other series initially, so filter.
+    const volumeKeysWithInstanceInfo = computed(() => {
+      const { volumeInstances, instanceInfo } = dicomStore;
+      return volumeKeys.value.filter(
+        (volumeKey) => instanceInfo[volumeInstances[volumeKey][0]]
+      );
+    });
 
     const isFetching = ref(true);
     dicomWebStore.fetchVolumesMeta(volumeKeys.value).then(() => {
@@ -40,7 +48,7 @@ export default defineComponent({
       if (isFetching.value) return [];
 
       const { volumeInfo, volumeInstances, instanceInfo } = dicomStore;
-      return volumeKeys.value.map((volumeKey) => {
+      return volumeKeysWithInstanceInfo.value.map((volumeKey) => {
         const { Rows: rows, Columns: columns } =
           instanceInfo[volumeInstances[volumeKey][0]];
         const info = volumeInfo[volumeKey];
@@ -60,7 +68,7 @@ export default defineComponent({
     const thumbnailCache = reactive<Record<string, string>>({});
 
     watch(
-      [volumeKeys, isFetching],
+      [volumeKeysWithInstanceInfo, isFetching],
       ([keys, guard]) => {
         if (guard) return;
 

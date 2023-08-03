@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref, toRefs } from 'vue';
+import { computed, defineComponent, ref, toRefs, watch } from 'vue';
 import { useDicomMetaStore } from '../../store/dicom-web/dicom-meta-store';
 import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';
 import StudyVolumeDicomWeb from './StudyVolumeDicomWeb.vue';
@@ -39,19 +39,38 @@ export default defineComponent({
       });
     });
 
+    const studyKeys = computed(() => studies.value.map(({ key }) => key));
+    const panels = ref<string[]>([]);
+
+    watch(
+      studyKeys,
+      (keys) => {
+        if (dicomWebStore.linkedToStudyOrSeries)
+          panels.value = Array.from(new Set([...panels.value, ...keys]));
+      },
+      { immediate: true }
+    );
+
     return {
       studies,
       isFetching,
+      panels,
     };
   },
 });
 </script>
 
 <template>
-  <v-expansion-panels id="patient-data-studies" accordion multiple>
+  <v-expansion-panels
+    id="patient-data-studies"
+    v-model="panels"
+    accordion
+    multiple
+  >
     <v-expansion-panel
       v-for="study in studies"
       :key="study.StudyInstanceUID"
+      :value="study.StudyInstanceUID"
       class="patient-data-study-panel"
     >
       <v-expansion-panel-title
