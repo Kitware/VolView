@@ -5,11 +5,11 @@ import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/GeometryRepresentationProxy';
-import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 
 import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
+import vtkObliqueRepresentationProxy from '@/src/vtk/ObliqueRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 
 function createProxyDefinition(
@@ -44,7 +44,7 @@ export default {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
     },
     Representations: {
-      ImageReslice: createProxyDefinition(vtkResliceRepresentationProxy),
+      ImageReslice: createProxyDefinition(vtkObliqueRepresentationProxy),
       ImageSlice: createProxyDefinition(vtkIJKSliceRepresentationProxy),
       LabelMapSlice: createProxyDefinition(vtkLabelMapSliceRepProxy),
       Volume: createProxyDefinition(vtkVolumeRepresentationProxy),

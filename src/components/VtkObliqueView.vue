@@ -147,7 +147,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
-import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
+import vtkObliqueRepresentationProxy from '@/src/vtk/ObliqueRepresentationProxy';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
@@ -316,10 +316,31 @@ export default defineComponent({
     });
 
     const { baseImageRep } = useSceneBuilder<
-      vtkResliceRepresentationProxy
+      vtkObliqueRepresentationProxy
     >(viewID, {
       baseImage: curImageID
     });
+
+    const obliqueRep = baseImageRep?.value;
+    if (obliqueRep) {
+      switch(viewDirection.value) {
+        case 'Left':
+        case 'Right':
+          obliqueRep.setOutlineColor([1, 0, 0]);
+          break;
+        case 'Posterior':
+        case 'Anterior':
+          obliqueRep.setOutlineColor([0, 1, 0]);
+          break;
+        case 'Superior':
+        case 'Inferior':
+          obliqueRep.setOutlineColor([0, 0, 1]);
+          break;
+        default:
+          obliqueRep.setOutlineColor([0, 0, 0]);
+          break;
+      };
+    }
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
