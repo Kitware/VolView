@@ -5,11 +5,13 @@ import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
+import { usePolygonStore } from '../store/tools/polygons';
 
 const applyLabelOffset = (offset: number) => {
   const toolToStore = {
     [Tools.Rectangle]: useRectangleStore(),
     [Tools.Ruler]: useRulerStore(),
+    [Tools.Polygon]: usePolygonStore(),
   };
   const toolStore = useToolStore();
 

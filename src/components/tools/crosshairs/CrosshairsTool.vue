@@ -27,8 +27,8 @@ import { Tools } from '@/src/store/tools/types';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { clampValue } from '@/src/utils';
-import CrosshairsWidget2D from './crosshairs/CrosshairsWidget2D.vue';
-import CrosshairSVG2D from './crosshairs/CrosshairSVG2D.vue';
+import CrosshairsWidget2D from './CrosshairsWidget2D.vue';
+import CrosshairSVG2D from './CrosshairSVG2D.vue';
 
 export default defineComponent({
   name: 'CrosshairsTool',

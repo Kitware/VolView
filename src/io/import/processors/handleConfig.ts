@@ -4,6 +4,7 @@ import { ImportHandler } from '@/src/io/import/common';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useDataBrowserStore } from '@/src/store/data-browser';
+import { usePolygonStore } from '@/src/store/tools/polygons';
 
 const color = z.string();
 
@@ -12,6 +13,7 @@ const label = z.object({
 });
 
 const rulerLabel = label;
+const polygonLabel = label;
 
 const rectangleLabel = z.intersection(
   label,
@@ -30,6 +32,7 @@ const config = z.object({
   labels: z.record(label).or(z.null()).optional(),
   rulerLabels: z.record(rulerLabel).or(z.null()).optional(),
   rectangleLabels: z.record(rectangleLabel).or(z.null()).optional(),
+  polygonLabels: z.record(polygonLabel).or(z.null()).optional(),
   dataBrowser,
 });
 
@@ -50,6 +53,7 @@ const applyLabels = (manifest: Config) => {
   };
   useRulerStore().mergeLabels(labelsIfUndefined(manifest.rulerLabels));
   useRectangleStore().mergeLabels(labelsIfUndefined(manifest.rectangleLabels));
+  usePolygonStore().mergeLabels(labelsIfUndefined(manifest.polygonLabels));
 };
 
 const applySampleData = (manifest: Config) => {

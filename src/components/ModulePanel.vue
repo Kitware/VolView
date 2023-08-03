@@ -65,7 +65,11 @@ export const Modules = [
   // },
 ];
 
-const autoSwitchToAnnotationsTools = [Tools.Rectangle, Tools.Ruler];
+const autoSwitchToAnnotationsTools = [
+  Tools.Rectangle,
+  Tools.Ruler,
+  Tools.Polygon,
+];
 
 export default defineComponent({
   name: 'ModulePanel',

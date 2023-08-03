@@ -74,6 +74,18 @@
         <rectangle-controls />
       </menu-tool-button>
     </groupable-item>
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
+      <menu-tool-button
+        icon="mdi-pentagon-outline"
+        name="Polygon"
+        :mobileOnlyMenu="true"
+        :active="active"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      >
+        <polygon-controls />
+      </menu-tool-button>
+    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
       <menu-tool-button
         icon="mdi-ruler"
@@ -114,10 +126,9 @@ import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
-import { useRectangleStore } from '../store/tools/rectangles';
-import { useRulerStore } from '../store/tools/rulers';
 import RulerControls from './RulerControls.vue';
 import RectangleControls from './RectangleControls.vue';
+import PolygonControls from './PolygonControls.vue';
 
 export default defineComponent({
   components: {
@@ -129,6 +140,7 @@ export default defineComponent({
     CropControls,
     RulerControls,
     RectangleControls,
+    PolygonControls,
   },
   setup() {
     const dataStore = useDatasetStore();
@@ -136,9 +148,6 @@ export default defineComponent({
 
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
-
-    const rectangleStore = useRectangleStore();
-    const rulerStore = useRulerStore();
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -155,8 +164,6 @@ export default defineComponent({
       Tools,
       paintMenu,
       cropMenu,
-      rectangleStore,
-      rulerStore,
     };
   },
 });

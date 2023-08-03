@@ -1,96 +1,23 @@
-<script lang="ts">
-import { computed, defineComponent } from 'vue';
-import { useCurrentImage } from '../composables/useCurrentImage';
-import { useRulerStore } from '../store/tools/rulers';
+<script setup lang="ts">
+import MeasurementsToolList from '@/src/components/MeasurementsToolList.vue';
+import { useRulerStore } from '@/src/store/tools/rulers';
 
-export default defineComponent({
-  setup() {
-    const rulerStore = useRulerStore();
-    const { currentImageID } = useCurrentImage();
-
-    const rulers = computed(() => {
-      const imageID = currentImageID.value;
-      const { lengthByID } = rulerStore;
-      return rulerStore.rulers
-        .filter((ruler) => ruler.imageID === imageID && !ruler.placing)
-        .map((ruler) => ({
-          ...ruler,
-          length: lengthByID[ruler.id],
-        }));
-    });
-
-    function remove(id: string) {
-      rulerStore.removeRuler(id);
-    }
-
-    function jumpTo(id: string) {
-      rulerStore.jumpToRuler(id);
-    }
-
-    return {
-      rulers,
-      remove,
-      jumpTo,
-    };
-  },
-});
+const toolStore = useRulerStore();
 </script>
 
 <template>
-  <v-list-item v-for="ruler in rulers" :key="ruler.id" lines="two">
-    <template #prepend>
-      <v-icon class="tool-icon">mdi-ruler</v-icon>
-      <div class="color-dot mr-3" :style="{ backgroundColor: ruler.color }" />
-    </template>
-    <v-list-item-title v-bind="$attrs">
-      {{ ruler.labelName }}
-    </v-list-item-title>
-    <v-list-item-subtitle>
+  <measurements-tool-list :toolStore="toolStore" icon="mdi-ruler">
+    <template v-slot:details="{ tool }">
       <v-row>
-        <v-col
-          >Length:
-          <span class="value">{{ ruler.length.toFixed(2) }}mm</span>
+        <v-col>Slice: {{ tool.slice + 1 }}</v-col>
+        <v-col>Axis: {{ tool.axis }}</v-col>
+        <v-col>
+          Length:
+          <span class="value">
+            {{ toolStore.lengthByID[tool.id].toFixed(2) }}mm
+          </span>
         </v-col>
-        <v-col>ID: {{ ruler.id }}</v-col>
-      </v-row>
-    </v-list-item-subtitle>
-    <template #append>
-      <v-row>
-        <v-btn
-          class="mr-2"
-          icon="mdi-target"
-          variant="text"
-          @click="jumpTo(ruler.id)"
-        >
-          <v-icon>mdi-target</v-icon>
-          <v-tooltip location="top" activator="parent">
-            Reveal Slice
-          </v-tooltip>
-        </v-btn>
-        <v-btn icon="mdi-delete" variant="text" @click="remove(ruler.id)">
-          <v-icon>mdi-delete</v-icon>
-          <v-tooltip location="top" activator="parent">Delete</v-tooltip>
-        </v-btn>
       </v-row>
     </template>
-  </v-list-item>
+  </measurements-tool-list>
 </template>
-
-<style src="@/src/components/styles/utils.css"></style>
-
-<style scoped>
-.empty-state {
-  text-align: center;
-}
-
-.color-dot {
-  width: 24px;
-  height: 24px;
-  background: yellow;
-  border-radius: 16px;
-}
-
-.tool-icon {
-  margin-inline-end: 12px;
-}
-</style>

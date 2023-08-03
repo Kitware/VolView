@@ -90,7 +90,7 @@ import useVolumeColoringStore, {
   DEFAULT_SPECULAR,
 } from '../store/view-configs/volume-coloring';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
-import CropTool from './tools/CropTool.vue';
+import CropTool from './tools/crop/CropTool.vue';
 import PanTool from './tools/PanTool.vue';
 import { useWidgetManager } from '../composables/useWidgetManager';
 import { VTKThreeViewWidgetManager } from '../constants';

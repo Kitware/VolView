@@ -6,13 +6,14 @@ import vtkPiecewiseFunctionProxy, {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
+import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
 import { Ruler } from '@/src/types/ruler';
 import { Rectangle } from '@/src/types/rectangle';
+import { Polygon } from '@/src/types/polygon';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { Optional } from '@/src/types';
-import { AnnotationTool } from '@/src/types/annotationTool';
 
 import {
   CameraConfig,
@@ -50,7 +51,7 @@ const LPSAxisDir = z.union([
   z.literal('Anterior'),
   z.literal('Superior'),
   z.literal('Inferior'),
-]) satisfies z.ZodType<LPSAxisDir>;
+]);
 
 const Dataset = z.object({
   id: z.string(),
@@ -249,7 +250,7 @@ const FrameOfReference = z.object({
   planeNormal: Vector3,
 }) satisfies z.ZodType<FrameOfReference>;
 
-const AnnotationTool = z.object({
+const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
@@ -258,12 +259,12 @@ const AnnotationTool = z.object({
   color: z.string(),
   label: z.string().optional(),
   labelName: z.string().optional(),
-}) satisfies z.ZodType<AnnotationTool>;
+}) satisfies z.ZodType<AnnotationTool<string>>;
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({ tools: z.array(tool), labels: z.record(tool.partial()) });
 
-const Ruler = AnnotationTool.extend({
+const Ruler = annotationTool.extend({
   firstPoint: Vector3,
   secondPoint: Vector3,
 }) satisfies z.ZodType<Ruler>;
@@ -276,6 +277,13 @@ const Rectangle = Ruler.extend({
 }) satisfies z.ZodType<Optional<Rectangle, 'fillColor'>>;
 
 const Rectangles = makeToolEntry(Rectangle);
+
+const Polygon = annotationTool.extend({
+  id: z.string() as unknown as z.ZodType<Polygon['id']>,
+  points: z.array(Vector3),
+}) satisfies z.ZodType<Omit<Polygon, 'movePoint'>>;
+
+const Polygons = makeToolEntry(Polygon);
 
 const Crosshairs = z.object({
   position: Vector3,
@@ -303,6 +311,7 @@ const Cropping = z.record(LPSCroppingPlanes);
 const Tools = z.object({
   rulers: Rulers.optional(),
   rectangles: Rectangles.optional(),
+  polygons: Polygons.optional(),
   crosshairs: Crosshairs,
   paint: Paint,
   crop: Cropping,

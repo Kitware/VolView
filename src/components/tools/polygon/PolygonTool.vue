@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RectangleWidget2D
+      <polygon-widget-2D
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"
@@ -50,7 +50,6 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-import RectangleWidget2D from '@/src/components/tools/rectangle/RectangleWidget2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -58,15 +57,17 @@ import {
   FrameOfReference,
   frameOfReferenceToImageSliceAndAxis,
 } from '@/src/utils/frameOfReference';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { Rectangle, RectangleID } from '@/src/types/rectangle';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { Polygon, PolygonID } from '@/src/types/polygon';
+import PolygonWidget2D from './PolygonWidget2D.vue';
 
-type ToolID = RectangleID;
-type Tool = Rectangle;
-const useActiveToolStore = useRectangleStore;
+type ToolID = PolygonID;
+type Tool = Polygon;
+const useActiveToolStore = usePolygonStore;
+const toolType = Tools.Polygon;
 
 export default defineComponent({
-  name: 'RectangleTool',
+  name: 'PolygonTool',
   props: {
     viewId: {
       type: String,
@@ -86,7 +87,7 @@ export default defineComponent({
     },
   },
   components: {
-    RectangleWidget2D,
+    PolygonWidget2D,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -95,12 +96,10 @@ export default defineComponent({
     const { tools, activeLabel } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const isToolActive = computed(
-      () => toolStore.currentTool === Tools.Rectangle
-    );
+    const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const placingToolID = ref<RectangleID | null>(null);
+    const placingToolID = ref<ToolID | null>(null);
 
     // --- active tool management --- //
 
@@ -165,7 +164,6 @@ export default defineComponent({
 
     // --- updating active tool frame --- //
 
-    // TODO useCurrentFrameOfReference(viewDirection)
     const getCurrentFrameOfReference = (): FrameOfReference => {
       const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
       const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
@@ -179,8 +177,8 @@ export default defineComponent({
         planeOrigin,
       };
     };
-    // update active ruler's frame + slice, since the
-    // active ruler is not finalized.
+    // update active tool's frame + slice, since the
+    // active tool is not finalized.
     watch(
       [currentSlice, placingToolID] as const,
       ([slice, toolID]) => {

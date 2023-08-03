@@ -36,29 +36,29 @@ function _createPointState(
   visibleMixin.extend(publicAPI, model, { visible });
   scale1Mixin.extend(publicAPI, model, { scale1: PIXEL_SIZE });
 
-  const getRuler = () => {
-    return model._store.rulerByID[model.id];
+  const getTool = () => {
+    return model._store.toolByID[model.id];
   };
 
-  const updateRuler = (patch) => model._store.updateRuler(model.id, patch);
+  const updateTool = (patch) => model._store.updateTool(model.id, patch);
 
   publicAPI.getOrigin = () => {
-    return getRuler()?.[model.key];
+    return getTool()?.[model.key];
   };
 
   publicAPI.setOrigin = (xyz) => {
-    updateRuler({
+    updateTool({
       [model.key]: xyz,
     });
     publicAPI.modified();
   };
 
-  watchStore(publicAPI, model._store, () => getRuler()?.[model.key]);
+  watchStore(publicAPI, model._store, () => getTool()?.[model.key]);
 }
 
 const createPointState = macro.newInstance(
   _createPointState,
-  'vtkRulerWidgetStatePoint'
+  'vtkPointWidgetState'
 );
 
 export default createPointState;

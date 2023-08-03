@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { useRulerStore } from '@src/store/tools/rulers';
+import { usePolygonStore } from '@src/store/tools/polygons';
 import LabelControls from '@src/components/LabelControls.vue';
 
-const activeToolStore = useRulerStore();
+const activeToolStore = usePolygonStore();
 </script>
 
 <template>

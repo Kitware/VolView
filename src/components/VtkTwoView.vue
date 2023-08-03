@@ -49,6 +49,12 @@
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
+        <polygon-tool
+          :view-id="viewID"
+          :widget-manager="widgetManager"
+          :view-direction="viewDirection"
+          :current-slice="currentSlice"
+        />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
@@ -193,9 +199,10 @@ import WindowLevelTool from './tools/WindowLevelTool.vue';
 import SliceScrollTool from './tools/SliceScrollTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
-import RulerTool from './tools/RulerTool.vue';
-import RectangleTool from './tools/RectangleTool.vue';
-import PaintTool from './tools/PaintTool.vue';
+import RulerTool from './tools/ruler/RulerTool.vue';
+import RectangleTool from './tools/rectangle/RectangleTool.vue';
+import PolygonTool from './tools/polygon/PolygonTool.vue';
+import PaintTool from './tools/paint/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useLabelmapStore } from '../store/datasets-labelmaps';
@@ -203,7 +210,7 @@ import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import useWindowingStore from '../store/view-configs/windowing';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
-import CrosshairsTool from './tools/CrosshairsTool.vue';
+import CrosshairsTool from './tools/crosshairs/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
@@ -211,7 +218,7 @@ import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
-import CropTool from './tools/CropTool.vue';
+import CropTool from './tools/crop/CropTool.vue';
 import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
@@ -251,6 +258,7 @@ export default defineComponent({
     ZoomTool,
     RulerTool,
     RectangleTool,
+    PolygonTool,
     PaintTool,
     CrosshairsTool,
     CropTool,

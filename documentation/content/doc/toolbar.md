@@ -14,21 +14,34 @@ Window / Level, Pan, Zoom, or Crosshairs: Select these options to control the fu
 
 ## 2D Annotations
 
+The "Annotations" tab lists the drawn, vector based, annotation tools. Each tool in the list has a "scroll to slice" and delete button.
+
 ### Paint
 
 When the paint tool is selected, you can paint in any 2D window. Click on the paint tool a second time to bring up a menu of colors and adjust the brush size.
+
+### Rectangle
+
+When the rectangle tool is selected, the left mouse button is used to place and adjust rectangle control points.
+Right click a rectangle control point to delete the rectangle.
+The "Annotations" tab lists all rectangles and provides jump-to and delete controls.
+
+Rectangle annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+
+### Polygon
+
+With the polygon tool selected, the left mouse button places and adjusts control points.
+Click the first control point to finish making the polygon.  
+Before a polygon is finished, right click to remove the last point or press the Esc key to remove all points.
+After a polygon is closed, right click a control point to delete the polygon.
+
+Polygon annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
 
 ### Ruler
 
 When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
 
-Ruler annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
-
-### Rectangle
-
-When the rectangle tool selected, the left mouse button is used to place and adjust rectangle control points. Right click a rectangle end-marker to delete it. The "Annotations" tab lists all rectangles and provides jump-to, color editing, and delete controls.
-
-Rectangle annotations can be tagged with a label. Use the popup menu or the `q` or `w` keys to select the active label.
+Ruler annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
 
 ![2D Annotations](../gallery/11-volview-paint-notes.jpg)
 

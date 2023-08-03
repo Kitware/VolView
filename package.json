@@ -91,7 +91,7 @@
     "vite-plugin-static-copy": "^0.16.0",
     "vite-plugin-vuetify": "^1.0.2",
     "vitest": "^0.32.1",
-    "vue-tsc": "^1.6.5",
+    "vue-tsc": "^1.8.8",
     "yorkie": "^2.0.0"
   },
   "gitHooks": {

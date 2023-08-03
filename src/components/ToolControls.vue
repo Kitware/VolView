@@ -4,12 +4,14 @@ import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 import RectangleControls from './RectangleControls.vue';
 import RulerControls from './RulerControls.vue';
+import PolygonControls from './PolygonControls.vue';
 
 const toolStore = useToolStore();
 
 const tools = new Map([
   [Tools.Rectangle, { component: RectangleControls, label: 'Rectangle' }],
   [Tools.Ruler, { component: RulerControls, label: 'Ruler' }],
+  [Tools.Polygon, { component: PolygonControls, label: 'Polygon' }],
 ]);
 
 const tool = computed(() => tools.get(toolStore.currentTool));
