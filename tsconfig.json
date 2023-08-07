@@ -16,7 +16,8 @@
     "isolatedModules": true,
     "types": [
       "mocha",
-      "chai"
+      "chai",
+      "jquery"
     ],
     "paths": {
       "@/*": [

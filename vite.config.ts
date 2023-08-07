@@ -37,6 +37,11 @@ export default defineConfig({
   build: {
     outDir: distDir,
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, './index.html'),
+        ehrLaunch: resolve(__dirname, './lungair/cerner-app-launch/launch.html'),
+        ehrRedirect: resolve(__dirname, './lungair/cerner-app-launch/index.html'),
+      },
       output: {
         manualChunks(id) {
           if (id.includes('vuetify')) {
@@ -131,6 +136,10 @@ export default defineConfig({
         {
           src: 'src/io/resample/emscripten-build/**/resample*',
           dest: 'itk/pipelines',
+        },
+        {
+          src: resolve(nodeModulesDir, 'fhirclient/build/fhir-client.js'),
+          dest: 'lungair/cerner-app-launch/lib',
         },
       ],
     }),

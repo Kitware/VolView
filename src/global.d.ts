@@ -1,4 +1,5 @@
 import 'pinia';
+import 'jquery';
 import type { Framework } from 'vuetify/types';
 import ProxyWrapper from './core/proxies';
 import PaintTool from './core/tools/paint';
@@ -16,5 +17,11 @@ declare module 'pinia' {
 declare module 'vue/types/vue' {
   interface Vue {
     $vuetify: Framework;
+  }
+}
+
+declare module 'jquery' {
+  export interface $ {
+
   }
 }

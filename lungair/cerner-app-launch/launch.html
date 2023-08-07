@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <script src="./lib/fhir-client.js"></script>
+    <script>
+      FHIR.oauth2.settings.fullSessionStorageSupport = false;
+      FHIR.oauth2.authorize({
+        'client_id': '8759fe65-c1c9-4338-865e-3f45a552ae33',
+        'scope':  'patient/Patient.read patient/Observation.read launch/patient online_access openid profile',
+        'redirect_uri': 'http://localhost:4173/lungair/cerner-app-launch/',
+      });
+    </script>
+  </body>
+</html>

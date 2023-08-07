@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <script>
+      const url = new URL(window.location.href);
+      const codeValue = url.searchParams.get('code');
+      const stateValue = url.searchParams.get('state');
+      const oauthMessage = {
+        url: window.location.href,
+        storage: {key: stateValue, value: sessionStorage[stateValue]},
+        code: codeValue,
+        state: stateValue
+      };
+      window.opener.postMessage(oauthMessage, 'http://localhost:4173');
+    </script>
+  </body>
+</html>
