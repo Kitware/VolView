@@ -105,10 +105,7 @@ export default defineComponent({
 
     watch(
       placingToolID,
-      (id, prevId) => {
-        if (prevId != null) {
-          activeToolStore.updateTool(prevId, { placing: false });
-        }
+      (id) => {
         if (id != null) {
           activeToolStore.updateTool(id, { placing: true });
         }

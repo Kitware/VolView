@@ -71,9 +71,8 @@ export const useAnnotationTool = <
 
   function addTool(this: Store, tool: ToolPatch): ToolID {
     const id = useIdStore().nextId() as ToolID;
-    if (id in toolByID.value) {
+    if (id in toolByID.value)
       throw new Error('Cannot add tool with conflicting ID');
-    }
 
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
@@ -90,14 +89,16 @@ export const useAnnotationTool = <
   }
 
   function removeTool(id: ToolID) {
-    if (!(id in toolByID.value)) return;
+    if (!(id in toolByID.value))
+      throw new Error('Cannot update nonexistent tool');
 
     removeFromArray(toolIDs.value, id);
     delete toolByID.value[id];
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {
-    if (!(id in toolByID.value)) return;
+    const tool = toolByID.value[id];
+    if (!tool) throw new Error('Cannot update nonexistent tool');
 
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
@@ -116,14 +117,15 @@ export const useAnnotationTool = <
     const { currentImageID, currentImageMetadata } = useCurrentImage();
 
     const imageID = currentImageID.value;
-    if (!imageID || tool.imageID !== imageID) return;
+    if (!imageID || tool.imageID !== imageID)
+      throw new Error('Cannot jump to tool.');
 
     const toolImageFrame = frameOfReferenceToImageSliceAndAxis(
       tool.frameOfReference,
       currentImageMetadata.value
     );
 
-    if (!toolImageFrame) return;
+    if (!toolImageFrame) throw new Error('Cannot jump to tool.');
 
     const viewStore = useViewStore();
     const relevantViewIDs = viewStore.viewIDs.filter((viewID) => {
