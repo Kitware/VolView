@@ -151,7 +151,7 @@ export default defineComponent({
                           color="white"
                           :indeterminate="
                             volume.progress.percent === 0 &&
-                            volume.progress.state !== 'Done'
+                            volume.progress.state === 'Pending'
                           "
                           :model-value="volume.progress.percent"
                         >
