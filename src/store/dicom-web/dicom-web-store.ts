@@ -217,7 +217,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const fetchError = ref<undefined | unknown>(undefined);
   // DICOMWeb DataBrowser components automatically expands panels if true
   const linkedToStudyOrSeries = ref(false);
-  const fetchInitialDicoms = async () => {
+  const fetchDicoms = async () => {
     fetchDicomsProgress.value = 'Pending';
     fetchError.value = undefined;
     linkedToStudyOrSeries.value = false;
@@ -262,13 +262,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     fetchDicomsProgress.value = 'Done';
   };
 
-  // Safe to call in components' setup()
-  const fetchInitialDicomsOnce = () => {
-    if (fetchDicomsProgress.value === 'Idle') {
-      fetchInitialDicoms();
-    }
-  };
-
   const message = computed(() => {
     if (fetchError.value)
       return `Error fetching DICOMWeb data: ${fetchError.value}`;
@@ -282,6 +275,15 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
     return '';
   });
+
+  // Safe to call in components' setup()
+  let lastFetchedHostUrl: string | null = '';
+  const fetchDicomsOnce = () => {
+    if (lastFetchedHostUrl !== host.value || message.value) {
+      lastFetchedHostUrl = host.value;
+      fetchDicoms();
+    }
+  };
 
   const loadedDicoms = useDICOMStore();
   loadedDicoms.$onAction(({ name, args, after }) => {
@@ -303,13 +305,13 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
   return {
     host,
+    savedHost,
     isConfigured,
     hostName,
     message,
     volumes,
     linkedToStudyOrSeries,
-    fetchInitialDicoms,
-    fetchInitialDicomsOnce,
+    fetchDicomsOnce,
     fetchPatientMeta,
     fetchVolumesMeta,
     fetchVolumeThumbnail,
