@@ -1,20 +1,13 @@
 <script lang="ts">
-import { defineComponent, onMounted, onUnmounted, ref } from 'vue';
+import { defineComponent, onUnmounted } from 'vue';
 import { useDicomWebStore } from '../../store/dicom-web/dicom-web-store';
 
 export default defineComponent({
   setup() {
     const dicomWeb = useDicomWebStore();
 
-    // If host changed while mounted, fetch metadata
-    const hostAtStart = ref<typeof dicomWeb.host>();
-    onMounted(() => {
-      hostAtStart.value = dicomWeb.host;
-    });
     onUnmounted(() => {
-      // Re-fetch if address changed or an error message exists
-      if (hostAtStart.value !== dicomWeb.host || dicomWeb.message)
-        dicomWeb.fetchInitialDicoms();
+      dicomWeb.fetchDicomsOnce();
     });
 
     return {
@@ -34,7 +27,7 @@ export default defineComponent({
       clearable
     />
     <v-text-field
-      v-model="dicomWeb.host"
+      v-model="dicomWeb.savedHost"
       class="server-param"
       label="Host Address"
       clearable

@@ -45,10 +45,7 @@ export default defineComponent({
           .length > 0
     );
 
-    const panels = ref<string[]>([
-      SAMPLE_DATA_KEY,
-      ...(dicomWeb.isConfigured ? [DICOM_WEB_KEY] : []),
-    ]);
+    const panels = ref<string[]>([SAMPLE_DATA_KEY, DICOM_WEB_KEY]);
 
     watch(
       [hasAnonymousImages, patients] as const,

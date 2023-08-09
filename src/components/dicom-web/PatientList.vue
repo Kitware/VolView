@@ -13,7 +13,7 @@ export default defineComponent({
   setup() {
     const dicomWebStore = useDicomWebStore();
     const dicomWebMeta = useDicomMetaStore();
-    dicomWebStore.fetchInitialDicomsOnce();
+    dicomWebStore.fetchDicomsOnce();
 
     const patients = computed(() =>
       Object.values(dicomWebMeta.patientInfo)
