@@ -178,7 +178,7 @@ export default defineComponent({
     const movePoint = computed(() => tool.value?.movePoint);
     watch([movePoint], () => {
       finishable.value =
-        !!widget.value && widget.value.getWidgetState().getFinshable();
+        !!widget.value && widget.value.getWidgetState().getFinishable();
     });
 
     return {

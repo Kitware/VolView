@@ -93,9 +93,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       model.activeState.setOrigin(worldCoords);
 
-      model.widgetState.setFinshable(isFinishable());
+      model.widgetState.setFinishable(isFinishable());
 
-      if (model.widgetState.getFinshable())
+      if (model.widgetState.getFinishable())
         // snap to first point
         model.activeState.setOrigin(
           model.widgetState.getHandles()[0].getOrigin()
@@ -134,7 +134,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       }
       updateActiveStateHandle(e);
 
-      if (model.widgetState.getFinshable()) {
+      if (model.widgetState.getFinishable()) {
         finishPlacing();
         // Don't add another point, just return
         return macro.EVENT_ABORT;
