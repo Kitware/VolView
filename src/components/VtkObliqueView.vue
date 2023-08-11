@@ -36,7 +36,6 @@
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
         <reslice-cursor-tool :view-id="viewID" :view-direction="viewDirection" />
-        <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
@@ -143,7 +142,7 @@ import {
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
-import type { Vector3 } from '@kitware/vtk.js/types';
+import type { Matrix3x3, Vector3 } from '@kitware/vtk.js/types';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
@@ -151,6 +150,7 @@ import vtkObliqueRepresentationProxy from '@/src/vtk/ObliqueRepresentationProxy'
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import vtkMath from '@kitware/vtk.js/Common/Core/Math';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
 import SliceSlider from '@src/components/SliceSlider.vue';
@@ -160,7 +160,6 @@ import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import WindowLevelTool from './tools/WindowLevelTool.vue';
-import SliceScrollTool from './tools/SliceScrollTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import ResliceCursorTool from './tools/ResliceCursorTool.vue';
@@ -203,7 +202,6 @@ export default defineComponent({
     SliceSlider,
     ViewOverlayGrid,
     WindowLevelTool,
-    SliceScrollTool,
     PanTool,
     ZoomTool,
     ResliceCursorTool
@@ -348,6 +346,15 @@ export default defineComponent({
       viewProxy.value.getInteractorStyle2D().removeAllManipulators();
     });
 
+    /*
+    const planeOrigin = computed(() => {
+      const resliceCursor = resliceCursorRef?.value;
+      const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
+      return state?.getCenter();
+    });
+
+    const planeNormal = computed(() => resliceCursorRef.value.getPlaneNormalFromViewType(VTKViewType.value));
+    */
     const updateViewFromResliceCursor = () => {
       const rep = baseImageRep?.value;
       const resliceCursor = resliceCursorRef?.value;
@@ -581,6 +588,44 @@ export default defineComponent({
           center
         );
         viewProxy.value.resetCamera(bounds);
+        // reset cursor widget
+        const resliceCursor = resliceCursorRef?.value;
+        const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
+        // Reset to default plane values before transforming based on current image-data.
+        state.setPlanes({
+          [ViewTypes.YZ_PLANE]: {
+            normal: [1, 0, 0],
+            viewUp: [0, 0, 1],
+            color3: [255, 0, 0],
+          },
+          [ViewTypes.XZ_PLANE]: {
+            normal: [0, -1, 0],
+            viewUp: [0, 0, 1],
+            color3: [0, 255, 0],
+          },
+          [ViewTypes.XY_PLANE]: {
+            normal: [0, 0, -1],
+            viewUp: [0, -1, 0],
+            color3: [0, 0, 255],
+          }
+        });
+        const planes = state.getPlanes();
+
+        if (curImageData.value) {
+          const d9 = curImageData.value.getDirection();
+          const mat = Array.from(d9) as Matrix3x3;
+          vtkMath.invert3x3(mat, mat);
+          Object.values(planes).forEach((plane) => {
+            const {normal, viewUp: vup} = plane;
+            vtkMath.multiply3x3_vect3(mat as Matrix3x3, normal, normal);
+            vtkMath.multiply3x3_vect3(mat as Matrix3x3, vup, vup);
+          });
+          resliceCursorRef.value?.setCenter(center);
+        }
+        if (curImageMetadata) {
+          state.placeWidget(bounds);
+        }
+        viewProxy.value.renderLater();
       });
 
       resizeToFitScene();
@@ -625,11 +670,10 @@ export default defineComponent({
       }
 
       const { width, level } = wlConfig.value;
-      const rep = baseImageRep.value;
 
-      if (rep) {
-        rep.setWindowWidth(width);
-        rep.setWindowLevel(level);
+      if (obliqueRep) {
+        obliqueRep.setWindowWidth(width);
+        obliqueRep.setWindowLevel(level);
       }
 
       viewProxy.value.renderLater();
@@ -652,7 +696,9 @@ export default defineComponent({
       widgetManager,
       dicomInfo,
       enableResizeToFit() {
+        console.log('reset cam clicked.');
         resizeToFit.value = true;
+        resetCamera();
       },
       hover,
     };
