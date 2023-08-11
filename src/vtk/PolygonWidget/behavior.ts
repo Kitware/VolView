@@ -1,8 +1,19 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
+import { Vector3 } from '@kitware/vtk.js/types';
 
-const FINISHABLE_DISTANCE = 60;
+type Position3d = { x: number; y: number; z: number };
+type MouseEvent = {
+  position: Position3d;
+};
+
+const FINISHABLE_DISTANCE = 10;
+const FINISHABLE_DISTANCE_SQUARED = FINISHABLE_DISTANCE ** 2;
+
 const DOUBLE_CLICK_TIMEOUT = 300; // milliseconds
+const DOUBLE_CLICK_SLIP_DISTANCE_MAX = 10; // pixels
+const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
+  DOUBLE_CLICK_SLIP_DISTANCE_MAX ** 2;
 
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetProp');
@@ -64,7 +75,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       if (!moveCoords || !firstCoords) return false;
 
       const cssPixelDistance =
-        FINISHABLE_DISTANCE *
+        FINISHABLE_DISTANCE_SQUARED *
         model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
       const distance = distance2BetweenPoints(firstCoords, moveCoords);
       return distance < cssPixelDistance;
@@ -188,8 +199,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // --------------------------------------------------------------------------
 
   let lastReleaseTime = 0;
+  let lastReleasePosition: Vector3 | undefined;
 
-  publicAPI.handleLeftButtonRelease = () => {
+  publicAPI.handleLeftButtonRelease = (event: MouseEvent) => {
     if (
       !model.activeState ||
       !model.activeState.getActive() ||
@@ -207,14 +219,29 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.widgetState.deactivate();
     }
 
-    // Double click? Then finish
+    // Double click? Then finish.
+    const currentDisplayPos = [
+      event.position.x,
+      event.position.y,
+      event.position.z,
+    ] as Vector3;
+
+    const distance = lastReleasePosition
+      ? distance2BetweenPoints(currentDisplayPos, lastReleasePosition)
+      : Number.POSITIVE_INFINITY;
+    lastReleasePosition = currentDisplayPos;
+
     const currentTime = Date.now();
     const elapsed = currentTime - lastReleaseTime;
-    if (elapsed < DOUBLE_CLICK_TIMEOUT) {
+
+    const distanceThreshold =
+      DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED *
+      model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
+
+    if (elapsed < DOUBLE_CLICK_TIMEOUT && distance < distanceThreshold) {
       const handles = model.widgetState.getHandles();
-      // Need 3 handles to finish but double click created 2 extra handles
-      if (handles.length >= 5) {
-        removeLastHandle();
+      // Need 3 handles to finish.  Double click created 2 handles, 1 extra.
+      if (handles.length >= 4) {
         removeLastHandle();
         finishPlacing();
       }
