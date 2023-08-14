@@ -3,18 +3,9 @@ import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
 
 import createPointState from '../ToolWidgetUtils/pointState';
+import { watchState } from '../ToolWidgetUtils/utils';
 
 export const PointsLabel = 'points';
-
-function watchState(publicAPI: any, state: any, callback: () => {}) {
-  let subscription = state.onModified(callback);
-  const originalDelete = publicAPI.delete;
-  publicAPI.delete = () => {
-    subscription.unsubscribe();
-    subscription = null;
-    originalDelete();
-  };
-}
 
 function vtkRulerWidgetState(publicAPI: any, model: any) {
   const firstPoint = createPointState({

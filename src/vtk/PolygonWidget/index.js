@@ -2,6 +2,8 @@ import macro from '@kitware/vtk.js/macro';
 import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
+import vtkPolyLineRepresentation from '@kitware/vtk.js/Widgets/Representations/PolyLineRepresentation';
+import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation/Constants';
 
 import widgetBehavior from './behavior';
 import stateGenerator, { HandlesLabel, MoveHandleLabel } from './state';
@@ -21,6 +23,15 @@ function vtkPolygonWidget(publicAPI, model) {
       labels: [HandlesLabel, MoveHandleLabel],
       initialValues: {
         scaleInPixels: true,
+      },
+    },
+    {
+      builder: vtkPolyLineRepresentation,
+      labels: [HandlesLabel],
+      initialValues: {
+        scaleInPixels: true,
+        behavior: Behavior.HANDLE, // make pickable even if not visible
+        closePolyLine: true,
       },
     },
   ];

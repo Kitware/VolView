@@ -283,7 +283,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Called when mouse moves off handle.
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
-    // Context menu pops only if hovering over a handle.
+    // Context menu should only show if hovering over a handle.
     // Stops right clicking anywhere showing context menu.
     model.activeState = null;
   };
@@ -307,7 +307,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   // --------------------------------------------------------------------------
-  // Focus API: After first point dropped, make moveHandle follow mouse
+  // Focus API: After first point dropped, make moveHandle follow mouse.
+  // Focused means PolygonWidget is in initial drawing/placing mode.
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {
@@ -321,8 +322,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.hasFocus = true;
   };
 
-  // --------------------------------------------------------------------------
-
+  // Called after we are finished/placed.
   publicAPI.loseFocus = () => {
     if (model.hasFocus) {
       model._interactor.cancelAnimation(publicAPI);

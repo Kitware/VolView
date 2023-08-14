@@ -6,39 +6,38 @@ import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
 import { Vector3 } from '@kitware/vtk.js/types';
 
 import createPointState from '../ToolWidgetUtils/pointState';
+import { watchState } from '../ToolWidgetUtils/utils';
 
 export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
 
 const PIXEL_SIZE = 20;
 
-function watchState(publicAPI: any, state: any, callback: () => {}) {
-  let subscription = state.onModified(callback);
-  const originalDelete = publicAPI.delete;
-  publicAPI.delete = () => {
-    subscription.unsubscribe();
-    subscription = null;
-    originalDelete();
-  };
-}
-
 function vtkPolygonWidgetState(publicAPI: any, model: any) {
-  const moveHandle = createPointState({
+  model.moveHandle = createPointState({
     id: model.id,
     store: model._store,
     key: 'movePoint',
     visible: true,
   });
-  watchState(publicAPI, moveHandle, () => publicAPI.modified());
-
-  publicAPI.getMoveHandle = () => moveHandle;
+  watchState(publicAPI, model.moveHandle, () => publicAPI.modified());
 
   const getTool = () => model._store.toolByID[model.id];
 
   model.handles = [];
 
-  // After deserialize, Pinia store already added points.  Hence addPoint flag.
+  model.labels = {
+    [MoveHandleLabel]: [model.moveHandle],
+    [HandlesLabel]: [model.handles],
+  };
+
+  model.finishable = false;
+
+  // After deserialize, Pinia store already added points.
+  // Then addPoint set false.
   publicAPI.addHandle = (addPoint = true) => {
+    if (addPoint) getTool().points.push([0, 0, 0]);
+
     const index = model.handles.length;
     const handleModel = { index };
     const handlePublicAPI = {
@@ -51,8 +50,6 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     vtkWidgetState.extend(handlePublicAPI, handleModel, {});
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
     scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
-
-    if (addPoint) getTool().points.push([0, 0, 0]);
 
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
     model.handles.push(handlePublicAPI);
@@ -81,23 +78,12 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
   };
 
-  model.labels = {
-    [MoveHandleLabel]: [moveHandle],
-    [HandlesLabel]: [model.handles],
-  };
-
   publicAPI.getPlacing = () => getTool().placing;
   publicAPI.setPlacing = (placing: boolean) => {
     getTool().placing = placing;
   };
 
-  model.finishable = false;
-  publicAPI.getFinishable = () => model.finishable;
-  publicAPI.setFinishable = (is: boolean) => {
-    model.finishable = is;
-  };
-
-  // After deserialize, initialize handles
+  // Setup after deserialization
   getTool().points.forEach((point: Vector3) => {
     const handle = publicAPI.addHandle(false);
     handle.setOrigin(point);
@@ -117,7 +103,8 @@ function _createPolygonWidgetState(
   vtkWidgetState.extend(publicAPI, model, initialValues);
   bounds.extend(publicAPI, model);
 
-  macro.get(publicAPI, model, ['id', 'handles']);
+  macro.get(publicAPI, model, ['id', 'handles', 'moveHandle', 'finishable']);
+  macro.setGet(publicAPI, model, ['finishable']);
   macro.moveToProtected(publicAPI, model, ['store']);
 
   vtkPolygonWidgetState(publicAPI, model);
