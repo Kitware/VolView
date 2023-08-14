@@ -34,15 +34,22 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, watch } from 'vue';
+import { Component, defineComponent, ref, watch } from 'vue';
 
 import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
+import ServerModule from './ServerModule.vue';
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 
-export const Modules = [
+interface Module {
+  name: string;
+  icon: string;
+  component: Component;
+}
+
+const Modules: Module[] = [
   {
     name: 'Data',
     icon: 'database',
@@ -58,11 +65,11 @@ export const Modules = [
     icon: 'cube',
     component: RenderingModule,
   },
-  // {
-  //   name: 'AI',
-  //   icon: 'robot-outline',
-  //   component: null,
-  // },
+  {
+    name: 'Remote',
+    icon: 'server-network',
+    component: ServerModule,
+  },
 ];
 
 const autoSwitchToAnnotationsTools = [

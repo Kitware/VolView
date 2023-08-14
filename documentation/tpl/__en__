@@ -29,3 +29,4 @@ sidebar:
     mouse_controls: Mouse/Keyboard Controls
     rendering: Cinematic Rendering
     state_files: State Files
+    server: Remote Server Capabilities
