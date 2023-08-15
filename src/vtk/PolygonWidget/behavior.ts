@@ -1,6 +1,7 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
 import { Vector3 } from '@kitware/vtk.js/types';
+
 import { WidgetAction } from '../ToolWidgetUtils/utils';
 
 type Position3d = { x: number; y: number; z: number };
@@ -85,19 +86,21 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return false;
   }
 
-  function updateActiveStateHandle(callData: any) {
+  function getWorldCoords(callData: any) {
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
     if (!manipulator) {
-      return macro.VOID;
+      return undefined;
     }
 
-    const worldCoords = manipulator.handleEvent(
-      callData,
-      model._apiSpecificRenderWindow
-    );
+    return manipulator.handleEvent(callData, model._apiSpecificRenderWindow);
+  }
+
+  function updateActiveStateHandle(callData: any) {
+    const worldCoords = getWorldCoords(callData);
 
     if (
+      worldCoords &&
       worldCoords.length &&
       (model.activeState === model.widgetState.getMoveHandle() ||
         model._isDragging) &&
@@ -156,9 +159,25 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       const moveHandle = model.widgetState.getMoveHandle();
       const newHandle = model.widgetState.addHandle();
       newHandle.setOrigin(moveHandle.getOrigin());
-      newHandle.setScale1(moveHandle.getScale1());
 
       publicAPI.invokeStartInteractionEvent();
+      return macro.EVENT_ABORT;
+    }
+
+    // Check if mouse over handle or segment
+    const selections = model._widgetManager.getSelections();
+    const overSegment =
+      selections[0] &&
+      selections[0].getProperties().prop ===
+        model.representations[1].getActors()[0];
+
+    if (overSegment) {
+      // insert point
+      const insertIndex = selections[0].getProperties().compositeID + 1;
+      const newHandle = model.widgetState.addHandle({ insertIndex });
+      const coords = getWorldCoords(e);
+      if (!coords) throw new Error('No world coords');
+      newHandle.setOrigin(coords);
       return macro.EVENT_ABORT;
     }
 
@@ -284,7 +303,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Called when mouse moves off handle.
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
-    // Context menu should only show if hovering over a handle.
+    // Context menu should only show if hovering over the tool.
     // Stops right clicking anywhere showing context menu.
     model.activeState = null;
   };
@@ -297,8 +316,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     const widgetActions: Array<WidgetAction> = [];
 
     const { activeState } = model;
-    if (activeState.getIndex) {
-      // hovering on handle
+
+    // if hovering on handle and at least 3 points (hard to place new point if delete down to 1 point)
+    if (activeState.getIndex && model.widgetState.getHandles().length > 2) {
       widgetActions.push({
         name: 'Delete Point',
         func: () => {

@@ -14,6 +14,7 @@ export const HandlesLabel = 'handles';
 const PIXEL_SIZE = 20;
 
 function vtkPolygonWidgetState(publicAPI: any, model: any) {
+  model.classHierarchy.push('vtkPolygonWidgetState');
   model.moveHandle = createPointState({
     id: model.id,
     store: model._store,
@@ -28,32 +29,47 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   model.labels = {
     [MoveHandleLabel]: [model.moveHandle],
-    [HandlesLabel]: [model.handles],
+    [HandlesLabel]: [],
   };
 
   model.finishable = false;
 
-  // After deserialize, Pinia store already added points.
-  // Then addPoint set false.
-  publicAPI.addHandle = (addPoint = true) => {
-    if (addPoint) getTool().points.push([0, 0, 0]);
+  // After deserialize, Pinia store already added points
+  // and addPoint will be false.
+  publicAPI.addHandle = ({ insertIndex = -1, addPoint = true } = {}) => {
+    const index = insertIndex === -1 ? model.handles.length : insertIndex;
 
-    const index = model.handles.length;
+    if (addPoint) getTool().points.splice(index, 0, [0, 0, 0]);
+
     const handleModel = { index };
     const handlePublicAPI = {
-      getOrigin: () => getTool()?.points[index],
+      getOrigin: () => getTool()?.points[handleModel.index],
       setOrigin: (xyz: Vector3) => {
-        getTool().points[index] = xyz;
+        getTool().points[handleModel.index] = xyz;
         publicAPI.modified();
       },
-      getIndex: () => index,
+      getIndex: () => handleModel.index,
+      setIndex: (i: number) => {
+        handleModel.index = i;
+      },
     };
     vtkWidgetState.extend(handlePublicAPI, handleModel, {});
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
     scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
 
+    model.handles.splice(index, 0, handlePublicAPI);
+
+    // when inserted in middle of array, update indices of subsequent handles
+    for (let i = index + 1; i < model.handles.length; i++) {
+      model.handles[i].setIndex(i);
+    }
+
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
-    model.handles.push(handlePublicAPI);
+
+    // bind state pushes handle at end of array,
+    // but we may have inserted in middle of array, so copy handles
+    model.labels[HandlesLabel] = [...model.handles];
+
     publicAPI.modified();
 
     return handlePublicAPI;
@@ -61,10 +77,13 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   publicAPI.removeHandle = (removeIndex: number) => {
     const instance = model.handles[removeIndex];
-    if (instance) {
-      publicAPI.unbindState(instance);
-    }
+    publicAPI.unbindState(instance);
     model.handles.splice(removeIndex, 1);
+
+    // update indices of subsequent handles
+    for (let i = removeIndex; i < model.handles.length; i++) {
+      model.handles[i].setIndex(i);
+    }
 
     // Tool does not exist if loading new image
     const tool = getTool();
@@ -86,7 +105,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   // Setup after deserialization
   getTool().points.forEach((point: Vector3) => {
-    const handle = publicAPI.addHandle(false);
+    const handle = publicAPI.addHandle({ addPoint: false });
     handle.setOrigin(point);
   });
 }
