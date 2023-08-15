@@ -46,6 +46,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
         getTool().points[index] = xyz;
         publicAPI.modified();
       },
+      getIndex: () => index,
     };
     vtkWidgetState.extend(handlePublicAPI, handleModel, {});
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });

@@ -11,3 +11,8 @@ export function watchState(
     originalDelete();
   };
 }
+
+export type WidgetAction = {
+  name: string;
+  func: () => void;
+};

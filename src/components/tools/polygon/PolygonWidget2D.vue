@@ -21,7 +21,7 @@ import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
-import { PolygonID as ToolID } from '@/src/types/polygon';
+import { ContextMenuEvent, PolygonID as ToolID } from '@/src/types/polygon';
 import vtkWidgetFactory, {
   vtkPolygonViewWidget as WidgetView,
 } from '@/src/vtk/PolygonWidget';
@@ -118,9 +118,12 @@ export default defineComponent({
         return;
       }
       rightClickSub = widget.value.onRightClickEvent((eventData) => {
-        const coords = getCSSCoordinatesFromEvent(eventData);
-        if (coords) {
-          emit('contextmenu', coords);
+        const displayXY = getCSSCoordinatesFromEvent(eventData);
+        if (displayXY) {
+          emit('contextmenu', {
+            displayXY,
+            widgetActions: eventData.widgetActions,
+          } satisfies ContextMenuEvent);
         }
       });
     });

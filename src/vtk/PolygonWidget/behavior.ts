@@ -1,6 +1,7 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
 import { Vector3 } from '@kitware/vtk.js/types';
+import { WidgetAction } from '../ToolWidgetUtils/utils';
 
 type Position3d = { x: number; y: number; z: number };
 type MouseEvent = {
@@ -100,7 +101,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       worldCoords.length &&
       (model.activeState === model.widgetState.getMoveHandle() ||
         model._isDragging) &&
-      model.activeState.setOrigin // e.g. the line is pickable but not draggable
+      model.activeState.setOrigin // the line is pickable but not draggable
     ) {
       model.activeState.setOrigin(worldCoords);
 
@@ -292,6 +293,23 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Right press: Remove last handle / Pop context menu
   // --------------------------------------------------------------------------
 
+  const makeWidgetActions = () => {
+    const widgetActions: Array<WidgetAction> = [];
+
+    const { activeState } = model;
+    if (activeState.getIndex) {
+      // hovering on handle
+      widgetActions.push({
+        name: 'Delete Point',
+        func: () => {
+          model.widgetState.removeHandle(activeState.getIndex());
+        },
+      });
+    }
+
+    return widgetActions;
+  };
+
   publicAPI.handleRightButtonPress = (eventData: any) => {
     if (ignoreKey(eventData) || !model.activeState) {
       return macro.VOID;
@@ -302,7 +320,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    publicAPI.invokeRightClickEvent(eventData);
+    const eventWithWidgetAction = {
+      ...eventData,
+      widgetActions: makeWidgetActions(),
+    };
+
+    publicAPI.invokeRightClickEvent(eventWithWidgetAction);
     return macro.EVENT_ABORT;
   };
 

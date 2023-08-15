@@ -25,8 +25,15 @@
       close-on-content-click
     >
       <v-list density="compact">
+        <v-list-item
+          v-for="action in contextMenu.widgetActions"
+          @click="action.func"
+          :key="action.name"
+        >
+          <v-list-item-title>{{ action.name }}</v-list-item-title>
+        </v-list-item>
         <v-list-item @click="deleteToolFromContextMenu">
-          <v-list-item-title>Delete</v-list-item-title>
+          <v-list-item-title>Delete Polygon</v-list-item-title>
         </v-list-item>
       </v-list>
     </v-menu>
@@ -51,14 +58,15 @@ import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import {
   FrameOfReference,
   frameOfReferenceToImageSliceAndAxis,
 } from '@/src/utils/frameOfReference';
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import { Polygon, PolygonID } from '@/src/types/polygon';
+import { ContextMenuEvent, Polygon, PolygonID } from '@/src/types/polygon';
+import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/utils';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 type ToolID = PolygonID;
@@ -198,12 +206,14 @@ export default defineComponent({
       x: 0,
       y: 0,
       forToolID: '' as ToolID,
+      widgetActions: [] as Array<WidgetAction>,
     });
 
-    const openContextMenu = (toolID: ToolID, displayXY: Vector2) => {
-      [contextMenu.x, contextMenu.y] = displayXY;
+    const openContextMenu = (toolID: ToolID, event: ContextMenuEvent) => {
+      [contextMenu.x, contextMenu.y] = event.displayXY;
       contextMenu.show = true;
       contextMenu.forToolID = toolID;
+      contextMenu.widgetActions = event.widgetActions;
     };
 
     const deleteToolFromContextMenu = () => {
