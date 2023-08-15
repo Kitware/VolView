@@ -38,17 +38,5 @@ npm run lint
 npm run test:unit
 
 # e2e tests
-npm run test:e2e
-```
-
-`npm run test:e2e` always runs a testing build prior to running the tests. If
-you are not changing any application code, you can save time by manually running
-each stage of the pipeline.
-
-```
-# produce a testing build
-npm run build:testing
-
-# run e2e tests
-npm run test:e2e:skip-build
+npm run test:e2e:chrome
 ```
