@@ -1,7 +1,19 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
+import { Vector3 } from '@kitware/vtk.js/types';
 
-const FINISHABLE_DISTANCE = 60;
+type Position3d = { x: number; y: number; z: number };
+type MouseEvent = {
+  position: Position3d;
+};
+
+const FINISHABLE_DISTANCE = 10;
+const FINISHABLE_DISTANCE_SQUARED = FINISHABLE_DISTANCE ** 2;
+
+const DOUBLE_CLICK_TIMEOUT = 300; // milliseconds
+const DOUBLE_CLICK_SLIP_DISTANCE_MAX = 10; // pixels
+const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
+  DOUBLE_CLICK_SLIP_DISTANCE_MAX ** 2;
 
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetProp');
@@ -25,6 +37,27 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return e.altKey || e.controlKey || e.shiftKey;
   }
 
+  const reset = () => {
+    publicAPI.loseFocus();
+    model.widgetState.clearHandles();
+  };
+
+  const removeLastHandle = () => {
+    const handles = model.widgetState.getHandles();
+    if (handles.length > 0) {
+      model.widgetState.removeHandle(handles.length - 1);
+      if (handles.length === 0) {
+        reset();
+      }
+    }
+  };
+
+  const finishPlacing = () => {
+    model.widgetState.setPlacing(false);
+    publicAPI.loseFocus();
+    publicAPI.invokePlacedEvent();
+  };
+
   function isFinishable() {
     const handles = model.widgetState.getHandles();
     const moveHandle = model.widgetState.getMoveHandle();
@@ -42,7 +75,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       if (!moveCoords || !firstCoords) return false;
 
       const cssPixelDistance =
-        FINISHABLE_DISTANCE *
+        FINISHABLE_DISTANCE_SQUARED *
         model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
       const distance = distance2BetweenPoints(firstCoords, moveCoords);
       return distance < cssPixelDistance;
@@ -71,9 +104,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       model.activeState.setOrigin(worldCoords);
 
-      model.widgetState.setFinshable(isFinishable());
+      model.widgetState.setFinishable(isFinishable());
 
-      if (model.widgetState.getFinshable())
+      if (model.widgetState.getFinishable())
         // snap to first point
         model.activeState.setOrigin(
           model.widgetState.getHandles()[0].getOrigin()
@@ -112,10 +145,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       }
       updateActiveStateHandle(e);
 
-      if (model.widgetState.getFinshable()) {
-        model.widgetState.setPlacing(false);
-        publicAPI.loseFocus();
-        publicAPI.invokePlacedEvent();
+      if (model.widgetState.getFinishable()) {
+        finishPlacing();
         // Don't add another point, just return
         return macro.EVENT_ABORT;
       }
@@ -167,7 +198,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left release: Finish drag
   // --------------------------------------------------------------------------
 
-  publicAPI.handleLeftButtonRelease = () => {
+  let lastReleaseTime = 0;
+  let lastReleasePosition: Vector3 | undefined;
+
+  publicAPI.handleLeftButtonRelease = (event: MouseEvent) => {
     if (
       !model.activeState ||
       !model.activeState.getActive() ||
@@ -185,6 +219,35 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.widgetState.deactivate();
     }
 
+    // Double click? Then finish.
+    const currentDisplayPos = [
+      event.position.x,
+      event.position.y,
+      event.position.z,
+    ] as Vector3;
+
+    const distance = lastReleasePosition
+      ? distance2BetweenPoints(currentDisplayPos, lastReleasePosition)
+      : Number.POSITIVE_INFINITY;
+    lastReleasePosition = currentDisplayPos;
+
+    const currentTime = Date.now();
+    const elapsed = currentTime - lastReleaseTime;
+
+    const distanceThreshold =
+      DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED *
+      model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
+
+    if (elapsed < DOUBLE_CLICK_TIMEOUT && distance < distanceThreshold) {
+      const handles = model.widgetState.getHandles();
+      // Need 3 handles to finish.  Double click created 2 handles, 1 extra.
+      if (handles.length >= 4) {
+        removeLastHandle();
+        finishPlacing();
+      }
+    }
+    lastReleaseTime = currentTime;
+
     if (
       (model.hasFocus && !model.activeState) ||
       (model.activeState && !model.activeState.getActive())
@@ -197,11 +260,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return macro.EVENT_ABORT;
   };
 
-  const reset = () => {
-    publicAPI.loseFocus();
-    model.widgetState.clearHandles();
-  };
-
   // --------------------------------------------------------------------------
   // Escape key: clear handles
   // --------------------------------------------------------------------------
@@ -209,6 +267,13 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.handleKeyDown = ({ key }: any) => {
     if (model.widgetState.getPlacing() && key === 'Escape') {
       reset();
+      return macro.EVENT_ABORT;
+    }
+
+    if (model.widgetState.getPlacing() && key === 'Enter') {
+      if (model.widgetState.getHandles().length >= 3) {
+        finishPlacing();
+      }
       return macro.EVENT_ABORT;
     }
 
@@ -221,16 +286,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // Context menu pops only if hovering over a handle.
     // Stops right clicking anywhere showing context menu.
     model.activeState = null;
-  };
-
-  const removeLastHandle = () => {
-    const handles = model.widgetState.getHandles();
-    if (handles.length > 0) {
-      model.widgetState.removeHandle(handles.length - 1);
-      if (handles.length === 0) {
-        reset();
-      }
-    }
   };
 
   // --------------------------------------------------------------------------

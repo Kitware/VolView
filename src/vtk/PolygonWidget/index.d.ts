@@ -17,8 +17,8 @@ export interface vtkPolygonWidgetState extends vtkWidgetState {
   clearHandles(): void;
   getPlacing(): boolean;
   setPlacing(is: boolean): void;
-  getFinshable(): boolean;
-  setFinshable(is: boolean): void;
+  getFinishable(): boolean;
+  setFinishable(is: boolean): void;
 }
 
 export interface vtkPolygonViewWidget extends vtkAbstractWidget {

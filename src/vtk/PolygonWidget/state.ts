@@ -37,8 +37,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   model.handles = [];
 
-  publicAPI.getHandles = () => model.handles;
-
+  // After deserialize, Pinia store already added points.  Hence addPoint flag.
   publicAPI.addHandle = (addPoint = true) => {
     const index = model.handles.length;
     const handleModel = { index };
@@ -58,6 +57,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
     model.handles.push(handlePublicAPI);
     publicAPI.modified();
+
     return handlePublicAPI;
   };
 
@@ -68,24 +68,17 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
     model.handles.splice(removeIndex, 1);
 
-    getTool().points.splice(removeIndex, 1);
+    // Tool does not exist if loading new image
+    const tool = getTool();
+    if (tool) tool.points.splice(removeIndex, 1);
 
     publicAPI.modified();
   };
 
   publicAPI.clearHandles = () => {
     while (model.handles.length) {
-      const instance = model.handles.pop();
-      if (instance) {
-        publicAPI.unbindState(instance);
-      }
+      publicAPI.removeHandle(model.handles.length - 1);
     }
-
-    // Tool does not exist if loading new image
-    const tool = getTool();
-    if (tool) tool.points = [];
-
-    publicAPI.modified();
   };
 
   model.labels = {
@@ -99,8 +92,8 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
   };
 
   model.finishable = false;
-  publicAPI.getFinshable = () => model.finishable;
-  publicAPI.setFinshable = (is: boolean) => {
+  publicAPI.getFinishable = () => model.finishable;
+  publicAPI.setFinishable = (is: boolean) => {
     model.finishable = is;
   };
 
@@ -124,7 +117,7 @@ function _createPolygonWidgetState(
   vtkWidgetState.extend(publicAPI, model, initialValues);
   bounds.extend(publicAPI, model);
 
-  macro.get(publicAPI, model, ['id']);
+  macro.get(publicAPI, model, ['id', 'handles']);
   macro.moveToProtected(publicAPI, model, ['store']);
 
   vtkPolygonWidgetState(publicAPI, model);
