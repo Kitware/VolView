@@ -25,7 +25,7 @@
       close-on-content-click
     >
       <v-list density="compact">
-        <v-list-item @click="deleteRulerFromContextMenu">
+        <v-list-item @click="deleteToolFromContextMenu">
           <v-list-item-title>Delete</v-list-item-title>
         </v-list-item>
       </v-list>
@@ -60,7 +60,10 @@ import {
 } from '@/src/utils/frameOfReference';
 import { Ruler } from '@/src/types/ruler';
 import { vec3 } from 'gl-matrix';
-import { createAddToolOperation } from '@/src/store/operations/tools';
+import {
+  createAddToolOperation,
+  createRemoveToolOperation,
+} from '@/src/store/operations/tools';
 import useHistoryStore from '@/src/store/history';
 import { IHistoryOperation } from '@/src/types/history';
 import { Maybe } from '@/src/types';
@@ -210,17 +213,20 @@ export default defineComponent({
       show: false,
       x: 0,
       y: 0,
-      forRulerID: '',
+      forToolID: '',
     });
 
     const openContextMenu = (rulerID: string, displayXY: Vector2) => {
       [contextMenu.x, contextMenu.y] = displayXY;
       contextMenu.show = true;
-      contextMenu.forRulerID = rulerID;
+      contextMenu.forToolID = rulerID;
     };
 
-    const deleteRulerFromContextMenu = () => {
-      rulerStore.removeRuler(contextMenu.forRulerID);
+    const deleteToolFromContextMenu = () => {
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      const op = createRemoveToolOperation(rulerStore, contextMenu.forToolID);
+      useHistoryStore().pushOperation({ datasetID: imageID }, op, true);
     };
 
     // --- ruler data --- //
@@ -266,7 +272,7 @@ export default defineComponent({
       placingRulerID,
       contextMenu,
       openContextMenu,
-      deleteRulerFromContextMenu,
+      deleteToolFromContextMenu,
       onRulerPlaced,
     };
   },

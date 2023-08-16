@@ -59,7 +59,10 @@ import {
 } from '@/src/utils/frameOfReference';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { Polygon, PolygonID } from '@/src/types/polygon';
-import { createAddToolOperation } from '@/src/store/operations/tools';
+import {
+  createAddToolOperation,
+  createRemoveToolOperation,
+} from '@/src/store/operations/tools';
 import useHistoryStore from '@/src/store/history';
 import { IHistoryOperation } from '@/src/types/history';
 import { Maybe } from '@/src/types';
@@ -221,7 +224,13 @@ export default defineComponent({
     };
 
     const deleteToolFromContextMenu = () => {
-      activeToolStore.removeTool(contextMenu.forToolID);
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      const op = createRemoveToolOperation(
+        activeToolStore,
+        contextMenu.forToolID
+      );
+      useHistoryStore().pushOperation({ datasetID: imageID }, op, true);
     };
 
     // --- tool data --- //

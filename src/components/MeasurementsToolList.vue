@@ -4,9 +4,12 @@ import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import useHistoryStore from '@/src/store/history';
+import { createRemoveToolOperation } from '@/src/store/operations/tools';
+import { Store } from 'pinia';
 
 const props = defineProps<{
-  toolStore: AnnotationToolStore<ToolID>;
+  toolStore: AnnotationToolStore<ToolID> & Store;
   icon: string;
 }>();
 
@@ -33,7 +36,10 @@ const tools = computed(() => {
 });
 
 const remove = (id: ToolID) => {
-  props.toolStore.removeTool(id);
+  const imageID = currentImageID.value;
+  if (!imageID) return;
+  const op = createRemoveToolOperation(props.toolStore, id);
+  useHistoryStore().pushOperation({ datasetID: imageID }, op, true);
 };
 
 const jumpTo = (id: ToolID) => {

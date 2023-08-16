@@ -38,19 +38,20 @@ export function createRemoveToolOperation<
   ID extends string,
   S extends AnnotationToolStore<ID> & Store
 >(store: S, id: ID): IHistoryOperation {
+  let lastID: ID = id;
   let tool: Maybe<AnnotationTool<ID>> = null;
 
   const isApplied = () => tool != null;
 
   const apply = () => {
     if (isApplied()) return;
-    tool = store.toolByID[id];
-    store.removeTool(id);
+    tool = store.toolByID[lastID];
+    store.removeTool(lastID);
   };
 
   const revert = () => {
     if (!isApplied()) return;
-    store.addTool(tool!);
+    lastID = store.addTool(tool!);
     tool = null;
   };
 
