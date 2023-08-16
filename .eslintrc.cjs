@@ -77,6 +77,12 @@ module.exports = {
       },
     },
     {
+      files: ['**/tests/pageobjects/**/*.ts'],
+      rules: {
+        'class-methods-use-this': 'off',
+      },
+    },
+    {
       files: [
         '**/__tests__/*.{j,t}s?(x)',
         '**/tests/unit/**/*.spec.{j,t}s?(x)',

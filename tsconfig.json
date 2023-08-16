@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "noEmit": true,
     "target": "es2019",
     "module": "esnext",
     "strict": true,
@@ -16,7 +17,12 @@
     "isolatedModules": true,
     "types": [
       "mocha",
-      "chai"
+      "chai",
+      "node",
+      "@wdio/globals/types",
+      "expect-webdriverio",
+      "@wdio/mocha-framework",
+      "wdio-image-comparison-service"
     ],
     "paths": {
       "@/*": [
@@ -38,10 +44,15 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
+    "test/**/*.ts",
     "tests/**/*.ts",
     "tests/**/*.tsx"
   ],
   "exclude": [
     "node_modules"
-  ]
+  ],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
 }

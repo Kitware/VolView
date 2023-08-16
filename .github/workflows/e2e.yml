@@ -1,0 +1,34 @@
+name: E2E Testing
+on:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-latest, windows-latest]
+    name: E2E Testing on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: npm ci
+      - name: Install xvfb
+        if: matrix.os == 'ubuntu-20.04'
+        run: sudo apt-get install xvfb
+      - name: Run E2E on chrome (linux)
+        if: matrix.os == 'ubuntu-20.04'
+        run: xvfb-run --server-args="-screen 0, 1400x1000x24" --auto-servernum npm run test:e2e:chrome
+      - name: Run E2E on chrome
+        if: matrix.os != 'ubuntu-20.04'
+        run: npm run test:e2e:chrome
+      - name: Archive test results
+        if: success() || failure()
+        uses: actions/upload-artifact@v3
+        continue-on-error: true
+        with:
+          name: image_comparison_results
+          path: .tmp
+          retention-days: 5

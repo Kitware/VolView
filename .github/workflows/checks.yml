@@ -8,13 +8,13 @@ jobs:
     runs-on: ubuntu-20.04
     name: Code check and tests
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup node
         uses: actions/setup-node@v1
         with:
           node-version: 16
       - run: npm ci
       - name: Enforce code style
-        run: npx prettier --config ./prettier.config.js --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
+        run: npx prettier --config ./prettier.config.cjs --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
       - name: Tests
         run: npm test

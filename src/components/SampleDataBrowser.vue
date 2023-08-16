@@ -148,7 +148,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div>
+  <div data-testid="samples-list">
     <image-list-card
       v-for="sample in samples"
       :disabled="sample.isDownloading || sample.isLoaded"
