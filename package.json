@@ -9,7 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "build:analyze": "cross-env ANALYZE_BUNDLE=1 npm run build",
     "test": "vitest",
-    "test:e2e:chrome": "wdio run ./wdio.chrome.conf.ts",
+    "test:e2e:chrome": "npm run build && wdio run ./wdio.chrome.conf.ts",
     "lint": "eslint",
     "build:all": "npm run build:dicom && npm run build:resample && npm run build",
     "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",

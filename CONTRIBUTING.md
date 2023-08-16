@@ -40,3 +40,7 @@ npm run test:unit
 # e2e tests
 npm run test:e2e:chrome
 ```
+
+When running end-to-end tests, baseline images are saved to `tests/baseline`. Baseline diffs and actual snapshots are saved to `.tmp`.
+
+When adding a new baseline image and test, the image should be pulled from GitHub Actions. Every test run will upload artifacts containing the snapshots taken, and those should be used when verifying and committing the baseline images.
