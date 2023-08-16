@@ -60,6 +60,10 @@ import {
 } from '@/src/utils/frameOfReference';
 import { Ruler } from '@/src/types/ruler';
 import { vec3 } from 'gl-matrix';
+import { createAddToolOperation } from '@/src/store/operations/tools';
+import useHistoryStore from '@/src/store/history';
+import { IHistoryOperation } from '@/src/types/history';
+import { Maybe } from '@/src/types';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -95,6 +99,17 @@ export default defineComponent({
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     const placingRulerID = ref<string | null>(null);
+    let addToolOperation: Maybe<IHistoryOperation<string>> = null;
+
+    const addPlacingTool = () => {
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      addToolOperation = createAddToolOperation(rulerStore, {
+        imageID,
+        placing: true,
+      });
+      placingRulerID.value = addToolOperation.apply();
+    };
 
     // --- active ruler management --- //
 
@@ -119,10 +134,7 @@ export default defineComponent({
           placingRulerID.value = null;
         }
         if (active && imageID) {
-          placingRulerID.value = rulerStore.addRuler({
-            imageID,
-            placing: true,
-          });
+          addPlacingTool();
         }
       },
       { immediate: true }
@@ -149,11 +161,13 @@ export default defineComponent({
     });
 
     const onRulerPlaced = () => {
-      if (currentImageID.value) {
-        placingRulerID.value = rulerStore.addRuler({
-          imageID: currentImageID.value,
-          placing: true,
-        });
+      const imageID = currentImageID.value;
+      if (imageID) {
+        useHistoryStore().pushOperation(
+          { datasetID: imageID },
+          addToolOperation!
+        );
+        addPlacingTool();
       }
     };
 
