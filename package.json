@@ -19,9 +19,9 @@
     "build:watch": "npm run build -- --watch",
     "postinstall": "patch-package",
     "prettify": "prettier --write src tests",
-    "doc": "kw-doc -c ./documentation/config.js",
-    "doc:www": "kw-doc -c ./documentation/config.js -s",
-    "doc:publish": "kw-doc -c ./documentation/config.js -mp"
+    "doc": "kw-doc -c ./documentation/config.cjs",
+    "doc:www": "kw-doc -c ./documentation/config.cjs -s",
+    "doc:publish": "kw-doc -c ./documentation/config.cjs -mp"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.321.1",
