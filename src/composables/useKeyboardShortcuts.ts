@@ -1,11 +1,20 @@
-import { onKeyDown } from '@vueuse/core';
+import { onKeyDown, onKeyStroke } from '@vueuse/core';
 
-import { DECREMENT_LABEL_KEY, INCREMENT_LABEL_KEY } from '../config';
+import useHistoryStore from '@/src/store/history';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { isDarwin } from '@/src/constants';
+import { DEFAULT_KEYMAP } from '../config';
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
+
+const Keymap = DEFAULT_KEYMAP;
+
+const isCtrlOrCmd = (ev: KeyboardEvent) => {
+  return isDarwin ? ev.metaKey : ev.ctrlKey;
+};
 
 const applyLabelOffset = (offset: number) => {
   const toolToStore = {
@@ -28,7 +37,26 @@ const applyLabelOffset = (offset: number) => {
   activeToolStore.setActiveLabel(nextLabel);
 };
 
+const undo = () => {
+  const { currentImageID } = useCurrentImage();
+  if (!currentImageID.value) return;
+  useHistoryStore().undo({ datasetID: currentImageID.value });
+};
+
+const redo = () => {
+  const { currentImageID } = useCurrentImage();
+  if (!currentImageID.value) return;
+  useHistoryStore().redo({ datasetID: currentImageID.value });
+};
+
 export function useKeyboardShortcuts() {
-  onKeyDown(DECREMENT_LABEL_KEY, () => applyLabelOffset(-1));
-  onKeyDown(INCREMENT_LABEL_KEY, () => applyLabelOffset(1));
+  onKeyDown(Keymap.DecrementLabel, () => applyLabelOffset(-1));
+  onKeyDown(Keymap.IncrementLabel, () => applyLabelOffset(1));
+  onKeyStroke(Keymap.UndoRedo, (ev) => {
+    if (isCtrlOrCmd(ev)) {
+      ev.preventDefault();
+      if (ev.shiftKey) redo();
+      else undo();
+    }
+  });
 }
