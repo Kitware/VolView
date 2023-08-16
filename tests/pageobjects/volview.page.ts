@@ -24,7 +24,7 @@ class VolViewPage extends Page {
     const sample = await this.prostateSample;
     await sample.click();
 
-    await waitUntilDownloaded(sample, 'CTA Head and Neck');
+    await waitUntilDownloaded(sample, 'MRI Prostate');
   }
 
   get views() {
