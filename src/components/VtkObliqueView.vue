@@ -18,15 +18,6 @@
           Reset Camera
         </v-tooltip>
       </v-btn>
-      <slice-slider
-        class="slice-slider"
-        :slice="currentSlice"
-        :min="sliceMin"
-        :max="sliceMax"
-        :step="1"
-        :handle-height="20"
-        @input="setSlice"
-      />
     </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
@@ -41,7 +32,6 @@
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:bottom-left>
           <div class="annotation-cell">
-            <div>Slice: {{ currentSlice }}/{{ sliceMax }}</div>
             <div
               v-if="
                 windowWidth != null &&
@@ -139,6 +129,7 @@ import {
   watch,
   watchEffect,
 } from 'vue';
+import { storeToRefs } from 'pinia';
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
@@ -150,10 +141,8 @@ import vtkObliqueRepresentationProxy from '@/src/vtk/ObliqueRepresentationProxy'
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
-import vtkMath from '@kitware/vtk.js/Common/Core/Math';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
-import SliceSlider from '@src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -164,6 +153,7 @@ import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import ResliceCursorTool from './tools/ResliceCursorTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
+import { useCustomEvents } from '../store/custom-events';
 import { useDICOMStore } from '../store/datasets-dicom';
 import useWindowingStore from '../store/view-configs/windowing';
 import { LPSAxisDir } from '../types/lps';
@@ -199,7 +189,6 @@ export default defineComponent({
     },
   },
   components: {
-    SliceSlider,
     ViewOverlayGrid,
     WindowLevelTool,
     PanTool,
@@ -233,12 +222,6 @@ export default defineComponent({
     );
     const currentSlice = computed(
       () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
-    );
-    const sliceMin = computed(
-      () => sliceConfig.value?.min ?? sliceConfigDefaults.min
-    );
-    const sliceMax = computed(
-      () => sliceConfig.value?.max ?? sliceConfigDefaults.max
     );
 
     const wlConfig = computed({
@@ -282,16 +265,6 @@ export default defineComponent({
 
       return null;
     });
-
-    // --- setters --- //
-
-    const setSlice = (slice: number) => {
-      if (curImageID.value !== null) {
-        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
-          slice,
-        });
-      }
-    };
 
     // --- view proxy setup --- //
 
@@ -346,15 +319,6 @@ export default defineComponent({
       viewProxy.value.getInteractorStyle2D().removeAllManipulators();
     });
 
-    /*
-    const planeOrigin = computed(() => {
-      const resliceCursor = resliceCursorRef?.value;
-      const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
-      return state?.getCenter();
-    });
-
-    const planeNormal = computed(() => resliceCursorRef.value.getPlaneNormalFromViewType(VTKViewType.value));
-    */
     const updateViewFromResliceCursor = () => {
       const rep = baseImageRep?.value;
       const resliceCursor = resliceCursorRef?.value;
@@ -614,11 +578,10 @@ export default defineComponent({
         if (curImageData.value) {
           const d9 = curImageData.value.getDirection();
           const mat = Array.from(d9) as Matrix3x3;
-          vtkMath.invert3x3(mat, mat);
           Object.values(planes).forEach((plane) => {
             const {normal, viewUp: vup} = plane;
-            vtkMath.multiply3x3_vect3(mat as Matrix3x3, normal, normal);
-            vtkMath.multiply3x3_vect3(mat as Matrix3x3, vup, vup);
+            vec3.transformMat3(normal, normal, mat);
+            vec3.transformMat3(vup, vup, mat);
           });
           resliceCursorRef.value?.setCenter(center);
         }
@@ -679,6 +642,14 @@ export default defineComponent({
       viewProxy.value.renderLater();
     });
 
+    // Listen to ResetViews event.
+    const events = useCustomEvents();
+    const { resetViews } = storeToRefs(events);
+    watch(
+      resetViews, () => {
+        resetCamera();
+    });
+
     return {
       vtkContainerRef,
       toolContainer,
@@ -687,12 +658,9 @@ export default defineComponent({
       viewAxis,
       active: true,
       currentSlice,
-      sliceMin,
-      sliceMax,
       windowWidth,
       windowLevel,
       isImageLoading,
-      setSlice,
       widgetManager,
       dicomInfo,
       enableResizeToFit() {

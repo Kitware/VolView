@@ -122,6 +122,8 @@
         <crop-controls />
       </menu-tool-button>
     </groupable-item>
+    <div class="my-1 tool-separator" />
+      <reset-views />
   </item-group>
 </template>
 
@@ -137,6 +139,7 @@ import { useToolStore } from '../store/tools';
 import PaintControls from './PaintControls.vue';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
+import ResetViews from './tools/ResetViews.vue';
 import RulerControls from './RulerControls.vue';
 import RectangleControls from './RectangleControls.vue';
 import PolygonControls from './PolygonControls.vue';
@@ -150,6 +153,7 @@ export default defineComponent({
     GroupableItem,
     PaintControls,
     CropControls,
+    ResetViews,
     RulerControls,
     RectangleControls,
     PolygonControls,
