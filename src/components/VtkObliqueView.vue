@@ -292,27 +292,6 @@ export default defineComponent({
       baseImage: curImageID
     });
 
-    const obliqueRep = baseImageRep?.value;
-    if (obliqueRep) {
-      switch(viewDirection.value) {
-        case 'Left':
-        case 'Right':
-          obliqueRep.setOutlineColor([1, 0, 0]);
-          break;
-        case 'Posterior':
-        case 'Anterior':
-          obliqueRep.setOutlineColor([0, 1, 0]);
-          break;
-        case 'Superior':
-        case 'Inferior':
-          obliqueRep.setOutlineColor([0, 0, 1]);
-          break;
-        default:
-          obliqueRep.setOutlineColor([0, 0, 0]);
-          break;
-      };
-    }
-
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
       // before this component does.
@@ -334,6 +313,14 @@ export default defineComponent({
       }
     }
 
+    const onPlanesUpdated = useVTKCallback(
+      resliceCursorRef.value.getWidgetState().onModified
+    );
+
+    onPlanesUpdated(() => {
+      updateViewFromResliceCursor();
+    });
+
     onMounted(() => {
       setViewProxyContainer(vtkContainerRef.value);
       viewProxy.value.setOrientationAxesVisibility(false);
@@ -342,14 +329,6 @@ export default defineComponent({
       if (curImageData.value) {
         resliceCursorRef.value.updateCameraPoints(viewProxy.value.getRenderer(), VTKViewType.value, true, false, true);
       }
-
-      const onPlanesUpdated = useVTKCallback(
-        resliceCursorRef.value.getWidgetState().onModified
-      );
-
-      onPlanesUpdated(() => {
-        updateViewFromResliceCursor();
-      });
     });
 
     onBeforeUnmount(() => {
@@ -499,6 +478,33 @@ export default defineComponent({
       { immediate: true }
     );
 
+    watch(
+      baseImageRep,
+      (obliqueRep) => {
+        if (obliqueRep) {
+          switch(viewDirection.value) {
+            case 'Left':
+            case 'Right':
+              obliqueRep.setOutlineColor([1, 0, 0]);
+              break;
+            case 'Posterior':
+            case 'Anterior':
+              obliqueRep.setOutlineColor([0, 1, 0]);
+              break;
+            case 'Superior':
+            case 'Inferior':
+              obliqueRep.setOutlineColor([0, 0, 1]);
+              break;
+            default:
+              obliqueRep.setOutlineColor([0, 0, 0]);
+              break;
+          }
+        }
+      },
+      { immediate: true }
+    );
+
+
     // --- camera setup --- //
     
     // Set default cutting plane parameters.
@@ -593,6 +599,8 @@ export default defineComponent({
 
       resizeToFitScene();
 
+      updateViewFromResliceCursor();
+
       viewProxy.value.renderLater();
     };
 
@@ -634,9 +642,9 @@ export default defineComponent({
 
       const { width, level } = wlConfig.value;
 
-      if (obliqueRep) {
-        obliqueRep.setWindowWidth(width);
-        obliqueRep.setWindowLevel(level);
+      if (baseImageRep.value) {
+        baseImageRep.value.setWindowWidth(width);
+        baseImageRep.value.setWindowLevel(level);
       }
 
       viewProxy.value.renderLater();
@@ -649,6 +657,11 @@ export default defineComponent({
       resetViews, () => {
         resetCamera();
     });
+
+    const enableResizeToFit = () => {
+      resizeToFit.value = true;
+      resetCamera();
+    };
 
     return {
       vtkContainerRef,
@@ -663,13 +676,12 @@ export default defineComponent({
       isImageLoading,
       widgetManager,
       dicomInfo,
-      enableResizeToFit() {
-        console.log('reset cam clicked.');
-        resizeToFit.value = true;
-        resetCamera();
-      },
+      enableResizeToFit,
       hover,
     };
+  },
+  mounted() {
+    this.enableResizeToFit();
   },
 });
 </script>
