@@ -17,7 +17,7 @@
             icon
             :rounded="0"
             class="toolbar-button"
-            href="mailto:volview@kitware.com?subject=VolView Question/Feedback"
+            href="https://volview.kitware.com/feedback/"
           >
             <v-icon icon="mdi-comment-question-outline"></v-icon>
             <v-tooltip activator="parent" location="bottom">
