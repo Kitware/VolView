@@ -18,6 +18,7 @@
             :rounded="0"
             class="toolbar-button"
             href="https://volview.kitware.com/feedback/"
+            target="_blank"
           >
             <v-icon icon="mdi-comment-question-outline"></v-icon>
             <v-tooltip activator="parent" location="bottom">
