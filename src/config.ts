@@ -198,8 +198,11 @@ export const POLYGON_LABEL_DEFAULTS = {
   white: { color: '#ffffff' },
 };
 
-export const DECREMENT_LABEL_KEY = 'q';
-export const INCREMENT_LABEL_KEY = 'w';
+export const DEFAULT_KEYMAP = {
+  UndoRedo: 'z',
+  DecrementLabel: 'q',
+  IncrementLabel: 'w',
+};
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',

@@ -25,7 +25,7 @@
       close-on-content-click
     >
       <v-list density="compact">
-        <v-list-item @click="deleteRulerFromContextMenu">
+        <v-list-item @click="deleteToolFromContextMenu">
           <v-list-item-title>Delete</v-list-item-title>
         </v-list-item>
       </v-list>
@@ -60,6 +60,13 @@ import {
 } from '@/src/utils/frameOfReference';
 import { Ruler } from '@/src/types/ruler';
 import { vec3 } from 'gl-matrix';
+import {
+  createAddToolOperation,
+  createRemoveToolOperation,
+} from '@/src/store/operations/tools';
+import useHistoryStore from '@/src/store/history';
+import { IHistoryOperation } from '@/src/types/history';
+import { Maybe } from '@/src/types';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -95,6 +102,17 @@ export default defineComponent({
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     const placingRulerID = ref<string | null>(null);
+    let addToolOperation: Maybe<IHistoryOperation<string>> = null;
+
+    const addPlacingTool = () => {
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      addToolOperation = createAddToolOperation(rulerStore, {
+        imageID,
+        placing: true,
+      });
+      placingRulerID.value = addToolOperation.apply();
+    };
 
     // --- active ruler management --- //
 
@@ -119,10 +137,7 @@ export default defineComponent({
           placingRulerID.value = null;
         }
         if (active && imageID) {
-          placingRulerID.value = rulerStore.addRuler({
-            imageID,
-            placing: true,
-          });
+          addPlacingTool();
         }
       },
       { immediate: true }
@@ -149,11 +164,13 @@ export default defineComponent({
     });
 
     const onRulerPlaced = () => {
-      if (currentImageID.value) {
-        placingRulerID.value = rulerStore.addRuler({
-          imageID: currentImageID.value,
-          placing: true,
-        });
+      const imageID = currentImageID.value;
+      if (imageID) {
+        useHistoryStore().pushOperation(
+          { datasetID: imageID },
+          addToolOperation!
+        );
+        addPlacingTool();
       }
     };
 
@@ -196,17 +213,20 @@ export default defineComponent({
       show: false,
       x: 0,
       y: 0,
-      forRulerID: '',
+      forToolID: '',
     });
 
     const openContextMenu = (rulerID: string, displayXY: Vector2) => {
       [contextMenu.x, contextMenu.y] = displayXY;
       contextMenu.show = true;
-      contextMenu.forRulerID = rulerID;
+      contextMenu.forToolID = rulerID;
     };
 
-    const deleteRulerFromContextMenu = () => {
-      rulerStore.removeRuler(contextMenu.forRulerID);
+    const deleteToolFromContextMenu = () => {
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      const op = createRemoveToolOperation(rulerStore, contextMenu.forToolID);
+      useHistoryStore().pushOperation({ datasetID: imageID }, op, true);
     };
 
     // --- ruler data --- //
@@ -252,7 +272,7 @@ export default defineComponent({
       placingRulerID,
       contextMenu,
       openContextMenu,
-      deleteRulerFromContextMenu,
+      deleteToolFromContextMenu,
       onRulerPlaced,
     };
   },

@@ -59,6 +59,13 @@ import {
 } from '@/src/utils/frameOfReference';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { Polygon, PolygonID } from '@/src/types/polygon';
+import {
+  createAddToolOperation,
+  createRemoveToolOperation,
+} from '@/src/store/operations/tools';
+import useHistoryStore from '@/src/store/history';
+import { IHistoryOperation } from '@/src/types/history';
+import { Maybe } from '@/src/types';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 type ToolID = PolygonID;
@@ -100,6 +107,17 @@ export default defineComponent({
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     const placingToolID = ref<ToolID | null>(null);
+    let addToolOperation: Maybe<IHistoryOperation<PolygonID>> = null;
+
+    const addPlacingTool = () => {
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      addToolOperation = createAddToolOperation(activeToolStore, {
+        imageID,
+        placing: true,
+      });
+      placingToolID.value = addToolOperation.apply();
+    };
 
     // --- active tool management --- //
 
@@ -124,10 +142,7 @@ export default defineComponent({
           placingToolID.value = null;
         }
         if (active && imageID) {
-          placingToolID.value = activeToolStore.addTool({
-            imageID,
-            placing: true,
-          });
+          addPlacingTool();
         }
       },
       { immediate: true }
@@ -154,11 +169,13 @@ export default defineComponent({
     });
 
     const onToolPlaced = () => {
-      if (currentImageID.value) {
-        placingToolID.value = activeToolStore.addTool({
-          imageID: currentImageID.value,
-          placing: true,
-        });
+      const imageID = currentImageID.value;
+      if (imageID) {
+        useHistoryStore().pushOperation(
+          { datasetID: imageID },
+          addToolOperation!
+        );
+        addPlacingTool();
       }
     };
 
@@ -207,7 +224,13 @@ export default defineComponent({
     };
 
     const deleteToolFromContextMenu = () => {
-      activeToolStore.removeTool(contextMenu.forToolID);
+      const imageID = currentImageID.value;
+      if (!imageID) return;
+      const op = createRemoveToolOperation(
+        activeToolStore,
+        contextMenu.forToolID
+      );
+      useHistoryStore().pushOperation({ datasetID: imageID }, op, true);
     };
 
     // --- tool data --- //
