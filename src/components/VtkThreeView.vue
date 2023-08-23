@@ -64,6 +64,7 @@ import {
   Ref,
   nextTick,
 } from 'vue';
+import { storeToRefs } from 'pinia';
 import { computedWithControl } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 
@@ -103,6 +104,7 @@ import { isViewAnimating } from '../composables/isViewAnimating';
 import { ColoringConfig } from '../types/views';
 import useViewCameraStore from '../store/view-configs/camera';
 import { Maybe } from '../types';
+import { useCustomEvents } from '../store/custom-events';
 
 function useCvrEffect(
   config: Ref<Maybe<VolumeColorConfig>>,
@@ -596,6 +598,14 @@ export default defineComponent({
       },
       { immediate: true }
     );
+
+    // --- Listen to ResetViews event --- //
+    const events = useCustomEvents();
+    const { resetViews } = storeToRefs(events);
+    watch(
+      resetViews, () => {
+        resetCamera();
+    });
 
     // --- template vars --- //
 

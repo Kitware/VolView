@@ -187,6 +187,7 @@ import {
   watch,
   watchEffect,
 } from 'vue';
+import { storeToRefs } from 'pinia';
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
@@ -244,6 +245,7 @@ import { useProxyManager } from '../composables/proxyManager';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
+import { useCustomEvents } from '../store/custom-events';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -839,6 +841,14 @@ export default defineComponent({
     });
 
     // --- //
+
+    // Listen to ResetViews event.
+    const events = useCustomEvents();
+    const { resetViews } = storeToRefs(events);
+    watch(
+      resetViews, () => {
+        resetCamera();
+    });
 
     return {
       vtkContainerRef,
