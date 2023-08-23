@@ -224,6 +224,7 @@ import {
   defineComponent,
   nextTick,
   onMounted,
+  provide,
   Ref,
   ref,
   watch,
@@ -242,6 +243,10 @@ import {
   ImportDataSourcesResult,
   convertSuccessResultToDataSelection,
 } from '@/src/io/import/importDataSources';
+import vtkResliceCursorWidget, { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import {vec3, mat3} from 'gl-matrix'
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -275,6 +280,7 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { partition, wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
+import { VTKResliceCursor } from '../constants';
 
 async function loadFiles(
   sources: DataSource[],
@@ -365,6 +371,7 @@ export default defineComponent({
     useKeyboardShortcuts();
 
     const { runAsLoading } = useAppLoadingNotifications();
+    const { currentImageData } = useCurrentImage();
 
     // --- layout --- //
 
@@ -388,6 +395,56 @@ export default defineComponent({
         currentLayout.value.name !== layoutName.value
       ) {
         layoutName.value = currentLayout.value.name;
+      }
+    });
+
+    // --- ResliceCursorWidget --- //
+    // Construct the common instance of vtkResliceCursorWidget and provide it
+    // to all the child ObliqueView components.
+    const resliceCursor = ref<vtkResliceCursorWidget>(vtkResliceCursorWidget.newInstance({
+      scaleInPixels: true,
+      rotationHandlePosition: 0.75,
+    }));
+    provide(VTKResliceCursor, resliceCursor);
+
+    // TODO: Move this to a store/global-state for reslicing.
+    // Orient the planes of the vtkResliceCursorWidget to the orientation
+    // of the currently set image.
+    const resliceCursorState = resliceCursor.value.getWidgetState() as ResliceCursorWidgetState;
+
+    // Temporary fix to disable race between PanTool and ResliceCursorWidget
+    resliceCursorState.setScrollingMethod(-1);
+
+    watch(currentImageData, (image) => {
+      if (image && resliceCursor.value) {
+        resliceCursor.value.setImage(image);
+        // Reset to default plane values before transforming based on current image-data.
+        resliceCursorState.setPlanes({
+          [ViewTypes.YZ_PLANE]: {
+            normal: [1, 0, 0],
+            viewUp: [0, 0, 1],
+            color3: [255, 0, 0],
+          },
+          [ViewTypes.XZ_PLANE]: {
+            normal: [0, -1, 0],
+            viewUp: [0, 0, 1],
+            color3: [0, 255, 0],
+          },
+          [ViewTypes.XY_PLANE]: {
+            normal: [0, 0, -1],
+            viewUp: [0, -1, 0],
+            color3: [0, 0, 255],
+          }
+        });
+        const planes = resliceCursorState.getPlanes();
+
+        const d9 = image.getDirection();
+        const mat = Array.from(d9) as mat3;
+        Object.values(planes).forEach((plane) => {
+          const {normal, viewUp} = plane;
+          vec3.transformMat3(normal, normal, mat);
+          vec3.transformMat3(viewUp, viewUp, mat);
+        });
       }
     });
 
