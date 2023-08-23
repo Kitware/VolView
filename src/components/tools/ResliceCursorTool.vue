@@ -84,8 +84,18 @@ export default defineComponent({
           rotateLine: 'default',
           translateAxis: 'default',
         });
-        state.getStatesWithLabel('sphere').forEach((handle) => (handle as ResliceCursorWidgetState).setScale1(10));
-        state.getStatesWithLabel('line').forEach((handle) => (handle as ResliceCursorWidgetState).setScale3(2, 2, 2));
+
+        state.getStatesWithLabel('sphere').forEach((handle) => {
+          const h = handle as ResliceCursorWidgetState;
+          h.setScale1(10);
+          h.setOpacity(128);
+        });
+
+        state.getStatesWithLabel('line').forEach((handle) => {
+          const h = handle as ResliceCursorWidgetState;
+          h.setScale3(1, 1, 1);
+          h.setOpacity(100);
+        });
 
         // update representation to not be as 3D
         widget.value.getRepresentations().forEach((rep) => {
