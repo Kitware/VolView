@@ -15,10 +15,11 @@ export const InitViewIDs: Record<string, string> = {
   Coronal: 'Coronal',
   Sagittal: 'Sagittal',
   Axial: 'Axial',
+  Three: '3D',
   ObliqueCoronal: 'ObliqueCoronal',
   ObliqueSagittal: 'ObliqueSagittal',
   ObliqueAxial: 'ObliqueAxial',
-  Three: '3D',
+  ObliqueThree: 'Oblique3D',
 };
 
 /**
@@ -69,6 +70,13 @@ export const InitViewSpecs: Record<string, ViewSpec> = {
   },
   [InitViewIDs.Three]: {
     viewType: '3D',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueThree]: {
+    viewType: 'Oblique3D',
     props: {
       viewDirection: 'Posterior',
       viewUp: 'Superior',
@@ -128,9 +136,17 @@ export const Layouts: Record<string, Layout> = [
   },
   {
     name: 'Oblique Only',
-    direction: LayoutDirection.V,
-    // items: [InitViewIDs.ObliqueAxial, InitViewIDs.Axial],
-    items: [InitViewIDs.ObliqueAxial, InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueSagittal],
+    direction: LayoutDirection.H,
+    items: [
+      {
+        direction: LayoutDirection.V,
+        // items: [InitViewIDs.ObliqueCoronal],
+        items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
+      },
+      { direction: LayoutDirection.V,
+        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueAxial],
+      }
+    ],
   },
   {
     name: '3D Only',

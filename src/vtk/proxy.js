@@ -3,13 +3,13 @@ import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunct
 
 import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 
-import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 import vtkGeometryRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/GeometryRepresentationProxy';
+import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
+import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
 
 import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
-import vtkObliqueRepresentationProxy from '@/src/vtk/ObliqueRepresentationProxy';
 import vtkLabelMapSliceRepProxy from '@/src/vtk/LabelMapSliceRepProxy';
 
 function createProxyDefinition(
@@ -44,7 +44,7 @@ export default {
       TrivialProducer: createProxyDefinition(vtkSourceProxy),
     },
     Representations: {
-      ImageReslice: createProxyDefinition(vtkObliqueRepresentationProxy),
+      ImageReslice: createProxyDefinition(vtkResliceRepresentationProxy),
       ImageSlice: createProxyDefinition(vtkIJKSliceRepresentationProxy),
       LabelMapSlice: createProxyDefinition(vtkLabelMapSliceRepProxy),
       Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
@@ -54,6 +54,7 @@ export default {
       View3D: createDefaultView(vtkLPSView3DProxy),
       View2D: createDefaultView(vtkLPSView2DProxy),
       Oblique: createDefaultView(vtkLPSView2DProxy),
+      Oblique3D: createDefaultView(vtkLPSView3DProxy),
     },
   },
   representations: {
@@ -67,6 +68,9 @@ export default {
     },
     Oblique: {
       vtkImageData: { name: 'ImageReslice' },
+    },
+    Oblique3D: {
+      vtkImageData: { name: 'Geometry' },
     },
   },
 };

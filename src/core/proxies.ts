@@ -10,6 +10,7 @@ export enum ViewProxyType {
   Volume = 'View3D',
   Slice = 'View2D',
   Oblique = 'Oblique',
+  Oblique3D = 'Oblique3D',
 }
 
 /**

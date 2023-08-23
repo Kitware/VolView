@@ -130,14 +130,14 @@ import {
   watchEffect,
 } from 'vue';
 import { storeToRefs } from 'pinia';
-import { vec3 } from 'gl-matrix';
+import { vec3, mat3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
-import type { Matrix3x3, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
+import vtkReslicReperesentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
-import vtkObliqueRepresentationProxy from '@/src/vtk/ObliqueRepresentationProxy';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
@@ -287,7 +287,7 @@ export default defineComponent({
     });
 
     const { baseImageRep } = useSceneBuilder<
-      vtkObliqueRepresentationProxy
+      vtkReslicReperesentationProxy
     >(viewID, {
       baseImage: curImageID
     });
@@ -482,6 +482,8 @@ export default defineComponent({
       baseImageRep,
       (obliqueRep) => {
         if (obliqueRep) {
+          obliqueRep.setOutlineVisibility(true);
+          obliqueRep.setOutlineLineWidth(5.0);
           switch(viewDirection.value) {
             case 'Left':
             case 'Right':
@@ -583,7 +585,7 @@ export default defineComponent({
 
         if (curImageData.value) {
           const d9 = curImageData.value.getDirection();
-          const mat = Array.from(d9) as Matrix3x3;
+          const mat = Array.from(d9) as mat3;
           Object.values(planes).forEach((plane) => {
             const {normal, viewUp: vup} = plane;
             vec3.transformMat3(normal, normal, mat);
