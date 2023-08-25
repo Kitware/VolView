@@ -237,9 +237,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     if (model._isDragging) {
       model._apiSpecificRenderWindow.setCursor('pointer');
-      model.widgetState.deactivate();
       model._interactor.cancelAnimation(publicAPI);
       model._isDragging = false;
+      model._widgetManager.enablePicking();
+      // So a left click without moving the mouse immediately grabs the handle
+      // we don't call model.widgetState.deactivate() here.
     } else if (model.activeState !== model.widgetState.getMoveHandle()) {
       model.widgetState.deactivate();
     }

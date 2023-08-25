@@ -2,11 +2,8 @@ import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { InteractionState } from './behavior';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-
-export { InteractionState } from './behavior';
 
 export interface vtkPolygonWidgetPointState extends vtkWidgetState {
   getVisible(): boolean;
@@ -26,8 +23,6 @@ export interface vtkPolygonViewWidget extends vtkAbstractWidget {
   getManipulator(): vtkPlaneManipulator;
   onRightClickEvent(cb: (eventData: any) => void): vtkSubscription;
   onPlacedEvent(cb: (eventData: any) => void): vtkSubscription;
-  setInteractionState(state: InteractionState): boolean;
-  getInteractionState(): InteractionState;
   resetInteractions(): void;
   getWidgetState(): vtkPolygonWidgetState;
 }
