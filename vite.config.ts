@@ -145,9 +145,6 @@ export default defineConfig({
       : ({} as Plugin),
     configureSentryPlugin(),
   ],
-  server: {
-    port: 8080,
-  },
   test: {
     environment: 'jsdom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740

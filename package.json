@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "preview": "vite preview",
-    "serve": "npm run dev",
+    "serve": "npm run dev -- --port 8080",
     "build": "vue-tsc --noEmit && vite build",
     "build:analyze": "cross-env ANALYZE_BUNDLE=1 npm run build",
     "test": "vitest",
