@@ -25,15 +25,16 @@
       close-on-content-click
     >
       <v-list density="compact">
+        <v-list-item @click="deleteToolFromContextMenu">
+          <v-list-item-title>Delete Polygon</v-list-item-title>
+        </v-list-item>
+        <!-- Optional items below stable item for muscle memory  -->
         <v-list-item
           v-for="action in contextMenu.widgetActions"
           @click="action.func"
           :key="action.name"
         >
           <v-list-item-title>{{ action.name }}</v-list-item-title>
-        </v-list-item>
-        <v-list-item @click="deleteToolFromContextMenu">
-          <v-list-item-title>Delete Polygon</v-list-item-title>
         </v-list-item>
       </v-list>
     </v-menu>

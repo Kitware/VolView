@@ -57,6 +57,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   const finishPlacing = () => {
     model.widgetState.setPlacing(false);
     publicAPI.loseFocus();
+    // Tool Component listens for 'placed' event
     publicAPI.invokePlacedEvent();
   };
 
@@ -171,7 +172,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       selections[0].getProperties().prop ===
         model.representations[1].getActors()[0]; // line representation is second representation
 
-    if (overSegment) {
+    const overHandle = model.activeState?.isA('vtkPolygonHandleState');
+
+    if (overSegment && !overHandle) {
       // insert point
       const insertIndex = selections[0].getProperties().compositeID + 1;
       const newHandle = model.widgetState.addHandle({ insertIndex });

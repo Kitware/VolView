@@ -13,6 +13,14 @@ export const HandlesLabel = 'handles';
 
 const PIXEL_SIZE = 20;
 
+type VtkObjectModel = {
+  classHierarchy: string[];
+};
+
+type HandleModel = {
+  index: number;
+} & VtkObjectModel;
+
 function vtkPolygonWidgetState(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetState');
   model.moveHandle = createPointState({
@@ -56,6 +64,8 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     vtkWidgetState.extend(handlePublicAPI, handleModel, {});
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
     scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
+    const handleModelPromoted = handleModel as HandleModel;
+    handleModelPromoted.classHierarchy.push('vtkPolygonHandleState');
 
     model.handles.splice(index, 0, handlePublicAPI);
 
