@@ -18,6 +18,7 @@ function resolve(...args) {
 const rootDir = resolve(__dirname);
 const nodeModulesDir = resolve(rootDir, 'node_modules');
 const distDir = resolve(rootDir, 'dist');
+const itkConfig = resolve(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
 
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
@@ -71,6 +72,17 @@ export default defineConfig({
         find: '@src',
         replacement: resolve(rootDir, 'src'),
       },
+      // Patch itk-wasm library code with image-io .wasm file paths
+      // itkConfig alias only applies to itk-wasm library code after "npm run build"
+      // During "npm run serve", itk-wasm fetches image-io .wasm files from CDN
+      {
+        find: '../itkConfig.js',
+        replacement: itkConfig,
+      },
+      {
+        find: '../../itkConfig.js',
+        replacement: itkConfig,
+      },
     ],
   },
   plugins: [
@@ -121,8 +133,15 @@ export default defineConfig({
           dest: 'itk',
         },
         {
-          src: resolve(nodeModulesDir, 'itk-image-io'),
+          src: resolve(nodeModulesDir, 'itk-image-io/*{.wasm,.js}'),
           dest: 'itk/image-io',
+        },
+        {
+          src: resolve(
+            nodeModulesDir,
+            '@itk-wasm/dicom/dist/pipelines/*{.wasm,.js}'
+          ),
+          dest: 'itk/pipelines',
         },
         {
           src: 'src/io/itk-dicom/emscripten-build/**/dicom*',

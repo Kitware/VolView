@@ -1,12 +1,13 @@
-import { join } from '@/src/utils/path';
+import { runPipeline, TextStream, InterfaceTypes, Image } from 'itk-wasm';
+
 import {
-  runPipeline,
-  TextStream,
-  InterfaceTypes,
-  readDICOMTags,
-  readImageDICOMFileSeries,
-  Image,
-} from 'itk-wasm';
+  readDicomTags,
+  readImageDicomFileSeries,
+  setPipelinesBaseUrl,
+  setPipelineWorkerUrl,
+} from '@itk-wasm/dicom';
+
+import itkConfig from '@/src/io/itk/itkConfig';
 
 export interface TagSpec {
   name: string;
@@ -58,15 +59,10 @@ export class DICOMIO {
     inputs: any[],
     outputs: any[]
   ) {
-    return runPipeline(
-      this.webWorker,
-      module,
-      args,
-      outputs,
-      inputs,
-      join(import.meta.env.BASE_URL, '/itk/pipelines'),
-      join(import.meta.env.BASE_URL, '/itk/pipeline.worker.js')
-    );
+    return runPipeline(this.webWorker, module, args, outputs, inputs, {
+      pipelineBaseUrl: itkConfig.pipelinesUrl,
+      pipelineWorkerUrl: itkConfig.pipelineWorkerUrl,
+    });
   }
 
   /**
@@ -77,6 +73,8 @@ export class DICOMIO {
    */
   async initialize() {
     if (!this.initializeCheck) {
+      setPipelinesBaseUrl(itkConfig.pipelinesUrl);
+      setPipelineWorkerUrl(itkConfig.pipelineWorkerUrl);
       this.initializeCheck = new Promise<void>((resolve, reject) => {
         this.runTask('dicom', [], [], [])
           .then((result) => {
@@ -89,7 +87,7 @@ export class DICOMIO {
           .then(async () => {
             // preload read-dicom-tags pipeline
             try {
-              await readDICOMTags(this.webWorker, new File([], ''), null);
+              await readDicomTags(this.webWorker, new File([], ''));
             } catch {
               // ignore
             }
@@ -163,14 +161,14 @@ export class DICOMIO {
     file: File,
     tags: T
   ): Promise<Record<T[number]['name'], string>> {
-    const tagsArgs = tags.map((t) => t.tag);
+    const tagsArgs = { tagsToRead: { tags: tags.map(({ tag }) => tag) } };
 
-    const result = await readDICOMTags(
+    const result = await readDicomTags(
       this.webWorker,
       sanitizeFile(file),
       tagsArgs
     );
-    const tagValues = result.tags;
+    const tagValues = new Map(result.tags);
 
     return tags.reduce((info, t) => {
       const { tag, name } = t;
@@ -260,10 +258,12 @@ export class DICOMIO {
   async buildImage(seriesFiles: File[]) {
     await this.initialize();
 
-    const result = await readImageDICOMFileSeries(
-      seriesFiles.map((file) => sanitizeFile(file))
-    );
+    const inputImages = seriesFiles.map((file) => sanitizeFile(file));
+    const result = await readImageDicomFileSeries(null, {
+      inputImages,
+      singleSortedSeries: false,
+    });
 
-    return result.image;
+    return result.outputImage;
   }
 }

@@ -5,7 +5,8 @@ import {
   WorkerPool,
   stackImages,
 } from 'itk-wasm';
-import { join } from '@/src/utils/path';
+
+import itkConfig from '@src/io/itk/itkConfig';
 
 export async function runWasm(
   pipeline,
@@ -44,8 +45,12 @@ export async function runWasm(
       data: imageSharedBufferOrCopy(image),
     }));
 
-    return [pipeline, taskArgs, outputs, inputs, join(import.meta.env.BASE_URL, '/itk/pipelines'),
-      join(import.meta.env.BASE_URL, '/itk/pipeline.worker.js')];
+    return [pipeline, taskArgs, outputs, inputs, {
+      pipelineBaseUrl: itkConfig.pipelinesUrl,
+      pipelineWorkerUrl: itkConfig.pipelineWorkerUrl,
+    }];
+
+
   });
 
   const workerPool = new WorkerPool(numberOfWorkers, runPipeline);
