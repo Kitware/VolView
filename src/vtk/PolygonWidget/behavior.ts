@@ -164,12 +164,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    // Check if mouse over handle or segment
+    // Check if mouse is over segment
     const selections = model._widgetManager.getSelections();
     const overSegment =
       selections[0] &&
       selections[0].getProperties().prop ===
-        model.representations[1].getActors()[0];
+        model.representations[1].getActors()[0]; // line representation is second representation
 
     if (overSegment) {
       // insert point
@@ -178,7 +178,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       const coords = getWorldCoords(e);
       if (!coords) throw new Error('No world coords');
       newHandle.setOrigin(coords);
-      return macro.EVENT_ABORT;
+      // enable dragging immediately
+      publicAPI.activateHandle({
+        selectedState: newHandle,
+        representation: model.representations[0].getActors()[0], // first actor is GlyphMapper for handles,
+      });
     }
 
     if (model.activeState?.getActive() && model.pickable && model.dragable) {
@@ -218,6 +222,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left release: Finish drag
   // --------------------------------------------------------------------------
 
+  // Detect double click by comparing these values.
   let lastReleaseTime = 0;
   let lastReleasePosition: Vector3 | undefined;
 
