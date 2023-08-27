@@ -21,6 +21,25 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetProp');
   model._isDragging = false;
 
+  // If creating new handle and immediately dragging,
+  // widgetManager.getSelections() still points to the last actor
+  // after the mouse button is released. In this widgets case the last actor is part of the LineGlyphRepresentation.
+  // So overUnselectedHandle tracks if the mouse is over a handle so we don't create a new handle
+  // when clicking on segment without immediate mouse move.
+  // A mouse move event sets overUnselectedHandle to false as we can then rely on getSelections().
+  let overUnselectedHandle = false;
+
+  // Check if mouse is over segment between handles
+  const checkOverSegment = () => {
+    // overSegment guards against clicking anywhere in view or over seasoned handle.
+    const selections = model._widgetManager.getSelections();
+    const overSegment =
+      selections[0] &&
+      selections[0].getProperties().prop ===
+        model.representations[1].getActors()[0]; // line representation is second representation
+    return overSegment && !overUnselectedHandle;
+  };
+
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
   // support forwarding events
@@ -165,20 +184,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    // Check if mouse is over segment
-    const selections = model._widgetManager.getSelections();
-    const overSegment =
-      selections[0] &&
-      selections[0].getProperties().prop ===
-        model.representations[1].getActors()[0]; // line representation is second representation
-
-    const overHandle = model.activeState?.isA('vtkPolygonHandleState');
-
-    // overSegment guards against clicking anywhere in view.
-    // overHandle guards against clicking over existing handle.  WidgetManager.selections not sufficient as it is stale if mouse did not move.
-    if (overSegment && !overHandle) {
+    if (checkOverSegment()) {
       // insert point
-      const insertIndex = selections[0].getProperties().compositeID + 1;
+      const insertIndex = model.activeState.getIndex() + 1;
       const newHandle = model.widgetState.addHandle({ insertIndex });
       const coords = getWorldCoords(e);
       if (!coords) throw new Error('No world coords');
@@ -186,8 +194,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       // enable dragging immediately
       publicAPI.activateHandle({
         selectedState: newHandle,
-        representation: model.representations[0].getActors()[0], // first actor is GlyphMapper for handles,
+        representation: model.representations[0].getActors()[0], // first actor is GlyphMapper for handles
       });
+      overUnselectedHandle = true;
     }
 
     if (model.activeState?.getActive() && model.pickable && model.dragable) {
@@ -217,9 +226,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
         return macro.EVENT_ABORT;
       }
     }
+
+    // widgetManager.getSelections() updates on mouse move and not animating.
+    // (Widget triggers animation when dragging.)
+    // So we can rely on getSelections() to be up to date now.
+    overUnselectedHandle = false;
+
     if (model.hasFocus) {
       model._widgetManager.disablePicking();
     }
+
     return macro.VOID;
   };
 
@@ -245,7 +261,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model._interactor.cancelAnimation(publicAPI);
       model._isDragging = false;
       model._widgetManager.enablePicking();
-      // So a left click without moving the mouse immediately grabs the handle
+      // So a following left click without moving the mouse can immediately grab the handle,
       // we don't call model.widgetState.deactivate() here.
 
       publicAPI.invokeEndInteractionEvent();
@@ -330,8 +346,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     const { activeState } = model;
 
-    // if hovering on handle and at least 3 points (hard to place new point if delete down to 1 point)
-    if (activeState.getIndex && model.widgetState.getHandles().length > 2) {
+    const overSegment = checkOverSegment();
+    // if hovering on handle and we will still have at least 2 points after removing handle
+    if (!overSegment && model.widgetState.getHandles().length > 2) {
       widgetActions.push({
         name: 'Delete Point',
         func: () => {
@@ -364,7 +381,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   // --------------------------------------------------------------------------
   // Focused means PolygonWidget is in initial drawing/placing mode.
-  // If focused, after first point dropped, make moveHandle follow mouse.
+  // After first point dropped, make moveHandle follow mouse.
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {
@@ -385,6 +402,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       publicAPI.invokeEndInteractionEvent();
     }
     model.widgetState.deactivate();
+    model.widgetState.getMoveHandle().deactivate();
     model.widgetState.getMoveHandle().setVisible(false);
     model.widgetState.getMoveHandle().setOrigin(null);
     model.activeState = null;

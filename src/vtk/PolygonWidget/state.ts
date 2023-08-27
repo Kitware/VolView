@@ -68,16 +68,14 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     handleModelPromoted.classHierarchy.push('vtkPolygonHandleState');
 
     model.handles.splice(index, 0, handlePublicAPI);
-
-    // when inserted in middle of array, update indices of subsequent handles
+    // when inserting into middle of array, update indices of subsequent handles
     for (let i = index + 1; i < model.handles.length; i++) {
       model.handles[i].setIndex(i);
     }
 
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
-
     // bind state pushes handle at end of array,
-    // but we may have inserted in middle of array, so copy handles
+    // but we may have inserted in middle of array, so copy handles array
     model.labels[HandlesLabel] = [...model.handles];
 
     publicAPI.modified();

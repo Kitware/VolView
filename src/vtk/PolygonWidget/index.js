@@ -3,7 +3,7 @@ import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidge
 import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation/Constants';
-import vtkSegmentedLineRepresentation from '@src/vtk/SegmentedLineRepresentation';
+import vtkLineGlyphRepresentation from '@src/vtk/LineGlyphRepresentation';
 
 import widgetBehavior from './behavior';
 import stateGenerator, { HandlesLabel, MoveHandleLabel } from './state';
@@ -26,13 +26,11 @@ function vtkPolygonWidget(publicAPI, model) {
       },
     },
     {
-      builder: vtkSegmentedLineRepresentation,
+      builder: vtkLineGlyphRepresentation,
       labels: [HandlesLabel],
       initialValues: {
         scaleInPixels: true,
         behavior: Behavior.HANDLE, // make pickable even if not visible
-        lineThickness: 5,
-        close: true,
       },
     },
   ];
