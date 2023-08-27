@@ -174,6 +174,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     const overHandle = model.activeState?.isA('vtkPolygonHandleState');
 
+    // overSegment guards against clicking anywhere in view.
+    // overHandle guards against clicking over existing handle.  WidgetManager.selections not sufficient as it is stale if mouse did not move.
     if (overSegment && !overHandle) {
       // insert point
       const insertIndex = selections[0].getProperties().compositeID + 1;
@@ -245,8 +247,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model._widgetManager.enablePicking();
       // So a left click without moving the mouse immediately grabs the handle
       // we don't call model.widgetState.deactivate() here.
-    } else if (model.activeState !== model.widgetState.getMoveHandle()) {
-      model.widgetState.deactivate();
+
+      publicAPI.invokeEndInteractionEvent();
+      return macro.EVENT_ABORT;
     }
 
     // Double click? Then finish.
@@ -360,8 +363,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   // --------------------------------------------------------------------------
-  // Focus API: After first point dropped, make moveHandle follow mouse.
   // Focused means PolygonWidget is in initial drawing/placing mode.
+  // If focused, after first point dropped, make moveHandle follow mouse.
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {
@@ -382,7 +385,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       publicAPI.invokeEndInteractionEvent();
     }
     model.widgetState.deactivate();
-    model.widgetState.getMoveHandle().deactivate();
     model.widgetState.getMoveHandle().setVisible(false);
     model.widgetState.getMoveHandle().setOrigin(null);
     model.activeState = null;
