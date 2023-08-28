@@ -5,6 +5,15 @@ import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useDataBrowserStore } from '@/src/store/data-browser';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useViewStore } from '@/src/store/views';
+import { Layouts } from '@/src/config';
+import { zodEnumFromObjKeys } from '@/src/utils';
+
+const layout = z
+  .object({
+    activeLayout: zodEnumFromObjKeys(Layouts).optional(),
+  })
+  .optional();
 
 const color = z.string();
 
@@ -29,6 +38,7 @@ const dataBrowser = z
   .optional();
 
 const config = z.object({
+  layout,
   labels: z.record(label).or(z.null()).optional(),
   rulerLabels: z.record(rulerLabel).or(z.null()).optional(),
   rectangleLabels: z.record(rectangleLabel).or(z.null()).optional(),
@@ -60,7 +70,15 @@ const applySampleData = (manifest: Config) => {
   useDataBrowserStore().hideSampleData = !!manifest.dataBrowser?.hideSampleData;
 };
 
+const applyLayout = (manifest: Config) => {
+  if (manifest.layout?.activeLayout) {
+    const startingLayout = Layouts[manifest.layout.activeLayout];
+    useViewStore().setLayout(startingLayout);
+  }
+};
+
 const applyConfig = (manifest: Config) => {
+  applyLayout(manifest);
   applyLabels(manifest);
   applySampleData(manifest);
 };
