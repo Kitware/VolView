@@ -15,6 +15,15 @@ const layout = z
   })
   .optional();
 
+const dataBrowser = z
+  .object({
+    hideSampleData: z.boolean().optional(),
+  })
+  .optional();
+
+// --------------------------------------------------------------------------
+// Labels
+
 const color = z.string();
 
 const label = z.object({
@@ -31,19 +40,19 @@ const rectangleLabel = z.intersection(
   })
 );
 
-const dataBrowser = z
+const labels = z
   .object({
-    hideSampleData: z.boolean().optional(),
+    defaultLabels: z.record(label).or(z.null()).optional(),
+    rulerLabels: z.record(rulerLabel).or(z.null()).optional(),
+    rectangleLabels: z.record(rectangleLabel).or(z.null()).optional(),
+    polygonLabels: z.record(polygonLabel).or(z.null()).optional(),
   })
   .optional();
 
 const config = z.object({
   layout,
-  labels: z.record(label).or(z.null()).optional(),
-  rulerLabels: z.record(rulerLabel).or(z.null()).optional(),
-  rectangleLabels: z.record(rectangleLabel).or(z.null()).optional(),
-  polygonLabels: z.record(polygonLabel).or(z.null()).optional(),
   dataBrowser,
+  labels,
 });
 
 type Config = z.infer<typeof config>;
@@ -56,14 +65,20 @@ const readConfigFile = async (configFile: File) => {
 };
 
 const applyLabels = (manifest: Config) => {
+  if (!manifest.labels) return;
+
   // pass through null labels, use fallback labels if undefined
-  const labelsIfUndefined = (toolLabels: typeof manifest.labels) => {
-    if (toolLabels === undefined) return manifest.labels;
+  const labelsIfUndefined = (
+    toolLabels: (typeof manifest.labels)[keyof typeof manifest.labels]
+  ) => {
+    if (toolLabels === undefined) return manifest.labels?.defaultLabels;
     return toolLabels;
   };
-  useRulerStore().mergeLabels(labelsIfUndefined(manifest.rulerLabels));
-  useRectangleStore().mergeLabels(labelsIfUndefined(manifest.rectangleLabels));
-  usePolygonStore().mergeLabels(labelsIfUndefined(manifest.polygonLabels));
+
+  const { rulerLabels, rectangleLabels, polygonLabels } = manifest.labels;
+  useRulerStore().mergeLabels(labelsIfUndefined(rulerLabels));
+  useRectangleStore().mergeLabels(labelsIfUndefined(rectangleLabels));
+  usePolygonStore().mergeLabels(labelsIfUndefined(polygonLabels));
 };
 
 const applySampleData = (manifest: Config) => {
