@@ -74,8 +74,11 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
 
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
-    // bind state pushes handle at end of array,
-    // but we may have inserted in middle of array, so copy handles array
+    // bind state pushes handle at end of labels array,
+    // but we may have inserted handle in middle of array.
+    // Downstream representations get order of state/handles from
+    // internal HandlesLabel labels array.
+    // So copy handles array.
     model.labels[HandlesLabel] = [...model.handles];
 
     publicAPI.modified();

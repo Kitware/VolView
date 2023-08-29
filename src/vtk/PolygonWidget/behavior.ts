@@ -21,22 +21,22 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetProp');
   model._isDragging = false;
 
+  // overUnselectedHandle is true if mouse is over handle that was created before a mouse move event.
   // If creating new handle and immediately dragging,
   // widgetManager.getSelections() still points to the last actor
   // after the mouse button is released. In this widgets case the last actor is part of the LineGlyphRepresentation.
-  // So overUnselectedHandle tracks if the mouse is over a handle so we don't create a new handle
-  // when clicking on segment without immediate mouse move.
-  // A mouse move event sets overUnselectedHandle to false as we can then rely on getSelections().
+  // So overUnselectedHandle tracks if the mouse is over the new handle so we
+  // don't create a another handle when clicking after without mouse move.
+  // A mouse move event sets overUnselectedHandle to false as we can then rely on widgetManager.getSelections().
   let overUnselectedHandle = false;
 
-  // Check if mouse is over segment between handles
+  // Check if mouse is over line segment between handles
   const checkOverSegment = () => {
-    // overSegment guards against clicking anywhere in view or over seasoned handle.
+    // overSegment guards against clicking anywhere in view
     const selections = model._widgetManager.getSelections();
     const overSegment =
-      selections[0] &&
-      selections[0].getProperties().prop ===
-        model.representations[1].getActors()[0]; // line representation is second representation
+      selections[0]?.getProperties().prop ===
+      model.representations[1].getActors()[0]; // line representation is second representation
     return overSegment && !overUnselectedHandle;
   };
 
@@ -120,11 +120,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     const worldCoords = getWorldCoords(callData);
 
     if (
-      worldCoords &&
-      worldCoords.length &&
+      worldCoords?.length &&
       (model.activeState === model.widgetState.getMoveHandle() ||
-        model._isDragging) &&
-      model.activeState.setOrigin // the line is pickable but not draggable
+        model._isDragging)
     ) {
       model.activeState.setOrigin(worldCoords);
 

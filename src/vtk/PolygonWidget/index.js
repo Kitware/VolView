@@ -30,6 +30,7 @@ function vtkPolygonWidget(publicAPI, model) {
       labels: [HandlesLabel],
       initialValues: {
         scaleInPixels: true,
+        lineThickness: 0.25, // smaller than .5 default to prioritize picking handles
         behavior: Behavior.HANDLE, // make pickable even if not visible
       },
     },
