@@ -179,6 +179,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   });
 
   return {
+    primaryImageID,
     primarySelection,
     primaryDataset,
     allDataIDs,

@@ -863,7 +863,7 @@ export default defineComponent({
         .filter(
           ({ tool }) =>
             tool.slice === currentSlice.value &&
-            doesToolFrameMatchViewAxis(viewAxis, tool)
+            doesToolFrameMatchViewAxis(viewAxis, tool, curImageMetadata)
         )
         .flatMap(({ store, tool }) => store.getPoints(tool.id));
     });
