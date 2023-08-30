@@ -30,16 +30,19 @@ Rectangle annotations can be tagged with a label. Use the palette in the upper l
 
 ### Polygon
 
-With the polygon tool selected, the left mouse button places and adjusts control points.
-Before a polygon is finished, right click to remove the last point or press the Esc key to remove all points.
+With the polygon tool selected:
 
-After placing 3 points, you can finish the polygon by
+- Place points: left mouse button.
+- Remove last placed point: right mouse button.
+- Remove all points: `Esc` key.
+- Close a polygon after placing 3 points: Click first point, press `Enter` key or double click left mouse.
 
-- Clicking the first control point.
-- Press the `Enter` key
-- Double clicking the left mouse button.
+After closing a polygon:
 
-After a polygon is closed, right click a control point to delete the polygon.
+- Move point: Drag point with left mouse button.
+- Add point: Left mouse button on polygon line.
+- Delete point: right click point and select Delete Point.
+- Delete polygon: right click point or line and select Delete Polygon.
 
 Polygon annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
 

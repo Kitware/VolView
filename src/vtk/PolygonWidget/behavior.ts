@@ -2,6 +2,8 @@ import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
 import { Vector3 } from '@kitware/vtk.js/types';
 
+import { WidgetAction } from '../ToolWidgetUtils/utils';
+
 type Position3d = { x: number; y: number; z: number };
 type MouseEvent = {
   position: Position3d;
@@ -18,6 +20,25 @@ const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetProp');
   model._isDragging = false;
+
+  // overUnselectedHandle is true if mouse is over handle that was created before a mouse move event.
+  // If creating new handle and immediately dragging,
+  // widgetManager.getSelections() still points to the last actor
+  // after the mouse button is released. In this widgets case the last actor is part of the LineGlyphRepresentation.
+  // So overUnselectedHandle tracks if the mouse is over the new handle so we
+  // don't create a another handle when clicking after without mouse move.
+  // A mouse move event sets overUnselectedHandle to false as we can then rely on widgetManager.getSelections().
+  let overUnselectedHandle = false;
+
+  // Check if mouse is over line segment between handles
+  const checkOverSegment = () => {
+    // overSegment guards against clicking anywhere in view
+    const selections = model._widgetManager.getSelections();
+    const overSegment =
+      selections[0]?.getProperties().prop ===
+      model.representations[1].getActors()[0]; // line representation is second representation
+    return overSegment && !overUnselectedHandle;
+  };
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
@@ -55,6 +76,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   const finishPlacing = () => {
     model.widgetState.setPlacing(false);
     publicAPI.loseFocus();
+    // Tool Component listens for 'placed' event
     publicAPI.invokePlacedEvent();
   };
 
@@ -84,23 +106,23 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return false;
   }
 
-  function updateActiveStateHandle(callData: any) {
+  function getWorldCoords(callData: any) {
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
     if (!manipulator) {
-      return macro.VOID;
+      return undefined;
     }
 
-    const worldCoords = manipulator.handleEvent(
-      callData,
-      model._apiSpecificRenderWindow
-    );
+    return manipulator.handleEvent(callData, model._apiSpecificRenderWindow);
+  }
+
+  function updateActiveStateHandle(callData: any) {
+    const worldCoords = getWorldCoords(callData);
 
     if (
-      worldCoords.length &&
+      worldCoords?.length &&
       (model.activeState === model.widgetState.getMoveHandle() ||
-        model._isDragging) &&
-      model.activeState.setOrigin // e.g. the line is pickable but not draggable
+        model._isDragging)
     ) {
       model.activeState.setOrigin(worldCoords);
 
@@ -155,10 +177,24 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       const moveHandle = model.widgetState.getMoveHandle();
       const newHandle = model.widgetState.addHandle();
       newHandle.setOrigin(moveHandle.getOrigin());
-      newHandle.setScale1(moveHandle.getScale1());
 
       publicAPI.invokeStartInteractionEvent();
       return macro.EVENT_ABORT;
+    }
+
+    if (checkOverSegment()) {
+      // insert point
+      const insertIndex = model.activeState.getIndex() + 1;
+      const newHandle = model.widgetState.addHandle({ insertIndex });
+      const coords = getWorldCoords(e);
+      if (!coords) throw new Error('No world coords');
+      newHandle.setOrigin(coords);
+      // enable dragging immediately
+      publicAPI.activateHandle({
+        selectedState: newHandle,
+        representation: model.representations[0].getActors()[0], // first actor is GlyphMapper for handles
+      });
+      overUnselectedHandle = true;
     }
 
     if (model.activeState?.getActive() && model.pickable && model.dragable) {
@@ -188,9 +224,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
         return macro.EVENT_ABORT;
       }
     }
+
+    // widgetManager.getSelections() updates on mouse move and not animating.
+    // (Widget triggers animation when dragging.)
+    // So we can rely on getSelections() to be up to date now.
+    overUnselectedHandle = false;
+
     if (model.hasFocus) {
       model._widgetManager.disablePicking();
     }
+
     return macro.VOID;
   };
 
@@ -198,6 +241,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left release: Finish drag
   // --------------------------------------------------------------------------
 
+  // Detect double click by comparing these values.
   let lastReleaseTime = 0;
   let lastReleasePosition: Vector3 | undefined;
 
@@ -212,11 +256,14 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     if (model._isDragging) {
       model._apiSpecificRenderWindow.setCursor('pointer');
-      model.widgetState.deactivate();
       model._interactor.cancelAnimation(publicAPI);
       model._isDragging = false;
-    } else if (model.activeState !== model.widgetState.getMoveHandle()) {
-      model.widgetState.deactivate();
+      model._widgetManager.enablePicking();
+      // So a following left click without moving the mouse can immediately grab the handle,
+      // we don't call model.widgetState.deactivate() here.
+
+      publicAPI.invokeEndInteractionEvent();
+      return macro.EVENT_ABORT;
     }
 
     // Double click? Then finish.
@@ -283,7 +330,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Called when mouse moves off handle.
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
-    // Context menu pops only if hovering over a handle.
+    // Context menu should only show if hovering over the tool.
     // Stops right clicking anywhere showing context menu.
     model.activeState = null;
   };
@@ -291,6 +338,25 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // --------------------------------------------------------------------------
   // Right press: Remove last handle / Pop context menu
   // --------------------------------------------------------------------------
+
+  const makeWidgetActions = () => {
+    const widgetActions: Array<WidgetAction> = [];
+
+    const { activeState } = model;
+
+    const overSegment = checkOverSegment();
+    // if hovering on handle and we will still have at least 2 points after removing handle
+    if (!overSegment && model.widgetState.getHandles().length > 2) {
+      widgetActions.push({
+        name: 'Delete Point',
+        func: () => {
+          model.widgetState.removeHandle(activeState.getIndex());
+        },
+      });
+    }
+
+    return widgetActions;
+  };
 
   publicAPI.handleRightButtonPress = (eventData: any) => {
     if (ignoreKey(eventData) || !model.activeState) {
@@ -302,12 +368,18 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    publicAPI.invokeRightClickEvent(eventData);
+    const eventWithWidgetAction = {
+      ...eventData,
+      widgetActions: makeWidgetActions(),
+    };
+
+    publicAPI.invokeRightClickEvent(eventWithWidgetAction);
     return macro.EVENT_ABORT;
   };
 
   // --------------------------------------------------------------------------
-  // Focus API: After first point dropped, make moveHandle follow mouse
+  // Focused means PolygonWidget is in initial drawing/placing mode.
+  // After first point dropped, make moveHandle follow mouse.
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {
@@ -321,8 +393,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.hasFocus = true;
   };
 
-  // --------------------------------------------------------------------------
-
+  // Called after we are finished/placed.
   publicAPI.loseFocus = () => {
     if (model.hasFocus) {
       model._interactor.cancelAnimation(publicAPI);
