@@ -1,5 +1,5 @@
+import { parseUrl } from '@/src/utils/url';
 import { Awaitable } from '@vueuse/core';
-import { URL } from 'whatwg-url';
 
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
@@ -25,7 +25,7 @@ interface URLHandler {
  */
 const HTTPHandler: URLHandler = {
   testURL: (url) => {
-    const { protocol } = new URL(url, window.location.href);
+    const { protocol } = parseUrl(url, window.location.href);
     return protocol === 'http:' || protocol === 'https:';
   },
   fetchURL: async (url, options = {}) => {

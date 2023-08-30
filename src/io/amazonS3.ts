@@ -1,5 +1,5 @@
+import { parseUrl } from '@/src/utils/url';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { URL } from 'whatwg-url';
 
 /**
  * Detects `s3://` uri.
@@ -7,7 +7,7 @@ import { URL } from 'whatwg-url';
  * @returns
  */
 export const isAmazonS3Uri = (uri: string) =>
-  new URL(uri, window.location.origin).protocol === 's3:';
+  parseUrl(uri, window.location.origin).protocol === 's3:';
 
 export type ObjectAvailableCallback = (url: string, name: string) => void;
 
@@ -67,7 +67,7 @@ async function fetchObjectsWithPagination(
  * @returns
  */
 export const extractBucketAndPrefixFromS3Uri = (uri: string) => {
-  const { hostname: bucket, pathname } = new URL(uri);
+  const { hostname: bucket, pathname } = parseUrl(uri);
   // drop the leading forward slash
   const objectName = pathname.replace(/^\//, '');
   return [bucket, objectName] as const;
