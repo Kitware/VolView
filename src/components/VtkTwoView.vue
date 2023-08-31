@@ -333,7 +333,7 @@ export default defineComponent({
       get: () => windowingStore.getConfig(viewID.value, curImageID.value),
       set: (newValue) => {
         const imageID = curImageID.value;
-        if (imageID !== null && newValue != null) {
+        if (imageID != null && newValue != null) {
           windowingStore.updateConfig(viewID.value, imageID, newValue);
         }
       },
@@ -346,7 +346,7 @@ export default defineComponent({
     );
     const dicomInfo = computed(() => {
       if (
-        curImageID.value !== null &&
+        curImageID.value != null &&
         curImageID.value in dicomStore.imageIDToVolumeKey
       ) {
         const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];
@@ -388,7 +388,7 @@ export default defineComponent({
     // --- setters --- //
 
     const setSlice = (slice: number) => {
-      if (curImageID.value !== null) {
+      if (curImageID.value != null) {
         viewSliceStore.updateConfig(viewID.value, curImageID.value, {
           slice,
         });
