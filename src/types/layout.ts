@@ -5,6 +5,6 @@ export enum LayoutDirection {
 
 export type Layout = {
   direction: LayoutDirection;
-  items: Array<Layout | string>;
+  items: ReadonlyArray<Layout | string>;
   name?: string;
 };

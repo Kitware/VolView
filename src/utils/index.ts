@@ -1,4 +1,5 @@
 import { URL } from 'whatwg-url';
+import { z } from 'zod';
 import { TypedArray } from 'itk-wasm';
 import { EPSILON } from '../constants';
 import { Maybe } from '../types';
@@ -263,4 +264,12 @@ export function standardizeColor(color: Maybe<string>) {
   if (!ctx) throw new Error('Could not create canvas context');
   ctx.fillStyle = color;
   return ctx.fillStyle;
+}
+
+// https://github.com/colinhacks/zod/discussions/839#discussioncomment-4335236
+export function zodEnumFromObjKeys<K extends string>(
+  obj: Record<K, any>
+): z.ZodEnum<[K, ...K[]]> {
+  const [firstKey, ...otherKeys] = Object.keys(obj) as K[];
+  return z.enum([firstKey, ...otherKeys]);
 }

@@ -61,14 +61,16 @@ Example configuration JSON:
 
 ```json
 {
-  "rulerLabels": {
-    "big": { "color": "#ff0000" },
-    "small": { "color": "white" }
-  },
-  "rectangleLabels": {
-    "innocuous": { "color": "white", "fillColor": "#00ff0030" },
-    "lesion": { "color": "#ff0000", "fillColor": "transparent" },
-    "tumor": { "color": "green", "fillColor": "transparent" }
+  "labels": {
+    "rulerLabels": {
+      "big": { "color": "#ff0000" },
+      "small": { "color": "white" }
+    },
+    "rectangleLabels": {
+      "innocuous": { "color": "white", "fillColor": "#00ff0030" },
+      "lesion": { "color": "#ff0000", "fillColor": "transparent" },
+      "tumor": { "color": "green", "fillColor": "transparent" }
+    }
   }
 }
 ```
@@ -77,28 +79,32 @@ Label sections could be null to disable labels for a tool.
 
 ```json
 {
-  "rulerLabels": null,
-  "rectangleLabels": {
-    "innocuous": {
-      "color": "white",
-      "fillColor": "#00ff0030"
-    },
-    "lesion": {
-      "color": "#ff0000",
-      "fillColor": "transparent"
+  "labels": {
+    "rulerLabels": null,
+    "rectangleLabels": {
+      "innocuous": {
+        "color": "white",
+        "fillColor": "#00ff0030"
+      },
+      "lesion": {
+        "color": "#ff0000",
+        "fillColor": "transparent"
+      }
     }
   }
 }
 ```
 
-Tools will fallback to `labels` section if the tool has no specific labels property,
+Tools will fallback to `defaultLabels` section if the tool has no specific labels property,
 ie `rectangleLabels` or `rulerLabels`.
 
 ```json
 {
   "labels": {
-    "artifact": { "color": "gray" },
-    "needs-review": { "color": "#FFBF00" }
+    "defaultLabels": {
+      "artifact": { "color": "gray" },
+      "needs-review": { "color": "#FFBF00" }
+    }
   }
 }
 ```

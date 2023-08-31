@@ -56,7 +56,51 @@ page](https://github.com/Kitware/VolView/issues)!
 
 In order for VolView to download and display your remote datasets, your server must be configured with the correct [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) configuration. CORS is a browser security mechanism that restricts how web applications can access remote resources. Without proper CORS configuration, VolView will be unable to download and display your datasets. Configuring your web server with CORS is beyond the scope of this documentation; please refer to your server's documentation.
 
-### Layer Images
+### Configuration JSON File
+
+By loading a JSON file, you can set VolView's:
+
+- View layout (Axial Only, 3D Primary, etc).
+- Labels for tools
+- Visibility of Sample Data section
+
+Example JSON:
+
+```json
+{
+  "labels": {
+    "defaultLabels": {
+      "lesion": { "color": "#ff0000" },
+      "tumor": { "color": "green" },
+      "innocuous": { "color": "white" }
+    },
+    "rulerLabels": {
+      "big": { "color": "#ff0000" },
+      "small": { "color": "white" }
+    },
+    "rectangleLabels": {
+      "red": { "color": "#ff0000", "fillColor": "transparent" },
+      "green": { "color": "green", "fillColor": "transparent" },
+      "white-yellow-fill": {
+        "color": "white",
+        "fillColor": "#00ff0030"
+      }
+    },
+    "polygonLabels": {
+      "poly1": { "color": "#ff0000" },
+      "poly2Label": { "color": "green" }
+    }
+  },
+  "layout": {
+    "activeLayout": "Axial Only"
+  },
+  "dataBrowser": {
+    "hideSampleData": false
+  }
+}
+```
+
+## Layer Images
 
 To overlay images in the 2D views, there is a layer button on image thumbnails. A PET image could be layered on top of a CT image. The layered image is resampled to the base image using the image's spatial metadata. If the spatial metadata does not place the images in the same coordinate system, the layer alignment will be incorrect.
 
