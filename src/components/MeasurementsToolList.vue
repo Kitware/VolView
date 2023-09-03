@@ -47,41 +47,48 @@ const toggleHidden = (id: ToolID) => {
 </script>
 
 <template>
-  <v-list-item v-for="tool in tools" :key="tool.id" lines="two">
-    <template #prepend>
-      <v-icon class="tool-icon">{{ icon }}</v-icon>
-      <div class="color-dot mr-3" :style="{ backgroundColor: tool.color }" />
-    </template>
-    <v-list-item-title v-bind="$attrs">
-      {{ tool.labelName }}
-    </v-list-item-title>
+  <v-list-item v-for="tool in tools" :key="tool.id">
+    <v-container>
+      <v-row class="align-center main-row">
+        <v-icon class="tool-icon">{{ icon }}</v-icon>
+        <div class="color-dot mr-3" :style="{ backgroundColor: tool.color }" />
 
-    <v-list-item-subtitle>
-      <slot name="details" v-bind="{ tool }">
-        <v-row>
-          <v-col>Slice: {{ tool.slice + 1 }}</v-col>
-          <v-col>Axis: {{ tool.axis }}</v-col>
-        </v-row>
-      </slot>
-    </v-list-item-subtitle>
+        <v-list-item-title v-bind="$attrs">
+          {{ tool.labelName }}
+        </v-list-item-title>
 
-    <template #append>
-      <v-btn variant="text" @click="toggleHidden(tool.id)">
-        <v-icon v-if="tool.hidden">mdi-eye-off</v-icon>
-        <v-icon v-else>mdi-eye</v-icon>
-        <v-tooltip location="top" activator="parent">{{
-          tool.hidden ? 'Show' : 'Hide'
-        }}</v-tooltip>
-      </v-btn>
-      <v-btn variant="text" @click="jumpTo(tool.id)">
-        <v-icon>mdi-target</v-icon>
-        <v-tooltip location="top" activator="parent">Reveal Slice</v-tooltip>
-      </v-btn>
-      <v-btn variant="text" @click="remove(tool.id)">
-        <v-icon>mdi-delete</v-icon>
-        <v-tooltip location="top" activator="parent">Delete</v-tooltip>
-      </v-btn>
-    </template>
+        <span class="ml-auto actions">
+          <v-btn icon variant="text" @click="toggleHidden(tool.id)">
+            <v-icon v-if="tool.hidden">mdi-eye-off</v-icon>
+            <v-icon v-else>mdi-eye</v-icon>
+            <v-tooltip location="top" activator="parent">{{
+              tool.hidden ? 'Show' : 'Hide'
+            }}</v-tooltip>
+          </v-btn>
+          <v-btn icon variant="text" @click="jumpTo(tool.id)">
+            <v-icon>mdi-target</v-icon>
+            <v-tooltip location="top" activator="parent"
+              >Reveal Slice</v-tooltip
+            >
+          </v-btn>
+          <v-btn icon variant="text" @click="remove(tool.id)">
+            <v-icon>mdi-delete</v-icon>
+            <v-tooltip location="top" activator="parent">Delete</v-tooltip>
+          </v-btn>
+        </span>
+      </v-row>
+
+      <v-row class="mt-4">
+        <v-list-item-subtitle class="w-100">
+          <slot name="details" v-bind="{ tool }">
+            <v-row>
+              <v-col cols="3">Slice: {{ tool.slice + 1 }}</v-col>
+              <v-col cols="3">Axis: {{ tool.axis }}</v-col>
+            </v-row>
+          </slot>
+        </v-list-item-subtitle>
+      </v-row>
+    </v-container>
   </v-list-item>
 </template>
 
@@ -92,14 +99,24 @@ const toggleHidden = (id: ToolID) => {
   text-align: center;
 }
 
+.main-row {
+  flex-wrap: nowrap;
+}
+
 .color-dot {
   width: 24px;
   height: 24px;
   background: yellow;
   border-radius: 16px;
+  flex-shrink: 0;
 }
 
 .tool-icon {
   margin-inline-end: 12px;
+  opacity: var(--v-medium-emphasis-opacity);
+}
+
+.actions {
+  flex-shrink: 0;
 }
 </style>
