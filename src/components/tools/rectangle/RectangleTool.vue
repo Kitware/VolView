@@ -53,16 +53,13 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { Rectangle, RectangleID } from '@/src/types/rectangle';
+import { RectangleID } from '@/src/types/rectangle';
+import { useCurrentTools } from '@/src/composables/annotationTool';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
 type ToolID = RectangleID;
-type Tool = Rectangle;
 const useActiveToolStore = useRectangleStore;
 const toolType = Tools.Rectangle;
 
@@ -93,7 +90,7 @@ export default defineComponent({
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { tools, activeLabel } = storeToRefs(activeToolStore);
+    const { activeLabel } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -211,31 +208,7 @@ export default defineComponent({
       activeToolStore.removeTool(contextMenu.forToolID);
     };
 
-    // --- tool data --- //
-
-    // does the tools's frame of reference match
-    // the view's axis
-    const doesToolFrameMatchViewAxis = (tool: Partial<Tool>) => {
-      if (!tool.frameOfReference) return false;
-      const toolAxis = frameOfReferenceToImageSliceAndAxis(
-        tool.frameOfReference,
-        currentImageMetadata.value,
-        {
-          allowOutOfBoundsSlice: true,
-        }
-      );
-      return !!toolAxis && toolAxis.axis === viewAxis.value;
-    };
-
-    const currentTools = computed(() => {
-      const curImageID = currentImageID.value;
-
-      return tools.value.filter((tool) => {
-        // only show tools for the current image
-        // and current view axis
-        return tool.imageID === curImageID && doesToolFrameMatchViewAxis(tool);
-      });
-    });
+    const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
     return {
       tools: currentTools,

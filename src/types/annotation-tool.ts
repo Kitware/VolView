@@ -13,7 +13,7 @@ export type AnnotationTool<ID extends string> = {
   frameOfReference: FrameOfReference;
 
   /**
-   * Is this tool in placing mode
+   * Is this tool unfinished?
    */
   placing?: boolean;
 
@@ -22,4 +22,6 @@ export type AnnotationTool<ID extends string> = {
 
   color: string;
   name: string;
+
+  hidden?: boolean;
 };

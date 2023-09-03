@@ -54,12 +54,9 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { storeToRefs } from 'pinia';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
-import { Ruler } from '@/src/types/ruler';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { vec3 } from 'gl-matrix';
+import { useCurrentTools } from '@/src/composables/annotationTool';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -88,7 +85,7 @@ export default defineComponent({
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
-    const { rulers, activeLabel } = storeToRefs(rulerStore);
+    const { activeLabel } = storeToRefs(rulerStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
@@ -211,40 +208,14 @@ export default defineComponent({
 
     // --- ruler data --- //
 
-    // does the ruler's frame of reference match
-    // the view's axis
-    const doesRulerFrameMatchViewAxis = (ruler: Partial<Ruler>) => {
-      if (!ruler.frameOfReference) return false;
-      const rulerAxis = frameOfReferenceToImageSliceAndAxis(
-        ruler.frameOfReference,
-        currentImageMetadata.value,
-        {
-          allowOutOfBoundsSlice: true,
-        }
-      );
-      return !!rulerAxis && rulerAxis.axis === viewAxis.value;
-    };
+    const currentTools = useCurrentTools(rulerStore, viewAxis);
 
     const currentRulers = computed(() => {
       const { lengthByID } = rulerStore;
-      const curImageID = currentImageID.value;
-
-      const rulerData = rulers.value
-        .filter((ruler) => {
-          // only show rulers for the current image
-          // and current view axis
-          return (
-            ruler.imageID === curImageID && doesRulerFrameMatchViewAxis(ruler)
-          );
-        })
-        .map((ruler) => {
-          return {
-            ...ruler,
-            length: lengthByID[ruler.id],
-          };
-        });
-
-      return rulerData;
+      return currentTools.value.map((ruler) => ({
+        ...ruler,
+        length: lengthByID[ruler.id],
+      }));
     });
 
     return {

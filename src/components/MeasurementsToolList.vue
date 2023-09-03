@@ -39,6 +39,11 @@ const remove = (id: ToolID) => {
 const jumpTo = (id: ToolID) => {
   props.toolStore.jumpToTool(id);
 };
+
+const toggleHidden = (id: ToolID) => {
+  const toggled = !props.toolStore.toolByID[id].hidden;
+  props.toolStore.updateTool(id, { hidden: toggled });
+};
 </script>
 
 <template>
@@ -59,17 +64,20 @@ const jumpTo = (id: ToolID) => {
         </v-row>
       </slot>
     </v-list-item-subtitle>
+
     <template #append>
-      <v-btn
-        class="mr-2"
-        icon="mdi-target"
-        variant="text"
-        @click="jumpTo(tool.id)"
-      >
-        <v-icon>mdi-target</v-icon>
-        <v-tooltip location="top" activator="parent"> Reveal Slice </v-tooltip>
+      <v-btn variant="text" @click="toggleHidden(tool.id)">
+        <v-icon v-if="tool.hidden">mdi-eye-off</v-icon>
+        <v-icon v-else>mdi-eye</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          tool.hidden ? 'Show' : 'Hide'
+        }}</v-tooltip>
       </v-btn>
-      <v-btn icon="mdi-delete" variant="text" @click="remove(tool.id)">
+      <v-btn variant="text" @click="jumpTo(tool.id)">
+        <v-icon>mdi-target</v-icon>
+        <v-tooltip location="top" activator="parent">Reveal Slice</v-tooltip>
+      </v-btn>
+      <v-btn variant="text" @click="remove(tool.id)">
         <v-icon>mdi-delete</v-icon>
         <v-tooltip location="top" activator="parent">Delete</v-tooltip>
       </v-btn>
