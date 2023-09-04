@@ -17,7 +17,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useRightClickContextMenu } from '@/src/composables/annotationTool';
+import { useHoverEvent, useRightClickContextMenu, } from '@/src/composables/annotationTool';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
 import { PolygonID as ToolID } from '@/src/types/polygon';
 import vtkWidgetFactory, {
@@ -27,7 +27,7 @@ import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
   name: 'PolygonWidget2D',
-  emits: ['placed', 'contextmenu'],
+  emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String,
@@ -103,6 +103,8 @@ export default defineComponent({
       emit('placed');
     });
 
+    useHoverEvent(emit, widget);
+
     // --- right click handling --- //
 
     useRightClickContextMenu(emit, widget);
@@ -165,13 +167,6 @@ export default defineComponent({
 </script>
 
 <template>
-  <SVG2DComponent
-    v-show="currentSlice === tool.slice"
-    :view-id="viewId"
-    :points="tool.points"
-    :color="tool.color"
-    :move-point="tool.movePoint"
-    :placing="tool.placing"
-    :finishable="finishable"
-  />
+  <SVG2DComponent v-show="currentSlice === tool.slice" :view-id="viewId" :points="tool.points" :color="tool.color"
+    :move-point="tool.movePoint" :placing="tool.placing" :finishable="finishable" />
 </template>

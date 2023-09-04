@@ -12,9 +12,15 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
         @placed="onToolPlaced"
+        @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
     <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
+    <annotation-info
+      class="overlay-no-events"
+      :info="overlayInfo"
+      :tool-store="activeToolStore"
+    />
   </div>
 </template>
 
@@ -43,8 +49,10 @@ import { PolygonID } from '@/src/types/polygon';
 import {
   useContextMenu,
   useCurrentTools,
+  useHover,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
+import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 type ToolID = PolygonID;
@@ -74,6 +82,7 @@ export default defineComponent({
   components: {
     PolygonWidget2D,
     AnnotationContextMenu,
+    AnnotationInfo,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -181,6 +190,11 @@ export default defineComponent({
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
+    const { onHover, overlayInfo } = useHover<ToolID>(
+      currentTools,
+      currentSlice
+    );
+
     return {
       tools: currentTools,
       placingToolID,
@@ -188,6 +202,8 @@ export default defineComponent({
       contextMenu,
       openContextMenu,
       activeToolStore,
+      onHover,
+      overlayInfo,
     };
   },
 });

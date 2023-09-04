@@ -42,9 +42,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
-  // support forwarding events
+
+  // events to emit
   macro.event(publicAPI, model, 'RightClickEvent');
   macro.event(publicAPI, model, 'PlacedEvent');
+  macro.event(publicAPI, model, 'HoverEvent');
 
   publicAPI.resetInteractions = () => {
     model._interactor.cancelAnimation(publicAPI, true);
@@ -147,6 +149,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   publicAPI.handleLeftButtonPress = (e: any) => {
     const activeWidget = model._widgetManager.getActiveWidget();
+
+    publicAPI.invokeHoverEvent({
+      ...e,
+      hovering: false,
+    });
+
     if (
       !model.manipulator ||
       ignoreKey(e) ||
@@ -233,6 +241,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (model.hasFocus) {
       model._widgetManager.disablePicking();
     }
+
+    publicAPI.invokeHoverEvent({
+      ...callData,
+      hovering: !!model.activeState,
+    });
 
     return macro.VOID;
   };

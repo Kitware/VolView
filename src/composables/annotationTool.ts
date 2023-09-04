@@ -1,4 +1,5 @@
-import { Ref, computed, ref } from 'vue';
+import { Ref, computed, ref, watch } from 'vue';
+import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
@@ -77,4 +78,81 @@ export const useRightClickContextMenu = (
       } satisfies ContextMenuEvent);
     }
   });
+};
+
+// --- Hover --- //
+
+export const useHoverEvent = (
+  emit: (event: 'widgetHover', ...args: any[]) => void,
+  widget: Ref<vtkAnnotationToolWidget | null>
+) => {
+  onVTKEvent(widget, 'onHoverEvent', (eventData: any) => {
+    const displayXY = getCSSCoordinatesFromEvent(eventData);
+    if (displayXY) {
+      emit('widgetHover', {
+        displayXY,
+        hovering: eventData.hovering,
+      });
+    }
+  });
+};
+
+export type OverlayInfo<ToolID> =
+  | {
+      visible: false;
+    }
+  | {
+      visible: true;
+      toolID: ToolID;
+      displayXY: Vector2;
+    };
+
+export const useHover = <ToolID extends string>(
+  tools: Ref<Array<AnnotationTool<ToolID>>>,
+  currentSlice: Ref<number>
+) => {
+  type Info = OverlayInfo<ToolID>;
+  const toolHoverState = ref({}) as Ref<Record<ToolID, Info>>;
+
+  const overlayInfo = computed(() => {
+    const visibleToolID = Object.keys(toolHoverState.value).find(
+      (toolID) => toolHoverState.value[toolID as ToolID].visible
+    ) as ToolID | undefined;
+
+    return visibleToolID
+      ? toolHoverState.value[visibleToolID]
+      : ({ visible: false } as Info);
+  });
+
+  const toolsOnCurrentSlice = computed(() =>
+    tools.value.filter((tool) => tool.slice === currentSlice.value)
+  );
+
+  watch(toolsOnCurrentSlice, () => {
+    // keep old hover states, default to false for new tools
+    toolHoverState.value = toolsOnCurrentSlice.value.reduce(
+      (toolsHovers, { id }) => {
+        const state = toolHoverState.value[id] ?? {
+          visible: false,
+        };
+        return Object.assign(toolsHovers, {
+          [id]: state,
+        });
+      },
+      {} as Record<ToolID, Info>
+    );
+  });
+
+  const onHover = (id: ToolID, event: any) => {
+    toolHoverState.value[id] = event.hovering
+      ? {
+          visible: true,
+          toolID: id,
+          displayXY: event.displayXY,
+        }
+      : {
+          visible: false,
+        };
+  };
+  return { overlayInfo, onHover };
 };
