@@ -95,10 +95,6 @@ const toggleHidden = (id: ToolID) => {
 <style src="@/src/components/styles/utils.css"></style>
 
 <style scoped>
-.empty-state {
-  text-align: center;
-}
-
 .main-row {
   flex-wrap: nowrap;
 }
