@@ -74,7 +74,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
 
     publicAPI.bindState(handlePublicAPI, [HandlesLabel]);
-    // bind state pushes handle at end of labels array,
+    // bindState pushes handle at end of labels array,
     // but we may have inserted handle in middle of array.
     // Downstream WidgetRepresentations get order of
     // state/handles from internal HandlesLabel array.

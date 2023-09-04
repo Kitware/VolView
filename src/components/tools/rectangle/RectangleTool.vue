@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RectangleWidget2D
+      <rectangle-widget-2D
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"
@@ -14,7 +14,7 @@
         @placed="onToolPlaced"
       />
     </svg>
-    <AnnotationContextMenu ref="contextMenu" :tool-store="activeToolStore" />
+    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
   </div>
 </template>
 

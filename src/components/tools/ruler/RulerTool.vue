@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RulerWidget2D
+      <ruler-widget-2D
         v-for="ruler in rulers"
         :key="ruler.id"
         :ruler-id="ruler.id"
@@ -14,7 +14,7 @@
         @placed="onRulerPlaced"
       />
     </svg>
-    <AnnotationContextMenu ref="contextMenu" :tool-store="rulerStore" />
+    <annotation-context-menu ref="contextMenu" :tool-store="rulerStore" />
   </div>
 </template>
 

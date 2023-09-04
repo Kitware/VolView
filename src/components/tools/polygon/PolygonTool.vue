@@ -14,7 +14,7 @@
         @placed="onToolPlaced"
       />
     </svg>
-    <AnnotationContextMenu ref="contextMenu" :tool-store="activeToolStore" />
+    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
   </div>
 </template>
 

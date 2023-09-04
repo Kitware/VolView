@@ -21,6 +21,8 @@ export interface vtkRulerWidgetState extends vtkWidgetState {
 }
 
 export interface vtkRulerViewWidget extends vtkAnnotationToolWidget {
+  setInteractionState(state: InteractionState): boolean;
+  getInteractionState(): InteractionState;
   getWidgetState(): vtkRulerWidgetState;
 }
 

@@ -1,4 +1,4 @@
-import { Ref, computed, ref, watch } from 'vue';
+import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
 import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
 
 import { Maybe, PartialWithRequired } from '@/src/types';
@@ -208,10 +208,6 @@ type UseAnnotationTool<ID extends string> = ReturnType<
   typeof useAnnotationTool<ToolFactory<ID>, unknown>
 >;
 
-type UnwrapRefs<Refs> = {
-  [K in keyof Refs]: Refs[K] extends Ref<infer T> ? T : never;
-};
-
 type UseAnnotationToolNoSerialize<ID extends string> = Omit<
   UseAnnotationTool<ID>,
   'serialize' | 'deserialize'
@@ -219,8 +215,8 @@ type UseAnnotationToolNoSerialize<ID extends string> = Omit<
 
 export type AnnotationToolStore<
   ID extends string,
-  UseAnnotatoinTool = UseAnnotationToolNoSerialize<ID>
-> = StoreState<UseAnnotatoinTool> &
-  StoreActions<UseAnnotatoinTool> &
-  UnwrapRefs<StoreGetters<UseAnnotatoinTool>> & // adds computed props like tools
+  UseAnnotationToolWithID = UseAnnotationToolNoSerialize<ID>
+> = StoreState<UseAnnotationToolWithID> &
+  StoreActions<UseAnnotationToolWithID> &
+  UnwrapNestedRefs<StoreGetters<UseAnnotationToolWithID>> & // adds computed props like tools
   Store; // adds Pinia plugins;
