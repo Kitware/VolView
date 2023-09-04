@@ -5,6 +5,7 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { InteractionState } from './behavior';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+import { vtkAnnotationToolWidget } from '../ToolWidgetUtils/utils';
 
 export { InteractionState } from './behavior';
 
@@ -19,14 +20,7 @@ export interface vtkRulerWidgetState extends vtkWidgetState {
   getSecondPoint(): vtkRulerWidgetPointState;
 }
 
-export interface vtkRulerViewWidget extends vtkAbstractWidget {
-  setManipulator(manipulator: vtkPlaneManipulator): boolean;
-  getManipulator(): vtkPlaneManipulator;
-  onRightClickEvent(cb: (eventData: any) => void): vtkSubscription;
-  onPlacedEvent(cb: (eventData: any) => void): vtkSubscription;
-  setInteractionState(state: InteractionState): boolean;
-  getInteractionState(): InteractionState;
-  resetInteractions(): void;
+export interface vtkRulerViewWidget extends vtkAnnotationToolWidget {
   getWidgetState(): vtkRulerWidgetState;
 }
 

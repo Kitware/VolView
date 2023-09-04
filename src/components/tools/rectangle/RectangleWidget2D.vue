@@ -29,6 +29,8 @@ import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue'
 import { vtkRulerWidgetPointState } from '@/src/vtk/RulerWidget';
 import { watchOnce } from '@vueuse/core';
 import { RectangleID } from '@/src/types/rectangle';
+import { ContextMenuEvent } from '@/src/types/annotation-tool';
+import { useRightClickContextMenu } from '@/src/composables/annotationTool';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -140,9 +142,12 @@ export default defineComponent({
         return;
       }
       rightClickSub = widget.value.onRightClickEvent((eventData) => {
-        const coords = getCSSCoordinatesFromEvent(eventData);
-        if (coords) {
-          emit('contextmenu', coords);
+        const displayXY = getCSSCoordinatesFromEvent(eventData);
+        if (displayXY) {
+          emit('contextmenu', {
+            displayXY,
+            widgetActions: eventData.widgetActions,
+          } satisfies ContextMenuEvent);
         }
       });
     });
@@ -153,6 +158,8 @@ export default defineComponent({
         rightClickSub = null;
       }
     });
+
+    useRightClickContextMenu(emit, widget);
 
     // --- manipulator --- //
 

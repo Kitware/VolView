@@ -14,22 +14,7 @@
         @placed="onRulerPlaced"
       />
     </svg>
-    <v-menu
-      v-model="contextMenu.show"
-      class="position-absolute"
-      :style="{
-        top: `${contextMenu.y}px`,
-        left: `${contextMenu.x}px`,
-      }"
-      close-on-click
-      close-on-content-click
-    >
-      <v-list density="compact">
-        <v-list-item @click="deleteRulerFromContextMenu">
-          <v-list-item-title>Delete</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <AnnotationContextMenu ref="contextMenu" :tool-store="rulerStore" />
   </div>
 </template>
 
@@ -39,7 +24,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  reactive,
   ref,
   toRefs,
   watch,
@@ -51,12 +35,16 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { storeToRefs } from 'pinia';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { vec3 } from 'gl-matrix';
-import { useCurrentTools } from '@/src/composables/annotationTool';
+import {
+  useContextMenu,
+  useCurrentTools,
+} from '@/src/composables/annotationTool';
+import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -80,6 +68,7 @@ export default defineComponent({
   },
   components: {
     RulerWidget2D,
+    AnnotationContextMenu,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -187,24 +176,7 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- context menu --- //
-
-    const contextMenu = reactive({
-      show: false,
-      x: 0,
-      y: 0,
-      forRulerID: '',
-    });
-
-    const openContextMenu = (rulerID: string, displayXY: Vector2) => {
-      [contextMenu.x, contextMenu.y] = displayXY;
-      contextMenu.show = true;
-      contextMenu.forRulerID = rulerID;
-    };
-
-    const deleteRulerFromContextMenu = () => {
-      rulerStore.removeRuler(contextMenu.forRulerID);
-    };
+    const { contextMenu, openContextMenu } = useContextMenu();
 
     // --- ruler data --- //
 
@@ -221,10 +193,10 @@ export default defineComponent({
     return {
       rulers: currentRulers,
       placingRulerID,
+      onRulerPlaced,
       contextMenu,
       openContextMenu,
-      deleteRulerFromContextMenu,
-      onRulerPlaced,
+      rulerStore,
     };
   },
 });

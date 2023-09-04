@@ -14,22 +14,7 @@
         @placed="onToolPlaced"
       />
     </svg>
-    <v-menu
-      v-model="contextMenu.show"
-      class="position-absolute"
-      :style="{
-        top: `${contextMenu.y}px`,
-        left: `${contextMenu.x}px`,
-      }"
-      close-on-click
-      close-on-content-click
-    >
-      <v-list density="compact">
-        <v-list-item @click="deleteToolFromContextMenu">
-          <v-list-item-title>Delete</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <AnnotationContextMenu ref="contextMenu" :tool-store="activeToolStore" />
   </div>
 </template>
 
@@ -39,7 +24,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  reactive,
   ref,
   toRefs,
   watch,
@@ -51,12 +35,16 @@ import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { RectangleID } from '@/src/types/rectangle';
-import { useCurrentTools } from '@/src/composables/annotationTool';
+import {
+  useCurrentTools,
+  useContextMenu,
+} from '@/src/composables/annotationTool';
+import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
 type ToolID = RectangleID;
@@ -85,6 +73,7 @@ export default defineComponent({
   },
   components: {
     RectangleWidget2D,
+    AnnotationContextMenu,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -189,34 +178,17 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- context menu --- //
-
-    const contextMenu = reactive({
-      show: false,
-      x: 0,
-      y: 0,
-      forToolID: '' as ToolID,
-    });
-
-    const openContextMenu = (toolID: ToolID, displayXY: Vector2) => {
-      [contextMenu.x, contextMenu.y] = displayXY;
-      contextMenu.show = true;
-      contextMenu.forToolID = toolID;
-    };
-
-    const deleteToolFromContextMenu = () => {
-      activeToolStore.removeTool(contextMenu.forToolID);
-    };
+    const { contextMenu, openContextMenu } = useContextMenu();
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
     return {
       tools: currentTools,
       placingToolID,
+      onToolPlaced,
       contextMenu,
       openContextMenu,
-      deleteToolFromContextMenu,
-      onToolPlaced,
+      activeToolStore,
     };
   },
 });
