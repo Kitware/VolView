@@ -1,12 +1,15 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import macro from '@kitware/vtk.js/macros';
-import { Vector3 } from '@kitware/vtk.js/types';
+import { Bounds, Vector3 } from '@kitware/vtk.js/types';
+import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
 import { WidgetAction } from '../ToolWidgetUtils/utils';
 
 type Position3d = { x: number; y: number; z: number };
-type MouseEvent = {
+type vtkMouseEvent = {
   position: Position3d;
+  pokedRenderer: vtkRenderer;
 };
 
 const FINISHABLE_DISTANCE = 10;
@@ -18,7 +21,7 @@ const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
   DOUBLE_CLICK_SLIP_DISTANCE_MAX ** 2;
 
 export default function widgetBehavior(publicAPI: any, model: any) {
-  model.classHierarchy.push('vtkPolygonWidgetProp');
+  model.classHierarchy.push('vtkPolygonWidgetBehavior');
   model._isDragging = false;
 
   // overUnselectedHandle is true if mouse is over handle that was created before a mouse move event.
@@ -147,17 +150,17 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left press: Select handle to drag / Add new handle
   // --------------------------------------------------------------------------
 
-  publicAPI.handleLeftButtonPress = (e: any) => {
+  publicAPI.handleLeftButtonPress = (event: vtkMouseEvent) => {
     const activeWidget = model._widgetManager.getActiveWidget();
 
     publicAPI.invokeHoverEvent({
-      ...e,
+      ...event,
       hovering: false,
     });
 
     if (
       !model.manipulator ||
-      ignoreKey(e) ||
+      ignoreKey(event) ||
       // If hovering over another widget, don't consume event.
       (activeWidget && activeWidget !== publicAPI)
     ) {
@@ -173,7 +176,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
         model.activeState = model.widgetState.getMoveHandle();
         model._widgetManager.grabFocus(publicAPI);
       }
-      updateActiveStateHandle(e);
+      updateActiveStateHandle(event);
 
       if (model.widgetState.getFinishable()) {
         finishPlacing();
@@ -194,7 +197,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       // insert point
       const insertIndex = model.activeState.getIndex() + 1;
       const newHandle = model.widgetState.addHandle({ insertIndex });
-      const coords = getWorldCoords(e);
+      const coords = getWorldCoords(event);
       if (!coords) throw new Error('No world coords');
       newHandle.setOrigin(coords);
       // enable dragging immediately
@@ -221,14 +224,45 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Mouse move: Drag selected handle / Handle follow the mouse
   // --------------------------------------------------------------------------
 
-  publicAPI.handleMouseMove = (callData: any) => {
+  const checkInScreenBounds = (event: vtkMouseEvent) => {
+    const b = publicAPI.getBounds();
+    if (!vtkBoundingBox.isValid(b)) return false;
+
+    const corners = [] as Array<Vector3>;
+    vtkBoundingBox.getCorners(b, corners);
+
+    const screenBounds = [...vtkBoundingBox.INIT_BOUNDS] as Bounds;
+    corners.forEach((corner) => {
+      const pos = model._apiSpecificRenderWindow.worldToDisplay(
+        ...corner,
+        event.pokedRenderer
+      ) as Vector3;
+      vtkBoundingBox.addPoint(screenBounds, ...pos);
+    });
+
+    const pointerScreenPos = [
+      event.position.x,
+      event.position.y,
+      event.position.z,
+    ] as Vector3;
+
+    screenBounds[4] = -1;
+    screenBounds[5] = 1;
+    const isInside = vtkBoundingBox.containsPoint(
+      screenBounds,
+      ...pointerScreenPos
+    );
+    return isInside;
+  };
+
+  publicAPI.handleMouseMove = (event: vtkMouseEvent) => {
     if (
       model.pickable &&
       model.dragable &&
       model.activeState &&
-      !ignoreKey(callData)
+      !ignoreKey(event)
     ) {
-      if (updateActiveStateHandle(callData) === macro.EVENT_ABORT) {
+      if (updateActiveStateHandle(event) === macro.EVENT_ABORT) {
         return macro.EVENT_ABORT;
       }
     }
@@ -243,8 +277,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
 
     publicAPI.invokeHoverEvent({
-      ...callData,
-      hovering: !!model.activeState,
+      ...event,
+      hovering: checkInScreenBounds(event),
     });
 
     return macro.VOID;
@@ -258,7 +292,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   let lastReleaseTime = 0;
   let lastReleasePosition: Vector3 | undefined;
 
-  publicAPI.handleLeftButtonRelease = (event: MouseEvent) => {
+  publicAPI.handleLeftButtonRelease = (event: vtkMouseEvent) => {
     if (
       !model.activeState ||
       !model.activeState.getActive() ||
