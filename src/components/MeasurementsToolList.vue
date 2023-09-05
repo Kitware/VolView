@@ -67,9 +67,9 @@ const toggleHidden = (id: ToolID) => {
           </v-btn>
           <v-btn icon variant="text" @click="jumpTo(tool.id)">
             <v-icon>mdi-target</v-icon>
-            <v-tooltip location="top" activator="parent"
-              >Reveal Slice</v-tooltip
-            >
+            <v-tooltip location="top" activator="parent">
+              Reveal Slice
+            </v-tooltip>
           </v-btn>
           <v-btn icon variant="text" @click="remove(tool.id)">
             <v-icon>mdi-delete</v-icon>

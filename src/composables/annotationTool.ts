@@ -1,6 +1,4 @@
-import { Ref, computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { vtkSubscription } from '@kitware/vtk.js/interfaces';
-import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
+import { Ref, computed, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
@@ -8,6 +6,7 @@ import { LPSAxis } from '../types/lps';
 import { AnnotationTool, ContextMenuEvent } from '../types/annotation-tool';
 import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '../utils/vtk-helpers';
+import { useVTKCallback } from './useVTKCallback';
 
 // does the tools's frame of reference match
 // the view's axis
@@ -53,14 +52,9 @@ export const useCurrentTools = <ToolID extends string>(
 // --- Context Menu --- //
 
 export const useContextMenu = <ToolID extends string>() => {
-  // open function typing workaround until this fixed
-  // https://github.com/vuejs/core/issues/8373
-  const contextMenu = ref<
-    | (ReturnType<typeof AnnotationContextMenu<ToolID>> & {
-        open: (id: ToolID, e: ContextMenuEvent) => void;
-      })
-    | null
-  >(null);
+  const contextMenu = ref<{
+    open: (id: ToolID, e: ContextMenuEvent) => void;
+  } | null>(null);
   const openContextMenu = (toolID: ToolID, event: ContextMenuEvent) => {
     if (!contextMenu.value)
       throw new Error('contextMenu component does not exist');
@@ -74,27 +68,16 @@ export const useRightClickContextMenu = (
   emit: (event: 'contextmenu', ...args: any[]) => void,
   widget: Ref<vtkAnnotationToolWidget | null>
 ) => {
-  let rightClickSub: vtkSubscription | null = null;
+  const widgetOnRightClick = computed(() => widget.value?.onRightClickEvent);
+  const onRightClick = useVTKCallback(widgetOnRightClick);
 
-  onMounted(() => {
-    if (!widget.value) {
-      return;
-    }
-    rightClickSub = widget.value.onRightClickEvent((eventData) => {
-      const displayXY = getCSSCoordinatesFromEvent(eventData);
-      if (displayXY) {
-        emit('contextmenu', {
-          displayXY,
-          widgetActions: eventData.widgetActions,
-        } satisfies ContextMenuEvent);
-      }
-    });
-  });
-
-  onBeforeUnmount(() => {
-    if (rightClickSub) {
-      rightClickSub.unsubscribe();
-      rightClickSub = null;
+  onRightClick((eventData) => {
+    const displayXY = getCSSCoordinatesFromEvent(eventData);
+    if (displayXY) {
+      emit('contextmenu', {
+        displayXY,
+        widgetActions: eventData.widgetActions,
+      } satisfies ContextMenuEvent);
     }
   });
 };
