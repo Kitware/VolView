@@ -10,7 +10,7 @@ import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
 
 const tools = [
   {
-    store: useRulerStore() as unknown as AnnotationToolStore<string>,
+    store: useRulerStore(),
     icon: 'mdi-ruler',
     details: MeasurementRulerDetails,
   },

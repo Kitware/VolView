@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -86,14 +86,20 @@ function removeAll() {
   selected.value = [];
 }
 
-const globalHidden = ref(false);
+// If all selected tools are already hidden, it should be "show".
+// If at least one selected tool is visible, it should be "hide".
+const allHidden = computed(() => {
+  return selected.value
+    .map((id) => tools.value.find((tool) => id === tool.id))
+    .filter(nonNullable)
+    .every((tool) => tool.hidden);
+});
 
 function toggleGlobalHidden() {
-  globalHidden.value = !globalHidden.value;
-
-  forEachSelectedTool((tool) =>
-    tool.updateTool({ hidden: globalHidden.value })
-  );
+  const hidden = !allHidden.value;
+  forEachSelectedTool((tool) => {
+    tool.updateTool({ hidden });
+  });
 }
 </script>
 
@@ -117,10 +123,10 @@ function toggleGlobalHidden() {
         :disabled="!selectedSome"
         @click.stop="toggleGlobalHidden"
       >
-        <v-icon v-if="globalHidden">mdi-eye-off</v-icon>
+        <v-icon v-if="allHidden">mdi-eye-off</v-icon>
         <v-icon v-else>mdi-eye</v-icon>
         <v-tooltip location="top" activator="parent">{{
-          globalHidden ? 'Show' : 'Hide'
+          allHidden ? 'Show' : 'Hide'
         }}</v-tooltip>
       </v-btn>
       <v-btn
