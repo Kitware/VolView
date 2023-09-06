@@ -123,7 +123,7 @@ export default defineComponent({
 
     // --- selection --- //
 
-    const { selected, selectedAll, selectedSome } =
+    const { selected, selectedAll, selectedSome, toggleSelectAll } =
       useMultiSelection(nonDICOMImages);
 
     function removeSelection() {
@@ -137,6 +137,7 @@ export default defineComponent({
       selected,
       selectedAll,
       selectedSome,
+      toggleSelectAll,
       removeSelection,
       images,
       thumbnails,
@@ -161,6 +162,7 @@ export default defineComponent({
             :indeterminate="selectedSome && !selectedAll"
             label="Select All"
             v-model="selectedAll"
+            @click.stop="toggleSelectAll"
             density="compact"
             hide-details
           />

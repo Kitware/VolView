@@ -58,7 +58,7 @@ export default defineComponent({
 
     // --- selection --- //
 
-    const { selected, selectedAll, selectedSome } =
+    const { selected, selectedAll, selectedSome, toggleSelectAll } =
       useMultiSelection(studyKeys);
 
     const removeSelectedStudies = () => {
@@ -77,6 +77,7 @@ export default defineComponent({
       selected,
       selectedAll,
       selectedSome,
+      toggleSelectAll,
       primarySelection,
       removeSelectedStudies,
       studies,
@@ -104,6 +105,7 @@ export default defineComponent({
             :indeterminate="selectedSome && !selectedAll"
             label="Select All Studies"
             v-model="selectedAll"
+            @click.stop="toggleSelectAll"
             density="compact"
             hide-details
           />

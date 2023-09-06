@@ -70,7 +70,8 @@ const tools = computed(() => {
 
 const toolIds = computed(() => tools.value.map((tool) => tool.id));
 
-const { selected, selectedAll, selectedSome } = useMultiSelection(toolIds);
+const { selected, selectedAll, selectedSome, toggleSelectAll } =
+  useMultiSelection(toolIds);
 
 const forEachSelectedTool = (
   callback: (tool: (typeof tools.value)[number]) => void
@@ -104,6 +105,7 @@ function toggleGlobalHidden() {
         :indeterminate="selectedSome && !selectedAll"
         label="Select All"
         v-model="selectedAll"
+        @click.stop="toggleSelectAll"
         density="compact"
         hide-details
       />
