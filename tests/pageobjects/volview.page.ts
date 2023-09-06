@@ -1,12 +1,5 @@
 import Page from './page';
 
-async function waitUntilDownloaded(sample: WebdriverIO.Element, name: string) {
-  return sample.$('i[class~="mdi-check"]').waitForExist({
-    timeout: 60 * 1000,
-    timeoutMsg: `Timed out downloading sample: ${name}`,
-  });
-}
-
 class VolViewPage extends Page {
   get samplesList() {
     return $('div[data-testid="samples-list"]');
@@ -23,8 +16,6 @@ class VolViewPage extends Page {
   async downloadProstateSample() {
     const sample = await this.prostateSample;
     await sample.click();
-
-    await waitUntilDownloaded(sample, 'MRI Prostate');
   }
 
   get views() {

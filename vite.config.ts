@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
-import { resolve as resolvePath } from 'path';
+import * as path from 'node:path';
+import { createRequire } from 'node:module';
 import { Plugin, defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify';
@@ -11,14 +12,29 @@ import replace from '@rollup/plugin-replace';
 
 import pkgLock from './package-lock.json';
 
-function resolve(...args) {
-  return normalizePath(resolvePath(...args));
+if (pkgLock.lockfileVersion !== 2) {
+  throw new Error('package-lock.json is not version 2!');
 }
 
-const rootDir = resolve(__dirname);
-const nodeModulesDir = resolve(rootDir, 'node_modules');
-const distDir = resolve(rootDir, 'dist');
-const itkConfig = resolve(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
+function resolveNodeModulePath(moduleName: string) {
+  const require = createRequire(import.meta.url);
+  let modulePath = normalizePath(require.resolve(moduleName));
+  while (!modulePath.endsWith(moduleName)) {
+    const newPath = path.posix.dirname(modulePath);
+    if (newPath === modulePath)
+      throw new Error(`Could not resolve ${moduleName}`);
+    modulePath = newPath;
+  }
+  return modulePath;
+}
+
+function resolvePath(...args) {
+  return normalizePath(path.resolve(...args));
+}
+
+const rootDir = resolvePath(__dirname);
+const distDir = resolvePath(rootDir, 'dist');
+const itkConfig = resolvePath(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
 
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
@@ -70,7 +86,7 @@ export default defineConfig({
       },
       {
         find: '@src',
-        replacement: resolve(rootDir, 'src'),
+        replacement: resolvePath(rootDir, 'src'),
       },
       // Patch itk-wasm library code with image-io .wasm file paths
       // itkConfig alias only applies to itk-wasm library code after "npm run build"
@@ -126,20 +142,23 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: resolve(
-            nodeModulesDir,
-            'itk-wasm/dist/web-workers/bundles/pipeline.worker.js'
+          src: resolvePath(
+            resolveNodeModulePath('itk-wasm'),
+            'dist/web-workers/bundles/pipeline.worker.js'
           ),
           dest: 'itk',
         },
         {
-          src: resolve(nodeModulesDir, 'itk-image-io/*{.wasm,.js}'),
+          src: resolvePath(
+            resolveNodeModulePath('itk-image-io'),
+            '*{.wasm,.js}'
+          ),
           dest: 'itk/image-io',
         },
         {
-          src: resolve(
-            nodeModulesDir,
-            '@itk-wasm/dicom/dist/pipelines/*{.wasm,.js}'
+          src: resolvePath(
+            resolveNodeModulePath('@itk-wasm/dicom'),
+            'dist/pipelines/*{.wasm,.js}'
           ),
           dest: 'itk/pipelines',
         },
