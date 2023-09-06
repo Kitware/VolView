@@ -55,7 +55,7 @@
       </ul>
       <br />
       VolView is freely available for research, educational, and commercial
-      applications. It is built using a variety of open-source toolks created by
+      applications. It is built on a variety of open-source toolkits created by
       Kitware, such as
       <a
         rel="noopener noreferrer"
