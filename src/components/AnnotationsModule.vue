@@ -1,26 +1,28 @@
-<script lang="ts">
-import { defineComponent } from 'vue';
-import MeasurementsRulerList from './MeasurementsRulerList.vue';
+<script setup lang="ts">
 import MeasurementsToolList from './MeasurementsToolList.vue';
 import LabelmapList from './LabelmapList.vue';
 import ToolControls from './ToolControls.vue';
 import { usePolygonStore } from '../store/tools/polygons';
 import { useRectangleStore } from '../store/tools/rectangles';
+import { useRulerStore } from '../store/tools/rulers';
+import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
+import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
 
-export default defineComponent({
-  components: {
-    MeasurementsRulerList,
-    MeasurementsToolList,
-    LabelmapList,
-    ToolControls,
+const tools = [
+  {
+    store: useRulerStore() as unknown as AnnotationToolStore<string>,
+    icon: 'mdi-ruler',
+    details: MeasurementRulerDetails,
   },
-  setup() {
-    return {
-      rectangleStore: useRectangleStore(),
-      polygonStore: usePolygonStore(),
-    };
+  {
+    store: useRectangleStore() as unknown as AnnotationToolStore<string>,
+    icon: 'mdi-vector-square',
   },
-});
+  {
+    store: usePolygonStore() as unknown as AnnotationToolStore<string>,
+    icon: 'mdi-pentagon-outline',
+  },
+];
 </script>
 
 <template>
@@ -28,15 +30,7 @@ export default defineComponent({
     <tool-controls />
     <div class="header">Measurements</div>
     <div class="content">
-      <measurements-ruler-list />
-      <measurements-tool-list
-        :tool-store="rectangleStore"
-        icon="mdi-vector-square"
-      />
-      <measurements-tool-list
-        :tool-store="polygonStore"
-        icon="mdi-pentagon-outline"
-      />
+      <measurements-tool-list :tools="tools" />
     </div>
     <div class="text-caption text-center empty-state">No measurements</div>
     <div class="header">Labelmaps</div>
@@ -48,10 +42,6 @@ export default defineComponent({
 </template>
 
 <style scoped>
-.annot-subheader {
-  margin: 8px 0;
-}
-
 .empty-state {
   display: none;
 }

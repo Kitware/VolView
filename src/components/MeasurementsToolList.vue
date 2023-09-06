@@ -1,20 +1,28 @@
-<script setup lang="ts" generic="ToolID extends string">
-/* global ToolID:readonly */
+<script setup lang="ts">
 import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import MeasurementToolDetails from './MeasurementToolDetails.vue';
+
+type AnnotationToolConfig = {
+  store: AnnotationToolStore<string>;
+  icon: string;
+  details?: typeof MeasurementToolDetails;
+};
+
+export type AnnotationTools = Array<AnnotationToolConfig>;
 
 const props = defineProps<{
-  toolStore: AnnotationToolStore<ToolID>;
-  icon: string;
+  tools: AnnotationTools;
 }>();
 
 const { currentImageID, currentImageMetadata } = useCurrentImage();
 
-const tools = computed(() => {
-  const byID = props.toolStore.toolByID;
-  return props.toolStore.toolIDs
+// Filter and add axis for specific annotation type
+const getTools = (toolStore: AnnotationToolStore<string>) => {
+  const byID = toolStore.toolByID;
+  return toolStore.toolIDs
     .map((id) => byID[id])
     .filter((tool) => !tool.placing && tool.imageID === currentImageID.value)
     .map((tool) => {
@@ -30,27 +38,34 @@ const tools = computed(() => {
         axis,
       };
     });
+};
+
+// Flatten all tool types and add actions
+const tools = computed(() => {
+  return props.tools.flatMap(
+    ({ store, icon, details = MeasurementToolDetails }) => {
+      const toolsWithAxis = getTools(store);
+      return toolsWithAxis.map((tool) => ({
+        ...tool,
+        icon,
+        details,
+        remove: () => store.removeTool(tool.id),
+        jumpTo: () => store.jumpToTool(tool.id),
+        toggleHidden: () => {
+          const toggled = !store.toolByID[tool.id].hidden;
+          store.updateTool(tool.id, { hidden: toggled });
+        },
+      }));
+    }
+  );
 });
-
-const remove = (id: ToolID) => {
-  props.toolStore.removeTool(id);
-};
-
-const jumpTo = (id: ToolID) => {
-  props.toolStore.jumpToTool(id);
-};
-
-const toggleHidden = (id: ToolID) => {
-  const toggled = !props.toolStore.toolByID[id].hidden;
-  props.toolStore.updateTool(id, { hidden: toggled });
-};
 </script>
 
 <template>
   <v-list-item v-for="tool in tools" :key="tool.id">
     <v-container>
       <v-row class="align-center main-row">
-        <v-icon class="tool-icon">{{ icon }}</v-icon>
+        <v-icon class="tool-icon">{{ tool.icon }}</v-icon>
         <div class="color-dot mr-3" :style="{ backgroundColor: tool.color }" />
 
         <v-list-item-title v-bind="$attrs">
@@ -58,20 +73,20 @@ const toggleHidden = (id: ToolID) => {
         </v-list-item-title>
 
         <span class="ml-auto actions">
-          <v-btn icon variant="text" @click="toggleHidden(tool.id)">
+          <v-btn icon variant="text" @click="tool.toggleHidden()">
             <v-icon v-if="tool.hidden">mdi-eye-off</v-icon>
             <v-icon v-else>mdi-eye</v-icon>
             <v-tooltip location="top" activator="parent">{{
               tool.hidden ? 'Show' : 'Hide'
             }}</v-tooltip>
           </v-btn>
-          <v-btn icon variant="text" @click="jumpTo(tool.id)">
+          <v-btn icon variant="text" @click="tool.jumpTo()">
             <v-icon>mdi-target</v-icon>
             <v-tooltip location="top" activator="parent">
               Reveal Slice
             </v-tooltip>
           </v-btn>
-          <v-btn icon variant="text" @click="remove(tool.id)">
+          <v-btn icon variant="text" @click="tool.remove()">
             <v-icon>mdi-delete</v-icon>
             <v-tooltip location="top" activator="parent">Delete</v-tooltip>
           </v-btn>
@@ -80,12 +95,7 @@ const toggleHidden = (id: ToolID) => {
 
       <v-row class="mt-4">
         <v-list-item-subtitle class="w-100">
-          <slot name="details" v-bind="{ tool }">
-            <v-row>
-              <v-col cols="3">Slice: {{ tool.slice + 1 }}</v-col>
-              <v-col cols="3">Axis: {{ tool.axis }}</v-col>
-            </v-row>
-          </slot>
+          <component :is="tool.details" :tool="tool" />
         </v-list-item-subtitle>
       </v-row>
     </v-container>
