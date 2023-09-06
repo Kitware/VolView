@@ -76,7 +76,7 @@ import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox'
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { useProxyManager } from '@/src/composables/proxyManager';
-import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';

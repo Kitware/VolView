@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import { expect } from 'chai';
 
-import { toOrderedLabels } from '@src/composables/useOrientationLabels';
+import { toOrderedLabels } from '@/src/composables/useOrientationLabels';
 
 const SQRT1_3 = 1 / Math.sqrt(3);
 

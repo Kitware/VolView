@@ -3,7 +3,7 @@ import chai, { expect } from 'chai';
 import chaiAlmost from 'chai-almost';
 import { vec3, mat3 } from 'gl-matrix';
 
-import { getLPSDirections } from '@src/utils/lps';
+import { getLPSDirections } from '@/src/utils/lps';
 
 chai.use(chaiAlmost());
 

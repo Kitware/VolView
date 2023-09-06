@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import { expect } from 'chai';
-import { retypeFile } from '@src/io';
+import { retypeFile } from '@/src/io';
 
 function makeEmptyFile(name: string) {
   return new File([], name);

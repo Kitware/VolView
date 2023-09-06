@@ -1,4 +1,4 @@
-import { join } from '@src/utils/path';
+import { join } from '@/src/utils/path';
 
 const base = import.meta.env.BASE_URL;
 

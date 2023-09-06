@@ -6,7 +6,7 @@ import {
   stackImages,
 } from 'itk-wasm';
 
-import itkConfig from '@src/io/itk/itkConfig';
+import itkConfig from '@/src/io/itk/itkConfig';
 
 export async function runWasm(
   pipeline,
