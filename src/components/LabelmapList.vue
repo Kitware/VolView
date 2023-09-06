@@ -6,12 +6,6 @@
   </v-list>
 </template>
 
-<style scoped>
-.empty-state {
-  text-align: center;
-}
-</style>
-
 <script lang="ts">
 import { computed, defineComponent } from 'vue';
 import { useLabelmapStore } from '../store/datasets-labelmaps';

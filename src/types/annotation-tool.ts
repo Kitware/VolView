@@ -1,4 +1,6 @@
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { FrameOfReference } from '../utils/frameOfReference';
+import { WidgetAction } from '../vtk/ToolWidgetUtils/utils';
 
 export type AnnotationTool<ID extends string> = {
   id: ID;
@@ -13,7 +15,7 @@ export type AnnotationTool<ID extends string> = {
   frameOfReference: FrameOfReference;
 
   /**
-   * Is this tool in placing mode
+   * Is this tool unfinished?
    */
   placing?: boolean;
 
@@ -22,4 +24,11 @@ export type AnnotationTool<ID extends string> = {
 
   color: string;
   name: string;
+
+  hidden?: boolean;
+};
+
+export type ContextMenuEvent = {
+  displayXY: Vector2;
+  widgetActions: Array<WidgetAction>;
 };

@@ -9,8 +9,8 @@ const toolStore = useRulerStore();
   <measurements-tool-list :toolStore="toolStore" icon="mdi-ruler">
     <template v-slot:details="{ tool }">
       <v-row>
-        <v-col>Slice: {{ tool.slice + 1 }}</v-col>
-        <v-col>Axis: {{ tool.axis }}</v-col>
+        <v-col cols="3">Slice: {{ tool.slice + 1 }}</v-col>
+        <v-col cols="3">Axis: {{ tool.axis }}</v-col>
         <v-col>
           Length:
           <span class="value">

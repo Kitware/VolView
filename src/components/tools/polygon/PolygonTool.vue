@@ -14,30 +14,7 @@
         @placed="onToolPlaced"
       />
     </svg>
-    <v-menu
-      v-model="contextMenu.show"
-      class="position-absolute"
-      :style="{
-        top: `${contextMenu.y}px`,
-        left: `${contextMenu.x}px`,
-      }"
-      close-on-click
-      close-on-content-click
-    >
-      <v-list density="compact">
-        <v-list-item @click="deleteToolFromContextMenu">
-          <v-list-item-title>Delete Polygon</v-list-item-title>
-        </v-list-item>
-        <!-- Optional items below stable item for muscle memory  -->
-        <v-list-item
-          v-for="action in contextMenu.widgetActions"
-          @click="action.func"
-          :key="action.name"
-        >
-          <v-list-item-title>{{ action.name }}</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
   </div>
 </template>
 
@@ -47,7 +24,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  reactive,
   ref,
   toRefs,
   watch,
@@ -61,17 +37,17 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import { ContextMenuEvent, Polygon, PolygonID } from '@/src/types/polygon';
-import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/utils';
+import { PolygonID } from '@/src/types/polygon';
+import {
+  useContextMenu,
+  useCurrentTools,
+} from '@/src/composables/annotationTool';
+import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 type ToolID = PolygonID;
-type Tool = Polygon;
 const useActiveToolStore = usePolygonStore;
 const toolType = Tools.Polygon;
 
@@ -97,12 +73,13 @@ export default defineComponent({
   },
   components: {
     PolygonWidget2D,
+    AnnotationContextMenu,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { tools, activeLabel } = storeToRefs(activeToolStore);
+    const { activeLabel } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -200,60 +177,17 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- context menu --- //
+    const { contextMenu, openContextMenu } = useContextMenu();
 
-    const contextMenu = reactive({
-      show: false,
-      x: 0,
-      y: 0,
-      forToolID: '' as ToolID,
-      widgetActions: [] as Array<WidgetAction>,
-    });
-
-    const openContextMenu = (toolID: ToolID, event: ContextMenuEvent) => {
-      [contextMenu.x, contextMenu.y] = event.displayXY;
-      contextMenu.show = true;
-      contextMenu.forToolID = toolID;
-      contextMenu.widgetActions = event.widgetActions;
-    };
-
-    const deleteToolFromContextMenu = () => {
-      activeToolStore.removeTool(contextMenu.forToolID);
-    };
-
-    // --- tool data --- //
-
-    // does the tools's frame of reference match
-    // the view's axis
-    const doesToolFrameMatchViewAxis = (tool: Partial<Tool>) => {
-      if (!tool.frameOfReference) return false;
-      const toolAxis = frameOfReferenceToImageSliceAndAxis(
-        tool.frameOfReference,
-        currentImageMetadata.value,
-        {
-          allowOutOfBoundsSlice: true,
-        }
-      );
-      return !!toolAxis && toolAxis.axis === viewAxis.value;
-    };
-
-    const currentTools = computed(() => {
-      const curImageID = currentImageID.value;
-
-      return tools.value.filter((tool) => {
-        // only show tools for the current image
-        // and current view axis
-        return tool.imageID === curImageID && doesToolFrameMatchViewAxis(tool);
-      });
-    });
+    const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
     return {
       tools: currentTools,
       placingToolID,
+      onToolPlaced,
       contextMenu,
       openContextMenu,
-      deleteToolFromContextMenu,
-      onToolPlaced,
+      activeToolStore,
     };
   },
 });

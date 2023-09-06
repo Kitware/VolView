@@ -8,7 +8,6 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
-  onBeforeUnmount,
   onMounted,
   onUnmounted,
   PropType,
@@ -21,13 +20,12 @@ import {
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
-import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import { watchOnce } from '@vueuse/core';
+import { useRightClickContextMenu } from '@/src/composables/annotationTool';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -123,26 +121,7 @@ export default defineComponent({
 
     // --- right click handling --- //
 
-    let rightClickSub: vtkSubscription | null = null;
-
-    onMounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      rightClickSub = widget.value.onRightClickEvent((eventData) => {
-        const coords = getCSSCoordinatesFromEvent(eventData);
-        if (coords) {
-          emit('contextmenu', coords);
-        }
-      });
-    });
-
-    onBeforeUnmount(() => {
-      if (rightClickSub) {
-        rightClickSub.unsubscribe();
-        rightClickSub = null;
-      }
-    });
+    useRightClickContextMenu(emit, widget);
 
     // --- manipulator --- //
 

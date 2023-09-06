@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RulerWidget2D
+      <ruler-widget-2D
         v-for="ruler in rulers"
         :key="ruler.id"
         :ruler-id="ruler.id"
@@ -14,22 +14,7 @@
         @placed="onRulerPlaced"
       />
     </svg>
-    <v-menu
-      v-model="contextMenu.show"
-      class="position-absolute"
-      :style="{
-        top: `${contextMenu.y}px`,
-        left: `${contextMenu.x}px`,
-      }"
-      close-on-click
-      close-on-content-click
-    >
-      <v-list density="compact">
-        <v-list-item @click="deleteRulerFromContextMenu">
-          <v-list-item-title>Delete</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <annotation-context-menu ref="contextMenu" :tool-store="rulerStore" />
   </div>
 </template>
 
@@ -39,7 +24,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  reactive,
   ref,
   toRefs,
   watch,
@@ -51,15 +35,16 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { storeToRefs } from 'pinia';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
-import { Ruler } from '@/src/types/ruler';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { vec3 } from 'gl-matrix';
+import {
+  useContextMenu,
+  useCurrentTools,
+} from '@/src/composables/annotationTool';
+import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -83,12 +68,13 @@ export default defineComponent({
   },
   components: {
     RulerWidget2D,
+    AnnotationContextMenu,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
-    const { rulers, activeLabel } = storeToRefs(rulerStore);
+    const { activeLabel } = storeToRefs(rulerStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
@@ -190,70 +176,27 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- context menu --- //
-
-    const contextMenu = reactive({
-      show: false,
-      x: 0,
-      y: 0,
-      forRulerID: '',
-    });
-
-    const openContextMenu = (rulerID: string, displayXY: Vector2) => {
-      [contextMenu.x, contextMenu.y] = displayXY;
-      contextMenu.show = true;
-      contextMenu.forRulerID = rulerID;
-    };
-
-    const deleteRulerFromContextMenu = () => {
-      rulerStore.removeRuler(contextMenu.forRulerID);
-    };
+    const { contextMenu, openContextMenu } = useContextMenu();
 
     // --- ruler data --- //
 
-    // does the ruler's frame of reference match
-    // the view's axis
-    const doesRulerFrameMatchViewAxis = (ruler: Partial<Ruler>) => {
-      if (!ruler.frameOfReference) return false;
-      const rulerAxis = frameOfReferenceToImageSliceAndAxis(
-        ruler.frameOfReference,
-        currentImageMetadata.value,
-        {
-          allowOutOfBoundsSlice: true,
-        }
-      );
-      return !!rulerAxis && rulerAxis.axis === viewAxis.value;
-    };
+    const currentTools = useCurrentTools(rulerStore, viewAxis);
 
     const currentRulers = computed(() => {
       const { lengthByID } = rulerStore;
-      const curImageID = currentImageID.value;
-
-      const rulerData = rulers.value
-        .filter((ruler) => {
-          // only show rulers for the current image
-          // and current view axis
-          return (
-            ruler.imageID === curImageID && doesRulerFrameMatchViewAxis(ruler)
-          );
-        })
-        .map((ruler) => {
-          return {
-            ...ruler,
-            length: lengthByID[ruler.id],
-          };
-        });
-
-      return rulerData;
+      return currentTools.value.map((ruler) => ({
+        ...ruler,
+        length: lengthByID[ruler.id],
+      }));
     });
 
     return {
       rulers: currentRulers,
       placingRulerID,
+      onRulerPlaced,
       contextMenu,
       openContextMenu,
-      deleteRulerFromContextMenu,
-      onRulerPlaced,
+      rulerStore,
     };
   },
 });

@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <RectangleWidget2D
+      <rectangle-widget-2D
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"
@@ -14,22 +14,7 @@
         @placed="onToolPlaced"
       />
     </svg>
-    <v-menu
-      v-model="contextMenu.show"
-      class="position-absolute"
-      :style="{
-        top: `${contextMenu.y}px`,
-        left: `${contextMenu.x}px`,
-      }"
-      close-on-click
-      close-on-content-click
-    >
-      <v-list density="compact">
-        <v-list-item @click="deleteToolFromContextMenu">
-          <v-list-item-title>Delete</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
   </div>
 </template>
 
@@ -39,7 +24,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  reactive,
   ref,
   toRefs,
   watch,
@@ -51,18 +35,19 @@ import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import {
-  FrameOfReference,
-  frameOfReferenceToImageSliceAndAxis,
-} from '@/src/utils/frameOfReference';
+import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { Rectangle, RectangleID } from '@/src/types/rectangle';
+import { RectangleID } from '@/src/types/rectangle';
+import {
+  useCurrentTools,
+  useContextMenu,
+} from '@/src/composables/annotationTool';
+import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
 type ToolID = RectangleID;
-type Tool = Rectangle;
 const useActiveToolStore = useRectangleStore;
 const toolType = Tools.Rectangle;
 
@@ -88,12 +73,13 @@ export default defineComponent({
   },
   components: {
     RectangleWidget2D,
+    AnnotationContextMenu,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { tools, activeLabel } = storeToRefs(activeToolStore);
+    const { activeLabel } = storeToRefs(activeToolStore);
 
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -192,58 +178,17 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- context menu --- //
+    const { contextMenu, openContextMenu } = useContextMenu();
 
-    const contextMenu = reactive({
-      show: false,
-      x: 0,
-      y: 0,
-      forToolID: '' as ToolID,
-    });
-
-    const openContextMenu = (toolID: ToolID, displayXY: Vector2) => {
-      [contextMenu.x, contextMenu.y] = displayXY;
-      contextMenu.show = true;
-      contextMenu.forToolID = toolID;
-    };
-
-    const deleteToolFromContextMenu = () => {
-      activeToolStore.removeTool(contextMenu.forToolID);
-    };
-
-    // --- tool data --- //
-
-    // does the tools's frame of reference match
-    // the view's axis
-    const doesToolFrameMatchViewAxis = (tool: Partial<Tool>) => {
-      if (!tool.frameOfReference) return false;
-      const toolAxis = frameOfReferenceToImageSliceAndAxis(
-        tool.frameOfReference,
-        currentImageMetadata.value,
-        {
-          allowOutOfBoundsSlice: true,
-        }
-      );
-      return !!toolAxis && toolAxis.axis === viewAxis.value;
-    };
-
-    const currentTools = computed(() => {
-      const curImageID = currentImageID.value;
-
-      return tools.value.filter((tool) => {
-        // only show tools for the current image
-        // and current view axis
-        return tool.imageID === curImageID && doesToolFrameMatchViewAxis(tool);
-      });
-    });
+    const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
     return {
       tools: currentTools,
       placingToolID,
+      onToolPlaced,
       contextMenu,
       openContextMenu,
-      deleteToolFromContextMenu,
-      onToolPlaced,
+      activeToolStore,
     };
   },
 });

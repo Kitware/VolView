@@ -1,5 +1,5 @@
-import { Ref, computed, ref, watch } from 'vue';
-import { Store, StoreActions, StoreState } from 'pinia';
+import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
+import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
 
 import { Maybe, PartialWithRequired } from '@/src/types';
 import { TOOL_COLORS } from '@/src/config';
@@ -212,7 +212,11 @@ type UseAnnotationToolNoSerialize<ID extends string> = Omit<
   UseAnnotationTool<ID>,
   'serialize' | 'deserialize'
 >;
-export type AnnotationToolStore<ID extends string> = StoreState<
-  UseAnnotationToolNoSerialize<ID>
-> &
-  StoreActions<UseAnnotationToolNoSerialize<ID>>;
+
+export type AnnotationToolStore<
+  ID extends string,
+  UseAnnotationToolWithID = UseAnnotationToolNoSerialize<ID>
+> = StoreState<UseAnnotationToolWithID> &
+  StoreActions<UseAnnotationToolWithID> &
+  UnwrapNestedRefs<StoreGetters<UseAnnotationToolWithID>> & // adds computed props like tools
+  Store; // adds Pinia plugins;
