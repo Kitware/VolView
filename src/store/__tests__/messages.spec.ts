@@ -4,7 +4,7 @@ import chaiAsPromised from 'chai-as-promised';
 
 import { setActivePinia, createPinia } from 'pinia';
 
-import { MessageType, useMessageStore } from '@src/store/messages';
+import { MessageType, useMessageStore } from '@/src/store/messages';
 
 chai.use(chaiAsPromised);
 

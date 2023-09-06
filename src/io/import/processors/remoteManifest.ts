@@ -1,6 +1,6 @@
 import { DataSource } from '@/src/io/import/dataSource';
 import { ImportHandler } from '@/src/io/import/common';
-import { readRemoteManifestFile } from '@src/io/manifest';
+import { readRemoteManifestFile } from '@/src/io/manifest';
 
 /**
  * Reads a JSON file that conforms to the remote manifest spec.

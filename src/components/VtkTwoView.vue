@@ -186,14 +186,14 @@ import {
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
-import { useResizeToFit } from '@src/composables/useResizeToFit';
-import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
-import vtkIJKSliceRepresentationProxy from '@src/vtk/IJKSliceRepresentationProxy';
+import { useResizeToFit } from '@/src/composables/useResizeToFit';
+import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
+import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
-import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
-import SliceSlider from '@src/components/SliceSlider.vue';
-import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
+import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
+import SliceSlider from '@/src/components/SliceSlider.vue';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
