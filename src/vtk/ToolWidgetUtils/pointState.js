@@ -2,25 +2,8 @@ import macro from '@kitware/vtk.js/macros';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
-
-const PIXEL_SIZE = 20;
-
-function watchStore(publicAPI, store, getter, cmp) {
-  let cached = getter();
-  const unsubscribe = store.$subscribe(() => {
-    const val = getter();
-    if (cmp ? cmp(cached, val) : cached !== val) {
-      cached = val;
-      publicAPI.modified();
-    }
-  });
-
-  const originalDelete = publicAPI.delete;
-  publicAPI.delete = () => {
-    unsubscribe();
-    originalDelete();
-  };
-}
+import { HANDLE_PIXEL_SIZE } from '@/src/vtk/ToolWidgetUtils/common';
+import { watchStore } from '@/src/vtk/ToolWidgetUtils/utils';
 
 function _createPointState(
   publicAPI,
@@ -34,7 +17,7 @@ function _createPointState(
   });
   vtkWidgetState.extend(publicAPI, model, {});
   visibleMixin.extend(publicAPI, model, { visible });
-  scale1Mixin.extend(publicAPI, model, { scale1: PIXEL_SIZE });
+  scale1Mixin.extend(publicAPI, model, { scale1: HANDLE_PIXEL_SIZE });
 
   const getTool = () => {
     return model._store.toolByID[model.id];

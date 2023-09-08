@@ -6,11 +6,13 @@ import { InteractionState } from './behavior';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import { vtkAnnotationToolWidget } from '../ToolWidgetUtils/utils';
+import { Nullable, Vector3 } from '@kitware/vtk.js/types';
 
 export { InteractionState } from './behavior';
 
 export interface vtkRulerWidgetPointState extends vtkWidgetState {
   getVisible(): boolean;
+  getOrigin(): Nullable<Vector3>;
 }
 
 export interface vtkRulerWidgetState extends vtkWidgetState {
@@ -24,12 +26,11 @@ export interface vtkRulerViewWidget extends vtkAnnotationToolWidget {
   setInteractionState(state: InteractionState): boolean;
   getInteractionState(): InteractionState;
   getWidgetState(): vtkRulerWidgetState;
+  resetState(): void;
 }
 
 export interface IRulerWidgetInitialValues {
-  id: string;
-  store: ReturnType<typeof useRulerStore>;
-  isPlaced: boolean;
+  widgetState?: vtkRulerWidgetState;
 }
 
 export interface vtkRulerWidget extends vtkAbstractWidgetFactory {

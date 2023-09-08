@@ -3,6 +3,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { Maybe } from '@/src/types';
 import { LPSAxis } from '../types/lps';
 import { AnnotationTool, ContextMenuEvent } from '../types/annotation-tool';
 import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
@@ -66,7 +67,7 @@ export const useContextMenu = <ToolID extends string>() => {
 
 export const useRightClickContextMenu = (
   emit: (event: 'contextmenu', ...args: any[]) => void,
-  widget: Ref<vtkAnnotationToolWidget | null>
+  widget: Ref<Maybe<vtkAnnotationToolWidget>>
 ) => {
   onVTKEvent(widget, 'onRightClickEvent', (eventData) => {
     const displayXY = getCSSCoordinatesFromEvent(eventData);

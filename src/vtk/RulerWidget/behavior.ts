@@ -55,6 +55,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model._interactor.cancelAnimation(publicAPI, true);
   };
 
+  publicAPI.resetState = () => {
+    model.widgetState.getFirstPoint().setOrigin(null);
+    model.widgetState.getSecondPoint().setOrigin(null);
+  };
+
   /**
    * Places or drags a point.
    */

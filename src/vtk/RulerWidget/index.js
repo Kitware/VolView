@@ -4,8 +4,10 @@ import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/Plane
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
+import { POINTS_LABEL } from '@/src/vtk/ToolWidgetUtils/common';
+
 import widgetBehavior from './behavior';
-import stateGenerator, { PointsLabel } from './state';
+import stateGenerator from './standaloneState';
 
 export { InteractionState } from './behavior';
 
@@ -21,7 +23,7 @@ function vtkRulerWidget(publicAPI, model) {
   publicAPI.getRepresentationsForViewType = () => [
     {
       builder: vtkSphereHandleRepresentation,
-      labels: [PointsLabel],
+      labels: [POINTS_LABEL],
       initialValues: {
         scaleInPixels: true,
       },
@@ -51,9 +53,9 @@ export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
   vtkAbstractWidgetFactory.extend(publicAPI, model, {
-    ...initialValues,
     behavior: widgetBehavior,
     widgetState: stateGenerator(initialValues),
+    ...initialValues,
   });
   macro.get(publicAPI, model, ['manipulator']);
 

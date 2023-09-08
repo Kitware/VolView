@@ -1,5 +1,6 @@
 <script lang="ts">
 import vtkRulerWidget, {
+  InteractionState,
   vtkRulerViewWidget,
   vtkRulerWidgetState,
 } from '@/src/vtk/RulerWidget';
@@ -18,22 +19,19 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useRulerStore } from '@/src/store/tools/rulers';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
-import { useRightClickContextMenu } from '@/src/composables/annotationTool';
-import createRulerWidgetState from '@/src/vtk/RulerWidget/storeState';
-import { useViewStore } from '@/src/store/views';
-import { useSyncedRulerState } from '@/src/components/tools/ruler/common';
+import createStandaloneState from '@/src/vtk/RulerWidget/standaloneState';
+import {
+  RulerInitState,
+  useSyncedRulerState,
+} from '@/src/components/tools/ruler/common';
 import { useViewWidget } from '@/src/composables/useViewWidget';
 
 export default defineComponent({
-  name: 'RulerWidget2D',
-  emits: ['contextmenu'],
+  name: 'PlacingRulerWidget2D',
+  emits: ['placed'],
   props: {
-    rulerId: {
-      type: String,
-      required: true,
-    },
     widgetManager: {
       type: Object as PropType<vtkWidgetManager>,
       required: true,
@@ -50,22 +48,17 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    color: String,
   },
   components: {
     RulerSVG2D,
   },
   setup(props, { emit }) {
-    const { rulerId, widgetManager, viewDirection, currentSlice, viewId } =
-      toRefs(props);
+    const { widgetManager, viewDirection, currentSlice } = toRefs(props);
 
-    const rulerStore = useRulerStore();
-    const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
 
-    const widgetState = createRulerWidgetState({
-      id: rulerId.value,
-      store: rulerStore,
-    }) as vtkRulerWidgetState;
+    const widgetState = createStandaloneState() as vtkRulerWidgetState;
     const widgetFactory = vtkRulerWidget.newInstance({
       widgetState,
     });
@@ -77,16 +70,37 @@ export default defineComponent({
     );
 
     onMounted(() => {
-      viewProxy.value?.renderLater();
+      widget.value!.setInteractionState(InteractionState.PlacingFirst);
     });
 
     onUnmounted(() => {
       widgetFactory.delete();
     });
 
-    // --- right click handling --- //
+    // --- reset on slice/image changes --- //
 
-    useRightClickContextMenu(emit, widget);
+    watch([currentSlice, currentImageID, widget], () => {
+      if (widget.value) {
+        widget.value.resetInteractions();
+        widget.value.setInteractionState(InteractionState.PlacingFirst);
+      }
+    });
+
+    // --- placed event --- //
+
+    onVTKEvent(widget, 'onPlacedEvent', () => {
+      const { firstPoint, secondPoint } = syncedState;
+      if (!firstPoint.origin || !secondPoint.origin)
+        throw new Error('Incomplete placing widget state');
+      const initState: RulerInitState = {
+        firstPoint: firstPoint.origin,
+        secondPoint: secondPoint.origin,
+      };
+      emit('placed', initState);
+
+      widget.value!.resetState();
+      widget.value!.setInteractionState(InteractionState.PlacingFirst);
+    });
 
     // --- manipulator --- //
 
@@ -99,28 +113,16 @@ export default defineComponent({
       widget.value.setManipulator(manipulator);
     });
 
-    const { currentImageMetadata } = useCurrentImage();
-
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        ruler.value?.slice ?? currentSlice.value,
+        currentSlice.value,
         currentImageMetadata.value
       );
     });
 
     // --- visibility --- //
-
-    // toggles the pickability of the ruler handles,
-    // since the 3D ruler parts are visually hidden.
-    watch(
-      () => !!widget.value && ruler.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
 
     onMounted(() => {
       if (!widget.value) {
@@ -134,7 +136,6 @@ export default defineComponent({
     // --- //
 
     return {
-      ruler,
       firstPoint: computed(() => {
         return syncedState.firstPoint.visible
           ? syncedState.firstPoint.origin
@@ -153,11 +154,10 @@ export default defineComponent({
 
 <template>
   <RulerSVG2D
-    v-show="currentSlice === ruler.slice"
     :view-id="viewId"
     :point1="firstPoint"
     :point2="secondPoint"
-    :color="ruler.color"
     :length="length"
+    :color="color"
   />
 </template>
