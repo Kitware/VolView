@@ -1,6 +1,6 @@
 <script lang="ts">
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { VTKThreeViewWidgetManager } from '@/src/constants';
 import { useCropStore } from '@/src/store/tools/crop';
 import { LPSCroppingPlanes } from '@/src/types/crop';
@@ -152,11 +152,7 @@ export default defineComponent({
       { immediate: true }
     );
 
-    const onPlanesUpdated = useVTKCallback(
-      state.getCroppingPlanes().onModified
-    );
-
-    onPlanesUpdated(() => {
+    onVTKEvent(state.getCroppingPlanes(), 'onModified', () => {
       const imageID = currentImageID.value;
       if (!imageID) return;
 

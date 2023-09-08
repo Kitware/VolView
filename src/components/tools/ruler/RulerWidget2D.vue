@@ -22,7 +22,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import { watchOnce } from '@vueuse/core';
 import { useRightClickContextMenu } from '@/src/composables/annotationTool';
@@ -111,11 +111,7 @@ export default defineComponent({
 
     // --- placed event --- //
 
-    const onPlacedEvent = useVTKCallback(
-      computed(() => widget.value?.onPlacedEvent)
-    );
-
-    onPlacedEvent(() => {
+    onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
 
@@ -175,10 +171,7 @@ export default defineComponent({
         visible.value = pointState.value.getVisible();
       };
 
-      const onModified = useVTKCallback(
-        computed(() => pointState.value?.onModified)
-      );
-      onModified(() => updateVisibility());
+      onVTKEvent(pointState, 'onModified', () => updateVisibility());
 
       watchOnce(pointState, () => updateVisibility());
 

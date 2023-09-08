@@ -16,7 +16,7 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import vtkRectangleWidget, {
   vtkRectangleViewWidget,
@@ -121,11 +121,7 @@ export default defineComponent({
       }
     });
 
-    const onPlacedEvent = useVTKCallback(
-      computed(() => widget.value?.onPlacedEvent)
-    );
-
-    onPlacedEvent(() => {
+    onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
 
@@ -183,10 +179,7 @@ export default defineComponent({
         if (!pointState.value) return;
         visible.value = pointState.value.getVisible();
       };
-      const onModified = useVTKCallback(
-        computed(() => pointState.value?.onModified)
-      );
-      onModified(() => updateVisibility());
+      onVTKEvent(pointState, 'onModified', () => updateVisibility());
       watchOnce(pointState, () => updateVisibility());
       return visible;
     };

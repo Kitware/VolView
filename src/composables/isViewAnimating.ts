@@ -1,23 +1,16 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { computed, ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
-import { useVTKCallback } from './useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 export function isViewAnimating(viewProxy: MaybeRef<vtkViewProxy>) {
   const isAnimating = ref(false);
+  const interactor = computed(() => unref(viewProxy).getInteractor());
 
-  const onStartAnimation = useVTKCallback(
-    computed(() => unref(viewProxy).getInteractor().onStartAnimation)
-  );
-  const onEndAnimation = useVTKCallback(
-    computed(() => unref(viewProxy).getInteractor().onEndAnimation)
-  );
-
-  onStartAnimation(() => {
+  onVTKEvent(interactor, 'onStartAnimation', () => {
     isAnimating.value = true;
   });
-
-  onEndAnimation(() => {
+  onVTKEvent(interactor, 'onEndAnimation', () => {
     isAnimating.value = false;
   });
 

@@ -33,7 +33,7 @@
 
 <script lang="ts">
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
@@ -123,10 +123,8 @@ export default defineComponent({
       };
     });
 
-    const cameraOnModified = useVTKCallback(
-      computed(() => viewProxy.value.getCamera().onModified)
-    );
-    cameraOnModified(updatePoints);
+    const camera = computed(() => viewProxy.value.getCamera());
+    onVTKEvent(camera, 'onModified', updatePoints);
 
     watch([viewProxy, point1, point2], updatePoints, {
       deep: true,

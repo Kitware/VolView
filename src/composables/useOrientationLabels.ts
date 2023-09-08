@@ -2,8 +2,8 @@ import { computed, Ref, ref } from 'vue';
 import { vec3 } from 'gl-matrix';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { EPSILON } from '../constants';
-import { useVTKCallback } from './useVTKCallback';
 
 export function toOrderedLabels(vec: Vector3) {
   return (
@@ -52,10 +52,7 @@ export function useOrientationLabels(view: Ref<vtkViewProxy>) {
     left.value = toOrderedLabels(vleft);
   }
 
-  const cameraOnModified = useVTKCallback(
-    computed(() => camera.value.onModified)
-  );
-  cameraOnModified(updateAxes);
+  onVTKEvent(camera, 'onModified', updateAxes);
   updateAxes();
 
   return { top, right, bottom, left };
