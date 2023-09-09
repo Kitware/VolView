@@ -60,11 +60,13 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   const reset = () => {
     publicAPI.loseFocus();
-    model.widgetState.clearHandles();
+    model.widgetState.clearHandleList();
+    model.widgetState.setFinishable(false);
   };
+  publicAPI.reset = reset;
 
   const removeLastHandle = () => {
-    const handles = model.widgetState.getHandles();
+    const handles = model.widgetState.getHandleList();
     if (handles.length > 0) {
       model.widgetState.removeHandle(handles.length - 1);
       if (handles.length === 0) {
@@ -74,14 +76,13 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   const finishPlacing = () => {
-    model.widgetState.setPlacing(false);
     publicAPI.loseFocus();
     // Tool Component listens for 'placed' event
     publicAPI.invokePlacedEvent();
   };
 
   function isFinishable() {
-    const handles = model.widgetState.getHandles();
+    const handles = model.widgetState.getHandleList();
     const moveHandle = model.widgetState.getMoveHandle();
 
     if (model.activeState === moveHandle && handles.length >= 3) {
@@ -131,7 +132,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       if (model.widgetState.getFinishable())
         // snap to first point
         model.activeState.setOrigin(
-          model.widgetState.getHandles()[0].getOrigin()
+          model.widgetState.getHandleList()[0].getOrigin()
         );
 
       publicAPI.invokeInteractionEvent();
@@ -160,7 +161,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.activeState?.getManipulator?.() ?? model.manipulator;
     if (model.widgetState.getPlacing() && manipulator) {
       // Dropping first point?
-      if (model.widgetState.getHandles().length === 0) {
+      if (model.widgetState.getHandleList().length === 0) {
         // For updateActiveStateHandle
         model.activeState = model.widgetState.getMoveHandle();
         model._widgetManager.grabFocus(publicAPI);
@@ -185,6 +186,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (checkOverSegment()) {
       // insert point
       const insertIndex = model.activeState.getIndex() + 1;
+      // TODO
       const newHandle = model.widgetState.addHandle({ insertIndex });
       const coords = getWorldCoords(e);
       if (!coords) throw new Error('No world coords');
@@ -286,7 +288,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
 
     if (elapsed < DOUBLE_CLICK_TIMEOUT && distance < distanceThreshold) {
-      const handles = model.widgetState.getHandles();
+      const handles = model.widgetState.getHandleList();
       // Need 3 handles to finish.  Double click created 2 handles, 1 extra.
       if (handles.length >= 4) {
         removeLastHandle();
@@ -318,7 +320,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
 
     if (model.widgetState.getPlacing() && key === 'Enter') {
-      if (model.widgetState.getHandles().length >= 3) {
+      if (model.widgetState.getHandleList().length >= 3) {
         finishPlacing();
       }
       return macro.EVENT_ABORT;
@@ -346,7 +348,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     const overSegment = checkOverSegment();
     // if hovering on handle and we will still have at least 2 points after removing handle
-    if (!overSegment && model.widgetState.getHandles().length > 2) {
+    if (!overSegment && model.widgetState.getHandleList().length > 2) {
       widgetActions.push({
         name: 'Delete Point',
         func: () => {

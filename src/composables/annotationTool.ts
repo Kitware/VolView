@@ -31,6 +31,7 @@ const useDoesToolFrameMatchViewAxis = <
   return !!toolAxis && toolAxis.axis === viewAxis.value;
 };
 
+// TODO move to viewDirection in case we need to be more specific in the future
 export const useCurrentTools = <ToolID extends string>(
   toolStore: AnnotationToolStore<ToolID>,
   viewAxis: Ref<LPSAxis>

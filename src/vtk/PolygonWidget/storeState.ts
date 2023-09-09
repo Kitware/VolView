@@ -4,12 +4,11 @@ import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
 import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
 import { Vector3 } from '@kitware/vtk.js/types';
+import { NOOP } from '@/src/constants';
+import { HandlesLabel, MoveHandleLabel } from '@/src/vtk/PolygonWidget/common';
 
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
-
-export const MoveHandleLabel = 'moveHandle';
-export const HandlesLabel = 'handles';
 
 const PIXEL_SIZE = 20;
 
@@ -27,7 +26,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     id: model.id,
     store: model._store,
     key: 'movePoint',
-    visible: true,
+    visible: false,
   });
   watchState(publicAPI, model.moveHandle, () => publicAPI.modified());
 
@@ -109,10 +108,13 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
   };
 
-  publicAPI.getPlacing = () => getTool().placing;
-  publicAPI.setPlacing = (placing: boolean) => {
-    getTool().placing = placing;
-  };
+  // TODO
+  publicAPI.getPlacing = () => false;
+  publicAPI.setPlacing = NOOP;
+
+  // TODO match standaloneState API
+  publicAPI.getHandleList = publicAPI.getHandles;
+  publicAPI.clearHandleList = publicAPI.clearHandles;
 
   // Setup after deserialization
   getTool().points.forEach((point: Vector3) => {

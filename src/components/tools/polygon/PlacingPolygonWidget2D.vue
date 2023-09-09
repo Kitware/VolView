@@ -1,9 +1,4 @@
 <script lang="ts">
-import vtkRulerWidget, {
-  InteractionState,
-  vtkRulerViewWidget,
-  vtkRulerWidgetState,
-} from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
@@ -20,16 +15,20 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
-import createStandaloneState from '@/src/vtk/RulerWidget/standaloneState';
-import {
-  RulerInitState,
-  useSyncedRulerState,
-} from '@/src/components/tools/ruler/common';
+import vtkWidgetFactory, {
+  vtkPolygonViewWidget,
+  vtkPolygonWidgetState,
+} from '@/src/vtk/PolygonWidget';
+import createStandaloneState from '@/src/vtk/PolygonWidget/standaloneState';
 import { useViewWidget } from '@/src/composables/useViewWidget';
+import {
+  useSyncedPolygonState,
+  PolygonInitState,
+} from '@/src/components/tools/polygon/common';
+import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
-  name: 'PlacingRulerWidget2D',
+  name: 'PlacingPolygonWidget2D',
   emits: ['placed'],
   props: {
     widgetManager: {
@@ -51,26 +50,25 @@ export default defineComponent({
     color: String,
   },
   components: {
-    RulerSVG2D,
+    SVG2DComponent,
   },
   setup(props, { emit }) {
     const { widgetManager, viewDirection, currentSlice } = toRefs(props);
-
     const { currentImageID, currentImageMetadata } = useCurrentImage();
 
-    const widgetState = createStandaloneState() as vtkRulerWidgetState;
-    const widgetFactory = vtkRulerWidget.newInstance({
+    const widgetState = createStandaloneState() as vtkPolygonWidgetState;
+    const widgetFactory = vtkWidgetFactory.newInstance({
       widgetState,
     });
 
-    const syncedState = useSyncedRulerState(widgetFactory);
-    const widget = useViewWidget<vtkRulerViewWidget>(
+    const syncedState = useSyncedPolygonState(widgetFactory);
+    const widget = useViewWidget<vtkPolygonViewWidget>(
       widgetFactory,
       widgetManager
     );
 
     onMounted(() => {
-      widget.value!.setInteractionState(InteractionState.PlacingFirst);
+      widgetState.setPlacing(true);
     });
 
     onUnmounted(() => {
@@ -82,24 +80,18 @@ export default defineComponent({
     watch([currentSlice, currentImageID, widget], () => {
       if (widget.value) {
         widget.value.resetInteractions();
-        widget.value.setInteractionState(InteractionState.PlacingFirst);
+        widget.value.getWidgetState().clearHandleList();
       }
     });
 
-    // --- placed event --- //
-
     onVTKEvent(widget, 'onPlacedEvent', () => {
-      const { firstPoint, secondPoint } = syncedState;
-      if (!firstPoint.origin || !secondPoint.origin)
-        throw new Error('Incomplete placing widget state');
-      const initState: RulerInitState = {
-        firstPoint: firstPoint.origin,
-        secondPoint: secondPoint.origin,
+      const initState: PolygonInitState = {
+        points: syncedState.points,
       };
       emit('placed', initState);
 
-      widget.value?.resetState();
-      widget.value?.setInteractionState(InteractionState.PlacingFirst);
+      widget.value?.reset();
+      widgetState.setPlacing(true);
     });
 
     // --- manipulator --- //
@@ -133,31 +125,28 @@ export default defineComponent({
       widgetManager.value.renderWidgets();
     });
 
-    // --- //
+    // // when movePoint/mouse changes, get finishable manually as its not in store
+    // const finishable = ref(false);
+    // // const movePoint = computed(() => tool.value?.movePoint);
+    // watch([movePoint], () => {
+    //   finishable.value = !!widget.value?.getWidgetState().getFinishable();
+    // });
 
     return {
-      firstPoint: computed(() => {
-        return syncedState.firstPoint.visible
-          ? syncedState.firstPoint.origin
-          : null;
-      }),
-      secondPoint: computed(() => {
-        return syncedState.secondPoint.visible
-          ? syncedState.secondPoint.origin
-          : null;
-      }),
-      length: computed(() => syncedState.length),
+      state: syncedState,
+      finishable: computed(() => syncedState.finishable),
     };
   },
 });
 </script>
 
 <template>
-  <RulerSVG2D
+  <SVG2DComponent
     :view-id="viewId"
-    :point1="firstPoint"
-    :point2="secondPoint"
-    :length="length"
+    :points="state.points"
     :color="color"
+    :move-point="state.movePoint"
+    placing
+    :finishable="finishable"
   />
 </template>

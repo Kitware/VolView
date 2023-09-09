@@ -44,7 +44,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.setInteractionState = (state: InteractionState) => {
     const changed = originalSetInteractionState(state);
     if (changed && state === InteractionState.PlacingFirst) {
-      model.widgetState.setIsPlaced(false);
+      // model.widgetState.setIsPlaced(false);
       model.widgetState.getFirstPoint().setVisible(false);
       model.widgetState.getSecondPoint().setVisible(false);
     }
@@ -99,7 +99,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     if (intState === InteractionState.PlacingSecond) {
       publicAPI.setSecondPoint(worldCoords);
-      model.widgetState.setIsPlaced(true);
+      // model.widgetState.setIsPlaced(true);
 
       publicAPI.setInteractionState(InteractionState.Select);
       publicAPI.invokeEndInteractionEvent();

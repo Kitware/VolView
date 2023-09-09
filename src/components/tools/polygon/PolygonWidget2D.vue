@@ -6,8 +6,6 @@ import {
   onMounted,
   onUnmounted,
   PropType,
-  Ref,
-  ref,
   toRefs,
   watch,
   watchEffect,
@@ -16,21 +14,25 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
-import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useRightClickContextMenu } from '@/src/composables/annotationTool';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
 import { PolygonID as ToolID } from '@/src/types/polygon';
 import vtkWidgetFactory, {
-  vtkPolygonViewWidget as WidgetView,
+  vtkPolygonViewWidget,
+  vtkPolygonWidgetState,
 } from '@/src/vtk/PolygonWidget';
+import { useViewStore } from '@/src/store/views';
+import createPolygonWidgetState from '@/src/vtk/PolygonWidget/storeState';
+import { useSyncedPolygonState } from '@/src/components/tools/polygon/common';
+import { useViewWidget } from '@/src/composables/useViewWidget';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
   name: 'PolygonWidget2D',
-  emits: ['placed', 'contextmenu'],
+  emits: ['contextmenu'],
   props: {
     toolId: {
-      type: String,
+      type: String as unknown as PropType<ToolID>,
       required: true,
     },
     widgetManager: {
@@ -49,58 +51,38 @@ export default defineComponent({
       type: Number,
       required: true,
     },
-    isPlacing: {
-      type: Boolean,
-      default: false,
-    },
   },
   components: {
     SVG2DComponent,
   },
   setup(props, { emit }) {
-    const {
-      toolId: stringToolId,
-      widgetManager,
-      viewDirection,
-      currentSlice,
-      isPlacing,
-    } = toRefs(props);
-    const toolId = ref(stringToolId.value) as Ref<ToolID>;
+    const { toolId, widgetManager, viewDirection, currentSlice, viewId } =
+      toRefs(props);
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
-    const widgetFactory = vtkWidgetFactory.newInstance({
+    const widgetState = createPolygonWidgetState({
       id: toolId.value,
       store: toolStore,
+    }) as vtkPolygonWidgetState;
+    const widgetFactory = vtkWidgetFactory.newInstance({
+      widgetState,
     });
-    const widget = ref<WidgetView | null>(null);
+
+    const syncedState = useSyncedPolygonState(widgetFactory);
+    const widget = useViewWidget<vtkPolygonViewWidget>(
+      widgetFactory,
+      widgetManager
+    );
 
     onMounted(() => {
-      widget.value = widgetManager.value.addWidget(widgetFactory) as WidgetView;
+      viewProxy.value?.renderLater();
     });
 
     onUnmounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      widgetManager.value.removeWidget(widget.value);
-      widget.value.delete();
       widgetFactory.delete();
-    });
-
-    // --- reset on slice/image changes --- //
-
-    watch([currentSlice, currentImageID, widget], () => {
-      if (widget.value && isPlacing.value) {
-        widget.value.resetInteractions();
-        widget.value.getWidgetState().clearHandles();
-      }
-    });
-
-    onVTKEvent(widget, 'onPlacedEvent', () => {
-      emit('placed');
     });
 
     // --- right click handling --- //
@@ -117,6 +99,8 @@ export default defineComponent({
       }
       widget.value.setManipulator(manipulator);
     });
+
+    const { currentImageMetadata } = useCurrentImage();
 
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
@@ -148,17 +132,9 @@ export default defineComponent({
       widgetManager.value.renderWidgets();
     });
 
-    // when movePoint/mouse changes, get finishable manually as its not in store
-    const finishable = ref(false);
-    const movePoint = computed(() => tool.value?.movePoint);
-    watch([movePoint], () => {
-      finishable.value =
-        !!widget.value && widget.value.getWidgetState().getFinishable();
-    });
-
     return {
       tool,
-      finishable,
+      state: syncedState,
     };
   },
 });
@@ -172,6 +148,6 @@ export default defineComponent({
     :color="tool.color"
     :move-point="tool.movePoint"
     :placing="tool.placing"
-    :finishable="finishable"
+    :finishable="state.finishable"
   />
 </template>

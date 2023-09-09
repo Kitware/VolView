@@ -5,14 +5,20 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { vtkAnnotationToolWidget } from '../ToolWidgetUtils/utils';
+import { Vector3 } from '@kitware/vtk.js/types';
 
 export interface vtkPolygonWidgetPointState extends vtkWidgetState {
   getVisible(): boolean;
+  getOrigin(): Vector3 | null;
+  getScale1(): number;
 }
 
 export interface vtkPolygonWidgetState extends vtkWidgetState {
-  getMoveHandle(): any;
+  getHandles(): vtkPolygonWidgetPointState[];
+  getHandleList(): vtkPolygonWidgetPointState[];
+  getMoveHandle(): vtkPolygonWidgetPointState;
   clearHandles(): void;
+  clearHandleList(): void;
   getPlacing(): boolean;
   setPlacing(is: boolean): void;
   getFinishable(): boolean;
@@ -21,11 +27,11 @@ export interface vtkPolygonWidgetState extends vtkWidgetState {
 
 export interface vtkPolygonViewWidget extends vtkAnnotationToolWidget {
   getWidgetState(): vtkPolygonWidgetState;
+  reset(): void;
 }
 
 export interface IPolygonWidgetInitialValues {
-  id: string;
-  store: ReturnType<typeof usePolygonStore>;
+  widgetState?: vtkPolygonWidgetState;
 }
 
 export interface vtkPolygonWidget extends vtkAbstractWidgetFactory {
