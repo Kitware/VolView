@@ -1,11 +1,9 @@
 <script lang="ts">
 import { computed, defineComponent, ref, toRefs, watch } from 'vue';
-import type { Ref } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
-  DICOMSelection,
   selectionEquals,
   useDatasetStore,
 } from '../store/datasets';
@@ -26,8 +24,6 @@ export default defineComponent({
   },
   setup(props) {
     const { patientKey } = toRefs(props);
-
-    const selectedSeries: Ref<DICOMSelection[]> = ref([]);
 
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
@@ -62,7 +58,7 @@ export default defineComponent({
 
     // --- selection --- //
 
-    const { selected, selectedAll, selectedSome } =
+    const { selected, selectedAll, selectedSome, toggleSelectAll } =
       useMultiSelection(studyKeys);
 
     const removeSelectedStudies = () => {
@@ -81,7 +77,7 @@ export default defineComponent({
       selected,
       selectedAll,
       selectedSome,
-      selectedSeries,
+      toggleSelectAll,
       primarySelection,
       removeSelectedStudies,
       studies,
@@ -109,6 +105,7 @@ export default defineComponent({
             :indeterminate="selectedSome && !selectedAll"
             label="Select All Studies"
             v-model="selectedAll"
+            @click.stop="toggleSelectAll"
             density="compact"
             hide-details
           />

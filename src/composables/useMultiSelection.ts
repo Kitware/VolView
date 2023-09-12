@@ -1,23 +1,29 @@
-import { computed, Ref, ref, watch, UnwrapRef } from 'vue';
+import { computed, ref, Ref, watch } from 'vue';
 
 export function useMultiSelection<T = string>(allItems: Ref<T[]>) {
-  const selected = ref<T[]>([]);
-  const selectedAll = ref(false);
+  const selected = ref<T[]>([]) as Ref<T[]>;
+
+  // remove deleted item
+  watch(allItems, () => {
+    selected.value = selected.value.filter((item) =>
+      allItems.value.includes(item)
+    );
+  });
+
   const selectedSome = computed(() => selected.value.length > 0);
-
-  watch(selected, () => {
-    selectedAll.value =
+  const selectedAll = computed(
+    () =>
       selected.value.length > 0 &&
-      selected.value.length === allItems.value.length;
-  });
+      selected.value.length === allItems.value.length
+  );
 
-  watch(selectedAll, (yn) => {
-    if (yn) {
-      selected.value = allItems.value as UnwrapRef<T[]>;
-    } else {
+  const toggleSelectAll = () => {
+    if (selectedAll.value) {
       selected.value = [];
+    } else {
+      selected.value = allItems.value;
     }
-  });
+  };
 
-  return { selected, selectedAll, selectedSome };
+  return { selected, selectedAll, selectedSome, toggleSelectAll };
 }

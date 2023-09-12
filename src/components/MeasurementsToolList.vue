@@ -1,20 +1,31 @@
-<script setup lang="ts" generic="ToolID extends string">
-/* global ToolID:readonly */
+<script setup lang="ts">
 import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
+import { nonNullable } from '@/src/utils/index';
+import MeasurementToolDetails from './MeasurementToolDetails.vue';
+import { useMultiSelection } from '../composables/useMultiSelection';
+import { AnnotationTool } from '../types/annotation-tool';
+
+type AnnotationToolConfig = {
+  store: AnnotationToolStore<string>;
+  icon: string;
+  details?: typeof MeasurementToolDetails;
+};
+
+export type AnnotationTools = Array<AnnotationToolConfig>;
 
 const props = defineProps<{
-  toolStore: AnnotationToolStore<ToolID>;
-  icon: string;
+  tools: AnnotationTools;
 }>();
 
 const { currentImageID, currentImageMetadata } = useCurrentImage();
 
-const tools = computed(() => {
-  const byID = props.toolStore.toolByID;
-  return props.toolStore.toolIDs
+// Filter and add axis for specific annotation type
+const getTools = (toolStore: AnnotationToolStore<string>) => {
+  const byID = toolStore.toolByID;
+  return toolStore.toolIDs
     .map((id) => byID[id])
     .filter((tool) => !tool.placing && tool.imageID === currentImageID.value)
     .map((tool) => {
@@ -30,48 +41,146 @@ const tools = computed(() => {
         axis,
       };
     });
+};
+
+// Flatten all tool types and add actions
+const tools = computed(() => {
+  return props.tools.flatMap(
+    ({ store, icon, details = MeasurementToolDetails }) => {
+      const toolsWithAxis = getTools(store);
+      return toolsWithAxis.map((tool) => ({
+        ...tool,
+        icon,
+        details,
+        remove: () => store.removeTool(tool.id),
+        jumpTo: () => store.jumpToTool(tool.id),
+        toggleHidden: () => {
+          const toggled = !store.toolByID[tool.id].hidden;
+          store.updateTool(tool.id, { hidden: toggled });
+        },
+        updateTool: (patch: Partial<AnnotationTool<string>>) => {
+          store.updateTool(tool.id, patch);
+        },
+      }));
+    }
+  );
 });
 
-const remove = (id: ToolID) => {
-  props.toolStore.removeTool(id);
-};
+// --- selection and batch actions  --- //
 
-const jumpTo = (id: ToolID) => {
-  props.toolStore.jumpToTool(id);
-};
+const toolIds = computed(() => tools.value.map((tool) => tool.id));
 
-const toggleHidden = (id: ToolID) => {
-  const toggled = !props.toolStore.toolByID[id].hidden;
-  props.toolStore.updateTool(id, { hidden: toggled });
-};
+const { selected, selectedAll, selectedSome, toggleSelectAll } =
+  useMultiSelection(toolIds);
+
+const forEachSelectedTool = (
+  callback: (tool: (typeof tools.value)[number]) => void
+) =>
+  selected.value
+    .map((id) => tools.value.find((tool) => id === tool.id))
+    .filter(nonNullable)
+    .forEach(callback);
+
+function removeAll() {
+  forEachSelectedTool((tool) => tool.remove());
+  selected.value = [];
+}
+
+// If all selected tools are already hidden, it should be "show".
+// If at least one selected tool is visible, it should be "hide".
+const allHidden = computed(() => {
+  return selected.value
+    .map((id) => tools.value.find((tool) => id === tool.id))
+    .filter(nonNullable)
+    .every((tool) => tool.hidden);
+});
+
+function toggleGlobalHidden() {
+  const hidden = !allHidden.value;
+  forEachSelectedTool((tool) => {
+    tool.updateTool({ hidden });
+  });
+}
 </script>
 
 <template>
+  <v-row no-gutters justify="space-between" align="center" class="mb-1">
+    <v-col cols="6">
+      <v-checkbox
+        class="ml-3"
+        :indeterminate="selectedSome && !selectedAll"
+        label="Select All"
+        v-model="selectedAll"
+        @click.stop="toggleSelectAll"
+        density="compact"
+        hide-details
+      />
+    </v-col>
+    <v-col cols="6" align-self="center" class="d-flex justify-end">
+      <v-btn
+        icon
+        variant="text"
+        :disabled="!selectedSome"
+        @click.stop="toggleGlobalHidden"
+      >
+        <v-icon v-if="allHidden">mdi-eye-off</v-icon>
+        <v-icon v-else>mdi-eye</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          allHidden ? 'Show' : 'Hide'
+        }}</v-tooltip>
+      </v-btn>
+      <v-btn
+        icon
+        variant="text"
+        :disabled="!selectedSome"
+        @click.stop="removeAll"
+      >
+        <v-icon>mdi-delete</v-icon>
+        <v-tooltip :disabled="!selectedSome" location="top" activator="parent">
+          Delete selected
+        </v-tooltip>
+      </v-btn>
+    </v-col>
+  </v-row>
+
   <v-list-item v-for="tool in tools" :key="tool.id">
     <v-container>
-      <v-row class="align-center main-row">
-        <v-icon class="tool-icon">{{ icon }}</v-icon>
-        <div class="color-dot mr-3" :style="{ backgroundColor: tool.color }" />
+      <v-row class="d-flex align-center main-row">
+        <v-checkbox
+          class="no-grow mr-4"
+          density="compact"
+          hide-details
+          :key="tool.id"
+          :value="tool.id"
+          v-model="selected"
+          @click.stop
+        />
 
+        <v-icon class="tool-icon mr-4">{{ tool.icon }}</v-icon>
+
+        <div
+          class="color-dot flex-shrink-0 mr-2"
+          :style="{ backgroundColor: tool.color }"
+        />
         <v-list-item-title v-bind="$attrs">
           {{ tool.labelName }}
         </v-list-item-title>
 
-        <span class="ml-auto actions">
-          <v-btn icon variant="text" @click="toggleHidden(tool.id)">
+        <span class="ml-auto flex-shrink-0">
+          <v-btn icon variant="text" @click="tool.jumpTo()">
+            <v-icon>mdi-target</v-icon>
+            <v-tooltip location="top" activator="parent">
+              Reveal Slice
+            </v-tooltip>
+          </v-btn>
+          <v-btn icon variant="text" @click="tool.toggleHidden()">
             <v-icon v-if="tool.hidden">mdi-eye-off</v-icon>
             <v-icon v-else>mdi-eye</v-icon>
             <v-tooltip location="top" activator="parent">{{
               tool.hidden ? 'Show' : 'Hide'
             }}</v-tooltip>
           </v-btn>
-          <v-btn icon variant="text" @click="jumpTo(tool.id)">
-            <v-icon>mdi-target</v-icon>
-            <v-tooltip location="top" activator="parent">
-              Reveal Slice
-            </v-tooltip>
-          </v-btn>
-          <v-btn icon variant="text" @click="remove(tool.id)">
+          <v-btn icon variant="text" @click="tool.remove()">
             <v-icon>mdi-delete</v-icon>
             <v-tooltip location="top" activator="parent">Delete</v-tooltip>
           </v-btn>
@@ -80,12 +189,7 @@ const toggleHidden = (id: ToolID) => {
 
       <v-row class="mt-4">
         <v-list-item-subtitle class="w-100">
-          <slot name="details" v-bind="{ tool }">
-            <v-row>
-              <v-col cols="3">Slice: {{ tool.slice + 1 }}</v-col>
-              <v-col cols="3">Axis: {{ tool.axis }}</v-col>
-            </v-row>
-          </slot>
+          <component :is="tool.details" :tool="tool" />
         </v-list-item-subtitle>
       </v-row>
     </v-container>
@@ -104,15 +208,13 @@ const toggleHidden = (id: ToolID) => {
   height: 24px;
   background: yellow;
   border-radius: 16px;
-  flex-shrink: 0;
 }
 
 .tool-icon {
-  margin-inline-end: 12px;
   opacity: var(--v-medium-emphasis-opacity);
 }
 
-.actions {
-  flex-shrink: 0;
+.no-grow {
+  flex: 0 0 auto;
 }
 </style>

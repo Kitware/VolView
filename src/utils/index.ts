@@ -273,3 +273,7 @@ export function zodEnumFromObjKeys<K extends string>(
   const [firstKey, ...otherKeys] = Object.keys(obj) as K[];
   return z.enum([firstKey, ...otherKeys]);
 }
+
+export function nonNullable<T>(value: T): value is NonNullable<T> {
+  return value != null;
+}

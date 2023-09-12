@@ -163,7 +163,7 @@ export default defineComponent({
 
     // --- selection --- //
 
-    const { selected, selectedAll, selectedSome } =
+    const { selected, selectedAll, selectedSome, toggleSelectAll } =
       useMultiSelection(volumeKeys);
 
     const removeSelectedDICOMVolumes = () => {
@@ -178,6 +178,7 @@ export default defineComponent({
       selected,
       selectedAll,
       selectedSome,
+      toggleSelectAll,
       thumbnailCache,
       volumes,
       removeSelectedDICOMVolumes,
@@ -195,6 +196,7 @@ export default defineComponent({
           :indeterminate="selectedSome && !selectedAll"
           label="Select All"
           v-model="selectedAll"
+          @click.stop="toggleSelectAll"
           density="compact"
           hide-details
         />
