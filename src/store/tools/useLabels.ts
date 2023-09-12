@@ -62,6 +62,12 @@ export const useLabels = <Props>(newLabelDefault: Label<Props>) => {
     defaultLabels.value = false;
   };
 
+  const findLabel = (name: Maybe<string>) => {
+    return Object.entries(labels.value).find(
+      ([, { labelName }]) => name === labelName
+    );
+  };
+
   /*
    * If new label have the same name as existing label, overwrite existing label.
    *
@@ -72,12 +78,10 @@ export const useLabels = <Props>(newLabelDefault: Label<Props>) => {
     if (clearDefault) clearDefaultLabels();
 
     const { labelName } = label;
-    const sameLabelName = Object.entries(labels.value).find(
-      ([, { labelName: existingName }]) => existingName === labelName
-    );
+    const matchingName = findLabel(labelName);
 
-    if (sameLabelName) {
-      const [existingID] = sameLabelName;
+    if (matchingName) {
+      const [existingID] = matchingName;
       updateLabel(existingID, label);
       return existingID;
     }
@@ -109,6 +113,7 @@ export const useLabels = <Props>(newLabelDefault: Label<Props>) => {
     updateLabel,
     mergeLabel,
     mergeLabels,
+    findLabel,
   };
 };
 
