@@ -2,194 +2,196 @@
   <drag-and-drop enabled @drop-files="openFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
-        <v-app-bar app clipped-left :height="48">
-          <v-btn
-            v-if="mobile"
-            icon="mdi-menu"
-            @click="leftSideBar = !leftSideBar"
-          />
-          <v-toolbar-title class="d-flex flex-row align-center mt-3">
-            <vol-view-logo v-if="mobile" />
-            <vol-view-full-logo v-else />
-          </v-toolbar-title>
-          <v-btn
-            variant="text"
-            icon
-            :rounded="0"
-            class="toolbar-button"
-            href="https://volview.kitware.com/feedback/"
-            target="_blank"
-          >
-            <v-icon icon="mdi-comment-question-outline"></v-icon>
-            <v-tooltip activator="parent" location="bottom">
-              Ask Question/Submit Feedback
-            </v-tooltip>
-          </v-btn>
-          <v-btn
-            variant="text"
-            icon
-            :rounded="0"
-            class="toolbar-button"
-            @click="aboutBoxDialog = !aboutBoxDialog"
-          >
-            <v-icon icon="mdi-information-outline"></v-icon>
-            <v-tooltip activator="parent" location="bottom">About</v-tooltip>
-          </v-btn>
-        </v-app-bar>
-        <v-navigation-drawer
-          v-model="leftSideBar"
-          app
-          clipped
-          touchless
-          width="450"
-          id="left-nav"
-        >
-          <module-panel @close="leftSideBar = false" />
-        </v-navigation-drawer>
-        <v-main id="content-main">
-          <div class="fill-height d-flex flex-row flex-grow-1">
-            <div
-              id="tools-strip"
-              class="bg-grey-darken-4 d-flex flex-column align-center"
+        <current-image-provider>
+          <v-app-bar app clipped-left :height="48">
+            <v-btn
+              v-if="mobile"
+              icon="mdi-menu"
+              @click="leftSideBar = !leftSideBar"
+            />
+            <v-toolbar-title class="d-flex flex-row align-center mt-3">
+              <vol-view-logo v-if="mobile" />
+              <vol-view-full-logo v-else />
+            </v-toolbar-title>
+            <v-btn
+              variant="text"
+              icon
+              :rounded="0"
+              class="toolbar-button"
+              href="https://volview.kitware.com/feedback/"
+              target="_blank"
             >
-              <tool-button
-                size="40"
-                icon="mdi-folder-open"
-                name="Open files"
-                @click="userPromptFiles"
-              />
-              <tool-button
-                size="40"
-                icon="mdi-content-save-all"
-                name="Save session"
-                :loading="saveHappening"
-                @click="handleSave"
-              />
-              <div class="my-1 tool-separator" />
-              <v-menu location="right" :close-on-content-click="false">
-                <template v-slot:activator="{ props }">
-                  <div>
-                    <tool-button
-                      v-bind="props"
-                      size="40"
-                      icon="mdi-view-dashboard"
-                      name="Layouts"
-                    />
-                  </div>
-                </template>
-                <v-card>
-                  <v-card-text>
-                    <v-radio-group
-                      v-model="layoutName"
-                      class="mt-0"
-                      hide-details
-                    >
-                      <v-radio
-                        v-for="(value, key) in Layouts"
-                        :key="key"
-                        :label="value.name"
-                        :value="key"
-                      />
-                    </v-radio-group>
-                  </v-card-text>
-                </v-card>
-              </v-menu>
-              <template v-if="hasData">
-                <tool-strip />
-              </template>
-              <v-spacer />
-              <v-badge
-                offset-x="10"
-                offset-y="10"
-                :content="messageCount"
-                :color="messageBadgeColor"
-                :model-value="messageCount > 0"
+              <v-icon icon="mdi-comment-question-outline"></v-icon>
+              <v-tooltip activator="parent" location="bottom">
+                Ask Question/Submit Feedback
+              </v-tooltip>
+            </v-btn>
+            <v-btn
+              variant="text"
+              icon
+              :rounded="0"
+              class="toolbar-button"
+              @click="aboutBoxDialog = !aboutBoxDialog"
+            >
+              <v-icon icon="mdi-information-outline"></v-icon>
+              <v-tooltip activator="parent" location="bottom">About</v-tooltip>
+            </v-btn>
+          </v-app-bar>
+          <v-navigation-drawer
+            v-model="leftSideBar"
+            app
+            clipped
+            touchless
+            width="450"
+            id="left-nav"
+          >
+            <module-panel @close="leftSideBar = false" />
+          </v-navigation-drawer>
+          <v-main id="content-main">
+            <div class="fill-height d-flex flex-row flex-grow-1">
+              <div
+                id="tools-strip"
+                class="bg-grey-darken-4 d-flex flex-column align-center"
               >
                 <tool-button
                   size="40"
-                  icon="mdi-bell-outline"
-                  name="Notifications"
-                  @click="messageDialog = true"
+                  icon="mdi-folder-open"
+                  name="Open files"
+                  @click="userPromptFiles"
                 />
-              </v-badge>
-              <tool-button
-                size="40"
-                icon="mdi-cog"
-                name="Settings"
-                @click="settingsDialog = true"
-              />
-            </div>
-            <div class="d-flex flex-column flex-grow-1">
-              <layout-grid v-show="hasData" :layout="currentLayout" />
-              <v-row
-                v-show="!hasData"
-                no-gutters
-                align="center"
-                class="clickable bg-grey-darken-3"
-                @click="userPromptFiles"
-              >
-                <v-col>
-                  <v-row justify="center">
-                    <v-card
-                      flat
-                      dark
-                      color="transparent"
-                      class="text-center headline"
-                    >
-                      <div>
-                        <v-icon size="64">mdi-folder-open</v-icon>
-                      </div>
-                      <div>Click to open local files.</div>
-                      <div class="mt-8">
-                        <v-icon size="64">mdi-arrow-down-bold</v-icon>
-                      </div>
-                      <div>Drag &amp; drop your DICOM files.</div>
-
-                      <div v-if="!saveUrl" class="vertical-offset-margin">
-                        <v-icon size="64">mdi-cloud-off-outline</v-icon>
-                      </div>
-                      <div v-if="!saveUrl">
-                        Secure: Image data never leaves your machine.
-                      </div>
-                      <v-btn
-                        class="mt-2"
-                        variant="tonal"
-                        color="secondary"
-                        @click.stop="dataSecurityDialog = true"
+                <tool-button
+                  size="40"
+                  icon="mdi-content-save-all"
+                  name="Save session"
+                  :loading="saveHappening"
+                  @click="handleSave"
+                />
+                <div class="my-1 tool-separator" />
+                <v-menu location="right" :close-on-content-click="false">
+                  <template v-slot:activator="{ props }">
+                    <div>
+                      <tool-button
+                        v-bind="props"
+                        size="40"
+                        icon="mdi-view-dashboard"
+                        name="Layouts"
+                      />
+                    </div>
+                  </template>
+                  <v-card>
+                    <v-card-text>
+                      <v-radio-group
+                        v-model="layoutName"
+                        class="mt-0"
+                        hide-details
                       >
-                        Learn More
-                      </v-btn>
-                    </v-card>
-                  </v-row>
-                </v-col>
-              </v-row>
+                        <v-radio
+                          v-for="(value, key) in Layouts"
+                          :key="key"
+                          :label="value.name"
+                          :value="key"
+                        />
+                      </v-radio-group>
+                    </v-card-text>
+                  </v-card>
+                </v-menu>
+                <template v-if="hasData">
+                  <tool-strip />
+                </template>
+                <v-spacer />
+                <v-badge
+                  offset-x="10"
+                  offset-y="10"
+                  :content="messageCount"
+                  :color="messageBadgeColor"
+                  :model-value="messageCount > 0"
+                >
+                  <tool-button
+                    size="40"
+                    icon="mdi-bell-outline"
+                    name="Notifications"
+                    @click="messageDialog = true"
+                  />
+                </v-badge>
+                <tool-button
+                  size="40"
+                  icon="mdi-cog"
+                  name="Settings"
+                  @click="settingsDialog = true"
+                />
+              </div>
+              <div class="d-flex flex-column flex-grow-1">
+                <layout-grid v-show="hasData" :layout="currentLayout" />
+                <v-row
+                  v-show="!hasData"
+                  no-gutters
+                  align="center"
+                  class="clickable bg-grey-darken-3"
+                  @click="userPromptFiles"
+                >
+                  <v-col>
+                    <v-row justify="center">
+                      <v-card
+                        flat
+                        dark
+                        color="transparent"
+                        class="text-center headline"
+                      >
+                        <div>
+                          <v-icon size="64">mdi-folder-open</v-icon>
+                        </div>
+                        <div>Click to open local files.</div>
+                        <div class="mt-8">
+                          <v-icon size="64">mdi-arrow-down-bold</v-icon>
+                        </div>
+                        <div>Drag &amp; drop your DICOM files.</div>
+
+                        <div v-if="!saveUrl" class="vertical-offset-margin">
+                          <v-icon size="64">mdi-cloud-off-outline</v-icon>
+                        </div>
+                        <div v-if="!saveUrl">
+                          Secure: Image data never leaves your machine.
+                        </div>
+                        <v-btn
+                          class="mt-2"
+                          variant="tonal"
+                          color="secondary"
+                          @click.stop="dataSecurityDialog = true"
+                        >
+                          Learn More
+                        </v-btn>
+                      </v-card>
+                    </v-row>
+                  </v-col>
+                </v-row>
+              </div>
             </div>
-          </div>
-        </v-main>
+          </v-main>
 
-        <closeable-dialog v-model="aboutBoxDialog">
-          <about-box />
-        </closeable-dialog>
+          <closeable-dialog v-model="aboutBoxDialog">
+            <about-box />
+          </closeable-dialog>
 
-        <closeable-dialog v-model="messageDialog" content-class="fill-height">
-          <message-center />
-        </closeable-dialog>
+          <closeable-dialog v-model="messageDialog" content-class="fill-height">
+            <message-center />
+          </closeable-dialog>
 
-        <message-notifications @open-notifications="messageDialog = true" />
+          <message-notifications @open-notifications="messageDialog = true" />
 
-        <closeable-dialog v-model="settingsDialog">
-          <settings />
-        </closeable-dialog>
+          <closeable-dialog v-model="settingsDialog">
+            <settings />
+          </closeable-dialog>
 
-        <closeable-dialog v-model="saveDialog" max-width="30%">
-          <template v-slot="{ close }">
-            <save-session :close="close" />
-          </template>
-        </closeable-dialog>
+          <closeable-dialog v-model="saveDialog" max-width="30%">
+            <template v-slot="{ close }">
+              <save-session :close="close" />
+            </template>
+          </closeable-dialog>
 
-        <closeable-dialog v-model="dataSecurityDialog">
-          <data-security-box />
-        </closeable-dialog>
+          <closeable-dialog v-model="dataSecurityDialog">
+            <data-security-box />
+          </closeable-dialog>
+        </current-image-provider>
       </v-app>
       <persistent-overlay
         :disabled="!dragHover"
@@ -233,6 +235,7 @@ import {
   ImportDataSourcesResult,
   convertSuccessResultToDataSelection,
 } from '@/src/io/import/importDataSources';
+import CurrentImageProvider from './CurrentImageProvider.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -341,6 +344,7 @@ export default defineComponent({
     Settings,
     SaveSession,
     PersistentOverlay,
+    CurrentImageProvider,
   },
 
   setup() {

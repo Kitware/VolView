@@ -7,14 +7,12 @@
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
       <layout-grid v-if="item.type === 'layout'" :layout="item" />
       <div v-else class="layout-item">
-        <current-image-provider :image-id="selectedImageID">
-          <component
-            :is="item.component"
-            :key="item.id"
-            :id="item.id"
-            v-bind="item.props"
-          />
-        </current-image-provider>
+        <component
+          :is="item.component"
+          :key="item.id"
+          :id="item.id"
+          v-bind="item.props"
+        />
       </div>
     </div>
   </div>
@@ -23,8 +21,6 @@
 <script lang="ts">
 import { Component, computed, defineComponent, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useDatasetStore } from '@/src/store/datasets';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
 import CurrentImageProvider from '@/src/components/CurrentImageProvider.vue';
 import VtkTwoView from './VtkTwoView.vue';
 import VtkThreeView from './VtkThreeView.vue';
@@ -52,19 +48,6 @@ export default defineComponent({
     const { layout } = toRefs(props);
     const viewStore = useViewStore();
     const { viewSpecs } = storeToRefs(viewStore);
-
-    const selectedImageID = computed(() => {
-      const { primarySelection } = useDatasetStore();
-      const { volumeToImageID } = useDICOMStore();
-
-      if (primarySelection?.type === 'image') {
-        return primarySelection.dataID;
-      }
-      if (primarySelection?.type === 'dicom') {
-        return volumeToImageID[primarySelection.volumeKey] || null;
-      }
-      return null;
-    });
 
     const flexFlow = computed(() => {
       return layout.value.direction === LayoutDirection.H
@@ -94,7 +77,6 @@ export default defineComponent({
     return {
       items,
       flexFlow,
-      selectedImageID,
     };
   },
 });
