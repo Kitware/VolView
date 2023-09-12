@@ -4,7 +4,6 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { computed, ref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { Maybe } from '@/src/types';
 import { Tools } from './types';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
@@ -35,7 +34,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   // --- actions --- //
 
-  function selectOrCreateLabelmap(imageID: Maybe<string>) {
+  function selectOrCreateLabelmap(imageID: string | null) {
     if (!imageID) {
       activeLabelmapID.value = null;
       return;
