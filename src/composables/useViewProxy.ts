@@ -1,9 +1,9 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { computed, ref, unref, watch } from 'vue';
 import { MaybeRef } from '@vueuse/core';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { ViewProxyType } from '../core/proxies';
 import { useViewStore } from '../store/views';
-import { useVTKCallback } from './useVTKCallback';
 
 export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   id: MaybeRef<string>,
@@ -38,16 +38,6 @@ export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   };
 }
 
-function onViewProxyModified<T extends vtkViewProxy = vtkViewProxy>(
-  viewProxy: MaybeRef<T>,
-  callback: () => void
-) {
-  const onModified = useVTKCallback(
-    computed(() => unref(viewProxy).onModified)
-  );
-  onModified(callback);
-}
-
 function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<T>
 ) {
@@ -58,8 +48,11 @@ function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   };
 
   updateMounted();
-
-  onViewProxyModified(viewProxy, updateMounted);
+  onVTKEvent<vtkViewProxy, 'onModified'>(
+    viewProxy,
+    'onModified',
+    updateMounted
+  );
 
   return mounted;
 }

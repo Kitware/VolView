@@ -4,12 +4,13 @@ import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { computed, ref, unref, watchEffect } from 'vue';
 import { MaybeRef, useResizeObserver } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
-import { useVTKCallback } from './useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { Maybe } from '@/src/types';
 import { computeWorldToDisplay } from '../utils/vtk-helpers';
 
-type MaybeCoords = Vector3 | vec3 | null | undefined;
-type MaybeMultiCoords = Vector3[] | vec3[] | null | undefined;
-type MaybeRenderer = vtkRenderer | null | undefined;
+type MaybeCoords = Maybe<Vector3 | vec3>;
+type MaybeMultiCoords = Maybe<Vector3[] | vec3[]>;
+type MaybeRenderer = Maybe<vtkRenderer>;
 
 /**
  * Returns a reactive vtkOpenGLRenderWindow container ref.
@@ -18,7 +19,7 @@ type MaybeRenderer = vtkRenderer | null | undefined;
  * @returns
  */
 export function useVTKViewContainer(
-  view: MaybeRef<vtkOpenGLRenderWindow | null | undefined>
+  view: MaybeRef<Maybe<vtkOpenGLRenderWindow>>
 ) {
   const container = ref<HTMLElement | null>(null);
 
@@ -26,8 +27,7 @@ export function useVTKViewContainer(
     container.value = unref(view)?.getContainer() ?? null;
   };
 
-  const onModified = useVTKCallback(computed(() => unref(view)?.onModified));
-  onModified(update);
+  onVTKEvent(view, 'onModified', update);
   update();
 
   return container;
@@ -71,13 +71,10 @@ export function useVTKMultiWorldToDisplay(
     }) as Vector2[];
   };
 
-  const cameraOnModified = useVTKCallback(
-    computed(() => unref(renderer)?.getActiveCamera().onModified)
-  );
-
+  const camera = computed(() => unref(renderer)?.getActiveCamera());
   useResizeObserver(container, update);
   watchEffect(update);
-  cameraOnModified(update);
+  onVTKEvent(camera, 'onModified', update);
   update();
 
   return displayCoords;

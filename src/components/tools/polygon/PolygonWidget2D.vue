@@ -16,7 +16,7 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useRightClickContextMenu } from '@/src/composables/annotationTool';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
 import { PolygonID as ToolID } from '@/src/types/polygon';
@@ -99,11 +99,7 @@ export default defineComponent({
       }
     });
 
-    const onPlacedEvent = useVTKCallback(
-      computed(() => widget.value?.onPlacedEvent)
-    );
-
-    onPlacedEvent(() => {
+    onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
 
