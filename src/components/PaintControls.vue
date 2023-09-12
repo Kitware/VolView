@@ -94,6 +94,8 @@ import { LABELMAP_PALETTE } from '../config';
 import { usePaintToolStore } from '../store/tools/paint';
 import { rgbaToHexa } from '../utils/color';
 
+const HEXA_LENGTH = 9;
+
 // generates both the swatches for v-color-picker and the color-to-value mapping
 function convertToSwatches(
   palette: typeof LABELMAP_PALETTE,
@@ -134,10 +136,14 @@ export default defineComponent({
     });
 
     const setBrushColor = (color: string) => {
-      const hexa = `${color}FF`.toUpperCase();
-      if (hexa in hexToValue) {
-        paintStore.setBrushValue(hexToValue[hexa]);
+      // Passthrough if #RRGGBBAA, add alpha if #RRGGBB
+      const withAlpha = color.length === HEXA_LENGTH ? color : `${color}FF`;
+      const hexa = withAlpha.toUpperCase();
+      const brushValue = hexToValue[hexa];
+      if (brushValue == null) {
+        throw new Error(`Brush value invalid`);
       }
+      paintStore.setBrushValue(brushValue);
     };
 
     const brushSize = computed(() => paintStore.brushSize);
