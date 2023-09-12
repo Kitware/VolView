@@ -1,11 +1,12 @@
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
 import { computed, Ref, watch } from 'vue';
+import { Maybe } from '@/src/types';
 import { useViewStore } from '../store/views';
 import { vtkLPSViewProxy } from '../types/vtk-types';
 import { arrayEquals } from '../utils';
 
 interface Scene {
-  baseImage?: Ref<string | null>;
+  baseImage?: Ref<Maybe<string>>;
   labelmaps?: Ref<string[]>;
   layers?: Ref<string[]>;
   models?: Ref<string[]>;

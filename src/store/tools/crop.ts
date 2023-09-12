@@ -8,6 +8,7 @@ import { MaybeRef } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { arrayEqualsWithComparator } from '@/src/utils';
+import { Maybe } from '@/src/types';
 import { useImageStore } from '../datasets-images';
 import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
@@ -60,7 +61,7 @@ export const useCropStore = defineStore('crop', () => {
     croppingByImageID: {} as Record<string, LPSCroppingPlanes>,
   });
 
-  const getComputedVTKPlanes = (imageID: MaybeRef<string | null>) =>
+  const getComputedVTKPlanes = (imageID: MaybeRef<Maybe<string>>) =>
     computed(() => {
       const id = unref(imageID);
       if (id && id in state.croppingByImageID && id in imageStore.metadata) {
