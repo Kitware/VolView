@@ -62,7 +62,7 @@ def itk_to_vtk_image(itk_image):
         raise ConvertError("Provided data is not an ITK image")
 
     size = list(itk_image.GetLargestPossibleRegion().GetSize())
-    values = itk.GetArrayFromImage(itk_image).flatten(order="C")
+    values = itk.GetArrayViewFromImage(itk_image).flatten(order="C")
     return {
         "vtkClass": "vtkImageData",
         "dataDescription": 8,
