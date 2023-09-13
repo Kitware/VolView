@@ -40,7 +40,19 @@ const connectBtnText = computed(() => {
 
 <template>
   <div class="ma-2">
-    <h3>Remote Server</h3>
+    <h3>
+      <span>Remote Server</span>
+      <v-btn
+        icon="mdi-help-circle"
+        variant="flat"
+        size="x-small"
+        href="https://kitware.github.io/VolView/doc/server.html"
+        target="_blank"
+        class="ml-1"
+        style="color: #777"
+        title="Server Documentation"
+      ></v-btn>
+    </h3>
     <div class="mt-4">
       <v-text-field
         v-model="serverUrl"
