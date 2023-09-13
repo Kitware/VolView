@@ -49,6 +49,7 @@ import {
   watch,
   inject,
 } from 'vue';
+import { Maybe } from '@/src/types';
 
 type SVGPoint = {
   x: number;
@@ -57,8 +58,8 @@ type SVGPoint = {
 
 export default defineComponent({
   props: {
-    point1: Array as PropType<Array<number>>,
-    point2: Array as PropType<Array<number>>,
+    point1: Array as PropType<Maybe<Array<number>>>,
+    point2: Array as PropType<Maybe<Array<number>>>,
     color: String,
     fillColor: String,
     viewId: {

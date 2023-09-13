@@ -14,32 +14,27 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import vtkRectangleWidget, {
   vtkRectangleViewWidget,
+  InteractionState,
   vtkRectangleWidgetState,
 } from '@/src/vtk/RectangleWidget';
 import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
-import { RectangleID } from '@/src/types/rectangle';
-import { useRightClickContextMenu } from '@/src/composables/annotationTool';
-import createRulerWidgetState from '@/src/vtk/RulerWidget/storeState';
+// the rectangle widget is the same as the ruler widget
+import createStandaloneState from '@/src/vtk/RulerWidget/standaloneState';
+import { useSyncedRectangleState } from '@/src/components/tools/rectangle/common';
 import { useViewWidget } from '@/src/composables/useViewWidget';
-import { useViewStore } from '@/src/store/views';
+import type { RectangleInitState } from '@/src/components/tools/rectangle/common';
 
-const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
 type WidgetView = vtkRectangleViewWidget;
-type ToolID = RectangleID;
 const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
-  emits: ['contextmenu'],
+  emits: ['placed'],
   props: {
-    toolId: {
-      type: String as unknown as PropType<ToolID>,
-      required: true,
-    },
     widgetManager: {
       type: Object as PropType<vtkWidgetManager>,
       required: true,
@@ -56,41 +51,57 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    color: String,
+    fillColor: String,
   },
   components: {
     SVG2DComponent,
   },
   setup(props, { emit }) {
-    const { toolId, viewId, widgetManager, viewDirection, currentSlice } =
-      toRefs(props);
+    const { widgetManager, viewDirection, currentSlice } = toRefs(props);
 
-    const toolStore = useStore();
-    const tool = computed(() => toolStore.toolByID[toolId.value]);
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+    const { currentImageID, currentImageMetadata } = useCurrentImage();
 
-    // the rectangle widget is the same as the ruler widget
-    const widgetState = createRulerWidgetState({
-      // TODO not kosher
-      id: toolId.value,
-      store: toolStore,
-    }) as vtkRectangleWidgetState;
+    const widgetState = createStandaloneState() as vtkRectangleWidgetState;
     const widgetFactory = vtkWidgetFactory.newInstance({
       widgetState,
     });
 
+    const syncedState = useSyncedRectangleState(widgetFactory);
     const widget = useViewWidget<WidgetView>(widgetFactory, widgetManager);
 
     onMounted(() => {
-      viewProxy.value?.renderLater();
+      widget.value!.setInteractionState(InteractionState.PlacingFirst);
     });
 
     onUnmounted(() => {
       widgetFactory.delete();
     });
 
-    // --- right click handling --- //
+    // --- reset on slice/image changes --- //
 
-    useRightClickContextMenu(emit, widget);
+    watch([currentSlice, currentImageID, widget], () => {
+      if (widget.value) {
+        widget.value.resetInteractions();
+        widget.value.setInteractionState(InteractionState.PlacingFirst);
+      }
+    });
+
+    // --- placed event --- //
+
+    onVTKEvent(widget, 'onPlacedEvent', () => {
+      const { firstPoint, secondPoint } = syncedState;
+      if (!firstPoint.origin || !secondPoint.origin)
+        throw new Error('Incomplete placing widget state');
+      const initState: RectangleInitState = {
+        firstPoint: firstPoint.origin,
+        secondPoint: secondPoint.origin,
+      };
+      emit('placed', initState);
+
+      widget.value?.resetState();
+      widget.value?.setInteractionState(InteractionState.PlacingFirst);
+    });
 
     // --- manipulator --- //
 
@@ -103,28 +114,16 @@ export default defineComponent({
       widget.value.setManipulator(manipulator);
     });
 
-    const { currentImageMetadata } = useCurrentImage();
-
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        tool.value?.slice ?? currentSlice.value,
+        currentSlice.value,
         currentImageMetadata.value
       );
     });
 
     // --- visibility --- //
-
-    // toggles the pickability of the tool handles,
-    // since the 3D tool parts are visually hidden.
-    watch(
-      () => !!widget.value && tool.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
 
     onMounted(() => {
       if (!widget.value) {
@@ -136,7 +135,16 @@ export default defineComponent({
     });
 
     return {
-      tool,
+      firstPoint: computed(() => {
+        return syncedState.firstPoint.visible
+          ? syncedState.firstPoint.origin
+          : null;
+      }),
+      secondPoint: computed(() => {
+        return syncedState.secondPoint.visible
+          ? syncedState.secondPoint.origin
+          : null;
+      }),
     };
   },
 });
@@ -144,11 +152,10 @@ export default defineComponent({
 
 <template>
   <SVG2DComponent
-    v-show="currentSlice === tool.slice"
     :view-id="viewId"
-    :point1="tool.firstPoint"
-    :point2="tool.secondPoint"
-    :color="tool.color"
-    :fill-color="tool.fillColor"
+    :point1="firstPoint"
+    :point2="secondPoint"
+    :color="color"
+    :fill-color="fillColor"
   />
 </template>

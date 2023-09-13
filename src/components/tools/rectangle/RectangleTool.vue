@@ -5,12 +5,20 @@
         v-for="tool in tools"
         :key="tool.id"
         :tool-id="tool.id"
-        :is-placing="tool.id === placingToolID"
         :current-slice="currentSlice"
         :view-id="viewId"
         :view-direction="viewDirection"
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
+      />
+      <placing-rectangle-widget-2D
+        v-if="isToolActive"
+        :current-slice="currentSlice"
+        :color="activeLabelProps.color"
+        :fill-color="activeLabelProps.fillColor"
+        :view-id="viewId"
+        :view-direction="viewDirection"
+        :widget-manager="widgetManager"
         @placed="onToolPlaced"
       />
     </svg>
@@ -19,35 +27,25 @@
 </template>
 
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  onUnmounted,
-  PropType,
-  ref,
-  toRefs,
-  watch,
-} from 'vue';
+import { computed, defineComponent, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
-import { vec3 } from 'gl-matrix';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { RectangleID } from '@/src/types/rectangle';
 import {
   useCurrentTools,
   useContextMenu,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
+import PlacingRectangleWidget2D from '@/src/components/tools/rectangle/PlacingRectangleWidget2D.vue';
+import { useCurrentFrameOfReference } from '@/src/composables/useCurrentFrameOfReference';
+import { RectangleInitState } from '@/src/components/tools/rectangle/common';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
-type ToolID = RectangleID;
 const useActiveToolStore = useRectangleStore;
 const toolType = Tools.Rectangle;
 
@@ -73,6 +71,7 @@ export default defineComponent({
   },
   components: {
     RectangleWidget2D,
+    PlacingRectangleWidget2D,
     AnnotationContextMenu,
   },
   setup(props) {
@@ -81,114 +80,49 @@ export default defineComponent({
     const activeToolStore = useActiveToolStore();
     const { activeLabel } = storeToRefs(activeToolStore);
 
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const { currentImageID } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const placingToolID = ref<ToolID | null>(null);
-
-    // --- active tool management --- //
-
-    watch(
-      placingToolID,
-      (id, prevId) => {
-        if (prevId != null) {
-          activeToolStore.updateTool(prevId, { placing: false });
-        }
-        if (id != null) {
-          activeToolStore.updateTool(id, { placing: true });
-        }
-      },
-      { immediate: true }
+    const currentFrameOfReference = useCurrentFrameOfReference(
+      viewDirection,
+      currentSlice
     );
 
-    watch(
-      [isToolActive, currentImageID] as const,
-      ([active, imageID]) => {
-        if (placingToolID.value != null) {
-          activeToolStore.removeTool(placingToolID.value);
-          placingToolID.value = null;
-        }
-        if (active && imageID) {
-          placingToolID.value = activeToolStore.addTool({
-            imageID,
-            placing: true,
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      [activeLabel, placingToolID],
-      ([label, placingTool]) => {
-        if (placingTool != null) {
-          activeToolStore.updateTool(placingTool, {
-            label,
-            ...(label && activeToolStore.labels[label]),
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    onUnmounted(() => {
-      if (placingToolID.value != null) {
-        activeToolStore.removeTool(placingToolID.value);
-        placingToolID.value = null;
-      }
-    });
-
-    const onToolPlaced = () => {
-      if (currentImageID.value) {
-        placingToolID.value = activeToolStore.addTool({
-          imageID: currentImageID.value,
-          placing: true,
-        });
-      }
+    const onToolPlaced = (initState: RectangleInitState) => {
+      if (!currentImageID.value) return;
+      activeToolStore.addTool({
+        imageID: currentImageID.value,
+        frameOfReference: currentFrameOfReference.value,
+        slice: currentSlice.value,
+        label: activeLabel.value,
+        color: activeLabel.value
+          ? activeToolStore.labels[activeLabel.value].color
+          : undefined,
+        firstPoint: initState.firstPoint,
+        secondPoint: initState.secondPoint,
+      });
     };
 
-    // --- updating active tool frame --- //
-
-    // TODO useCurrentFrameOfReference(viewDirection)
-    const getCurrentFrameOfReference = (): FrameOfReference => {
-      const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
-      const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
-      const lpsIdx = lpsOrientation[viewAxis.value];
-      const planeOrigin: Vector3 = [0, 0, 0];
-      planeOrigin[lpsIdx] = currentSlice.value;
-      // convert index pt to world pt
-      vec3.transformMat4(planeOrigin, planeOrigin, indexToWorld);
-      return {
-        planeNormal,
-        planeOrigin,
-      };
-    };
-    // update active ruler's frame + slice, since the
-    // active ruler is not finalized.
-    watch(
-      [currentSlice, placingToolID] as const,
-      ([slice, toolID]) => {
-        if (!toolID) return;
-        activeToolStore.updateTool(toolID, {
-          frameOfReference: getCurrentFrameOfReference(),
-          slice,
-        });
-      },
-      { immediate: true }
-    );
+    // --- right-click menu --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
+    // --- //
+
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
+    const activeLabelProps = computed(() => {
+      return activeLabel.value ? activeToolStore.labels[activeLabel.value] : {};
+    });
 
     return {
       tools: currentTools,
-      placingToolID,
+      isToolActive,
       onToolPlaced,
       contextMenu,
       openContextMenu,
       activeToolStore,
+      activeLabelProps,
     };
   },
 });

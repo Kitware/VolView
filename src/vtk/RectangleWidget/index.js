@@ -3,6 +3,7 @@ import macro from '@kitware/vtk.js/macro';
 import vtkRulerWidget from '../RulerWidget';
 
 export { InteractionState } from '../RulerWidget/behavior';
+
 // ----------------------------------------------------------------------------
 // Factory
 // ----------------------------------------------------------------------------
@@ -20,15 +21,7 @@ const DEFAULT_VALUES = {};
 export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
-  const { store: toolStore, ...rest } = initialValues;
-
-  const rulerStore = {
-    ...toolStore,
-    rulerByID: toolStore.toolByID,
-    updateRuler: toolStore.updateTool,
-  };
-
-  vtkRulerWidget.extend(publicAPI, model, { store: rulerStore, ...rest });
+  vtkRulerWidget.extend(publicAPI, model, initialValues);
 
   vtkRectangleWidget(publicAPI, model);
 }

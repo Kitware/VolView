@@ -8,6 +8,7 @@ import vtkRulerWidget, {
   IRulerWidgetInitialValues,
   vtkRulerViewWidget,
   vtkRulerWidgetPointState,
+  vtkRulerWidgetState,
 } from '../RulerWidget';
 
 export { InteractionState } from '../RulerWidget';
@@ -21,7 +22,7 @@ export interface vtkRectangleViewWidget extends vtkRulerViewWidget {}
 
 export interface IRectangleWidgetInitialValues
   extends IRulerWidgetInitialValues {
-  store: ReturnType<typeof useRectangleStore>;
+  widgetState: vtkRectangleWidgetState;
 }
 
 export interface vtkRectangleWidget extends vtkRulerWidget {}
