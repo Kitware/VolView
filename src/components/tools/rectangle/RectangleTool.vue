@@ -1,130 +1,91 @@
-<template>
-  <div class="overlay-no-events">
-    <svg class="overlay-no-events">
-      <rectangle-widget-2D
-        v-for="tool in tools"
-        :key="tool.id"
-        :tool-id="tool.id"
-        :current-slice="currentSlice"
-        :view-id="viewId"
-        :view-direction="viewDirection"
-        :widget-manager="widgetManager"
-        @contextmenu="openContextMenu(tool.id, $event)"
-      />
-      <placing-rectangle-widget-2D
-        v-if="isToolActive"
-        :current-slice="currentSlice"
-        :color="activeLabelProps.color"
-        :fill-color="activeLabelProps.fillColor"
-        :view-id="viewId"
-        :view-direction="viewDirection"
-        :widget-manager="widgetManager"
-        @placed="onToolPlaced"
-      />
-    </svg>
-    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
-  </div>
-</template>
-
 <script lang="ts">
-import { computed, defineComponent, PropType, toRefs } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useToolStore } from '@/src/store/tools';
-import { Tools } from '@/src/store/tools/types';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { LPSAxisDir } from '@/src/types/lps';
+import { createAnnotationToolComponent } from '@/src/components/tools/createAnnotationToolComponent';
+import { createPlacingWidget2DComponent } from '@/src/components/tools/createPlacingWidget2DComponent';
+import { createWidget2DComponent } from '@/src/components/tools/createWidget2DComponent';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { Tools } from '@/src/store/tools/types';
+import type { RectangleStore } from '@/src/store/tools/rectangles';
+import vtkRectangleWidget, {
+  InteractionState,
+  vtkRectangleViewWidget,
+  vtkRectangleWidgetState,
+} from '@/src/vtk/RectangleWidget';
 import {
-  useCurrentTools,
-  useContextMenu,
-} from '@/src/composables/annotationTool';
-import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
-import PlacingRectangleWidget2D from '@/src/components/tools/rectangle/PlacingRectangleWidget2D.vue';
-import { useCurrentFrameOfReference } from '@/src/composables/useCurrentFrameOfReference';
-import { RectangleInitState } from '@/src/components/tools/rectangle/common';
-import RectangleWidget2D from './RectangleWidget2D.vue';
+  RectangleInitState,
+  RectangleSyncedState,
+  useSyncedRectangleState,
+} from '@/src/components/tools/rectangle/common';
+import { WidgetComponentMeta } from '@/src/components/tools/common';
+import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
+// Rectangle is just another case of the Ruler
+import createStandaloneState from '@/src/vtk/RulerWidget/standaloneState';
+import createRectangleWidgetState from '@/src/vtk/RulerWidget/storeState';
+import { RectangleID } from '@/src/types/rectangle';
+import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
+import { h } from 'vue';
 
-const useActiveToolStore = useRectangleStore;
-const toolType = Tools.Rectangle;
-
-export default defineComponent({
-  name: 'RectangleTool',
-  props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
-    currentSlice: {
-      type: Number,
-      required: true,
-    },
-    viewDirection: {
-      type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
-      required: true,
-    },
+const componentMeta: WidgetComponentMeta<
+  RectangleID,
+  RectangleStore,
+  vtkRectangleWidgetState,
+  vtkRectangleWidget,
+  vtkRectangleViewWidget,
+  RectangleSyncedState,
+  RectangleInitState
+> = {
+  name: '',
+  useToolStore: useRectangleStore,
+  createStandaloneState: () =>
+    createStandaloneState() as vtkRectangleWidgetState,
+  createStoreBackedState: (toolId: string, store: RectangleStore) =>
+    createRectangleWidgetState({ id: toolId, store }),
+  createWidgetFactory: (widgetState) =>
+    vtkRectangleWidget.newInstance({ widgetState }),
+  useSyncedState: useSyncedRectangleState,
+  resetPlacingWidget: (widget) => {
+    widget.resetInteractions();
+    widget.setInteractionState(InteractionState.PlacingFirst);
   },
-  components: {
-    RectangleWidget2D,
-    PlacingRectangleWidget2D,
-    AnnotationContextMenu,
-  },
-  setup(props) {
-    const { viewDirection, currentSlice } = toRefs(props);
-    const toolStore = useToolStore();
-    const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
-
-    const { currentImageID } = useCurrentImage();
-    const isToolActive = computed(() => toolStore.currentTool === toolType);
-    const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
-
-    const currentFrameOfReference = useCurrentFrameOfReference(
-      viewDirection,
-      currentSlice
-    );
-
-    const onToolPlaced = (initState: RectangleInitState) => {
-      if (!currentImageID.value) return;
-      activeToolStore.addTool({
-        imageID: currentImageID.value,
-        frameOfReference: currentFrameOfReference.value,
-        slice: currentSlice.value,
-        label: activeLabel.value,
-        color: activeLabel.value
-          ? activeToolStore.labels[activeLabel.value].color
-          : undefined,
-        firstPoint: initState.firstPoint,
-        secondPoint: initState.secondPoint,
-      });
-    };
-
-    // --- right-click menu --- //
-
-    const { contextMenu, openContextMenu } = useContextMenu();
-
-    // --- //
-
-    const currentTools = useCurrentTools(activeToolStore, viewAxis);
-    const activeLabelProps = computed(() => {
-      return activeLabel.value ? activeToolStore.labels[activeLabel.value] : {};
-    });
-
+  constructInitState: (syncedState) => {
+    const { firstPoint, secondPoint } = syncedState;
+    if (!firstPoint.origin || !secondPoint.origin)
+      throw new Error('Incomplete placing widget state');
     return {
-      tools: currentTools,
-      isToolActive,
-      onToolPlaced,
-      contextMenu,
-      openContextMenu,
-      activeToolStore,
-      activeLabelProps,
+      firstPoint: firstPoint.origin,
+      secondPoint: secondPoint.origin,
     };
   },
+  render: (viewId, syncedState, labelProps) => {
+    const { firstPoint, secondPoint } = syncedState;
+    return h(RectangleSVG2D, {
+      viewId,
+      point1: firstPoint.visible ? firstPoint.origin : null,
+      point2: secondPoint.visible ? secondPoint.origin : null,
+      color: labelProps?.color,
+      fillColor: labelProps?.fillColor,
+    });
+  },
+};
+
+const Widget2DComponent = createWidget2DComponent({
+  ...componentMeta,
+  name: 'RectangleWidget2D',
+});
+
+const PlacingWidget2DComponent = createPlacingWidget2DComponent({
+  ...componentMeta,
+  name: 'PlacingRectangleWidget2D',
+});
+
+export default createAnnotationToolComponent<
+  RectangleID,
+  AnnotationToolStore<RectangleID>
+>({
+  name: 'RectangleTool',
+  type: Tools.Rectangle,
+  useToolStore: useRectangleStore,
+  Widget2DComponent,
+  PlacingWidget2DComponent,
 });
 </script>
 

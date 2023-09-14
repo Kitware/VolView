@@ -144,7 +144,10 @@ export function createWidget2DComponent<
           : null
       );
 
-      return () => meta.render?.(viewId.value, syncedState, labelProps.value);
+      return () =>
+        currentSlice.value === tool.value.slice
+          ? meta.render?.(viewId.value, syncedState, labelProps.value)
+          : null;
     },
   });
 }

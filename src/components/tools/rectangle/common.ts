@@ -11,7 +11,20 @@ export interface RectangleInitState {
   secondPoint: Vector3;
 }
 
-export function useSyncedRectangleState(widgetFactory: vtkRectangleWidget) {
+export interface RectangleSyncedState {
+  firstPoint: {
+    visible: boolean;
+    origin: Maybe<Vector3>;
+  };
+  secondPoint: {
+    visible: boolean;
+    origin: Maybe<Vector3>;
+  };
+}
+
+export function useSyncedRectangleState(
+  widgetFactory: vtkRectangleWidget
+): RectangleSyncedState {
   const widgetState = widgetFactory.getWidgetState() as vtkRectangleWidgetState;
   const syncedState = reactive({
     firstPoint: {

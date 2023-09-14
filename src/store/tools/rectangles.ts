@@ -52,3 +52,5 @@ export const useRectangleStore = defineStore('rectangles', () => {
     deserialize,
   };
 });
+
+export type RectangleStore = ReturnType<typeof useRectangleStore>;
