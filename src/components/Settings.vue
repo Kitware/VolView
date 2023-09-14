@@ -21,6 +21,9 @@
 
       <v-divider class="mt-2 mb-6"></v-divider>
       <dicom-web-settings />
+
+      <v-divider class="mt-2 mb-6"></v-divider>
+      <server-settings />
     </v-card-text>
   </v-card>
 </template>
@@ -31,6 +34,7 @@ import { useTheme } from 'vuetify';
 import { useLocalStorage } from '@vueuse/core';
 
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
+import ServerSettings from './ServerSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
 import {
   useErrorReporting,
@@ -62,6 +66,7 @@ export default defineComponent({
   },
   components: {
     DicomWebSettings,
+    ServerSettings,
   },
 });
 </script>

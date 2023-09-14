@@ -98,6 +98,13 @@
                 <tool-strip />
               </template>
               <v-spacer />
+              <tool-button
+                v-if="serverUrl"
+                size="40"
+                :icon="serverConnectionIcon"
+                name="Open Server Settings"
+                @click="settingsDialog = true"
+              />
               <v-badge
                 offset-x="10"
                 offset-y="10"
@@ -255,6 +262,7 @@ import {
 } from '../io/import/dataSource';
 import { useImageStore } from '../store/datasets-images';
 import { useViewStore } from '../store/views';
+import { ConnectionState, useServerStore } from '../store/server';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
 import { serialize } from '../io/state-file';
@@ -420,7 +428,29 @@ export default defineComponent({
       });
     });
 
-    // --- template vars --- //
+    // --- remote server --- //
+
+    const serverStore = useServerStore();
+    const { url: serverUrl } = storeToRefs(serverStore);
+
+    const serverConnectionIcon = computed(() => {
+      switch (serverStore.connState) {
+        case ConnectionState.Connected:
+          return 'mdi-lan-check';
+        case ConnectionState.Disconnected:
+          return 'mdi-lan-disconnect';
+        case ConnectionState.Pending:
+          return 'mdi-lan-pending';
+        default:
+          throw new Error('Invalid connection state');
+      }
+    });
+
+    onMounted(() => {
+      serverStore.connect();
+    });
+
+    // --- --- //
 
     const hasData = computed(() => imageStore.idList.length > 0);
     const messageCount = computed(() => messageStore.importantMessages.length);
@@ -498,6 +528,8 @@ export default defineComponent({
       openFiles,
       hasData,
       saveUrl,
+      serverConnectionIcon,
+      serverUrl,
     };
   },
 });
