@@ -55,10 +55,18 @@ const updateRectangle = () => {
 const { points } = toRefs(props);
 watch([points], updateRectangle, { immediate: true, deep: true });
 
-onVTKEvent(viewProxy, 'onModified', updateRectangle)
+onVTKEvent(viewProxy, 'onModified', updateRectangle);
 </script>
 
 <template>
-  <rect v-if="visible" :x="rectangle.x" :y="rectangle.y" :width="rectangle.width" :height="rectangle.height"
-    stroke-width="2" fill="transparent" stroke="lightgray" />
+  <rect
+    v-if="visible"
+    :x="rectangle.x"
+    :y="rectangle.y"
+    :width="rectangle.width"
+    :height="rectangle.height"
+    stroke-width="2"
+    fill="transparent"
+    stroke="lightgray"
+  />
 </template>

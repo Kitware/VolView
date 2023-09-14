@@ -1,4 +1,5 @@
 import { Ref, computed, ref, watch } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -8,6 +9,8 @@ import { LPSAxis } from '../types/lps';
 import { AnnotationTool, ContextMenuEvent } from '../types/annotation-tool';
 import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '../utils/vtk-helpers';
+
+const SHOW_OVERLAY_DELAY = 500; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
@@ -107,22 +110,14 @@ export type OverlayInfo<ToolID> =
       displayXY: Vector2;
     };
 
+// Maintains list of tools' hover states.
+// If one tool hovered, overlayInfo.visible === true with toolID and displayXY.
 export const useHover = <ToolID extends string>(
   tools: Ref<Array<AnnotationTool<ToolID>>>,
   currentSlice: Ref<number>
 ) => {
   type Info = OverlayInfo<ToolID>;
   const toolHoverState = ref({}) as Ref<Record<ToolID, Info>>;
-
-  const overlayInfo = computed(() => {
-    const visibleToolID = Object.keys(toolHoverState.value).find(
-      (toolID) => toolHoverState.value[toolID as ToolID].visible
-    ) as ToolID | undefined;
-
-    return visibleToolID
-      ? toolHoverState.value[visibleToolID]
-      : ({ visible: false } as Info);
-  });
 
   const toolsOnCurrentSlice = computed(() =>
     tools.value.filter((tool) => tool.slice === currentSlice.value)
@@ -154,5 +149,37 @@ export const useHover = <ToolID extends string>(
           visible: false,
         };
   };
+
+  // If hovering true, debounce showing overlay.
+  // Immediately hide overlay if hovering false.
+  const synchronousOverlayInfo = computed(() => {
+    const visibleToolID = Object.keys(toolHoverState.value).find(
+      (toolID) => toolHoverState.value[toolID as ToolID].visible
+    ) as ToolID | undefined;
+
+    return visibleToolID
+      ? toolHoverState.value[visibleToolID]
+      : ({ visible: false } as Info);
+  });
+
+  // Debounced output
+  const overlayInfo = ref(synchronousOverlayInfo.value) as Ref<Info>;
+
+  const debouncedOverlayInfo = useDebounceFn((info: Info) => {
+    // if we moved off the tool (syncOverlay.visible === false), don't show overlay
+    if (synchronousOverlayInfo.value.visible) overlayInfo.value = info;
+  }, SHOW_OVERLAY_DELAY);
+
+  watch(synchronousOverlayInfo, () => {
+    if (!synchronousOverlayInfo.value.visible)
+      overlayInfo.value = synchronousOverlayInfo.value;
+    else {
+      // Immediately set visible = false to hide overlay on mouse move, even if hovering true.
+      // Depends on widget sending hover events with every mouse move.
+      overlayInfo.value = { visible: false };
+      debouncedOverlayInfo({ ...synchronousOverlayInfo.value });
+    }
+  });
+
   return { overlayInfo, onHover };
 };
