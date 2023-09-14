@@ -73,16 +73,11 @@ export function createAnnotationToolComponent<
 
       const onToolPlaced = (initState: object) => {
         if (!currentImageID.value) return;
-        // TODO drop color property
-        const { color } = activeLabel.value
-          ? (toolStore.labels[activeLabel.value] as any)
-          : { color: undefined };
         toolStore.addTool({
           imageID: currentImageID.value,
           frameOfReference: currentFrameOfReference.value,
           slice: currentSlice.value,
           label: activeLabel.value,
-          color,
           ...initState,
         });
       };

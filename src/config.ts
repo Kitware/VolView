@@ -171,15 +171,6 @@ export const SAMPLE_DATA: SampleDataset[] = [
   },
 ];
 
-export const TOOL_COLORS = [
-  '#58f24c',
-  '#8de4d3',
-  '#f0a4b1',
-  '#a3c9fe',
-  '#c8f251',
-  '#fea53b',
-];
-
 export const RULER_LABEL_DEFAULTS = {
   red: { color: 'red' },
   green: { color: '#00ff00' },

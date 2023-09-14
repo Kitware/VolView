@@ -2,7 +2,6 @@ import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
 import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
 
 import { Maybe, PartialWithRequired } from '@/src/types';
-import { TOOL_COLORS } from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -23,7 +22,6 @@ const makeAnnotationToolDefaults = () => ({
   slice: -1,
   imageID: '',
   placing: false,
-  color: TOOL_COLORS[0],
   name: 'baseAnnotationTool',
 });
 
