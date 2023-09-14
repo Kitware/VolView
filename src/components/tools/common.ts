@@ -1,5 +1,6 @@
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { Maybe } from '@/src/types';
+import { AnnotationTool } from '@/src/types/annotation-tool';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
 import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
@@ -59,10 +60,16 @@ export interface WidgetComponentMeta<
 
   /**
    * An optional render function
+   *
+   * @param viewId the view ID
+   * @param syncedState the synced state from the widget
+   * @param labelProps the label props associated with the tool
+   * @param tool an optional tool. Not available for the placing widget.
    */
   render?: (
     viewId: string,
     syncedState: SyncedState,
-    labelProps: Maybe<ToolStore['labels'][string]>
+    labelProps: Maybe<ToolStore['labels'][string]>,
+    tool?: AnnotationTool<ToolID>
   ) => VNode;
 }

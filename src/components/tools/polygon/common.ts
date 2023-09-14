@@ -10,10 +10,18 @@ export interface PolygonInitState {
   points: Vector3[];
 }
 
-export function useSyncedPolygonState(widgetFactory: vtkPolygonWidget) {
-  const syncedState = shallowReactive({
-    points: [] as Vector3[],
-    movePoint: null as Maybe<Vector3>,
+export interface PolygonSyncedState {
+  points: Vector3[];
+  movePoint: Maybe<Vector3>;
+  finishable: boolean;
+}
+
+export function useSyncedPolygonState(
+  widgetFactory: vtkPolygonWidget
+): PolygonSyncedState {
+  const syncedState = shallowReactive<PolygonSyncedState>({
+    points: [],
+    movePoint: null,
     finishable: false,
   });
 

@@ -146,7 +146,12 @@ export function createWidget2DComponent<
 
       return () =>
         currentSlice.value === tool.value.slice
-          ? meta.render?.(viewId.value, syncedState, labelProps.value)
+          ? meta.render?.(
+              viewId.value,
+              syncedState,
+              labelProps.value,
+              tool.value
+            )
           : null;
     },
   });

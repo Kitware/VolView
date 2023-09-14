@@ -1,127 +1,83 @@
-<template>
-  <div class="overlay-no-events">
-    <svg class="overlay-no-events">
-      <polygon-widget-2D
-        v-for="tool in tools"
-        :key="tool.id"
-        :tool-id="tool.id"
-        :current-slice="currentSlice"
-        :view-id="viewId"
-        :view-direction="viewDirection"
-        :widget-manager="widgetManager"
-        @contextmenu="openContextMenu(tool.id, $event)"
-      />
-      <placing-polygon-widget-2D
-        v-if="isToolActive"
-        :current-slice="currentSlice"
-        :color="activeLabelColor"
-        :view-id="viewId"
-        :view-direction="viewDirection"
-        :widget-manager="widgetManager"
-        @placed="onToolPlaced"
-      />
-    </svg>
-    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
-  </div>
-</template>
-
 <script lang="ts">
-import { computed, defineComponent, PropType, toRefs } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useToolStore } from '@/src/store/tools';
-import { Tools } from '@/src/store/tools/types';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import { LPSAxisDir } from '@/src/types/lps';
+import { createAnnotationToolComponent } from '@/src/components/tools/createAnnotationToolComponent';
+import { createPlacingWidget2DComponent } from '@/src/components/tools/createPlacingWidget2DComponent';
+import { createWidget2DComponent } from '@/src/components/tools/createWidget2DComponent';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import { Tools } from '@/src/store/tools/types';
+import type { PolygonStore } from '@/src/store/tools/polygons';
+import vtkPolygonWidget, {
+  vtkPolygonViewWidget,
+  vtkPolygonWidgetState,
+} from '@/src/vtk/PolygonWidget';
 import {
-  useContextMenu,
-  useCurrentTools,
-} from '@/src/composables/annotationTool';
-import { useCurrentFrameOfReference } from '@/src/composables/useCurrentFrameOfReference';
-import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
-import PlacingPolygonWidget2D from '@/src/components/tools/polygon/PlacingPolygonWidget2D.vue';
-import { PolygonInitState } from '@/src/components/tools/polygon/common';
-import PolygonWidget2D from './PolygonWidget2D.vue';
+  PolygonInitState,
+  PolygonSyncedState,
+  useSyncedPolygonState,
+} from '@/src/components/tools/polygon/common';
+import { WidgetComponentMeta } from '@/src/components/tools/common';
+import PolygonSVG2D from '@/src/components/tools/polygon/PolygonSVG2D.vue';
+import createStandaloneState from '@/src/vtk/PolygonWidget/standaloneState';
+import createPolygonWidgetState from '@/src/vtk/PolygonWidget/storeState';
+import { PolygonID } from '@/src/types/polygon';
+import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
+import { h } from 'vue';
 
-const useActiveToolStore = usePolygonStore;
-const toolType = Tools.Polygon;
-
-export default defineComponent({
-  name: 'PolygonTool',
-  props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
-    currentSlice: {
-      type: Number,
-      required: true,
-    },
-    viewDirection: {
-      type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
-      required: true,
-    },
+const componentMeta: WidgetComponentMeta<
+  PolygonID,
+  PolygonStore,
+  vtkPolygonWidgetState,
+  vtkPolygonWidget,
+  vtkPolygonViewWidget,
+  PolygonSyncedState,
+  PolygonInitState
+> = {
+  name: 'PolygonWidget',
+  useToolStore: usePolygonStore,
+  createStandaloneState: () => createStandaloneState() as vtkPolygonWidgetState,
+  createStoreBackedState: (toolId: string, store: PolygonStore) =>
+    createPolygonWidgetState({ id: toolId, store }),
+  createWidgetFactory: (widgetState) =>
+    vtkPolygonWidget.newInstance({ widgetState }),
+  useSyncedState: useSyncedPolygonState,
+  resetPlacingWidget: (widget) => {
+    widget.reset();
+    widget.getWidgetState().setPlacing(true);
   },
-  components: {
-    PolygonWidget2D,
-    PlacingPolygonWidget2D,
-    AnnotationContextMenu,
-  },
-  setup(props) {
-    const { viewDirection, currentSlice } = toRefs(props);
-    const toolStore = useToolStore();
-    const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
-
-    const { currentImageID } = useCurrentImage();
-    const isToolActive = computed(() => toolStore.currentTool === toolType);
-    const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
-
-    const currentFrameOfReference = useCurrentFrameOfReference(
-      viewDirection,
-      currentSlice
-    );
-
-    const onToolPlaced = (initState: PolygonInitState) => {
-      if (!currentImageID.value) return;
-      activeToolStore.addTool({
-        imageID: currentImageID.value,
-        frameOfReference: currentFrameOfReference.value,
-        slice: currentSlice.value,
-        label: activeLabel.value,
-        color: activeLabel.value
-          ? activeToolStore.labels[activeLabel.value].color
-          : undefined,
-        points: initState.points,
-      });
-    };
-
-    // --- right-click menu --- //
-
-    const { contextMenu, openContextMenu } = useContextMenu();
-
-    const currentTools = useCurrentTools(activeToolStore, viewAxis);
-
+  constructInitState: (syncedState) => {
     return {
-      tools: currentTools,
-      isToolActive,
-      activeLabelColor: computed(() => {
-        return (
-          activeLabel.value && activeToolStore.labels[activeLabel.value].color
-        );
-      }),
-      onToolPlaced,
-      contextMenu,
-      openContextMenu,
-      activeToolStore,
+      points: syncedState.points,
     };
   },
+  render: (viewId, syncedState, labelProps, tool) => {
+    return h(PolygonSVG2D, {
+      viewId,
+      points: syncedState.points,
+      color: labelProps?.color,
+      movePoint: syncedState.movePoint,
+      placing: !tool,
+    });
+  },
+};
+
+const Widget2DComponent = createWidget2DComponent({
+  ...componentMeta,
+  name: 'PolygonWidget2D',
+});
+
+const PlacingWidget2DComponent = createPlacingWidget2DComponent({
+  ...componentMeta,
+  name: 'PlacingPolygonWidget2D',
+});
+
+export default createAnnotationToolComponent<
+  PolygonID,
+  AnnotationToolStore<PolygonID>
+>({
+  name: 'PolygonTool',
+  type: Tools.Polygon,
+  useToolStore: usePolygonStore,
+  Widget2DComponent,
+  PlacingWidget2DComponent,
 });
 </script>
 

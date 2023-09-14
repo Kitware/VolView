@@ -50,3 +50,5 @@ export const usePolygonStore = defineStore('polygon', () => {
     deserialize,
   };
 });
+
+export type PolygonStore = ReturnType<typeof usePolygonStore>;
