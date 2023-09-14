@@ -79,3 +79,5 @@ export const useRulerStore = defineStore('ruler', () => {
     deserialize,
   };
 });
+
+export type RulerStore = ReturnType<typeof useRulerStore>;

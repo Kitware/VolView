@@ -6,7 +6,7 @@
       :y1="first.y"
       :x2="second.x"
       :y2="second.y"
-      :stroke="color"
+      :stroke="labelProps?.color"
       stroke-width="1"
     />
     <!-- radius is related to the vtkRulerWidget scale, specified in state -->
@@ -14,7 +14,7 @@
       v-if="first"
       :cx="first.x"
       :cy="first.y"
-      :stroke="color"
+      :stroke="labelProps?.color"
       stroke-width="1"
       fill="transparent"
       :r="10 / devicePixelRatio"
@@ -23,7 +23,7 @@
       v-if="second"
       :cx="second.x"
       :cy="second.y"
-      :stroke="color"
+      :stroke="labelProps?.color"
       stroke-width="1"
       fill="transparent"
       :r="10 / devicePixelRatio"
@@ -54,7 +54,6 @@ import { ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
-import type { Vector3 } from '@kitware/vtk.js/types';
 import {
   PropType,
   computed,
@@ -65,21 +64,29 @@ import {
   watch,
   inject,
 } from 'vue';
+import { RulerSyncedState } from '@/src/components/tools/ruler/common';
 import { Maybe } from '@/src/types';
+import type { RulerStore } from '@/src/store/tools/rulers';
 
 type SVGPoint = {
   x: number;
   y: number;
 };
 
+type LabelProps = RulerStore['labels'][string];
+
 export default defineComponent({
   props: {
-    point1: Array as PropType<Maybe<Array<number>>>,
-    point2: Array as PropType<Maybe<Array<number>>>,
-    color: String,
-    length: Number,
     viewId: {
       type: String,
+      required: true,
+    },
+    syncedState: {
+      type: Object as PropType<RulerSyncedState>,
+      required: true,
+    },
+    labelProps: {
+      type: Object as PropType<Maybe<LabelProps>>,
       required: true,
     },
     textOffset: {
@@ -92,13 +99,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const {
-      viewId: viewID,
-      point1,
-      point2,
-      textOffset,
-      length,
-    } = toRefs(props);
+    const { viewId: viewID, syncedState, textOffset } = toRefs(props);
     const firstPoint = ref<SVGPoint | null>();
     const secondPoint = ref<SVGPoint | null>();
 
@@ -109,10 +110,11 @@ export default defineComponent({
     );
 
     const updatePoints = () => {
+      const state_ = syncedState.value;
       const viewRenderer = viewProxy.value.getRenderer();
-      const pt1 = unref(point1) as Vector3 | undefined;
-      const pt2 = unref(point2) as Vector3 | undefined;
-      if (pt1) {
+      const pt1 = state_?.firstPoint.origin;
+      const pt2 = state_?.secondPoint.origin;
+      if (pt1 && state_?.firstPoint.visible) {
         const point2D = worldToSVG(pt1, viewRenderer);
         if (point2D) {
           firstPoint.value = {
@@ -124,7 +126,7 @@ export default defineComponent({
         firstPoint.value = null;
       }
 
-      if (pt2) {
+      if (pt2 && state_?.secondPoint.visible) {
         const point2D = worldToSVG(pt2, viewRenderer);
         if (point2D) {
           secondPoint.value = {
@@ -140,10 +142,9 @@ export default defineComponent({
     const camera = computed(() => viewProxy.value.getCamera());
     onVTKEvent(camera, 'onModified', updatePoints);
 
-    watch([viewProxy, point1, point2], updatePoints, {
-      deep: true,
-      immediate: true,
-    });
+    watch(viewProxy, updatePoints);
+    watch(syncedState, updatePoints, { deep: true });
+    updatePoints();
 
     const textProperties = computed(() => {
       const first = unref(firstPoint);
@@ -173,7 +174,7 @@ export default defineComponent({
       anchor: computed(() => textProperties.value?.anchor ?? 'start'),
       first: firstPoint,
       second: secondPoint,
-      rulerLength: computed(() => length?.value?.toFixed(2) ?? ''),
+      rulerLength: computed(() => syncedState.value.length.toFixed(2) ?? ''),
     };
   },
 });

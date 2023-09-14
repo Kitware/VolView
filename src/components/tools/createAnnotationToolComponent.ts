@@ -16,20 +16,21 @@ import {
 import { Maybe } from '@/src/types';
 import { ContextMenuEvent } from '@/src/types/annotation-tool';
 
-interface AnnotationToolComponentMeta<
+export interface AnnotationToolComponentMeta<
   ToolID extends string,
   ToolStore extends AnnotationToolStore<ToolID>
 > {
   type: Tools;
   name: string;
   useToolStore: () => ToolStore;
-  WidgetComponent: Component;
-  PlacingWidgetComponent: Component;
+  Widget2DComponent: Component;
+  PlacingWidget2DComponent: Component;
 }
 
 export function createAnnotationToolComponent<
-  ToolStore extends AnnotationToolStore<string>
->(meta: AnnotationToolComponentMeta<string, ToolStore>) {
+  ToolID extends string,
+  ToolStore extends AnnotationToolStore<ToolID>
+>(meta: AnnotationToolComponentMeta<ToolID, ToolStore>) {
   return defineComponent({
     name: meta.name,
     props: {
@@ -104,7 +105,7 @@ export function createAnnotationToolComponent<
         h('div', { class: 'overlay-no-events' }, [
           h('svg', { class: 'overlay-no-events' }, [
             isToolActive.value
-              ? h(meta.PlacingWidgetComponent, {
+              ? h(meta.PlacingWidget2DComponent, {
                   currentSlice: currentSlice.value,
                   viewDirection: viewDirection.value,
                   widgetManager: widgetManager.value,
@@ -114,7 +115,7 @@ export function createAnnotationToolComponent<
                 })
               : null,
             ...currentTools.value.map((tool) =>
-              h(meta.WidgetComponent, {
+              h(meta.Widget2DComponent, {
                 key: tool.id,
                 toolId: tool.id,
                 currentSlice: currentSlice.value,
@@ -126,7 +127,7 @@ export function createAnnotationToolComponent<
               })
             ),
           ]),
-          h(AnnotationContextMenu, { ref: contextMenu, toolStore }),
+          h(AnnotationContextMenu<ToolID>, { ref: contextMenu, toolStore }),
         ]);
 
       return render;

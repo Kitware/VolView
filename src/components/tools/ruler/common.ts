@@ -9,7 +9,21 @@ export interface RulerInitState {
   secondPoint: Vector3;
 }
 
-export function useSyncedRulerState(widgetFactory: vtkRulerWidget) {
+export interface RulerSyncedState {
+  firstPoint: {
+    visible: boolean;
+    origin: Maybe<Vector3>;
+  };
+  secondPoint: {
+    visible: boolean;
+    origin: Maybe<Vector3>;
+  };
+  length: number;
+}
+
+export function useSyncedRulerState(
+  widgetFactory: vtkRulerWidget
+): RulerSyncedState {
   const widgetState = widgetFactory.getWidgetState() as vtkRulerWidgetState;
   const syncedState = reactive({
     firstPoint: {
