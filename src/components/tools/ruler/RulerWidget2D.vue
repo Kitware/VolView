@@ -30,7 +30,7 @@ export default defineComponent({
   name: 'RulerWidget2D',
   emits: ['contextmenu'],
   props: {
-    rulerId: {
+    toolId: {
       type: String,
       required: true,
     },
@@ -55,15 +55,15 @@ export default defineComponent({
     RulerSVG2D,
   },
   setup(props, { emit }) {
-    const { rulerId, widgetManager, viewDirection, currentSlice, viewId } =
+    const { toolId, widgetManager, viewDirection, currentSlice, viewId } =
       toRefs(props);
 
     const rulerStore = useRulerStore();
-    const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
+    const ruler = computed(() => rulerStore.rulerByID[toolId.value]);
     const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     const widgetState = createRulerWidgetState({
-      id: rulerId.value,
+      id: toolId.value,
       store: rulerStore,
     }) as vtkRulerWidgetState;
     const widgetFactory = vtkRulerWidget.newInstance({

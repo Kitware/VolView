@@ -27,6 +27,9 @@ import {
   useSyncedRulerState,
 } from '@/src/components/tools/ruler/common';
 import { useViewWidget } from '@/src/composables/useViewWidget';
+import { useRulerStore } from '@/src/store/tools/rulers';
+
+type ToolStore = ReturnType<typeof useRulerStore>;
 
 export default defineComponent({
   name: 'PlacingRulerWidget2D',
@@ -48,7 +51,9 @@ export default defineComponent({
       type: Number,
       required: true,
     },
-    color: String,
+    labelProps: {
+      type: Object as PropType<ToolStore['labels'][string]>,
+    },
   },
   components: {
     RulerSVG2D,
@@ -158,6 +163,6 @@ export default defineComponent({
     :point1="firstPoint"
     :point2="secondPoint"
     :length="length"
-    :color="color"
+    :color="labelProps?.color"
   />
 </template>
