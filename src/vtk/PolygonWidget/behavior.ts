@@ -1,7 +1,6 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
-import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import macro from '@kitware/vtk.js/macros';
-import { Bounds, Vector3 } from '@kitware/vtk.js/types';
+import { Vector3 } from '@kitware/vtk.js/types';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
 import { WidgetAction } from '../ToolWidgetUtils/utils';
@@ -224,37 +223,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Mouse move: Drag selected handle / Handle follow the mouse
   // --------------------------------------------------------------------------
 
-  const checkInScreenBounds = (event: vtkMouseEvent) => {
-    const b = publicAPI.getBounds();
-    if (!vtkBoundingBox.isValid(b)) return false;
-
-    const corners = [] as Array<Vector3>;
-    vtkBoundingBox.getCorners(b, corners);
-
-    const screenBounds = [...vtkBoundingBox.INIT_BOUNDS] as Bounds;
-    corners.forEach((corner) => {
-      const pos = model._apiSpecificRenderWindow.worldToDisplay(
-        ...corner,
-        event.pokedRenderer
-      ) as Vector3;
-      vtkBoundingBox.addPoint(screenBounds, ...pos);
-    });
-
-    const pointerScreenPos = [
-      event.position.x,
-      event.position.y,
-      event.position.z,
-    ] as Vector3;
-
-    screenBounds[4] = -1;
-    screenBounds[5] = 1;
-    const isInside = vtkBoundingBox.containsPoint(
-      screenBounds,
-      ...pointerScreenPos
-    );
-    return isInside;
-  };
-
   publicAPI.handleMouseMove = (event: vtkMouseEvent) => {
     if (
       model.pickable &&
@@ -278,7 +246,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     publicAPI.invokeHoverEvent({
       ...event,
-      hovering: checkInScreenBounds(event),
+      hovering: !!model.activeState,
     });
 
     return macro.VOID;
