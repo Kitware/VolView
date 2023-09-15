@@ -152,6 +152,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.handleLeftButtonPress = (event: vtkMouseEvent) => {
     const activeWidget = model._widgetManager.getActiveWidget();
 
+    // turns off hover while dragging
     publicAPI.invokeHoverEvent({
       ...event,
       hovering: false,

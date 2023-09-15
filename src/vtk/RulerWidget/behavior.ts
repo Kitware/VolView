@@ -73,6 +73,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    publicAPI.invokeHoverEvent({
+      ...eventData,
+      hovering: false,
+    });
+
     // This ruler widget is passive, so if another widget
     // is active, we don't do anything.
     const activeWidget = model._widgetManager.getActiveWidget();
@@ -135,11 +140,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Moves a point around.
    */
   publicAPI.handleMouseMove = (eventData: any) => {
-    publicAPI.invokeHoverEvent({
-      ...eventData,
-      hovering: !!model.activeState,
-    });
-
     const worldCoords = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow

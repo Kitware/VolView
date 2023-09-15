@@ -10,7 +10,7 @@ import { AnnotationTool, ContextMenuEvent } from '../types/annotation-tool';
 import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '../utils/vtk-helpers';
 
-const SHOW_OVERLAY_DELAY = 500; // milliseconds
+const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
