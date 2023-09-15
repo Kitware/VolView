@@ -163,4 +163,3 @@ export default defineComponent({
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
-@/src/composables/useFrameOfReference
