@@ -7,7 +7,6 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { useAnnotationTool } from './useAnnotationTool';
 
 const toolDefaults = () => ({
-  movePoint: [0, 0, 0] as Vector3,
   points: [] as Array<Vector3>,
   id: '' as PolygonID,
   name: 'Polygon',
