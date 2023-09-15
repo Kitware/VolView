@@ -2,6 +2,7 @@
 import vtkRulerWidget, {
   InteractionState,
   vtkRulerViewWidget,
+  vtkRulerWidgetState,
 } from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
@@ -170,11 +171,16 @@ export default defineComponent({
       secondPoint: false,
     });
 
-    const widgetState = widgetFactory.getWidgetState();
-    onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () => {
+    const updateVisibleState = (widgetState: vtkRulerWidgetState) => {
       visibleStates.firstPoint = widgetState.getFirstPoint().getVisible();
       visibleStates.secondPoint = widgetState.getSecondPoint().getVisible();
-    });
+    };
+
+    const widgetState = widgetFactory.getWidgetState();
+    onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () =>
+      updateVisibleState(widgetState)
+    );
+    updateVisibleState(widgetState);
 
     return {
       ruler,
