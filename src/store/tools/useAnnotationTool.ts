@@ -56,6 +56,10 @@ export const useAnnotationTool = <
     return toolIDs.value.map((id) => byID[id]);
   });
 
+  const finishedTools = computed(() =>
+    tools.value.filter((tool) => !tool.placing)
+  );
+
   const labels = useLabels<LabelProps>(newLabelDefault);
   labels.mergeLabels(initialLabels, false);
 
@@ -197,6 +201,7 @@ export const useAnnotationTool = <
     toolIDs,
     toolByID,
     tools,
+    finishedTools,
     addTool,
     removeTool,
     updateTool,
