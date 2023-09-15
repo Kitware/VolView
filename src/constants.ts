@@ -45,3 +45,5 @@ export const Messages = {
       'Lost the WebGL context! Please reload the webpage. If the problem persists, you may need to restart your web browser.',
   },
 } as const;
+
+export const ANNOTATION_TOOL_HANDLE_RADIUS = 10; // pixels

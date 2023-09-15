@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { computed, ref, watch, toRefs } from 'vue';
+import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { nonNullable } from '@/src/utils/index';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { Bounds, Vector3 } from '@kitware/vtk.js/types';
-import { computed, ref, watch, toRefs } from 'vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 const props = defineProps<{
@@ -44,11 +45,13 @@ const updateRectangle = () => {
     });
   const [x, y] = vtkBoundingBox.getMinPoint(screenBounds);
   const [maxX, maxY] = vtkBoundingBox.getMaxPoint(screenBounds);
+  const handleRadius = ANNOTATION_TOOL_HANDLE_RADIUS / devicePixelRatio;
+  const handleDiameter = 2 * handleRadius;
   rectangle.value = {
-    x,
-    y,
-    width: maxX - x,
-    height: maxY - y,
+    x: x - handleRadius,
+    y: y - handleRadius,
+    width: maxX - x + handleDiameter,
+    height: maxY - y + handleDiameter,
   };
 };
 

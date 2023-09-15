@@ -1,6 +1,6 @@
 <template>
   <g>
-    <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
+    <!-- radius should match constants.ANNOTATION_TOOL_HANDLE_RADIUS and should be related to vtkHandleWidget scale. -->
     <circle
       v-for="({ point: [x, y], radius }, index) in handlePoints"
       :key="index"
