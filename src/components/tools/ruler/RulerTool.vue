@@ -38,11 +38,8 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { storeToRefs } from 'pinia';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
-import { vec3 } from 'gl-matrix';
 import {
   useContextMenu,
   useCurrentTools,
@@ -51,6 +48,7 @@ import {
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -153,22 +151,11 @@ export default defineComponent({
 
     // --- updating active ruler frame --- //
 
-    // TODO useCurrentFrameOfReference(viewDirection)
-    const getCurrentFrameOfReference = (): FrameOfReference => {
-      const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
-      const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
-
-      const lpsIdx = lpsOrientation[viewAxis.value];
-      const planeOrigin: Vector3 = [0, 0, 0];
-      planeOrigin[lpsIdx] = currentSlice.value;
-      // convert index pt to world pt
-      vec3.transformMat4(planeOrigin, planeOrigin, indexToWorld);
-
-      return {
-        planeNormal,
-        planeOrigin,
-      };
-    };
+    const frameOfReference = useFrameOfReference(
+      viewDirection,
+      currentSlice,
+      currentImageMetadata
+    );
 
     // update active ruler's frame + slice, since the
     // active ruler is not finalized.
@@ -177,7 +164,7 @@ export default defineComponent({
       ([slice, rulerID]) => {
         if (!rulerID) return;
         rulerStore.updateRuler(rulerID, {
-          frameOfReference: getCurrentFrameOfReference(),
+          frameOfReference: frameOfReference.value,
           slice,
         });
       },
