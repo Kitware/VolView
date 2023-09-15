@@ -24,6 +24,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // support forwarding events
   macro.event(publicAPI, model, 'RightClickEvent');
   macro.event(publicAPI, model, 'PlacedEvent');
+  macro.event(publicAPI, model, 'HoverEvent');
 
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
@@ -53,6 +54,15 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   publicAPI.resetInteractions = () => {
     model._interactor.cancelAnimation(publicAPI, true);
+  };
+
+  // Check if mouse is over line segment between handles
+  const checkOverSegment = () => {
+    const selections = model._widgetManager.getSelections();
+    const overSegment =
+      selections[0]?.getProperties().prop ===
+      model.representations[1].getActors()[0]; // line representation is second representation
+    return overSegment;
   };
 
   /**
@@ -105,7 +115,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
 
     // dragging
-    if (model.activeState?.getActive() && model.pickable) {
+    if (
+      model.activeState?.getActive() &&
+      model.pickable &&
+      !checkOverSegment()
+    ) {
       draggingState = model.activeState;
       publicAPI.setInteractionState(InteractionState.Dragging);
       model._apiSpecificRenderWindow.setCursor('grabbing');
@@ -121,6 +135,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Moves a point around.
    */
   publicAPI.handleMouseMove = (eventData: any) => {
+    publicAPI.invokeHoverEvent({
+      ...eventData,
+      hovering: !!model.activeState,
+    });
+
     const worldCoords = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
@@ -147,6 +166,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       publicAPI.invokeInteractionEvent();
       return macro.EVENT_ABORT;
     }
+
+    publicAPI.invokeHoverEvent({
+      ...eventData,
+      hovering: !!model.activeState,
+    });
 
     return macro.VOID;
   };

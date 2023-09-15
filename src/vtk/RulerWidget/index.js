@@ -3,6 +3,8 @@ import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidge
 import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
+import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation/Constants';
+import vtkLineGlyphRepresentation from '@/src/vtk/LineGlyphRepresentation';
 
 import widgetBehavior from './behavior';
 import stateGenerator, { PointsLabel } from './state';
@@ -24,6 +26,15 @@ function vtkRulerWidget(publicAPI, model) {
       labels: [PointsLabel],
       initialValues: {
         scaleInPixels: true,
+      },
+    },
+    {
+      builder: vtkLineGlyphRepresentation,
+      labels: [PointsLabel],
+      initialValues: {
+        scaleInPixels: true,
+        lineThickness: 0.25, // smaller than .5 default to prioritize picking handles
+        behavior: Behavior.HANDLE, // make pickable even if not visible
       },
     },
   ];

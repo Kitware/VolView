@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <bounding-rectangle :points="pointsToBound" :view-id="viewId" />
+      <bounding-rectangle :points="points" :view-id="viewId" />
       <polygon-widget-2D
         v-for="tool in tools"
         :key="tool.id"
@@ -189,12 +189,9 @@ export default defineComponent({
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
-    const { onHover, overlayInfo } = useHover<ToolID>(
-      currentTools,
-      currentSlice
-    );
+    const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
 
-    const pointsToBound = computed(() => {
+    const points = computed(() => {
       if (!overlayInfo.value.visible) return [];
       const tool = activeToolStore.toolByID[overlayInfo.value.toolID];
       return tool.points;
@@ -209,7 +206,7 @@ export default defineComponent({
       activeToolStore,
       onHover,
       overlayInfo,
-      pointsToBound,
+      points,
     };
   },
 });

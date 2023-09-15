@@ -25,11 +25,14 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import { watchOnce } from '@vueuse/core';
-import { useRightClickContextMenu } from '@/src/composables/annotationTool';
+import {
+  useRightClickContextMenu,
+  useHoverEvent,
+} from '@/src/composables/annotationTool';
 
 export default defineComponent({
   name: 'RulerWidget2D',
-  emits: ['placed', 'contextmenu'],
+  emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     rulerId: {
       type: String,
@@ -114,6 +117,8 @@ export default defineComponent({
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
+
+    useHoverEvent(emit, widget);
 
     // --- right click handling --- //
 
