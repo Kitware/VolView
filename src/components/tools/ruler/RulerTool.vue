@@ -27,7 +27,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  ref,
   toRefs,
   watch,
 } from 'vue';
@@ -44,6 +43,7 @@ import {
   useContextMenu,
   useCurrentTools,
   useHover,
+  usePlacingAnnotationTool,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
@@ -86,70 +86,7 @@ export default defineComponent({
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const placingRulerID = ref<string | null>(null);
-
     // --- active ruler management --- //
-
-    watch(
-      placingRulerID,
-      (id, prevId) => {
-        if (prevId != null) {
-          rulerStore.updateRuler(prevId, { placing: false });
-        }
-        if (id != null) {
-          rulerStore.updateRuler(id, { placing: true });
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      [isToolActive, currentImageID] as const,
-      ([active, imageID]) => {
-        if (placingRulerID.value != null) {
-          rulerStore.removeRuler(placingRulerID.value);
-          placingRulerID.value = null;
-        }
-        if (active && imageID) {
-          placingRulerID.value = rulerStore.addRuler({
-            imageID,
-            placing: true,
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      [activeLabel, placingRulerID],
-      ([label, placingTool]) => {
-        if (placingTool != null) {
-          rulerStore.updateRuler(placingTool, {
-            label,
-            ...(label && rulerStore.labels[label]),
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    onUnmounted(() => {
-      if (placingRulerID.value != null) {
-        rulerStore.removeRuler(placingRulerID.value);
-        placingRulerID.value = null;
-      }
-    });
-
-    const onRulerPlaced = () => {
-      if (currentImageID.value) {
-        placingRulerID.value = rulerStore.addRuler({
-          imageID: currentImageID.value,
-          placing: true,
-        });
-      }
-    };
-
-    // --- updating active ruler frame --- //
 
     const frameOfReference = useFrameOfReference(
       viewDirection,
@@ -157,19 +94,43 @@ export default defineComponent({
       currentImageMetadata
     );
 
-    // update active ruler's frame + slice, since the
-    // active ruler is not finalized.
-    watch(
-      [currentSlice, placingRulerID] as const,
-      ([slice, rulerID]) => {
-        if (!rulerID) return;
-        rulerStore.updateRuler(rulerID, {
+    const placingTool = usePlacingAnnotationTool(
+      rulerStore,
+      computed(() => {
+        if (!currentImageID.value) return {};
+        return {
+          imageID: currentImageID.value,
           frameOfReference: frameOfReference.value,
-          slice,
-        });
+          slice: currentSlice.value,
+          label: activeLabel.value,
+          ...(activeLabel.value && rulerStore.labels[activeLabel.value]),
+        };
+      })
+    );
+
+    watch(
+      [isToolActive, currentImageID] as const,
+      ([active, imageID]) => {
+        placingTool.remove();
+        if (active && imageID) {
+          placingTool.add();
+        }
       },
       { immediate: true }
     );
+
+    onUnmounted(() => {
+      placingTool.remove();
+    });
+
+    const onRulerPlaced = () => {
+      if (currentImageID.value) {
+        placingTool.commit();
+        placingTool.add();
+      }
+    };
+
+    // --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
@@ -195,7 +156,7 @@ export default defineComponent({
 
     return {
       rulers: currentRulers,
-      placingRulerID,
+      placingRulerID: placingTool.id,
       onRulerPlaced,
       contextMenu,
       openContextMenu,

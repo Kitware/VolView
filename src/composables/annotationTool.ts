@@ -1,9 +1,10 @@
-import { Ref, computed, ref, watch } from 'vue';
+import { Ref, UnwrapRef, computed, readonly, ref, watch } from 'vue';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { Maybe } from '@/src/types';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
@@ -16,7 +17,7 @@ const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
-const useDoesToolFrameMatchViewAxis = <
+const doesToolFrameMatchViewAxis = <
   ToolID extends string,
   Tool extends AnnotationTool<ToolID>
 >(
@@ -49,7 +50,7 @@ export const useCurrentTools = <ToolID extends string>(
       // current view axis and not hidden
       return (
         tool.imageID === curImageID &&
-        useDoesToolFrameMatchViewAxis(viewAxis, tool) &&
+        doesToolFrameMatchViewAxis(viewAxis, tool) &&
         !tool.hidden
       );
     });
@@ -183,4 +184,45 @@ export const useHover = <ToolID extends string>(
   });
 
   return { overlayInfo: noInfoWithoutSelect, onHover };
+};
+
+export const usePlacingAnnotationTool = <ToolID extends string>(
+  store: AnnotationToolStore<ToolID>,
+  metadata: Ref<Partial<AnnotationTool<ToolID>>>
+) => {
+  const id = ref<Maybe<ToolID>>(null);
+
+  const commit = () => {
+    const id_ = id.value as Maybe<ToolID>;
+    if (!id_) return;
+    store.updateTool(id_, { placing: false });
+    id.value = null;
+  };
+
+  const add = () => {
+    if (id.value) throw new Error('Placing tool already exists.');
+    id.value = store.addTool({
+      ...metadata.value,
+      placing: true,
+    }) as UnwrapRef<ToolID>;
+  };
+
+  const remove = () => {
+    const id_ = id.value as Maybe<ToolID>;
+    if (!id_) return;
+    store.removeTool(id_);
+    id.value = null;
+  };
+
+  watch(metadata, () => {
+    if (!id.value) return;
+    store.updateTool(id.value as ToolID, metadata.value);
+  });
+
+  return {
+    id: readonly(id),
+    commit,
+    add,
+    remove,
+  };
 };
