@@ -45,7 +45,8 @@ const updateRectangle = () => {
     });
   const [x, y] = vtkBoundingBox.getMinPoint(screenBounds);
   const [maxX, maxY] = vtkBoundingBox.getMaxPoint(screenBounds);
-  const handleRadius = ANNOTATION_TOOL_HANDLE_RADIUS / devicePixelRatio;
+  // Plus 2 to account for the stroke width
+  const handleRadius = (ANNOTATION_TOOL_HANDLE_RADIUS + 2) / devicePixelRatio;
   const handleDiameter = 2 * handleRadius;
   rectangle.value = {
     x: x - handleRadius,

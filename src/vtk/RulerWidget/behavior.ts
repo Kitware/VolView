@@ -73,6 +73,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    // turns off hover while dragging
     publicAPI.invokeHoverEvent({
       ...eventData,
       hovering: false,
