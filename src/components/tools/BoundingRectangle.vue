@@ -56,7 +56,7 @@ const updateRectangle = () => {
 };
 
 const { points } = toRefs(props);
-watch([points], updateRectangle, { immediate: true, deep: true });
+watch(points, updateRectangle, { immediate: true, deep: true });
 
 onVTKEvent(viewProxy, 'onModified', updateRectangle);
 </script>

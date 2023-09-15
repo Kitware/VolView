@@ -1,10 +1,9 @@
 import macro from '@kitware/vtk.js/macros';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-import boundsMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
+import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
 import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
-import { Bounds, Vector3 } from '@kitware/vtk.js/types';
-import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import { Vector3 } from '@kitware/vtk.js/types';
 
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
@@ -109,29 +108,6 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
   };
 
-  const computeBounds = () => {
-    if (model.handles.length === 0) return undefined;
-
-    const bounds = vtkBoundingBox.reset([] as unknown as Bounds);
-    model.handles
-      .map((handle: any) => handle.getOrigin())
-      .forEach((point: Vector3) => {
-        vtkBoundingBox.addPoint(bounds, ...point);
-      });
-    return bounds;
-  };
-
-  let savedBounds: Bounds | undefined;
-  publicAPI.onModified(() => {
-    savedBounds = undefined;
-  });
-
-  publicAPI.getBounds = () => {
-    if (savedBounds) return savedBounds;
-    savedBounds = computeBounds();
-    return savedBounds;
-  };
-
   publicAPI.getPlacing = () => getTool().placing;
   publicAPI.setPlacing = (placing: boolean) => {
     getTool().placing = placing;
@@ -155,7 +131,7 @@ function _createPolygonWidgetState(
 ) {
   Object.assign(model, defaultValues(initialValues));
   vtkWidgetState.extend(publicAPI, model, initialValues);
-  boundsMixin.extend(publicAPI, model);
+  bounds.extend(publicAPI, model);
 
   macro.get(publicAPI, model, ['id', 'handles', 'moveHandle', 'finishable']);
   macro.setGet(publicAPI, model, ['finishable']);
