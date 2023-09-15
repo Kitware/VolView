@@ -2,16 +2,15 @@
 import vtkRulerWidget, {
   InteractionState,
   vtkRulerViewWidget,
-  vtkRulerWidgetPointState,
 } from '@/src/vtk/RulerWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
+  reactive,
   computed,
   defineComponent,
   onMounted,
   onUnmounted,
   PropType,
-  Ref,
   ref,
   toRefs,
   watch,
@@ -24,7 +23,6 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
-import { watchOnce } from '@vueuse/core';
 import {
   useRightClickContextMenu,
   useHoverEvent,
@@ -167,36 +165,24 @@ export default defineComponent({
 
     // --- handle pick visibility --- //
 
-    const usePointVisibility = (
-      pointState: Ref<vtkRulerWidgetPointState | undefined>
-    ) => {
-      const visible = ref(false);
-      const updateVisibility = () => {
-        if (!pointState.value) return;
-        visible.value = pointState.value.getVisible();
-      };
+    const visibleStates = reactive({
+      firstPoint: false,
+      secondPoint: false,
+    });
 
-      onVTKEvent(pointState, 'onModified', () => updateVisibility());
-
-      watchOnce(pointState, () => updateVisibility());
-
-      return visible;
-    };
-
-    const firstPointVisible = usePointVisibility(
-      computed(() => widget.value?.getWidgetState().getFirstPoint())
-    );
-    const secondPointVisible = usePointVisibility(
-      computed(() => widget.value?.getWidgetState().getSecondPoint())
-    );
+    const widgetState = widgetFactory.getWidgetState();
+    onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () => {
+      visibleStates.firstPoint = widgetState.getFirstPoint().getVisible();
+      visibleStates.secondPoint = widgetState.getSecondPoint().getVisible();
+    });
 
     return {
       ruler,
       firstPoint: computed(() => {
-        return firstPointVisible.value ? ruler.value.firstPoint : undefined;
+        return visibleStates.firstPoint ? ruler.value.firstPoint : undefined;
       }),
       secondPoint: computed(() => {
-        return secondPointVisible.value ? ruler.value.secondPoint : undefined;
+        return visibleStates.secondPoint ? ruler.value.secondPoint : undefined;
       }),
       length: computed(() => rulerStore.lengthByID[ruler.value.id]),
     };
