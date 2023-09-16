@@ -1,14 +1,24 @@
 import macro from '@kitware/vtk.js/macro';
 
 import vtkRulerWidget from '../RulerWidget';
+import vtkRectangleLineRepresentation from './RectangleLineRepresentation';
 
 export { InteractionState } from '../RulerWidget/behavior';
+
 // ----------------------------------------------------------------------------
 // Factory
 // ----------------------------------------------------------------------------
 
 function vtkRectangleWidget(publicAPI, model) {
   model.classHierarchy.push('vtkRectangleWidget');
+
+  const superGetRepresentationsForViewType =
+    publicAPI.getRepresentationsForViewType;
+  publicAPI.getRepresentationsForViewType = () => {
+    const reps = superGetRepresentationsForViewType();
+    reps[1].builder = vtkRectangleLineRepresentation;
+    return reps;
+  };
 }
 
 // ----------------------------------------------------------------------------
