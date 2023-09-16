@@ -47,7 +47,7 @@ const offset = computed(() => {
     :style="{
       left: `${info.displayXY[0] - offset.x}px`,
       top: `${info.displayXY[1] - offset.y}px`,
-      zIndex: 500,
+      zIndex: 500, // stay under context menu
     }"
     class="better-contrast"
   >

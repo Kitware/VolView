@@ -22,8 +22,16 @@ function vtkRectangleLineRepresentation(publicAPI, model) {
     compositeState.addHandle()
   );
 
+  // Save behavior model to access renderer
+  const superBehavior = model.widgetAPI.behavior;
+  let behaviorModel;
+  model.widgetAPI.behavior = (publicAPIy, bModel) => {
+    behaviorModel = bModel;
+    return superBehavior(publicAPIy, bModel);
+  };
+
   publicAPI.getRepresentationStates = (input = model.inputData[0]) => {
-    // Map 2 handles to 4 corner states in 2D
+    // Map 2 handles to 4 corner states in display space
     const states = superGetRepresentationStates(input);
     if (states.length === 0) {
       return states;
@@ -31,11 +39,15 @@ function vtkRectangleLineRepresentation(publicAPI, model) {
 
     const box = [...vtkBoundingBox.INIT_BOUNDS];
     states.forEach((handle) => {
-      vtkBoundingBox.addPoint(box, ...handle.getOrigin());
+      const displayPos = behaviorModel._apiSpecificRenderWindow.worldToDisplay(
+        ...handle.getOrigin(),
+        behaviorModel._renderer
+      );
+      vtkBoundingBox.addPoint(box, ...displayPos);
     });
     const corners = vtkBoundingBox.getCorners(box, []);
 
-    // 8 corners on plane, remove duplicates
+    // 8 corners on plane, remove duplicates to make 4 corners
     const corners2D = corners.reduce((outCorners, corner) => {
       const duplicate = outCorners.some((outCorner) =>
         vtkMath.areEquals(outCorner, corner)
@@ -47,13 +59,18 @@ function vtkRectangleLineRepresentation(publicAPI, model) {
     }, []);
 
     const scale = states[0].getScale1();
+
     // reorder corners
     const outStates = [0, 2, 3, 1]
       // if in handles are equal, corners2D length is 1
       .map((index) => Math.min(index, corners2D.length - 1))
-      .map((cornerIndex, index) => {
-        const state = cornerStates[index];
-        state.setOrigin(corners2D[cornerIndex]);
+      .map((cornerIndex, stateIndex) => {
+        const worldPos = behaviorModel._apiSpecificRenderWindow.displayToWorld(
+          ...corners2D[cornerIndex],
+          behaviorModel._renderer
+        );
+        const state = cornerStates[stateIndex];
+        state.setOrigin(worldPos);
         state.setScale1(scale);
         return state;
       });

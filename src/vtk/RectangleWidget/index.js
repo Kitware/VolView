@@ -17,6 +17,10 @@ function vtkRectangleWidget(publicAPI, model) {
   publicAPI.getRepresentationsForViewType = () => {
     const reps = superGetRepresentationsForViewType();
     reps[1].builder = vtkRectangleLineRepresentation;
+    reps[1].initialValues = {
+      ...reps[1].initialValues,
+      widgetAPI: model,
+    };
     return reps;
   };
 }

@@ -16,8 +16,8 @@
         @widgetHover="onHover(ruler.id, $event)"
       />
     </svg>
-    <annotation-context-menu ref="contextMenu" :tool-store="rulerStore" />
     <annotation-info :info="overlayInfo" :tool-store="rulerStore" />
+    <annotation-context-menu ref="contextMenu" :tool-store="rulerStore" />
   </div>
 </template>
 
