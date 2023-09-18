@@ -27,33 +27,29 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  ref,
   toRefs,
   watch,
 } from 'vue';
 import { storeToRefs } from 'pinia';
-import { vec3 } from 'gl-matrix';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { RectangleID } from '@/src/types/rectangle';
 import {
   useCurrentTools,
   useContextMenu,
   useHover,
+  usePlacingAnnotationTool,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
-type ToolID = RectangleID;
 const useActiveToolStore = useRectangleStore;
 const toolType = Tools.Rectangle;
 
@@ -93,98 +89,51 @@ export default defineComponent({
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const placingToolID = ref<ToolID | null>(null);
-
     // --- active tool management --- //
 
-    watch(
-      placingToolID,
-      (id, prevId) => {
-        if (prevId != null) {
-          activeToolStore.updateTool(prevId, { placing: false });
-        }
-        if (id != null) {
-          activeToolStore.updateTool(id, { placing: true });
-        }
-      },
-      { immediate: true }
+    const frameOfReference = useFrameOfReference(
+      viewDirection,
+      currentSlice,
+      currentImageMetadata
+    );
+
+    const placingTool = usePlacingAnnotationTool(
+      activeToolStore,
+      computed(() => {
+        if (!currentImageID.value) return {};
+        return {
+          imageID: currentImageID.value,
+          frameOfReference: frameOfReference.value,
+          slice: currentSlice.value,
+          label: activeLabel.value,
+          ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
+        };
+      })
     );
 
     watch(
       [isToolActive, currentImageID] as const,
       ([active, imageID]) => {
-        if (placingToolID.value != null) {
-          activeToolStore.removeTool(placingToolID.value);
-          placingToolID.value = null;
-        }
+        placingTool.remove();
         if (active && imageID) {
-          placingToolID.value = activeToolStore.addTool({
-            imageID,
-            placing: true,
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      [activeLabel, placingToolID],
-      ([label, placingTool]) => {
-        if (placingTool != null) {
-          activeToolStore.updateTool(placingTool, {
-            label,
-            ...(label && activeToolStore.labels[label]),
-          });
+          placingTool.add();
         }
       },
       { immediate: true }
     );
 
     onUnmounted(() => {
-      if (placingToolID.value != null) {
-        activeToolStore.removeTool(placingToolID.value);
-        placingToolID.value = null;
-      }
+      placingTool.remove();
     });
 
     const onToolPlaced = () => {
       if (currentImageID.value) {
-        placingToolID.value = activeToolStore.addTool({
-          imageID: currentImageID.value,
-          placing: true,
-        });
+        placingTool.commit();
+        placingTool.add();
       }
     };
 
-    // --- updating active tool frame --- //
-
-    // TODO useCurrentFrameOfReference(viewDirection)
-    const getCurrentFrameOfReference = (): FrameOfReference => {
-      const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
-      const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
-      const lpsIdx = lpsOrientation[viewAxis.value];
-      const planeOrigin: Vector3 = [0, 0, 0];
-      planeOrigin[lpsIdx] = currentSlice.value;
-      // convert index pt to world pt
-      vec3.transformMat4(planeOrigin, planeOrigin, indexToWorld);
-      return {
-        planeNormal,
-        planeOrigin,
-      };
-    };
-    // update active ruler's frame + slice, since the
-    // active ruler is not finalized.
-    watch(
-      [currentSlice, placingToolID] as const,
-      ([slice, toolID]) => {
-        if (!toolID) return;
-        activeToolStore.updateTool(toolID, {
-          frameOfReference: getCurrentFrameOfReference(),
-          slice,
-        });
-      },
-      { immediate: true }
-    );
+    // ---  //
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
@@ -200,7 +149,7 @@ export default defineComponent({
 
     return {
       tools: currentTools,
-      placingToolID,
+      placingToolID: placingTool.id,
       onToolPlaced,
       contextMenu,
       openContextMenu,

@@ -11,6 +11,7 @@ import {
   toRefs,
   watch,
   watchEffect,
+  reactive,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -23,8 +24,6 @@ import vtkRectangleWidget, {
   InteractionState,
 } from '@/src/vtk/RectangleWidget';
 import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
-import { vtkRulerWidgetPointState } from '@/src/vtk/RulerWidget';
-import { watchOnce } from '@vueuse/core';
 import { RectangleID } from '@/src/types/rectangle';
 import {
   useRightClickContextMenu,
@@ -34,7 +33,6 @@ import {
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
 type WidgetView = vtkRectangleViewWidget;
-type vtkWidgetPointState = vtkRulerWidgetPointState;
 type ToolID = RectangleID;
 const SVG2DComponent = RectangleSVG2D;
 
@@ -176,33 +174,25 @@ export default defineComponent({
     });
 
     // --- handle pick visibility --- //
-    const usePointVisibility = (
-      pointState: Ref<vtkWidgetPointState | undefined>
-    ) => {
-      const visible = ref(false);
-      const updateVisibility = () => {
-        if (!pointState.value) return;
-        visible.value = pointState.value.getVisible();
-      };
-      onVTKEvent(pointState, 'onModified', () => updateVisibility());
-      watchOnce(pointState, () => updateVisibility());
-      return visible;
-    };
 
-    const firstPointVisible = usePointVisibility(
-      computed(() => widget.value?.getWidgetState().getFirstPoint())
-    );
-    const secondPointVisible = usePointVisibility(
-      computed(() => widget.value?.getWidgetState().getSecondPoint())
-    );
+    const visibleStates = reactive({
+      firstPoint: false,
+      secondPoint: false,
+    });
+
+    const widgetState = widgetFactory.getWidgetState();
+    onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () => {
+      visibleStates.firstPoint = widgetState.getFirstPoint().getVisible();
+      visibleStates.secondPoint = widgetState.getSecondPoint().getVisible();
+    });
 
     return {
       tool,
       firstPoint: computed(() => {
-        return firstPointVisible.value ? tool.value.firstPoint : undefined;
+        return visibleStates.firstPoint ? tool.value.firstPoint : undefined;
       }),
       secondPoint: computed(() => {
-        return secondPointVisible.value ? tool.value.secondPoint : undefined;
+        return visibleStates.secondPoint ? tool.value.secondPoint : undefined;
       }),
     };
   },

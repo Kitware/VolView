@@ -1,6 +1,7 @@
 <script lang="ts">
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
+  reactive,
   computed,
   defineComponent,
   onMounted,
@@ -26,6 +27,8 @@ import { PolygonID as ToolID } from '@/src/types/polygon';
 import vtkWidgetFactory, {
   vtkPolygonViewWidget as WidgetView,
 } from '@/src/vtk/PolygonWidget';
+import { Maybe } from '@/src/types';
+import { Vector3 } from '@kitware/vtk.js/types';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
@@ -153,17 +156,22 @@ export default defineComponent({
       widgetManager.value.renderWidgets();
     });
 
-    // when movePoint/mouse changes, get finishable manually as its not in store
-    const finishable = ref(false);
-    const movePoint = computed(() => tool.value?.movePoint);
-    watch([movePoint], () => {
-      finishable.value =
-        !!widget.value && widget.value.getWidgetState().getFinishable();
+    // --- //
+
+    const editState = reactive({
+      movePoint: null as Maybe<Vector3>,
+      finishable: false,
+    });
+
+    const widgetState = widgetFactory.getWidgetState();
+    onVTKEvent(widgetState, 'onModified', () => {
+      editState.movePoint = widgetState.getMoveHandle().getOrigin();
+      editState.finishable = widgetState.getFinishable();
     });
 
     return {
       tool,
-      finishable,
+      editState,
     };
   },
 });
@@ -175,8 +183,8 @@ export default defineComponent({
     :view-id="viewId"
     :points="tool.points"
     :color="tool.color"
-    :move-point="tool.movePoint"
+    :move-point="editState.movePoint"
     :placing="tool.placing"
-    :finishable="finishable"
+    :finishable="editState.finishable"
   />
 </template>

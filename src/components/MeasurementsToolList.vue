@@ -24,10 +24,8 @@ const { currentImageID, currentImageMetadata } = useCurrentImage();
 
 // Filter and add axis for specific annotation type
 const getTools = (toolStore: AnnotationToolStore<string>) => {
-  const byID = toolStore.toolByID;
-  return toolStore.toolIDs
-    .map((id) => byID[id])
-    .filter((tool) => !tool.placing && tool.imageID === currentImageID.value)
+  return toolStore.finishedTools
+    .filter((tool) => tool.imageID === currentImageID.value)
     .map((tool) => {
       const { axis } = frameOfReferenceToImageSliceAndAxis(
         tool.frameOfReference,

@@ -27,7 +27,6 @@ import {
   defineComponent,
   onUnmounted,
   PropType,
-  ref,
   toRefs,
   watch,
 } from 'vue';
@@ -38,19 +37,18 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-import type { Vector3 } from '@kitware/vtk.js/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { storeToRefs } from 'pinia';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
-import { vec3 } from 'gl-matrix';
 import {
   useContextMenu,
   useCurrentTools,
   useHover,
+  usePlacingAnnotationTool,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -88,101 +86,51 @@ export default defineComponent({
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-    const placingRulerID = ref<string | null>(null);
-
     // --- active ruler management --- //
 
-    watch(
-      placingRulerID,
-      (id, prevId) => {
-        if (prevId != null) {
-          rulerStore.updateRuler(prevId, { placing: false });
-        }
-        if (id != null) {
-          rulerStore.updateRuler(id, { placing: true });
-        }
-      },
-      { immediate: true }
+    const frameOfReference = useFrameOfReference(
+      viewDirection,
+      currentSlice,
+      currentImageMetadata
+    );
+
+    const placingTool = usePlacingAnnotationTool(
+      rulerStore,
+      computed(() => {
+        if (!currentImageID.value) return {};
+        return {
+          imageID: currentImageID.value,
+          frameOfReference: frameOfReference.value,
+          slice: currentSlice.value,
+          label: activeLabel.value,
+          ...(activeLabel.value && rulerStore.labels[activeLabel.value]),
+        };
+      })
     );
 
     watch(
       [isToolActive, currentImageID] as const,
       ([active, imageID]) => {
-        if (placingRulerID.value != null) {
-          rulerStore.removeRuler(placingRulerID.value);
-          placingRulerID.value = null;
-        }
+        placingTool.remove();
         if (active && imageID) {
-          placingRulerID.value = rulerStore.addRuler({
-            imageID,
-            placing: true,
-          });
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      [activeLabel, placingRulerID],
-      ([label, placingTool]) => {
-        if (placingTool != null) {
-          rulerStore.updateRuler(placingTool, {
-            label,
-            ...(label && rulerStore.labels[label]),
-          });
+          placingTool.add();
         }
       },
       { immediate: true }
     );
 
     onUnmounted(() => {
-      if (placingRulerID.value != null) {
-        rulerStore.removeRuler(placingRulerID.value);
-        placingRulerID.value = null;
-      }
+      placingTool.remove();
     });
 
     const onRulerPlaced = () => {
       if (currentImageID.value) {
-        placingRulerID.value = rulerStore.addRuler({
-          imageID: currentImageID.value,
-          placing: true,
-        });
+        placingTool.commit();
+        placingTool.add();
       }
     };
 
-    // --- updating active ruler frame --- //
-
-    // TODO useCurrentFrameOfReference(viewDirection)
-    const getCurrentFrameOfReference = (): FrameOfReference => {
-      const { lpsOrientation, indexToWorld } = currentImageMetadata.value;
-      const planeNormal = lpsOrientation[viewDirection.value] as Vector3;
-
-      const lpsIdx = lpsOrientation[viewAxis.value];
-      const planeOrigin: Vector3 = [0, 0, 0];
-      planeOrigin[lpsIdx] = currentSlice.value;
-      // convert index pt to world pt
-      vec3.transformMat4(planeOrigin, planeOrigin, indexToWorld);
-
-      return {
-        planeNormal,
-        planeOrigin,
-      };
-    };
-
-    // update active ruler's frame + slice, since the
-    // active ruler is not finalized.
-    watch(
-      [currentSlice, placingRulerID] as const,
-      ([slice, rulerID]) => {
-        if (!rulerID) return;
-        rulerStore.updateRuler(rulerID, {
-          frameOfReference: getCurrentFrameOfReference(),
-          slice,
-        });
-      },
-      { immediate: true }
-    );
+    // --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
@@ -208,7 +156,7 @@ export default defineComponent({
 
     return {
       rulers: currentRulers,
-      placingRulerID,
+      placingRulerID: placingTool.id,
       onRulerPlaced,
       contextMenu,
       openContextMenu,

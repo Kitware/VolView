@@ -37,6 +37,7 @@ import {
   watch,
   inject,
 } from 'vue';
+import { Maybe } from '@/src/types';
 
 const POINT_RADIUS = ANNOTATION_TOOL_HANDLE_RADIUS;
 const FINISHABLE_POINT_RADIUS = POINT_RADIUS + 6;
@@ -53,7 +54,7 @@ export default defineComponent({
       required: true,
     },
     movePoint: {
-      type: Array as unknown as PropType<Vector3>,
+      type: Array as unknown as PropType<Maybe<Vector3>>,
     },
     placing: {
       type: Boolean,
