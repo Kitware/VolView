@@ -1,12 +1,14 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
 import { Vector3 } from '@kitware/vtk.js/types';
+import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
 import { WidgetAction } from '../ToolWidgetUtils/utils';
 
 type Position3d = { x: number; y: number; z: number };
-type MouseEvent = {
+type vtkMouseEvent = {
   position: Position3d;
+  pokedRenderer: vtkRenderer;
 };
 
 const FINISHABLE_DISTANCE = 10;
@@ -18,7 +20,7 @@ const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
   DOUBLE_CLICK_SLIP_DISTANCE_MAX ** 2;
 
 export default function widgetBehavior(publicAPI: any, model: any) {
-  model.classHierarchy.push('vtkPolygonWidgetProp');
+  model.classHierarchy.push('vtkPolygonWidgetBehavior');
   model._isDragging = false;
 
   // overUnselectedHandle is true if mouse is over handle that was created before a mouse move event.
@@ -42,9 +44,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
-  // support forwarding events
+
+  // events to emit
   macro.event(publicAPI, model, 'RightClickEvent');
   macro.event(publicAPI, model, 'PlacedEvent');
+  macro.event(publicAPI, model, 'HoverEvent');
 
   publicAPI.resetInteractions = () => {
     model._interactor.cancelAnimation(publicAPI, true);
@@ -145,11 +149,18 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left press: Select handle to drag / Add new handle
   // --------------------------------------------------------------------------
 
-  publicAPI.handleLeftButtonPress = (e: any) => {
+  publicAPI.handleLeftButtonPress = (event: vtkMouseEvent) => {
     const activeWidget = model._widgetManager.getActiveWidget();
+
+    // turns off hover while dragging
+    publicAPI.invokeHoverEvent({
+      ...event,
+      hovering: false,
+    });
+
     if (
       !model.manipulator ||
-      ignoreKey(e) ||
+      ignoreKey(event) ||
       // If hovering over another widget, don't consume event.
       (activeWidget && activeWidget !== publicAPI)
     ) {
@@ -165,7 +176,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
         model.activeState = model.widgetState.getMoveHandle();
         model._widgetManager.grabFocus(publicAPI);
       }
-      updateActiveStateHandle(e);
+      updateActiveStateHandle(event);
 
       if (model.widgetState.getFinishable()) {
         finishPlacing();
@@ -186,7 +197,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       // insert point
       const insertIndex = model.activeState.getIndex() + 1;
       const newHandle = model.widgetState.addHandle({ insertIndex });
-      const coords = getWorldCoords(e);
+      const coords = getWorldCoords(event);
       if (!coords) throw new Error('No world coords');
       newHandle.setOrigin(coords);
       // enable dragging immediately
@@ -213,14 +224,14 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Mouse move: Drag selected handle / Handle follow the mouse
   // --------------------------------------------------------------------------
 
-  publicAPI.handleMouseMove = (callData: any) => {
+  publicAPI.handleMouseMove = (event: vtkMouseEvent) => {
     if (
       model.pickable &&
       model.dragable &&
       model.activeState &&
-      !ignoreKey(callData)
+      !ignoreKey(event)
     ) {
-      if (updateActiveStateHandle(callData) === macro.EVENT_ABORT) {
+      if (updateActiveStateHandle(event) === macro.EVENT_ABORT) {
         return macro.EVENT_ABORT;
       }
     }
@@ -234,6 +245,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model._widgetManager.disablePicking();
     }
 
+    publicAPI.invokeHoverEvent({
+      ...event,
+      hovering: !!model.activeState,
+    });
+
     return macro.VOID;
   };
 
@@ -245,7 +261,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   let lastReleaseTime = 0;
   let lastReleasePosition: Vector3 | undefined;
 
-  publicAPI.handleLeftButtonRelease = (event: MouseEvent) => {
+  publicAPI.handleLeftButtonRelease = (event: vtkMouseEvent) => {
     if (
       !model.activeState ||
       !model.activeState.getActive() ||

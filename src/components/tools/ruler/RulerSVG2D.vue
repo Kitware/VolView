@@ -9,7 +9,7 @@
       :stroke="color"
       stroke-width="1"
     />
-    <!-- radius is related to the vtkRulerWidget scale, specified in state -->
+    <!-- radius should match constants.ANNOTATION_TOOL_HANDLE_RADIUS and should be related to vtkHandleWidget scale. -->
     <circle
       v-if="first"
       :cx="first.x"

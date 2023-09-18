@@ -1,6 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
+      <bounding-rectangle :points="points" :view-id="viewId" />
       <rectangle-widget-2D
         v-for="tool in tools"
         :key="tool.id"
@@ -12,8 +13,10 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
         @placed="onToolPlaced"
+        @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
+    <annotation-info :info="overlayInfo" :tool-store="activeToolStore" />
     <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
   </div>
 </template>
@@ -43,8 +46,11 @@ import { RectangleID } from '@/src/types/rectangle';
 import {
   useCurrentTools,
   useContextMenu,
+  useHover,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
+import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
+import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
 type ToolID = RectangleID;
@@ -74,6 +80,8 @@ export default defineComponent({
   components: {
     RectangleWidget2D,
     AnnotationContextMenu,
+    AnnotationInfo,
+    BoundingRectangle,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -182,6 +190,14 @@ export default defineComponent({
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
+    const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
+
+    const points = computed(() => {
+      if (!overlayInfo.value.visible) return [];
+      const tool = activeToolStore.toolByID[overlayInfo.value.toolID];
+      return [tool.firstPoint, tool.secondPoint];
+    });
+
     return {
       tools: currentTools,
       placingToolID,
@@ -189,6 +205,9 @@ export default defineComponent({
       contextMenu,
       openContextMenu,
       activeToolStore,
+      onHover,
+      overlayInfo,
+      points,
     };
   },
 });

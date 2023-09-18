@@ -26,7 +26,10 @@ import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue'
 import { vtkRulerWidgetPointState } from '@/src/vtk/RulerWidget';
 import { watchOnce } from '@vueuse/core';
 import { RectangleID } from '@/src/types/rectangle';
-import { useRightClickContextMenu } from '@/src/composables/annotationTool';
+import {
+  useRightClickContextMenu,
+  useHoverEvent,
+} from '@/src/composables/annotationTool';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -37,7 +40,7 @@ const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
-  emits: ['placed', 'contextmenu'],
+  emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String,
@@ -124,6 +127,8 @@ export default defineComponent({
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
+
+    useHoverEvent(emit, widget);
 
     // --- right click handling --- //
 

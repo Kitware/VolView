@@ -2,8 +2,9 @@ import macro from '@kitware/vtk.js/macros';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
+import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 
-const PIXEL_SIZE = 20;
+const PIXEL_SIZE = ANNOTATION_TOOL_HANDLE_RADIUS * 2;
 
 function watchStore(publicAPI, store, getter, cmp) {
   let cached = getter();

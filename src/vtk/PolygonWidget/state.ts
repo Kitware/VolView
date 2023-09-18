@@ -82,7 +82,6 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     model.labels[HandlesLabel] = [...model.handles];
 
     publicAPI.modified();
-
     return handlePublicAPI;
   };
 

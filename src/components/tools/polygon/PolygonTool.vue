@@ -1,6 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
+      <bounding-rectangle :points="points" :view-id="viewId" />
       <polygon-widget-2D
         v-for="tool in tools"
         :key="tool.id"
@@ -12,9 +13,11 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
         @placed="onToolPlaced"
+        @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
     <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
+    <annotation-info :info="overlayInfo" :tool-store="activeToolStore" />
   </div>
 </template>
 
@@ -43,8 +46,11 @@ import { PolygonID } from '@/src/types/polygon';
 import {
   useContextMenu,
   useCurrentTools,
+  useHover,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
+import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
+import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 type ToolID = PolygonID;
@@ -74,6 +80,8 @@ export default defineComponent({
   components: {
     PolygonWidget2D,
     AnnotationContextMenu,
+    AnnotationInfo,
+    BoundingRectangle,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -181,6 +189,14 @@ export default defineComponent({
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
+    const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
+
+    const points = computed(() => {
+      if (!overlayInfo.value.visible) return [];
+      const tool = activeToolStore.toolByID[overlayInfo.value.toolID];
+      return tool.points;
+    });
+
     return {
       tools: currentTools,
       placingToolID,
@@ -188,6 +204,9 @@ export default defineComponent({
       contextMenu,
       openContextMenu,
       activeToolStore,
+      onHover,
+      overlayInfo,
+      points,
     };
   },
 });

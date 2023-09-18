@@ -1,6 +1,6 @@
 <template>
   <g>
-    <!-- radius is related to the vtkRectangleWidget scale, specified in state -->
+    <!-- radius should match constants.ANNOTATION_TOOL_HANDLE_RADIUS and should be related to vtkHandleWidget scale. -->
     <circle
       v-for="({ point: [x, y], radius }, index) in handlePoints"
       :key="index"
@@ -23,7 +23,7 @@
 <script lang="ts">
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { ToolContainer } from '@/src/constants';
+import { ANNOTATION_TOOL_HANDLE_RADIUS, ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -38,8 +38,8 @@ import {
   inject,
 } from 'vue';
 
-const POINT_RADIUS = 10;
-const FINISHABLE_POINT_RADIUS = 16;
+const POINT_RADIUS = ANNOTATION_TOOL_HANDLE_RADIUS;
+const FINISHABLE_POINT_RADIUS = POINT_RADIUS + 6;
 
 export default defineComponent({
   props: {

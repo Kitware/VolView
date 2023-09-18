@@ -1,6 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
+      <bounding-rectangle :points="points" :view-id="viewId" />
       <ruler-widget-2D
         v-for="ruler in rulers"
         :key="ruler.id"
@@ -12,8 +13,10 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(ruler.id, $event)"
         @placed="onRulerPlaced"
+        @widgetHover="onHover(ruler.id, $event)"
       />
     </svg>
+    <annotation-info :info="overlayInfo" :tool-store="rulerStore" />
     <annotation-context-menu ref="contextMenu" :tool-store="rulerStore" />
   </div>
 </template>
@@ -43,8 +46,11 @@ import { vec3 } from 'gl-matrix';
 import {
   useContextMenu,
   useCurrentTools,
+  useHover,
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
+import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
+import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -69,6 +75,8 @@ export default defineComponent({
   components: {
     RulerWidget2D,
     AnnotationContextMenu,
+    AnnotationInfo,
+    BoundingRectangle,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -190,6 +198,14 @@ export default defineComponent({
       }));
     });
 
+    const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
+
+    const points = computed(() => {
+      if (!overlayInfo.value.visible) return [];
+      const tool = rulerStore.toolByID[overlayInfo.value.toolID];
+      return [tool.firstPoint, tool.secondPoint];
+    });
+
     return {
       rulers: currentRulers,
       placingRulerID,
@@ -197,6 +213,9 @@ export default defineComponent({
       contextMenu,
       openContextMenu,
       rulerStore,
+      onHover,
+      overlayInfo,
+      points,
     };
   },
 });

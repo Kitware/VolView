@@ -24,6 +24,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // support forwarding events
   macro.event(publicAPI, model, 'RightClickEvent');
   macro.event(publicAPI, model, 'PlacedEvent');
+  macro.event(publicAPI, model, 'HoverEvent');
 
   publicAPI.deactivateAllHandles = () => {
     model.widgetState.deactivate();
@@ -55,6 +56,15 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model._interactor.cancelAnimation(publicAPI, true);
   };
 
+  // Check if mouse is over line segment between handles
+  const checkOverSegment = () => {
+    const selections = model._widgetManager.getSelections();
+    const overSegment =
+      selections[0]?.getProperties().prop ===
+      model.representations[1].getActors()[0]; // line representation is second representation
+    return overSegment;
+  };
+
   /**
    * Places or drags a point.
    */
@@ -62,6 +72,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (!model.manipulator || shouldIgnoreEvent(eventData)) {
       return macro.VOID;
     }
+
+    // turns off hover while dragging
+    publicAPI.invokeHoverEvent({
+      ...eventData,
+      hovering: false,
+    });
 
     // This ruler widget is passive, so if another widget
     // is active, we don't do anything.
@@ -105,7 +121,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
 
     // dragging
-    if (model.activeState?.getActive() && model.pickable) {
+    if (
+      model.activeState?.getActive() &&
+      model.pickable &&
+      !checkOverSegment()
+    ) {
       draggingState = model.activeState;
       publicAPI.setInteractionState(InteractionState.Dragging);
       model._apiSpecificRenderWindow.setCursor('grabbing');
@@ -147,6 +167,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       publicAPI.invokeInteractionEvent();
       return macro.EVENT_ABORT;
     }
+
+    publicAPI.invokeHoverEvent({
+      ...eventData,
+      hovering: !!model.activeState,
+    });
 
     return macro.VOID;
   };

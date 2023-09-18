@@ -26,5 +26,6 @@ export interface vtkAnnotationToolWidget extends vtkAbstractWidget {
   getManipulator(): vtkPlaneManipulator;
   onRightClickEvent(cb: (eventData: any) => void): vtkSubscription;
   onPlacedEvent(cb: (eventData: any) => void): vtkSubscription;
+  onHoverEvent(cb: (eventData: any) => void): vtkSubscription;
   resetInteractions(): void;
 }

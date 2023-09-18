@@ -8,4 +8,5 @@ export enum Tools {
   Crosshairs = 'Crosshairs',
   Crop = 'Crop',
   Polygon = 'Polygon',
+  Select = 'Select',
 }
