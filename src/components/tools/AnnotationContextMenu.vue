@@ -102,7 +102,6 @@ const hideToolFromContextMenu = () => {
 
 <style scoped>
 .color-dot {
-  /* display: inline-block; */
   width: 24px;
   height: 24px;
   background: yellow;

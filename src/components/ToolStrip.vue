@@ -48,6 +48,15 @@
       />
     </groupable-item>
     <div class="my-1 tool-separator" />
+    <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Select">
+      <tool-button
+        icon="mdi-cursor-default"
+        name="Select"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :disabled="noCurrentImage"
+        @click="toggle"
+      />
+    </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
       <menu-tool-button
         icon="mdi-brush"

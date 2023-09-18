@@ -4,10 +4,12 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { LPSAxis } from '../types/lps';
-import { AnnotationTool, ContextMenuEvent } from '../types/annotation-tool';
-import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
-import { getCSSCoordinatesFromEvent } from '../utils/vtk-helpers';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
+import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
+import { getCSSCoordinatesFromEvent } from '@/src//utils/vtk-helpers';
+import { LPSAxis } from '@/src/types/lps';
+import { AnnotationTool, ContextMenuEvent } from '@/src/types/annotation-tool';
 import { usePopperState } from './usePopperState';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
@@ -173,5 +175,12 @@ export const useHover = <ToolID extends string>(
       : ({ visible: false } as Info)
   );
 
-  return { overlayInfo, onHover };
+  const toolStore = useToolStore();
+  const noInfoWithoutSelect = computed(() => {
+    if (toolStore.currentTool !== Tools.Select)
+      return { visible: false } as Info;
+    return overlayInfo.value;
+  });
+
+  return { overlayInfo: noInfoWithoutSelect, onHover };
 };
