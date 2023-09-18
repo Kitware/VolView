@@ -46,6 +46,7 @@ const hideToolFromContextMenu = () => {
 
 <template>
   <v-menu
+    v-if="tool"
     v-model="contextMenu.show"
     class="position-absolute"
     :style="{
