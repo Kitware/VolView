@@ -29,6 +29,7 @@ import {
   useRightClickContextMenu,
   useHoverEvent,
 } from '@/src/composables/annotationTool';
+import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -180,11 +181,16 @@ export default defineComponent({
       secondPoint: false,
     });
 
-    const widgetState = widgetFactory.getWidgetState();
-    onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () => {
+    const updateVisibleState = (widgetState: vtkRulerWidgetState) => {
       visibleStates.firstPoint = widgetState.getFirstPoint().getVisible();
       visibleStates.secondPoint = widgetState.getSecondPoint().getVisible();
-    });
+    };
+
+    const widgetState = widgetFactory.getWidgetState();
+    onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () =>
+      updateVisibleState(widgetState)
+    );
+    updateVisibleState(widgetState);
 
     return {
       tool,
