@@ -1,5 +1,4 @@
 import { Ref, computed, ref, watch } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -9,6 +8,7 @@ import { LPSAxis } from '../types/lps';
 import { AnnotationTool, ContextMenuEvent } from '../types/annotation-tool';
 import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '../utils/vtk-helpers';
+import { usePopperState } from './usePopperState';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
@@ -162,24 +162,14 @@ export const useHover = <ToolID extends string>(
       : ({ visible: false } as Info);
   });
 
-  // Debounced output
-  const overlayInfo = ref(synchronousOverlayInfo.value) as Ref<Info>;
+  const { isSet: showOverlay, reset: resetOverlay } =
+    usePopperState(SHOW_OVERLAY_DELAY);
 
-  const debouncedOverlayInfo = useDebounceFn((info: Info) => {
-    // if we moved off the tool (syncOverlay.visible === false), don't show overlay
-    if (synchronousOverlayInfo.value.visible) overlayInfo.value = info;
-  }, SHOW_OVERLAY_DELAY);
+  watch(synchronousOverlayInfo, resetOverlay);
 
-  watch(synchronousOverlayInfo, () => {
-    if (!synchronousOverlayInfo.value.visible)
-      overlayInfo.value = synchronousOverlayInfo.value;
-    else {
-      // Immediately set visible = false to hide overlay on mouse move, even if hovering true.
-      // Depends on widget sending hover events with every mouse move.
-      overlayInfo.value = { visible: false };
-      debouncedOverlayInfo({ ...synchronousOverlayInfo.value });
-    }
-  });
+  const overlayInfo = computed(() =>
+    showOverlay.value ? synchronousOverlayInfo.value : { visible: false }
+  );
 
   return { overlayInfo, onHover };
 };
