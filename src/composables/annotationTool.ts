@@ -168,7 +168,9 @@ export const useHover = <ToolID extends string>(
   watch(synchronousOverlayInfo, resetOverlay);
 
   const overlayInfo = computed(() =>
-    showOverlay.value ? synchronousOverlayInfo.value : { visible: false }
+    showOverlay.value
+      ? synchronousOverlayInfo.value
+      : ({ visible: false } as Info)
   );
 
   return { overlayInfo, onHover };

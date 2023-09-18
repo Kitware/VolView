@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="ToolID extends string">
 /* global ToolID:readonly */
-import { shallowReactive } from 'vue';
+import { computed, shallowReactive } from 'vue';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { ContextMenuEvent } from '@/src/types/annotation-tool';
 import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/utils';
@@ -29,6 +29,10 @@ defineExpose({
   open,
 });
 
+const tool = computed(() => {
+  return props.toolStore.toolByID[contextMenu.forToolID];
+});
+
 const deleteToolFromContextMenu = () => {
   props.toolStore.removeTool(contextMenu.forToolID);
 };
@@ -52,20 +56,57 @@ const hideToolFromContextMenu = () => {
     close-on-content-click
   >
     <v-list density="compact">
+      <v-list-item>
+        <template v-slot:prepend>
+          <div
+            class="color-dot v-icon"
+            :style="{ backgroundColor: tool.color }"
+          />
+        </template>
+        <v-list-item-title class="v-list-item--disabled">
+          {{ tool.labelName }}
+        </v-list-item-title>
+      </v-list-item>
+
+      <!-- Separate informative items from interactive items -->
+      <v-divider></v-divider>
+
       <v-list-item @click="hideToolFromContextMenu">
+        <template v-slot:prepend>
+          <v-icon>mdi-eye</v-icon>
+        </template>
         <v-list-item-title>Hide</v-list-item-title>
       </v-list-item>
+
       <v-list-item @click="deleteToolFromContextMenu">
+        <template v-slot:prepend>
+          <v-icon>mdi-delete</v-icon>
+        </template>
         <v-list-item-title>Delete Annotation</v-list-item-title>
       </v-list-item>
-      <!-- Optional items below stable item for muscle memory  -->
+
+      <!-- Optional items below stable items for muscle memory  -->
       <v-list-item
         v-for="action in contextMenu.widgetActions"
         @click="action.func"
         :key="action.name"
       >
+        <template v-slot:prepend>
+          <v-icon></v-icon>
+        </template>
         <v-list-item-title>{{ action.name }}</v-list-item-title>
       </v-list-item>
     </v-list>
   </v-menu>
 </template>
+
+<style scoped>
+.color-dot {
+  /* display: inline-block; */
+  width: 24px;
+  height: 24px;
+  background: yellow;
+  border-radius: 16px;
+  opacity: 1 !important;
+}
+</style>
