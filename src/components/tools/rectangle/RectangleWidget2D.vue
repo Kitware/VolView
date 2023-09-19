@@ -3,10 +3,7 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
-  onMounted,
-  onUnmounted,
   PropType,
-  Ref,
   ref,
   toRefs,
   watch,
@@ -28,8 +25,14 @@ import { RectangleID } from '@/src/types/rectangle';
 import {
   useRightClickContextMenu,
   useHoverEvent,
+  useWidgetVisibility,
 } from '@/src/composables/annotationTool';
 import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
+import { useViewStore } from '@/src/store/views';
+import {
+  useViewProxyMounted,
+  useViewProxyUnmounted,
+} from '@/src/composables/useViewProxy';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -42,7 +45,7 @@ export default defineComponent({
   emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
-      type: String,
+      type: String as unknown as PropType<ToolID>,
       required: true,
     },
     widgetManager: {
@@ -71,17 +74,20 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const {
-      toolId: stringToolId,
+      toolId,
+      viewId,
       widgetManager,
       viewDirection,
       currentSlice,
       isPlacing,
     } = toRefs(props);
-    const toolId = ref(stringToolId.value) as Ref<ToolID>;
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const viewProxy = computed(
+      () => useViewStore().getViewProxy(viewId.value)!
+    );
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
@@ -90,11 +96,11 @@ export default defineComponent({
     });
     const widget = ref<WidgetView | null>(null);
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(widgetFactory) as WidgetView;
     });
 
-    onUnmounted(() => {
+    useViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -137,7 +143,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -155,24 +161,8 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // toggles the pickability of the tool handles,
-    // since the 3D tool parts are visually hidden.
-    watch(
-      () => !!widget.value && tool.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
-
-    onMounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      // hide handle visibility, but not picking visibility
-      widget.value.setHandleVisibility(false);
-      widgetManager.value.renderWidgets();
-    });
+    const isVisible = computed(() => tool.value?.slice === currentSlice.value);
+    useWidgetVisibility(widget, isVisible, widgetManager, viewId);
 
     // --- handle pick visibility --- //
 

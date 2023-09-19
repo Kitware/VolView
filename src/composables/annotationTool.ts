@@ -11,7 +11,11 @@ import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '@/src//utils/vtk-helpers';
 import { LPSAxis } from '@/src/types/lps';
 import { AnnotationTool, ContextMenuEvent } from '@/src/types/annotation-tool';
-import { usePopperState } from './usePopperState';
+import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
+import { useViewStore } from '@/src/store/views';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
+import { usePopperState } from '@/src/composables/usePopperState';
+import { useViewProxyMounted } from '@/src/composables/useViewProxy';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
@@ -225,4 +229,33 @@ export const usePlacingAnnotationTool = <ToolID extends string>(
     add,
     remove,
   };
+};
+
+export const useWidgetVisibility = <T extends vtkAbstractWidget>(
+  widget: Ref<Maybe<T>>,
+  visible: Ref<boolean>,
+  widgetManager: Ref<vtkWidgetManager>,
+  viewId: Ref<string>
+) => {
+  // toggles the pickability of the ruler handles,
+  // since the 3D ruler parts are visually hidden.
+  watch(
+    () => !!widget.value && visible.value,
+    (visibility) => {
+      widget.value?.setVisibility(visibility);
+    },
+    { immediate: true }
+  );
+
+  const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value)!);
+
+  useViewProxyMounted(viewProxy, () => {
+    if (!widget.value) {
+      return;
+    }
+    // hide handle visibility, but not picking visibility
+    widget.value.setHandleVisibility(false);
+    widgetManager.value.renderWidgets();
+    viewProxy.value?.renderLater();
+  });
 };

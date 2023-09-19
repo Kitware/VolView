@@ -9,8 +9,6 @@ import {
   reactive,
   computed,
   defineComponent,
-  onMounted,
-  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -27,7 +25,13 @@ import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import {
   useRightClickContextMenu,
   useHoverEvent,
+  useWidgetVisibility,
 } from '@/src/composables/annotationTool';
+import { useViewStore } from '@/src/store/views';
+import {
+  useViewProxyMounted,
+  useViewProxyUnmounted,
+} from '@/src/composables/useViewProxy';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -62,12 +66,21 @@ export default defineComponent({
     RulerSVG2D,
   },
   setup(props, { emit }) {
-    const { rulerId, widgetManager, viewDirection, currentSlice, isPlacing } =
-      toRefs(props);
+    const {
+      rulerId,
+      viewId,
+      widgetManager,
+      viewDirection,
+      currentSlice,
+      isPlacing,
+    } = toRefs(props);
 
     const rulerStore = useRulerStore();
     const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const viewProxy = computed(
+      () => useViewStore().getViewProxy(viewId.value)!
+    );
 
     const widgetFactory = vtkRulerWidget.newInstance({
       id: rulerId.value,
@@ -76,13 +89,13 @@ export default defineComponent({
     });
     const widget = ref<vtkRulerViewWidget | null>(null);
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(
         widgetFactory
       ) as vtkRulerViewWidget;
     });
 
-    onUnmounted(() => {
+    useViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -127,7 +140,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -145,24 +158,8 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // toggles the pickability of the ruler handles,
-    // since the 3D ruler parts are visually hidden.
-    watch(
-      () => !!widget.value && ruler.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
-
-    onMounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      // hide handle visibility, but not picking visibility
-      widget.value.setHandleVisibility(false);
-      widgetManager.value.renderWidgets();
-    });
+    const isVisible = computed(() => ruler.value?.slice === currentSlice.value);
+    useWidgetVisibility(widget, isVisible, widgetManager, viewId);
 
     // --- handle pick visibility --- //
 
