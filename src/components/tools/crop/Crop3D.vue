@@ -23,7 +23,7 @@ import {
   toRefs,
   watch,
 } from 'vue';
-import { useViewProxyMounted } from '@/src/composables/useViewProxy';
+import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 
 function isValidCroppingPlanes(planes: LPSCroppingPlanes) {
   return (
@@ -93,7 +93,7 @@ export default defineComponent({
       }
     });
 
-    useViewProxyMounted(viewProxy, () => {
+    onViewProxyMounted(viewProxy, () => {
       if (widgetManager.value) {
         widget.value = widgetManager.value.addWidget(
           factory

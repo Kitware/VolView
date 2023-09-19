@@ -2,7 +2,7 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { CaptureOn } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { computed, onUnmounted, Ref, watch } from 'vue';
-import { useViewProxyMounted, useViewProxyUnmounted } from './useViewProxy';
+import { onViewProxyMounted, onViewProxyUnmounted } from './useViewProxy';
 
 export function useWidgetManager(viewProxy: Ref<vtkViewProxy>) {
   const widgetManager = computed(() => {
@@ -14,12 +14,12 @@ export function useWidgetManager(viewProxy: Ref<vtkViewProxy>) {
     return wm;
   });
 
-  useViewProxyMounted(viewProxy, () => {
+  onViewProxyMounted(viewProxy, () => {
     widgetManager.value.setRenderer(viewProxy.value.getRenderer());
     widgetManager.value.enablePicking();
   });
 
-  useViewProxyUnmounted(viewProxy, () => {
+  onViewProxyUnmounted(viewProxy, () => {
     widgetManager.value.disablePicking();
   });
 

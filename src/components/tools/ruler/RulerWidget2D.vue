@@ -29,8 +29,8 @@ import {
 } from '@/src/composables/annotationTool';
 import { useViewStore } from '@/src/store/views';
 import {
-  useViewProxyMounted,
-  useViewProxyUnmounted,
+  onViewProxyMounted,
+  onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
 
 export default defineComponent({
@@ -89,13 +89,13 @@ export default defineComponent({
     });
     const widget = ref<vtkRulerViewWidget | null>(null);
 
-    useViewProxyMounted(viewProxy, () => {
+    onViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(
         widgetFactory
       ) as vtkRulerViewWidget;
     });
 
-    useViewProxyUnmounted(viewProxy, () => {
+    onViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -140,7 +140,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    useViewProxyMounted(viewProxy, () => {
+    onViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }

@@ -15,7 +15,7 @@ import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import { useViewStore } from '@/src/store/views';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { usePopperState } from '@/src/composables/usePopperState';
-import { useViewProxyMounted } from '@/src/composables/useViewProxy';
+import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
@@ -249,7 +249,7 @@ export const useWidgetVisibility = <T extends vtkAbstractWidget>(
 
   const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value)!);
 
-  useViewProxyMounted(viewProxy, () => {
+  onViewProxyMounted(viewProxy, () => {
     if (!widget.value) {
       return;
     }

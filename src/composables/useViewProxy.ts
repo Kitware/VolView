@@ -61,7 +61,7 @@ function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   return mounted;
 }
 
-export function useViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
+export function onViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<T>,
   callback: () => void
 ) {
@@ -76,7 +76,7 @@ export function useViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
   );
 }
 
-export function useViewProxyUnmounted<T extends vtkViewProxy = vtkViewProxy>(
+export function onViewProxyUnmounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<T>,
   callback: () => void
 ) {
