@@ -6,7 +6,6 @@ import {
   onMounted,
   onUnmounted,
   PropType,
-  Ref,
   ref,
   toRefs,
   watch,
@@ -43,7 +42,7 @@ export default defineComponent({
   emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
-      type: String,
+      type: String as unknown as PropType<ToolID>,
       required: true,
     },
     widgetManager: {
@@ -72,14 +71,13 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const {
-      toolId: stringToolId,
+      toolId,
       viewId,
       widgetManager,
       viewDirection,
       currentSlice,
       isPlacing,
     } = toRefs(props);
-    const toolId = ref(stringToolId.value) as Ref<ToolID>;
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
