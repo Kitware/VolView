@@ -4,8 +4,6 @@ import {
   reactive,
   computed,
   defineComponent,
-  onMounted,
-  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -29,6 +27,11 @@ import vtkWidgetFactory, {
 } from '@/src/vtk/PolygonWidget';
 import { Maybe } from '@/src/types';
 import { Vector3 } from '@kitware/vtk.js/types';
+import { useViewStore } from '@/src/store/views';
+import {
+  useViewProxyMounted,
+  useViewProxyUnmounted,
+} from '@/src/composables/useViewProxy';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
@@ -76,6 +79,9 @@ export default defineComponent({
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const viewProxy = computed(
+      () => useViewStore().getViewProxy(viewId.value)!
+    );
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
@@ -83,11 +89,11 @@ export default defineComponent({
     });
     const widget = ref<WidgetView | null>(null);
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(widgetFactory) as WidgetView;
     });
 
-    onUnmounted(() => {
+    useViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -119,7 +125,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }

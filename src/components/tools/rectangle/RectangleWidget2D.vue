@@ -3,8 +3,6 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
-  onMounted,
-  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -30,6 +28,11 @@ import {
   useWidgetVisibility,
 } from '@/src/composables/annotationTool';
 import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
+import { useViewStore } from '@/src/store/views';
+import {
+  useViewProxyMounted,
+  useViewProxyUnmounted,
+} from '@/src/composables/useViewProxy';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -82,6 +85,9 @@ export default defineComponent({
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const viewProxy = computed(
+      () => useViewStore().getViewProxy(viewId.value)!
+    );
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
@@ -90,11 +96,11 @@ export default defineComponent({
     });
     const widget = ref<WidgetView | null>(null);
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(widgetFactory) as WidgetView;
     });
 
-    onUnmounted(() => {
+    useViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -137,7 +143,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }

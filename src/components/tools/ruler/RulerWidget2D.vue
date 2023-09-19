@@ -9,8 +9,6 @@ import {
   reactive,
   computed,
   defineComponent,
-  onMounted,
-  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -29,6 +27,11 @@ import {
   useHoverEvent,
   useWidgetVisibility,
 } from '@/src/composables/annotationTool';
+import { useViewStore } from '@/src/store/views';
+import {
+  useViewProxyMounted,
+  useViewProxyUnmounted,
+} from '@/src/composables/useViewProxy';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -75,6 +78,9 @@ export default defineComponent({
     const rulerStore = useRulerStore();
     const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const viewProxy = computed(
+      () => useViewStore().getViewProxy(viewId.value)!
+    );
 
     const widgetFactory = vtkRulerWidget.newInstance({
       id: rulerId.value,
@@ -83,13 +89,13 @@ export default defineComponent({
     });
     const widget = ref<vtkRulerViewWidget | null>(null);
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(
         widgetFactory
       ) as vtkRulerViewWidget;
     });
 
-    onUnmounted(() => {
+    useViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -134,7 +140,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    useViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }

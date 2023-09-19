@@ -1,4 +1,4 @@
-import { Ref, UnwrapRef, computed, onMounted, readonly, ref, watch } from 'vue';
+import { Ref, UnwrapRef, computed, readonly, ref, watch } from 'vue';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -15,6 +15,7 @@ import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import { useViewStore } from '@/src/store/views';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { usePopperState } from '@/src/composables/usePopperState';
+import { useViewProxyMounted } from '@/src/composables/useViewProxy';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
@@ -246,9 +247,9 @@ export const useWidgetVisibility = <T extends vtkAbstractWidget>(
     { immediate: true }
   );
 
-  const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+  const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value)!);
 
-  onMounted(() => {
+  useViewProxyMounted(viewProxy, () => {
     if (!widget.value) {
       return;
     }
