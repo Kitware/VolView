@@ -30,8 +30,8 @@ import {
 import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 import { useViewStore } from '@/src/store/views';
 import {
-  useViewProxyMounted,
-  useViewProxyUnmounted,
+  onViewProxyMounted,
+  onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
 
 const useStore = useRectangleStore;
@@ -85,9 +85,7 @@ export default defineComponent({
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const viewProxy = computed(
-      () => useViewStore().getViewProxy(viewId.value)!
-    );
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
@@ -96,11 +94,11 @@ export default defineComponent({
     });
     const widget = ref<WidgetView | null>(null);
 
-    useViewProxyMounted(viewProxy, () => {
+    onViewProxyMounted(viewProxy, () => {
       widget.value = widgetManager.value.addWidget(widgetFactory) as WidgetView;
     });
 
-    useViewProxyUnmounted(viewProxy, () => {
+    onViewProxyUnmounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
@@ -143,7 +141,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    useViewProxyMounted(viewProxy, () => {
+    onViewProxyMounted(viewProxy, () => {
       if (!widget.value) {
         return;
       }
