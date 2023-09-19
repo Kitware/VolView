@@ -247,7 +247,7 @@ export const useWidgetVisibility = <T extends vtkAbstractWidget>(
     { immediate: true }
   );
 
-  const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value)!);
+  const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
   onViewProxyMounted(viewProxy, () => {
     if (!widget.value) {

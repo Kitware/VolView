@@ -79,9 +79,7 @@ export default defineComponent({
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const viewProxy = computed(
-      () => useViewStore().getViewProxy(viewId.value)!
-    );
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,

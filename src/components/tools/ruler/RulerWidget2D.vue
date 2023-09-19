@@ -78,9 +78,7 @@ export default defineComponent({
     const rulerStore = useRulerStore();
     const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const viewProxy = computed(
-      () => useViewStore().getViewProxy(viewId.value)!
-    );
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     const widgetFactory = vtkRulerWidget.newInstance({
       id: rulerId.value,

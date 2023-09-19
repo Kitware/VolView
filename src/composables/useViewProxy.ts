@@ -40,13 +40,13 @@ export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
 }
 
 function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
-  viewProxy: MaybeRef<T>
+  viewProxy: MaybeRef<Maybe<T>>
 ) {
   const mounted = ref(false);
 
-  const container = ref<Maybe<HTMLElement>>(unref(viewProxy).getContainer());
+  const container = ref<Maybe<HTMLElement>>(unref(viewProxy)?.getContainer());
   onVTKEvent<vtkViewProxy, 'onModified'>(viewProxy, 'onModified', () => {
-    container.value = unref(viewProxy).getContainer();
+    container.value = unref(viewProxy)?.getContainer();
   });
 
   const { width, height } = useElementSize(container);
@@ -62,7 +62,7 @@ function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
 }
 
 export function onViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
-  viewProxy: MaybeRef<T>,
+  viewProxy: MaybeRef<Maybe<T>>,
   callback: () => void
 ) {
   const mounted = useMountedViewProxy(viewProxy);
@@ -77,7 +77,7 @@ export function onViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
 }
 
 export function onViewProxyUnmounted<T extends vtkViewProxy = vtkViewProxy>(
-  viewProxy: MaybeRef<T>,
+  viewProxy: MaybeRef<Maybe<T>>,
   callback: () => void
 ) {
   const mounted = useMountedViewProxy(viewProxy);
