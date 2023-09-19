@@ -4,6 +4,7 @@ import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
 import { watchStore } from '@/src/vtk/ToolWidgetUtils/utils';
 import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
+import { toRaw } from 'vue';
 
 const PIXEL_SIZE = ANNOTATION_TOOL_HANDLE_RADIUS * 2;
 
@@ -28,7 +29,7 @@ function _createPointState(
   const updateTool = (patch) => model._store.updateTool(model.id, patch);
 
   publicAPI.getOrigin = () => {
-    return getTool()?.[model.key];
+    return toRaw(getTool()?.[model.key]);
   };
 
   publicAPI.setOrigin = (xyz) => {
