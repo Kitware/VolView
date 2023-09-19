@@ -5,13 +5,15 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { InteractionState } from './behavior';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-import { vtkAnnotationToolWidget } from '../ToolWidgetUtils/utils';
+import {
+  vtkAnnotationToolWidget,
+  vtkAnnotationWidgetPointState,
+} from '../ToolWidgetUtils/utils';
 
 export { InteractionState } from './behavior';
 
-export interface vtkRulerWidgetPointState extends vtkWidgetState {
-  getVisible(): boolean;
-}
+export interface vtkRulerWidgetPointState
+  extends vtkAnnotationWidgetPointState {}
 
 export interface vtkRulerWidgetState extends vtkWidgetState {
   setIsPlaced(isPlaced: boolean): boolean;

@@ -1,7 +1,9 @@
 import { Maybe } from '@/src/types';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
+import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
+import { Vector3 } from '@kitware/vtk.js/types';
 import { Store } from 'pinia';
 
 export function watchStore<T>(
@@ -52,4 +54,9 @@ export interface vtkAnnotationToolWidget extends vtkAbstractWidget {
   onPlacedEvent(cb: (eventData: any) => void): vtkSubscription;
   onHoverEvent(cb: (eventData: any) => void): vtkSubscription;
   resetInteractions(): void;
+}
+
+export interface vtkAnnotationWidgetPointState extends vtkWidgetState {
+  getVisible(): boolean;
+  getOrigin(): Vector3 | null;
 }

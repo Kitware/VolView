@@ -4,11 +4,13 @@ import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidge
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import { vtkAnnotationToolWidget } from '../ToolWidgetUtils/utils';
+import {
+  vtkAnnotationToolWidget,
+  vtkAnnotationWidgetPointState,
+} from '../ToolWidgetUtils/utils';
 
-export interface vtkPolygonWidgetPointState extends vtkWidgetState {
-  getVisible(): boolean;
-}
+export interface vtkPolygonWidgetPointState
+  extends vtkAnnotationWidgetPointState {}
 
 export interface vtkPolygonWidgetState extends vtkWidgetState {
   getMoveHandle(): any;
