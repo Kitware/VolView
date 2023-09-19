@@ -27,6 +27,7 @@ import RulerSVG2D from '@/src/components/tools/ruler/RulerSVG2D.vue';
 import {
   useRightClickContextMenu,
   useHoverEvent,
+  useWidgetVisibility,
 } from '@/src/composables/annotationTool';
 
 export default defineComponent({
@@ -62,8 +63,14 @@ export default defineComponent({
     RulerSVG2D,
   },
   setup(props, { emit }) {
-    const { rulerId, widgetManager, viewDirection, currentSlice, isPlacing } =
-      toRefs(props);
+    const {
+      rulerId,
+      viewId,
+      widgetManager,
+      viewDirection,
+      currentSlice,
+      isPlacing,
+    } = toRefs(props);
 
     const rulerStore = useRulerStore();
     const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
@@ -145,24 +152,8 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // toggles the pickability of the ruler handles,
-    // since the 3D ruler parts are visually hidden.
-    watch(
-      () => !!widget.value && ruler.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
-
-    onMounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      // hide handle visibility, but not picking visibility
-      widget.value.setHandleVisibility(false);
-      widgetManager.value.renderWidgets();
-    });
+    const isVisible = computed(() => ruler.value?.slice === currentSlice.value);
+    useWidgetVisibility(widget, isVisible, widgetManager, viewId);
 
     // --- handle pick visibility --- //
 

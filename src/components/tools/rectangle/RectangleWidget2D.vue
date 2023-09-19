@@ -28,6 +28,7 @@ import { RectangleID } from '@/src/types/rectangle';
 import {
   useRightClickContextMenu,
   useHoverEvent,
+  useWidgetVisibility,
 } from '@/src/composables/annotationTool';
 import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 
@@ -72,6 +73,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const {
       toolId: stringToolId,
+      viewId,
       widgetManager,
       viewDirection,
       currentSlice,
@@ -155,24 +157,8 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // toggles the pickability of the tool handles,
-    // since the 3D tool parts are visually hidden.
-    watch(
-      () => !!widget.value && tool.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
-
-    onMounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      // hide handle visibility, but not picking visibility
-      widget.value.setHandleVisibility(false);
-      widgetManager.value.renderWidgets();
-    });
+    const isVisible = computed(() => tool.value?.slice === currentSlice.value);
+    useWidgetVisibility(widget, isVisible, widgetManager, viewId);
 
     // --- handle pick visibility --- //
 

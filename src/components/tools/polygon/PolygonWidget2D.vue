@@ -21,6 +21,7 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import {
   useHoverEvent,
   useRightClickContextMenu,
+  useWidgetVisibility,
 } from '@/src/composables/annotationTool';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
 import { PolygonID as ToolID } from '@/src/types/polygon';
@@ -66,6 +67,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const {
       toolId: stringToolId,
+      viewId,
       widgetManager,
       viewDirection,
       currentSlice,
@@ -137,24 +139,8 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    // toggles the pickability of the tool handles,
-    // since the 3D tool parts are visually hidden.
-    watch(
-      () => !!widget.value && tool.value?.slice === currentSlice.value,
-      (visible) => {
-        widget.value?.setVisibility(visible);
-      },
-      { immediate: true }
-    );
-
-    onMounted(() => {
-      if (!widget.value) {
-        return;
-      }
-      // hide handle visibility, but not picking visibility
-      widget.value.setHandleVisibility(false);
-      widgetManager.value.renderWidgets();
-    });
+    const isVisible = computed(() => tool.value?.slice === currentSlice.value);
+    useWidgetVisibility(widget, isVisible, widgetManager, viewId);
 
     // --- //
 
