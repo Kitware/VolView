@@ -1,11 +1,11 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <bounding-rectangle :points="points" :view-id="viewId" />
+      <bounding-rectangle :points="visiblePoints" :view-id="viewId" />
       <ruler-widget-2D
         v-for="ruler in rulers"
         :key="ruler.id"
-        :ruler-id="ruler.id"
+        :tool-id="ruler.id"
         :is-placing="ruler.id === placingRulerID"
         :current-slice="currentSlice"
         :view-id="viewId"
@@ -13,6 +13,7 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(ruler.id, $event)"
         @placed="onRulerPlaced"
+        @select="onSelect(ruler.id, $event)"
         @widgetHover="onHover(ruler.id, $event)"
       />
     </svg>
@@ -32,7 +33,11 @@ import {
 } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
-import { Tools } from '@/src/store/tools/types';
+import {
+  Tools,
+  AnnotationToolType,
+  ToolSelectEvent,
+} from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
@@ -49,6 +54,11 @@ import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
+import {
+  useToolSelectionStore,
+  updateToolSelectionFromEvent,
+} from '@/src/store/tools/toolSelection';
+import { ToolID } from '@/src/types/annotation-tool';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -130,6 +140,14 @@ export default defineComponent({
       }
     };
 
+    // --- selection handling --- //
+
+    const selectionStore = useToolSelectionStore();
+
+    const onSelect = (id: ToolID, event: ToolSelectEvent) => {
+      updateToolSelectionFromEvent(id, event, AnnotationToolType.Ruler);
+    };
+
     // --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
@@ -148,10 +166,11 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
 
-    const points = computed(() => {
-      if (!overlayInfo.value.visible) return [];
-      const tool = rulerStore.toolByID[overlayInfo.value.toolID];
-      return [tool.firstPoint, tool.secondPoint];
+    const visiblePoints = computed(() => {
+      return currentTools.value
+        .filter((tool) => tool.slice === currentSlice.value)
+        .filter((tool) => selectionStore.isSelected(tool.id))
+        .flatMap((tool) => [tool.firstPoint, tool.secondPoint]);
     });
 
     return {
@@ -162,8 +181,9 @@ export default defineComponent({
       openContextMenu,
       rulerStore,
       onHover,
+      onSelect,
       overlayInfo,
-      points,
+      visiblePoints,
     };
   },
 });

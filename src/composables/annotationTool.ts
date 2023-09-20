@@ -42,15 +42,16 @@ const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
   return !!toolAxis && toolAxis.axis === viewAxis.value;
 };
 
-export const useCurrentTools = (
-  toolStore: AnnotationToolStore,
+export const useCurrentTools = <S extends AnnotationToolStore>(
+  toolStore: S,
   viewAxis: Ref<LPSAxis>
 ) =>
   computed(() => {
     const { currentImageID } = useCurrentImage();
     const curImageID = currentImageID.value;
 
-    return toolStore.tools.filter((tool) => {
+    type ToolType = S['tools'][number];
+    return (toolStore.tools as Array<ToolType>).filter((tool) => {
       // only show tools for the current image,
       // current view axis and not hidden
       return (

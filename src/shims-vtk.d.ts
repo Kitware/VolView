@@ -7,11 +7,6 @@ declare module '@kitware/vtk.js/vtk' {
   export default vtk;
 }
 
-declare module '@kitware/vtk.js/interfaces-additions' {
-  import { EVENT_ABORT, VOID } from '@kitware/vtk.js/macros';
-  export type EventHandler = (...any: args[]) => EVENT_ABORT | VOID | void;
-}
-
 declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Presets' {
   export default any;
 }

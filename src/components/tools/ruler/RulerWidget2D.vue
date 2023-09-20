@@ -33,12 +33,13 @@ import {
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
 import { ToolID } from '@/src/types/annotation-tool';
+import { ToolSelectEvent } from '@/src/store/tools/types';
 
 export default defineComponent({
   name: 'RulerWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placed', 'contextmenu', 'widgetHover', 'select'],
   props: {
-    rulerId: {
+    toolId: {
       type: String as unknown as PropType<ToolID>,
       required: true,
     },
@@ -68,7 +69,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const {
-      rulerId,
+      toolId,
       viewId,
       widgetManager,
       viewDirection,
@@ -77,12 +78,12 @@ export default defineComponent({
     } = toRefs(props);
 
     const rulerStore = useRulerStore();
-    const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
+    const ruler = computed(() => rulerStore.rulerByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     const widgetFactory = vtkRulerWidget.newInstance({
-      id: rulerId.value,
+      id: toolId.value,
       store: rulerStore,
       isPlaced: !isPlacing.value,
     });
@@ -130,6 +131,12 @@ export default defineComponent({
     });
 
     useHoverEvent(emit, widget);
+
+    // --- selection handling --- //
+
+    onVTKEvent(widget, 'onSelectEvent', (event: ToolSelectEvent) => {
+      emit('select', event);
+    });
 
     // --- right click handling --- //
 

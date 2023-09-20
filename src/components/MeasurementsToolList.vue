@@ -5,8 +5,11 @@ import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReferenc
 import { nonNullable } from '@/src/utils/index';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { useAnnotationToolStore } from '@/src/store/tools';
+import {
+  useMultipleToolSelection,
+  MultipleSelectionState,
+} from '@/src/composables/useMultipleToolSelection';
 import MeasurementToolDetails from './MeasurementToolDetails.vue';
-import { useMultiSelection } from '../composables/useMultiSelection';
 import { AnnotationTool } from '../types/annotation-tool';
 
 type AnnotationToolConfig = {
@@ -50,7 +53,9 @@ const tools = computed(() => {
       const store = useAnnotationToolStore(type);
       const toolsWithAxis = getTools(type);
       return toolsWithAxis.map((tool) => ({
-        ...tool,
+        id: tool.id,
+        type,
+        toolData: tool,
         icon,
         details,
         remove: () => store.removeTool(tool.id),
@@ -69,10 +74,16 @@ const tools = computed(() => {
 
 // --- selection and batch actions  --- //
 
-const toolIds = computed(() => tools.value.map((tool) => tool.id));
+const { selectAll, deselectAll, selected, selectionState } =
+  useMultipleToolSelection(tools);
 
-const { selected, selectedAll, selectedSome, toggleSelectAll } =
-  useMultiSelection(toolIds);
+const toggleSelectAll = (shouldSelectAll: boolean) => {
+  if (shouldSelectAll) {
+    selectAll();
+  } else {
+    deselectAll();
+  }
+};
 
 const forEachSelectedTool = (
   callback: (tool: (typeof tools.value)[number]) => void
@@ -93,7 +104,7 @@ const allHidden = computed(() => {
   return selected.value
     .map((id) => tools.value.find((tool) => id === tool.id))
     .filter(nonNullable)
-    .every((tool) => tool.hidden);
+    .every((tool) => tool.toolData.hidden);
 });
 
 function toggleGlobalHidden() {
@@ -108,10 +119,11 @@ function toggleGlobalHidden() {
   <v-row no-gutters justify="space-between" align="center" class="mb-1">
     <v-col class="d-flex">
       <v-checkbox
-        :indeterminate="selectedSome && !selectedAll"
+        class="ml-3"
+        :indeterminate="selectionState === MultipleSelectionState.Some"
         label="Select All"
-        v-model="selectedAll"
-        @click.stop="toggleSelectAll"
+        :model-value="selectionState === MultipleSelectionState.All"
+        @update:model-value="toggleSelectAll"
         density="compact"
         hide-details
       />
@@ -126,7 +138,7 @@ function toggleGlobalHidden() {
       <v-btn
         icon
         variant="text"
-        :disabled="!selectedSome"
+        :disabled="selectionState === MultipleSelectionState.None"
         @click.stop="toggleGlobalHidden"
       >
         <v-icon v-if="allHidden">mdi-eye-off</v-icon>
@@ -138,11 +150,15 @@ function toggleGlobalHidden() {
       <v-btn
         icon
         variant="text"
-        :disabled="!selectedSome"
+        :disabled="selectionState === MultipleSelectionState.None"
         @click.stop="removeAll"
       >
         <v-icon>mdi-delete</v-icon>
-        <v-tooltip :disabled="!selectedSome" location="top" activator="parent">
+        <v-tooltip
+          :disabled="selectionState === MultipleSelectionState.None"
+          location="top"
+          activator="parent"
+        >
           Delete selected
         </v-tooltip>
       </v-btn>
@@ -166,10 +182,10 @@ function toggleGlobalHidden() {
 
         <div
           class="color-dot flex-shrink-0 mr-2"
-          :style="{ backgroundColor: tool.color }"
+          :style="{ backgroundColor: tool.toolData.color }"
         />
         <v-list-item-title v-bind="$attrs">
-          {{ tool.labelName }}
+          {{ tool.toolData.labelName }}
         </v-list-item-title>
 
         <span class="ml-auto flex-shrink-0">
@@ -180,10 +196,10 @@ function toggleGlobalHidden() {
             </v-tooltip>
           </v-btn>
           <v-btn icon variant="text" @click="tool.toggleHidden()">
-            <v-icon v-if="tool.hidden">mdi-eye-off</v-icon>
+            <v-icon v-if="tool.toolData.hidden">mdi-eye-off</v-icon>
             <v-icon v-else>mdi-eye</v-icon>
             <v-tooltip location="top" activator="parent">{{
-              tool.hidden ? 'Show' : 'Hide'
+              tool.toolData.hidden ? 'Show' : 'Hide'
             }}</v-tooltip>
           </v-btn>
           <v-btn icon variant="text" @click="tool.remove()">
@@ -195,7 +211,7 @@ function toggleGlobalHidden() {
 
       <v-row class="mt-4">
         <v-list-item-subtitle class="w-100">
-          <component :is="tool.details" :tool="tool" />
+          <component :is="tool.details" :tool="tool.toolData" />
         </v-list-item-subtitle>
       </v-row>
     </v-container>

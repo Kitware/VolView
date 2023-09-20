@@ -1,3 +1,4 @@
+import { VTKEventHandler } from '@/src/composables/onVTKEvent';
 import { Maybe } from '@/src/types';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
@@ -50,9 +51,10 @@ export type WidgetAction = {
 export interface vtkAnnotationToolWidget extends vtkAbstractWidget {
   setManipulator(manipulator: vtkPlaneManipulator): boolean;
   getManipulator(): vtkPlaneManipulator;
-  onRightClickEvent(cb: (eventData: any) => void): vtkSubscription;
-  onPlacedEvent(cb: (eventData: any) => void): vtkSubscription;
-  onHoverEvent(cb: (eventData: any) => void): vtkSubscription;
+  onRightClickEvent(cb: VTKEventHandler): vtkSubscription;
+  onPlacedEvent(cb: VTKEventHandler): vtkSubscription;
+  onHoverEvent(cb: VTKEventHandler): vtkSubscription;
+  onSelectEvent(cb: VTKEventHandler): vtkSubscription;
   resetInteractions(): void;
 }
 
