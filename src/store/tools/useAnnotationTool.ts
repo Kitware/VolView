@@ -16,6 +16,7 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, Labels } from './useLabels';
 
@@ -108,6 +109,9 @@ export const useAnnotationTool = <
 
     removeFromArray(toolIDs.value, id);
     delete toolByID.value[id];
+
+    const selectionStore = useToolSelectionStore();
+    selectionStore.removeSelection(id);
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {

@@ -9,6 +9,7 @@ import {
   useMultipleToolSelection,
   MultipleSelectionState,
 } from '@/src/composables/useMultipleToolSelection';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import MeasurementToolDetails from './MeasurementToolDetails.vue';
 import { AnnotationTool } from '../types/annotation-tool';
 
@@ -74,8 +75,14 @@ const tools = computed(() => {
 
 // --- selection and batch actions  --- //
 
-const { selectAll, deselectAll, selected, selectionState } =
-  useMultipleToolSelection(tools);
+const selectionStore = useToolSelectionStore();
+
+const {
+  selectAll,
+  deselectAll,
+  selected,
+  selectionState: visibleSelectionState,
+} = useMultipleToolSelection(tools);
 
 const toggleSelectAll = (shouldSelectAll: boolean) => {
   if (shouldSelectAll) {
@@ -88,14 +95,15 @@ const toggleSelectAll = (shouldSelectAll: boolean) => {
 const forEachSelectedTool = (
   callback: (tool: (typeof tools.value)[number]) => void
 ) =>
-  selected.value
-    .map((id) => tools.value.find((tool) => id === tool.id))
-    .filter(nonNullable)
+  tools.value
+    .filter((tool) => selectionStore.isSelected(tool.id))
     .forEach(callback);
 
 function removeAll() {
-  forEachSelectedTool((tool) => tool.remove());
-  selected.value = [];
+  selectionStore.selection.forEach((sel) => {
+    const store = useAnnotationToolStore(sel.type);
+    store.removeTool(sel.id);
+  });
 }
 
 // If all selected tools are already hidden, it should be "show".
@@ -113,6 +121,30 @@ function toggleGlobalHidden() {
     tool.updateTool({ hidden });
   });
 }
+
+// info about selection that spans multiple images
+const selectedIDsFromOtherImages = computed(() => {
+  const visibleSelection = new Set(tools.value.map((tool) => tool.id));
+  return selectionStore.selection
+    .filter((sel) => !visibleSelection.has(sel.id))
+    .map((sel) => sel.id);
+});
+
+function deselectAllFromOtherImages() {
+  selectedIDsFromOtherImages.value.forEach((id) => {
+    selectionStore.removeSelection(id);
+  });
+}
+
+// augments the visible selection with the selection from other images
+const selectionState = computed(() => {
+  const sizeOfOtherSelection = selectedIDsFromOtherImages.value.length;
+  if (visibleSelectionState.value !== MultipleSelectionState.None)
+    return visibleSelectionState.value;
+  return sizeOfOtherSelection
+    ? MultipleSelectionState.Some
+    : MultipleSelectionState.None;
+});
 </script>
 
 <template>
@@ -164,6 +196,27 @@ function toggleGlobalHidden() {
       </v-btn>
     </v-col>
   </v-row>
+
+  <v-list-item v-if="selectedIDsFromOtherImages.length">
+    <v-container>
+      <v-row class="d-flex align-center main-row">
+        <v-checkbox
+          class="no-grow mr-4"
+          density="compact"
+          hide-details
+          :model-value="true"
+          @click.stop="deselectAllFromOtherImages"
+        />
+        <v-list-item-title class="d-flex align-center">
+          <v-icon size="small" color="warning" class="mr-2">
+            mdi-alert-circle-outline
+          </v-icon>
+          {{ selectedIDsFromOtherImages.length }}
+          selected annotation(s) on other images
+        </v-list-item-title>
+      </v-row></v-container
+    >
+  </v-list-item>
 
   <v-list-item v-for="tool in tools" :key="tool.id">
     <v-container>
