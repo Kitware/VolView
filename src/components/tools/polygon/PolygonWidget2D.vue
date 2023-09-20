@@ -21,7 +21,6 @@ import {
   useWidgetVisibility,
 } from '@/src/composables/annotationTool';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
-import { PolygonID as ToolID } from '@/src/types/polygon';
 import vtkWidgetFactory, {
   vtkPolygonViewWidget as WidgetView,
 } from '@/src/vtk/PolygonWidget';
@@ -32,6 +31,7 @@ import {
   onViewProxyMounted,
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
+import { ToolID } from '@/src/types/annotation-tool';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({

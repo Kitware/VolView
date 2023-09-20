@@ -3,7 +3,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { AnnotationTool } from '../types/annotation-tool';
 
 defineProps<{
-  tool: AnnotationTool<string> & { axis: string };
+  tool: AnnotationTool & { axis: string };
 }>();
 
 const toolStore = useRulerStore();

@@ -1,5 +1,4 @@
-<script setup lang="ts" generic="ToolID extends string">
-/* global ToolID:readonly */
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '../types/annotation-tool';
@@ -7,7 +6,7 @@ import { standardizeColor } from '../utils';
 
 const props = defineProps<{
   label: string;
-  labelsStore: LabelsStore<AnnotationTool<ToolID>>;
+  labelsStore: LabelsStore<AnnotationTool>;
 }>();
 
 const label = computed(() => props.labelsStore.labels[props.label]);

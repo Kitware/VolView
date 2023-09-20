@@ -10,7 +10,11 @@ import { Tools } from '@/src/store/tools/types';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '@/src//utils/vtk-helpers';
 import { LPSAxis } from '@/src/types/lps';
-import { AnnotationTool, ContextMenuEvent } from '@/src/types/annotation-tool';
+import {
+  AnnotationTool,
+  ContextMenuEvent,
+  ToolID,
+} from '@/src/types/annotation-tool';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import { useViewStore } from '@/src/store/views';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
@@ -21,10 +25,7 @@ const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
-const doesToolFrameMatchViewAxis = <
-  ToolID extends string,
-  Tool extends AnnotationTool<ToolID>
->(
+const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
   viewAxis: Ref<LPSAxis>,
   tool: Partial<Tool>
 ) => {
@@ -41,8 +42,8 @@ const doesToolFrameMatchViewAxis = <
   return !!toolAxis && toolAxis.axis === viewAxis.value;
 };
 
-export const useCurrentTools = <ToolID extends string>(
-  toolStore: AnnotationToolStore<ToolID>,
+export const useCurrentTools = (
+  toolStore: AnnotationToolStore,
   viewAxis: Ref<LPSAxis>
 ) =>
   computed(() => {
@@ -62,7 +63,7 @@ export const useCurrentTools = <ToolID extends string>(
 
 // --- Context Menu --- //
 
-export const useContextMenu = <ToolID extends string>() => {
+export const useContextMenu = () => {
   const contextMenu = ref<{
     open: (id: ToolID, e: ContextMenuEvent) => void;
   } | null>(null);
@@ -107,7 +108,7 @@ export const useHoverEvent = (
   });
 };
 
-export type OverlayInfo<ToolID> =
+export type OverlayInfo =
   | {
       visible: false;
     }
@@ -119,11 +120,11 @@ export type OverlayInfo<ToolID> =
 
 // Maintains list of tools' hover states.
 // If one tool hovered, overlayInfo.visible === true with toolID and displayXY.
-export const useHover = <ToolID extends string>(
-  tools: Ref<Array<AnnotationTool<ToolID>>>,
+export const useHover = (
+  tools: Ref<Array<AnnotationTool>>,
   currentSlice: Ref<number>
 ) => {
-  type Info = OverlayInfo<ToolID>;
+  type Info = OverlayInfo;
   const toolHoverState = ref({}) as Ref<Record<ToolID, Info>>;
 
   const toolsOnCurrentSlice = computed(() =>
@@ -190,9 +191,9 @@ export const useHover = <ToolID extends string>(
   return { overlayInfo: noInfoWithoutSelect, onHover };
 };
 
-export const usePlacingAnnotationTool = <ToolID extends string>(
-  store: AnnotationToolStore<ToolID>,
-  metadata: Ref<Partial<AnnotationTool<ToolID>>>
+export const usePlacingAnnotationTool = (
+  store: AnnotationToolStore,
+  metadata: Ref<Partial<AnnotationTool>>
 ) => {
   const id = ref<Maybe<ToolID>>(null);
 

@@ -2,8 +2,10 @@ import type { Vector2 } from '@kitware/vtk.js/types';
 import { FrameOfReference } from '../utils/frameOfReference';
 import { WidgetAction } from '../vtk/ToolWidgetUtils/utils';
 
-export type AnnotationTool<ID extends string> = {
-  id: ID;
+export type ToolID = string & { __type: 'ToolID' };
+
+export type AnnotationTool = {
+  id: ToolID;
   /**
    * The associated image dataset.
    *

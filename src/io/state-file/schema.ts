@@ -6,7 +6,7 @@ import vtkPiecewiseFunctionProxy, {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-import type { AnnotationTool } from '@/src/types/annotation-tool';
+import type { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
 import { Ruler } from '@/src/types/ruler';
 import { Rectangle } from '@/src/types/rectangle';
@@ -254,12 +254,12 @@ const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
-  id: z.string(),
+  id: z.string() as unknown as z.ZodType<ToolID>,
   name: z.string(),
   color: z.string(),
   label: z.string().optional(),
   labelName: z.string().optional(),
-}) satisfies z.ZodType<AnnotationTool<string>>;
+}) satisfies z.ZodType<AnnotationTool>;
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({ tools: z.array(tool), labels: z.record(tool.partial()) });
@@ -272,14 +272,13 @@ const Ruler = annotationTool.extend({
 const Rulers = makeToolEntry(Ruler);
 
 const Rectangle = Ruler.extend({
-  id: z.string() as unknown as z.ZodType<Rectangle['id']>,
   fillColor: z.string().optional(),
 }) satisfies z.ZodType<Optional<Rectangle, 'fillColor'>>;
 
 const Rectangles = makeToolEntry(Rectangle);
 
 const Polygon = annotationTool.extend({
-  id: z.string() as unknown as z.ZodType<Polygon['id']>,
+  id: z.string() as unknown as z.ZodType<ToolID>,
   points: z.array(Vector3),
 }) satisfies z.ZodType<Omit<Polygon, 'movePoint'>>;
 
