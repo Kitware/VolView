@@ -1,12 +1,11 @@
-<script setup lang="ts" generic="ToolID extends string">
-/* global ToolID:readonly */
+<script setup lang="ts">
 import { computed, shallowReactive } from 'vue';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
-import { ContextMenuEvent } from '@/src/types/annotation-tool';
+import { ContextMenuEvent, ToolID } from '@/src/types/annotation-tool';
 import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/utils';
 
 const props = defineProps<{
-  toolStore: AnnotationToolStore<ToolID>;
+  toolStore: AnnotationToolStore;
 }>();
 
 const contextMenu = shallowReactive({

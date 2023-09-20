@@ -2,7 +2,7 @@
 import { AnnotationTool } from '../types/annotation-tool';
 
 defineProps<{
-  tool: AnnotationTool<string> & { axis: string };
+  tool: AnnotationTool & { axis: string };
 }>();
 </script>
 

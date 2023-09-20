@@ -10,4 +10,4 @@ export type Ruler = {
    * Point is in image index space.
    */
   secondPoint: Vector3;
-} & AnnotationTool<string>;
+} & AnnotationTool;

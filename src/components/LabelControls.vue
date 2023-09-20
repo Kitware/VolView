@@ -1,5 +1,4 @@
-<script setup lang="ts" generic="ToolID extends string">
-/* global ToolID:readonly */
+<script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '@/src/types/annotation-tool';
@@ -8,7 +7,7 @@ import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import LabelEditor from './LabelEditor.vue';
 
 const props = defineProps<{
-  labelsStore: LabelsStore<AnnotationTool<ToolID>>;
+  labelsStore: LabelsStore<AnnotationTool>;
 }>();
 
 const labels = computed(() => Object.entries(props.labelsStore.labels));

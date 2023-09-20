@@ -21,7 +21,6 @@ import vtkRectangleWidget, {
   InteractionState,
 } from '@/src/vtk/RectangleWidget';
 import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
-import { RectangleID } from '@/src/types/rectangle';
 import {
   useRightClickContextMenu,
   useHoverEvent,
@@ -33,11 +32,11 @@ import {
   onViewProxyMounted,
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
+import { ToolID } from '@/src/types/annotation-tool';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
 type WidgetView = vtkRectangleViewWidget;
-type ToolID = RectangleID;
 const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({

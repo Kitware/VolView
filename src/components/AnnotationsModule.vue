@@ -5,7 +5,6 @@ import ToolControls from './ToolControls.vue';
 import { usePolygonStore } from '../store/tools/polygons';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
-import { AnnotationToolStore } from '../store/tools/useAnnotationTool';
 import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
 
 const tools = [
@@ -15,11 +14,11 @@ const tools = [
     details: MeasurementRulerDetails,
   },
   {
-    store: useRectangleStore() as unknown as AnnotationToolStore<string>,
+    store: useRectangleStore(),
     icon: 'mdi-vector-square',
   },
   {
-    store: usePolygonStore() as unknown as AnnotationToolStore<string>,
+    store: usePolygonStore(),
     icon: 'mdi-pentagon-outline',
   },
 ];

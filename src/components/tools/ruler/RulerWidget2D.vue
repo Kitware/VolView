@@ -32,13 +32,14 @@ import {
   onViewProxyMounted,
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
+import { ToolID } from '@/src/types/annotation-tool';
 
 export default defineComponent({
   name: 'RulerWidget2D',
   emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     rulerId: {
-      type: String,
+      type: String as unknown as PropType<ToolID>,
       required: true,
     },
     widgetManager: {

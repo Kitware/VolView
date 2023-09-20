@@ -9,7 +9,7 @@ import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReferenc
 import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
-import { AnnotationTool } from '@/src/types/annotation-tool';
+import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
@@ -41,12 +41,10 @@ export const useAnnotationTool = <
   newLabelDefault: Label<LabelProps>;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
-  type ToolID = ToolDefaults['id'];
-  type Tool = ToolDefaults & AnnotationTool<ToolID>;
+  type Tool = ToolDefaults & AnnotationTool;
   type ToolPatch = Partial<Omit<Tool, 'id'>>;
 
-  // cast to Ref<ToolID[]> needed. https://github.com/vuejs/core/issues/2136#issuecomment-693524663
-  const toolIDs = ref<ToolID[]>([]) as Ref<ToolID[]>;
+  const toolIDs = ref<ToolID[]>([]);
   const toolByID = ref<Record<ToolID, Tool>>(Object.create(null)) as Ref<
     Record<ToolID, Tool>
   >;
@@ -213,19 +211,18 @@ export const useAnnotationTool = <
   };
 };
 
-type ToolFactory<ID extends string> = (...args: any) => AnnotationTool<ID>;
-type UseAnnotationTool<ID extends string> = ReturnType<
-  typeof useAnnotationTool<ToolFactory<ID>, unknown>
+type ToolFactory = (...args: any) => AnnotationTool;
+type UseAnnotationTool = ReturnType<
+  typeof useAnnotationTool<ToolFactory, unknown>
 >;
 
-type UseAnnotationToolNoSerialize<ID extends string> = Omit<
-  UseAnnotationTool<ID>,
+type UseAnnotationToolNoSerialize = Omit<
+  UseAnnotationTool,
   'serialize' | 'deserialize'
 >;
 
 export type AnnotationToolStore<
-  ID extends string,
-  UseAnnotationToolWithID = UseAnnotationToolNoSerialize<ID>
+  UseAnnotationToolWithID = UseAnnotationToolNoSerialize
 > = StoreState<UseAnnotationToolWithID> &
   StoreActions<UseAnnotationToolWithID> &
   UnwrapNestedRefs<StoreGetters<UseAnnotationToolWithID>> & // adds computed props like tools

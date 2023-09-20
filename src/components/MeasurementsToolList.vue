@@ -9,7 +9,7 @@ import { useMultiSelection } from '../composables/useMultiSelection';
 import { AnnotationTool } from '../types/annotation-tool';
 
 type AnnotationToolConfig = {
-  store: AnnotationToolStore<string>;
+  store: AnnotationToolStore;
   icon: string;
   details?: typeof MeasurementToolDetails;
 };
@@ -23,7 +23,7 @@ const props = defineProps<{
 const { currentImageID, currentImageMetadata } = useCurrentImage();
 
 // Filter and add axis for specific annotation type
-const getTools = (toolStore: AnnotationToolStore<string>) => {
+const getTools = (toolStore: AnnotationToolStore) => {
   return toolStore.finishedTools
     .filter((tool) => tool.imageID === currentImageID.value)
     .map((tool) => {
@@ -56,7 +56,7 @@ const tools = computed(() => {
           const toggled = !store.toolByID[tool.id].hidden;
           store.updateTool(tool.id, { hidden: toggled });
         },
-        updateTool: (patch: Partial<AnnotationTool<string>>) => {
+        updateTool: (patch: Partial<AnnotationTool>) => {
           store.updateTool(tool.id, patch);
         },
       }));

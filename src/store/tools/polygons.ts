@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
-import { PolygonID } from '@/src/types/polygon';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import { ToolID } from '@/src/types/annotation-tool';
 
 import { useAnnotationTool } from './useAnnotationTool';
 
 const toolDefaults = () => ({
   points: [] as Array<Vector3>,
-  id: '' as PolygonID,
+  id: '' as ToolID,
   name: 'Polygon',
 });
 

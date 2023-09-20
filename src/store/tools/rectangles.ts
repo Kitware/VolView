@@ -2,14 +2,14 @@ import { defineStore } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
-import { RectangleID } from '@/src/types/rectangle';
+import { ToolID } from '@/src/types/annotation-tool';
 
 import { useAnnotationTool } from './useAnnotationTool';
 
 const rectangleDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,
   secondPoint: [0, 0, 0] as Vector3,
-  id: '' as RectangleID,
+  id: '' as ToolID,
   name: 'Rectangle',
   fillColor: 'transparent',
 });

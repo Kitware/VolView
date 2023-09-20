@@ -6,6 +6,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { Ruler } from '@/src/types/ruler';
 import { RequiredWithPartial } from '@/src/types';
+import { ToolID } from '@/src/types/annotation-tool';
 
 chai.use(chaiSubset);
 
@@ -48,7 +49,7 @@ describe('Ruler store', () => {
     });
     expect(store.rulerByID[id]).to.have.property('imageID', '123');
 
-    store.updateRuler('fakeID', {
+    store.updateRuler('fakeID' as ToolID, {
       slice: 88,
     });
     expect(store.rulerByID).to.not.have.property('fakeID');

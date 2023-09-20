@@ -1,5 +1,4 @@
-<script setup lang="ts" generic="ToolID extends string">
-/* global ToolID:readonly */
+<script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
@@ -10,8 +9,8 @@ const TOOLTIP_PADDING_X = 30;
 const TOOLTIP_PADDING_Y = 20;
 
 const props = defineProps<{
-  info: OverlayInfo<ToolID>;
-  toolStore: AnnotationToolStore<ToolID>;
+  info: OverlayInfo;
+  toolStore: AnnotationToolStore;
 }>();
 
 const visible = computed(() => {
