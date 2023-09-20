@@ -9,10 +9,18 @@ import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
-const props = defineProps<{
-  points: Array<Vector3>;
-  viewId: string;
-}>();
+const DEFAULT_PADDING = 2;
+
+const props = withDefaults(
+  defineProps<{
+    points: Array<Vector3>;
+    viewId: string;
+    padding?: number;
+  }>(),
+  {
+    padding: DEFAULT_PADDING,
+  }
+);
 
 const viewStore = useViewStore();
 const viewProxy = computed(
@@ -43,6 +51,8 @@ const updateRectangle = () => {
     .forEach(([x, y]) => {
       vtkBoundingBox.addPoint(screenBounds, x, y, 0);
     });
+
+  vtkBoundingBox.inflate(screenBounds, props.padding);
   const [x, y] = vtkBoundingBox.getMinPoint(screenBounds);
   const [maxX, maxY] = vtkBoundingBox.getMaxPoint(screenBounds);
   // Plus 2 to account for the stroke width
