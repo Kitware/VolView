@@ -218,4 +218,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.loseFocus = () => {
     throw new Error('loseFocus is not implemented');
   };
+
+  publicAPI.delete = macro.chain(() => {
+    publicAPI.resetInteractions();
+  }, publicAPI.delete);
 }

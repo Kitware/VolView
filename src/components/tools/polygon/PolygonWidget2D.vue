@@ -95,8 +95,8 @@ export default defineComponent({
       if (!widget.value) {
         return;
       }
+      // widgetManager calls widget.delete()
       widgetManager.value.removeWidget(widget.value);
-      widget.value.delete();
       widgetFactory.delete();
     });
 

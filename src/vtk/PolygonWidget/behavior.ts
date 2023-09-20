@@ -429,4 +429,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.hasFocus = false;
     model._widgetManager.enablePicking();
   };
+
+  publicAPI.delete = macro.chain(() => {
+    publicAPI.resetInteractions();
+  }, publicAPI.delete);
 }
