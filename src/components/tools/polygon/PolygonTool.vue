@@ -1,7 +1,7 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <bounding-rectangle :points="points" :view-id="viewId" />
+      <bounding-rectangle :points="visiblePoints" :view-id="viewId" />
       <polygon-widget-2D
         v-for="tool in tools"
         :key="tool.id"
@@ -13,6 +13,7 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
         @placed="onToolPlaced"
+        @select="onSelect(tool.id, $event)"
         @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
@@ -33,7 +34,11 @@ import {
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
-import { Tools } from '@/src/store/tools/types';
+import {
+  AnnotationToolType,
+  Tools,
+  ToolSelectEvent,
+} from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -48,6 +53,11 @@ import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
+import { ToolID } from '@/src/types/annotation-tool';
+import {
+  updateToolSelectionFromEvent,
+  useToolSelectionStore,
+} from '@/src/store/tools/toolSelection';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 const useActiveToolStore = usePolygonStore;
@@ -133,6 +143,14 @@ export default defineComponent({
       }
     };
 
+    // --- selection handling --- //
+
+    const selectionStore = useToolSelectionStore();
+
+    const onSelect = (id: ToolID, event: ToolSelectEvent) => {
+      updateToolSelectionFromEvent(id, event, AnnotationToolType.Ruler);
+    };
+
     // ---  //
 
     const { contextMenu, openContextMenu } = useContextMenu();
@@ -141,10 +159,11 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
 
-    const points = computed(() => {
-      if (!overlayInfo.value.visible) return [];
-      const tool = activeToolStore.toolByID[overlayInfo.value.toolID];
-      return tool.points;
+    const visiblePoints = computed(() => {
+      return currentTools.value
+        .filter((tool) => tool.slice === currentSlice.value)
+        .filter((tool) => selectionStore.isSelected(tool.id))
+        .flatMap((tool) => tool.points);
     });
 
     return {
@@ -155,8 +174,9 @@ export default defineComponent({
       openContextMenu,
       activeToolStore,
       onHover,
+      onSelect,
       overlayInfo,
-      points,
+      visiblePoints,
     };
   },
 });
