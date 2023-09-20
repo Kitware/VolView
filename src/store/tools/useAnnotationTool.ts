@@ -1,6 +1,7 @@
 import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
 import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
 
+import type { IToolStore } from '@/src/store/tools/types';
 import { Maybe, PartialWithRequired } from '@/src/types';
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
@@ -237,4 +238,4 @@ export type AnnotationToolStore<
 > = StoreState<UseAnnotationToolWithID> &
   StoreActions<UseAnnotationToolWithID> &
   UnwrapNestedRefs<StoreGetters<UseAnnotationToolWithID>> & // adds computed props like tools
-  Store; // adds Pinia plugins;
+  IToolStore; // adds Pinia plugins;

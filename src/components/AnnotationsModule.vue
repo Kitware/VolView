@@ -1,24 +1,22 @@
 <script setup lang="ts">
+import { AnnotationToolType } from '@/src/store/tools/types';
 import MeasurementsToolList from './MeasurementsToolList.vue';
 import LabelmapList from './LabelmapList.vue';
 import ToolControls from './ToolControls.vue';
-import { usePolygonStore } from '../store/tools/polygons';
-import { useRectangleStore } from '../store/tools/rectangles';
-import { useRulerStore } from '../store/tools/rulers';
 import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
 
 const tools = [
   {
-    store: useRulerStore(),
+    type: AnnotationToolType.Ruler,
     icon: 'mdi-ruler',
     details: MeasurementRulerDetails,
   },
   {
-    store: useRectangleStore(),
+    type: AnnotationToolType.Rectangle,
     icon: 'mdi-vector-square',
   },
   {
-    store: usePolygonStore(),
+    type: AnnotationToolType.Polygon,
     icon: 'mdi-pentagon-outline',
   },
 ];

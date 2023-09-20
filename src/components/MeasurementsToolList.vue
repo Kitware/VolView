@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { nonNullable } from '@/src/utils/index';
+import { AnnotationToolType } from '@/src/store/tools/types';
+import { useAnnotationToolStore } from '@/src/store/tools';
 import MeasurementToolDetails from './MeasurementToolDetails.vue';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { AnnotationTool } from '../types/annotation-tool';
 
 type AnnotationToolConfig = {
-  store: AnnotationToolStore;
+  type: AnnotationToolType;
   icon: string;
   details?: typeof MeasurementToolDetails;
 };
@@ -23,7 +24,8 @@ const props = defineProps<{
 const { currentImageID, currentImageMetadata } = useCurrentImage();
 
 // Filter and add axis for specific annotation type
-const getTools = (toolStore: AnnotationToolStore) => {
+const getTools = (type: AnnotationToolType) => {
+  const toolStore = useAnnotationToolStore(type);
   return toolStore.finishedTools
     .filter((tool) => tool.imageID === currentImageID.value)
     .map((tool) => {
@@ -44,8 +46,9 @@ const getTools = (toolStore: AnnotationToolStore) => {
 // Flatten all tool types and add actions
 const tools = computed(() => {
   return props.tools.flatMap(
-    ({ store, icon, details = MeasurementToolDetails }) => {
-      const toolsWithAxis = getTools(store);
+    ({ type, icon, details = MeasurementToolDetails }) => {
+      const store = useAnnotationToolStore(type);
+      const toolsWithAxis = getTools(type);
       return toolsWithAxis.map((tool) => ({
         ...tool,
         icon,

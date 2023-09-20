@@ -1,6 +1,7 @@
 import { getImageSpatialExtent } from '@/src/composables/useCurrentImage';
 import { LPSAxis } from '@/src/types/lps';
 import { getAxisBounds } from '@/src/utils/lps';
+import { NOOP } from '@/src/constants';
 import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { computed, reactive, readonly, unref } from 'vue';
@@ -135,6 +136,9 @@ export const useCropStore = defineStore('crop', () => {
     });
   }
 
+  const activateTool = () => true;
+  const deactivateTool = NOOP;
+
   return {
     croppingByImageID: readonly(state.croppingByImageID),
     getComputedVTKPlanes,
@@ -143,5 +147,7 @@ export const useCropStore = defineStore('crop', () => {
     resetCropping,
     serialize,
     deserialize,
+    activateTool,
+    deactivateTool,
   };
 });
