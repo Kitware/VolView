@@ -96,7 +96,7 @@ export const Layouts: Record<string, Layout> = [
   {
     name: 'Axial Only',
     direction: LayoutDirection.H,
-    items: [InitViewIDs.Sagittal],
+    items: [InitViewIDs.Axial],
   },
   {
     name: 'Axial Primary',
@@ -140,7 +140,6 @@ export const Layouts: Record<string, Layout> = [
     items: [
       {
         direction: LayoutDirection.V,
-        // items: [InitViewIDs.ObliqueCoronal],
         items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
       },
       { direction: LayoutDirection.V,

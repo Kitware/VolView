@@ -1,24 +1,12 @@
 <template>
   <div
-    class="vtk-container-wrapper"
+    class="vtk-container-wrapper-oblique"
     tabindex="0"
     @pointerenter="hover = true"
     @pointerleave="hover = false"
     @focusin="hover = true"
     @focusout="hover = false"
   >
-    <div class="vtk-gutter">
-      <v-btn dark icon size="medium" variant="text" @click="enableResizeToFit">
-        <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
-        <v-tooltip
-          location="right"
-          activator="parent"
-          transition="slide-x-transition"
-        >
-          Reset Camera
-        </v-tooltip>
-      </v-btn>
-    </div>
     <div class="vtk-container" :class="active ? 'active' : ''">
       <div class="vtk-sub-container">
         <div class="vtk-view" ref="vtkContainerRef" />
@@ -337,10 +325,6 @@ export default defineComponent({
 
     // --- apply windowing and slice configs --- //
 
-    function roundTo2Decimals(x: number): number {
-      return Math.round(x * 100) / 100;
-    }
-
     // Function to compute float range of slicing for oblique slicing.
     // Range is calculated as distance along the plane normal (as originating from {0,0,0} ).
     function slicePlaneRange(cornerPoints: number[][], sliceNormal: number[]): [number, number] {
@@ -369,10 +353,8 @@ export default defineComponent({
         }
       }
 
-      return [roundTo2Decimals(minX), roundTo2Decimals(maxX)];
+      return [minX, maxX];
     }
-
-    // --- Slicing setup --- //
 
     // --- arrows change slice --- //
 
@@ -696,4 +678,12 @@ export default defineComponent({
   height: 32px;
   cursor: pointer;
 }
+.vtk-container-wrapper-oblique {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto;
+  grid-template-rows: auto;
+  z-index: 0; /* avoids partial obscuring of focus outline */
+}
+
 </style>
