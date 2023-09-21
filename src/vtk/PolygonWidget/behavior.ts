@@ -5,7 +5,7 @@ import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
 import { applySelectionAPIMixin } from '@/src/vtk/ToolWidgetUtils/annotationToolMixins';
 import { SelectableRepresentationLabel } from '@/src/vtk/PolygonWidget/state';
-import { WidgetAction } from '../ToolWidgetUtils/utils';
+import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/types';
 
 type Position3d = { x: number; y: number; z: number };
 type vtkMouseEvent = {

@@ -1,5 +1,6 @@
 import macro from '@kitware/vtk.js/macro';
 
+import { AnnotationToolType } from '@/src/store/tools/types';
 import vtkRulerWidget from '../RulerWidget';
 import vtkRectangleLineRepresentation from './RectangleLineRepresentation';
 
@@ -34,15 +35,10 @@ const DEFAULT_VALUES = {};
 export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
-  const { store: toolStore, ...rest } = initialValues;
-
-  const rulerStore = {
-    ...toolStore,
-    rulerByID: toolStore.toolByID,
-    updateRuler: toolStore.updateTool,
-  };
-
-  vtkRulerWidget.extend(publicAPI, model, { store: rulerStore, ...rest });
+  vtkRulerWidget.extend(publicAPI, model, {
+    ...initialValues,
+    toolType: AnnotationToolType.Rectangle,
+  });
 
   vtkRectangleWidget(publicAPI, model);
 }

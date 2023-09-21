@@ -1,6 +1,4 @@
-import type { Vector2 } from '@kitware/vtk.js/types';
 import { FrameOfReference } from '../utils/frameOfReference';
-import { WidgetAction } from '../vtk/ToolWidgetUtils/utils';
 
 export type ToolID = string & { __type: 'ToolID' };
 
@@ -30,9 +28,4 @@ export type AnnotationTool = {
   name: string;
 
   hidden?: boolean;
-};
-
-export type ContextMenuEvent = {
-  displayXY: Vector2;
-  widgetActions: Array<WidgetAction>;
 };

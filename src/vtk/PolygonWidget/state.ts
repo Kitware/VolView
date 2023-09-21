@@ -4,7 +4,9 @@ import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
 import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
 import { Vector3 } from '@kitware/vtk.js/types';
-
+import vtkAnnotationWidgetState from '@/src/vtk/ToolWidgetUtils/annotationWidgetState';
+import { Polygon } from '@/src/types/polygon';
+import { AnnotationToolType } from '@/src/store/tools/types';
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
 
@@ -26,13 +28,13 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetState');
   model.moveHandle = createPointState({
     id: model.id,
-    store: model._store,
+    store: publicAPI.getStore(),
     key: 'movePoint',
     visible: true,
   });
   watchState(publicAPI, model.moveHandle, () => publicAPI.modified());
 
-  const getTool = () => model._store.toolByID[model.id];
+  const getTool = () => publicAPI.getStore().toolByID[model.id] as Polygon;
 
   model.handles = [];
 
@@ -122,6 +124,7 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 }
 
 const defaultValues = (initialValues: any) => ({
+  toolType: AnnotationToolType.Polygon,
   ...initialValues,
 });
 
@@ -131,12 +134,11 @@ function _createPolygonWidgetState(
   initialValues: any
 ) {
   Object.assign(model, defaultValues(initialValues));
-  vtkWidgetState.extend(publicAPI, model, initialValues);
+  vtkAnnotationWidgetState.extend(publicAPI, model, initialValues);
   bounds.extend(publicAPI, model);
 
-  macro.get(publicAPI, model, ['id', 'handles', 'moveHandle', 'finishable']);
+  macro.get(publicAPI, model, ['handles', 'moveHandle', 'finishable']);
   macro.setGet(publicAPI, model, ['finishable']);
-  macro.moveToProtected(publicAPI, model, ['store']);
 
   vtkPolygonWidgetState(publicAPI, model);
 }

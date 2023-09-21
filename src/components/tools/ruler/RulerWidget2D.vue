@@ -84,7 +84,6 @@ export default defineComponent({
 
     const widgetFactory = vtkRulerWidget.newInstance({
       id: toolId.value,
-      store: rulerStore,
       isPlaced: !isPlacing.value,
     });
     const widget = ref<vtkRulerViewWidget | null>(null);

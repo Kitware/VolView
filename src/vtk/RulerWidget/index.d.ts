@@ -6,16 +6,19 @@ import { InteractionState } from './behavior';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import {
+  IAnnotationToolWidgetInitialValues,
   vtkAnnotationToolWidget,
   vtkAnnotationWidgetPointState,
-} from '../ToolWidgetUtils/utils';
+  vtkAnnotationWidgetState,
+} from '@/src/vtk/ToolWidgetUtils/types';
+import { AnnotationToolType } from '@/src/store/tools/types';
 
 export { InteractionState } from './behavior';
 
 export interface vtkRulerWidgetPointState
   extends vtkAnnotationWidgetPointState {}
 
-export interface vtkRulerWidgetState extends vtkWidgetState {
+export interface vtkRulerWidgetState extends vtkAnnotationWidgetState {
   setIsPlaced(isPlaced: boolean): boolean;
   getIsPlaced(): boolean;
   getFirstPoint(): vtkRulerWidgetPointState;
@@ -28,9 +31,8 @@ export interface vtkRulerViewWidget extends vtkAnnotationToolWidget {
   getWidgetState(): vtkRulerWidgetState;
 }
 
-export interface IRulerWidgetInitialValues {
-  id: string;
-  store: ReturnType<typeof useRulerStore>;
+export interface IRulerWidgetInitialValues
+  extends IAnnotationToolWidgetInitialValues {
   isPlaced: boolean;
 }
 

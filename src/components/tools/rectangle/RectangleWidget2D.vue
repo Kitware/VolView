@@ -89,7 +89,6 @@ export default defineComponent({
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
-      store: toolStore,
       isPlaced: !isPlacing.value,
     });
     const widget = ref<WidgetView | null>(null);

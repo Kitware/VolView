@@ -2,7 +2,6 @@ import { Ref, UnwrapRef, computed, readonly, ref, watch } from 'vue';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
-import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/utils';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { Maybe } from '@/src/types';
 import { useToolStore } from '@/src/store/tools';
@@ -10,16 +9,16 @@ import { Tools } from '@/src/store/tools/types';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { getCSSCoordinatesFromEvent } from '@/src//utils/vtk-helpers';
 import { LPSAxis } from '@/src/types/lps';
-import {
-  AnnotationTool,
-  ContextMenuEvent,
-  ToolID,
-} from '@/src/types/annotation-tool';
+import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import { useViewStore } from '@/src/store/views';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { usePopperState } from '@/src/composables/usePopperState';
 import { onViewProxyMounted } from '@/src/composables/useViewProxy';
+import {
+  ContextMenuEvent,
+  vtkAnnotationToolWidget,
+} from '@/src/vtk/ToolWidgetUtils/types';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
