@@ -7,7 +7,6 @@ import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
 
 export const PointsLabel = 'points';
-export const SelectableRepresentationLabel = 'selectable';
 
 function vtkRulerWidgetState(publicAPI: any, model: any) {
   const firstPoint = createPointState({

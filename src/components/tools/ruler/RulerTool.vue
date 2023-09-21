@@ -13,7 +13,6 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(ruler.id, $event)"
         @placed="onRulerPlaced"
-        @select="onSelect(ruler.id, $event)"
         @widgetHover="onHover(ruler.id, $event)"
       />
     </svg>
@@ -33,11 +32,7 @@ import {
 } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
-import {
-  Tools,
-  AnnotationToolType,
-  ToolSelectEvent,
-} from '@/src/store/tools/types';
+import { Tools } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
@@ -54,11 +49,7 @@ import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
-import {
-  useToolSelectionStore,
-  updateToolSelectionFromEvent,
-} from '@/src/store/tools/toolSelection';
-import { ToolID } from '@/src/types/annotation-tool';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -140,14 +131,6 @@ export default defineComponent({
       }
     };
 
-    // --- selection handling --- //
-
-    const selectionStore = useToolSelectionStore();
-
-    const onSelect = (id: ToolID, event: ToolSelectEvent) => {
-      updateToolSelectionFromEvent(id, event, AnnotationToolType.Ruler);
-    };
-
     // --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
@@ -166,6 +149,7 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
 
+    const selectionStore = useToolSelectionStore();
     const visiblePoints = computed(() => {
       return currentTools.value
         .filter((tool) => tool.slice === currentSlice.value)
@@ -181,7 +165,6 @@ export default defineComponent({
       openContextMenu,
       rulerStore,
       onHover,
-      onSelect,
       overlayInfo,
       visiblePoints,
     };

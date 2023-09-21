@@ -13,7 +13,6 @@
         :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
         @placed="onToolPlaced"
-        @select="onSelect(tool.id, $event)"
         @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
@@ -34,11 +33,7 @@ import {
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
-import {
-  Tools,
-  AnnotationToolType,
-  ToolSelectEvent,
-} from '@/src/store/tools/types';
+import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -53,11 +48,7 @@ import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
-import {
-  useToolSelectionStore,
-  updateToolSelectionFromEvent,
-} from '@/src/store/tools/toolSelection';
-import { ToolID } from '@/src/types/annotation-tool';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
 const useActiveToolStore = useRectangleStore;
@@ -143,14 +134,6 @@ export default defineComponent({
       }
     };
 
-    // --- selection handling --- //
-
-    const selectionStore = useToolSelectionStore();
-
-    const onSelect = (id: ToolID, event: ToolSelectEvent) => {
-      updateToolSelectionFromEvent(id, event, AnnotationToolType.Ruler);
-    };
-
     // --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
@@ -159,6 +142,7 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
 
+    const selectionStore = useToolSelectionStore();
     const visiblePoints = computed(() => {
       return currentTools.value
         .filter((tool) => tool.slice === currentSlice.value)
@@ -174,7 +158,6 @@ export default defineComponent({
       openContextMenu,
       activeToolStore,
       onHover,
-      onSelect,
       overlayInfo,
       visiblePoints,
     };

@@ -33,7 +33,6 @@ import {
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
 import { ToolID } from '@/src/types/annotation-tool';
-import { ToolSelectEvent } from '@/src/store/tools/types';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -42,7 +41,7 @@ const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover', 'select'],
+  emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
@@ -131,12 +130,6 @@ export default defineComponent({
     });
 
     useHoverEvent(emit, widget);
-
-    // --- selection handling --- //
-
-    onVTKEvent(widget, 'onSelectEvent', (event: ToolSelectEvent) => {
-      emit('select', event);
-    });
 
     // --- right click handling --- //
 

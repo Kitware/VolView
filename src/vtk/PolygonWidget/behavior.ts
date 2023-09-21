@@ -3,8 +3,6 @@ import macro from '@kitware/vtk.js/macros';
 import { Vector3 } from '@kitware/vtk.js/types';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
-import { applySelectionAPIMixin } from '@/src/vtk/ToolWidgetUtils/annotationToolMixins';
-import { SelectableRepresentationLabel } from '@/src/vtk/PolygonWidget/state';
 import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/types';
 
 type Position3d = { x: number; y: number; z: number };
@@ -435,6 +433,4 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.delete = macro.chain(() => {
     publicAPI.resetInteractions();
   }, publicAPI.delete);
-
-  applySelectionAPIMixin(publicAPI, model, [SelectableRepresentationLabel]);
 }

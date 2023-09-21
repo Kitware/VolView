@@ -7,10 +7,7 @@ import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresen
 import vtkLineGlyphRepresentation from '@/src/vtk/LineGlyphRepresentation';
 
 import widgetBehavior from './behavior';
-import stateGenerator, {
-  PointsLabel,
-  SelectableRepresentationLabel,
-} from './state';
+import stateGenerator, { PointsLabel } from './state';
 
 export { InteractionState } from './behavior';
 
@@ -33,7 +30,7 @@ function vtkRulerWidget(publicAPI, model) {
     },
     {
       builder: vtkLineGlyphRepresentation,
-      labels: [PointsLabel, SelectableRepresentationLabel],
+      labels: [PointsLabel],
       initialValues: {
         scaleInPixels: true,
         lineThickness: 0.25, // smaller than .5 default to prioritize picking handles

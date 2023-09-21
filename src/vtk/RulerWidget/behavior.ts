@@ -1,5 +1,3 @@
-import { SelectableRepresentationLabel } from '@/src/vtk/RulerWidget/state';
-import { applySelectionAPIMixin } from '@/src/vtk/ToolWidgetUtils/annotationToolMixins';
 import macro from '@kitware/vtk.js/macro';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
@@ -224,6 +222,4 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   publicAPI.delete = macro.chain(() => {
     publicAPI.resetInteractions();
   }, publicAPI.delete);
-
-  applySelectionAPIMixin(publicAPI, model, [SelectableRepresentationLabel]);
 }

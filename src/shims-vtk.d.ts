@@ -290,3 +290,7 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
   };
   export default vtkImageCroppingWidget;
 }
+
+declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants' {
+  export declare const WIDGET_PRIORITY: number;
+}

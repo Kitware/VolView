@@ -34,13 +34,3 @@ export interface IToolStore
   extends Partial<IActivatableTool>,
     Partial<ISerializableTool>,
     Store {}
-
-export type ToolSelectEvent = {
-  // should the emitting tool be selected
-  selected: boolean;
-  // update behavior
-  // deselect: clear current selection
-  // preserve: preserve current selection
-  // single: set current selection to be just this tool
-  updateBehavior: 'deselectOthers' | 'preserve' | 'single';
-};

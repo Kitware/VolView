@@ -12,7 +12,6 @@ import { watchState } from '../ToolWidgetUtils/utils';
 
 export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
-export const SelectableRepresentationLabel = 'selectable';
 
 const PIXEL_SIZE = 20;
 

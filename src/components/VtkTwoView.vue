@@ -41,6 +41,7 @@
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
+        <select-tool :view-id="viewID" :widget-manager="widgetManager" />
         <ruler-tool
           :view-id="viewID"
           :widget-manager="widgetManager"
@@ -194,6 +195,7 @@ import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupT
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import SelectTool from '@/src/components/tools/SelectTool.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -266,6 +268,7 @@ export default defineComponent({
     PaintTool,
     CrosshairsTool,
     CropTool,
+    SelectTool,
   },
   setup(props) {
     const windowingStore = useWindowingStore();

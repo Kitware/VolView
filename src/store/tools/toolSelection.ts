@@ -1,4 +1,4 @@
-import { AnnotationToolType, ToolSelectEvent } from '@/src/store/tools/types';
+import { AnnotationToolType } from '@/src/store/tools/types';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
@@ -53,23 +53,3 @@ export const useToolSelectionStore = defineStore('tool-selection', () => {
     selection,
   };
 });
-
-export const updateToolSelectionFromEvent = (
-  toolID: ToolID,
-  event: ToolSelectEvent,
-  type: AnnotationToolType
-) => {
-  const store = useToolSelectionStore();
-  if (event.updateBehavior === 'deselectOthers') {
-    store.clearSelection();
-  }
-  if (event.selected) {
-    if (event.updateBehavior === 'preserve') {
-      store.toggleSelection(toolID, type);
-    } else {
-      store.addSelection(toolID, type);
-    }
-  } else if (event.updateBehavior === 'single') {
-    store.removeSelection(toolID);
-  }
-};
