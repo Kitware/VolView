@@ -6,7 +6,7 @@ import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { nonNullable } from '@/src/utils/index';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { Bounds, Vector3 } from '@kitware/vtk.js/types';
+import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 const props = defineProps<{

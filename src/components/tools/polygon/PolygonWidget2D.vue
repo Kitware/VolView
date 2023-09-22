@@ -25,7 +25,7 @@ import vtkWidgetFactory, {
   vtkPolygonViewWidget as WidgetView,
 } from '@/src/vtk/PolygonWidget';
 import { Maybe } from '@/src/types';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { useViewStore } from '@/src/store/views';
 import {
   onViewProxyMounted,
