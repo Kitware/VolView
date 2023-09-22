@@ -282,6 +282,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
+    // If not placing, (and not dragging) don't consume event
+    // so camera control widgets can react.
+    if (!model.widgetState.getPlacing()) {
+      return macro.VOID;
+    }
+
     // Double click? Then finish.
     const currentDisplayPos = [
       event.position.x,
