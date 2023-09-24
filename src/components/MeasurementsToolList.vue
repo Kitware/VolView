@@ -103,9 +103,8 @@ function toggleGlobalHidden() {
 
 <template>
   <v-row no-gutters justify="space-between" align="center" class="mb-1">
-    <v-col cols="6">
+    <v-col class="d-flex">
       <v-checkbox
-        class="ml-3"
         :indeterminate="selectedSome && !selectedAll"
         label="Select All"
         v-model="selectedAll"
@@ -114,7 +113,13 @@ function toggleGlobalHidden() {
         hide-details
       />
     </v-col>
-    <v-col cols="6" align-self="center" class="d-flex justify-end">
+
+    <!-- Count of selected tools -->
+    <v-col class="v-label">
+      {{ selected.length }} of {{ tools.length }} selected
+    </v-col>
+
+    <v-col align-self="center" class="d-flex justify-end">
       <v-btn
         icon
         variant="text"
