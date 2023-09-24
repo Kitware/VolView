@@ -199,7 +199,7 @@ import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
-import WindowLevelTool from './tools/WindowLevelTool.vue';
+import WindowLevelTool from './tools/windowing/WindowLevelTool.vue';
 import SliceScrollTool from './tools/SliceScrollTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
