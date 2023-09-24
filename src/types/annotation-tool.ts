@@ -25,6 +25,8 @@ export type AnnotationTool = {
   labelName?: string;
 
   color: string;
+  strokeWidth: number;
+
   name: string;
 
   hidden?: boolean;

@@ -171,6 +171,7 @@ export default defineComponent({
     :view-id="viewId"
     :points="tool.points"
     :color="tool.color"
+    :stroke-width="tool.strokeWidth"
     :move-point="editState.movePoint"
     :placing="tool.placing"
     :finishable="editState.finishable"

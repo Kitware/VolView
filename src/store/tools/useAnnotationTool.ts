@@ -2,7 +2,10 @@ import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
 import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
 
 import { Maybe, PartialWithRequired } from '@/src/types';
-import { TOOL_COLORS } from '@/src/config';
+import {
+  STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
+  TOOL_COLORS,
+} from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -15,6 +18,11 @@ import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, Labels, Label } from './useLabels';
 
+export const commonLabelDefaults = Object.freeze({
+  color: TOOL_COLORS[0],
+  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
+});
+
 const makeAnnotationToolDefaults = () => ({
   frameOfReference: {
     planeOrigin: [0, 0, 0],
@@ -24,6 +32,7 @@ const makeAnnotationToolDefaults = () => ({
   imageID: '',
   placing: false,
   color: TOOL_COLORS[0],
+  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   name: 'baseAnnotationTool',
 });
 

@@ -16,6 +16,11 @@ watch(labelName, (name) => {
   props.labelsStore.updateLabel(props.label, { labelName: name });
 });
 
+const strokeWidth = ref(label.value.strokeWidth);
+watch(strokeWidth, (width) => {
+  props.labelsStore.updateLabel(props.label, { strokeWidth: width });
+});
+
 const colorLocal = ref(standardizeColor(label.value.color));
 watch(colorLocal, (color) => {
   props.labelsStore.updateLabel(props.label, { color });
@@ -37,14 +42,19 @@ const deleteLabel = () => {
     <v-card-item>
       <div class="d-flex flex-row">
         <div class="flex-grow-1 d-flex flex-column justify-space-between mr-4">
-          <div>
-            <v-text-field
-              v-model="labelName"
-              @keydown.stop.enter="$emit('done')"
-              label="Name"
-              class="flex-grow-0"
-            />
-          </div>
+          <v-text-field
+            v-model="labelName"
+            @keydown.stop.enter="$emit('done')"
+            label="Name"
+            class="flex-grow-0"
+          />
+          <v-text-field
+            v-model.number="strokeWidth"
+            @keydown.stop.enter="$emit('done')"
+            label="Stroke Width"
+            type="number"
+            class="flex-grow-0"
+          />
           <v-card-actions class="mb-2 px-0">
             <v-btn color="secondary" variant="elevated" @click="$emit('done')">
               Done

@@ -199,6 +199,7 @@ export default defineComponent({
     :point1="firstPoint"
     :point2="secondPoint"
     :color="ruler.color"
+    :strokeWidth="ruler.strokeWidth"
     :length="length"
   />
 </template>

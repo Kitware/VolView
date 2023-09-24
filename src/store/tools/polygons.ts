@@ -4,17 +4,13 @@ import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { useAnnotationTool } from './useAnnotationTool';
+import { useAnnotationTool, commonLabelDefaults } from './useAnnotationTool';
 
 const toolDefaults = () => ({
   points: [] as Array<Vector3>,
   id: '' as ToolID,
   name: 'Polygon',
 });
-
-const newLabelDefault = {
-  color: '#ffffff',
-};
 
 export const usePolygonStore = defineStore('polygon', () => {
   type _This = ReturnType<typeof usePolygonStore>;
@@ -26,7 +22,7 @@ export const usePolygonStore = defineStore('polygon', () => {
   } = useAnnotationTool({
     toolDefaults,
     initialLabels: POLYGON_LABEL_DEFAULTS,
-    newLabelDefault,
+    newLabelDefault: commonLabelDefaults,
   });
 
   // --- serialization --- //

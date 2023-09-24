@@ -6,7 +6,7 @@ import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { useAnnotationTool } from './useAnnotationTool';
+import { useAnnotationTool, commonLabelDefaults } from './useAnnotationTool';
 
 const rulerDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,
@@ -15,17 +15,13 @@ const rulerDefaults = () => ({
   name: 'Ruler',
 });
 
-const newLabelDefault = {
-  color: '#ffffff',
-};
-
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
 
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
     initialLabels: RULER_LABEL_DEFAULTS,
-    newLabelDefault,
+    newLabelDefault: commonLabelDefaults,
   });
 
   // prefix some props with ruler

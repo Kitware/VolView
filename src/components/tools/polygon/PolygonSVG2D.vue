@@ -7,14 +7,14 @@
       :cx="x"
       :cy="y"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       fill="transparent"
       :r="radius / devicePixelRatio"
     />
     <polyline
       :points="linePoints"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       fill="none"
     />
   </g>
@@ -49,6 +49,7 @@ export default defineComponent({
       required: true,
     },
     color: String,
+    strokeWidth: Number,
     viewId: {
       type: String,
       required: true,
