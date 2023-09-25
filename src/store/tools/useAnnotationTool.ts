@@ -16,11 +16,10 @@ import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
-import { useLabels, Labels, Label } from './useLabels';
+import { useLabels, Labels } from './useLabels';
 
-export const commonLabelDefaults = Object.freeze({
-  color: TOOL_COLORS[0],
-  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
+const annotationToolLabelDefault = Object.freeze({
+  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
 });
 
 const makeAnnotationToolDefaults = () => ({
@@ -47,7 +46,7 @@ export const useAnnotationTool = <
 }: {
   toolDefaults: MakeToolDefaults;
   initialLabels: Labels<LabelProps>;
-  newLabelDefault: Label<LabelProps>;
+  newLabelDefault?: LabelProps;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -67,7 +66,10 @@ export const useAnnotationTool = <
     tools.value.filter((tool) => !tool.placing)
   );
 
-  const labels = useLabels<LabelProps>(newLabelDefault);
+  const labels = useLabels({
+    ...annotationToolLabelDefault,
+    ...newLabelDefault,
+  });
   labels.mergeLabels(initialLabels, false);
 
   function makePropsFromLabel(label: string | undefined) {

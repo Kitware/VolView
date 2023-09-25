@@ -4,7 +4,7 @@ import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { useAnnotationTool, commonLabelDefaults } from './useAnnotationTool';
+import { useAnnotationTool } from './useAnnotationTool';
 
 const toolDefaults = () => ({
   points: [] as Array<Vector3>,
@@ -22,7 +22,6 @@ export const usePolygonStore = defineStore('polygon', () => {
   } = useAnnotationTool({
     toolDefaults,
     initialLabels: POLYGON_LABEL_DEFAULTS,
-    newLabelDefault: commonLabelDefaults,
   });
 
   // --- serialization --- //

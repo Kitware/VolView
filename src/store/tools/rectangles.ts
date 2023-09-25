@@ -4,7 +4,7 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { useAnnotationTool, commonLabelDefaults } from './useAnnotationTool';
+import { useAnnotationTool } from './useAnnotationTool';
 
 const rectangleDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,
@@ -15,7 +15,6 @@ const rectangleDefaults = () => ({
 });
 
 const newLabelDefault = {
-  ...commonLabelDefaults,
   fillColor: 'transparent',
 };
 
