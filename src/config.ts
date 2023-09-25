@@ -135,7 +135,7 @@ export const Layouts: Record<string, Layout> = [
     ],
   },
   {
-    name: 'Oblique Only',
+    name: 'Oblique View',
     direction: LayoutDirection.H,
     items: [
       {

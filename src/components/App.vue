@@ -423,17 +423,14 @@ export default defineComponent({
           [ViewTypes.YZ_PLANE]: {
             normal: [1, 0, 0],
             viewUp: [0, 0, 1],
-            color3: [255, 0, 0],
           },
           [ViewTypes.XZ_PLANE]: {
             normal: [0, -1, 0],
             viewUp: [0, 0, 1],
-            color3: [0, 255, 0],
           },
           [ViewTypes.XY_PLANE]: {
             normal: [0, 0, -1],
             viewUp: [0, -1, 0],
-            color3: [0, 0, 255],
           }
         });
         const planes = resliceCursorState.getPlanes();

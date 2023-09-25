@@ -141,6 +141,7 @@ export default defineComponent({
       viewProxy.value.setOrientationAxesVisibility(true);
       viewProxy.value.setOrientationAxesType('cube');
       viewProxy.value.setBackground([0, 0, 0, 0]);
+      viewProxy.value.getCamera().setParallelProjection(true);
       setViewProxyContainer(vtkContainerRef.value);
       addResliceProxiesToView();
     });
@@ -200,7 +201,8 @@ export default defineComponent({
           outlineFilter.setGenerateFaces(false);
           outlineFilter.setGenerateLines(true);
           outlineRep.getMapper().setInputConnection(outlineFilter.getOutputPort());
-          outlineRep.setLineWidth(3.0);
+          outlineRep.setLineWidth(1.0);
+          outlineRep.setOpacity(0.3);
         }
 
         addResliceProxiesToView();

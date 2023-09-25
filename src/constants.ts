@@ -1,4 +1,5 @@
 import { Maybe } from '@/src/types';
+import type { RGBColor } from '@kitware/vtk.js/types';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import vtkResliceCursorWidget, { vtkResliceCursorViewWidget } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import { ComputedRef, InjectionKey, Ref } from 'vue';
@@ -171,4 +172,10 @@ export const WLPresetsCT = {
       level: 400,
     },
   },
+}
+
+export const OBLIQUE_OUTLINE_COLORS: Record<string, RGBColor> = {
+  ObliqueAxial: [51, 255, 51],    // Green
+  ObliqueSagittal: [255, 255, 0], // Yellow
+  ObliqueCoronal: [255, 51, 51],  // Red
 };

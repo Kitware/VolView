@@ -121,7 +121,8 @@ import { storeToRefs } from 'pinia';
 import { vec3, mat3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
-import type { Vector3 } from '@kitware/vtk.js/types';
+import type { RGBColor, Vector3 } from '@kitware/vtk.js/types';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import vtkReslicReperesentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 import { useResizeToFit } from '@src/composables/useResizeToFit';
@@ -151,7 +152,12 @@ import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
-import { ToolContainer, VTKTwoViewWidgetManager, VTKResliceCursor } from '../constants';
+import {
+  OBLIQUE_OUTLINE_COLORS,
+  ToolContainer,
+  VTKTwoViewWidgetManager,
+  VTKResliceCursor,
+} from '../constants';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -465,23 +471,14 @@ export default defineComponent({
       (obliqueRep) => {
         if (obliqueRep) {
           obliqueRep.setOutlineVisibility(true);
-          obliqueRep.setOutlineLineWidth(5.0);
-          switch(viewDirection.value) {
-            case 'Left':
-            case 'Right':
-              obliqueRep.setOutlineColor([1, 0, 0]);
-              break;
-            case 'Posterior':
-            case 'Anterior':
-              obliqueRep.setOutlineColor([0, 1, 0]);
-              break;
-            case 'Superior':
-            case 'Inferior':
-              obliqueRep.setOutlineColor([0, 0, 1]);
-              break;
-            default:
-              obliqueRep.setOutlineColor([0, 0, 0]);
-              break;
+          obliqueRep.setOutlineLineWidth(4.0);
+          if (viewID.value) {
+            const outlineColor = vec3.scale(
+              [0, 0, 0],
+              OBLIQUE_OUTLINE_COLORS[viewID.value],
+              1/255
+            ) as RGBColor;
+            obliqueRep.setOutlineColor(outlineColor);
           }
         }
       },
@@ -489,8 +486,6 @@ export default defineComponent({
     );
 
 
-    // --- camera setup --- //
-    
     // Set default cutting plane parameters.
 
     watch([baseImageRep, cameraDirVec], () => {
@@ -504,6 +499,8 @@ export default defineComponent({
         rep.setSlabThickness(1);
       }
     });
+
+    // --- camera setup --- //
 
     const { resizeToFit, ignoreResizeToFitTracking, resetResizeToFitTracking } =
       useResizeToFit(viewProxy.value.getCamera(), false);
@@ -528,11 +525,7 @@ export default defineComponent({
 
     const resetCamera = () => {
       const bounds = curImageMetadata.value.worldBounds;
-      const center = [
-        (bounds[0] + bounds[1]) / 2,
-        (bounds[2] + bounds[3]) / 2,
-        (bounds[4] + bounds[5]) / 2,
-      ] as vec3;
+      const center = vtkBoundingBox.getCenter(bounds);
 
       // do not track resizeToFit state
       ignoreResizeToFitTracking(() => {
@@ -550,17 +543,14 @@ export default defineComponent({
           [ViewTypes.YZ_PLANE]: {
             normal: [1, 0, 0],
             viewUp: [0, 0, 1],
-            color3: [255, 0, 0],
           },
           [ViewTypes.XZ_PLANE]: {
             normal: [0, -1, 0],
             viewUp: [0, 0, 1],
-            color3: [0, 255, 0],
           },
           [ViewTypes.XY_PLANE]: {
             normal: [0, 0, -1],
             viewUp: [0, -1, 0],
-            color3: [0, 0, 255],
           }
         });
         const planes = state.getPlanes();

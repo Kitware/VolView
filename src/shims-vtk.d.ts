@@ -249,7 +249,7 @@ declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants' {
 declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
   import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
   import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-  import type { Vector3 } from '@kitware/vtk.js/types';
+  import type { Vector3, RGBColor } from '@kitware/vtk.js/types';
   import vtkResliceCursorWidget from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 
   export interface vtkResliceCursorViewWidget extends vtkAbstractWidget {
@@ -267,10 +267,11 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
 
   export interface ResliceCursorWidgetState extends vtkWidgetState {
     placeWidget(bounds: Bounds): void;
+    setColor3(color: RGBColor): boolean;
     setScale1(scale: number): boolean;
     setScale3(scaleX: number, scaleY: number, scaleZ: number): boolean;
-    getPlanes(): Record<number, { normal: Vector3, viewUp: Vector3, color3: Vector3 }>;
-    setPlanes(planes: Record<number, { normal: Vector3, viewUp: Vector3, color3: Vector3 }>): void;
+    getPlanes(): Record<number, { normal: Vector3, viewUp: Vector3 }>;
+    setPlanes(planes: Record<number, { normal: Vector3, viewUp: Vector3 }>): void;
     getCenter(): Vector3;
     setScrollingMethod(mode: number): boolean;
     setOpacity(opacity: number): boolean;
