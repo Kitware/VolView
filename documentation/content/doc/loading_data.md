@@ -60,18 +60,47 @@ In order for VolView to download and display your remote datasets, your server m
 
 By loading a JSON file, you can set VolView's:
 
-- View layout (Axial Only, 3D Primary, etc).
+- Starting view layout (Axial Only, 3D Primary, etc).
 - Labels for tools
 - Visibility of Sample Data section
 
-Example JSON:
+#### Starting view layout
+
+The `activeLayout` key has options (Axial Only, 3D Primary, etc.) defined in `config.ts`
+
+#### Labels for tools
+
+Each tool type (Rectangle, Polygon, etc.) can have tool specific labels. To share labels
+across tools, define the `defaultLabels` key and don't provide the tool's specific label key.
+
+#### Visibility of Sample Data section
+
+Simplify the data browser by hiding the Sample Data expandable section.
+
+#### Example JSON:
 
 ```json
 {
   "labels": {
     "defaultLabels": {
       "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green" },
+      "tumor": { "color": "green", "strokeWidth": 3 }
+    }
+  },
+  "layout": {
+    "activeLayout": "Axial Only"
+  }
+}
+```
+
+#### All options:
+
+```json
+{
+  "labels": {
+    "defaultLabels": {
+      "lesion": { "color": "#ff0000" },
+      "tumor": { "color": "green", "strokeWidth": 3 },
       "innocuous": { "color": "white" }
     },
     "rulerLabels": {
