@@ -1,4 +1,5 @@
-import { onKeyDown } from '@vueuse/core';
+import { ref, watch } from 'vue';
+import { useMagicKeys, whenever } from '@vueuse/core';
 
 import { DECREMENT_LABEL_KEY, INCREMENT_LABEL_KEY } from '../config';
 import { useToolStore } from '../store/tools';
@@ -6,6 +7,7 @@ import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
+import { getEntries } from '../utils';
 
 const applyLabelOffset = (offset: number) => {
   const toolToStore = {
@@ -15,7 +17,7 @@ const applyLabelOffset = (offset: number) => {
   };
   const toolStore = useToolStore();
 
-  // @ts-ignore - map may not have all keys of tools
+  // @ts-ignore - toolToStore may not have keys of all tools
   const activeToolStore = toolToStore[toolStore.currentTool];
   if (!activeToolStore) return;
 
@@ -28,7 +30,29 @@ const applyLabelOffset = (offset: number) => {
   activeToolStore.setActiveLabel(nextLabel);
 };
 
+const actionToFunc = {
+  'decrement-label': () => applyLabelOffset(-1),
+  'increment-label': () => applyLabelOffset(1),
+};
+
+const actionToKey = ref({
+  'decrement-label': DECREMENT_LABEL_KEY,
+  'increment-label': INCREMENT_LABEL_KEY,
+});
+
 export function useKeyboardShortcuts() {
-  onKeyDown(DECREMENT_LABEL_KEY, () => applyLabelOffset(-1));
-  onKeyDown(INCREMENT_LABEL_KEY, () => applyLabelOffset(1));
+  const keys = useMagicKeys();
+  const unwatchFuncs = ref([] as Array<ReturnType<typeof whenever>>);
+
+  watch(
+    actionToKey,
+    (actionMap) => {
+      unwatchFuncs.value.forEach((unwatch) => unwatch());
+
+      unwatchFuncs.value = getEntries(actionMap).map(([action, key]) => {
+        return whenever(keys[key], actionToFunc[action]);
+      });
+    },
+    { immediate: true, deep: true }
+  );
 }

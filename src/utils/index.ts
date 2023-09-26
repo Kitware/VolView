@@ -289,3 +289,12 @@ export const TypedArrayConstructorNames = [
   'Float32Array',
   'Float64Array',
 ];
+
+// https://stackoverflow.com/a/74823834
+type Entries<T> = {
+  [K in keyof T]-?: [K, T[K]];
+}[keyof T][];
+
+// Object.entries with keys preserved
+export const getEntries = <T extends object>(obj: T) =>
+  Object.entries(obj) as Entries<T>;
