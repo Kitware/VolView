@@ -48,6 +48,22 @@ export const Messages = {
 
 export const ANNOTATION_TOOL_HANDLE_RADIUS = 10; // pixels
 
-export const ACTIONS = ['decrement-label', 'increment-label'] as const;
+export const ACTIONS = [
+  // set the current tool
+  'windowLevel',
+  'pan',
+  'zoom',
+  'ruler',
+  'paint',
+  'rectangle',
+  'crosshairs',
+  'crop',
+  'polygon',
+  'select',
+
+  // change the current label for the current tool
+  'decrementLabel',
+  'incrementLabel',
+] as const;
 
 export type Action = (typeof ACTIONS)[number];

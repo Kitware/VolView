@@ -9,14 +9,14 @@ export const actionToKey = ref(ACTION_TO_KEY);
 
 export function useKeyboardShortcuts() {
   const keys = useMagicKeys();
-  const unwatchFuncs = ref([] as Array<ReturnType<typeof whenever>>);
+  let unwatchFuncs = [] as Array<ReturnType<typeof whenever>>;
 
   watch(
     actionToKey,
     (actionMap) => {
-      unwatchFuncs.value.forEach((unwatch) => unwatch());
+      unwatchFuncs.forEach((unwatch) => unwatch());
 
-      unwatchFuncs.value = getEntries(actionMap).map(([action, key]) => {
+      unwatchFuncs = getEntries(actionMap).map(([action, key]) => {
         return whenever(keys[key], ACTION_TO_FUNC[action]);
       });
     },

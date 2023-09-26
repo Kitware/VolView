@@ -210,8 +210,19 @@ export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   US: 'US-Fetal',
 };
 
-// Keyboard shortcuts/hotkeys
+// Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+A'
 export const ACTION_TO_KEY = {
-  'decrement-label': 'q',
-  'increment-label': 'w',
+  windowLevel: 'l',
+  pan: 'n',
+  zoom: 'z',
+  ruler: 'm',
+  paint: 'p',
+  rectangle: 'r',
+  crosshairs: 'c',
+  crop: 'b',
+  polygon: 'g',
+  select: 's',
+
+  decrementLabel: 'q',
+  incrementLabel: 'w',
 } satisfies Record<Action, string>;
