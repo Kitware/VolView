@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '../types/annotation-tool';
 import { standardizeColor } from '../utils';
@@ -11,20 +11,26 @@ const props = defineProps<{
 
 const label = computed(() => props.labelsStore.labels[props.label]);
 
-const labelName = ref(label.value.labelName);
-watch(labelName, (name) => {
-  props.labelsStore.updateLabel(props.label, { labelName: name });
-});
+type LabelProp = keyof typeof label.value;
+const getLabelProp = <P extends LabelProp>(labelProp: P) =>
+  label.value[labelProp];
 
-const strokeWidth = ref(label.value.strokeWidth);
-watch(strokeWidth, (width) => {
-  props.labelsStore.updateLabel(props.label, { strokeWidth: width });
-});
+const makeUpdatableLabelProp = <P extends LabelProp>(
+  labelProp: P,
+  get: (labelProp: P) => (typeof label.value)[P] = getLabelProp
+) =>
+  computed({
+    get: () => get(labelProp),
+    set(value) {
+      props.labelsStore.updateLabel(props.label, { [labelProp]: value });
+    },
+  });
 
-const colorLocal = ref(standardizeColor(label.value.color));
-watch(colorLocal, (color) => {
-  props.labelsStore.updateLabel(props.label, { color });
-});
+const labelName = makeUpdatableLabelProp('labelName');
+const strokeWidth = makeUpdatableLabelProp('strokeWidth');
+const color = makeUpdatableLabelProp('color', (labelProp) =>
+  standardizeColor(getLabelProp(labelProp))
+);
 
 const emit = defineEmits(['done']);
 const deleteLabel = () => {
@@ -65,7 +71,7 @@ const deleteLabel = () => {
             </v-btn>
           </v-card-actions>
         </div>
-        <v-color-picker v-model="colorLocal" mode="rgb" label="Color" />
+        <v-color-picker v-model="color" mode="rgb" label="Color" />
       </div>
     </v-card-item>
   </v-card>
