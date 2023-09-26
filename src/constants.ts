@@ -47,3 +47,7 @@ export const Messages = {
 } as const;
 
 export const ANNOTATION_TOOL_HANDLE_RADIUS = 10; // pixels
+
+export const ACTIONS = ['decrement-label', 'increment-label'] as const;
+
+export type Action = (typeof ACTIONS)[number];

@@ -6,6 +6,7 @@ import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
 import { SampleDataset } from './types';
+import { Action } from './constants';
 
 /**
  * These are the initial view IDs.
@@ -203,11 +204,14 @@ export const POLYGON_LABEL_DEFAULTS = {
   white: { color: '#ffffff' },
 };
 
-export const DECREMENT_LABEL_KEY = 'q';
-export const INCREMENT_LABEL_KEY = 'w';
-
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
   MR: 'CT-Coronary-Arteries-2',
   US: 'US-Fetal',
 };
+
+// Keyboard shortcuts/hotkeys
+export const ACTION_TO_KEY = {
+  'decrement-label': 'q',
+  'increment-label': 'w',
+} satisfies Record<Action, string>;

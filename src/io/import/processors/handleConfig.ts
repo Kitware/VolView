@@ -7,7 +7,9 @@ import { useDataBrowserStore } from '@/src/store/data-browser';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import { Layouts } from '@/src/config';
-import { zodEnumFromObjKeys } from '@/src/utils';
+import { ensureError, zodEnumFromObjKeys } from '@/src/utils';
+import { ACTIONS } from '@/src/constants';
+import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 
 const layout = z
   .object({
@@ -20,6 +22,8 @@ const dataBrowser = z
     hideSampleData: z.boolean().optional(),
   })
   .optional();
+
+const shortcuts = z.record(z.enum(ACTIONS)).optional();
 
 // --------------------------------------------------------------------------
 // Labels
@@ -54,6 +58,7 @@ const config = z.object({
   layout,
   dataBrowser,
   labels,
+  shortcuts,
 });
 
 type Config = z.infer<typeof config>;
@@ -93,10 +98,20 @@ const applyLayout = (manifest: Config) => {
   }
 };
 
+const applyShortcuts = (manifest: Config) => {
+  if (!manifest.shortcuts) return;
+
+  actionToKey.value = {
+    ...actionToKey.value,
+    ...manifest.shortcuts,
+  };
+};
+
 const applyConfig = (manifest: Config) => {
   applyLayout(manifest);
   applyLabels(manifest);
   applySampleData(manifest);
+  applyShortcuts(manifest);
 };
 
 /**
@@ -111,7 +126,10 @@ const handleConfig: ImportHandler = async (dataSource, { done }) => {
       const manifest = await readConfigFile(fileSrc.file);
       applyConfig(manifest);
     } catch (err) {
-      return dataSource;
+      console.error(err);
+      throw new Error('Failed to parse config file', {
+        cause: ensureError(err),
+      });
     }
     return done();
   }
