@@ -4,10 +4,11 @@ import { useCurrentImage } from '../composables/useCurrentImage';
 import VolumeProperties from './VolumeProperties.vue';
 import VolumeRendering from './VolumeRendering.vue';
 import VolumePresets from './VolumePresets.vue';
+import WebXRRendering from './WebXRRendering.vue';
 import LayerList from './LayerList.vue';
 
 export default defineComponent({
-  components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
+  components: { VolumeRendering, VolumePresets, VolumeProperties, WebXRRendering, LayerList },
   setup() {
     const { currentImageData } = useCurrentImage();
     const hasCurrentImage = computed(() => !!currentImageData.value);
@@ -31,6 +32,7 @@ export default defineComponent({
     <template v-if="hasCurrentImage">
       <volume-rendering />
       <v-expansion-panels v-model="panels" multiple variant="accordion">
+
         <v-expansion-panel value="preset">
           <v-expansion-panel-title>
             <v-icon class="flex-grow-0 mr-4">mdi-palette</v-icon>
@@ -60,6 +62,17 @@ export default defineComponent({
             <layer-list />
           </v-expansion-panel-text>
         </v-expansion-panel>
+        
+        <v-expansion-panel value="webxr">
+          <v-expansion-panel-title>
+            <v-icon class="flex-grow-0 mr-4">mdi-palette</v-icon>
+            WebXR Rendering
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <web-x-r-rendering />
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+        
       </v-expansion-panels>
     </template>
     <template v-else>
