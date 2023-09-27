@@ -3,9 +3,6 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
-  onBeforeUnmount,
-  onMounted,
-  onUnmounted,
   PropType,
   ref,
   toRefs,
@@ -15,15 +12,17 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { useViewStore } from '@/src/store/views';
 import { PaintWidgetState } from '@/src/vtk/PaintWidget/state';
 import { vec3 } from 'gl-matrix';
-import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import {
+  onViewProxyMounted,
+  onViewProxyUnmounted,
+} from '@/src/composables/useViewProxy';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -47,17 +46,14 @@ export default defineComponent({
   },
   setup(props) {
     const {
-      widgetManager: widgetManagerRef,
+      widgetManager,
       viewDirection,
       slice,
       viewId: viewID,
     } = toRefs(props);
 
     const paintStore = usePaintToolStore();
-    const factory = paintStore.getWidgetFactory();
-
-    const viewStore = useViewStore();
-    const viewProxyRef = computed(() => viewStore.getViewProxy(viewID.value));
+    const widgetFactory = paintStore.getWidgetFactory();
 
     const widgetRef = ref<vtkPaintViewWidget>();
 
@@ -74,13 +70,26 @@ export default defineComponent({
       return indexPoint;
     };
 
-    onMounted(() => {
-      const widgetManager = widgetManagerRef.value;
-      widgetRef.value = widgetManager.addWidget(factory) as vtkPaintViewWidget;
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewID.value));
+
+    onViewProxyMounted(viewProxy, () => {
+      widgetRef.value = widgetManager.value.addWidget(
+        widgetFactory
+      ) as vtkPaintViewWidget;
 
       if (!widgetRef.value) {
         throw new Error('[PaintWidget2D] failed to create view widget');
       }
+
+      widgetManager.value.renderWidgets();
+      widgetManager.value.grabFocus(widgetRef.value);
+    });
+
+    onViewProxyUnmounted(viewProxy, () => {
+      if (!widgetRef.value) {
+        return;
+      }
+      widgetManager.value.removeWidget(widgetRef.value);
     });
 
     // --- widget representation config --- //
@@ -98,45 +107,31 @@ export default defineComponent({
 
     // --- interaction --- //
 
-    const subs: vtkSubscription[] = [];
-
-    onMounted(() => {
-      const widget = widgetRef.value!;
-
-      subs.push(
-        widget.onStartInteractionEvent(() => {
-          // start stroke
-          const state = widget.getWidgetState() as PaintWidgetState;
-          // StartInteraction cannot occur if origin is null.
-          const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
-          paintStore.startStroke(indexPoint, viewAxisIndex.value);
-        }),
-        widget.onInteractionEvent(() => {
-          // register stroke
-          const state = widget.getWidgetState() as PaintWidgetState;
-          const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
-          paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value);
-        }),
-        widget.onEndInteractionEvent(() => {
-          // end stroke
-          const state = widget.getWidgetState() as PaintWidgetState;
-          const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
-          paintStore.endStroke(indexPoint, viewAxisIndex.value);
-        })
-      );
+    onVTKEvent(widgetRef, 'onStartInteractionEvent', () => {
+      const state = widgetRef.value!.getWidgetState() as PaintWidgetState;
+      // StartInteraction cannot occur if origin is null.
+      const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
+      paintStore.startStroke(indexPoint, viewAxisIndex.value);
     });
 
-    onUnmounted(() => {
-      while (subs.length) {
-        subs.pop()!.unsubscribe();
-      }
+    onVTKEvent(widgetRef, 'onInteractionEvent', () => {
+      const state = widgetRef.value!.getWidgetState() as PaintWidgetState;
+      const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
+      paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value);
+    });
+
+    onVTKEvent(widgetRef, 'onEndInteractionEvent', () => {
+      // end stroke
+      const state = widgetRef.value!.getWidgetState() as PaintWidgetState;
+      const indexPoint = worldPointToIndex(state.getBrush().getOrigin()!);
+      paintStore.endStroke(indexPoint, viewAxisIndex.value);
     });
 
     // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    onViewProxyMounted(viewProxy, () => {
       widgetRef.value!.setManipulator(manipulator);
     });
 
@@ -153,13 +148,15 @@ export default defineComponent({
 
     let checkIfPointerInView = false;
 
-    onMounted(() => {
+    onViewProxyMounted(viewProxy, () => {
       widgetRef.value!.setVisibility(false);
       checkIfPointerInView = true;
     });
 
+    const viewInteractor = computed(() => viewProxy.value!.getInteractor());
+
     // Turn on widget visibility if mouse starts within view
-    onVTKEvent(viewProxyRef.value!.getInteractor(), 'onMouseMove', () => {
+    onVTKEvent(viewInteractor, 'onMouseMove', () => {
       if (!checkIfPointerInView) {
         return;
       }
@@ -168,36 +165,19 @@ export default defineComponent({
       widgetRef.value!.setVisibility(true);
     });
 
-    manageVTKSubscription(
-      viewProxyRef.value!.getInteractor().onMouseEnter(() => {
-        const widget = widgetRef.value;
-        if (widget) {
-          paintStore.setSliceAxis(viewAxisIndex.value);
-          widget.setVisibility(true);
-        }
-      })
-    );
-
-    manageVTKSubscription(
-      viewProxyRef.value!.getInteractor().onMouseLeave(() => {
-        const widget = widgetRef.value;
-        if (widget) {
-          widget.setVisibility(false);
-        }
-      })
-    );
-
-    // --- focus and rendering --- //
-
-    onMounted(() => {
-      const widgetManager = widgetManagerRef.value;
-      widgetManager.renderWidgets();
-      widgetManager.grabFocus(widgetRef.value!);
+    onVTKEvent(viewInteractor, 'onMouseEnter', () => {
+      const widget = widgetRef.value;
+      if (widget) {
+        paintStore.setSliceAxis(viewAxisIndex.value);
+        widget.setVisibility(true);
+      }
     });
 
-    onBeforeUnmount(() => {
-      widgetManagerRef.value.removeWidget(widgetRef.value!);
-      widgetManagerRef.value.releaseFocus();
+    onVTKEvent(viewInteractor, 'onMouseLeave', () => {
+      const widget = widgetRef.value;
+      if (widget) {
+        widget.setVisibility(false);
+      }
     });
 
     return () => null;
