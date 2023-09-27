@@ -6,6 +6,7 @@ import vtkSourceProxy from '@kitware/vtk.js/Proxy/Core/SourceProxy';
 import vtkGeometryRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/GeometryRepresentationProxy';
 import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 import vtkVolumeRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/VolumeRepresentationProxy';
+import vtkMultiSliceRepresentationProxy from '@/src/vtk/MultiSliceRepresentationProxy';
 
 import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -49,6 +50,7 @@ export default {
       LabelMapSlice: createProxyDefinition(vtkLabelMapSliceRepProxy),
       Volume: createProxyDefinition(vtkVolumeRepresentationProxy),
       Geometry: createProxyDefinition(vtkGeometryRepresentationProxy),
+      ImageMultiSlice: createProxyDefinition(vtkMultiSliceRepresentationProxy),
     },
     Views: {
       View3D: createDefaultView(vtkLPSView3DProxy),
@@ -70,7 +72,7 @@ export default {
       vtkImageData: { name: 'ImageReslice' },
     },
     Oblique3D: {
-      vtkImageData: { name: 'Geometry' },
+      vtkImageData: { name: 'ImageMultiSlice' },
     },
   },
 };

@@ -54,24 +54,25 @@ import {
 } from 'vue';
 import { storeToRefs } from 'pinia';
 
-import vtkImageDataOutlineFilter from '@kitware/vtk.js/Filters/General/ImageDataOutlineFilter';
-import vtkGeometryRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/GeometryRepresentationProxy';
+import { vec3 } from 'gl-matrix';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 
+import vtkMultiSliceRepresentationProxy, { OutlineProperties } from '@src/vtk/MultiSliceRepresentationProxy';
 import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
 import { useVTKCallback } from '@/src/composables/useVTKCallback';
 import PanTool from './tools/PanTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
-import vtkLPSView2DProxy from '../vtk/LPSView2DProxy';
 import { ViewProxyType } from '../core/proxies';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { InitViewIDs } from '../config';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCustomEvents } from '../store/custom-events';
-import { VTKResliceCursor } from '../constants';
+import { VTKResliceCursor, OBLIQUE_OUTLINE_COLORS } from '../constants';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import useWindowingStore from '../store/view-configs/windowing';
 
@@ -106,30 +107,25 @@ export default defineComponent({
     const { viewProxy, setContainer: setViewProxyContainer } =
       useViewProxy<vtkLPSView3DProxy>(viewID, ViewProxyType.Oblique3D);
 
-    const { baseImageRep } = useSceneBuilder<vtkGeometryRepresentationProxy>(viewID, {
+    const { baseImageRep } = useSceneBuilder<vtkMultiSliceRepresentationProxy>(viewID, {
       baseImage: currentImageID
     });
 
-    // Get a 2D Oblique view proxy to fetch the reslice representations.
-    // We don't create new reslice reps, we just re-use those already
-    // created by the 2D Oblique Views.
-    const oblique2DViewProxies = computed(() => {
-      const { viewProxy: obliqueAxialViewProxy } =
-        useViewProxy<vtkLPSView2DProxy>(InitViewIDs.ObliqueAxial, ViewProxyType.Oblique);
-      const { viewProxy: obliqueSagittalViewProxy } =
-        useViewProxy<vtkLPSView2DProxy>(InitViewIDs.ObliqueSagittal, ViewProxyType.Oblique);
-      const { viewProxy: obliqueCoronalViewProxy } =
-        useViewProxy<vtkLPSView2DProxy>(InitViewIDs.ObliqueCoronal, ViewProxyType.Oblique);
-      return [obliqueAxialViewProxy, obliqueSagittalViewProxy, obliqueCoronalViewProxy];
-    });
+    // --- Set the data and slice outline properties --- //
+    const setOutlineProperties = () => {
+      const outlineColors =
+      [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueAxial]
+      .map(v =>
+        vec3.scale(
+          [0, 0, 0],
+          OBLIQUE_OUTLINE_COLORS[v],
+          1/255
+        )
+      );
 
-    function addResliceProxiesToView(): void {
-      oblique2DViewProxies.value?.forEach((proxyRef) => {
-        const reps = proxyRef.value?.getRepresentations();
-        if (reps && reps.length > 0) {
-          viewProxy.value.addRepresentation(reps[0]);
-        }
-      });
+      const outlineProperties = outlineColors.map(color => ({color, lineWidth: 4, opacity: 1.0}) as OutlineProperties);
+      baseImageRep.value?.setSliceOutlineProperties(outlineProperties);
+      baseImageRep.value?.setDataOutlineProperties({lineWidth: 1, opacity: 0.3} as OutlineProperties);
     }
 
     onBeforeUnmount(() => {
@@ -143,7 +139,6 @@ export default defineComponent({
       viewProxy.value.setBackground([0, 0, 0, 0]);
       viewProxy.value.getCamera().setParallelProjection(true);
       setViewProxyContainer(vtkContainerRef.value);
-      addResliceProxiesToView();
     });
 
     const resliceCursorRef = inject(VTKResliceCursor);
@@ -151,11 +146,30 @@ export default defineComponent({
       throw Error('Cannot access global ResliceCursor instance.');
     }
 
+    const updateViewFromResliceCursor = () => {
+      const rep = baseImageRep?.value;
+      const resliceCursor = resliceCursorRef?.value;
+      const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
+      const planeOrigin = state?.getCenter();
+      if (resliceCursor && rep && planeOrigin) {
+        const planeNormalYZ = resliceCursor.getPlaneNormalFromViewType(ViewTypes.YZ_PLANE);
+        const planeNormalXZ = resliceCursor.getPlaneNormalFromViewType(ViewTypes.XZ_PLANE);
+        const planeNormalXY = resliceCursor.getPlaneNormalFromViewType(ViewTypes.XY_PLANE);
+        const planesForSlices = [
+          {origin: planeOrigin, normal: planeNormalYZ},
+          {origin: planeOrigin, normal: planeNormalXZ},
+          {origin: planeOrigin, normal: planeNormalXY},
+        ];
+        rep.setPlanes(planesForSlices);
+      }
+    }
+
     const onPlanesUpdated = useVTKCallback(
       resliceCursorRef.value.getWidgetState().onModified
     );
 
     onPlanesUpdated(() => {
+      updateViewFromResliceCursor();
       viewProxy.value.renderLater();
     });
 
@@ -178,7 +192,6 @@ export default defineComponent({
         cameraUpVec.value,
         center
       );
-      addResliceProxiesToView();
       viewProxy.value.resetCamera();
       viewProxy.value.renderLater();
     };
@@ -193,33 +206,24 @@ export default defineComponent({
 
     watch([baseImageRep, currentImageData],
       () => {
-        const image = currentImageData.value;
-        const outlineRep = baseImageRep.value;
-        if (image && outlineRep) {
-          const outlineFilter = vtkImageDataOutlineFilter.newInstance();
-          outlineFilter.setInputData(image);
-          outlineFilter.setGenerateFaces(false);
-          outlineFilter.setGenerateLines(true);
-          outlineRep.getMapper().setInputConnection(outlineFilter.getOutputPort());
-          outlineRep.setLineWidth(1.0);
-          outlineRep.setOpacity(0.3);
-        }
-
-        addResliceProxiesToView();
+        setOutlineProperties();
+        resetCamera();
       },
       { immediate: true }
     );
 
-    // Track window-level setting of one of the oblique views,
-    // and render-update the 3D view immediately.
+    // Track window-level setting of one of the oblique views:
     const windowingStore = useWindowingStore();
-    const config = computed(() => windowingStore.getConfig(InitViewIDs.ObliqueAxial, currentImageID.value));
-    watch(config, () => {
-      viewProxy.value.renderLater();
-      },
-      { immediate: true }
-    );
+    const wlConfig = computed(() => windowingStore.getConfig(InitViewIDs.ObliqueAxial, currentImageID.value));
 
+    watch([wlConfig, baseImageRep], ([newConfigValue, newRep]) => {
+      if (newConfigValue && newRep) {
+        const { width, level } = newConfigValue;
+        newRep.setWindowWidth(width);
+        newRep.setWindowLevel(level);
+        viewProxy.value.renderLater();
+      }
+    });
 
     return {
       vtkContainerRef,
