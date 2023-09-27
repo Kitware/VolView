@@ -23,6 +23,7 @@ import { PaintWidgetState } from '@/src/vtk/PaintWidget/state';
 import { vec3 } from 'gl-matrix';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import { LPSAxisDir } from '@/src/types/lps';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -150,8 +151,21 @@ export default defineComponent({
 
     // --- visibility --- //
 
+    let checkIfPointerInView = false;
+
     onMounted(() => {
       widgetRef.value!.setVisibility(false);
+      checkIfPointerInView = true;
+    });
+
+    // Turn on widget visibility if mouse starts within view
+    onVTKEvent(viewProxyRef.value!.getInteractor(), 'onMouseMove', () => {
+      if (!checkIfPointerInView) {
+        return;
+      }
+      checkIfPointerInView = false;
+
+      widgetRef.value!.setVisibility(true);
     });
 
     manageVTKSubscription(
