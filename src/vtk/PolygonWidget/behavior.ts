@@ -37,7 +37,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // overSegment guards against clicking anywhere in view
     const selections = model._widgetManager.getSelections();
     const overSegment =
-      selections[0]?.getProperties().prop ===
+      selections?.[0]?.getProperties().prop ===
       model.representations[1].getActors()[0]; // line representation is second representation
     return overSegment && !overUnselectedHandle;
   };
@@ -428,6 +428,5 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.activeState = null;
     model.hasFocus = false;
     model._widgetManager.enablePicking();
-    model._interactor.render();
   };
 }
