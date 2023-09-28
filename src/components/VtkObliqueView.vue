@@ -124,14 +124,14 @@ import type { RGBColor, Vector3 } from '@kitware/vtk.js/types';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import vtkReslicReperesentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
-import { useResizeToFit } from '@src/composables/useResizeToFit';
-import vtkLPSView2DProxy from '@src/vtk/LPSView2DProxy';
+import { useResizeToFit } from '@/src/composables/useResizeToFit';
+import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
-import { manageVTKSubscription } from '@src/composables/manageVTKSubscription';
-import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
@@ -306,13 +306,7 @@ export default defineComponent({
       }
     }
 
-    const onPlanesUpdated = useVTKCallback(
-      resliceCursorRef.value.getWidgetState().onModified
-    );
-
-    onPlanesUpdated(() => {
-      updateViewFromResliceCursor();
-    });
+    onVTKEvent(resliceCursorRef.value.getWidgetState(), 'onModified', updateViewFromResliceCursor);
 
     onMounted(() => {
       setViewProxyContainer(vtkContainerRef.value);

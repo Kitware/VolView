@@ -58,9 +58,9 @@ import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 
-import vtkMultiSliceRepresentationProxy, { OutlineProperties } from '@src/vtk/MultiSliceRepresentationProxy';
-import ViewOverlayGrid from '@src/components/ViewOverlayGrid.vue';
-import { useVTKCallback } from '@/src/composables/useVTKCallback';
+import vtkMultiSliceRepresentationProxy, { OutlineProperties } from '@/src/vtk/MultiSliceRepresentationProxy';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import PanTool from './tools/PanTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
@@ -163,14 +163,12 @@ export default defineComponent({
       }
     }
 
-    const onPlanesUpdated = useVTKCallback(
-      resliceCursorRef.value.getWidgetState().onModified
-    );
-
-    onPlanesUpdated(() => {
+    const onPlanesUpdated = () => {
       updateViewFromResliceCursor();
       viewProxy.value.renderLater();
-    });
+    };
+
+    onVTKEvent(resliceCursorRef.value.getWidgetState(), 'onModified', onPlanesUpdated);
 
     // --- camera setup --- //
 

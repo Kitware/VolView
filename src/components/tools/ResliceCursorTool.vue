@@ -4,8 +4,8 @@ import { computed, defineComponent, inject, onBeforeUnmount, ref, toRefs, watch 
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { vtkResliceCursorViewWidget, ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
-import { OBLIQUE_OUTLINE_COLORS, VTKTwoViewWidgetManager, VTKResliceCursor } from '@src/constants';
-import { useViewProxyMounted } from '@/src/composables/useViewProxy';
+import { OBLIQUE_OUTLINE_COLORS, VTKTwoViewWidgetManager, VTKResliceCursor } from '@/src/constants';
+import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 import { getLPSAxisFromDir, getVTKViewTypeFromLPSAxis } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { InitViewIDs } from '../../config';
@@ -71,7 +71,7 @@ export default defineComponent({
       }
     });
 
-    useViewProxyMounted(viewProxy, () => {
+    onViewProxyMounted(viewProxy, () => {
       if (widgetManager?.value) {
         widget.value = widgetManager.value.addWidget(
           resliceCursor,
