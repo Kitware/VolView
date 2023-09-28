@@ -117,7 +117,6 @@ import {
   watch,
   watchEffect,
 } from 'vue';
-import { storeToRefs } from 'pinia';
 import { vec3, mat3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
@@ -142,7 +141,7 @@ import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import ResliceCursorTool from './tools/ResliceCursorTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
-import { useCustomEvents } from '../store/custom-events';
+import { useResetViewsEvents } from './tools/ResetViews.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import useWindowingStore from '../store/view-configs/windowing';
 import { LPSAxisDir } from '../types/lps';
@@ -625,12 +624,8 @@ export default defineComponent({
     });
 
     // Listen to ResetViews event.
-    const events = useCustomEvents();
-    const { resetViews } = storeToRefs(events);
-    watch(
-      resetViews, () => {
-        resetCamera();
-    });
+    const events = useResetViewsEvents();
+    events.onClick(() => resetCamera());
 
     const enableResizeToFit = () => {
       resizeToFit.value = true;

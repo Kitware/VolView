@@ -1,7 +1,12 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import ToolButton from '@/src/components/ToolButton.vue';
-import { useCustomEvents } from '@/src/store/custom-events';
+import { createEventHook } from '@vueuse/core'
+
+const clickEvent = createEventHook<void>();
+export function useResetViewsEvents() {
+  return { onClick: clickEvent.on };
+}
 
 export default defineComponent({
   components: {
@@ -11,8 +16,7 @@ export default defineComponent({
   // },
   methods: {
     onClick() {
-      const events = useCustomEvents();
-      events.triggerResetViews();
+      clickEvent.trigger();
     }
   }
 });

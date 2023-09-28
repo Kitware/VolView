@@ -52,7 +52,6 @@ import {
   toRefs,
   watch,
 } from 'vue';
-import { storeToRefs } from 'pinia';
 
 import { vec3 } from 'gl-matrix';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
@@ -71,7 +70,7 @@ import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import { InitViewIDs } from '../config';
 import { useResizeObserver } from '../composables/useResizeObserver';
-import { useCustomEvents } from '../store/custom-events';
+import { useResetViewsEvents } from './tools/ResetViews.vue';
 import { VTKResliceCursor, OBLIQUE_OUTLINE_COLORS } from '../constants';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import useWindowingStore from '../store/view-configs/windowing';
@@ -197,12 +196,8 @@ export default defineComponent({
     };
 
     // Listen to ResetViews event.
-    const events = useCustomEvents();
-    const { resetViews } = storeToRefs(events);
-    watch(
-      resetViews, () => {
-        resetCamera();
-    });
+    const events = useResetViewsEvents();
+    events.onClick(() => resetCamera());
 
     watch([baseImageRep, currentImageData],
       () => {
