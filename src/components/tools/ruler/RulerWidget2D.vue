@@ -180,10 +180,10 @@ export default defineComponent({
     return {
       ruler,
       firstPoint: computed(() => {
-        return visibleStates.firstPoint ? ruler.value.firstPoint : undefined;
+        return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;
       }),
       secondPoint: computed(() => {
-        return visibleStates.secondPoint ? ruler.value.secondPoint : undefined;
+        return visibleStates.secondPoint ? ruler.value?.secondPoint : undefined;
       }),
       length: computed(() => rulerStore.lengthByID[ruler.value.id]),
     };

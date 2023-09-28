@@ -181,10 +181,10 @@ export default defineComponent({
     return {
       tool,
       firstPoint: computed(() => {
-        return visibleStates.firstPoint ? tool.value.firstPoint : undefined;
+        return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
       }),
       secondPoint: computed(() => {
-        return visibleStates.secondPoint ? tool.value.secondPoint : undefined;
+        return visibleStates.secondPoint ? tool.value?.secondPoint : undefined;
       }),
     };
   },
