@@ -95,3 +95,10 @@ export const ACTIONS = {
 } as const;
 
 export type Action = keyof typeof ACTIONS;
+
+export const WLAutoRanges = {
+  Default: 0.1,
+  OnePercent: 1.0,
+  TwoPercent: 2.0,
+  FivePercent: 5.0,
+};

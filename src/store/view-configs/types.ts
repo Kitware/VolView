@@ -37,6 +37,7 @@ export interface WindowLevelConfig {
   level: number;
   min: number; // data range min
   max: number; // data range max
+  auto: string; // User-selected percentile range
 }
 
 export interface LayersConfig {

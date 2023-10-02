@@ -16,6 +16,7 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   level: 0.5,
   min: 0,
   max: 1,
+  auto: 'Default',
 });
 
 const useWindowingStore = defineStore('windowing', () => {

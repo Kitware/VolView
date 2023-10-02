@@ -232,7 +232,11 @@ import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
 import CropTool from './tools/crop/CropTool.vue';
-import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
+import {
+  ToolContainer,
+  VTKTwoViewWidgetManager,
+  WLAutoRanges,
+} from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
@@ -329,6 +333,7 @@ export default defineComponent({
 
     const windowWidth = computed(() => wlConfig.value?.width);
     const windowLevel = computed(() => wlConfig.value?.level);
+    const autoRange = computed(() => wlConfig.value?.auto || 'Default');
     const dicomInfo = computed(() => {
       if (
         curImageID.value !== null &&
@@ -455,6 +460,27 @@ export default defineComponent({
 
     // --- window/level setup --- //
 
+    const autoRangeValues = computed(() => {
+      // Pre-compute the auto-range values
+      const values: Record<string, Array<number>> = {};
+      if (curImageData?.value) {
+        const scalarData = curImageData.value
+          .getPointData()
+          .getScalars()
+          .getData();
+        const sortedData = [...scalarData].sort(
+          (a: number, b: number) => a - b
+        );
+        Object.entries(WLAutoRanges).forEach(([key, value]) => {
+          const percentage = value * 0.01;
+          const startIdx = Math.round(percentage * sortedData.length);
+          const endIdx = Math.round((1 - percentage) * sortedData.length);
+          values[key] = [sortedData[startIdx], sortedData[endIdx]];
+        });
+      }
+      return values;
+    });
+
     watch(
       curImageData,
       (imageData) => {
@@ -463,7 +489,7 @@ export default defineComponent({
         }
 
         // TODO listen to changes in point data
-        const range = imageData.getPointData().getScalars().getRange();
+        const range = autoRangeValues.value[autoRange.value];
         windowingStore.updateConfig(viewID.value, curImageID.value, {
           min: range[0],
           max: range[1],
@@ -474,6 +500,22 @@ export default defineComponent({
         immediate: true,
       }
     );
+
+    watch(autoRange, (percentile) => {
+      if (
+        curImageID.value == null ||
+        wlConfig.value == null ||
+        !curImageData.value
+      ) {
+        return;
+      }
+      const range = autoRangeValues.value[percentile];
+      windowingStore.updateConfig(viewID.value, curImageID.value, {
+        min: range[0],
+        max: range[1],
+      });
+      windowingStore.resetWindowLevel(viewID.value, curImageID.value);
+    });
 
     // --- scene setup --- //
 
