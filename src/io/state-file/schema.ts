@@ -103,6 +103,7 @@ const WindowLevelConfig = z.object({
   min: z.number(),
   max: z.number(),
   auto: z.string(),
+  preset: z.object({ width: z.number(), level: z.number() }),
 }) satisfies z.ZodType<WindowLevelConfig>;
 
 const SliceConfig = z.object({

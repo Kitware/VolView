@@ -17,6 +17,10 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   min: 0,
   max: 1,
   auto: 'Default',
+  preset: {
+    width: 1,
+    level: 0.5,
+  },
 });
 
 const useWindowingStore = defineStore('windowing', () => {
@@ -68,8 +72,12 @@ const useWindowingStore = defineStore('windowing', () => {
     const config = configs[viewID]?.[dataID];
     if (config == null) return;
 
-    const width = config.max - config.min;
-    const level = (config.max + config.min) / 2;
+    let { width, level } = config.preset;
+    const defaults = defaultWindowLevelConfig();
+    if (width === defaults.width && level === defaults.level) {
+      width = config.max - config.min;
+      level = (config.max + config.min) / 2;
+    }
     updateConfig(viewID, dataID, { width, level });
   };
 
