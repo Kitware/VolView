@@ -9,13 +9,15 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
     >
-      <tool-button
+      <menu-tool-button
         icon="mdi-circle-half-full"
         name="Window & Level"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+        :active="active"
         :disabled="noCurrentImage"
         @click="toggle"
-      />
+      >
+        <window-level-controls />
+      </menu-tool-button>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
       <tool-button
@@ -138,6 +140,7 @@ import CropControls from './tools/crop/CropControls.vue';
 import RulerControls from './RulerControls.vue';
 import RectangleControls from './RectangleControls.vue';
 import PolygonControls from './PolygonControls.vue';
+import WindowLevelControls from './tools/windowing/WindowLevelControls.vue';
 
 export default defineComponent({
   components: {
@@ -150,6 +153,7 @@ export default defineComponent({
     RulerControls,
     RectangleControls,
     PolygonControls,
+    WindowLevelControls,
   },
   setup() {
     const dataStore = useDatasetStore();
@@ -160,10 +164,12 @@ export default defineComponent({
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
+    const windowingMenu = ref(false);
 
     onKeyDown('Escape', () => {
       paintMenu.value = false;
       cropMenu.value = false;
+      windowingMenu.value = false;
     });
 
     return {
@@ -173,6 +179,7 @@ export default defineComponent({
       Tools,
       paintMenu,
       cropMenu,
+      windowingMenu,
     };
   },
 });
