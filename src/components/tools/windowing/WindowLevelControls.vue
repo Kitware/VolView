@@ -84,6 +84,27 @@ export default defineComponent({
       },
     });
 
+    // --- Tag WL Options --- //
+
+    function parseTags(text: string) {
+      return text.split('\\');
+    }
+
+    const tags = computed(() => {
+      if (
+        currentImageID.value &&
+        currentImageID.value in dicomStore.imageIDToVolumeKey
+      ) {
+        const volKey = dicomStore.imageIDToVolumeKey[currentImageID.value];
+        const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
+        const levels = parseTags(WindowLevel);
+        return parseTags(WindowWidth).map((val, idx) => {
+          return { width: val, level: levels[idx] };
+        });
+      }
+      return [];
+    });
+
     // --- Reset --- //
 
     const resetWindowLevel = () => {
@@ -110,6 +131,7 @@ export default defineComponent({
       wlPresetSettings,
       WLPresetsCT,
       isCT,
+      tags,
     };
   },
 });
@@ -143,6 +165,17 @@ export default defineComponent({
         >
           Reset Preset
         </v-btn>
+      </v-radio-group>
+      <v-radio-group v-if="tags.length" v-model="wlPresetSettings" hide-details>
+        <p>Tags</p>
+        <hr />
+        <v-radio
+          v-for="(value, idx) in tags"
+          :key="idx"
+          :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
+          :value="value"
+          density="compact"
+        />
       </v-radio-group>
       <v-radio-group v-model="wlAutoSettings" hide-details>
         <p>Auto</p>
