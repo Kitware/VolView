@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useWindowingStore, {
   defaultWindowLevelConfig,
@@ -14,6 +14,7 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
+    const panel = ref([1]);
 
     // Get the relevant view ids
     const viewIDs = computed(() =>
@@ -116,15 +117,10 @@ export default defineComponent({
       );
     };
 
-    const resetPreset = () => {
-      const { width, level } = defaultWindowLevelConfig();
-      wlPresetSettings.value = { width, level };
-      resetWindowLevel();
-    };
+    const wlDefaults = computed(() => defaultWindowLevelConfig());
 
     return {
       resetWindowLevel,
-      resetPreset,
       WLAutoRanges,
       wlAutoSettings,
       parseLabel,
@@ -132,6 +128,8 @@ export default defineComponent({
       WLPresetsCT,
       isCT,
       tags,
+      panel,
+      wlDefaults,
     };
   },
 });
@@ -140,62 +138,83 @@ export default defineComponent({
 <template>
   <v-card dark>
     <v-card-text>
-      <v-radio-group v-if="isCT" v-model="wlPresetSettings" hide-details>
-        <p>CT Presets</p>
-        <hr />
-        <div
-          v-for="(options, category) in WLPresetsCT"
-          :key="category"
-          class="ml-3"
-        >
-          <p>{{ parseLabel(category) }}</p>
-          <v-radio
-            v-for="(value, key) in options"
-            :key="key"
-            :label="`${key} [W:${value['width']},L:${value['level']}]`"
-            :value="value"
-            density="compact"
-          />
-        </div>
-        <v-btn
-          prepend-icon="mdi-restore"
-          variant="text"
-          block
-          @click="resetPreset"
-        >
-          Reset Preset
-        </v-btn>
-      </v-radio-group>
-      <v-radio-group v-if="tags.length" v-model="wlPresetSettings" hide-details>
-        <p>Tags</p>
-        <hr />
-        <v-radio
-          v-for="(value, idx) in tags"
-          :key="idx"
-          :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
-          :value="value"
-          density="compact"
-        />
-      </v-radio-group>
-      <v-radio-group v-model="wlAutoSettings" hide-details>
-        <p>Auto</p>
-        <hr />
-        <v-radio
-          v-for="(value, key) in WLAutoRanges"
-          :key="key"
-          :label="`${parseLabel(key)} (${0 + value}, ${100 - value})`"
-          :value="key"
-          density="compact"
-        />
-      </v-radio-group>
-      <v-btn
-        prepend-icon="mdi-restore"
-        variant="text"
-        block
-        @click="resetWindowLevel"
-      >
-        Reset Auto
-      </v-btn>
+      <v-expansion-panels v-model="panel" multiple>
+        <v-expansion-panel :disabled="!isCT && !tags.length">
+          <v-expansion-panel-title>Presets & Tags</v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <v-radio-group v-model="wlPresetSettings" hide-details>
+              <template v-if="isCT">
+                <p>CT Presets</p>
+                <hr />
+                <div v-for="(options, category) in WLPresetsCT" :key="category">
+                  <p>{{ parseLabel(category) }}</p>
+                  <v-radio
+                    v-for="(value, key) in options"
+                    :key="key"
+                    :label="`${key} [W:${value['width']},L:${value['level']}]`"
+                    :value="value"
+                    density="compact"
+                    class="ml-3"
+                  />
+                </div>
+              </template>
+              <p>Tags</p>
+              <hr />
+              <v-radio
+                v-for="(value, idx) in tags"
+                :key="idx"
+                :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
+                :value="value"
+                density="compact"
+                class="ml-3"
+              />
+              <p>Default</p>
+              <hr />
+              <v-radio
+                label="Default Width/Level"
+                :value="wlDefaults"
+                density="compact"
+              />
+            </v-radio-group>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+        <v-expansion-panel>
+          <v-expansion-panel-title>Auto Compute Range</v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <v-radio-group v-model="wlAutoSettings" hide-details>
+              <p>Auto</p>
+              <hr />
+              <v-radio
+                v-for="(value, key) in WLAutoRanges"
+                :key="key"
+                :label="`${parseLabel(key)} (${0 + value}, ${100 - value})`"
+                :value="key"
+                density="compact"
+              />
+            </v-radio-group>
+            <v-btn
+              prepend-icon="mdi-restore"
+              variant="text"
+              block
+              @click="resetWindowLevel"
+            >
+              Reset
+            </v-btn>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
     </v-card-text>
   </v-card>
 </template>
+
+<style scoped>
+.v-card {
+  max-width: 300px;
+}
+.v-expansion-panel-title {
+  min-height: auto;
+}
+.v-expansion-panel-text:deep() .v-expansion-panel-text__wrapper {
+  padding: 4px 12px 8px;
+}
+</style>
