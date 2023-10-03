@@ -15,6 +15,7 @@ export default defineComponent({
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
     const panel = ref([1]);
+    const windowingDefaults = defaultWindowLevelConfig();
 
     // Get the relevant view ids
     const viewIDs = computed(() =>
@@ -67,12 +68,16 @@ export default defineComponent({
         ['ct', 'ctprotocol'].includes(modality.value.toLowerCase())
     );
 
+    const wlDefaults = computed(() => {
+      return { width: windowingDefaults.width, level: windowingDefaults.level };
+    });
+
     const wlPresetSettings = computed({
       get() {
         // All views will have the same setting, just grab the first
         const viewID = viewIDs.value[0];
         const config = windowingStore.getConfig(viewID, currentImageID.value);
-        return config?.preset || { width: 1, level: 0.5 };
+        return config?.preset || wlDefaults.value;
       },
       set(selection: { width: number; level: number }) {
         const imageID = currentImageID.value;
@@ -116,8 +121,6 @@ export default defineComponent({
         windowingStore.resetWindowLevel(viewID, imageID)
       );
     };
-
-    const wlDefaults = computed(() => defaultWindowLevelConfig());
 
     return {
       resetWindowLevel,
