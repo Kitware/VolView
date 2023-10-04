@@ -29,7 +29,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activeLabelmap = computed(() => {
     if (!activeLabelmapID.value) return null;
     const labelmapStore = useLabelmapStore();
-    return labelmapStore.labelmaps[activeLabelmapID.value] ?? null;
+    return labelmapStore.dataIndex[activeLabelmapID.value] ?? null;
   });
 
   // --- actions --- //
@@ -41,11 +41,9 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
 
     const labelmapStore = useLabelmapStore();
-    const found = Object.entries(labelmapStore.parentImage).find(
-      ([, parentID]) => imageID === parentID
-    );
-    if (found) {
-      [activeLabelmapID.value] = found;
+    const labelmaps = labelmapStore.orderByParent[imageID];
+    if (labelmaps?.length) {
+      activeLabelmapID.value = labelmaps[0];
     } else {
       activeLabelmapID.value = labelmapStore.newLabelmapFromImage(imageID);
     }

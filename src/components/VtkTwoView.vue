@@ -479,11 +479,9 @@ export default defineComponent({
 
     const labelmapStore = useLabelmapStore();
 
-    const labelmapIDs = computed(() => {
-      return labelmapStore.idList.filter(
-        (id) => labelmapStore.parentImage[id] === curImageID.value
-      );
-    });
+    const labelmapIDs = computed(() =>
+      curImageID.value ? labelmapStore.orderByParent[curImageID.value] : []
+    );
 
     const layerIDs = computed(() => currentLayers.value.map(({ id }) => id));
 

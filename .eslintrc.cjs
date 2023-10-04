@@ -67,6 +67,7 @@ module.exports = {
         ignores: ['Settings'],
       },
     ],
+    'prefer-destructuring': 'off',
   },
 
   overrides: [

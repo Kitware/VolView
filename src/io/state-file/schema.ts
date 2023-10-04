@@ -231,10 +231,15 @@ const View = z.object({
 
 export type View = z.infer<typeof View>;
 
+export const LabelMapMetadata = z.object({
+  name: z.string(),
+  parentImage: z.string(),
+});
+
 export const LabelMap = z.object({
   id: z.string(),
-  parent: z.string(),
   path: z.string(),
+  metadata: LabelMapMetadata,
 });
 
 export type LabelMap = z.infer<typeof LabelMap>;
