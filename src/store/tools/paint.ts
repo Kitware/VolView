@@ -34,9 +34,21 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   // --- actions --- //
 
-  function selectOrCreateLabelmap(imageID: string | null) {
+  /**
+   * Sets the active labelmap.
+   */
+  function setActiveLabelmap(labelmapID: string | null) {
+    activeLabelmapID.value = labelmapID;
+  }
+
+  /**
+   * Sets the active labelmap from a given image.
+   *
+   * If a labelmap exists, pick the first one. If no labelmap exists, create one.
+   */
+  function setActiveLabelmapFromImage(imageID: string | null) {
     if (!imageID) {
-      activeLabelmapID.value = null;
+      setActiveLabelmap(null);
       return;
     }
 
@@ -116,7 +128,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (!imageID) {
       return false;
     }
-    selectOrCreateLabelmap(imageID);
+    setActiveLabelmapFromImage(imageID);
     this.$paint.setBrushSize(this.brushSize);
 
     isActive.value = true;
@@ -155,11 +167,15 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   // --- change labelmap if paint is active --- //
 
-  watch(currentImageID, (imageID) => {
-    if (isActive.value) {
-      selectOrCreateLabelmap(imageID);
-    }
-  });
+  watch(
+    currentImageID,
+    (imageID) => {
+      if (isActive.value) {
+        setActiveLabelmapFromImage(imageID);
+      }
+    },
+    { immediate: true }
+  );
 
   return {
     // state
@@ -175,7 +191,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     activateTool,
     deactivateTool,
 
-    selectOrCreateLabelmap,
+    setActiveLabelmap,
+    setActiveLabelmapFromImage,
     setBrushSize,
     setBrushValue,
     setLabelmapOpacity,

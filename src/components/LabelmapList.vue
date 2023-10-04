@@ -1,30 +1,36 @@
-<template>
-  <v-list density="compact" v-if="labelmaps.length">
-    <v-list-item v-for="id in labelmaps" :key="id" lines="two">
-      <v-list-item-title>Labelmap (ID = {{ id }})</v-list-item-title>
-    </v-list-item>
-  </v-list>
-</template>
-
-<script lang="ts">
-import { computed, defineComponent } from 'vue';
+<script setup lang="ts">
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useLabelmapStore } from '../store/datasets-labelmaps';
+import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
+import { usePaintToolStore } from '@/src/store/tools/paint';
+import { computed } from 'vue';
 
-export default defineComponent({
-  name: 'LabelmapList',
-  setup() {
-    const labelmapStore = useLabelmapStore();
-    const { currentImageID } = useCurrentImage();
+const labelmapStore = useLabelmapStore();
+const { currentImageID } = useCurrentImage();
 
-    const labelmaps = computed(() => {
-      if (!currentImageID.value) return [];
-      return labelmapStore.orderByParent[currentImageID.value];
-    });
-
+const currentLabelmaps = computed(() => {
+  if (!currentImageID.value) return [];
+  return labelmapStore.orderByParent[currentImageID.value].map((id) => {
     return {
-      labelmaps,
+      id,
+      name: labelmapStore.labelmapMetadata[id].name,
     };
-  },
+  });
+});
+
+const paintStore = usePaintToolStore();
+const targetPaintLabelmap = computed({
+  get: () => paintStore.activeLabelmapID,
+  set: (id) => paintStore.setActiveLabelmap(id),
 });
 </script>
+
+<template>
+  <v-radio-group v-model="targetPaintLabelmap">
+    <v-radio
+      v-for="labelmap in currentLabelmaps"
+      :key="labelmap.id"
+      :label="labelmap.name"
+      :value="labelmap.id"
+    />
+  </v-radio-group>
+</template>
