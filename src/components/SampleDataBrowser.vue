@@ -7,6 +7,7 @@ import {
   importDataSources,
 } from '@/src/io/import/importDataSources';
 import { remoteFileToDataSource } from '@/src/io/import/dataSource';
+import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { SAMPLE_DATA } from '../config';
 import { useMessageStore } from '../store/messages';
 import { SampleDataset } from '../types';
@@ -105,6 +106,12 @@ export default defineComponent({
             selection.type === 'image' ? selection.dataID : selection.volumeKey;
           loaded.idToURL[id] = sample.url;
           loaded.urlToID[sample.url] = id;
+
+          useVolumeColoringStore().setDefaults(id, {
+            transferFunction: {
+              preset: sample.defaults?.colorPreset,
+            },
+          });
         }
         datasetStore.setPrimarySelection(selection);
       } catch (error) {

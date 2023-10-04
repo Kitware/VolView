@@ -168,6 +168,9 @@ export const SAMPLE_DATA: SampleDataset[] = [
       '3D ultrasound of a baby. Downloaded from tomovision.com.(8 MB)',
     url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
     image: USFetusThumbnail,
+    defaults: {
+      colorPreset: 'US-Fetal',
+    },
   },
 ];
 

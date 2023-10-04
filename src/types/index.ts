@@ -15,6 +15,9 @@ export type SampleDataset = {
   description: string;
   url: string;
   image: string;
+  defaults?: {
+    colorPreset?: string;
+  };
 };
 
 export type RequiredWithPartial<T, K extends keyof T> = Required<Omit<T, K>> &
@@ -48,3 +51,9 @@ export type TypedArrayConstructorName =
   | 'Int32Array'
   | 'Float32Array'
   | 'Float64Array';
+
+export type DeepPartial<T> = T extends object
+  ? {
+      [P in keyof T]?: DeepPartial<T[P]>;
+    }
+  : T;
