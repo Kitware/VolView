@@ -7,12 +7,19 @@ import { join, normalize } from '@/src/utils/path';
 import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { removeFromArray } from '@/src/utils';
+import { compareImageSpaces } from '@/src/utils/imageSpace';
 import vtkLabelMap from '../vtk/LabelMap';
 import { LABELMAP_PALETTE } from '../config';
 import { StateFile, Manifest } from '../io/state-file/schema';
 import { vtiReader, vtiWriter } from '../io/vtk/async';
 import { FileEntry } from '../io/types';
-import { findImageID, getDataID } from './datasets';
+import {
+  DataSelection,
+  findImageID,
+  getDataID,
+  getImageID,
+  selectionEquals,
+} from './datasets';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -114,6 +121,38 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     removeFromArray(orderByParent.value[parentImage], id);
     delete dataIndex.value[id];
     delete labelmapMetadata.value[id];
+  }
+
+  /**
+   * Converts an image to a labelmap.
+   * @param imageID
+   * @param parentID
+   */
+  function convertImageToLabelmap(image: DataSelection, parent: DataSelection) {
+    if (selectionEquals(image, parent))
+      throw new Error('Cannot convert an image to be a labelmap of itself');
+
+    const imageID = getImageID(image);
+    const parentID = getImageID(parent);
+
+    if (!imageID || !parentID)
+      throw new Error('Image and/or parent datasets do not exist');
+
+    const imageStore = useImageStore();
+    const parentImage = imageStore.dataIndex[parentID];
+    const childImage = imageStore.dataIndex[imageID];
+
+    if (!compareImageSpaces(childImage, parentImage))
+      throw new Error('Image does not match parent image space');
+
+    const labelmapStore = useLabelmapStore();
+    const labelmapImage = toLabelMap(childImage);
+    labelmapStore.addLabelmap(labelmapImage, {
+      name: imageStore.metadata[imageID].name,
+      parentImage: parentID,
+    });
+
+    imageStore.deleteData(imageID);
   }
 
   /**
@@ -224,6 +263,7 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     addLabelmap,
     newLabelmapFromImage,
     removeLabelmap,
+    convertImageToLabelmap,
     serialize,
     deserialize,
   };

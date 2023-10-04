@@ -95,9 +95,9 @@ export default defineComponent({
           type: 'dicom',
           volumeKey,
         } as DataSelection;
-        const layerAdded = layerVolumeKeys.includes(volumeKey);
+        const isLayer = layerVolumeKeys.includes(volumeKey);
         const layerLoaded = loadedLayerVolumeKeys.includes(volumeKey);
-        const loading = layerAdded && !layerLoaded;
+        const layerLoading = isLayer && !layerLoaded;
         const layerable = volumeKey !== selectedVolumeKey && primarySelection;
         return {
           key: volumeKey,
@@ -106,13 +106,12 @@ export default defineComponent({
           info: volumeInfo[volumeKey],
           // for UI selection
           selectionKey,
+          isLayer,
           layerable,
-          loading,
-          layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
-          layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+          layerLoading,
           layerHandler: () => {
-            if (!loading && layerable) {
-              if (layerAdded)
+            if (!layerLoading && layerable) {
+              if (isLayer)
                 layersStore.deleteLayer(primarySelection, selectionKey);
               else layersStore.addLayer(primarySelection, selectionKey);
             }
@@ -166,9 +165,13 @@ export default defineComponent({
     const { selected, selectedAll, selectedSome, toggleSelectAll } =
       useMultiSelection(volumeKeys);
 
+    const removeData = (key: string) => {
+      dicomStore.deleteVolume(key);
+    };
+
     const removeSelectedDICOMVolumes = () => {
-      selected.value.forEach(async (volumeKey) => {
-        dicomStore.deleteVolume(volumeKey);
+      selected.value.forEach((volumeKey) => {
+        removeData(volumeKey);
       });
 
       selected.value = [];
@@ -181,6 +184,7 @@ export default defineComponent({
       toggleSelectAll,
       thumbnailCache,
       volumes,
+      removeData,
       removeSelectedDICOMVolumes,
     };
   },
@@ -260,21 +264,6 @@ export default defineComponent({
                     <persistent-overlay>
                       <div class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
-                          <div class="layer-btn-container">
-                            <v-btn
-                              :disabled="!volume.layerable"
-                              :loading="volume.loading"
-                              icon
-                              variant="plain"
-                              density="compact"
-                              @click.stop="volume.layerHandler"
-                            >
-                              <v-icon :icon="volume.layerIcon" />
-                              <v-tooltip location="top" activator="parent">
-                                {{ volume.layerTooltip }}
-                              </v-tooltip>
-                            </v-btn>
-                          </div>
                           <v-checkbox
                             :key="volume.info.VolumeID"
                             :value="volume.key"
@@ -295,6 +284,36 @@ export default defineComponent({
                     </persistent-overlay>
                   </v-img>
                 </div>
+                <v-btn
+                  icon
+                  variant="plain"
+                  size="x-small"
+                  class="dataset-menu"
+                  @click.stop
+                >
+                  <v-menu activator="parent">
+                    <v-list>
+                      <v-list-item
+                        v-if="volume.layerable"
+                        @click.stop="volume.layerHandler()"
+                      >
+                        <template v-if="volume.layerLoading">
+                          <div style="margin: 0 auto">
+                            <v-progress-circular indeterminate size="small" />
+                          </div>
+                        </template>
+                        <template v-else>
+                          <span v-if="volume.isLayer">Remove as layer</span>
+                          <span v-else>Add as layer</span>
+                        </template>
+                      </v-list-item>
+                      <v-list-item @click="removeData(volume.key)">
+                        Delete
+                      </v-list-item>
+                    </v-list>
+                  </v-menu>
+                  <v-icon size="medium">mdi-dots-vertical</v-icon>
+                </v-btn>
               </v-row>
               <v-card-text
                 class="text--primary text-caption text-center series-desc mt-n3"
@@ -344,10 +363,9 @@ export default defineComponent({
   border-radius: 3px;
 }
 
-.layer-btn-container {
-  display: flex;
-  flex-flow: column;
-  justify-content: center;
-  height: var(--v-input-control-height);
+.dataset-menu {
+  position: absolute;
+  top: 4px;
+  right: 4px;
 }
 </style>
