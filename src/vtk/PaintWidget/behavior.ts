@@ -59,8 +59,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     if (isPainting) {
       publicAPI.invokeInteractionEvent();
+      return macro.EVENT_ABORT;
     }
-    return macro.EVENT_ABORT;
+
+    // Let interactor get event
+    return macro.VOID;
   };
 
   /**
