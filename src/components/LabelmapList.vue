@@ -9,6 +9,7 @@ const { currentImageID } = useCurrentImage();
 
 const currentLabelmaps = computed(() => {
   if (!currentImageID.value) return [];
+  if (!(currentImageID.value in labelmapStore.orderByParent)) return [];
   return labelmapStore.orderByParent[currentImageID.value].map((id) => {
     return {
       id,
