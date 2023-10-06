@@ -154,7 +154,7 @@ export default defineComponent({
                   <v-radio
                     v-for="(value, key) in options"
                     :key="key"
-                    :label="`${key} [W:${value['width']},L:${value['level']}]`"
+                    :label="parseLabel(key)"
                     :value="value"
                     density="compact"
                     class="ml-3"
@@ -182,11 +182,9 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
         <v-expansion-panel>
-          <v-expansion-panel-title>Auto Compute Range</v-expansion-panel-title>
+          <v-expansion-panel-title>Auto Window/Level</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlAutoSettings" hide-details>
-              <p>Auto</p>
-              <hr />
               <v-radio
                 v-for="(value, key) in WLAutoRanges"
                 :key="key"
@@ -218,6 +216,11 @@ export default defineComponent({
   min-height: auto;
 }
 .v-expansion-panel-text:deep() .v-expansion-panel-text__wrapper {
-  padding: 4px 12px 8px;
+  padding: 4px 6px 8px;
+}
+
+.v-selection-control:deep() .v-selection-control__input > .v-icon {
+  font-size: 18px;
+  align-self: center;
 }
 </style>
