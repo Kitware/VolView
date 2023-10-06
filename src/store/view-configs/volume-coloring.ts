@@ -14,7 +14,7 @@ import {
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
-import { Maybe } from '@/src/types';
+import { DeepPartial, Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
 import { createViewConfigSerializer } from './common';
 import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
@@ -37,6 +37,26 @@ function getPresetFromImageModality(imageID: string) {
     }
   }
   return DEFAULT_PRESET;
+}
+
+/**
+ * Gets partial color and opacity function configs from a preset.
+ * @param preset
+ * @returns
+ */
+function getColorAndOpacityFuncsFromPreset(preset: string) {
+  const ctFunc: Partial<ColorTransferFunction> = {
+    preset,
+  };
+
+  const ctRange = getColorFunctionRangeFromPreset(preset);
+  if (ctRange) {
+    ctFunc.mappingRange = ctRange;
+  }
+
+  const opFunc = getOpacityFunctionFromPreset(preset);
+
+  return { colorFunc: ctFunc, opacityFunc: opFunc };
 }
 
 export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
@@ -69,7 +89,12 @@ export const defaultVolumeColorConfig = (): VolumeColorConfig => ({
 });
 
 export const useVolumeColoringStore = defineStore('volumeColoring', () => {
-  const configs = reactive<DoubleKeyRecord<VolumeColorConfig>>({});
+  const configs = reactive<DoubleKeyRecord<VolumeColorConfig>>(
+    Object.create(null)
+  );
+  const defaultConfigs = reactive<
+    Record<string, DeepPartial<VolumeColorConfig>>
+  >(Object.create(null));
 
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
@@ -114,19 +139,16 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
   const setColorPreset = (viewID: string, imageID: string, preset: string) => {
     const imageStore = useImageStore();
     const image = imageStore.dataIndex[imageID];
-    if (!image) return;
+    if (!image) throw new Error('Invalid imageID');
+
     const imageDataRange = image.getPointData().getScalars().getRange();
+    const { colorFunc, opacityFunc } =
+      getColorAndOpacityFuncsFromPreset(preset);
+    colorFunc.mappingRange ||= imageDataRange;
+    opacityFunc.mappingRange = imageDataRange;
 
-    const ctRange = getColorFunctionRangeFromPreset(preset);
-    const ctFunc: Partial<ColorTransferFunction> = {
-      preset,
-      mappingRange: ctRange || imageDataRange,
-    };
-    updateColorTransferFunction(viewID, imageID, ctFunc);
-
-    const opFunc = getOpacityFunctionFromPreset(preset);
-    opFunc.mappingRange = imageDataRange;
-    updateOpacityFunction(viewID, imageID, opFunc);
+    updateColorTransferFunction(viewID, imageID, colorFunc);
+    updateOpacityFunction(viewID, imageID, opacityFunc);
   };
 
   const resetToDefaultColoring = (
@@ -134,13 +156,30 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     dataID: string,
     image: vtkImageData
   ) => {
+    const defaults = defaultConfigs[dataID];
     const scalars = image.getPointData().getScalars();
 
     updateColorBy(viewID, dataID, {
-      arrayName: scalars.getName(),
-      location: 'pointData',
+      arrayName: defaults?.colorBy?.arrayName ?? scalars.getName(),
+      location: defaults?.colorBy?.location ?? 'pointData',
     });
-    setColorPreset(viewID, dataID, getPresetFromImageModality(dataID));
+    setColorPreset(
+      viewID,
+      dataID,
+      defaults?.transferFunction?.preset ?? getPresetFromImageModality(dataID)
+    );
+  };
+
+  /**
+   * Sets the view config defaults for a dataset.
+   * @param dataID
+   * @param defaults
+   */
+  const setDefaults = (
+    dataID: string,
+    defaults: DeepPartial<VolumeColorConfig>
+  ) => {
+    defaultConfigs[dataID] = defaults;
   };
 
   const removeView = (viewID: string) => {
@@ -174,6 +213,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     updateOpacityFunction,
     updateCVRParameters,
     resetToDefaultColoring,
+    setDefaults,
     setColorPreset,
     removeView,
     removeData,
