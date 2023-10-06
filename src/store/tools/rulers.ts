@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import { defineStore } from 'pinia';
+import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 
@@ -15,9 +15,7 @@ const rulerDefaults = () => ({
   name: 'Ruler',
 });
 
-export const useRulerStore = defineStore('ruler', () => {
-  type _This = ReturnType<typeof useRulerStore>;
-
+export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
     initialLabels: RULER_LABEL_DEFAULTS,
@@ -32,8 +30,8 @@ export const useRulerStore = defineStore('ruler', () => {
     updateTool: updateRuler,
     removeTool: removeRuler,
     jumpToTool: jumpToRuler,
-    serialize: serializeTool,
-    deserialize: deserializeTool,
+    serializeTools,
+    deserializeTools,
   } = annotationTool;
 
   const lengthByID = computed<Record<string, number>>(() => {
@@ -49,15 +47,11 @@ export const useRulerStore = defineStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.rulers = serializeTool();
+    state.manifest.tools.rulers = serializeTools();
   }
 
-  function deserialize(
-    this: _This,
-    manifest: Manifest,
-    dataIDMap: Record<string, string>
-  ) {
-    deserializeTool.call(this, manifest.tools.rulers, dataIDMap);
+  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+    deserializeTools(manifest.tools.rulers, dataIDMap);
   }
 
   return {

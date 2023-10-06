@@ -1,9 +1,8 @@
-import { defineStore } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
-
+import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import { useAnnotationTool } from './useAnnotationTool';
 
 const toolDefaults = () => ({
@@ -12,14 +11,8 @@ const toolDefaults = () => ({
   name: 'Polygon',
 });
 
-export const usePolygonStore = defineStore('polygon', () => {
-  type _This = ReturnType<typeof usePolygonStore>;
-
-  const {
-    serialize: serializeTool,
-    deserialize: deserializeTool,
-    ...toolStoreProps
-  } = useAnnotationTool({
+export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
+  const toolAPI = useAnnotationTool({
     toolDefaults,
     initialLabels: POLYGON_LABEL_DEFAULTS,
   });
@@ -27,19 +20,15 @@ export const usePolygonStore = defineStore('polygon', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.polygons = serializeTool();
+    state.manifest.tools.polygons = toolAPI.serializeTools();
   }
 
-  function deserialize(
-    this: _This,
-    manifest: Manifest,
-    dataIDMap: Record<string, string>
-  ) {
-    deserializeTool.call(this, manifest.tools.polygons, dataIDMap);
+  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+    toolAPI.deserializeTools(manifest.tools.polygons, dataIDMap);
   }
 
   return {
-    ...toolStoreProps,
+    ...toolAPI,
     serialize,
     deserialize,
   };

@@ -50,7 +50,7 @@ export function useAnnotationToolStore(
 function setupTool(tool: Tools) {
   const useStore = ToolStoreMap[tool];
   const store = useStore?.();
-  if (store) {
+  if (store?.activateTool) {
     return store.activateTool?.();
   }
   return true;

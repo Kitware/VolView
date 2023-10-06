@@ -20,12 +20,12 @@ export enum Tools {
   Polygon = 'Polygon',
 }
 
-interface IActivatableTool {
+export interface IActivatableTool {
   activateTool: () => boolean;
   deactivateTool: () => void;
 }
 
-interface ISerializableTool {
+export interface ISerializableTool {
   serialize: (state: StateFile) => void;
   deserialize: (manifest: Manifest, dataIDMap: Record<string, string>) => void;
 }
