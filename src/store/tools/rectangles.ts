@@ -25,6 +25,11 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
     newLabelDefault,
   });
 
+  function getPoints(id: ToolID) {
+    const tool = toolAPI.toolByID.value[id];
+    return [tool.firstPoint, tool.secondPoint];
+  }
+
   // --- serialization --- //
 
   function serialize(state: StateFile) {
@@ -37,6 +42,7 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
 
   return {
     ...toolAPI,
+    getPoints,
     serialize,
     deserialize,
   };

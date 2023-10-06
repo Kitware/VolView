@@ -17,6 +17,11 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     initialLabels: POLYGON_LABEL_DEFAULTS,
   });
 
+  function getPoints(id: ToolID) {
+    const tool = toolAPI.toolByID.value[id];
+    return tool.points;
+  }
+
   // --- serialization --- //
 
   function serialize(state: StateFile) {
@@ -29,6 +34,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
 
   return {
     ...toolAPI,
+    getPoints,
     serialize,
     deserialize,
   };

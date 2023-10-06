@@ -24,7 +24,7 @@ const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
-const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
+export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
   viewAxis: Ref<LPSAxis>,
   tool: Partial<Tool>
 ) => {

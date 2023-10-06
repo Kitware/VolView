@@ -1,7 +1,7 @@
 import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
 import { StoreActions, StoreGetters, StoreState } from 'pinia';
-
-import { Maybe, PartialWithRequired } from '@/src/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
+import type { Maybe, PartialWithRequired } from '@/src/types';
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
@@ -232,7 +232,9 @@ type ToolFactory<T extends AnnotationTool> = (...args: any[]) => T;
 
 export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
   typeof useAnnotationTool<ToolFactory<T>, any>
->;
+> & {
+  getPoints(id: ToolID): Vector3[];
+};
 
 type UseAnnotationToolBasedStore<T extends AnnotationTool> = StoreState<
   AnnotationToolAPI<T>

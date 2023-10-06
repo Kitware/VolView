@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, toRefs } from 'vue';
+import { computed, ref, watch, toRefs, toRaw } from 'vue';
 import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
@@ -42,7 +42,7 @@ const updateRectangle = () => {
   const viewRenderer = viewProxy.value.getRenderer();
 
   const screenBounds = [...vtkBoundingBox.INIT_BOUNDS] as Bounds;
-  props.points
+  toRaw(props.points)
     .map((point) => {
       const point2D = worldToSVG(point, viewRenderer);
       return point2D;
@@ -69,7 +69,9 @@ const updateRectangle = () => {
 const { points } = toRefs(props);
 watch(points, updateRectangle, { immediate: true, deep: true });
 
-onVTKEvent(viewProxy, 'onModified', updateRectangle);
+const camera = computed(() => viewProxy.value.getCamera());
+
+onVTKEvent(camera, 'onModified', updateRectangle);
 </script>
 
 <template>

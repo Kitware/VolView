@@ -2,6 +2,7 @@ import { computed } from 'vue';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
+import { ToolID } from '@/src/types/annotation-tool';
 
 import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
@@ -44,6 +45,11 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     }, {});
   });
 
+  function getPoints(id: ToolID) {
+    const tool = annotationTool.toolByID.value[id];
+    return [tool.firstPoint, tool.secondPoint];
+  }
+
   // --- serialization --- //
 
   function serialize(state: StateFile) {
@@ -64,6 +70,7 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     updateRuler,
     removeRuler,
     jumpToRuler,
+    getPoints,
     serialize,
     deserialize,
   };

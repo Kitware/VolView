@@ -1,7 +1,6 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <bounding-rectangle :points="visiblePoints" :view-id="viewId" />
       <ruler-widget-2D
         v-for="ruler in rulers"
         :key="ruler.id"
@@ -47,9 +46,7 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
-import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 
 export default defineComponent({
   name: 'RulerTool',
@@ -75,7 +72,6 @@ export default defineComponent({
     RulerWidget2D,
     AnnotationContextMenu,
     AnnotationInfo,
-    BoundingRectangle,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -149,14 +145,6 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
 
-    const selectionStore = useToolSelectionStore();
-    const visiblePoints = computed(() => {
-      return currentTools.value
-        .filter((tool) => tool.slice === currentSlice.value)
-        .filter((tool) => selectionStore.isSelected(tool.id))
-        .flatMap((tool) => [tool.firstPoint, tool.secondPoint]);
-    });
-
     return {
       rulers: currentRulers,
       placingRulerID: placingTool.id,
@@ -166,7 +154,6 @@ export default defineComponent({
       rulerStore,
       onHover,
       overlayInfo,
-      visiblePoints,
     };
   },
 });
