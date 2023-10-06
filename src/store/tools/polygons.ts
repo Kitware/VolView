@@ -12,10 +12,6 @@ const toolDefaults = () => ({
   name: 'Polygon',
 });
 
-const newLabelDefault = {
-  color: '#ffffff',
-};
-
 export const usePolygonStore = defineStore('polygon', () => {
   type _This = ReturnType<typeof usePolygonStore>;
 
@@ -26,7 +22,6 @@ export const usePolygonStore = defineStore('polygon', () => {
   } = useAnnotationTool({
     toolDefaults,
     initialLabels: POLYGON_LABEL_DEFAULTS,
-    newLabelDefault,
   });
 
   // --- serialization --- //

@@ -15,7 +15,6 @@ const rectangleDefaults = () => ({
 });
 
 const newLabelDefault = {
-  color: '#ffffff',
   fillColor: 'transparent',
 };
 

@@ -2,7 +2,10 @@ import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
 import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
 
 import { Maybe, PartialWithRequired } from '@/src/types';
-import { TOOL_COLORS } from '@/src/config';
+import {
+  STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
+  TOOL_COLORS,
+} from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -13,7 +16,11 @@ import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import useViewSliceStore from '../view-configs/slicing';
-import { useLabels, Labels, Label } from './useLabels';
+import { useLabels, Labels } from './useLabels';
+
+const annotationToolLabelDefault = Object.freeze({
+  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
+});
 
 const makeAnnotationToolDefaults = () => ({
   frameOfReference: {
@@ -24,6 +31,7 @@ const makeAnnotationToolDefaults = () => ({
   imageID: '',
   placing: false,
   color: TOOL_COLORS[0],
+  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   name: 'baseAnnotationTool',
 });
 
@@ -38,7 +46,7 @@ export const useAnnotationTool = <
 }: {
   toolDefaults: MakeToolDefaults;
   initialLabels: Labels<LabelProps>;
-  newLabelDefault: Label<LabelProps>;
+  newLabelDefault?: LabelProps;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -58,7 +66,10 @@ export const useAnnotationTool = <
     tools.value.filter((tool) => !tool.placing)
   );
 
-  const labels = useLabels<LabelProps>(newLabelDefault);
+  const labels = useLabels({
+    ...annotationToolLabelDefault,
+    ...newLabelDefault,
+  });
   labels.mergeLabels(initialLabels, false);
 
   function makePropsFromLabel(label: string | undefined) {

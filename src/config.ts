@@ -183,6 +183,8 @@ export const TOOL_COLORS = [
   '#fea53b',
 ];
 
+export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
+
 export const RULER_LABEL_DEFAULTS = {
   red: { color: 'red' },
   green: { color: '#00ff00' },

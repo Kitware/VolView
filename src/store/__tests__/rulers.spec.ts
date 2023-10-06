@@ -12,7 +12,7 @@ chai.use(chaiSubset);
 
 function createRuler(): RequiredWithPartial<
   Ruler,
-  'id' | 'color' | 'label' | 'labelName' | 'hidden'
+  'id' | 'color' | 'strokeWidth' | 'label' | 'labelName' | 'hidden'
 > {
   return {
     firstPoint: [1, 1, 1],

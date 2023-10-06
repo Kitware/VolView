@@ -15,17 +15,12 @@ const rulerDefaults = () => ({
   name: 'Ruler',
 });
 
-const newLabelDefault = {
-  color: '#ffffff',
-};
-
 export const useRulerStore = defineStore('ruler', () => {
   type _This = ReturnType<typeof useRulerStore>;
 
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
     initialLabels: RULER_LABEL_DEFAULTS,
-    newLabelDefault,
   });
 
   // prefix some props with ruler

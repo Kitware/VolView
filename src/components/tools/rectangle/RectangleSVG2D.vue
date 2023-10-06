@@ -6,7 +6,7 @@
       :width="rectangle.width"
       :height="rectangle.height"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       :fill="fillColor"
     />
     <!-- radius should match constants.ANNOTATION_TOOL_HANDLE_RADIUS and should be related to vtkHandleWidget scale. -->
@@ -15,7 +15,7 @@
       :cx="first.x"
       :cy="first.y"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       fill="transparent"
       :r="10 / devicePixelRatio"
     />
@@ -24,7 +24,7 @@
       :cx="second.x"
       :cy="second.y"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       fill="transparent"
       :r="10 / devicePixelRatio"
     />
@@ -39,6 +39,7 @@ import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import type { Vector3 } from '@kitware/vtk.js/types';
+
 import {
   PropType,
   computed,
@@ -61,6 +62,7 @@ export default defineComponent({
     point2: Array as PropType<Array<number>>,
     color: String,
     fillColor: String,
+    strokeWidth: Number,
     viewId: {
       type: String,
       required: true,

@@ -7,7 +7,7 @@
       :x2="second.x"
       :y2="second.y"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
     />
     <!-- radius should match constants.ANNOTATION_TOOL_HANDLE_RADIUS and should be related to vtkHandleWidget scale. -->
     <circle
@@ -15,7 +15,7 @@
       :cx="first.x"
       :cy="first.y"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       fill="transparent"
       :r="10 / devicePixelRatio"
     />
@@ -24,7 +24,7 @@
       :cx="second.x"
       :cy="second.y"
       :stroke="color"
-      stroke-width="1"
+      :stroke-width="strokeWidth"
       fill="transparent"
       :r="10 / devicePixelRatio"
       class="handle"
@@ -76,6 +76,7 @@ export default defineComponent({
     point1: Array as PropType<Array<number>>,
     point2: Array as PropType<Array<number>>,
     color: String,
+    strokeWidth: Number,
     length: Number,
     viewId: {
       type: String,

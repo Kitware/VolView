@@ -28,6 +28,7 @@ const color = z.string();
 
 const label = z.object({
   color,
+  strokeWidth: z.number().optional(),
 });
 
 const rulerLabel = label;
