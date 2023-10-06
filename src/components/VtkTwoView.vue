@@ -333,7 +333,9 @@ export default defineComponent({
 
     const windowWidth = computed(() => wlConfig.value?.width);
     const windowLevel = computed(() => wlConfig.value?.level);
-    const autoRange = computed(() => wlConfig.value?.auto || 'Default');
+    const autoRange = computed<keyof typeof WLAutoRanges>(
+      () => wlConfig.value?.auto || 'Default'
+    );
     const dicomInfo = computed(() => {
       if (
         curImageID.value !== null &&

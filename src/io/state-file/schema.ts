@@ -36,6 +36,7 @@ import {
   CVRConfig,
   BlendConfig,
 } from '../../types/views';
+import { WLAutoRanges } from '../../constants';
 
 export enum DatasetType {
   DICOM = 'dicom',
@@ -97,12 +98,13 @@ const Vector3 = z.tuple([
   z.number(),
 ]) satisfies z.ZodType<Vector3>;
 
+type AutoRangeKeys = keyof typeof WLAutoRanges;
 const WindowLevelConfig = z.object({
   width: z.number(),
   level: z.number(),
   min: z.number(),
   max: z.number(),
-  auto: z.string(),
+  auto: z.string() as z.ZodType<AutoRangeKeys>,
   preset: z.object({ width: z.number(), level: z.number() }),
 }) satisfies z.ZodType<WindowLevelConfig>;
 

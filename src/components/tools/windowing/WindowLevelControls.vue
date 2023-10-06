@@ -37,7 +37,7 @@ export default defineComponent({
         const config = windowingStore.getConfig(viewID, currentImageID.value);
         return config?.auto || 'Default';
       },
-      set(selection: string) {
+      set(selection: keyof typeof WLAutoRanges) {
         const imageID = currentImageID.value;
         if (imageID) {
           viewIDs.value.map((viewID) =>
