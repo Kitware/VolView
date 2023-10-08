@@ -808,31 +808,56 @@ export default defineComponent({
               pwf.setMode(opFunc.mode);
               pwf.setDataRange(...opFunc.mappingRange);
 
+              const factor = blendConfig.opacity * 2;
+              const floor = Math.max(0, (blendConfig.opacity - 0.5) * 2);
               switch (opFunc.mode) {
-                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-                  pwf.setGaussians(opFunc.gaussians);
+                case vtkPiecewiseFunctionProxy.Mode.Gaussians: {
+                  const mapped = opFunc.gaussians.map((g) => {
+                    return {
+                      ...g,
+                      height: g.height * factor,
+                      yBias: blendConfig.opacity * 2,
+                    };
+                  });
+                  pwf.setGaussians(mapped);
                   break;
+                }
                 case vtkPiecewiseFunctionProxy.Mode.Points: {
                   const opacityPoints = getShiftedOpacityFromPreset(
                     opFunc.preset,
                     opFunc.mappingRange,
                     opFunc.shift
                   );
-                  if (opacityPoints) {
-                    pwf.setPoints(opacityPoints);
+                  if (!opacityPoints) {
+                    throw new Error(`Could not find preset ${opFunc.preset}`);
                   }
+                  const mapped = opacityPoints.map(([x, y]) => [
+                    x,
+                    y * factor + floor,
+                  ]);
+                  pwf.setPoints(mapped);
                   break;
                 }
-                case vtkPiecewiseFunctionProxy.Mode.Nodes:
-                  pwf.setNodes(opFunc.nodes);
+                case vtkPiecewiseFunctionProxy.Mode.Nodes: {
+                  const mappedNodes = opFunc.nodes.map((n) => {
+                    return {
+                      ...n,
+                      y: n.y * factor + floor,
+                    } as const;
+                  });
+                  pwf.setNodes(mappedNodes);
                   break;
+                }
                 default:
+                  throw new Error(
+                    // @ts-expect-error should handle all modes
+                    `invalid opacity function mode ${opFunc.mode}`
+                  );
               }
 
               // control color range manually
               rep.setRescaleOnColorBy(false);
               rep.setColorBy(arrayName, location);
-              rep.setOpacity(blendConfig.opacity);
 
               // Need to trigger a render for when we are restoring from a state file
               viewProxy.value.renderLater();
