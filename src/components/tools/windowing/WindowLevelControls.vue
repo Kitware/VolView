@@ -50,11 +50,10 @@ export default defineComponent({
       }
       return '';
     });
-    const isCT = computed(
-      () =>
-        modality.value &&
-        ['ct', 'ctprotocol'].includes(modality.value.toLowerCase())
-    );
+    const isCT = computed(() => {
+      const ctTags = ['ct', 'ctprotocol'];
+      return modality.value && ctTags.includes(modality.value.toLowerCase());
+    });
 
     const wlDefaults = computed(() => {
       return { width: windowingDefaults.width, level: windowingDefaults.level };
