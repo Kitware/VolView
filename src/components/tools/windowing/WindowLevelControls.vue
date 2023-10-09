@@ -29,24 +29,13 @@ export default defineComponent({
     }
 
     // --- Automatic Range Options --- //
-    const wlAutoSettings = computed({
-      get() {
-        // All views will have the same setting, just grab the first
-        const viewID = viewIDs.value[0];
-        const config = windowingStore.getConfig(viewID, currentImageID.value);
-        return config?.auto || WL_AUTO_DEFAULT;
-      },
-      set(selection: keyof typeof WLAutoRanges) {
-        const imageID = currentImageID.value;
-        if (imageID) {
-          viewIDs.value.map((viewID) =>
-            windowingStore.updateConfig(viewID, imageID, {
-              auto: selection,
-            })
-          );
-        }
-      },
-    });
+
+    const filteredWLAutoRanges = computed(
+      () =>
+        Object.fromEntries(
+          Object.entries(WLAutoRanges).filter(([, value]) => value !== 0)
+        ) as Record<string, number>
+    );
 
     // --- CT Preset Options --- //
 
@@ -71,20 +60,46 @@ export default defineComponent({
       return { width: windowingDefaults.width, level: windowingDefaults.level };
     });
 
-    const wlPresetSettings = computed({
+    // --- UI Selection Management --- //
+
+    type AutoRangeKey = keyof typeof WLAutoRanges;
+    type PresetValue = { width: number; level: number };
+
+    const wlConfig = computed(() => {
+      // All views will have the same settings, just grab the first
+      const viewID = viewIDs.value[0];
+      const imageID = currentImageID.value;
+      if (!imageID || !viewID) return windowingDefaults;
+      return windowingStore.getConfig(viewID, imageID);
+    });
+
+    const wlWidth = computed(
+      () => wlConfig.value?.width ?? wlDefaults.value.width
+    );
+    const wlLevel = computed(
+      () => wlConfig.value?.level ?? wlDefaults.value.level
+    );
+
+    const wlOptions = computed({
       get() {
-        // All views will have the same setting, just grab the first
-        const viewID = viewIDs.value[0];
-        const config = windowingStore.getConfig(viewID, currentImageID.value);
-        return config?.preset || wlDefaults.value;
+        const config = wlConfig.value;
+        if (config?.auto && config.auto !== WL_AUTO_DEFAULT) {
+          return config.auto;
+        }
+        return { width: wlWidth.value, level: wlLevel.value };
       },
-      set(selection: { width: number; level: number }) {
+      set(selection: AutoRangeKey | PresetValue) {
         const imageID = currentImageID.value;
-        if (imageID) {
-          viewIDs.value.forEach((viewID) => {
-            windowingStore.updateConfig(viewID, imageID, { preset: selection });
-            windowingStore.resetWindowLevel(viewID, imageID);
-          });
+        // All views will be synchronized, just set the first
+        const viewID = viewIDs.value[0];
+        if (imageID && viewID) {
+          const useAuto = typeof selection !== 'object';
+          const newValue = {
+            preset: useAuto ? wlDefaults.value : selection,
+            auto: useAuto ? selection : WL_AUTO_DEFAULT,
+          };
+          windowingStore.updateConfig(viewID, imageID, newValue);
+          windowingStore.resetWindowLevel(viewID, imageID);
         }
       },
     });
@@ -114,24 +129,25 @@ export default defineComponent({
 
     const resetWindowLevel = () => {
       const imageID = currentImageID.value;
-      if (!imageID) return;
-      // Reset the window/level for all views
-      viewIDs.value.forEach((viewID) =>
-        windowingStore.resetWindowLevel(viewID, imageID)
-      );
+      // All views will be synchronized, just reset the first
+      const viewID = viewIDs.value[0];
+      if (!imageID || !viewID) return;
+      windowingStore.updateConfig(viewID, imageID, {
+        preset: wlDefaults.value,
+        auto: WL_AUTO_DEFAULT,
+      });
+      windowingStore.resetWindowLevel(viewID, imageID);
     };
 
     return {
       resetWindowLevel,
-      WLAutoRanges,
-      wlAutoSettings,
       parseLabel,
-      wlPresetSettings,
+      wlOptions,
       WLPresetsCT,
       isCT,
       tags,
       panel,
-      wlDefaults,
+      filteredWLAutoRanges,
     };
   },
 });
@@ -144,7 +160,7 @@ export default defineComponent({
         <v-expansion-panel :disabled="!isCT && !tags.length">
           <v-expansion-panel-title>Presets & Tags</v-expansion-panel-title>
           <v-expansion-panel-text>
-            <v-radio-group v-model="wlPresetSettings" hide-details>
+            <v-radio-group v-model="wlOptions" hide-details>
               <template v-if="isCT">
                 <p>CT Presets</p>
                 <hr />
@@ -160,32 +176,22 @@ export default defineComponent({
                   />
                 </div>
               </template>
-              <p>Tags</p>
-              <hr />
-              <v-radio
-                v-for="(value, idx) in tags"
-                :key="idx"
-                :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
-                :value="value"
-                density="compact"
-                class="ml-3"
-              />
-              <p>Default</p>
-              <hr />
-              <v-radio
-                label="Default Width/Level"
-                :value="wlDefaults"
-                density="compact"
-              />
             </v-radio-group>
           </v-expansion-panel-text>
         </v-expansion-panel>
         <v-expansion-panel>
           <v-expansion-panel-title>Auto Window/Level</v-expansion-panel-title>
           <v-expansion-panel-text>
-            <v-radio-group v-model="wlAutoSettings" hide-details>
+            <v-radio-group v-model="wlOptions" hide-details>
               <v-radio
-                v-for="(value, key) in WLAutoRanges"
+                v-for="(value, idx) in tags"
+                :key="idx"
+                :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
+                :value="value"
+                density="compact"
+              />
+              <v-radio
+                v-for="(value, key) in filteredWLAutoRanges"
                 :key="key"
                 :label="`${parseLabel(key)} (${0 + value}, ${100 - value})`"
                 :value="key"
