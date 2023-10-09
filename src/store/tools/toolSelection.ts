@@ -1,7 +1,8 @@
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { ToolID } from '@/src/types/annotation-tool';
-import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { defineStore, storeToRefs } from 'pinia';
+import { computed, ref, watch } from 'vue';
+import { useDatasetStore } from '@/src/store/datasets';
 
 export interface ToolSelection {
   id: ToolID;
@@ -42,6 +43,12 @@ export const useToolSelectionStore = defineStore('tool-selection', () => {
       id: id as ToolID,
       type,
     }));
+  });
+
+  const { primarySelection } = storeToRefs(useDatasetStore());
+
+  watch(primarySelection, () => {
+    clearSelection();
   });
 
   return {
