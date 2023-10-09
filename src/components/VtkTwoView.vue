@@ -203,6 +203,7 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
+import { TypedArray } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -236,6 +237,7 @@ import {
   ToolContainer,
   VTKTwoViewWidgetManager,
   WLAutoRanges,
+  WL_HIST_BINS,
 } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
@@ -462,25 +464,47 @@ export default defineComponent({
 
     // --- window/level setup --- //
 
+    const histogram = (
+      data: number[] | TypedArray,
+      dataRange: number[],
+      numberOfBins: number
+    ) => {
+      const [min, max] = dataRange;
+      const width = (max - min + 1) / numberOfBins;
+      const hist = new Array(numberOfBins).fill(0);
+      data.forEach((value) => hist[Math.floor((value - min) / width)]++);
+      return hist;
+    };
+
     const autoRangeValues = computed(() => {
       // Pre-compute the auto-range values
-      const values: Record<string, Array<number>> = {};
       if (curImageData?.value) {
-        const scalarData = curImageData.value
-          .getPointData()
-          .getScalars()
-          .getData();
-        const sortedData = [...scalarData].sort(
-          (a: number, b: number) => a - b
+        const scalarData = curImageData.value.getPointData().getScalars();
+        const [min, max] = scalarData.getRange();
+        const hist = histogram(scalarData.getData(), [min, max], WL_HIST_BINS);
+        const cumm = hist.reduce((acc, val, idx) => {
+          const prev = idx !== 0 ? acc[idx - 1] : 0;
+          acc.push(val + prev);
+          return acc;
+        }, []);
+
+        const width = (max - min + 1) / WL_HIST_BINS;
+        return Object.fromEntries(
+          Object.entries(WLAutoRanges).map(([key, value]) => {
+            const startIdx = cumm.findIndex(
+              (v: number) => v >= value * 0.01 * scalarData.getData().length
+            );
+            const endIdx = cumm.findIndex(
+              (v: number) =>
+                v >= (1 - value * 0.01) * scalarData.getData().length
+            );
+            const start = Math.max(min, min + width * startIdx);
+            const end = Math.min(max, min + width * endIdx + width);
+            return [key, [start, end]];
+          })
         );
-        Object.entries(WLAutoRanges).forEach(([key, value]) => {
-          const percentage = value * 0.01;
-          const startIdx = Math.round(percentage * sortedData.length);
-          const endIdx = Math.round((1 - percentage) * sortedData.length);
-          values[key] = [sortedData[startIdx], sortedData[endIdx]];
-        });
       }
-      return values;
+      return {};
     });
 
     watch(

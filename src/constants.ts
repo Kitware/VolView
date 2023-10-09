@@ -103,6 +103,8 @@ export const WLAutoRanges = {
   FivePercent: 5.0,
 };
 
+export const WL_HIST_BINS = 512;
+
 export const WLPresetsCT = {
   Head: {
     Brain: {
