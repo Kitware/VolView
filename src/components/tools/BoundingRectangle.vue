@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, toRefs, toRaw } from 'vue';
-import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
+import { computed, ref, watch, toRefs, toRaw, inject } from 'vue';
+import { ANNOTATION_TOOL_HANDLE_RADIUS, ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { nonNullable } from '@/src/utils/index';
@@ -8,6 +8,7 @@ import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useResizeObserver } from '@/src/composables/useResizeObserver';
 
 const DEFAULT_PADDING = 2;
 
@@ -70,8 +71,12 @@ const { points } = toRefs(props);
 watch(points, updateRectangle, { immediate: true, deep: true });
 
 const camera = computed(() => viewProxy.value.getCamera());
-
 onVTKEvent(camera, 'onModified', updateRectangle);
+
+const containerEl = inject(ToolContainer)!;
+useResizeObserver(containerEl, () => {
+  updateRectangle();
+});
 </script>
 
 <template>
