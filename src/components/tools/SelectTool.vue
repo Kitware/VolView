@@ -43,6 +43,7 @@ onVTKEvent(
     }
   },
   {
+    // capture all events by calling handler before widgets
     priority: WIDGET_PRIORITY + 1,
   }
 );
