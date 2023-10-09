@@ -54,6 +54,7 @@ const maxWidth = computed(() => {
     :max-width="maxWidth"
     :model-value="props.modelValue"
     @update:model-value="$emit('update:model-value', $event)"
+    @keydown.stop
   >
     <v-btn
       variant="flat"
