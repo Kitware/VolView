@@ -7,6 +7,7 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
+import { WL_AUTO_DEFAULT } from '@/src/constants';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
@@ -16,7 +17,7 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   level: 0.5,
   min: 0,
   max: 1,
-  auto: 'Default',
+  auto: WL_AUTO_DEFAULT,
   preset: {
     width: 1,
     level: 0.5,

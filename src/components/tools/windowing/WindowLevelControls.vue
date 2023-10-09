@@ -5,7 +5,7 @@ import useWindowingStore, {
   defaultWindowLevelConfig,
 } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
-import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
+import { WLAutoRanges, WLPresetsCT, WL_AUTO_DEFAULT } from '@/src/constants';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 
 export default defineComponent({
@@ -29,13 +29,12 @@ export default defineComponent({
     }
 
     // --- Automatic Range Options --- //
-
     const wlAutoSettings = computed({
       get() {
         // All views will have the same setting, just grab the first
         const viewID = viewIDs.value[0];
         const config = windowingStore.getConfig(viewID, currentImageID.value);
-        return config?.auto || 'Default';
+        return config?.auto || WL_AUTO_DEFAULT;
       },
       set(selection: keyof typeof WLAutoRanges) {
         const imageID = currentImageID.value;

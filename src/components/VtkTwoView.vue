@@ -237,6 +237,7 @@ import {
   ToolContainer,
   VTKTwoViewWidgetManager,
   WLAutoRanges,
+  WL_AUTO_DEFAULT,
   WL_HIST_BINS,
 } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
@@ -336,7 +337,7 @@ export default defineComponent({
     const windowWidth = computed(() => wlConfig.value?.width);
     const windowLevel = computed(() => wlConfig.value?.level);
     const autoRange = computed<keyof typeof WLAutoRanges>(
-      () => wlConfig.value?.auto || 'Default'
+      () => wlConfig.value?.auto || WL_AUTO_DEFAULT
     );
     const dicomInfo = computed(() => {
       if (
