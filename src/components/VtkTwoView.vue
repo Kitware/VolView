@@ -515,7 +515,6 @@ export default defineComponent({
           return;
         }
 
-        // TODO listen to changes in point data
         const range = autoRangeValues.value[autoRange.value];
         windowingStore.updateConfig(viewID.value, curImageID.value, {
           min: range[0],
