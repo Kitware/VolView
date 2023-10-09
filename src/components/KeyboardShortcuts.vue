@@ -24,9 +24,16 @@
 import { computed } from 'vue';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useKeyboardShortcutsStore } from '@/src/store/keyboard-shortcuts';
+import { ACTIONS } from '@/src/constants';
 import CloseableDialog from './CloseableDialog.vue';
+import { getEntries } from '../utils';
 
 const keyboardStore = useKeyboardShortcutsStore();
 
-const bindings = computed(() => Object.entries(actionToKey.value));
+const bindings = computed(() =>
+  getEntries(actionToKey.value).map(([action, key]) => [
+    ACTIONS[action].readable,
+    key,
+  ])
+);
 </script>

@@ -50,22 +50,48 @@ export const ANNOTATION_TOOL_HANDLE_RADIUS = 6; // CSS pixels
 export const PICKABLE_ANNOTATION_TOOL_HANDLE_RADIUS =
   ANNOTATION_TOOL_HANDLE_RADIUS * 2;
 
-export const ACTIONS = [
-  // set the current tool
-  'windowLevel',
-  'pan',
-  'zoom',
-  'ruler',
-  'paint',
-  'rectangle',
-  'crosshairs',
-  'crop',
-  'polygon',
-  'select',
+export const ACTIONS = {
+  windowLevel: {
+    readable: 'Activate Window/Level tool',
+  },
+  pan: {
+    readable: 'Activate Pan tool',
+  },
+  zoom: {
+    readable: 'Activate Zoom tool',
+  },
+  ruler: {
+    readable: 'Activate Ruler tool',
+  },
+  paint: {
+    readable: 'Activate Paint tool',
+  },
+  rectangle: {
+    readable: 'Activate Rectangle tool',
+  },
+  crosshairs: {
+    readable: 'Activate Crosshairs tool',
+  },
+  crop: {
+    readable: 'Activate Crop tool',
+  },
+  polygon: {
+    readable: 'Activate Polygon tool',
+  },
+  select: {
+    readable: 'Activate Select tool',
+  },
 
-  // change the current label for the current tool
-  'decrementLabel',
-  'incrementLabel',
-] as const;
+  decrementLabel: {
+    readable: 'Activate previous Label',
+  },
+  incrementLabel: {
+    readable: 'Activate next Label',
+  },
 
-export type Action = (typeof ACTIONS)[number];
+  showKeyboardShortcuts: {
+    readable: 'Show keyboard shortcuts dialog',
+  },
+} as const;
+
+export type Action = keyof typeof ACTIONS;

@@ -23,7 +23,7 @@ const dataBrowser = z
   })
   .optional();
 
-const shortcuts = z.record(z.enum(ACTIONS), z.string()).optional();
+const shortcuts = z.record(zodEnumFromObjKeys(ACTIONS), z.string()).optional();
 
 // --------------------------------------------------------------------------
 // Labels
