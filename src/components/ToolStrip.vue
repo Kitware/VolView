@@ -123,7 +123,7 @@
       </menu-tool-button>
     </groupable-item>
     <div class="my-1 tool-separator" />
-      <reset-views />
+    <reset-views />
   </item-group>
 </template>
 
@@ -169,7 +169,9 @@ export default defineComponent({
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
     const { layout: currentLayout } = storeToRefs(viewStore);
-    const isObliqueLayout = computed(() => currentLayout.value?.name === 'Oblique View');
+    const isObliqueLayout = computed(
+      () => currentLayout.value?.name === 'Oblique View'
+    );
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);

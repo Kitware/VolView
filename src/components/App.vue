@@ -243,9 +243,11 @@ import {
   ImportDataSourcesResult,
   convertSuccessResultToDataSelection,
 } from '@/src/io/import/importDataSources';
-import vtkResliceCursorWidget, { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import vtkResliceCursorWidget, {
+  ResliceCursorWidgetState,
+} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import {vec3, mat3} from 'gl-matrix'
+import { vec3, mat3 } from 'gl-matrix';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
@@ -401,16 +403,19 @@ export default defineComponent({
     // --- ResliceCursorWidget --- //
     // Construct the common instance of vtkResliceCursorWidget and provide it
     // to all the child ObliqueView components.
-    const resliceCursor = ref<vtkResliceCursorWidget>(vtkResliceCursorWidget.newInstance({
-      scaleInPixels: true,
-      rotationHandlePosition: 0.75,
-    }));
+    const resliceCursor = ref<vtkResliceCursorWidget>(
+      vtkResliceCursorWidget.newInstance({
+        scaleInPixels: true,
+        rotationHandlePosition: 0.75,
+      })
+    );
     provide(VTKResliceCursor, resliceCursor);
 
     // TODO: Move this to a store/global-state for reslicing.
     // Orient the planes of the vtkResliceCursorWidget to the orientation
     // of the currently set image.
-    const resliceCursorState = resliceCursor.value.getWidgetState() as ResliceCursorWidgetState;
+    const resliceCursorState =
+      resliceCursor.value.getWidgetState() as ResliceCursorWidgetState;
 
     // Temporary fix to disable race between PanTool and ResliceCursorWidget
     resliceCursorState.setScrollingMethod(-1);
@@ -431,14 +436,14 @@ export default defineComponent({
           [ViewTypes.XY_PLANE]: {
             normal: [0, 0, -1],
             viewUp: [0, -1, 0],
-          }
+          },
         });
         const planes = resliceCursorState.getPlanes();
 
         const d9 = image.getDirection();
         const mat = Array.from(d9) as mat3;
         Object.values(planes).forEach((plane) => {
-          const {normal, viewUp} = plane;
+          const { normal, viewUp } = plane;
           vec3.transformMat3(normal, normal, mat);
           vec3.transformMat3(viewUp, viewUp, mat);
         });

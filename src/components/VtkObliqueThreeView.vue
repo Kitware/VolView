@@ -58,7 +58,9 @@ import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 
-import vtkMultiSliceRepresentationProxy, { OutlineProperties } from '@/src/vtk/MultiSliceRepresentationProxy';
+import vtkMultiSliceRepresentationProxy, {
+  OutlineProperties,
+} from '@/src/vtk/MultiSliceRepresentationProxy';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import PanTool from './tools/PanTool.vue';
@@ -99,33 +101,38 @@ export default defineComponent({
     const vtkContainerRef = ref<HTMLElement>();
 
     // --- computed vars --- //
-    const { currentImageData, currentImageID, currentImageMetadata } = useCurrentImage();
+    const { currentImageData, currentImageID, currentImageMetadata } =
+      useCurrentImage();
 
     // --- view proxy setup --- //
 
     const { viewProxy, setContainer: setViewProxyContainer } =
       useViewProxy<vtkLPSView3DProxy>(viewID, ViewProxyType.Oblique3D);
 
-    const { baseImageRep } = useSceneBuilder<vtkMultiSliceRepresentationProxy>(viewID, {
-      baseImage: currentImageID
-    });
+    const { baseImageRep } = useSceneBuilder<vtkMultiSliceRepresentationProxy>(
+      viewID,
+      {
+        baseImage: currentImageID,
+      }
+    );
 
     // --- Set the data and slice outline properties --- //
     const setOutlineProperties = () => {
-      const outlineColors =
-      [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueAxial]
-      .map(v =>
-        vec3.scale(
-          [0, 0, 0],
-          OBLIQUE_OUTLINE_COLORS[v],
-          1/255
-        )
-      );
+      const outlineColors = [
+        InitViewIDs.ObliqueSagittal,
+        InitViewIDs.ObliqueCoronal,
+        InitViewIDs.ObliqueAxial,
+      ].map((v) => vec3.scale([0, 0, 0], OBLIQUE_OUTLINE_COLORS[v], 1 / 255));
 
-      const outlineProperties = outlineColors.map(color => ({color, lineWidth: 4, opacity: 1.0}) as OutlineProperties);
+      const outlineProperties = outlineColors.map(
+        (color) => ({ color, lineWidth: 4, opacity: 1.0 } as OutlineProperties)
+      );
       baseImageRep.value?.setSliceOutlineProperties(outlineProperties);
-      baseImageRep.value?.setDataOutlineProperties({lineWidth: 1, opacity: 0.3} as OutlineProperties);
-    }
+      baseImageRep.value?.setDataOutlineProperties({
+        lineWidth: 1,
+        opacity: 0.3,
+      } as OutlineProperties);
+    };
 
     onBeforeUnmount(() => {
       setViewProxyContainer(null);
@@ -151,24 +158,34 @@ export default defineComponent({
       const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
       const planeOrigin = state?.getCenter();
       if (resliceCursor && rep && planeOrigin) {
-        const planeNormalYZ = resliceCursor.getPlaneNormalFromViewType(ViewTypes.YZ_PLANE);
-        const planeNormalXZ = resliceCursor.getPlaneNormalFromViewType(ViewTypes.XZ_PLANE);
-        const planeNormalXY = resliceCursor.getPlaneNormalFromViewType(ViewTypes.XY_PLANE);
+        const planeNormalYZ = resliceCursor.getPlaneNormalFromViewType(
+          ViewTypes.YZ_PLANE
+        );
+        const planeNormalXZ = resliceCursor.getPlaneNormalFromViewType(
+          ViewTypes.XZ_PLANE
+        );
+        const planeNormalXY = resliceCursor.getPlaneNormalFromViewType(
+          ViewTypes.XY_PLANE
+        );
         const planesForSlices = [
-          {origin: planeOrigin, normal: planeNormalYZ},
-          {origin: planeOrigin, normal: planeNormalXZ},
-          {origin: planeOrigin, normal: planeNormalXY},
+          { origin: planeOrigin, normal: planeNormalYZ },
+          { origin: planeOrigin, normal: planeNormalXZ },
+          { origin: planeOrigin, normal: planeNormalXY },
         ];
         rep.setPlanes(planesForSlices);
       }
-    }
+    };
 
     const onPlanesUpdated = () => {
       updateViewFromResliceCursor();
       viewProxy.value.renderLater();
     };
 
-    onVTKEvent(resliceCursorRef.value.getWidgetState(), 'onModified', onPlanesUpdated);
+    onVTKEvent(
+      resliceCursorRef.value.getWidgetState(),
+      'onModified',
+      onPlanesUpdated
+    );
 
     // --- camera setup --- //
 
@@ -197,7 +214,8 @@ export default defineComponent({
     const events = useResetViewsEvents();
     events.onClick(() => resetCamera());
 
-    watch([baseImageRep, currentImageData],
+    watch(
+      [baseImageRep, currentImageData],
       () => {
         setOutlineProperties();
         resetCamera();
@@ -207,7 +225,9 @@ export default defineComponent({
 
     // Track window-level setting of one of the oblique views:
     const windowingStore = useWindowingStore();
-    const wlConfig = computed(() => windowingStore.getConfig(InitViewIDs.ObliqueAxial, currentImageID.value));
+    const wlConfig = computed(() =>
+      windowingStore.getConfig(InitViewIDs.ObliqueAxial, currentImageID.value)
+    );
 
     watch([wlConfig, baseImageRep], ([newConfigValue, newRep]) => {
       if (newConfigValue && newRep) {

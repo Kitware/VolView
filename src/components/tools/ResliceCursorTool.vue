@@ -1,10 +1,25 @@
 <script lang="ts">
 import { useViewStore } from '@/src/store/views';
-import { computed, defineComponent, inject, onBeforeUnmount, ref, toRefs, watch } from 'vue';
+import {
+  computed,
+  defineComponent,
+  inject,
+  onBeforeUnmount,
+  ref,
+  toRefs,
+  watch,
+} from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
-import { vtkResliceCursorViewWidget, ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
-import { OBLIQUE_OUTLINE_COLORS, VTKTwoViewWidgetManager, VTKResliceCursor } from '@/src/constants';
+import {
+  vtkResliceCursorViewWidget,
+  ResliceCursorWidgetState,
+} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import {
+  OBLIQUE_OUTLINE_COLORS,
+  VTKTwoViewWidgetManager,
+  VTKResliceCursor,
+} from '@/src/constants';
 import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 import { getLPSAxisFromDir, getVTKViewTypeFromLPSAxis } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -26,28 +41,28 @@ export default defineComponent({
     const { viewId: viewID, viewDirection } = toRefs(props);
     const widgetManager = inject(VTKTwoViewWidgetManager);
     if (!widgetManager) {
-      throw new Error('ResliceCursorTool component cannot access the 2D widget manager.');
+      throw new Error(
+        'ResliceCursorTool component cannot access the 2D widget manager.'
+      );
     }
 
-    const {
-      currentImageMetadata: curImageMetadata,
-      currentImageData,
-    } = useCurrentImage();
+    const { currentImageMetadata: curImageMetadata, currentImageData } =
+      useCurrentImage();
 
     const viewStore = useViewStore();
     const viewProxy = computed(
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
     );
 
-    const viewType = computed(
-      () => {
-        return viewStore.viewSpecs[viewID.value].viewType;
-      }
-    );
+    const viewType = computed(() => {
+      return viewStore.viewSpecs[viewID.value].viewType;
+    });
 
     const resliceCursorRef = inject(VTKResliceCursor);
-    if(!resliceCursorRef) {
-      throw new Error('ResliceCursorTool component cannot access the 2D widget manager.');
+    if (!resliceCursorRef) {
+      throw new Error(
+        'ResliceCursorTool component cannot access the 2D widget manager.'
+      );
     }
     const resliceCursor = resliceCursorRef.value;
     if (!resliceCursor) {
@@ -67,7 +82,10 @@ export default defineComponent({
         oldWm.removeWidget(resliceCursor);
       }
       if (wm) {
-        widget.value = wm.addWidget(resliceCursor, VTKViewType.value) as vtkResliceCursorViewWidget;
+        widget.value = wm.addWidget(
+          resliceCursor,
+          VTKViewType.value
+        ) as vtkResliceCursorViewWidget;
       }
     });
 
@@ -100,7 +118,7 @@ export default defineComponent({
 
         const xLines = [
           ...state.getStatesWithLabel('XinZ'),
-          ...state.getStatesWithLabel('XinY')
+          ...state.getStatesWithLabel('XinY'),
         ];
         xLines.forEach((handle) => {
           const h = handle as ResliceCursorWidgetState;
@@ -109,7 +127,7 @@ export default defineComponent({
 
         const yLines = [
           ...state.getStatesWithLabel('YinZ'),
-          ...state.getStatesWithLabel('YinX')
+          ...state.getStatesWithLabel('YinX'),
         ];
         yLines.forEach((handle) => {
           const h = handle as ResliceCursorWidgetState;
@@ -118,7 +136,7 @@ export default defineComponent({
 
         const zLines = [
           ...state.getStatesWithLabel('ZinX'),
-          ...state.getStatesWithLabel('ZinY')
+          ...state.getStatesWithLabel('ZinY'),
         ];
         zLines.forEach((handle) => {
           const h = handle as ResliceCursorWidgetState;

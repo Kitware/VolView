@@ -53,10 +53,13 @@ export function getLPSAxisFromDir(dir: LPSAxisDir): LPSAxis {
 }
 
 export function getVTKViewTypeFromLPSAxis(axis: LPSAxis): ViewTypes {
-  switch(axis) {
-    case 'Sagittal': return ViewTypes.YZ_PLANE;
-    case 'Coronal': return ViewTypes.XZ_PLANE;
-    case 'Axial': return ViewTypes.XY_PLANE;
+  switch (axis) {
+    case 'Sagittal':
+      return ViewTypes.YZ_PLANE;
+    case 'Coronal':
+      return ViewTypes.XZ_PLANE;
+    case 'Axial':
+      return ViewTypes.XY_PLANE;
     default:
       throw new Error(`Invalid LPS axis: ${axis}`);
   }

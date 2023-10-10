@@ -259,9 +259,9 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
     setKeepOrthogonality(keepOrthogonality: boolean): void;
     setScaleInPixels(scaleInPixels: boolean): void;
     setCursorStyles(styles: {
-      translateCenter: string,
-      rotateLine: string,
-      translateAxis: string,
+      translateCenter: string;
+      rotateLine: string;
+      translateAxis: string;
     }): boolean;
   }
 
@@ -270,8 +270,10 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
     setColor3(color: RGBColor): boolean;
     setScale1(scale: number): boolean;
     setScale3(scaleX: number, scaleY: number, scaleZ: number): boolean;
-    getPlanes(): Record<number, { normal: Vector3, viewUp: Vector3 }>;
-    setPlanes(planes: Record<number, { normal: Vector3, viewUp: Vector3 }>): void;
+    getPlanes(): Record<number, { normal: Vector3; viewUp: Vector3 }>;
+    setPlanes(
+      planes: Record<number, { normal: Vector3; viewUp: Vector3 }>
+    ): void;
     getCenter(): Vector3;
     setScrollingMethod(mode: number): boolean;
     setOpacity(opacity: number): boolean;

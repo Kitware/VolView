@@ -142,9 +142,10 @@ export const Layouts: Record<string, Layout> = [
         direction: LayoutDirection.V,
         items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
       },
-      { direction: LayoutDirection.V,
+      {
+        direction: LayoutDirection.V,
         items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueAxial],
-      }
+      },
     ],
   },
   {

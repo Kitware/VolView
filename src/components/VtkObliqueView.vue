@@ -14,18 +14,16 @@
       <div class="overlay-no-events tool-layer" ref="toolContainer">
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
-        <reslice-cursor-tool :view-id="viewID" :view-direction="viewDirection" />
+        <reslice-cursor-tool
+          :view-id="viewID"
+          :view-direction="viewDirection"
+        />
         <window-level-tool :view-id="viewID" />
       </div>
       <view-overlay-grid class="overlay-no-events view-annotations">
         <template v-slot:bottom-left>
           <div class="annotation-cell">
-            <div
-              v-if="
-                windowWidth != null &&
-                windowLevel != null
-              "
-            >
+            <div v-if="windowWidth != null && windowLevel != null">
               W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
             </div>
           </div>
@@ -136,7 +134,7 @@ import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
-import WindowLevelTool from './tools/WindowLevelTool.vue';
+import WindowLevelTool from './tools/windowing/WindowLevelTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import ResliceCursorTool from './tools/ResliceCursorTool.vue';
@@ -186,7 +184,7 @@ export default defineComponent({
     WindowLevelTool,
     PanTool,
     ZoomTool,
-    ResliceCursorTool
+    ResliceCursorTool,
   },
   setup(props) {
     const windowingStore = useWindowingStore();
@@ -271,19 +269,22 @@ export default defineComponent({
 
     const VTKViewType = computed(() => {
       const viewAxisValue = viewAxis?.value;
-      switch(viewAxisValue) {
-        case 'Coronal': return ViewTypes.XZ_PLANE;
-        case 'Sagittal': return ViewTypes.YZ_PLANE;
+      switch (viewAxisValue) {
+        case 'Coronal':
+          return ViewTypes.XZ_PLANE;
+        case 'Sagittal':
+          return ViewTypes.YZ_PLANE;
         default:
           return ViewTypes.XY_PLANE;
       }
     });
 
-    const { baseImageRep } = useSceneBuilder<
-      vtkReslicReperesentationProxy
-    >(viewID, {
-      baseImage: curImageID
-    });
+    const { baseImageRep } = useSceneBuilder<vtkReslicReperesentationProxy>(
+      viewID,
+      {
+        baseImage: curImageID,
+      }
+    );
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
@@ -297,16 +298,28 @@ export default defineComponent({
       const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
       if (resliceCursor && rep) {
         const planeOrigin = state.getCenter();
-        const planeNormal = resliceCursorRef.value.getPlaneNormalFromViewType(VTKViewType.value);
+        const planeNormal = resliceCursorRef.value.getPlaneNormalFromViewType(
+          VTKViewType.value
+        );
         rep.getSlicePlane().setNormal(planeNormal);
         rep.getSlicePlane().setOrigin(planeOrigin);
         if (curImageData.value) {
-          resliceCursorRef.value.updateCameraPoints( viewProxy.value.getRenderer(), VTKViewType.value, false, false, true);
+          resliceCursorRef.value.updateCameraPoints(
+            viewProxy.value.getRenderer(),
+            VTKViewType.value,
+            false,
+            false,
+            true
+          );
         }
       }
-    }
+    };
 
-    onVTKEvent(resliceCursorRef.value.getWidgetState(), 'onModified', updateViewFromResliceCursor);
+    onVTKEvent(
+      resliceCursorRef.value.getWidgetState(),
+      'onModified',
+      updateViewFromResliceCursor
+    );
 
     onMounted(() => {
       setViewProxyContainer(vtkContainerRef.value);
@@ -314,7 +327,13 @@ export default defineComponent({
 
       // Initialize camera points during construction
       if (curImageData.value) {
-        resliceCursorRef.value.updateCameraPoints(viewProxy.value.getRenderer(), VTKViewType.value, true, false, true);
+        resliceCursorRef.value.updateCameraPoints(
+          viewProxy.value.getRenderer(),
+          VTKViewType.value,
+          true,
+          false,
+          true
+        );
       }
     });
 
@@ -326,9 +345,11 @@ export default defineComponent({
 
     // Function to compute float range of slicing for oblique slicing.
     // Range is calculated as distance along the plane normal (as originating from {0,0,0} ).
-    function slicePlaneRange(cornerPoints: number[][], sliceNormal: number[]): [number, number] {
-      if (!cornerPoints || !sliceNormal)
-        return [0, 1];
+    function slicePlaneRange(
+      cornerPoints: number[][],
+      sliceNormal: number[]
+    ): [number, number] {
+      if (!cornerPoints || !sliceNormal) return [0, 1];
 
       // Get rotation matrix from normal to +X (since bounds is aligned to XYZ)
       const transform = vtkMatrixBuilder
@@ -336,7 +357,7 @@ export default defineComponent({
         .identity()
         .rotateFromDirections(sliceNormal, [1, 0, 0]);
 
-      const corners = cornerPoints.map(x => x.slice());
+      const corners = cornerPoints.map((x) => x.slice());
       corners.forEach((pt) => transform.apply(pt));
 
       // range is now maximum X distance
@@ -419,7 +440,9 @@ export default defineComponent({
 
     const imageCorners = computed(() => {
       const image = curImageData.value;
-      const [xmin, xmax, ymin, ymax, zmin, zmax] = image?.getExtent() ?? [0, 1, 0, 1, 0, 1];
+      const [xmin, xmax, ymin, ymax, zmin, zmax] = image?.getExtent() ?? [
+        0, 1, 0, 1, 0, 1,
+      ];
       const corners = [
         [xmin, ymin, zmin],
         [xmax, ymin, zmin],
@@ -428,9 +451,9 @@ export default defineComponent({
         [xmin, ymin, zmax],
         [xmax, ymin, zmax],
         [xmin, ymax, zmax],
-        [xmax, ymax, zmax]
+        [xmax, ymax, zmax],
       ];
-      corners.forEach(p => image?.indexToWorld(p as vec3, p as vec3));
+      corners.forEach((p) => image?.indexToWorld(p as vec3, p as vec3));
       return corners;
     });
 
@@ -469,7 +492,7 @@ export default defineComponent({
             const outlineColor = vec3.scale(
               [0, 0, 0],
               OBLIQUE_OUTLINE_COLORS[viewID.value],
-              1/255
+              1 / 255
             ) as RGBColor;
             obliqueRep.setOutlineColor(outlineColor);
           }
@@ -478,14 +501,17 @@ export default defineComponent({
       { immediate: true }
     );
 
-
     // Set default cutting plane parameters.
 
     watch([baseImageRep, cameraDirVec], () => {
       const rep = baseImageRep?.value;
       if (rep) {
         if (cameraDirVec) {
-          const planeNormal: Vector3 = [cameraDirVec.value[0], cameraDirVec.value[1], cameraDirVec.value[2]];
+          const planeNormal: Vector3 = [
+            cameraDirVec.value[0],
+            cameraDirVec.value[1],
+            cameraDirVec.value[2],
+          ];
           rep.getSlicePlane().setNormal(planeNormal);
         }
         rep.setSlabType(SlabTypes.MAX);
@@ -530,7 +556,8 @@ export default defineComponent({
         viewProxy.value.resetCamera(bounds);
         // reset cursor widget
         const resliceCursor = resliceCursorRef?.value;
-        const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
+        const state =
+          resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
         // Reset to default plane values before transforming based on current image-data.
         state.setPlanes({
           [ViewTypes.YZ_PLANE]: {
@@ -544,7 +571,7 @@ export default defineComponent({
           [ViewTypes.XY_PLANE]: {
             normal: [0, 0, -1],
             viewUp: [0, -1, 0],
-          }
+          },
         });
         const planes = state.getPlanes();
 
@@ -552,7 +579,7 @@ export default defineComponent({
           const d9 = curImageData.value.getDirection();
           const mat = Array.from(d9) as mat3;
           Object.values(planes).forEach((plane) => {
-            const {normal, viewUp: vup} = plane;
+            const { normal, viewUp: vup } = plane;
             vec3.transformMat3(normal, normal, mat);
             vec3.transformMat3(vup, vup, mat);
           });
@@ -664,5 +691,4 @@ export default defineComponent({
   grid-template-rows: auto;
   z-index: 0; /* avoids partial obscuring of focus outline */
 }
-
 </style>

@@ -6,7 +6,7 @@ import vtkImageDataOutlineFilter from '@kitware/vtk.js/Filters/General/ImageData
 
 function vtkMultiSliceRepresentationProxy(publicAPI, model) {
   model.classHierarchy.push('vtkMultiSliceRepresentationProxy');
-  
+
   // setup image outline
   model.outlineFilter = vtkImageDataOutlineFilter.newInstance();
   model.outlineFilter.setGenerateFaces(false);
@@ -24,9 +24,9 @@ function vtkMultiSliceRepresentationProxy(publicAPI, model) {
     vtkResliceRepresentationProxy.newInstance(),
   ];
 
-  model.slices.forEach(sliceRep => {
+  model.slices.forEach((sliceRep) => {
     // add all actors to the composite representation:
-    sliceRep.getActors().forEach(sliceRepActor => {
+    sliceRep.getActors().forEach((sliceRepActor) => {
       model.actors.push(sliceRepActor);
     });
   });
@@ -58,7 +58,7 @@ function vtkMultiSliceRepresentationProxy(publicAPI, model) {
       });
     }
   };
-  
+
   publicAPI.setPlanes = (planes) => {
     if (planes.length === model.slices.length) {
       for (let i = 0; i < planes.length; ++i) {
@@ -71,11 +71,13 @@ function vtkMultiSliceRepresentationProxy(publicAPI, model) {
   const _setInput = publicAPI.setInput;
   publicAPI.setInput = (source) => {
     _setInput(source);
-    model.slices.forEach(sliceRep => sliceRep.setInput(source));
+    model.slices.forEach((sliceRep) => sliceRep.setInput(source));
   };
 
-  publicAPI.setWindowWidth = (width) => model.slices.forEach(r => r.setWindowWidth(width));
-  publicAPI.setWindowLevel = (level) => model.slices.forEach(r => r.setWindowLevel(level));
+  publicAPI.setWindowWidth = (width) =>
+    model.slices.forEach((r) => r.setWindowWidth(width));
+  publicAPI.setWindowLevel = (level) =>
+    model.slices.forEach((r) => r.setWindowLevel(level));
 }
 
 // ----------------------------------------------------------------------------
@@ -87,11 +89,9 @@ const DEFAULT_VALUES = {};
 // ----------------------------------------------------------------------------
 
 export function extend(publicAPI, model, initialValues = {}) {
-
   Object.assign(model, DEFAULT_VALUES, initialValues);
   vtkGeometryRepresentationProxy.extend(publicAPI, model);
   vtkMultiSliceRepresentationProxy(publicAPI, model);
-
 }
 
 // ----------------------------------------------------------------------------

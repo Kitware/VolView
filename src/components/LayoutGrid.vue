@@ -32,8 +32,8 @@ import { ViewType } from '../types/views';
 const TYPE_TO_COMPONENT: Record<ViewType, Component> = {
   '2D': VtkTwoView,
   '3D': VtkThreeView,
-  'Oblique': VtkObliqueView,
-  'Oblique3D': VtkObliqueThreeView,
+  Oblique: VtkObliqueView,
+  Oblique3D: VtkObliqueThreeView,
 };
 
 export default defineComponent({
