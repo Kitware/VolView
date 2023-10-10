@@ -262,8 +262,8 @@ export default defineComponent({
     const { viewProxy, setContainer: setViewProxyContainer } =
       useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Oblique);
 
-    const resliceCursorRef = inject(VTKResliceCursor);
-    if (!resliceCursorRef) {
+    const resliceCursor = inject(VTKResliceCursor);
+    if (!resliceCursor) {
       throw Error('Cannot access global ResliceCursor instance.');
     }
 
@@ -294,17 +294,16 @@ export default defineComponent({
 
     const updateViewFromResliceCursor = () => {
       const rep = baseImageRep?.value;
-      const resliceCursor = resliceCursorRef?.value;
       const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
       if (resliceCursor && rep) {
         const planeOrigin = state.getCenter();
-        const planeNormal = resliceCursorRef.value.getPlaneNormalFromViewType(
+        const planeNormal = resliceCursor.getPlaneNormalFromViewType(
           VTKViewType.value
         );
         rep.getSlicePlane().setNormal(planeNormal);
         rep.getSlicePlane().setOrigin(planeOrigin);
         if (curImageData.value) {
-          resliceCursorRef.value.updateCameraPoints(
+          resliceCursor.updateCameraPoints(
             viewProxy.value.getRenderer(),
             VTKViewType.value,
             false,
@@ -316,7 +315,7 @@ export default defineComponent({
     };
 
     onVTKEvent(
-      resliceCursorRef.value.getWidgetState(),
+      resliceCursor.getWidgetState(),
       'onModified',
       updateViewFromResliceCursor
     );
@@ -327,7 +326,7 @@ export default defineComponent({
 
       // Initialize camera points during construction
       if (curImageData.value) {
-        resliceCursorRef.value.updateCameraPoints(
+        resliceCursor.updateCameraPoints(
           viewProxy.value.getRenderer(),
           VTKViewType.value,
           true,
@@ -555,7 +554,6 @@ export default defineComponent({
         );
         viewProxy.value.resetCamera(bounds);
         // reset cursor widget
-        const resliceCursor = resliceCursorRef?.value;
         const state =
           resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
         // Reset to default plane values before transforming based on current image-data.
@@ -583,7 +581,7 @@ export default defineComponent({
             vec3.transformMat3(normal, normal, mat);
             vec3.transformMat3(vup, vup, mat);
           });
-          resliceCursorRef.value?.setCenter(center);
+          resliceCursor.setCenter(center);
         }
         if (curImageMetadata) {
           state.placeWidget(bounds);

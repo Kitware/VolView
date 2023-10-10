@@ -58,13 +58,7 @@ export default defineComponent({
       return viewStore.viewSpecs[viewID.value].viewType;
     });
 
-    const resliceCursorRef = inject(VTKResliceCursor);
-    if (!resliceCursorRef) {
-      throw new Error(
-        'ResliceCursorTool component cannot access the 2D widget manager.'
-      );
-    }
-    const resliceCursor = resliceCursorRef.value;
+    const resliceCursor = inject(VTKResliceCursor);
     if (!resliceCursor) {
       throw new Error('Cannot fetch global instance of ResliceCursor');
     }
@@ -172,8 +166,8 @@ export default defineComponent({
     watch(
       currentImageData,
       (currImage) => {
-        if (resliceCursorRef.value && currImage) {
-          resliceCursorRef.value.setImage(currImage);
+        if (resliceCursor && currImage) {
+          resliceCursor.setImage(currImage);
         }
       },
       { immediate: true }

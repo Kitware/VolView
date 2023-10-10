@@ -18,9 +18,8 @@ export const DefaultTheme = DarkTheme;
 /**
  * Retrieves the global ResliceCursorWidget instance.
  */
-export const VTKResliceCursor: InjectionKey<
-  ComputedRef<vtkResliceCursorWidget>
-> = Symbol('VTKResliceCursor');
+export const VTKResliceCursor: InjectionKey<vtkResliceCursorWidget> =
+  Symbol('VTKResliceCursor');
 
 export const VTKResliceCursorViewWidget: InjectionKey<
   ComputedRef<vtkResliceCursorViewWidget>

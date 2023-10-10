@@ -147,14 +147,13 @@ export default defineComponent({
       setViewProxyContainer(vtkContainerRef.value);
     });
 
-    const resliceCursorRef = inject(VTKResliceCursor);
-    if (!resliceCursorRef) {
+    const resliceCursor = inject(VTKResliceCursor);
+    if (!resliceCursor) {
       throw Error('Cannot access global ResliceCursor instance.');
     }
 
     const updateViewFromResliceCursor = () => {
       const rep = baseImageRep?.value;
-      const resliceCursor = resliceCursorRef?.value;
       const state = resliceCursor?.getWidgetState() as ResliceCursorWidgetState;
       const planeOrigin = state?.getCenter();
       if (resliceCursor && rep && planeOrigin) {
@@ -181,11 +180,7 @@ export default defineComponent({
       viewProxy.value.renderLater();
     };
 
-    onVTKEvent(
-      resliceCursorRef.value.getWidgetState(),
-      'onModified',
-      onPlanesUpdated
-    );
+    onVTKEvent(resliceCursor.getWidgetState(), 'onModified', onPlanesUpdated);
 
     // --- camera setup --- //
 
