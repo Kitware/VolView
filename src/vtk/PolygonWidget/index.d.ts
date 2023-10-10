@@ -7,12 +7,14 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
   vtkAnnotationToolWidget,
   vtkAnnotationWidgetPointState,
-} from '../ToolWidgetUtils/utils';
+  vtkAnnotationWidgetState,
+} from '@/src/vtk/ToolWidgetUtils/types';
+import { IAnnotationToolWidgetInitialValues } from '@/src/types/annotation-tool';
 
 export interface vtkPolygonWidgetPointState
   extends vtkAnnotationWidgetPointState {}
 
-export interface vtkPolygonWidgetState extends vtkWidgetState {
+export interface vtkPolygonWidgetState extends vtkAnnotationWidgetState {
   getMoveHandle(): any;
   clearHandles(): void;
   getPlacing(): boolean;
@@ -25,10 +27,8 @@ export interface vtkPolygonViewWidget extends vtkAnnotationToolWidget {
   getWidgetState(): vtkPolygonWidgetState;
 }
 
-export interface IPolygonWidgetInitialValues {
-  id: string;
-  store: ReturnType<typeof usePolygonStore>;
-}
+export interface IPolygonWidgetInitialValues
+  extends IAnnotationToolWidgetInitialValues {}
 
 export interface vtkPolygonWidget extends vtkAbstractWidgetFactory {
   getLength(): number;

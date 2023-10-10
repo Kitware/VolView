@@ -3,12 +3,19 @@ import { vtkObject, vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { MaybeRef, computed, onBeforeUnmount, unref, watch } from 'vue';
 
 export type VTKEventHandler = (ev?: any) => any;
-export type VTKEventListener = (handler: VTKEventHandler) => vtkSubscription;
+export type VTKEventListener = (
+  handler: VTKEventHandler,
+  priority?: number
+) => vtkSubscription;
+export type OnVTKEventOptions = {
+  priority?: number;
+};
 
 export function onVTKEvent<T extends vtkObject, K extends keyof T>(
   vtkObj: MaybeRef<Maybe<T>>,
   eventHookName: T[K] extends VTKEventListener ? K : never,
-  callback: VTKEventHandler
+  callback: VTKEventHandler,
+  options?: OnVTKEventOptions
 ) {
   const listenerRef = computed(() => {
     const obj = unref(vtkObj);
@@ -26,7 +33,7 @@ export function onVTKEvent<T extends vtkObject, K extends keyof T>(
     (listener) => {
       stop();
       if (listener) {
-        subscription = listener(callback);
+        subscription = listener(callback, options?.priority ?? 0);
       }
     },
     { immediate: true }

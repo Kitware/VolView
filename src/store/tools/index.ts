@@ -1,36 +1,45 @@
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import { Maybe } from '@/src/types';
+import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
 import { useCropStore } from './crop';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
-import { Tools } from './types';
+import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 
 interface State {
   currentTool: Tools;
 }
 
-export interface IToolStore {
-  activateTool: () => boolean;
-  deactivateTool: () => void;
-}
+// TODO move these types out
+export const AnnotationToolStoreMap: Record<
+  AnnotationToolType,
+  () => AnnotationToolStore
+> = {
+  [AnnotationToolType.Polygon]: usePolygonStore,
+  [AnnotationToolType.Rectangle]: useRectangleStore,
+  [AnnotationToolType.Ruler]: useRulerStore,
+} as const;
 
-function getStore(tool: Tools): IToolStore | null {
-  if (tool === Tools.Ruler) {
-    return useRulerStore();
-  }
-  if (tool === Tools.Rectangle) {
-    return useRectangleStore();
-  }
-  if (tool === Tools.Paint) {
-    return usePaintToolStore();
-  }
-  if (tool === Tools.Crosshairs) {
-    return useCrosshairsToolStore();
-  }
-  return null;
+export const ToolStoreMap: Record<Tools, Maybe<() => IToolStore>> = {
+  [Tools.Pan]: null,
+  [Tools.WindowLevel]: null,
+  [Tools.Zoom]: null,
+  [Tools.Select]: null,
+  [Tools.Crop]: useCropStore,
+  [Tools.Crosshairs]: useCrosshairsToolStore,
+  [Tools.Paint]: usePaintToolStore,
+  ...AnnotationToolStoreMap,
+} as const;
+
+export function useAnnotationToolStore(
+  type: AnnotationToolType
+): AnnotationToolStore {
+  const useStore = AnnotationToolStoreMap[type];
+  return useStore();
 }
 
 /**
@@ -39,17 +48,19 @@ function getStore(tool: Tools): IToolStore | null {
  * store setup() will be activated.
  */
 function setupTool(tool: Tools) {
-  const store = getStore(tool);
-  if (store) {
-    return store.activateTool();
+  const useStore = ToolStoreMap[tool];
+  const store = useStore?.();
+  if (store?.activateTool) {
+    return store.activateTool?.();
   }
   return true;
 }
 
 function teardownTool(tool: Tools) {
-  const store = getStore(tool);
+  const useStore = ToolStoreMap[tool];
+  const store = useStore?.();
   if (store) {
-    store.deactivateTool();
+    store.deactivateTool?.();
   }
 }
 
@@ -67,19 +78,13 @@ export const useToolStore = defineStore('tool', {
     },
     serialize(state: StateFile) {
       const { tools } = state.manifest;
-      const rulerStore = useRulerStore();
-      const rectangleStore = useRectangleStore();
-      const polygonStore = usePolygonStore();
-      const crosshairsStore = useCrosshairsToolStore();
-      const paintStore = usePaintToolStore();
-      const cropStore = useCropStore();
 
-      rulerStore.serialize(state);
-      rectangleStore.serialize(state);
-      polygonStore.serialize(state);
-      crosshairsStore.serialize(state);
-      paintStore.serialize(state);
-      cropStore.serialize(state);
+      Object.values(ToolStoreMap)
+        .map((useStore) => useStore?.())
+        .filter((store): store is IToolStore => !!store)
+        .forEach((store) => {
+          store.serialize?.(state);
+        });
 
       tools.current = this.currentTool;
     },
@@ -89,19 +94,14 @@ export const useToolStore = defineStore('tool', {
       dataIDMap: Record<string, string>
     ) {
       const { tools } = manifest;
-      const rulerStore = useRulerStore();
-      const rectangleStore = useRectangleStore();
-      const polygonStore = usePolygonStore();
-      const crosshairsStore = useCrosshairsToolStore();
-      const paintStore = usePaintToolStore();
-      const cropStore = useCropStore();
 
-      rulerStore.deserialize(manifest, dataIDMap);
-      rectangleStore.deserialize(manifest, dataIDMap);
-      polygonStore.deserialize(manifest, dataIDMap);
-      crosshairsStore.deserialize(manifest);
-      paintStore.deserialize(manifest, labelmapIDMap);
-      cropStore.deserialize(manifest, dataIDMap);
+      Object.values(ToolStoreMap)
+        .map((useStore) => useStore?.())
+        .filter((store): store is IToolStore => !!store)
+        .forEach((store) => {
+          store.deserialize?.(manifest, dataIDMap);
+        });
+
       this.currentTool = tools.current;
     },
   },

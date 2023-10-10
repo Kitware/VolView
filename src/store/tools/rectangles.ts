@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
@@ -18,35 +18,31 @@ const newLabelDefault = {
   fillColor: 'transparent',
 };
 
-export const useRectangleStore = defineStore('rectangles', () => {
-  type _This = ReturnType<typeof useRectangleStore>;
-
-  const {
-    serialize: serializeTool,
-    deserialize: deserializeTool,
-    ...toolStoreProps
-  } = useAnnotationTool({
+export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
+  const toolAPI = useAnnotationTool({
     toolDefaults: rectangleDefaults,
     initialLabels: RECTANGLE_LABEL_DEFAULTS,
     newLabelDefault,
   });
 
+  function getPoints(id: ToolID) {
+    const tool = toolAPI.toolByID.value[id];
+    return [tool.firstPoint, tool.secondPoint];
+  }
+
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.tools.rectangles = serializeTool();
+    state.manifest.tools.rectangles = toolAPI.serializeTools();
   }
 
-  function deserialize(
-    this: _This,
-    manifest: Manifest,
-    dataIDMap: Record<string, string>
-  ) {
-    deserializeTool.call(this, manifest.tools.rectangles, dataIDMap);
+  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+    toolAPI.deserializeTools(manifest.tools.rectangles, dataIDMap);
   }
 
   return {
-    ...toolStoreProps,
+    ...toolAPI,
+    getPoints,
     serialize,
     deserialize,
   };

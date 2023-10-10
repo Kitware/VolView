@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch, toRefs } from 'vue';
-import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
+import { computed, ref, watch, toRefs, toRaw, inject } from 'vue';
+import { ANNOTATION_TOOL_HANDLE_RADIUS, ToolContainer } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { nonNullable } from '@/src/utils/index';
@@ -8,11 +8,20 @@ import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useResizeObserver } from '@/src/composables/useResizeObserver';
 
-const props = defineProps<{
-  points: Array<Vector3>;
-  viewId: string;
-}>();
+const DEFAULT_PADDING = 2;
+
+const props = withDefaults(
+  defineProps<{
+    points: Array<Vector3>;
+    viewId: string;
+    padding?: number;
+  }>(),
+  {
+    padding: DEFAULT_PADDING,
+  }
+);
 
 const viewStore = useViewStore();
 const viewProxy = computed(
@@ -34,7 +43,7 @@ const updateRectangle = () => {
   const viewRenderer = viewProxy.value.getRenderer();
 
   const screenBounds = [...vtkBoundingBox.INIT_BOUNDS] as Bounds;
-  props.points
+  toRaw(props.points)
     .map((point) => {
       const point2D = worldToSVG(point, viewRenderer);
       return point2D;
@@ -43,6 +52,8 @@ const updateRectangle = () => {
     .forEach(([x, y]) => {
       vtkBoundingBox.addPoint(screenBounds, x, y, 0);
     });
+
+  vtkBoundingBox.inflate(screenBounds, props.padding);
   const [x, y] = vtkBoundingBox.getMinPoint(screenBounds);
   const [maxX, maxY] = vtkBoundingBox.getMaxPoint(screenBounds);
   // Plus 2 to account for the stroke width
@@ -59,7 +70,13 @@ const updateRectangle = () => {
 const { points } = toRefs(props);
 watch(points, updateRectangle, { immediate: true, deep: true });
 
-onVTKEvent(viewProxy, 'onModified', updateRectangle);
+const camera = computed(() => viewProxy.value.getCamera());
+onVTKEvent(camera, 'onModified', updateRectangle);
+
+const containerEl = inject(ToolContainer)!;
+useResizeObserver(containerEl, () => {
+  updateRectangle();
+});
 </script>
 
 <template>

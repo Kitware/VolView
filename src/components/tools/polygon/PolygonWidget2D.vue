@@ -83,7 +83,6 @@ export default defineComponent({
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
-      store: toolStore,
     });
     const widget = ref<WidgetView | null>(null);
 
@@ -95,8 +94,8 @@ export default defineComponent({
       if (!widget.value) {
         return;
       }
+      // widgetManager calls widget.delete()
       widgetManager.value.removeWidget(widget.value);
-      widget.value.delete();
       widgetFactory.delete();
     });
 

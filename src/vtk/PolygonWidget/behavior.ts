@@ -3,7 +3,7 @@ import macro from '@kitware/vtk.js/macros';
 import { Vector3 } from '@kitware/vtk.js/types';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
-import { WidgetAction } from '../ToolWidgetUtils/utils';
+import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/types';
 
 type Position3d = { x: number; y: number; z: number };
 type vtkMouseEvent = {
@@ -167,6 +167,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    if (checkOverSegment()) {
+      return macro.VOID;
+    }
+
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
     if (model.widgetState.getPlacing() && manipulator) {
@@ -191,21 +195,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
       publicAPI.invokeStartInteractionEvent();
       return macro.EVENT_ABORT;
-    }
-
-    if (checkOverSegment()) {
-      // insert point
-      const insertIndex = model.activeState.getIndex() + 1;
-      const newHandle = model.widgetState.addHandle({ insertIndex });
-      const coords = getWorldCoords(event);
-      if (!coords) throw new Error('No world coords');
-      newHandle.setOrigin(coords);
-      // enable dragging immediately
-      publicAPI.activateHandle({
-        selectedState: newHandle,
-        representation: model.representations[0].getActors()[0], // first actor is GlyphMapper for handles
-      });
-      overUnselectedHandle = true;
     }
 
     if (model.activeState?.getActive() && model.pickable && model.dragable) {
@@ -361,14 +350,32 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Right press: Remove last handle / Pop context menu
   // --------------------------------------------------------------------------
 
-  const makeWidgetActions = () => {
+  const makeWidgetActions = (eventData: any) => {
     const widgetActions: Array<WidgetAction> = [];
 
     const { activeState } = model;
 
     const overSegment = checkOverSegment();
-    // if hovering on handle and we will still have at least 2 points after removing handle
-    if (!overSegment && model.widgetState.getHandles().length > 2) {
+
+    if (overSegment) {
+      // Allow inserting ponts when over a segment
+      widgetActions.push({
+        name: 'Add Point',
+        func: () => {
+          const insertIndex = activeState.getIndex() + 1;
+          const newHandle = model.widgetState.addHandle({ insertIndex });
+          const coords = getWorldCoords(eventData);
+          if (!coords) throw new Error('No world coords');
+          newHandle.setOrigin(coords);
+          // enable dragging immediately
+          publicAPI.activateHandle({
+            selectedState: newHandle,
+            representation: model.representations[0].getActors()[0], // first actor is GlyphMapper for handles
+          });
+        },
+      });
+    } else if (!overSegment && model.widgetState.getHandles().length > 2) {
+      // if hovering on handle and we will still have at least 2 points after removing handle
       widgetActions.push({
         name: 'Delete Point',
         func: () => {
@@ -392,7 +399,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     const eventWithWidgetAction = {
       ...eventData,
-      widgetActions: makeWidgetActions(),
+      widgetActions: makeWidgetActions(eventData),
     };
 
     publicAPI.invokeRightClickEvent(eventWithWidgetAction);
@@ -429,4 +436,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.hasFocus = false;
     model._widgetManager.enablePicking();
   };
+
+  publicAPI.delete = macro.chain(() => {
+    publicAPI.resetInteractions();
+  }, publicAPI.delete);
 }

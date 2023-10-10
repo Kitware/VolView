@@ -1,7 +1,7 @@
 import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
-import { Store, StoreActions, StoreGetters, StoreState } from 'pinia';
-
-import { Maybe, PartialWithRequired } from '@/src/types';
+import { StoreActions, StoreGetters, StoreState } from 'pinia';
+import type { Vector3 } from '@kitware/vtk.js/types';
+import type { Maybe, PartialWithRequired } from '@/src/types';
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
@@ -15,6 +15,8 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { findImageID, getDataID } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import type { IToolStore } from '@/src/store/tools/types';
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, Labels } from './useLabels';
 
@@ -62,8 +64,9 @@ export const useAnnotationTool = <
     return toolIDs.value.map((id) => byID[id]);
   });
 
+  type FinishedTool = Tool & { placing: true };
   const finishedTools = computed(() =>
-    tools.value.filter((tool) => !tool.placing)
+    tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
 
   const labels = useLabels({
@@ -82,7 +85,7 @@ export const useAnnotationTool = <
     return { labelName: '' };
   }
 
-  function addTool(this: Store, tool: ToolPatch): ToolID {
+  function addTool(tool: ToolPatch): ToolID {
     const id = useIdStore().nextId() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
@@ -107,12 +110,21 @@ export const useAnnotationTool = <
 
     removeFromArray(toolIDs.value, id);
     delete toolByID.value[id];
+
+    const selectionStore = useToolSelectionStore();
+    selectionStore.removeSelection(id);
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
 
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
+
+    // de-select whenever hiding a tool
+    if (patch.hidden) {
+      const selectionStore = useToolSelectionStore();
+      selectionStore.removeSelection(id);
+    }
   }
 
   // updates props controlled by labels
@@ -153,10 +165,7 @@ export const useAnnotationTool = <
     });
   }
 
-  const activateTool = () => true;
-  const deactivateTool = () => {};
-
-  const serialize = () => {
+  const serializeTools = () => {
     const toolsSerialized = toolIDs.value
       .map((toolID) => toolByID.value[toolID])
       .filter((tool) => !tool.placing)
@@ -176,8 +185,7 @@ export const useAnnotationTool = <
     tools: PartialWithRequired<Tool, 'imageID'>[];
     labels: Labels<Tool>;
   };
-  function deserialize(
-    this: Store,
+  function deserializeTools(
     serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>
   ) {
@@ -202,7 +210,7 @@ export const useAnnotationTool = <
             label: (label && labelIDMap[label]) || '',
           } as ToolPatch)
       )
-      .forEach((tool) => addTool.call(this, tool));
+      .forEach((tool) => addTool(tool));
   }
 
   return {
@@ -215,26 +223,25 @@ export const useAnnotationTool = <
     removeTool,
     updateTool,
     jumpToTool,
-    activateTool,
-    deactivateTool,
-    serialize,
-    deserialize,
+    serializeTools,
+    deserializeTools,
   };
 };
 
-type ToolFactory = (...args: any) => AnnotationTool;
-type UseAnnotationTool = ReturnType<
-  typeof useAnnotationTool<ToolFactory, unknown>
->;
+type ToolFactory<T extends AnnotationTool> = (...args: any[]) => T;
 
-type UseAnnotationToolNoSerialize = Omit<
-  UseAnnotationTool,
-  'serialize' | 'deserialize'
->;
+export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
+  typeof useAnnotationTool<ToolFactory<T>, any>
+> & {
+  getPoints(id: ToolID): Vector3[];
+};
 
-export type AnnotationToolStore<
-  UseAnnotationToolWithID = UseAnnotationToolNoSerialize
-> = StoreState<UseAnnotationToolWithID> &
-  StoreActions<UseAnnotationToolWithID> &
-  UnwrapNestedRefs<StoreGetters<UseAnnotationToolWithID>> & // adds computed props like tools
-  Store; // adds Pinia plugins;
+type UseAnnotationToolBasedStore<T extends AnnotationTool> = StoreState<
+  AnnotationToolAPI<T>
+> &
+  StoreActions<AnnotationToolAPI<T>> &
+  UnwrapNestedRefs<StoreGetters<AnnotationToolAPI<T>>>;
+
+export interface AnnotationToolStore<T extends AnnotationTool = AnnotationTool>
+  extends UseAnnotationToolBasedStore<T>,
+    IToolStore {}

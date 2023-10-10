@@ -88,7 +88,6 @@ export default defineComponent({
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
-      store: toolStore,
       isPlaced: !isPlacing.value,
     });
     const widget = ref<WidgetView | null>(null);
@@ -101,8 +100,8 @@ export default defineComponent({
       if (!widget.value) {
         return;
       }
+      // widgetManager calls widget.delete()
       widgetManager.value.removeWidget(widget.value);
-      widget.value.delete();
       widgetFactory.delete();
     });
 
@@ -182,10 +181,10 @@ export default defineComponent({
     return {
       tool,
       firstPoint: computed(() => {
-        return visibleStates.firstPoint ? tool.value.firstPoint : undefined;
+        return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
       }),
       secondPoint: computed(() => {
-        return visibleStates.secondPoint ? tool.value.secondPoint : undefined;
+        return visibleStates.secondPoint ? tool.value?.secondPoint : undefined;
       }),
     };
   },

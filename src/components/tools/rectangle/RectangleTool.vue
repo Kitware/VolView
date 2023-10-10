@@ -1,7 +1,6 @@
 <template>
   <div class="overlay-no-events">
     <svg class="overlay-no-events">
-      <bounding-rectangle :points="points" :view-id="viewId" />
       <rectangle-widget-2D
         v-for="tool in tools"
         :key="tool.id"
@@ -46,7 +45,6 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import RectangleWidget2D from './RectangleWidget2D.vue';
 
@@ -77,7 +75,6 @@ export default defineComponent({
     RectangleWidget2D,
     AnnotationContextMenu,
     AnnotationInfo,
-    BoundingRectangle,
   },
   setup(props) {
     const { viewDirection, currentSlice } = toRefs(props);
@@ -133,19 +130,13 @@ export default defineComponent({
       }
     };
 
-    // ---  //
+    // --- //
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
     const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
-
-    const points = computed(() => {
-      if (!overlayInfo.value.visible) return [];
-      const tool = activeToolStore.toolByID[overlayInfo.value.toolID];
-      return [tool.firstPoint, tool.secondPoint];
-    });
 
     return {
       tools: currentTools,
@@ -156,7 +147,6 @@ export default defineComponent({
       activeToolStore,
       onHover,
       overlayInfo,
-      points,
     };
   },
 });

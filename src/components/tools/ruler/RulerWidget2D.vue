@@ -38,7 +38,7 @@ export default defineComponent({
   name: 'RulerWidget2D',
   emits: ['placed', 'contextmenu', 'widgetHover'],
   props: {
-    rulerId: {
+    toolId: {
       type: String as unknown as PropType<ToolID>,
       required: true,
     },
@@ -68,7 +68,7 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const {
-      rulerId,
+      toolId,
       viewId,
       widgetManager,
       viewDirection,
@@ -77,13 +77,12 @@ export default defineComponent({
     } = toRefs(props);
 
     const rulerStore = useRulerStore();
-    const ruler = computed(() => rulerStore.rulerByID[rulerId.value]);
+    const ruler = computed(() => rulerStore.rulerByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
     const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     const widgetFactory = vtkRulerWidget.newInstance({
-      id: rulerId.value,
-      store: rulerStore,
+      id: toolId.value,
       isPlaced: !isPlacing.value,
     });
     const widget = ref<vtkRulerViewWidget | null>(null);
@@ -98,8 +97,8 @@ export default defineComponent({
       if (!widget.value) {
         return;
       }
+      // widgetManager calls widget.delete()
       widgetManager.value.removeWidget(widget.value);
-      widget.value.delete();
       widgetFactory.delete();
     });
 
@@ -181,10 +180,10 @@ export default defineComponent({
     return {
       ruler,
       firstPoint: computed(() => {
-        return visibleStates.firstPoint ? ruler.value.firstPoint : undefined;
+        return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;
       }),
       secondPoint: computed(() => {
-        return visibleStates.secondPoint ? ruler.value.secondPoint : undefined;
+        return visibleStates.secondPoint ? ruler.value?.secondPoint : undefined;
       }),
       length: computed(() => rulerStore.lengthByID[ruler.value.id]),
     };

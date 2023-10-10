@@ -20,9 +20,7 @@ export interface vtkRectangleWidgetState extends vtkRulerWidgetState {}
 export interface vtkRectangleViewWidget extends vtkRulerViewWidget {}
 
 export interface IRectangleWidgetInitialValues
-  extends IRulerWidgetInitialValues {
-  store: ReturnType<typeof useRectangleStore>;
-}
+  extends IRulerWidgetInitialValues {}
 
 export interface vtkRectangleWidget extends vtkRulerWidget {}
 

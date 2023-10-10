@@ -37,10 +37,14 @@
         />
       </div>
       <div class="overlay-no-events tool-layer" ref="toolContainer">
+        <svg class="overlay-no-events">
+          <bounding-rectangle :points="selectionPoints" :view-id="viewID" />
+        </svg>
         <pan-tool :view-id="viewID" />
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
+        <select-tool :view-id="viewID" :widget-manager="widgetManager" />
         <ruler-tool
           :view-id="viewID"
           :widget-manager="widgetManager"
@@ -194,6 +198,11 @@ import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupT
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import SelectTool from '@/src/components/tools/SelectTool.vue';
+import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import { useAnnotationToolStore } from '@/src/store/tools';
+import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -256,6 +265,7 @@ export default defineComponent({
   components: {
     SliceSlider,
     ViewOverlayGrid,
+    BoundingRectangle,
     WindowLevelTool,
     SliceScrollTool,
     PanTool,
@@ -266,6 +276,7 @@ export default defineComponent({
     PaintTool,
     CrosshairsTool,
     CropTool,
+    SelectTool,
   },
   setup(props) {
     const windowingStore = useWindowingStore();
@@ -740,6 +751,25 @@ export default defineComponent({
       { immediate: true, deep: true }
     );
 
+    // --- selection points --- //
+
+    const selectionStore = useToolSelectionStore();
+    const selectionPoints = computed(() => {
+      return selectionStore.selection
+        .map((sel) => {
+          const store = useAnnotationToolStore(sel.type);
+          return { store, tool: store.toolByID[sel.id] };
+        })
+        .filter(
+          ({ tool }) =>
+            tool.slice === currentSlice.value &&
+            doesToolFrameMatchViewAxis(viewAxis, tool)
+        )
+        .flatMap(({ store, tool }) => store.getPoints(tool.id));
+    });
+
+    // --- //
+
     return {
       vtkContainerRef,
       toolContainer,
@@ -762,6 +792,7 @@ export default defineComponent({
         resizeToFit.value = true;
       },
       hover,
+      selectionPoints,
     };
   },
 });

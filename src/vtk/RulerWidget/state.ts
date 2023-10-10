@@ -1,6 +1,7 @@
 import macro from '@kitware/vtk.js/macros';
-import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import bounds from '@kitware/vtk.js/Widgets/Core/StateBuilder/boundsMixin';
+import vtkAnnotationWidgetState from '@/src/vtk/ToolWidgetUtils/annotationWidgetState';
+import { AnnotationToolType } from '@/src/store/tools/types';
 
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
@@ -10,13 +11,13 @@ export const PointsLabel = 'points';
 function vtkRulerWidgetState(publicAPI: any, model: any) {
   const firstPoint = createPointState({
     id: model.id,
-    store: model._store,
+    store: publicAPI.getStore(),
     key: 'firstPoint',
     visible: true,
   });
   const secondPoint = createPointState({
     id: model.id,
-    store: model._store,
+    store: publicAPI.getStore(),
     key: 'secondPoint',
     visible: true,
   });
@@ -33,6 +34,7 @@ function vtkRulerWidgetState(publicAPI: any, model: any) {
 }
 
 const defaultValues = (initialValues: any) => ({
+  toolType: AnnotationToolType.Ruler,
   isPlaced: false,
   ...initialValues,
 });
@@ -43,12 +45,10 @@ function _createRulerWidgetState(
   initialValues: any
 ) {
   Object.assign(model, defaultValues(initialValues));
-  vtkWidgetState.extend(publicAPI, model, initialValues);
+  vtkAnnotationWidgetState.extend(publicAPI, model, initialValues);
   bounds.extend(publicAPI, model);
 
-  macro.get(publicAPI, model, ['id']);
   macro.setGet(publicAPI, model, ['isPlaced']);
-  macro.moveToProtected(publicAPI, model, ['store']);
 
   vtkRulerWidgetState(publicAPI, model);
 }
