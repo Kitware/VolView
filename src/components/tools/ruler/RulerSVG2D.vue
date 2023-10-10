@@ -9,7 +9,6 @@
       :stroke="color"
       :stroke-width="strokeWidth"
     />
-    <!-- radius should match constants.ANNOTATION_TOOL_HANDLE_RADIUS and should be related to vtkHandleWidget scale. -->
     <circle
       v-if="first"
       :cx="first.x"
@@ -17,7 +16,7 @@
       :stroke="color"
       :stroke-width="strokeWidth"
       fill="transparent"
-      :r="10 / devicePixelRatio"
+      :r="ANNOTATION_TOOL_HANDLE_RADIUS"
     />
     <circle
       v-if="second"
@@ -26,7 +25,7 @@
       :stroke="color"
       :stroke-width="strokeWidth"
       fill="transparent"
-      :r="10 / devicePixelRatio"
+      :r="ANNOTATION_TOOL_HANDLE_RADIUS"
       class="handle"
     />
     <text
@@ -50,7 +49,7 @@
 <script lang="ts">
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { ToolContainer } from '@/src/constants';
+import { ToolContainer, ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
@@ -167,13 +166,13 @@ export default defineComponent({
     });
 
     return {
-      devicePixelRatio,
       textdx: computed(() => textProperties.value?.dx ?? 0),
       textdy: computed(() => textProperties.value?.dy ?? 0),
       anchor: computed(() => textProperties.value?.anchor ?? 'start'),
       first: firstPoint,
       second: secondPoint,
       rulerLength: computed(() => length?.value?.toFixed(2) ?? ''),
+      ANNOTATION_TOOL_HANDLE_RADIUS,
     };
   },
 });

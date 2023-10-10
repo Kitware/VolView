@@ -3,10 +3,10 @@ import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import visibleMixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/visibleMixin';
 import scale1Mixin from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
 import { watchStore } from '@/src/vtk/ToolWidgetUtils/utils';
-import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
+import { PICKABLE_ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { toRaw } from 'vue';
 
-const PIXEL_SIZE = ANNOTATION_TOOL_HANDLE_RADIUS * 2;
+const DIAMETER = PICKABLE_ANNOTATION_TOOL_HANDLE_RADIUS * 2;
 
 function _createPointState(
   publicAPI,
@@ -20,7 +20,7 @@ function _createPointState(
   });
   vtkWidgetState.extend(publicAPI, model, {});
   visibleMixin.extend(publicAPI, model, { visible });
-  scale1Mixin.extend(publicAPI, model, { scale1: PIXEL_SIZE });
+  scale1Mixin.extend(publicAPI, model, { scale1: DIAMETER });
 
   const getTool = () => {
     return model._store.toolByID[model.id];

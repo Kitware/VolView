@@ -109,7 +109,6 @@ export default defineComponent({
     });
 
     return {
-      devicePixelRatio,
       x: computed(() => position2D.value?.x),
       y: computed(() => position2D.value?.y),
     };

@@ -46,7 +46,9 @@ export const Messages = {
   },
 } as const;
 
-export const ANNOTATION_TOOL_HANDLE_RADIUS = 10; // pixels
+export const ANNOTATION_TOOL_HANDLE_RADIUS = 6; // CSS pixels
+export const PICKABLE_ANNOTATION_TOOL_HANDLE_RADIUS =
+  ANNOTATION_TOOL_HANDLE_RADIUS * 2;
 
 export const ACTIONS = [
   // set the current tool
