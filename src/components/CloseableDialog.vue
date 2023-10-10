@@ -44,6 +44,12 @@ const width = computed(() => {
 const maxWidth = computed(() => {
   return display.mobile.value ? '100%' : props.maxWidth;
 });
+
+const stopAllButEscape = (e: KeyboardEvent) => {
+  if (e.key !== 'Escape') {
+    e.stopPropagation();
+  }
+};
 </script>
 
 <template>
@@ -54,7 +60,7 @@ const maxWidth = computed(() => {
     :max-width="maxWidth"
     :model-value="props.modelValue"
     @update:model-value="$emit('update:model-value', $event)"
-    @keydown.stop
+    @keydown="stopAllButEscape"
   >
     <v-btn
       variant="flat"
