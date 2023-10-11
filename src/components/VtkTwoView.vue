@@ -241,7 +241,6 @@ import {
   WL_HIST_BINS,
 } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
-import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
@@ -805,55 +804,10 @@ export default defineComponent({
               lut.setDataRange(...ctFunc.mappingRange);
 
               const pwf = proxyManager.getPiecewiseFunction(arrayName);
-              pwf.setMode(opFunc.mode);
+              pwf.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
               pwf.setDataRange(...opFunc.mappingRange);
-
-              const factor = blendConfig.opacity * 2;
-              const floor = Math.max(0, (blendConfig.opacity - 0.5) * 2);
-              switch (opFunc.mode) {
-                case vtkPiecewiseFunctionProxy.Mode.Gaussians: {
-                  const mapped = opFunc.gaussians.map((g) => {
-                    return {
-                      ...g,
-                      height: g.height * factor,
-                      yBias: blendConfig.opacity * 2,
-                    };
-                  });
-                  pwf.setGaussians(mapped);
-                  break;
-                }
-                case vtkPiecewiseFunctionProxy.Mode.Points: {
-                  const opacityPoints = getShiftedOpacityFromPreset(
-                    opFunc.preset,
-                    opFunc.mappingRange,
-                    opFunc.shift
-                  );
-                  if (!opacityPoints) {
-                    throw new Error(`Could not find preset ${opFunc.preset}`);
-                  }
-                  const mapped = opacityPoints.map(([x, y]) => [
-                    x,
-                    y * factor + floor,
-                  ]);
-                  pwf.setPoints(mapped);
-                  break;
-                }
-                case vtkPiecewiseFunctionProxy.Mode.Nodes: {
-                  const mappedNodes = opFunc.nodes.map((n) => {
-                    return {
-                      ...n,
-                      y: n.y * factor + floor,
-                    } as const;
-                  });
-                  pwf.setNodes(mappedNodes);
-                  break;
-                }
-                default:
-                  throw new Error(
-                    // @ts-expect-error should handle all modes
-                    `invalid opacity function mode ${opFunc.mode}`
-                  );
-              }
+              pwf.setPoints([[0, 1]]); // only slice mesh controls opacity
+              rep.setOpacity(blendConfig.opacity);
 
               // control color range manually
               rep.setRescaleOnColorBy(false);
