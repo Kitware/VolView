@@ -197,6 +197,8 @@
         <closeable-dialog v-model="dataSecurityDialog">
           <data-security-box />
         </closeable-dialog>
+
+        <keyboard-shortcuts />
       </v-app>
       <persistent-overlay
         :disabled="!dragHover"
@@ -254,6 +256,7 @@ import PersistentOverlay from './PersistentOverlay.vue';
 import DataSecurityBox from './DataSecurityBox.vue';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
 import VolViewLogo from './icons/VolViewLogo.vue';
+import KeyboardShortcuts from './KeyboardShortcuts.vue';
 import {
   DataSource,
   fileToDataSource,
@@ -349,6 +352,7 @@ export default defineComponent({
     Settings,
     SaveSession,
     PersistentOverlay,
+    KeyboardShortcuts,
   },
 
   setup() {

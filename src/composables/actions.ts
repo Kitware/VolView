@@ -4,6 +4,7 @@ import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
 import { Action } from '../constants';
+import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -30,6 +31,11 @@ const setTool = (tool: Tools) => () => {
   useToolStore().setCurrentTool(tool);
 };
 
+const showKeyboardShortcuts = () => {
+  const keyboardStore = useKeyboardShortcutsStore();
+  keyboardStore.settingsOpen = true;
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
@@ -44,4 +50,6 @@ export const ACTION_TO_FUNC = {
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
+
+  showKeyboardShortcuts,
 } as const satisfies Record<Action, () => void>;

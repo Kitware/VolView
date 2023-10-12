@@ -225,4 +225,6 @@ export const ACTION_TO_KEY = {
 
   decrementLabel: 'q',
   incrementLabel: 'w',
+
+  showKeyboardShortcuts: '?',
 } satisfies Record<Action, string>;
