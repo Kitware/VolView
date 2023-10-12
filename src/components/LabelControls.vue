@@ -4,7 +4,7 @@ import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
-import LabelEditor from './LabelEditor.vue';
+import ToolLabelEditor from '@/src/components/ToolLabelEditor.vue';
 
 const props = defineProps<{
   labelsStore: LabelsStore<AnnotationTool>;
@@ -92,7 +92,7 @@ watchEffect(() => {
 
   <closeable-dialog v-model="editDialog">
     <template v-slot="{ close }">
-      <LabelEditor
+      <ToolLabelEditor
         @done="
           editingLabel = undefined;
           close();
