@@ -63,6 +63,7 @@ By loading a JSON file, you can set VolView's:
 - Starting view layout (Axial Only, 3D Primary, etc).
 - Labels for tools
 - Visibility of Sample Data section
+- Keyboard shortcuts
 
 #### Starting view layout
 
@@ -71,11 +72,19 @@ The `activeLayout` key has options (Axial Only, 3D Primary, etc.) defined in `co
 #### Labels for tools
 
 Each tool type (Rectangle, Polygon, etc.) can have tool specific labels. To share labels
-across tools, define the `defaultLabels` key and don't provide the tool's specific label key.
+across tools, define the `defaultLabels` key and don't provide labels for a tool that
+should use the default labels.
 
 #### Visibility of Sample Data section
 
 Simplify the data browser by hiding the Sample Data expandable section.
+
+#### Keyboard Shortcuts
+
+Configure the keys to activate tools, change selected labels, and more.
+All [shortcut actions](https://github.com/Kitware/VolView/blob/main/src/constants.ts#L53) are under the `ACTIONS` variable.
+
+To configure a key for an action, add its action name and the key(s) under the `shortcuts` section. For key combinations, use `+` like `Ctrl+f`.
 
 #### Example JSON:
 
@@ -125,6 +134,10 @@ Simplify the data browser by hiding the Sample Data expandable section.
   },
   "dataBrowser": {
     "hideSampleData": false
+  }
+  "shortcuts": {
+    "polygon": "Ctrl+p",
+    "showKeyboardShortcuts": "t"
   }
 }
 ```
