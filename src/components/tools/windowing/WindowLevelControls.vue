@@ -14,7 +14,7 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
-    const panel = ref([1]);
+    const panel = ref(['auto']);
     const windowingDefaults = defaultWindowLevelConfig();
 
     // Get the relevant view ids
@@ -156,8 +156,8 @@ export default defineComponent({
   <v-card dark>
     <v-card-text>
       <v-expansion-panels v-model="panel" multiple>
-        <v-expansion-panel :disabled="!isCT && !tags.length">
-          <v-expansion-panel-title>Presets & Tags</v-expansion-panel-title>
+        <v-expansion-panel v-if="isCT">
+          <v-expansion-panel-title>Presets</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
               <template v-if="isCT">
@@ -178,7 +178,7 @@ export default defineComponent({
             </v-radio-group>
           </v-expansion-panel-text>
         </v-expansion-panel>
-        <v-expansion-panel>
+        <v-expansion-panel value="auto">
           <v-expansion-panel-title>Auto Window/Level</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
