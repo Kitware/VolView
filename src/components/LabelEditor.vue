@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { toRefs } from 'vue';
 
-const emit = defineEmits(['done', 'delete', 'update:color']);
+const emit = defineEmits(['done', 'cancel', 'delete', 'update:color']);
 const props = defineProps({
   color: String,
 });
@@ -9,6 +9,10 @@ const { color } = toRefs(props);
 
 const done = () => {
   emit('done');
+};
+
+const cancel = () => {
+  emit('cancel');
 };
 
 const onDelete = () => {
@@ -25,12 +29,15 @@ const onDelete = () => {
         <div class="flex-grow-1 d-flex flex-column justify-space-between mr-4">
           <slot name="fields" :done="done"></slot>
           <v-card-actions class="mb-2 px-0">
-            <v-btn color="secondary" variant="elevated" @click="done">
-              Done
+            <v-btn color="error" variant="elevated" @click="onDelete">
+              Delete
             </v-btn>
             <v-spacer />
-            <v-btn color="red" variant="tonal" @click="onDelete">
-              Delete label
+            <v-btn color="cancel" variant="tonal" @click="cancel">
+              Cancel
+            </v-btn>
+            <v-btn color="secondary" variant="elevated" @click="done">
+              Done
             </v-btn>
           </v-card-actions>
         </div>

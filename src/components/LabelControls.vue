@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref, reactive } from 'vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
-import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import ToolLabelEditor from '@/src/components/ToolLabelEditor.vue';
+import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 
 const props = defineProps<{
   labelsStore: LabelsStore<AnnotationTool>;
@@ -18,17 +18,50 @@ const activeLabelIndex = computed(() => {
   );
 });
 
-const editingLabel =
-  ref<Maybe<keyof typeof props.labelsStore.labels>>(undefined);
+// --- editing state --- //
+
+type LabelID = keyof typeof props.labelsStore.labels;
+const editingLabelID = ref<Maybe<LabelID>>(undefined);
+const editDialog = ref(false);
+const editState = reactive({
+  labelName: '',
+  strokeWidth: 1,
+  color: '',
+});
+
+const editingLabel = computed(() => {
+  if (!editingLabelID.value) return null;
+  return props.labelsStore.labels[editingLabelID.value];
+});
 
 const createLabel = () => {
-  editingLabel.value = props.labelsStore.addLabel();
+  editingLabelID.value = props.labelsStore.addLabel();
 };
 
-const editDialog = ref(false);
-watchEffect(() => {
-  editDialog.value = !!editingLabel.value;
-});
+function startEditing(label: LabelID) {
+  editDialog.value = true;
+  editingLabelID.value = label;
+  if (editingLabel.value) {
+    editState.labelName = editingLabel.value.labelName ?? '';
+    editState.strokeWidth = editingLabel.value.strokeWidth ?? 0;
+    editState.color = editingLabel.value.color ?? '';
+  }
+}
+
+function stopEditing(commit: boolean) {
+  if (editingLabelID.value && commit) {
+    props.labelsStore.updateLabel(editingLabelID.value, editState);
+  }
+  editDialog.value = false;
+  editingLabelID.value = null;
+}
+
+function deleteEditingLabel() {
+  if (editingLabelID.value) {
+    props.labelsStore.deleteLabel(editingLabelID.value);
+  }
+  stopEditing(false);
+}
 </script>
 
 <template>
@@ -67,12 +100,7 @@ watchEffect(() => {
                   density="compact"
                   class="ml-auto"
                   variant="plain"
-                  @click.stop="
-                    () => {
-                      editingLabel = id;
-                      editDialog = true;
-                    }
-                  "
+                  @click.stop="startEditing(id)"
                 />
               </v-chip>
             </v-item>
@@ -90,19 +118,17 @@ watchEffect(() => {
     </v-container>
   </v-card>
 
-  <closeable-dialog v-model="editDialog">
-    <template v-slot="{ close }">
-      <ToolLabelEditor
-        @done="
-          editingLabel = undefined;
-          close();
-        "
-        v-if="editingLabel"
-        :label="editingLabel"
-        :labelsStore="labelsStore"
-      />
-    </template>
-  </closeable-dialog>
+  <isolated-dialog v-model="editDialog">
+    <ToolLabelEditor
+      v-if="editingLabelID"
+      v-model:name="editState.labelName"
+      v-model:stroke-width="editState.strokeWidth"
+      v-model:color="editState.color"
+      @delete="deleteEditingLabel"
+      @cancel="stopEditing(false)"
+      @done="stopEditing(true)"
+    />
+  </isolated-dialog>
 </template>
 
 <style scoped>
