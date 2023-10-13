@@ -508,6 +508,21 @@ export default defineComponent({
       return {};
     });
 
+    const firstTag = computed(() => {
+      if (
+        curImageID.value &&
+        curImageID.value in dicomStore.imageIDToVolumeKey
+      ) {
+        const volKey = dicomStore.imageIDToVolumeKey[curImageID.value];
+        const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
+        return {
+          width: WindowWidth.split('\\')[0],
+          level: WindowLevel.split('\\')[0],
+        };
+      }
+      return {};
+    });
+
     watch(
       curImageData,
       (imageData) => {
@@ -520,7 +535,14 @@ export default defineComponent({
           min: range[0],
           max: range[1],
         });
-        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
+        if (firstTag.value?.width) {
+          windowingStore.updateConfig(viewID.value, curImageID.value, {
+            width: parseFloat(firstTag.value.width),
+            level: parseFloat(firstTag.value.level),
+          });
+        } else {
+          windowingStore.resetWindowLevel(viewID.value, curImageID.value);
+        }
       },
       {
         immediate: true,

@@ -118,7 +118,7 @@ export default defineComponent({
         const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
         const levels = parseTags(WindowLevel);
         return parseTags(WindowWidth).map((val, idx) => {
-          return { width: val, level: levels[idx] };
+          return { width: parseFloat(val), level: parseFloat(levels[idx]) };
         });
       }
       return [];
