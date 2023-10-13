@@ -156,6 +156,22 @@ export default defineComponent({
   <v-card dark>
     <v-card-text>
       <v-expansion-panels v-model="panel" multiple>
+        <v-expansion-panel value="tags" v-if="tags">
+          <v-expansion-panel-title
+            >Data-Specific Presets</v-expansion-panel-title
+          >
+          <v-expansion-panel-text>
+            <v-radio-group v-model="wlOptions" hide-details>
+              <v-radio
+                v-for="(value, idx) in tags"
+                :key="idx"
+                :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
+                :value="value"
+                density="compact"
+              />
+            </v-radio-group>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
         <v-expansion-panel v-if="isCT">
           <v-expansion-panel-title>Presets</v-expansion-panel-title>
           <v-expansion-panel-text>
@@ -182,13 +198,6 @@ export default defineComponent({
           <v-expansion-panel-title>Auto Window/Level</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
-              <v-radio
-                v-for="(value, idx) in tags"
-                :key="idx"
-                :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
-                :value="value"
-                density="compact"
-              />
               <v-radio
                 v-for="(value, key) in filteredWLAutoRanges"
                 :key="key"
