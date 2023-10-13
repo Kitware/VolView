@@ -2,6 +2,7 @@
 /* globals defineOptions */
 import { computed, PropType } from 'vue';
 import { useDisplay } from 'vuetify';
+import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 
 defineOptions({
   inheritAttrs: false,
@@ -44,23 +45,16 @@ const width = computed(() => {
 const maxWidth = computed(() => {
   return display.mobile.value ? '100%' : props.maxWidth;
 });
-
-const stopAllButEscape = (e: KeyboardEvent) => {
-  if (e.key !== 'Escape') {
-    e.stopPropagation();
-  }
-};
 </script>
 
 <template>
-  <v-dialog
+  <isolated-dialog
     v-bind="$attrs"
     :content-class="['closeable-dialog', $attrs['content-class']]"
     :width="width"
     :max-width="maxWidth"
     :model-value="props.modelValue"
     @update:model-value="$emit('update:model-value', $event)"
-    @keydown="stopAllButEscape"
   >
     <v-btn
       variant="flat"
@@ -73,7 +67,7 @@ const stopAllButEscape = (e: KeyboardEvent) => {
       @click="close"
     />
     <slot :close="close" />
-  </v-dialog>
+  </isolated-dialog>
 </template>
 
 <style scoped>
