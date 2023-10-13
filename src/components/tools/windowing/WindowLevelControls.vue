@@ -14,7 +14,7 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
-    const panel = ref(['auto']);
+    const panel = ref(['tags', 'presets']);
     const windowingDefaults = defaultWindowLevelConfig();
 
     // Get the relevant view ids
@@ -156,10 +156,10 @@ export default defineComponent({
   <v-card dark>
     <v-card-text>
       <v-expansion-panels v-model="panel" multiple>
-        <v-expansion-panel value="tags" v-if="tags">
-          <v-expansion-panel-title
-            >Data-Specific Presets</v-expansion-panel-title
-          >
+        <v-expansion-panel value="tags" v-if="tags.length">
+          <v-expansion-panel-title>
+            Data-Specific Presets
+          </v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
               <v-radio
@@ -172,7 +172,7 @@ export default defineComponent({
             </v-radio-group>
           </v-expansion-panel-text>
         </v-expansion-panel>
-        <v-expansion-panel v-if="isCT">
+        <v-expansion-panel v-if="isCT" value="presets">
           <v-expansion-panel-title>Presets</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
@@ -201,22 +201,22 @@ export default defineComponent({
               <v-radio
                 v-for="(value, key) in filteredWLAutoRanges"
                 :key="key"
-                :label="`${parseLabel(key)} (${0 + value}, ${100 - value})`"
+                :label="`${value} Percentile`"
                 :value="key"
                 density="compact"
               />
             </v-radio-group>
-            <v-btn
-              prepend-icon="mdi-restore"
-              variant="text"
-              block
-              @click="resetWindowLevel"
-            >
-              Reset
-            </v-btn>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
+      <v-btn
+        prepend-icon="mdi-restore"
+        variant="text"
+        block
+        @click="resetWindowLevel"
+      >
+        Reset
+      </v-btn>
     </v-card-text>
   </v-card>
 </template>
