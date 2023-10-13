@@ -23,7 +23,7 @@ export type AnnotationTool = {
   labelName?: string;
 
   color: string;
-  strokeWidth: number;
+  strokeWidth?: number;
 
   name: string;
 

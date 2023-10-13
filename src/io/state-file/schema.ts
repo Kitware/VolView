@@ -257,7 +257,7 @@ const annotationTool = z.object({
   id: z.string() as unknown as z.ZodType<ToolID>,
   name: z.string(),
   color: z.string(),
-  strokeWidth: z.number(),
+  strokeWidth: z.number().optional(),
   label: z.string().optional(),
   labelName: z.string().optional(),
 }) satisfies z.ZodType<AnnotationTool>;
