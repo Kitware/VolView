@@ -60,15 +60,13 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <menu-tool-button
+      <tool-button
         icon="mdi-brush"
         name="Paint"
-        :active="active"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage"
         @click="toggle"
-      >
-        <paint-controls />
-      </menu-tool-button>
+      ></tool-button>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
@@ -134,7 +132,6 @@ import ItemGroup from './ItemGroup.vue';
 import GroupableItem from './GroupableItem.vue';
 import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
-import PaintControls from './PaintControls.vue';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
 import RulerControls from './RulerControls.vue';
@@ -148,7 +145,6 @@ export default defineComponent({
     MenuToolButton,
     ItemGroup,
     GroupableItem,
-    PaintControls,
     CropControls,
     RulerControls,
     RectangleControls,
