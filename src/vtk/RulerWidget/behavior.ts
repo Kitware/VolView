@@ -86,7 +86,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const worldCoords = model.manipulator.handleEvent(
+    const { worldCoords } = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
     );
@@ -141,7 +141,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Moves a point around.
    */
   publicAPI.handleMouseMove = (eventData: any) => {
-    const worldCoords = model.manipulator.handleEvent(
+    const { worldCoords } = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
     );
@@ -181,7 +181,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    */
   publicAPI.handleLeftButtonRelease = (eventData: any) => {
     if (draggingState) {
-      const worldCoords = model.manipulator.handleEvent(
+      const { worldCoords } = model.manipulator.handleEvent(
         eventData,
         model._apiSpecificRenderWindow
       );

@@ -117,7 +117,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return undefined;
     }
 
-    return manipulator.handleEvent(callData, model._apiSpecificRenderWindow);
+    return manipulator.handleEvent(callData, model._apiSpecificRenderWindow)
+      .worldCoords;
   }
 
   function updateActiveStateHandle(callData: any) {

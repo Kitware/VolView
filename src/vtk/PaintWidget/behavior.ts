@@ -20,7 +20,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const worldCoords = model.manipulator.handleEvent(
+    const { worldCoords } = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
     );
@@ -45,7 +45,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const worldCoords = model.manipulator.handleEvent(
+    const { worldCoords } = model.manipulator.handleEvent(
       eventData,
       model._apiSpecificRenderWindow
     );
