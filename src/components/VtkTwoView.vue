@@ -537,12 +537,13 @@ export default defineComponent({
         });
         if (firstTag.value?.width) {
           windowingStore.updateConfig(viewID.value, curImageID.value, {
-            width: parseFloat(firstTag.value.width),
-            level: parseFloat(firstTag.value.level),
+            preset: {
+              width: parseFloat(firstTag.value.width),
+              level: parseFloat(firstTag.value.level),
+            },
           });
-        } else {
-          windowingStore.resetWindowLevel(viewID.value, curImageID.value);
         }
+        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
       },
       {
         immediate: true,

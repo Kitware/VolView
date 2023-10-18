@@ -97,14 +97,13 @@ export const ACTIONS = {
 export type Action = keyof typeof ACTIONS;
 
 export const WLAutoRanges = {
-  None: 0,
-  OneTenthPercent: 0.1,
-  OnePercent: 1.0,
-  TwoPercent: 2.0,
-  FivePercent: 5.0,
+  FullRange: 0,
+  LowContrast: 1.0,
+  MediumContrast: 2.0,
+  HighContrast: 5.0,
 };
 
-export const WL_AUTO_DEFAULT = 'None';
+export const WL_AUTO_DEFAULT = 'FullRange';
 export const WL_HIST_BINS = 512;
 
 export const WLPresetsCT = {

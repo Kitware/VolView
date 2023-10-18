@@ -28,15 +28,6 @@ export default defineComponent({
       return text.replace(/([A-Z])/g, ' $1').trim();
     }
 
-    // --- Automatic Range Options --- //
-
-    const filteredWLAutoRanges = computed(
-      () =>
-        Object.fromEntries(
-          Object.entries(WLAutoRanges).filter(([, value]) => value !== 0)
-        ) as Record<string, number>
-    );
-
     // --- CT Preset Options --- //
 
     const modality = computed(() => {
@@ -82,10 +73,12 @@ export default defineComponent({
     const wlOptions = computed({
       get() {
         const config = wlConfig.value;
-        if (config?.auto && config.auto !== WL_AUTO_DEFAULT) {
-          return config.auto;
+        const { width, level } = config?.preset || wlDefaults.value;
+        const { width: defaultWidth, level: defaultLevel } = wlDefaults.value;
+        if (width !== defaultWidth && level !== defaultLevel) {
+          return { width: wlWidth.value, level: wlLevel.value };
         }
-        return { width: wlWidth.value, level: wlLevel.value };
+        return config?.auto || WL_AUTO_DEFAULT;
       },
       set(selection: AutoRangeKey | PresetValue) {
         const imageID = currentImageID.value;
@@ -124,29 +117,14 @@ export default defineComponent({
       return [];
     });
 
-    // --- Reset --- //
-
-    const resetWindowLevel = () => {
-      const imageID = currentImageID.value;
-      // All views will be synchronized, just reset the first
-      const viewID = viewIDs.value[0];
-      if (!imageID || !viewID) return;
-      windowingStore.updateConfig(viewID, imageID, {
-        preset: wlDefaults.value,
-        auto: WL_AUTO_DEFAULT,
-      });
-      windowingStore.resetWindowLevel(viewID, imageID);
-    };
-
     return {
-      resetWindowLevel,
       parseLabel,
       wlOptions,
       WLPresetsCT,
       isCT,
       tags,
       panel,
-      filteredWLAutoRanges,
+      WLAutoRanges,
     };
   },
 });
@@ -199,24 +177,24 @@ export default defineComponent({
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
               <v-radio
-                v-for="(value, key) in filteredWLAutoRanges"
+                v-for="(value, key) in WLAutoRanges"
                 :key="key"
-                :label="`${value} Percentile`"
+                :label="parseLabel(key)"
                 :value="key"
                 density="compact"
-              />
+              >
+                <v-tooltip activator="parent" location="bottom">
+                  {{
+                    value
+                      ? `Remove the top and bottom ${value} percent of data`
+                      : 'Use the full data range'
+                  }}
+                </v-tooltip>
+              </v-radio>
             </v-radio-group>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
-      <v-btn
-        prepend-icon="mdi-restore"
-        variant="text"
-        block
-        @click="resetWindowLevel"
-      >
-        Reset
-      </v-btn>
     </v-card-text>
   </v-card>
 </template>
