@@ -26,7 +26,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.321.1",
     "@itk-wasm/dicom": "^3.2.1",
-    "@kitware/vtk.js": "^27.4.6",
+    "@kitware/vtk.js": "^28.13.0",
     "@netlify/edge-functions": "^2.0.0",
     "@sentry/vue": "^7.54.0",
     "@vueuse/core": "^8.5.0",
@@ -81,7 +81,7 @@
     "chai-almost": "^1.0.1",
     "chai-as-promised": "7.1.1",
     "chai-subset": "^1.6.0",
-    "chromedriver": "^116.0.0",
+    "chromedriver": "117.0.0",
     "cross-env": "^7.0.3",
     "eslint": "^7.32.0",
     "eslint-config-prettier": "6.15.0",
