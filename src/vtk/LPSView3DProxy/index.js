@@ -4,11 +4,12 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 
 export function commonViewCustomizations(publicAPI, model) {
   const delayedRender = macro.debounce(model.renderWindow.render, 5);
+  model.size = { width: 0, height: 0 };
 
   // override resize to avoid flickering from rendering later
   publicAPI.resize = () => {
     if (model.container) {
-      const dims = model.container.getBoundingClientRect();
+      const dims = model.size;
       if (dims.width === dims.height && dims.width === 0) {
         return;
       }
@@ -68,6 +69,15 @@ export function commonViewCustomizations(publicAPI, model) {
     resetCamera(args);
     model.renderer.updateLightsGeometryToFollowCamera();
   };
+
+  publicAPI.setSize = (width, height) => {
+    model.size = { width, height };
+    publicAPI.resize();
+  };
+
+  // initialize
+
+  publicAPI.setContainer(document.createElement('div'));
 }
 
 function vtkLPSView3DProxy(publicAPI, model) {

@@ -38,7 +38,9 @@
           class="vtk-view"
           ref="vtkContainerRef"
           data-testid="vtk-view vtk-two-view"
-        />
+        >
+          <canvas ref="canvasRef" class="ccc" />
+        </div>
       </div>
       <div class="overlay-no-events tool-layer" ref="toolContainer">
         <svg class="overlay-no-events">
@@ -208,6 +210,7 @@ import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import type { TypedArray } from '@kitware/vtk.js/types';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -397,8 +400,20 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Slice);
+    const { viewProxy } = useViewProxy<vtkLPSView2DProxy>(
+      viewID,
+      ViewProxyType.Slice
+    );
+
+    const canvasRef = ref<HTMLCanvasElement | null>(null);
+
+    const interactor = computed(() => viewProxy.value.getInteractor());
+    onVTKEvent(interactor, 'onRenderEvent', () => {
+      if (!canvasRef.value) return;
+      const ctx = canvasRef.value.getContext('2d');
+      const src = viewProxy.value.getOpenGLRenderWindow().getCanvas();
+      if (ctx && src) ctx.drawImage(src, 0, 0);
+    });
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
@@ -407,12 +422,12 @@ export default defineComponent({
     });
 
     onMounted(() => {
-      setViewProxyContainer(vtkContainerRef.value);
+      // setViewProxyContainer(vtkContainerRef.value);
       viewProxy.value.setOrientationAxesVisibility(false);
     });
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
+      // setViewProxyContainer(null);
     });
 
     // --- Slicing setup --- //
@@ -457,7 +472,19 @@ export default defineComponent({
 
     // --- resizing --- //
 
-    useResizeObserver(vtkContainerRef, () => viewProxy.value.resize());
+    useResizeObserver(vtkContainerRef, (entry) => {
+      const bbox = entry.contentRect;
+      canvasRef.value?.setAttribute(
+        'width',
+        String(bbox.width * window.devicePixelRatio)
+      );
+      canvasRef.value?.setAttribute(
+        'height',
+        String(bbox.height * window.devicePixelRatio)
+      );
+
+      viewProxy.value.setSize(bbox.width, bbox.height);
+    });
 
     // Used by SVG tool widgets for resizeCallback
     const toolContainer = ref<HTMLElement>();
@@ -877,6 +904,7 @@ export default defineComponent({
 
     return {
       vtkContainerRef,
+      canvasRef,
       toolContainer,
       viewID,
       viewProxy,
@@ -910,5 +938,9 @@ export default defineComponent({
   width: 32px;
   height: 32px;
   cursor: pointer;
+}
+.ccc {
+  width: 100%;
+  height: 100%;
 }
 </style>

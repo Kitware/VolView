@@ -23,7 +23,9 @@ export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   );
 
   watch(viewProxy, (curViewProxy, oldViewProxy) => {
-    oldViewProxy.setContainer(null);
+    if (oldViewProxy !== curViewProxy) {
+      oldViewProxy.setContainer(null);
+    }
     curViewProxy.setContainer(container.value);
   });
 
