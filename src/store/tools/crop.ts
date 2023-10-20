@@ -14,6 +14,11 @@ import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
 import { StateFile, Manifest } from '../../io/state-file/schema';
 
+type Plane = {
+  origin: Vector3;
+  normal: Vector3;
+};
+
 function clampRangeToBounds(range: Vector2, bounds: Vector2) {
   return [
     Math.max(bounds[0], Math.min(bounds[1], range[0])),
@@ -21,12 +26,20 @@ function clampRangeToBounds(range: Vector2, bounds: Vector2) {
   ] as Vector2;
 }
 
-function convertCropBoundsToVTKPlane(
+/**
+ * Converts a cropping boundary to a plane origin + normal.
+ * @param cropBounds
+ * @param metadata
+ * @param axis
+ * @param lowerUpper 0 for the lower boundary, 1 for the upper boundary
+ * @returns
+ */
+function convertCropBoundaryToPlane(
   cropBounds: LPSCroppingPlanes,
   metadata: ImageMetadata,
   axis: LPSAxis,
   lowerUpper: 0 | 1
-) {
+): Plane {
   const { indexToWorld, orientation, lpsOrientation: lpsDirs } = metadata;
 
   const origin = [0, 0, 0] as Vector3;
@@ -37,12 +50,27 @@ function convertCropBoundsToVTKPlane(
   // The lower bound normal is the associated column in the
   // image orientation matrix. The upper bound normal is the
   // lower bound normal, but negated.
+  // 0|1 => 1|-1
   const neg = -(lowerUpper * 2 - 1);
   const normal = [
     ...orientation.slice(axisIndex * 3, axisIndex * 3 + 3).map((c) => c * neg),
   ] as Vector3;
 
-  return vtkPlane.newInstance({ origin, normal });
+  return { origin, normal };
+}
+
+/**
+ * Re-orients the lower/upper plane normals to point at each other.
+ *
+ * Assumes the planes are parallel.
+ * @param lowerPlane
+ * @param upperPlane
+ */
+function reorientBoundaryNormals(lowerPlane: Plane, upperPlane: Plane) {
+  const lowerToUpper = lowerPlane.normal;
+  vec3.sub(lowerToUpper, upperPlane.origin, lowerPlane.origin);
+  vec3.normalize(lowerToUpper, lowerToUpper);
+  vec3.negate(upperPlane.normal, lowerPlane.normal);
 }
 
 export function croppingPlanesEqual(a1: vtkPlane[], a2: vtkPlane[]) {
@@ -67,14 +95,20 @@ export const useCropStore = defineStore('crop', () => {
       if (id && id in state.croppingByImageID && id in imageStore.metadata) {
         const cropBounds = state.croppingByImageID[id];
         const metadata = imageStore.metadata[id];
-        return [
-          convertCropBoundsToVTKPlane(cropBounds, metadata, 'Sagittal', 0),
-          convertCropBoundsToVTKPlane(cropBounds, metadata, 'Sagittal', 1),
-          convertCropBoundsToVTKPlane(cropBounds, metadata, 'Coronal', 0),
-          convertCropBoundsToVTKPlane(cropBounds, metadata, 'Coronal', 1),
-          convertCropBoundsToVTKPlane(cropBounds, metadata, 'Axial', 0),
-          convertCropBoundsToVTKPlane(cropBounds, metadata, 'Axial', 1),
+        const planes = [
+          convertCropBoundaryToPlane(cropBounds, metadata, 'Sagittal', 0),
+          convertCropBoundaryToPlane(cropBounds, metadata, 'Sagittal', 1),
+          convertCropBoundaryToPlane(cropBounds, metadata, 'Coronal', 0),
+          convertCropBoundaryToPlane(cropBounds, metadata, 'Coronal', 1),
+          convertCropBoundaryToPlane(cropBounds, metadata, 'Axial', 0),
+          convertCropBoundaryToPlane(cropBounds, metadata, 'Axial', 1),
         ];
+
+        reorientBoundaryNormals(planes[0], planes[1]);
+        reorientBoundaryNormals(planes[2], planes[3]);
+        reorientBoundaryNormals(planes[4], planes[5]);
+
+        return planes.map((plane) => vtkPlane.newInstance(plane));
       }
       return null;
     });
