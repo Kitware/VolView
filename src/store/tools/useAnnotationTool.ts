@@ -190,15 +190,10 @@ export const useAnnotationTool = <
     dataIDMap: Record<string, string>
   ) {
     const labelIDMap = Object.fromEntries(
-      Object.entries(serialized?.labels ?? {})
-        // prioritize existing labels (from configJSON most likely)
-        .map(([id, label]) => {
-          return labels.findLabel(label.labelName) ?? ([id, label] as const);
-        })
-        .map(([id, label]) => {
-          const newID = labels.mergeLabel(label); // side effect
-          return [id, newID];
-        })
+      Object.entries(serialized?.labels ?? {}).map(([id, label]) => {
+        const newID = labels.mergeLabel(label); // side effect
+        return [id, newID];
+      })
     );
 
     serialized?.tools

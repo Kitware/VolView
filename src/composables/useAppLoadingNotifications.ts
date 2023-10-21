@@ -36,6 +36,7 @@ export function useAppLoadingNotifications() {
     loadingCount--;
     if (loadingCount === 0 && toastID !== null) {
       if (error) {
+        console.error(error);
         toast.dismiss(toastID);
         messageStore.addError('Some files failed to load', error);
       } else {
