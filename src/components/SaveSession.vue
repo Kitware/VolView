@@ -11,6 +11,7 @@
           label="Session State Filename"
           :rules="[validFileName]"
           required
+          id="session-state-filename"
         />
       </v-form>
     </v-card-text>
@@ -23,7 +24,7 @@
         :disabled="!valid"
       >
         <v-icon class="mr-2">mdi-content-save-all</v-icon>
-        <span>Save</span>
+        <span data-testid="save-session-confirm-button">Save</span>
       </v-btn>
     </v-card-actions>
   </v-card>

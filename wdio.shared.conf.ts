@@ -5,8 +5,13 @@ import { projectRoot } from './tests/e2eTestUtils';
 
 export const WINDOW_SIZE = [1200, 800] as const;
 export const TEST_PORT = 4567;
+// for slow connections try `DOWNLOAD_TIMEOUT=60000 npm run test:e2e:dev`
+export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 5000);
 
 const ROOT = projectRoot();
+// TEMP_DIR is also downloads directory
+const TMP = '.tmp/';
+export const TEMP_DIR = path.resolve(ROOT, TMP);
 
 export const config: Options.Testrunner = {
   baseUrl: `http://localhost:${TEST_PORT}`,
@@ -46,10 +51,13 @@ export const config: Options.Testrunner = {
     [
       'static-server',
       {
-        folders: {
-          mount: '/',
-          path: './dist',
-        },
+        folders: [
+          {
+            mount: '/',
+            path: './dist',
+          },
+          { mount: '/tmp', path: `./${TMP}` },
+        ],
         port: TEST_PORT,
       },
     ],
@@ -59,10 +67,11 @@ export const config: Options.Testrunner = {
         baselineFolder: path.resolve(ROOT, 'tests/baseline/'),
         formatImageName:
           '{tag}-{browserName}-{platformName}-{width}x{height}-{dpr}',
-        screenshotPath: path.resolve(ROOT, '.tmp/'),
+        screenshotPath: TEMP_DIR,
         autoSaveBaseline: true,
       },
     ],
+    'cleanuptotal',
   ],
   framework: 'mocha',
   reporters: ['spec', 'html-nice'],
@@ -76,7 +85,7 @@ export const config: Options.Testrunner = {
   //
 
   onPrepare() {
-    fs.mkdirSync(path.resolve(ROOT, '.tmp/'), { recursive: true });
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
   },
 
   async before(caps, spec, browser) {
