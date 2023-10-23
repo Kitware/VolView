@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import EditableChipList from '@/src/components/EditableChipList.vue';
 import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import {
@@ -23,8 +24,8 @@ const { labelmapId } = toRefs(props);
 const labelmapStore = useLabelmapStore();
 const paintStore = usePaintToolStore();
 
-const segments = computed<Maybe<LabelMapSegment[]>>(() => {
-  return labelmapStore.segmentsByLabelmapID[labelmapId.value];
+const segments = computed<LabelMapSegment[]>(() => {
+  return labelmapStore.segmentsByLabelmapID[labelmapId.value] ?? [];
 });
 
 function addNewSegment() {
@@ -106,51 +107,42 @@ function deleteEditingSegment() {
 </script>
 
 <template>
-  <v-item-group mandatory selected-class="selected" v-model="selectedSegment">
-    <v-item
-      v-for="segment in segments"
-      :key="segment.value"
-      :value="segment.value"
-      v-slot="{ selectedClass, toggle }"
-    >
-      <v-list-item
-        :class="[selectedClass, 'my-1', 'segment']"
-        @click.stop="toggle"
-      >
-        {{ segment.name }}
-        <template #prepend>
-          <div
-            class="dot"
-            :style="{
-              backgroundColor: rgbaToHexa(segment.color),
-            }"
-          ></div>
-        </template>
-        <template #append>
-          <v-btn
-            icon
-            size="x-small"
-            variant="plain"
-            @click.stop="startEditing(segment.value)"
-          >
-            <v-icon>mdi-pencil</v-icon>
-          </v-btn>
-          <v-btn
-            icon
-            size="x-small"
-            variant="plain"
-            @click.stop="deleteSegment(segment.value)"
-          >
-            <v-icon>mdi-delete</v-icon>
-          </v-btn>
-        </template>
-      </v-list-item>
-    </v-item>
-    <v-list-item class="text-center" @click.stop="addNewSegment">
-      <v-icon>mdi-plus</v-icon>
-      New segment
-    </v-list-item>
-  </v-item-group>
+  <editable-chip-list
+    v-model="selectedSegment"
+    :items="segments"
+    item-key="value"
+    item-title="name"
+    create-label-text="New segment"
+    @create="addNewSegment"
+  >
+    <template #item-prepend="{ item }">
+      <!-- dot container keeps overflowing name from squishing dot width  -->
+      <div class="dot-container mr-3">
+        <div
+          class="color-dot"
+          :style="{ background: rgbaToHexa(item.color) }"
+        />
+      </div>
+    </template>
+    <template #item-append="{ key }">
+      <v-btn
+        icon="mdi-pencil"
+        size="small"
+        density="compact"
+        class="ml-auto mr-1"
+        variant="plain"
+        @click.stop="startEditing(key as number)"
+      />
+      <v-btn
+        icon="mdi-delete"
+        size="small"
+        density="compact"
+        class="ml-auto"
+        variant="plain"
+        @click.stop="deleteSegment(key as number)"
+      />
+    </template>
+  </editable-chip-list>
 
   <isolated-dialog v-model="editDialog" @keydown.stop max-width="800px">
     <segment-editor
@@ -165,21 +157,13 @@ function deleteEditingSegment() {
 </template>
 
 <style scoped>
-.selected {
-  background: rgba(var(--v-theme-selection-bg-color));
-}
-
-.dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 8px;
-  background: yellow;
-  margin-right: 8px;
+.color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 16px;
   border: 1px solid #111;
 }
-
-.segment {
-  overflow: hidden;
-  text-overflow: clip;
+.dot-container {
+  width: 18px;
 }
 </style>
