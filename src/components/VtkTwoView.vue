@@ -203,6 +203,7 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
+import { TypedArray } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -232,7 +233,13 @@ import useViewSliceStore, {
   defaultSliceConfig,
 } from '../store/view-configs/slicing';
 import CropTool from './tools/crop/CropTool.vue';
-import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
+import {
+  ToolContainer,
+  VTKTwoViewWidgetManager,
+  WLAutoRanges,
+  WL_AUTO_DEFAULT,
+  WL_HIST_BINS,
+} from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
@@ -329,6 +336,9 @@ export default defineComponent({
 
     const windowWidth = computed(() => wlConfig.value?.width);
     const windowLevel = computed(() => wlConfig.value?.level);
+    const autoRange = computed<keyof typeof WLAutoRanges>(
+      () => wlConfig.value?.auto || WL_AUTO_DEFAULT
+    );
     const dicomInfo = computed(() => {
       if (
         curImageID.value !== null &&
@@ -455,6 +465,64 @@ export default defineComponent({
 
     // --- window/level setup --- //
 
+    const histogram = (
+      data: number[] | TypedArray,
+      dataRange: number[],
+      numberOfBins: number
+    ) => {
+      const [min, max] = dataRange;
+      const width = (max - min + 1) / numberOfBins;
+      const hist = new Array(numberOfBins).fill(0);
+      data.forEach((value) => hist[Math.floor((value - min) / width)]++);
+      return hist;
+    };
+
+    const autoRangeValues = computed(() => {
+      // Pre-compute the auto-range values
+      if (curImageData?.value) {
+        const scalarData = curImageData.value.getPointData().getScalars();
+        const [min, max] = scalarData.getRange();
+        const hist = histogram(scalarData.getData(), [min, max], WL_HIST_BINS);
+        const cumm = hist.reduce((acc, val, idx) => {
+          const prev = idx !== 0 ? acc[idx - 1] : 0;
+          acc.push(val + prev);
+          return acc;
+        }, []);
+
+        const width = (max - min + 1) / WL_HIST_BINS;
+        return Object.fromEntries(
+          Object.entries(WLAutoRanges).map(([key, value]) => {
+            const startIdx = cumm.findIndex(
+              (v: number) => v >= value * 0.01 * scalarData.getData().length
+            );
+            const endIdx = cumm.findIndex(
+              (v: number) =>
+                v >= (1 - value * 0.01) * scalarData.getData().length
+            );
+            const start = Math.max(min, min + width * startIdx);
+            const end = Math.min(max, min + width * endIdx + width);
+            return [key, [start, end]];
+          })
+        );
+      }
+      return {};
+    });
+
+    const firstTag = computed(() => {
+      if (
+        curImageID.value &&
+        curImageID.value in dicomStore.imageIDToVolumeKey
+      ) {
+        const volKey = dicomStore.imageIDToVolumeKey[curImageID.value];
+        const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
+        return {
+          width: WindowWidth.split('\\')[0],
+          level: WindowLevel.split('\\')[0],
+        };
+      }
+      return {};
+    });
+
     watch(
       curImageData,
       (imageData) => {
@@ -462,18 +530,41 @@ export default defineComponent({
           return;
         }
 
-        // TODO listen to changes in point data
-        const range = imageData.getPointData().getScalars().getRange();
+        const range = autoRangeValues.value[autoRange.value];
         windowingStore.updateConfig(viewID.value, curImageID.value, {
           min: range[0],
           max: range[1],
         });
+        if (firstTag.value?.width) {
+          windowingStore.updateConfig(viewID.value, curImageID.value, {
+            preset: {
+              width: parseFloat(firstTag.value.width),
+              level: parseFloat(firstTag.value.level),
+            },
+          });
+        }
         windowingStore.resetWindowLevel(viewID.value, curImageID.value);
       },
       {
         immediate: true,
       }
     );
+
+    watch(autoRange, (percentile) => {
+      if (
+        curImageID.value == null ||
+        wlConfig.value == null ||
+        !curImageData.value
+      ) {
+        return;
+      }
+      const range = autoRangeValues.value[percentile];
+      windowingStore.updateConfig(viewID.value, curImageID.value, {
+        min: range[0],
+        max: range[1],
+      });
+      windowingStore.resetWindowLevel(viewID.value, curImageID.value);
+    });
 
     // --- scene setup --- //
 

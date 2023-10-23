@@ -7,6 +7,7 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
+import { WL_AUTO_DEFAULT } from '@/src/constants';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
@@ -16,6 +17,11 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   level: 0.5,
   min: 0,
   max: 1,
+  auto: WL_AUTO_DEFAULT,
+  preset: {
+    width: 1,
+    level: 0.5,
+  },
 });
 
 const useWindowingStore = defineStore('windowing', () => {
@@ -67,8 +73,12 @@ const useWindowingStore = defineStore('windowing', () => {
     const config = configs[viewID]?.[dataID];
     if (config == null) return;
 
-    const width = config.max - config.min;
-    const level = (config.max + config.min) / 2;
+    let { width, level } = config.preset;
+    const defaults = defaultWindowLevelConfig();
+    if (width === defaults.width && level === defaults.level) {
+      width = config.max - config.min;
+      level = (config.max + config.min) / 2;
+    }
     updateConfig(viewID, dataID, { width, level });
   };
 
