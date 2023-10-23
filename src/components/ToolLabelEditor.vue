@@ -43,7 +43,7 @@ defineProps({
         type="number"
         class="flex-grow-0"
         :model-value="strokeWidth"
-        @update:model-value="$emit('update:name', +$event)"
+        @update:model-value="$emit('update:strokeWidth', +$event)"
         @keydown.stop.enter="done"
       />
     </template>
