@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import LabelSegmentList from '@/src/components/LabelSegmentList.vue';
+import SegmentList from '@/src/components/SegmentList.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   useLabelmapStore,
@@ -120,10 +120,7 @@ function stopEditing(commit: boolean) {
     </template>
   </v-select>
   <div v-else class="text-center text-caption">No selected image</div>
-  <label-segment-list
-    v-if="selectedLabelmapID"
-    :labelmap-id="selectedLabelmapID"
-  />
+  <segment-list v-if="selectedLabelmapID" :labelmap-id="selectedLabelmapID" />
 
   <v-dialog v-model="editDialog" max-width="400px">
     <v-card>

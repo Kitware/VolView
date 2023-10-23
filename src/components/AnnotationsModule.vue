@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AnnotationToolType } from '@/src/store/tools/types';
 import MeasurementsToolList from './MeasurementsToolList.vue';
-import LabelmapList from './LabelmapList.vue';
+import LabelmapControls from './LabelmapControls.vue';
 import ToolControls from './ToolControls.vue';
 import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
 
@@ -32,7 +32,7 @@ const tools = [
     <div class="text-caption text-center empty-state">No measurements</div>
     <div class="header">Labelmaps</div>
     <div class="content">
-      <labelmap-list />
+      <labelmap-controls />
     </div>
     <div class="text-caption text-center empty-state">No labelmaps</div>
   </div>
