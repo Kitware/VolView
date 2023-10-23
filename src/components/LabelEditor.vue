@@ -60,9 +60,15 @@ const deleteLabel = () => {
             label="Stroke Width"
             type="number"
             class="flex-grow-0"
+            id="label-stroke-width-input"
           />
           <v-card-actions class="mb-2 px-0">
-            <v-btn color="secondary" variant="elevated" @click="$emit('done')">
+            <v-btn
+              color="secondary"
+              variant="elevated"
+              @click="$emit('done')"
+              data-testid="edit-label-done-button"
+            >
               Done
             </v-btn>
             <v-spacer />

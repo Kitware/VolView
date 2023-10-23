@@ -10,6 +10,22 @@ const getId = () => {
   return lastId++;
 };
 
+export const setValueVueInput = async (
+  input: WebdriverIO.Element,
+  value: string
+) => {
+  // input.setValue does not clear existing input, so click and backspace
+  await input.click();
+  const oldValue = await input.getValue();
+  if (oldValue) {
+    const backspaces = new Array(oldValue.length).fill(Key.Backspace);
+    await browser.keys([Key.ArrowRight, ...backspaces]);
+  }
+  await input.setValue(value);
+
+  // await browser.keys([Key.Enter]);
+};
+
 class VolViewPage extends Page {
   get samplesList() {
     return $('div[data-testid="samples-list"]');
@@ -87,15 +103,8 @@ class VolViewPage extends Page {
     const id = getId();
     const fileName = `${id}-session.volview.zip`;
 
-    // input.setValue does not clear existing input, so click and backspace
-    await input.click();
-    const oldValue = await input.getValue();
-    if (oldValue) {
-      const backspaces = new Array(oldValue.length).fill(Key.Backspace);
-      await browser.keys([Key.ArrowRight, ...backspaces]);
-    }
+    await setValueVueInput(input, fileName);
 
-    await input.setValue(fileName);
     const confirm = await this.saveSessionConfirmButton;
     await confirm.click();
 
@@ -104,6 +113,18 @@ class VolViewPage extends Page {
     });
 
     return fileName;
+  }
+
+  get editLabelButtons() {
+    return $$('button[data-testid="edit-label-button"]');
+  }
+
+  get labelStrokeWidthInput() {
+    return $('#label-stroke-width-input');
+  }
+
+  get editLabelModalDoneButton() {
+    return $('button[data-testid="edit-label-done-button"]');
   }
 }
 

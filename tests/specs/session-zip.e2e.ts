@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 
 // from https://stackoverflow.com/a/47764403
@@ -68,7 +68,7 @@ const annotate = async () => {
   await volViewPage.clickTwiceInTwoView();
 };
 
-describe('VolView', () => {
+describe('VolView config and deserialization', () => {
   it('config.json files should override label props of existing tool', async () => {
     await annotate();
 
@@ -103,5 +103,30 @@ describe('VolView', () => {
 
     const { manifest: changedManifest } = await saveGetManifest();
     expect(changedManifest.tools.rectangles.tools?.[0].color).toEqual(newColor);
+  });
+
+  it('edited default label is serialized and deserialized', async () => {
+    await annotate();
+
+    const buttons = await volViewPage.editLabelButtons;
+    await buttons[2].click();
+    const editedStrokeWidth = 9;
+
+    const input = await volViewPage.labelStrokeWidthInput;
+    await setValueVueInput(input, editedStrokeWidth.toString());
+
+    const done = await volViewPage.editLabelModalDoneButton;
+    await done.click();
+
+    const { session } = await saveGetManifest();
+
+    const sessionZip = `?urls=[tmp/${session}]`;
+    await volViewPage.open(sessionZip);
+    await volViewPage.waitForViews(DOWNLOAD_TIMEOUT);
+
+    const { manifest: changedManifest } = await saveGetManifest();
+    expect(changedManifest.tools.rectangles.tools?.[0].strokeWidth).toEqual(
+      editedStrokeWidth
+    );
   });
 });

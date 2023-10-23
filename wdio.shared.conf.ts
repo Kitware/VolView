@@ -5,7 +5,8 @@ import { projectRoot } from './tests/e2eTestUtils';
 
 export const WINDOW_SIZE = [1200, 800] as const;
 export const TEST_PORT = 4567;
-// for slow connections try `DOWNLOAD_TIMEOUT=60000 npm run test:e2e:dev`
+// for slow connections try:
+// DOWNLOAD_TIMEOUT=60000 npm run test:e2e:dev
 export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 5000);
 
 const ROOT = projectRoot();
