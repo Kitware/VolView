@@ -244,7 +244,7 @@ export const LabelMapMetadata = z.object({
   parentImage: z.string(),
   segments: z.object({
     order: z.number().array(),
-    byValue: z.record(z.number(), LabelMapSegment),
+    byValue: z.record(z.string(), LabelMapSegment),
   }),
 });
 

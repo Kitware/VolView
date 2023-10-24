@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
@@ -426,7 +426,8 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     segmentsByLabelmapID,
     (segsByID) => {
       Object.entries(segsByID).forEach(([id, segments]) => {
-        dataIndex[id].setSegments(segments);
+        // ensure segments are not proxies
+        dataIndex[id].setSegments(toRaw(segments).map((seg) => toRaw(seg)));
       });
     },
     { immediate: true }
