@@ -28,8 +28,9 @@ export type LabelmapArrayType = Uint8Array;
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
 export const DEFAULT_SEGMENT_COLOR: RGBAColor = [255, 0, 0, 255];
-export const DEFAULT_LABELMAP_NAME = 'Unnamed Labelmap';
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
+export const makeDefaultLabelmapName = (baseName: string, index: number) =>
+  `Labelmap ${index} for ${baseName}`;
 
 export interface LabelMapMetadata {
   name: string;
@@ -143,6 +144,16 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     return id;
   }
 
+  // Used for constructing labelmap names in newLabelmapFromImage.
+  const nextDefaultIndex: Record<string, number> = Object.create(null);
+
+  // clear nextDefaultIndex
+  onImageDeleted((deleted) => {
+    deleted.forEach((id) => {
+      delete nextDefaultIndex[id];
+    });
+  });
+
   /**
    * Creates a new labelmap entry from a parent/source image.
    */
@@ -152,6 +163,7 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     if (!imageData) {
       return null;
     }
+    const { name: baseName } = imageStore.metadata[parentID];
 
     const labelmap = createLabelmapFromImage(imageData);
 
@@ -160,8 +172,11 @@ export const useLabelmapStore = defineStore('labelmap', () => {
       'value'
     );
 
+    const nameIndex = nextDefaultIndex[parentID] ?? 1;
+    nextDefaultIndex[parentID] = nameIndex + 1;
+
     return addLabelmap.call(this, labelmap, {
-      name: DEFAULT_LABELMAP_NAME,
+      name: makeDefaultLabelmapName(baseName, nameIndex),
       parentImage: parentID,
       segments: { order, byValue: byKey },
     });

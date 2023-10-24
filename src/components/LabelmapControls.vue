@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import SegmentList from '@/src/components/SegmentList.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import {
-  useLabelmapStore,
-  DEFAULT_LABELMAP_NAME,
-} from '@/src/store/datasets-labelmaps';
+import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
+
+const UNNAMED_LABELMAP_NAME = 'Unnamed Labelmap';
 
 const labelmapStore = useLabelmapStore();
 const { currentImageID } = useCurrentImage();
@@ -81,7 +80,7 @@ function stopEditing(commit: boolean) {
   editDialog.value = false;
   if (editingLabelmapID.value && commit)
     labelmapStore.updateMetadata(editingLabelmapID.value, {
-      name: editState.name || DEFAULT_LABELMAP_NAME,
+      name: editState.name || UNNAMED_LABELMAP_NAME,
     });
   editingLabelmapID.value = null;
 }
@@ -134,7 +133,7 @@ function stopEditing(commit: boolean) {
       <v-card-text>
         <v-text-field
           v-model="editState.name"
-          :placeholder="DEFAULT_LABELMAP_NAME"
+          :placeholder="UNNAMED_LABELMAP_NAME"
           hide-details
           @keydown.stop.enter="stopEditing(true)"
         />
