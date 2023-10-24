@@ -7,7 +7,7 @@ import {
 } from '@/src/store/datasets-labelmaps';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
-import { reactive, ref, computed, watch } from 'vue';
+import { reactive, ref, computed, watch, toRaw } from 'vue';
 
 const labelmapStore = useLabelmapStore();
 const { currentImageID } = useCurrentImage();
@@ -43,6 +43,13 @@ function createLabelmap() {
 
   const id = labelmapStore.newLabelmapFromImage(currentImageID.value);
   if (!id) throw new Error('Could not create a new labelmap');
+
+  // copy segments from current labelmap
+  if (selectedLabelmapID.value) {
+    const metadata = labelmapStore.labelmapMetadata[selectedLabelmapID.value];
+    const copied = structuredClone(toRaw(metadata.segments));
+    labelmapStore.updateMetadata(id, { segments: copied });
+  }
 
   selectedLabelmapID.value = id;
 }
