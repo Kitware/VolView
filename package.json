@@ -24,7 +24,7 @@
     "doc:publish": "kw-doc -c ./documentation/config.cjs -mp"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.321.1",
+    "@aws-sdk/client-s3": "^3.435.0",
     "@itk-wasm/dicom": "^3.2.1",
     "@kitware/vtk.js": "^28.13.0",
     "@netlify/edge-functions": "^2.0.0",
