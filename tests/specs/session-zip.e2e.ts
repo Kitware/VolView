@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import JSZip from 'jszip';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
+import { TEMP_DIR } from '../../wdio.shared.conf';
 
 // from https://stackoverflow.com/a/47764403
 function waitForFileExists(filePath: string, timeout: number) {
@@ -61,11 +61,14 @@ const saveGetManifest = async () => {
 const annotate = async () => {
   await volViewPage.open();
   await volViewPage.downloadProstateSample();
-  await volViewPage.waitForViews(DOWNLOAD_TIMEOUT);
+  await volViewPage.waitForViews();
 
   // draw rectangle
   await volViewPage.activateRectangle();
   await volViewPage.clickTwiceInTwoView();
+
+  // this may ensure imminently saved session.volview.zip has the tool in CI
+  await browser.pause(500);
 };
 
 describe('VolView config and deserialization', () => {
@@ -75,6 +78,8 @@ describe('VolView config and deserialization', () => {
     const newColor = 'green';
 
     const { manifest, session } = await saveGetManifest();
+
+    expect(manifest.tools.rectangles.tools.length).toEqual(1);
     expect(manifest.tools.rectangles.tools?.[0].color).not.toEqual('green');
 
     const config = {
@@ -98,8 +103,7 @@ describe('VolView config and deserialization', () => {
     const sessionZipAndConfig = `?urls=[tmp/${configFileName},tmp/${session}]`;
     await volViewPage.open(sessionZipAndConfig);
 
-    await volViewPage.waitForViews(DOWNLOAD_TIMEOUT);
-    // await volViewPage.activateRectangle(); // wait for config to load (waitForViews did not work)
+    await volViewPage.waitForViews();
 
     const { manifest: changedManifest } = await saveGetManifest();
     expect(changedManifest.tools.rectangles.tools?.[0].color).toEqual(newColor);
@@ -122,7 +126,7 @@ describe('VolView config and deserialization', () => {
 
     const sessionZip = `?urls=[tmp/${session}]`;
     await volViewPage.open(sessionZip);
-    await volViewPage.waitForViews(DOWNLOAD_TIMEOUT);
+    await volViewPage.waitForViews();
 
     const { manifest: changedManifest } = await saveGetManifest();
     expect(changedManifest.tools.rectangles.tools?.[0].strokeWidth).toEqual(

@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { Key } from 'webdriverio';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 import Page from './page';
 
 let lastId = 0;
@@ -48,7 +48,7 @@ class VolViewPage extends Page {
     return $$('div[data-testid~="vtk-view"] > canvas');
   }
 
-  async waitForViews(timeout = 5000) {
+  async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
     const this_ = this;
     await browser.waitUntil(
       async function viewsExist() {
