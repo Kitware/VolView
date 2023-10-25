@@ -203,7 +203,7 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
-import { TypedArray } from '@kitware/vtk.js/types';
+import type { TypedArray } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
