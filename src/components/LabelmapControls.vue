@@ -110,7 +110,7 @@ function stopEditing(commit: boolean) {
               v-if="selectedLabelmapID"
               @click="startEditing(selectedLabelmapID)"
             >
-              Edit labelmap
+              Edit Name
             </v-list-item>
             <v-list-item
               v-if="selectedLabelmapID"
