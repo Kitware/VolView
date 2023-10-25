@@ -312,8 +312,8 @@ const ToolsEnumNative = z.nativeEnum(ToolsEnum);
 
 const Paint = z.object({
   activeLabelmapID: z.string().nullable(),
+  activeSegment: z.number().nullish(),
   brushSize: z.number(),
-  brushValue: z.number(),
   labelmapOpacity: z.number(),
 });
 

@@ -34,7 +34,12 @@ function addNewSegment() {
 
 // --- selection --- //
 
-const selectedSegment = ref<Maybe<number>>(null);
+const selectedSegment = computed({
+  get: () => paintStore.activeSegment,
+  set: (value: Maybe<number>) => {
+    paintStore.setActiveSegment(value);
+  },
+});
 
 // reset selection when necessary
 watch(
@@ -48,18 +53,6 @@ watch(
     if (reset) {
       selectedSegment.value = segments_?.length ? segments_[0].value : null;
     }
-  },
-  { immediate: true }
-);
-
-// TODO disable the paint tool when no segments?
-
-// sync selection to paint brush value
-watch(
-  selectedSegment,
-  (value) => {
-    if (value) paintStore.setBrushValue(value);
-    // else disable paint tool
   },
   { immediate: true }
 );

@@ -2,13 +2,14 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
+import { Maybe } from '@/src/types';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 
 export default class PaintTool {
   readonly factory: vtkPaintWidget;
   private brush: IPaintBrush;
-  private brushValue: number;
+  private brushValue: Maybe<number>;
 
   constructor() {
     this.factory = vtkPaintWidget.newInstance();
@@ -33,7 +34,13 @@ export default class PaintTool {
     this.updateWidgetStencil();
   }
 
-  setBrushValue(value: number) {
+  /**
+   * Sets the brush value.
+   *
+   * If the brush value is null | undefined, then no paint will occur.
+   * @param value
+   */
+  setBrushValue(value: Maybe<number>) {
     this.brushValue = value;
   }
 
@@ -56,6 +63,8 @@ export default class PaintTool {
     startPoint: vec3,
     endPoint?: vec3
   ) {
+    if (!this.brushValue) return;
+
     const stencil = this.brush.getStencil();
 
     const start = [

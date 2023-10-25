@@ -4,18 +4,18 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { computed, ref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
+import { Maybe } from '@/src/types';
 import { Tools } from './types';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
 const DEFAULT_BRUSH_SIZE = 4;
-const DEFAULT_BRUSH_VALUE = 1;
 
 export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
 
   const activeLabelmapID = ref<string | null>(null);
+  const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
-  const brushValue = ref(DEFAULT_BRUSH_VALUE);
   const strokePoints = ref<vec3[]>([]);
   const labelmapOpacity = ref(1);
   const isActive = ref(false);
@@ -61,14 +61,37 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
   }
 
+  /**
+   * Sets the active segment.
+   *
+   * If the segment may be null | undefined, indicating no paint will occur.
+   * @param segValue
+   */
+  function setActiveSegment(this: _This, segValue: Maybe<number>) {
+    if (segValue) {
+      if (!activeLabelmapID.value)
+        throw new Error('Cannot set active segment without a labelmap');
+
+      const labelmapStore = useLabelmapStore();
+      const { segments } =
+        labelmapStore.labelmapMetadata[activeLabelmapID.value];
+
+      if (!(segValue in segments.byValue))
+        throw new Error('Segment is not available for the active labelmap');
+    }
+
+    activeSegment.value = segValue;
+    this.$paint.setBrushValue(segValue);
+  }
+
+  /**
+   * Sets the brush size
+   * @param this
+   * @param size
+   */
   function setBrushSize(this: _This, size: number) {
     brushSize.value = Math.round(size);
     this.$paint.setBrushSize(size);
-  }
-
-  function setBrushValue(this: _This, value: number) {
-    brushValue.value = value;
-    this.$paint.setBrushValue(value);
   }
 
   function setLabelmapOpacity(opacity: number) {
@@ -145,7 +168,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     paint.activeLabelmapID = activeLabelmapID.value;
     paint.brushSize = brushSize.value;
-    paint.brushValue = brushValue.value;
+    paint.activeSegment = activeSegment.value;
     paint.labelmapOpacity = labelmapOpacity.value;
   }
 
@@ -155,9 +178,9 @@ export const usePaintToolStore = defineStore('paint', () => {
     labelmapIDMap: Record<string, string>
   ) {
     const { paint } = manifest.tools;
-    this.setBrushSize(paint.brushSize);
-    this.setBrushValue(paint.brushValue);
-    this.setLabelmapOpacity(paint.labelmapOpacity);
+    setBrushSize.call(this, paint.brushSize);
+    setActiveSegment.call(this, paint.activeSegment);
+    setLabelmapOpacity.call(this, paint.labelmapOpacity);
     isActive.value = manifest.tools.current === Tools.Paint;
 
     if (paint.activeLabelmapID !== null) {
@@ -180,8 +203,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   return {
     // state
     activeLabelmapID,
+    activeSegment,
     brushSize,
-    brushValue,
     strokePoints,
     labelmapOpacity,
     isActive,
@@ -193,8 +216,8 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     setActiveLabelmap,
     setActiveLabelmapFromImage,
+    setActiveSegment,
     setBrushSize,
-    setBrushValue,
     setLabelmapOpacity,
     setSliceAxis,
     startStroke,
