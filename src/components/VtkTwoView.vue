@@ -203,7 +203,7 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
-import { TypedArray } from '@kitware/vtk.js/types';
+import type { TypedArray } from '@kitware/vtk.js/types';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -241,7 +241,6 @@ import {
   WL_HIST_BINS,
 } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
-import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
@@ -805,34 +804,14 @@ export default defineComponent({
               lut.setDataRange(...ctFunc.mappingRange);
 
               const pwf = proxyManager.getPiecewiseFunction(arrayName);
-              pwf.setMode(opFunc.mode);
+              pwf.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
               pwf.setDataRange(...opFunc.mappingRange);
-
-              switch (opFunc.mode) {
-                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-                  pwf.setGaussians(opFunc.gaussians);
-                  break;
-                case vtkPiecewiseFunctionProxy.Mode.Points: {
-                  const opacityPoints = getShiftedOpacityFromPreset(
-                    opFunc.preset,
-                    opFunc.mappingRange,
-                    opFunc.shift
-                  );
-                  if (opacityPoints) {
-                    pwf.setPoints(opacityPoints);
-                  }
-                  break;
-                }
-                case vtkPiecewiseFunctionProxy.Mode.Nodes:
-                  pwf.setNodes(opFunc.nodes);
-                  break;
-                default:
-              }
+              pwf.setPoints([[0, 1]]); // only slice mesh controls opacity
+              rep.setOpacity(blendConfig.opacity);
 
               // control color range manually
               rep.setRescaleOnColorBy(false);
               rep.setColorBy(arrayName, location);
-              rep.setOpacity(blendConfig.opacity);
 
               // Need to trigger a render for when we are restoring from a state file
               viewProxy.value.renderLater();

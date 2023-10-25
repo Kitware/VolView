@@ -49,6 +49,7 @@ export const defaultLayersConfig = (): LayersConfig => ({
     preset: '',
     mappingRange: [0, 1],
   },
+  // opacity function not used in VtkTwoView
   opacityFunction: {
     mode: vtkPiecewiseFunctionProxy.Mode.Gaussians,
     gaussians: [],
