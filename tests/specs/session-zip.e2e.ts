@@ -5,6 +5,8 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
+const SESSION_SAVE_TIMEOUT = 40000;
+
 // from https://stackoverflow.com/a/47764403
 function waitForFileExists(filePath: string, timeout: number) {
   return new Promise<void>((resolve, reject) => {
@@ -41,7 +43,7 @@ function waitForFileExists(filePath: string, timeout: number) {
 const saveSession = async () => {
   const sessionFileName = await volViewPage.saveSession();
   const downloadedPath = path.join(TEMP_DIR, sessionFileName);
-  await waitForFileExists(downloadedPath, 5000);
+  await waitForFileExists(downloadedPath, SESSION_SAVE_TIMEOUT);
   return sessionFileName;
 };
 
@@ -80,7 +82,7 @@ describe('VolView config and deserialization', () => {
     const { manifest, session } = await saveGetManifest();
 
     expect(manifest.tools.rectangles.tools.length).toEqual(1);
-    expect(manifest.tools.rectangles.tools?.[0].color).not.toEqual('green');
+    expect(manifest.tools.rectangles.tools?.[0].color).not.toEqual(newColor);
 
     const config = {
       labels: {

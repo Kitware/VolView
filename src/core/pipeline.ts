@@ -1,6 +1,6 @@
 import { Awaitable } from '@vueuse/core';
 import { Maybe } from '@/src/types';
-import { defer, partition } from '../utils';
+import { defer, partitionByType } from '../utils';
 
 /**
  * Represents a pipeline error.
@@ -18,6 +18,16 @@ export interface PipelineError<DataType> {
   cause: unknown;
 }
 
+export interface PipelineResultSuccess<ResultType> {
+  ok: true;
+  data: ResultType[];
+}
+
+export interface PipelineResultError<DataType> {
+  ok: false;
+  errors: PipelineError<DataType>[];
+}
+
 /**
  * Represents a pipeline's execution result.
  *
@@ -26,11 +36,15 @@ export interface PipelineError<DataType> {
  * The errors property holds any errors reported from (potentially nested)
  * executions.
  */
-export interface PipelineResult<DataType, ResultType> {
-  ok: boolean;
-  data: ResultType[];
-  errors: PipelineError<DataType>[];
-}
+export type PipelineResult<DataType, ResultType> =
+  | PipelineResultSuccess<ResultType>
+  | PipelineResultError<DataType>;
+
+export const partitionResults = <T, U>(arr: Array<PipelineResult<T, U>>) =>
+  partitionByType(
+    (r: PipelineResult<T, U>): r is PipelineResultSuccess<U> => r.ok,
+    arr
+  );
 
 function createPipelineError<DataType>(
   message: string,
@@ -228,48 +242,50 @@ export default class Pipeline<
       invokeHandler(output as DataType, index + 1);
     };
 
-    const result: PipelineResult<DataType, ResultType> = {
-      ok: true,
-      data: [],
-      errors: [],
-    };
-
-    try {
-      await invokeHandler(input, 0);
-      const ret = await execution.promise;
-      if (ret != null) {
-        result.data.push(ret);
+    const result: PipelineResult<DataType, ResultType> = await (async () => {
+      try {
+        await invokeHandler(input, 0);
+        const ret = await execution.promise;
+        if (ret != null) {
+          return {
+            ok: true as const,
+            data: [ret] as Array<ResultType>,
+          };
+        }
+        return { ok: true as const, data: [] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          ok: false as const,
+          errors: [createPipelineError(message, input, err)],
+        };
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      result.ok = false;
-      result.errors.push(createPipelineError(message, input, err));
-    }
+    })();
 
     const innerResults = await Promise.all(nestedExecutions);
-    const [succeededInner, failedInner] = partition(
-      (res) => res.ok,
-      innerResults
-    );
+    const [succeededInner, failedInner] = partitionResults(innerResults);
 
     if (failedInner.length > 0) {
-      result.ok = false;
-    }
-
-    succeededInner.forEach((okResult) => {
-      result.data.push(...okResult.data);
-    });
-
-    failedInner.forEach((failedResult) => {
-      const { errors } = failedResult;
-
-      // add current input to the input stack trace
-      errors.forEach((err) => {
-        err.inputDataStackTrace.push(input);
+      const errors = failedInner.flatMap((failedResult) => {
+        const { errors: innerErrors } = failedResult;
+        // add current input to the input stack trace
+        innerErrors.forEach((err) => {
+          err.inputDataStackTrace.push(input);
+        });
+        return innerErrors;
       });
 
-      result.errors.push(...errors);
-    });
+      return {
+        ok: false as const,
+        errors,
+      };
+    }
+
+    if (result.ok) {
+      succeededInner.forEach((okResult) => {
+        result.data.push(...okResult.data);
+      });
+    }
 
     return result;
   }

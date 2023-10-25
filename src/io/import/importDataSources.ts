@@ -1,4 +1,9 @@
-import Pipeline, { PipelineResult } from '@/src/core/pipeline';
+import Pipeline, {
+  PipelineResult,
+  PipelineResultError,
+  PipelineResultSuccess,
+  partitionResults,
+} from '@/src/core/pipeline';
 import { ImportHandler, ImportResult } from '@/src/io/import/common';
 import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
@@ -15,38 +20,12 @@ import handleConfig from '@/src/io/import/processors/handleConfig';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { makeDICOMSelection, makeImageSelection } from '@/src/store/datasets';
 import {
+  EARLIEST_PRIORITY,
   earliestPriority,
-  earliestPriorityForImportResult,
   prioritizeJSON,
   prioritizeStateFile,
-  priorityIdentity,
   PriorityResult,
 } from './processors/prioritize';
-
-export type ImportDataSourcesResult = PipelineResult<DataSource, ImportResult>;
-
-export function convertSuccessResultToDataSelection(
-  result: ImportDataSourcesResult
-) {
-  if (result.data.length === 0) {
-    return null;
-  }
-
-  const { dataID, dataType } = result.data[0];
-  if (!dataID) {
-    return null;
-  }
-
-  if (dataType === 'dicom') {
-    return makeDICOMSelection(dataID);
-  }
-
-  if (dataType === 'image') {
-    return makeImageSelection(dataID);
-  }
-
-  return null;
-}
 
 /**
  * Tries to turn a thrown object into a meaningful error string.
@@ -99,28 +78,32 @@ export async function importDataSources(dataSources: DataSource[]) {
     dataSources.map((r) => prioritizer.execute(r, importContext))
   );
 
-  const importResultsToPriorityResults = new Pipeline([
-    priorityIdentity,
-    earliestPriorityForImportResult,
-  ]);
-  const withPriority = await Promise.all(
+  const [fetchSuccess, errorOnDataFetches] = partitionResults(
     priorityOrImportResult
-      .flatMap((r) => r.data)
-      .map((r) => importResultsToPriorityResults.execute(r))
   );
 
-  // Group same priorities, lowest priority first
-  const priorityBuckets = withPriority
+  const withPriority = fetchSuccess
     .flatMap((r) => r.data)
-    .reduce((buckets, result) => {
-      const { priority = 0 } = result;
-      if (!buckets[priority]) {
-        // eslint-disable-next-line no-param-reassign
-        buckets[priority] = [];
-      }
-      buckets[priority].push(result.dataSource);
-      return buckets;
-    }, [] as Array<Array<DataSource>>);
+    .map((importOrPriority) => {
+      return {
+        dataSource: importOrPriority.dataSource,
+        priority:
+          'priority' in importOrPriority
+            ? importOrPriority.priority
+            : EARLIEST_PRIORITY,
+      };
+    });
+
+  // Group same priorities, lowest priority first
+  const priorityBuckets = withPriority.reduce((buckets, result) => {
+    const { priority = 0 } = result;
+    if (!buckets[priority]) {
+      // eslint-disable-next-line no-param-reassign
+      buckets[priority] = [];
+    }
+    buckets[priority].push(result.dataSource);
+    return buckets;
+  }, [] as Array<Array<DataSource>>);
 
   const loaders = [
     restoreStateFile,
@@ -151,42 +134,75 @@ export async function importDataSources(dataSources: DataSource[]) {
   }
 
   if (!importContext.dicomDataSources.length) {
-    return results;
+    return [...errorOnDataFetches, ...results];
   }
 
   // handle DICOM loading
-
   const dicomDataSource: DataSource = {
     dicomSrc: {
       sources: importContext.dicomDataSources,
     },
   };
-  const dicomResult: PipelineResult<DataSource, ImportResult> = {
-    ok: true,
-    data: [],
-    errors: [],
-  };
+  const dicomResult = await (async () => {
+    try {
+      const volumeKeys = await useDICOMStore().importFiles(
+        importContext.dicomDataSources
+      );
+      return {
+        ok: true,
+        data: volumeKeys.map((key) => ({
+          dataID: key,
+          dataType: 'dicom' as const,
+          dataSource: dicomDataSource,
+        })),
+      } as PipelineResultSuccess<ImportResult>;
+    } catch (err) {
+      return {
+        ok: false,
+        errors: [
+          {
+            message: toMeaningfulErrorString(err),
+            cause: err,
+            inputDataStackTrace: [dicomDataSource],
+          },
+        ],
+      } as PipelineResultError<typeof dicomDataSource>;
+    }
+  })();
 
-  try {
-    const volumeKeys = await useDICOMStore().importFiles(
-      importContext.dicomDataSources
-    );
-    dicomResult.data.push(
-      ...volumeKeys.map((key) => ({
-        dataID: key,
-        dataType: 'dicom' as const,
-        dataSource: dicomDataSource,
-      }))
-    );
-  } catch (err) {
-    dicomResult.ok = false;
-    dicomResult.errors.push({
-      message: toMeaningfulErrorString(err),
-      cause: err,
-      inputDataStackTrace: [dicomDataSource],
-    });
+  return [
+    ...errorOnDataFetches,
+    // remove all results that have no result data
+    ...results.filter((result) => !result.ok || result.data.length),
+    dicomResult,
+  ];
+}
+
+export type ImportDataSourcesResult = Awaited<
+  ReturnType<typeof importDataSources>
+>[number];
+
+export function convertSuccessResultToDataSelection(
+  result: ImportDataSourcesResult
+) {
+  if (!result.ok) return null;
+
+  if (result.data.length === 0) {
+    return null;
   }
 
-  // remove all results that have no result data
-  return [...results.filter((result) => result.data.length), dicomResult];
+  const { dataID, dataType } = result.data[0];
+  if (!dataID) {
+    return null;
+  }
+
+  if (dataType === 'dicom') {
+    return makeDICOMSelection(dataID);
+  }
+
+  if (dataType === 'image') {
+    return makeImageSelection(dataID);
+  }
+
+  return null;
 }

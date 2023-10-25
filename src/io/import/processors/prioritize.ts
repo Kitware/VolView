@@ -1,9 +1,9 @@
 import { isStateFile } from '@/src/io/state-file';
-import { ImportContext, ImportResult } from '@/src/io/import/common';
+import { ImportContext } from '@/src/io/import/common';
 import { Handler } from '@/src/core/pipeline';
 import { DataSource } from '../dataSource';
 
-const EARLIEST_PRIORITY = 0;
+export const EARLIEST_PRIORITY = 0;
 const CONFIG_PRIORITY = 1;
 
 export interface PriorityResult {
@@ -55,32 +55,3 @@ export const prioritizeStateFile: PriorityHandler = async (
   }
   return dataSource;
 };
-
-type ImportOrPriorityResultHandler = Handler<
-  ImportResult | PriorityResult,
-  PriorityResult
->;
-
-/**
- * Passthrough PriorityResult
- */
-export const priorityIdentity: ImportOrPriorityResultHandler = async (
-  dataSource,
-  { done }
-) => {
-  if ('priority' in dataSource) {
-    done(dataSource);
-  }
-  return dataSource;
-};
-
-/**
- * Assigns first in line priority
- */
-export const earliestPriorityForImportResult: ImportOrPriorityResultHandler =
-  async (src, { done }) => {
-    return done({
-      dataSource: src.dataSource,
-      priority: EARLIEST_PRIORITY,
-    });
-  };

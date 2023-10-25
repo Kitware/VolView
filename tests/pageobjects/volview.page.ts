@@ -22,8 +22,6 @@ export const setValueVueInput = async (
     await browser.keys([Key.ArrowRight, ...backspaces]);
   }
   await input.setValue(value);
-
-  // await browser.keys([Key.Enter]);
 };
 
 class VolViewPage extends Page {
