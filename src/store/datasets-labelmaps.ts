@@ -172,11 +172,19 @@ export const useLabelmapStore = defineStore('labelmap', () => {
       'value'
     );
 
-    const nameIndex = nextDefaultIndex[parentID] ?? 1;
-    nextDefaultIndex[parentID] = nameIndex + 1;
+    // pick a unique name
+    let name = '';
+    const existingNames = new Set(
+      Object.values(labelmapMetadata).map((meta) => meta.name)
+    );
+    do {
+      const nameIndex = nextDefaultIndex[parentID] ?? 1;
+      nextDefaultIndex[parentID] = nameIndex + 1;
+      name = makeDefaultLabelmapName(baseName, nameIndex);
+    } while (existingNames.has(name));
 
     return addLabelmap.call(this, labelmap, {
-      name: makeDefaultLabelmapName(baseName, nameIndex),
+      name,
       parentImage: parentID,
       segments: { order, byValue: byKey },
     });
