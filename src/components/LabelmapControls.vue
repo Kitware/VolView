@@ -112,9 +112,6 @@ function stopEditing(commit: boolean) {
             >
               Edit labelmap
             </v-list-item>
-            <v-list-item v-if="selectedLabelmapID">
-              Convert to image
-            </v-list-item>
             <v-list-item
               v-if="selectedLabelmapID"
               @click="deleteLabelmap(selectedLabelmapID)"
