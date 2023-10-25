@@ -96,6 +96,7 @@ function stopEditing(commit: boolean) {
     placeholder="Select a labelmap"
     variant="outlined"
     density="compact"
+    class="labelmap-select"
   >
     <template #append>
       <v-btn icon size="x-small" variant="flat" style="top: -4px">
@@ -148,7 +149,7 @@ function stopEditing(commit: boolean) {
 </template>
 
 <style>
-.labelmap-radio .v-label {
-  justify-content: space-between;
+.labelmap-select > .v-input__append {
+  margin-left: 8px;
 }
 </style>
