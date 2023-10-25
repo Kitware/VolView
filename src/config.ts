@@ -3,7 +3,6 @@ import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
 import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
-import { RGBAColor } from '@kitware/vtk.js/types';
 import { LabelMapSegment } from '@/src/types/labelmap';
 import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
@@ -112,24 +111,6 @@ export const Layouts: Record<string, Layout> = [
 ].reduce((layouts, layout) => {
   return { ...layouts, [layout.name]: layout };
 }, {});
-
-export const LABELMAP_PALETTE = {
-  0: [0, 0, 0, 0], // eraser
-  1: [153, 153, 0, 255],
-  2: [76, 76, 0, 255],
-  3: [255, 255, 0, 255],
-  4: [0, 76, 0, 255],
-  5: [0, 153, 0, 255],
-  6: [0, 255, 0, 255],
-  7: [76, 0, 0, 255],
-  8: [153, 0, 0, 255],
-  9: [255, 0, 0, 255],
-  10: [0, 76, 76, 255],
-  11: [0, 153, 153, 255],
-  12: [0, 255, 255, 255],
-  13: [0, 0, 76, 255],
-  14: [0, 0, 153, 255],
-} as Record<number, RGBAColor>;
 
 export const DEFAULT_LABELMAP_SEGMENTS: LabelMapSegment[] = [
   {

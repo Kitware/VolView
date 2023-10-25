@@ -63,23 +63,13 @@
 
 <script lang="ts">
 import { computed, defineComponent } from 'vue';
-import { LABELMAP_PALETTE } from '../config';
 import { usePaintToolStore } from '../store/tools/paint';
-import { rgbaToHexa } from '../utils/color';
 
 export default defineComponent({
   name: 'PaintControls',
 
   setup() {
     const paintStore = usePaintToolStore();
-
-    const brushColor = computed(() => {
-      const value = paintStore.brushValue;
-      if (value in LABELMAP_PALETTE) {
-        return rgbaToHexa(LABELMAP_PALETTE[value]);
-      }
-      return null;
-    });
 
     const brushSize = computed(() => paintStore.brushSize);
     const setBrushSize = (size: number) => {
@@ -94,7 +84,6 @@ export default defineComponent({
     return {
       brushSize,
       setBrushSize,
-      brushColor,
       opacity,
       setOpacity,
     };

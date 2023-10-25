@@ -33,8 +33,8 @@ export async function serialize() {
       },
       paint: {
         activeLabelmapID: null,
+        activeSegment: null,
         brushSize: 8,
-        brushValue: 1,
         labelmapOpacity: 1,
       },
       crop: {},
