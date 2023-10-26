@@ -57,7 +57,10 @@ class VolViewPage extends Page {
         );
         return inView.every(Boolean);
       },
-      { timeout }
+      {
+        timeout,
+        timeoutMsg: `expected at least 1 view to be displayed in viewport`,
+      }
     );
   }
 
@@ -74,11 +77,8 @@ class VolViewPage extends Page {
     return $$('div[data-testid~="vtk-two-view"] > canvas');
   }
 
-  async clickTwiceInTwoView() {
-    const views = await this.twoViews;
-    const view = views[0];
-    await view.click({ x: 1, y: 1 });
-    await view.click({ x: 5, y: 5 });
+  get viewTwoContainer() {
+    return $('div[data-testid~="two-view-container"]');
   }
 
   get saveButton() {

@@ -6,14 +6,28 @@ import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
 const SESSION_SAVE_TIMEOUT = 40000;
+const SLOW_INTERACTION_TIMEOUT = 10000;
 
 // from https://stackoverflow.com/a/47764403
 function waitForFileExists(filePath: string, timeout: number) {
   return new Promise<void>((resolve, reject) => {
+    let watcher: fs.FSWatcher;
+
+    const onTimeout = () => {
+      watcher.close();
+      reject(
+        new Error(
+          `File ${filePath} did not exists and was not created during the timeout of ${timeout} ms}`
+        )
+      );
+    };
+
+    const timerId = setTimeout(onTimeout, timeout);
+
+    // watch if file newly created
     const dir = path.dirname(filePath);
     const basename = path.basename(filePath);
-    let timerId = undefined as NodeJS.Timeout | undefined;
-    const watcher = fs.watch(dir, (eventType: any, filename: string | null) => {
+    watcher = fs.watch(dir, (eventType: any, filename: string | null) => {
       if (eventType === 'rename' && filename === basename) {
         clearTimeout(timerId);
         watcher.close();
@@ -21,15 +35,7 @@ function waitForFileExists(filePath: string, timeout: number) {
       }
     });
 
-    const onTimeout = () => {
-      watcher.close();
-      reject(
-        new Error('File did not exists and was not created during the timeout.')
-      );
-    };
-
-    timerId = setTimeout(onTimeout, timeout);
-
+    // check if file already exists
     fs.access(filePath, fs.constants.R_OK, (err) => {
       if (!err) {
         clearTimeout(timerId);
@@ -56,8 +62,49 @@ const parseManifest = async (sessionFileName: string) => {
 
 const saveGetManifest = async () => {
   const session = await saveSession();
+  await browser.pause(1000); // wait for writing to finish before unzipping?
   const manifest = await parseManifest(session);
   return { session, manifest };
+};
+
+const getRectangleCount = async (view: WebdriverIO.Element) => {
+  const rectangles = await view.$$(
+    'svg[data-testid="rectangle-tool-container"] > g'
+  );
+  return rectangles.length;
+};
+
+const waitForRectangleCount = async (
+  view: WebdriverIO.Element,
+  countTarget: number
+) => {
+  await browser.waitUntil(
+    async function newRectangleExist() {
+      const toolCount = await getRectangleCount(view);
+      return toolCount >= countTarget;
+    },
+    {
+      timeoutMsg: `expected ${countTarget} rectangles to be drawn in ${SLOW_INTERACTION_TIMEOUT} ms}`,
+      timeout: SLOW_INTERACTION_TIMEOUT,
+    }
+  );
+};
+
+const clickTwice = async (view: WebdriverIO.Element) => {
+  await view.waitForClickable();
+  const origin = view;
+  await browser
+    .action('pointer')
+    .move({ duration: 10, origin, x: 0, y: 0 })
+    .down({ button: 0 }) // left button
+    .up({ button: 0 })
+    .pause(10)
+    .move({ duration: 10, origin, x: 30, y: 30 })
+    .pause(10)
+    .down({ button: 0 }) // left button
+    .pause(10)
+    .up({ button: 0 })
+    .perform();
 };
 
 const annotate = async () => {
@@ -67,10 +114,10 @@ const annotate = async () => {
 
   // draw rectangle
   await volViewPage.activateRectangle();
-  await volViewPage.clickTwiceInTwoView();
-
-  // this may ensure imminently saved session.volview.zip has the tool in CI
-  await browser.pause(500);
+  const view = await volViewPage.viewTwoContainer;
+  await waitForRectangleCount(view, 1); // wait for placing tool
+  await clickTwice(view);
+  await waitForRectangleCount(view, 2); // wait for drawn tool
 };
 
 describe('VolView config and deserialization', () => {
@@ -114,10 +161,10 @@ describe('VolView config and deserialization', () => {
   it('edited default label is serialized and deserialized', async () => {
     await annotate();
 
-    const buttons = await volViewPage.editLabelButtons;
-    await buttons[2].click();
     const editedStrokeWidth = 9;
 
+    const buttons = await volViewPage.editLabelButtons;
+    await buttons[2].click();
     const input = await volViewPage.labelStrokeWidthInput;
     await setValueVueInput(input, editedStrokeWidth.toString());
 

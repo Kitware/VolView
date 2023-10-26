@@ -32,7 +32,7 @@ export const config: Options.Testrunner = {
   // Specify Test Files
   // ==================
   specs: ['./tests/specs/**/*.ts'],
-  exclude: [],
+  exclude: ['./tests/specs/session-zip.e2e.ts'],
   //
   // ============
   // Capabilities

@@ -14,7 +14,6 @@ const handleConfig: ImportHandler = async (dataSource, { done }) => {
       const manifest = await readConfigFile(fileSrc.file);
       return done({ dataSource, config: manifest });
     } catch (err) {
-      console.error(err);
       throw new Error('Failed to parse config file', {
         cause: ensureError(err),
       });

@@ -282,11 +282,8 @@ import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
 import { wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
-<<<<<<< HEAD
 import { VTKResliceCursor } from '../constants';
-=======
 import { partitionResults } from '../core/pipeline';
->>>>>>> c4a763c5 (fix(importDataSources): get error result of error in URL fetch)
 
 async function loadFiles(
   sources: DataSource[],

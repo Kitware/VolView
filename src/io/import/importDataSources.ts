@@ -135,10 +135,10 @@ export async function importDataSources(dataSources: DataSource[]) {
   })();
 
   return [
-    // remove all results that have no result data
     ...results,
     dicomResult,
     configResult,
+    // remove ok results that have no result data
   ].filter((result) => !result.ok || (result.ok && result.data.length));
 }
 
