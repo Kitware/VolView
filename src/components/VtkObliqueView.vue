@@ -115,7 +115,7 @@ import {
   watch,
   watchEffect,
 } from 'vue';
-import { vec3, mat3 } from 'gl-matrix';
+import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
 
 import type { RGBColor, Vector3 } from '@kitware/vtk.js/types';
@@ -573,14 +573,22 @@ export default defineComponent({
         });
         const planes = state.getPlanes();
 
-        if (curImageData.value) {
-          const d9 = curImageData.value.getDirection();
-          const mat = Array.from(d9) as mat3;
-          Object.values(planes).forEach((plane) => {
-            const { normal, viewUp: vup } = plane;
-            vec3.transformMat3(normal, normal, mat);
-            vec3.transformMat3(vup, vup, mat);
-          });
+        if (curImageMetadata.value) {
+          planes[ViewTypes.XY_PLANE].normal = curImageMetadata.value
+            .lpsOrientation.Inferior as Vector3;
+          planes[ViewTypes.XY_PLANE].viewUp = curImageMetadata.value
+            .lpsOrientation.Anterior as Vector3;
+
+          planes[ViewTypes.XZ_PLANE].normal = curImageMetadata.value
+            .lpsOrientation.Anterior as Vector3;
+          planes[ViewTypes.XZ_PLANE].viewUp = curImageMetadata.value
+            .lpsOrientation.Superior as Vector3;
+
+          planes[ViewTypes.YZ_PLANE].normal = curImageMetadata.value
+            .lpsOrientation.Left as Vector3;
+          planes[ViewTypes.YZ_PLANE].viewUp = curImageMetadata.value
+            .lpsOrientation.Superior as Vector3;
+
           resliceCursor.setCenter(center);
         }
         if (curImageMetadata) {

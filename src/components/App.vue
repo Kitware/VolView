@@ -247,7 +247,7 @@ import vtkResliceCursorWidget, {
   ResliceCursorWidgetState,
 } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { vec3, mat3 } from 'gl-matrix';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
@@ -373,7 +373,7 @@ export default defineComponent({
     useKeyboardShortcuts();
 
     const { runAsLoading } = useAppLoadingNotifications();
-    const { currentImageData } = useCurrentImage();
+    const { currentImageData, currentImageMetadata } = useCurrentImage();
 
     // --- layout --- //
 
@@ -437,14 +437,22 @@ export default defineComponent({
           },
         });
         const planes = resliceCursorState.getPlanes();
+        if (currentImageMetadata.value) {
+          planes[ViewTypes.XY_PLANE].normal = currentImageMetadata.value
+            .lpsOrientation.Inferior as Vector3;
+          planes[ViewTypes.XY_PLANE].viewUp = currentImageMetadata.value
+            .lpsOrientation.Anterior as Vector3;
 
-        const d9 = image.getDirection();
-        const mat = Array.from(d9) as mat3;
-        Object.values(planes).forEach((plane) => {
-          const { normal, viewUp } = plane;
-          vec3.transformMat3(normal, normal, mat);
-          vec3.transformMat3(viewUp, viewUp, mat);
-        });
+          planes[ViewTypes.XZ_PLANE].normal = currentImageMetadata.value
+            .lpsOrientation.Anterior as Vector3;
+          planes[ViewTypes.XZ_PLANE].viewUp = currentImageMetadata.value
+            .lpsOrientation.Superior as Vector3;
+
+          planes[ViewTypes.YZ_PLANE].normal = currentImageMetadata.value
+            .lpsOrientation.Left as Vector3;
+          planes[ViewTypes.YZ_PLANE].viewUp = currentImageMetadata.value
+            .lpsOrientation.Superior as Vector3;
+        }
       }
     });
 
