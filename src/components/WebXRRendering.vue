@@ -28,7 +28,7 @@ function updateXRStateFunc() {
 
 function startXRFunc(sessionType:XrSessionTypes) {
   const { viewProxy } = useViewProxy(TARGET_VIEW_ID, ViewProxyType.Volume);
-  vtkWebXRStore.xrHelper.setRenderWindow(viewProxy.value.getOpenGLRenderWindow());
+  vtkWebXRStore.xrHelper.setRenderWindow((viewProxy.value as any).getOpenGLRenderWindow());
   vtkWebXRStore.xrHelper.startXR(sessionType);
 }
 
