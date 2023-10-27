@@ -36,3 +36,19 @@ export function watchState(
     originalDelete();
   };
 }
+
+export const computeWorldCoords = (model: any) => (event: any) => {
+  const manipulator =
+    model.activeState?.getManipulator?.() ?? model.manipulator;
+  if (!manipulator) {
+    console.error('No manipulator');
+    return undefined;
+  }
+  const { worldCoords } = manipulator.handleEvent(
+    event,
+    model._apiSpecificRenderWindow
+  );
+  if (!worldCoords)
+    console.warn('Event cannot be converted to world coordinates');
+  return worldCoords;
+};

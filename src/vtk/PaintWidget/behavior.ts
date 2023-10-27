@@ -1,4 +1,5 @@
 import macro from '@kitware/vtk.js/macro';
+import { computeWorldCoords } from '@/src/vtk/ToolWidgetUtils/utils';
 
 export function shouldIgnoreEvent(e: any) {
   return e.altKey || e.controlKey || e.shiftKey;
@@ -6,6 +7,8 @@ export function shouldIgnoreEvent(e: any) {
 
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPaintWidgetProp');
+
+  const getWorldCoords = computeWorldCoords(model);
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
@@ -20,11 +23,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const { worldCoords } = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    )?.worldCoords;
-
+    const worldCoords = getWorldCoords(eventData);
     if (!worldCoords) {
       return macro.VOID;
     }
@@ -45,10 +44,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const { worldCoords } = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    )?.worldCoords;
+    const worldCoords = getWorldCoords(eventData);
 
     if (!worldCoords) {
       return macro.VOID;

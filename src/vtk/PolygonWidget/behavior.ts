@@ -4,6 +4,7 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
 import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/types';
+import { computeWorldCoords } from '@/src/vtk/ToolWidgetUtils/utils';
 
 type Position3d = { x: number; y: number; z: number };
 type vtkMouseEvent = {
@@ -110,16 +111,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return false;
   }
 
-  function getWorldCoords(callData: any) {
-    const manipulator =
-      model.activeState?.getManipulator?.() ?? model.manipulator;
-    if (!manipulator) {
-      return undefined;
-    }
-
-    return manipulator.handleEvent(callData, model._apiSpecificRenderWindow)
-      .worldCoords;
-  }
+  const getWorldCoords = computeWorldCoords(model);
 
   function updateActiveStateHandle(callData: any) {
     const worldCoords = getWorldCoords(callData);
