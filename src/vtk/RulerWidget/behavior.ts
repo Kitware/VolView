@@ -1,5 +1,6 @@
 import macro from '@kitware/vtk.js/macro';
 import type { Vector3 } from '@kitware/vtk.js/types';
+import { computeWorldCoords } from '@/src/vtk/ToolWidgetUtils/utils';
 
 export enum InteractionState {
   PlacingFirst = 'PlacingFirst',
@@ -65,15 +66,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return overSegment;
   };
 
-  const getWorldCoords = (event: any) => {
-    const manipulator =
-      model.activeState?.getManipulator?.() ?? model.manipulator;
-    if (!manipulator) {
-      return undefined;
-    }
-    return manipulator.handleEvent(event, model._apiSpecificRenderWindow)
-      .worldCoords;
-  };
+  const getWorldCoords = computeWorldCoords(model);
 
   /**
    * Places or drags a point.
