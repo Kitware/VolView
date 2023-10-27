@@ -244,6 +244,7 @@ import { useProxyManager } from '../composables/proxyManager';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
+import { useResetViewsEvents } from './tools/ResetViews.vue';
 
 const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowLeft: -1,
@@ -839,6 +840,10 @@ export default defineComponent({
     });
 
     // --- //
+
+    // Listen to ResetViews event.
+    const events = useResetViewsEvents();
+    events.onClick(() => resetCamera());
 
     return {
       vtkContainerRef,

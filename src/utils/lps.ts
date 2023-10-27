@@ -1,5 +1,6 @@
 import type { Bounds } from '@kitware/vtk.js/types';
 import { vec3, mat3 } from 'gl-matrix';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import {
   LPSAxis,
   LPSAxisDir,
@@ -48,6 +49,19 @@ export function getLPSAxisFromDir(dir: LPSAxisDir): LPSAxis {
       return 'Coronal';
     default:
       throw new Error(`Invalid LPS direction: ${dir}`);
+  }
+}
+
+export function getVTKViewTypeFromLPSAxis(axis: LPSAxis): ViewTypes {
+  switch (axis) {
+    case 'Sagittal':
+      return ViewTypes.YZ_PLANE;
+    case 'Coronal':
+      return ViewTypes.XZ_PLANE;
+    case 'Axial':
+      return ViewTypes.XY_PLANE;
+    default:
+      throw new Error(`Invalid LPS axis: ${axis}`);
   }
 }
 

@@ -1,29 +1,30 @@
 html {
-    overflow: hidden !important;
+  overflow: hidden !important;
 }
 
 body {
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    user-select: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  user-select: none;
 }
 
 .no-select {
-    user-select: none;
+  user-select: none;
 }
 
 .text-ellipsis {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .v-card--variant-outlined {
   border: thin solid rgb(var(--v-theme-on-surface-variant)) !important;
 }
 
-ul:not([class]), ol:not([class]) {
+ul:not([class]),
+ol:not([class]) {
   padding-left: 20px;
   margin-bottom: 16px;
 }

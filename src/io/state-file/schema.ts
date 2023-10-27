@@ -222,6 +222,8 @@ const ViewConfig = z.object({
 const ViewType = z.union([
   z.literal('2D'),
   z.literal('3D'),
+  z.literal('Oblique'),
+  z.literal('Oblique3D'),
 ]) satisfies z.ZodType<ViewType>;
 
 export type ViewConfig = z.infer<typeof ViewConfig>;

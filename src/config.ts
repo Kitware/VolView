@@ -16,6 +16,10 @@ export const InitViewIDs: Record<string, string> = {
   Sagittal: 'Sagittal',
   Axial: 'Axial',
   Three: '3D',
+  ObliqueCoronal: 'ObliqueCoronal',
+  ObliqueSagittal: 'ObliqueSagittal',
+  ObliqueAxial: 'ObliqueAxial',
+  ObliqueThree: 'Oblique3D',
 };
 
 /**
@@ -25,14 +29,14 @@ export const InitViewSpecs: Record<string, ViewSpec> = {
   [InitViewIDs.Coronal]: {
     viewType: '2D',
     props: {
-      viewDirection: 'Right',
+      viewDirection: 'Posterior',
       viewUp: 'Superior',
     },
   },
   [InitViewIDs.Sagittal]: {
     viewType: '2D',
     props: {
-      viewDirection: 'Posterior',
+      viewDirection: 'Right',
       viewUp: 'Superior',
     },
   },
@@ -43,8 +47,36 @@ export const InitViewSpecs: Record<string, ViewSpec> = {
       viewUp: 'Anterior',
     },
   },
+  [InitViewIDs.ObliqueCoronal]: {
+    viewType: 'Oblique',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueSagittal]: {
+    viewType: 'Oblique',
+    props: {
+      viewDirection: 'Right',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueAxial]: {
+    viewType: 'Oblique',
+    props: {
+      viewDirection: 'Superior',
+      viewUp: 'Anterior',
+    },
+  },
   [InitViewIDs.Three]: {
     viewType: '3D',
+    props: {
+      viewDirection: 'Posterior',
+      viewUp: 'Superior',
+    },
+  },
+  [InitViewIDs.ObliqueThree]: {
+    viewType: 'Oblique3D',
     props: {
       viewDirection: 'Posterior',
       viewUp: 'Superior',
@@ -99,6 +131,20 @@ export const Layouts: Record<string, Layout> = [
       {
         direction: LayoutDirection.V,
         items: [InitViewIDs.Sagittal, InitViewIDs.Axial],
+      },
+    ],
+  },
+  {
+    name: 'Oblique View',
+    direction: LayoutDirection.H,
+    items: [
+      {
+        direction: LayoutDirection.V,
+        items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
+      },
+      {
+        direction: LayoutDirection.V,
+        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueAxial],
       },
     ],
   },

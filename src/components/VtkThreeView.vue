@@ -103,6 +103,7 @@ import { isViewAnimating } from '../composables/isViewAnimating';
 import { ColoringConfig } from '../types/views';
 import useViewCameraStore from '../store/view-configs/camera';
 import { Maybe } from '../types';
+import { useResetViewsEvents } from './tools/ResetViews.vue';
 
 function useCvrEffect(
   config: Ref<Maybe<VolumeColorConfig>>,
@@ -596,6 +597,10 @@ export default defineComponent({
       },
       { immediate: true }
     );
+
+    // --- Listen to ResetViews event --- //
+    const events = useResetViewsEvents();
+    events.onClick(() => resetCamera());
 
     // --- template vars --- //
 

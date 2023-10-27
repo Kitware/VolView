@@ -45,55 +45,6 @@ declare module '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin' {
   ): void;
 }
 
-declare module '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory' {
-  import { vtkObject } from '@kitware/vtk.js/interfaces';
-  import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
-  import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
-  import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager';
-  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-  import { Bounds } from '@kitware/vtk.js/types';
-
-  export interface vtkAbstractWidgetFactory extends vtkObject {
-    getWidgetForView(locator: {
-      viewId: string;
-      renderer: vtkRenderer;
-      viewType: ViewTypes;
-      initialValues?: object;
-    }): vtkAbstractWidget | null;
-    getViewIds(): string[];
-    setVisibility(visible: boolean): void;
-    setPickable(pickable: boolean): void;
-    setDragable(dragable: boolean): void;
-    setContextVisibility(visible: boolean): void;
-    setHandleVisibility(visible: boolean): void;
-    placeWidget(bounds: Bounds);
-    getPlaceFactor(): number;
-    setPlaceFactor(factor: number): void;
-    getWidgetState(): vtkWidgetState;
-    invokeWidgetChangeEvent(...args: any[]): void;
-    onWidgetChangeEvent(cb: EventHandler, priority?: number): void;
-  }
-
-  export interface IAbstractWidgetFactoryInitialValues {
-    widgetState?: vtkWidgetState;
-  }
-
-  export function extend(
-    publicAPI: object,
-    model: object,
-    initialValues?: IAbstractWidgetFactoryInitialValues
-  );
-
-  export function newInstance(
-    initialValues?: IAbstractWidgetFactoryInitialValues
-  ): vtkAbstractWidgetFactory;
-
-  export declare const vtkAbstractWidgetFactory: {
-    extend: typeof extend;
-  };
-  export default vtkAbstractWidgetFactory;
-}
-
 declare module '@kitware/vtk.js/Widgets/Core/WidgetManager' {
   import { vtkObject } from '@kitware/vtk.js/interfaces';
   import vtkSelectionNode from '@kitware/vtk.js/Common/DataModel/SelectionNode';
@@ -293,4 +244,41 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget' {
 
 declare module '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants' {
   export declare const WIDGET_PRIORITY: number;
+}
+
+declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
+  import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
+  import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+  import type { Vector3, RGBColor } from '@kitware/vtk.js/types';
+  import vtkResliceCursorWidget from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+
+  export interface vtkResliceCursorViewWidget extends vtkAbstractWidget {
+    setManipulator(manipulator: vtkPlaneManipulator): boolean;
+    getManipulator(): vtkPlaneManipulator;
+    setImage(image: vtkImageData): void;
+    setKeepOrthogonality(keepOrthogonality: boolean): void;
+    setScaleInPixels(scaleInPixels: boolean): void;
+    setCursorStyles(styles: {
+      translateCenter: string;
+      rotateLine: string;
+      translateAxis: string;
+    }): boolean;
+  }
+
+  export interface ResliceCursorWidgetState extends vtkWidgetState {
+    placeWidget(bounds: Bounds): void;
+    setColor3(color: RGBColor): boolean;
+    setScale1(scale: number): boolean;
+    setScale3(scaleX: number, scaleY: number, scaleZ: number): boolean;
+    getPlanes(): Record<number, { normal: Vector3; viewUp: Vector3 }>;
+    setPlanes(
+      planes: Record<number, { normal: Vector3; viewUp: Vector3 }>
+    ): void;
+    getCenter(): Vector3;
+    setScrollingMethod(mode: number): boolean;
+    setOpacity(opacity: number): boolean;
+  }
+
+  // Just forwarding vtk-js's definition as default export:
+  export default vtkResliceCursorWidget;
 }

@@ -1,5 +1,9 @@
 import { Maybe } from '@/src/types';
+import type { RGBColor } from '@kitware/vtk.js/types';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
+import vtkResliceCursorWidget, {
+  vtkResliceCursorViewWidget,
+} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import { ComputedRef, InjectionKey, Ref } from 'vue';
 
 export const EPSILON = 10e-6;
@@ -10,6 +14,16 @@ export const ThemeStorageKey = 'app-theme';
 export const DarkTheme = 'kw-dark';
 export const LightTheme = 'kw-light';
 export const DefaultTheme = DarkTheme;
+
+/**
+ * Retrieves the global ResliceCursorWidget instance.
+ */
+export const VTKResliceCursor: InjectionKey<vtkResliceCursorWidget> =
+  Symbol('VTKResliceCursor');
+
+export const VTKResliceCursorViewWidget: InjectionKey<
+  ComputedRef<vtkResliceCursorViewWidget>
+> = Symbol('VTKResliceCursorViewWidget');
 
 /**
  * Retrieves the parent VtkTwoView's widget manager.
@@ -159,4 +173,10 @@ export const WLPresetsCT = {
       level: 400,
     },
   },
+};
+
+export const OBLIQUE_OUTLINE_COLORS: Record<string, RGBColor> = {
+  ObliqueAxial: [51, 255, 51], // Green
+  ObliqueSagittal: [255, 255, 0], // Yellow
+  ObliqueCoronal: [255, 51, 51], // Red
 };

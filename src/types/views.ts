@@ -4,7 +4,7 @@ import {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-export type ViewType = '2D' | '3D';
+export type ViewType = '2D' | '3D' | 'Oblique' | 'Oblique3D';
 
 export interface ViewSpec {
   viewType: ViewType;
