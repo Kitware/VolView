@@ -110,16 +110,15 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return false;
   }
 
-  function getWorldCoords(callData: any) {
+  const getWorldCoords = (event: any) => {
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
     if (!manipulator) {
       return undefined;
     }
-
-    return manipulator.handleEvent(callData, model._apiSpecificRenderWindow)
+    return manipulator.handleEvent(event, model._apiSpecificRenderWindow)
       .worldCoords;
-  }
+  };
 
   function updateActiveStateHandle(callData: any) {
     const worldCoords = getWorldCoords(callData);

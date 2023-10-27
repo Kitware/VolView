@@ -65,6 +65,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return overSegment;
   };
 
+  const getWorldCoords = (event: any) => {
+    const manipulator =
+      model.activeState?.getManipulator?.() ?? model.manipulator;
+    if (!manipulator) {
+      return undefined;
+    }
+    return manipulator.handleEvent(event, model._apiSpecificRenderWindow)
+      .worldCoords;
+  };
+
   /**
    * Places or drags a point.
    */
@@ -86,11 +96,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const { worldCoords } = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    )?.worldCoords;
-    if (!worldCoords.length) {
+    const worldCoords = getWorldCoords(eventData);
+    if (!worldCoords?.length) {
       return macro.VOID;
     }
 
@@ -141,11 +148,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Moves a point around.
    */
   publicAPI.handleMouseMove = (eventData: any) => {
-    const { worldCoords } = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    )?.worldCoords;
-    if (!worldCoords.length) {
+    const worldCoords = getWorldCoords(eventData);
+    if (!worldCoords?.length) {
       return macro.VOID;
     }
 
@@ -181,11 +185,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    */
   publicAPI.handleLeftButtonRelease = (eventData: any) => {
     if (draggingState) {
-      const { worldCoords } = model.manipulator.handleEvent(
-        eventData,
-        model._apiSpecificRenderWindow
-      )?.worldCoords;
-      if (worldCoords.length) {
+      const worldCoords = getWorldCoords(eventData);
+      if (worldCoords?.length) {
         draggingState.setOrigin(worldCoords);
       }
 
