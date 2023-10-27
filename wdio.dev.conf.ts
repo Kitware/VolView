@@ -7,8 +7,5 @@ export const config = {
   baseUrl: `http://localhost:${DEV_SERVER_PORT}`,
   filesToWatch: ['./src/**/*.ts', './src/**/*.js', './src/**/*.vue'],
   // sample-rendering.e2e.ts does not work locally
-  exclude: [
-    ...(baseConfig.exclude ?? []),
-    './tests/specs/sample-rendering.e2e.ts',
-  ],
+  exclude: ['./tests/specs/sample-rendering.e2e.ts'],
 };

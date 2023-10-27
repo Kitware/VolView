@@ -239,9 +239,9 @@ export const RULER_LABEL_DEFAULTS = {
 };
 
 export const RECTANGLE_LABEL_DEFAULTS = {
-  artifact: { color: '#888888', fillColor: '#ffbf0040' },
-  innocuous: { color: '#00ff00', fillColor: '#00ff0020' },
-  lesion: { color: 'red', fillColor: 'transparent' },
+  artifact: { color: '#888888' },
+  innocuous: { color: '#00ff00' },
+  lesion: { color: 'red' },
 };
 
 export const POLYGON_LABEL_DEFAULTS = {
