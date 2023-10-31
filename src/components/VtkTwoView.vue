@@ -735,12 +735,16 @@ export default defineComponent({
     const layersStore = useLayersStore();
     watch(
       [viewID, currentLayers],
-      () => {
-        currentLayers.value.forEach(({ id }, layerIndex) => {
+      ([view, layers]) => {
+        layers.forEach(({ id }) => {
           const image = layersStore.layerImages[id];
-          const layerConfig = layersConfigs.value[layerIndex];
-          if (image && !layerConfig) {
-            layerColoringStore.resetToDefault(viewID.value, id, image);
+          layerColoringStore.updateColorBy(view, id, {
+            arrayName: image.getPointData().getScalars().getName() + id,
+            location: 'pointData',
+          });
+          const layerConfig = layerColoringStore.getConfig(view, id);
+          if (!layerConfig!.transferFunction.preset) {
+            layerColoringStore.resetColorPreset(view, id);
           }
         });
       },
