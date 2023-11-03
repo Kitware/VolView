@@ -21,7 +21,12 @@ export default defineComponent({
 
 <template>
   <div class="mx-2">
-    <layer-properties v-for="layer in layers" :key="layer.id" :layer="layer">
+    <layer-properties
+      v-for="layer in layers"
+      :key="layer.id"
+      :layer="layer"
+      class="py-4"
+    >
     </layer-properties>
   </div>
 </template>
