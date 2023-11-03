@@ -63,7 +63,7 @@ export default class PaintTool {
     startPoint: vec3,
     endPoint?: vec3
   ) {
-    if (!this.brushValue) return;
+    if (this.brushValue == null) return;
 
     const stencil = this.brush.getStencil();
 
