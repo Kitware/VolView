@@ -1,7 +1,15 @@
-import Pipeline, { PipelineResult } from '@/src/core/pipeline';
-import { ImportHandler, ImportResult } from '@/src/io/import/common';
+import Pipeline, {
+  PipelineResult,
+  PipelineResultSuccess,
+} from '@/src/core/pipeline';
+import {
+  isConfigResult,
+  ImportHandler,
+  ImportResult,
+  LoadableResult,
+  isLoadableResult,
+} from '@/src/io/import/common';
 import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
-import { nonNullable } from '@/src/utils';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import extractArchive from '@/src/io/import/processors/extractArchive';
@@ -34,6 +42,23 @@ const unhandledResource: ImportHandler = () => {
   throw new Error('Failed to handle resource');
 };
 
+function isSelectable(
+  result: PipelineResult<DataSource, ImportResult>
+): result is PipelineResultSuccess<LoadableResult> {
+  if (!result.ok) return false;
+
+  if (result.data.length === 0) {
+    return false;
+  }
+
+  const importResult = result.data[0];
+  if (!isLoadableResult(importResult)) {
+    return false;
+  }
+
+  return true;
+}
+
 const importConfigs = async (
   results: Array<PipelineResult<DataSource, ImportResult>>
 ) => {
@@ -42,8 +67,8 @@ const importConfigs = async (
       .flatMap((pipelineResult) =>
         pipelineResult.ok ? pipelineResult.data : []
       )
-      .map((result) => result.config)
-      .filter(nonNullable)
+      .filter(isConfigResult)
+      .map(({ config }) => config)
       .forEach(applyConfig);
     return {
       ok: true as const,
@@ -81,14 +106,11 @@ const importDicomFiles = async (
     const volumeKeys = await useDICOMStore().importFiles(dicomDataSources);
     return {
       ok: true as const,
-      data: volumeKeys.map(
-        (key) =>
-          ({
-            dataID: key,
-            dataType: 'dicom' as const,
-            dataSource: resultSources,
-          } as const)
-      ),
+      data: volumeKeys.map((key) => ({
+        dataID: key,
+        dataType: 'dicom' as const,
+        dataSource: resultSources,
+      })),
     };
   } catch (err) {
     return {
@@ -141,8 +163,9 @@ export async function importDataSources(dataSources: DataSource[]) {
     ...results,
     dicomResult,
     configResult,
-    // remove ok results that have no result data
-  ].filter((result) => !result.ok || result.data.length);
+    // Consuming code expects only errors and image import results.
+    // Remove ok results that don't result in something to load (like config.JSON files)
+  ].filter((result) => !result.ok || isSelectable(result));
 }
 
 export type ImportDataSourcesResult = Awaited<
@@ -152,16 +175,9 @@ export type ImportDataSourcesResult = Awaited<
 export function convertSuccessResultToDataSelection(
   result: ImportDataSourcesResult
 ) {
-  if (!result.ok) return null;
-
-  if (result.data.length === 0) {
-    return null;
-  }
+  if (!isSelectable(result)) return null;
 
   const { dataID, dataType } = result.data[0];
-  if (!dataID) {
-    return null;
-  }
 
   if (dataType === 'dicom') {
     return makeDICOMSelection(dataID);

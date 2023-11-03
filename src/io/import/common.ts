@@ -5,12 +5,20 @@ import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { Awaitable } from '@vueuse/core';
 import { Config } from '@/src/io/import/configSchema';
 
-export interface ImportResult {
+interface DataResult {
   dataSource: DataSource;
-  dataID?: string;
-  dataType?: 'image' | 'dicom' | 'model';
-  config?: Config;
 }
+
+export interface LoadableResult extends DataResult {
+  dataID: string;
+  dataType: 'image' | 'dicom' | 'model';
+}
+
+export interface ConfigResult extends DataResult {
+  config: Config;
+}
+
+export type ImportResult = LoadableResult | ConfigResult | DataResult;
 
 export type ArchiveContents = Record<string, File>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
@@ -30,4 +38,16 @@ export function isArchive(
   ds: DataSource
 ): ds is DataSource & { fileSrc: FileSource } {
   return !!ds.fileSrc && ARCHIVE_FILE_TYPES.has(ds.fileSrc.fileType);
+}
+
+export function isLoadableResult(
+  importResult: ImportResult
+): importResult is LoadableResult {
+  return 'dataID' in importResult && 'dataType' in importResult;
+}
+
+export function isConfigResult(
+  importResult: ImportResult
+): importResult is ConfigResult {
+  return 'config' in importResult;
 }

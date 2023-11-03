@@ -6,6 +6,7 @@ import {
   ImportContext,
   ImportHandler,
   ImportResult,
+  isLoadableResult,
 } from '@/src/io/import/common';
 import {
   DataSource,
@@ -201,12 +202,12 @@ async function restoreDatasets(
           );
         }
 
-        const { dataID } = result.data[0];
-        if (!dataID) {
+        const importResult = result.data[0];
+        if (!isLoadableResult(importResult)) {
           throw new Error('Failed to import dataset');
         }
 
-        stateIDToStoreID[dataset.id] = dataID;
+        stateIDToStoreID[dataset.id] = importResult.dataID;
       } else {
         throw new Error('Could not load any data from the session');
       }
