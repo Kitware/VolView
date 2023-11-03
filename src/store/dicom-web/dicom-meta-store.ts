@@ -88,7 +88,9 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
           'Modality',
           'SeriesInstanceUID',
           'SeriesNumber',
-          'SeriesDescription'
+          'SeriesDescription',
+          'WindowLevel',
+          'WindowWidth'
         ),
         NumberOfSlices: 0, // incremented later
         VolumeID: info.SeriesInstanceUID,

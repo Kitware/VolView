@@ -1,5 +1,6 @@
 import macro from '@kitware/vtk.js/macro';
 import type { Vector3 } from '@kitware/vtk.js/types';
+import { computeWorldCoords } from '@/src/vtk/ToolWidgetUtils/utils';
 
 export enum InteractionState {
   PlacingFirst = 'PlacingFirst',
@@ -65,6 +66,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return overSegment;
   };
 
+  const getWorldCoords = computeWorldCoords(model);
+
   /**
    * Places or drags a point.
    */
@@ -86,11 +89,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    const worldCoords = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    );
-    if (!worldCoords.length) {
+    const worldCoords = getWorldCoords(eventData);
+    if (!worldCoords?.length) {
       return macro.VOID;
     }
 
@@ -141,11 +141,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Moves a point around.
    */
   publicAPI.handleMouseMove = (eventData: any) => {
-    const worldCoords = model.manipulator.handleEvent(
-      eventData,
-      model._apiSpecificRenderWindow
-    );
-    if (!worldCoords.length) {
+    const worldCoords = getWorldCoords(eventData);
+    if (!worldCoords?.length) {
       return macro.VOID;
     }
 
@@ -181,11 +178,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    */
   publicAPI.handleLeftButtonRelease = (eventData: any) => {
     if (draggingState) {
-      const worldCoords = model.manipulator.handleEvent(
-        eventData,
-        model._apiSpecificRenderWindow
-      );
-      if (worldCoords.length) {
+      const worldCoords = getWorldCoords(eventData);
+      if (worldCoords?.length) {
         draggingState.setOrigin(worldCoords);
       }
 

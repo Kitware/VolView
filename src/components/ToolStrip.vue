@@ -45,7 +45,7 @@
         icon="mdi-crosshairs"
         name="Crosshairs"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
+        :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
       />
     </groupable-item>
@@ -64,7 +64,7 @@
         icon="mdi-brush"
         name="Paint"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
+        :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
       ></tool-button>
     </groupable-item>
@@ -77,7 +77,7 @@
         name="Rectangle"
         :mobileOnlyMenu="true"
         :active="active"
-        :disabled="noCurrentImage"
+        :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
       >
         <rectangle-controls />
@@ -89,7 +89,7 @@
         name="Polygon"
         :mobileOnlyMenu="true"
         :active="active"
-        :disabled="noCurrentImage"
+        :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
       >
         <polygon-controls />
@@ -101,7 +101,7 @@
         name="Ruler"
         :mobileOnlyMenu="true"
         :active="active"
-        :disabled="noCurrentImage"
+        :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
       >
         <ruler-controls />
@@ -114,17 +114,20 @@
         icon="mdi-crop"
         name="Crop"
         :active="active"
-        :disabled="noCurrentImage"
+        :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
       >
         <crop-controls />
       </menu-tool-button>
     </groupable-item>
+    <div class="my-1 tool-separator" />
+    <reset-views />
   </item-group>
 </template>
 
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { onKeyDown } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ToolButton from './ToolButton.vue';
@@ -132,8 +135,10 @@ import ItemGroup from './ItemGroup.vue';
 import GroupableItem from './GroupableItem.vue';
 import { useDatasetStore } from '../store/datasets';
 import { useToolStore } from '../store/tools';
+import { useViewStore } from '../store/views';
 import MenuToolButton from './MenuToolButton.vue';
 import CropControls from './tools/crop/CropControls.vue';
+import ResetViews from './tools/ResetViews.vue';
 import RulerControls from './RulerControls.vue';
 import RectangleControls from './RectangleControls.vue';
 import PolygonControls from './PolygonControls.vue';
@@ -146,6 +151,7 @@ export default defineComponent({
     ItemGroup,
     GroupableItem,
     CropControls,
+    ResetViews,
     RulerControls,
     RectangleControls,
     PolygonControls,
@@ -154,9 +160,14 @@ export default defineComponent({
   setup() {
     const dataStore = useDatasetStore();
     const toolStore = useToolStore();
+    const viewStore = useViewStore();
 
     const noCurrentImage = computed(() => !dataStore.primaryDataset);
     const currentTool = computed(() => toolStore.currentTool);
+    const { layout: currentLayout } = storeToRefs(viewStore);
+    const isObliqueLayout = computed(
+      () => currentLayout.value?.name === 'Oblique View'
+    );
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -172,6 +183,7 @@ export default defineComponent({
       currentTool,
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
+      isObliqueLayout,
       Tools,
       paintMenu,
       cropMenu,

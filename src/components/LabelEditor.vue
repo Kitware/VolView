@@ -36,7 +36,12 @@ const onDelete = () => {
             <v-btn color="cancel" variant="tonal" @click="cancel">
               Cancel
             </v-btn>
-            <v-btn color="secondary" variant="elevated" @click="done">
+            <v-btn
+              color="secondary"
+              variant="elevated"
+              @click="done"
+              data-testid="edit-label-done-button"
+            >
               Done
             </v-btn>
           </v-card-actions>

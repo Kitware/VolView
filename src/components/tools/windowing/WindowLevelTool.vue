@@ -16,6 +16,7 @@ import useWindowingStore, {
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useViewStore } from '@/src/store/views';
+import { WL_AUTO_DEFAULT } from '@/src/constants';
 
 function computeStep(min: number, max: number) {
   return Math.min(max - min, 1) / 256;
@@ -43,6 +44,12 @@ const WindowLevelToolComponent = defineComponent({
     const wlConfig = computed(() =>
       windowingStore.getConfig(viewID.value, currentImageID.value)
     );
+    const wlDefaults = computed(() => {
+      return {
+        width: windowConfigDefaults.width,
+        level: windowConfigDefaults.level,
+      };
+    });
 
     const wwRange = computed(() => ({
       min: 1e-12, // ensure we don't hit zero and jump to white
@@ -119,6 +126,8 @@ const WindowLevelToolComponent = defineComponent({
           if (currentImageID.value != null) {
             windowingStore.updateConfig(viewID.value, currentImageID.value, {
               width: v,
+              auto: WL_AUTO_DEFAULT,
+              preset: wlDefaults.value,
             });
           }
         }
@@ -133,6 +142,8 @@ const WindowLevelToolComponent = defineComponent({
           if (currentImageID.value != null) {
             windowingStore.updateConfig(viewID.value, currentImageID.value, {
               level: v,
+              auto: WL_AUTO_DEFAULT,
+              preset: wlDefaults.value,
             });
           }
         }

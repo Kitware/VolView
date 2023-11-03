@@ -54,6 +54,8 @@ export interface VolumeInfo {
   SeriesInstanceUID: string;
   SeriesNumber: string;
   SeriesDescription: string;
+  WindowLevel: string;
+  WindowWidth: string;
 }
 
 interface State {
@@ -104,6 +106,8 @@ const readDicomTags = (dicomIO: DICOMIO, file: File) =>
     { name: 'SeriesInstanceUID', tag: '0020|000e' },
     { name: 'SeriesNumber', tag: '0020|0011' },
     { name: 'SeriesDescription', tag: '0008|103e', strconv: true },
+    { name: 'WindowLevel', tag: '0028|1050' },
+    { name: 'WindowWidth', tag: '0028|1051' },
   ]);
 
 export const useDICOMStore = defineStore('dicom', {
@@ -175,7 +179,9 @@ export const useDICOMStore = defineStore('dicom', {
                 'Modality',
                 'SeriesInstanceUID',
                 'SeriesNumber',
-                'SeriesDescription'
+                'SeriesDescription',
+                'WindowLevel',
+                'WindowWidth'
               ),
               NumberOfSlices: files.length,
               VolumeID: volumeKey,

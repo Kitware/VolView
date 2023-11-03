@@ -11,6 +11,7 @@ import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
 
 import pkgLock from './package-lock.json';
+import { config } from './wdio.shared.conf';
 
 if (pkgLock.lockfileVersion !== 2) {
   throw new Error('package-lock.json is not version 2!');
@@ -185,6 +186,10 @@ export default defineConfig({
   ],
   server: {
     port: 8080,
+    // so `npm run test:e2e:dev` can access the webdriver static server temp directory
+    proxy: {
+      '/tmp': config.baseUrl!,
+    },
   },
   test: {
     environment: 'jsdom',

@@ -98,6 +98,7 @@ function deleteEditingLabel() {
             class="ml-auto mr-1"
             variant="plain"
             @click.stop="startEditing(key as string)"
+            data-testid="edit-label-button"
           />
         </template>
       </editable-chip-list>

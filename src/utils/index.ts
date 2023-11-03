@@ -136,6 +136,17 @@ export function partition<T>(
   return partitioned;
 }
 
+export function partitionByType<T, U extends T>(
+  guard: (x: T) => x is U,
+  arr: T[]
+): [U[], Exclude<T, U>[]] {
+  const ret: [U[], Exclude<T, U>[]] = [[], []];
+  arr.forEach((el) =>
+    guard(el) ? ret[0].push(el) : ret[1].push(el as Exclude<T, U>)
+  );
+  return ret;
+}
+
 export const chunk = <T>(arr: T[], size: number) =>
   Array.from({ length: Math.ceil(arr.length / size) }, (_: any, i: number) =>
     arr.slice(i * size, i * size + size)

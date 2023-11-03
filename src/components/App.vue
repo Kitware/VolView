@@ -66,7 +66,7 @@
                 @click="handleSave"
               />
               <div class="my-1 tool-separator" />
-              <v-menu location="right" :close-on-content-click="false">
+              <v-menu location="right" :close-on-content-click="true">
                 <template v-slot:activator="{ props }">
                   <div>
                     <tool-button
@@ -224,6 +224,7 @@ import {
   defineComponent,
   nextTick,
   onMounted,
+  provide,
   Ref,
   ref,
   watch,
@@ -242,6 +243,12 @@ import {
   ImportDataSourcesResult,
   convertSuccessResultToDataSelection,
 } from '@/src/io/import/importDataSources';
+import vtkResliceCursorWidget, {
+  ResliceCursorWidgetState,
+} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import type { Vector3 } from '@kitware/vtk.js/types';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -273,8 +280,10 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { partition, wrapInArray } from '../utils';
+import { wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
+import { VTKResliceCursor } from '../constants';
+import { partitionResults } from '../core/pipeline';
 
 async function loadFiles(
   sources: DataSource[],
@@ -290,7 +299,7 @@ async function loadFiles(
     return;
   }
 
-  const [succeeded, errored] = partition((result) => result.ok, results);
+  const [succeeded, errored] = partitionResults(results);
 
   if (!dataStore.primarySelection && succeeded.length) {
     const selection = convertSuccessResultToDataSelection(succeeded[0]);
@@ -365,6 +374,7 @@ export default defineComponent({
     useKeyboardShortcuts();
 
     const { runAsLoading } = useAppLoadingNotifications();
+    const { currentImageData, currentImageMetadata } = useCurrentImage();
 
     // --- layout --- //
 
@@ -388,6 +398,62 @@ export default defineComponent({
         currentLayout.value.name !== layoutName.value
       ) {
         layoutName.value = currentLayout.value.name;
+      }
+    });
+
+    // --- ResliceCursorWidget --- //
+    // Construct the common instance of vtkResliceCursorWidget and provide it
+    // to all the child ObliqueView components.
+    const resliceCursor = vtkResliceCursorWidget.newInstance({
+      scaleInPixels: true,
+      rotationHandlePosition: 0.75,
+    }) as vtkResliceCursorWidget;
+    provide(VTKResliceCursor, resliceCursor);
+
+    // TODO: Move this to a store/global-state for reslicing.
+    // Orient the planes of the vtkResliceCursorWidget to the orientation
+    // of the currently set image.
+    const resliceCursorState =
+      resliceCursor.getWidgetState() as ResliceCursorWidgetState;
+
+    // Temporary fix to disable race between PanTool and ResliceCursorWidget
+    resliceCursorState.setScrollingMethod(-1);
+
+    watch(currentImageData, (image) => {
+      if (image && resliceCursor) {
+        resliceCursor.setImage(image);
+        // Reset to default plane values before transforming based on current image-data.
+        resliceCursorState.setPlanes({
+          [ViewTypes.YZ_PLANE]: {
+            normal: [1, 0, 0],
+            viewUp: [0, 0, 1],
+          },
+          [ViewTypes.XZ_PLANE]: {
+            normal: [0, -1, 0],
+            viewUp: [0, 0, 1],
+          },
+          [ViewTypes.XY_PLANE]: {
+            normal: [0, 0, -1],
+            viewUp: [0, -1, 0],
+          },
+        });
+        const planes = resliceCursorState.getPlanes();
+        if (currentImageMetadata.value) {
+          planes[ViewTypes.XY_PLANE].normal = currentImageMetadata.value
+            .lpsOrientation.Inferior as Vector3;
+          planes[ViewTypes.XY_PLANE].viewUp = currentImageMetadata.value
+            .lpsOrientation.Anterior as Vector3;
+
+          planes[ViewTypes.XZ_PLANE].normal = currentImageMetadata.value
+            .lpsOrientation.Anterior as Vector3;
+          planes[ViewTypes.XZ_PLANE].viewUp = currentImageMetadata.value
+            .lpsOrientation.Superior as Vector3;
+
+          planes[ViewTypes.YZ_PLANE].normal = currentImageMetadata.value
+            .lpsOrientation.Left as Vector3;
+          planes[ViewTypes.YZ_PLANE].viewUp = currentImageMetadata.value
+            .lpsOrientation.Superior as Vector3;
+        }
       }
     });
 

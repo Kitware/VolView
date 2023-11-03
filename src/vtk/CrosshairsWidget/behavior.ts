@@ -57,10 +57,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.manipulator &&
       !ignoreKey(callData)
     ) {
-      const worldCoordsOfPointer = model.manipulator.handleEvent(
-        callData,
-        model._apiSpecificRenderWindow
-      );
+      const { worldCoords: worldCoordsOfPointer } =
+        model.manipulator.handleEvent(callData, model._apiSpecificRenderWindow);
 
       const handle = model.widgetState.getHandle();
       const worldToIndex = model.widgetState.getWorldToIndex();

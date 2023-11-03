@@ -41,7 +41,7 @@ defineProps({
       <v-text-field
         label="Stroke Width"
         type="number"
-        class="flex-grow-0"
+        class="flex-grow-0 label-stroke-width-input"
         :model-value="strokeWidth"
         @update:model-value="$emit('update:strokeWidth', +$event)"
         @keydown.stop.enter="done"

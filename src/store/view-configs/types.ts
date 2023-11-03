@@ -6,6 +6,7 @@ import {
   BlendConfig,
   OpacityFunction,
 } from '@/src/types/views';
+import { WLAutoRanges } from '@/src/constants';
 
 export interface CameraConfig {
   parallelScale?: number;
@@ -37,6 +38,12 @@ export interface WindowLevelConfig {
   level: number;
   min: number; // data range min
   max: number; // data range max
+  auto: keyof typeof WLAutoRanges; // User-selected percentile range
+  preset: {
+    // User-selected preset value, if any
+    width: number;
+    level: number;
+  };
 }
 
 export interface LayersConfig {

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, PropType, toRefs, watch } from 'vue';
+import { computed, defineComponent, PropType, toRefs } from 'vue';
 import { InitViewSpecs } from '../config';
 import { useImageStore } from '../store/datasets-images';
 import { BlendConfig } from '../types/views';
@@ -45,17 +45,10 @@ export default defineComponent({
       }))
     );
 
-    watch(layerConfigs, () => {
-      layerConfigs.value.forEach(({ config, viewID }) => {
-        if (!config) {
-          // init to defaults
-          layerColoringStore.updateBlendConfig(viewID, layerID.value, {});
-        }
-      });
-    });
-
     const blendConfig = computed(
-      () => layerConfigs.value?.[0].config?.blendConfig
+      () =>
+        // assume one 2D view has mounted
+        layerConfigs.value.find(({ config }) => config)!.config!.blendConfig
     );
 
     const setBlendConfig = (key: keyof BlendConfig, value: any) => {
@@ -76,7 +69,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="mx-2" v-if="!!blendConfig">
+  <div class="mx-2" v-if="blendConfig">
     <v-slider
       :label="imageName + ' Opacity'"
       min="0"

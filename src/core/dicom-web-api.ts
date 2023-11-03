@@ -31,6 +31,8 @@ const tags = {
   SeriesNumber: '00200011',
   SeriesDescription: '0008103E',
   Modality: '00080060',
+  WindowLevel: '00281050',
+  WindowWidth: '00281051',
 
   SopInstanceUID: '00080018',
   InstanceNumber: '00200013',

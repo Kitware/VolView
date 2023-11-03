@@ -22,6 +22,8 @@
 import { Component, computed, defineComponent, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
 import VtkTwoView from './VtkTwoView.vue';
+import VtkObliqueView from './VtkObliqueView.vue';
+import VtkObliqueThreeView from './VtkObliqueThreeView.vue';
 import VtkThreeView from './VtkThreeView.vue';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewStore } from '../store/views';
@@ -30,6 +32,8 @@ import { ViewType } from '../types/views';
 const TYPE_TO_COMPONENT: Record<ViewType, Component> = {
   '2D': VtkTwoView,
   '3D': VtkThreeView,
+  Oblique: VtkObliqueView,
+  Oblique3D: VtkObliqueThreeView,
 };
 
 export default defineComponent({

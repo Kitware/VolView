@@ -33,8 +33,9 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
-    expect(result.data).to.deep.equal([42]);
+    if (result.ok) {
+      expect(result.data).to.deep.equal([42]);
+    }
     expect(callOrder).to.deep.equal([1, 2, 3]);
   });
 
@@ -56,8 +57,9 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
-    expect(result.data).to.have.length(0);
+    if (result.ok) {
+      expect(result.data).to.have.length(0);
+    }
     expect(callOrder).to.deep.equal([1, 2, 3]);
   });
 
@@ -82,7 +84,6 @@ describe('Pipeline', () => {
     const result = await pipeline.execute(5);
 
     expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
     expect(calc).to.equal(8);
   });
 
@@ -111,7 +112,6 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
     expect(callOrder).to.deep.equal([1, 2, 3]);
   });
 
@@ -127,8 +127,9 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.true;
-    expect(result.errors).to.have.length(0);
-    expect(result.data).to.deep.equal([]);
+    if (result.ok) {
+      expect(result.data).to.deep.equal([]);
+    }
   });
 
   it('should detect double done()', async () => {
@@ -142,7 +143,9 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.false;
-    expect(result.errors).to.have.length(1);
+    if (!result.ok) {
+      expect(result.errors).to.have.length(1);
+    }
   });
 
   it('should handle top-level errors', async () => {
@@ -156,8 +159,10 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.false;
-    expect(result.errors).to.have.length(1);
-    expect(result.errors[0].message).to.equal(error.message);
+    if (!result.ok) {
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(error.message);
+    }
   });
 
   it('should handle top-level async errors', async () => {
@@ -172,8 +177,10 @@ describe('Pipeline', () => {
     const result = await pipeline.execute();
 
     expect(result.ok).to.be.false;
-    expect(result.errors).to.have.length(1);
-    expect(result.errors[0].message).to.equal(error.message);
+    if (!result.ok) {
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(error.message);
+    }
   });
 
   it('should handle nested executions', async () => {
@@ -186,11 +193,17 @@ describe('Pipeline', () => {
         return idx;
       },
       async (idx, { execute, done }) => {
-        let fnum = (await execute(idx - 1)).data[0];
-        if (idx > 1) {
-          fnum += (await execute(idx - 2)).data[0];
+        const result = await execute(idx - 1);
+        if (result.ok) {
+          let fnum = result.data[0];
+          if (idx > 1) {
+            const r = await execute(idx - 2);
+            if (r.ok) fnum += r.data[0];
+            else throw new Error('error');
+          }
+          return done(fnum);
         }
-        return done(fnum);
+        throw new Error('error');
       },
     ];
 
@@ -199,8 +212,10 @@ describe('Pipeline', () => {
     const result = await pipeline.execute(N);
 
     expect(result.ok).to.be.true;
-    // pick first result data, which is the top-level pipeline result
-    expect(result.data[0]).to.equal(8);
+    if (result.ok) {
+      // pick first result data, which is the top-level pipeline result
+      expect(result.data[0]).to.equal(8);
+    }
   });
 
   it('should handle allow extra context overriding', async () => {
@@ -219,7 +234,9 @@ describe('Pipeline', () => {
     const result = await pipeline.execute(0, 21);
 
     expect(result.ok).to.be.true;
-    expect(result.data).to.deep.equal([42]);
+    if (result.ok) {
+      expect(result.data).to.deep.equal([42]);
+    }
   });
 
   it('should handle nested async errors', async () => {
@@ -248,16 +265,20 @@ describe('Pipeline', () => {
     const result = await pipeline.execute(N);
 
     expect(result.ok).to.be.false;
-    // we expect there to be fib(N+1) errors
-    expect(result.errors).to.have.length(8);
+    if (!result.ok) {
+      // we expect there to be fib(N+1) errors
+      expect(result.errors).to.have.length(8);
 
-    result.errors.forEach((err) => {
-      const { message, inputDataStackTrace } = err;
-      expect(message).to.equal(error.message);
-      // first object should be the input passed to the erroring handler
-      expect(inputDataStackTrace[0]).to.equal(0);
-      // last object should be the input passed to the pipeline.
-      expect(inputDataStackTrace.at(-1)).to.equal(N);
-    });
+      result.errors.forEach((err) => {
+        const { message, inputDataStackTrace } = err;
+        expect(message).to.equal(error.message);
+        // first object should be the input passed to the erroring handler
+        expect(inputDataStackTrace[0]).to.equal(0);
+        // last object should be the input passed to the pipeline.
+        expect(inputDataStackTrace.at(-1)).to.equal(N);
+      });
+    } else {
+      expect.fail('Expected not ok result');
+    }
   });
 });

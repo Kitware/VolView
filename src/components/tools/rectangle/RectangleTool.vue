@@ -1,6 +1,6 @@
 <template>
   <div class="overlay-no-events">
-    <svg class="overlay-no-events">
+    <svg class="overlay-no-events" data-testid="rectangle-tool-container">
       <rectangle-widget-2D
         v-for="tool in tools"
         :key="tool.id"

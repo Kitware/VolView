@@ -36,6 +36,7 @@ import {
   CVRConfig,
   BlendConfig,
 } from '../../types/views';
+import { WLAutoRanges } from '../../constants';
 
 export enum DatasetType {
   DICOM = 'dicom',
@@ -97,11 +98,14 @@ const Vector3 = z.tuple([
   z.number(),
 ]) satisfies z.ZodType<Vector3>;
 
+type AutoRangeKeys = keyof typeof WLAutoRanges;
 const WindowLevelConfig = z.object({
   width: z.number(),
   level: z.number(),
   min: z.number(),
   max: z.number(),
+  auto: z.string() as z.ZodType<AutoRangeKeys>,
+  preset: z.object({ width: z.number(), level: z.number() }),
 }) satisfies z.ZodType<WindowLevelConfig>;
 
 const SliceConfig = z.object({
@@ -218,6 +222,8 @@ const ViewConfig = z.object({
 const ViewType = z.union([
   z.literal('2D'),
   z.literal('3D'),
+  z.literal('Oblique'),
+  z.literal('Oblique3D'),
 ]) satisfies z.ZodType<ViewType>;
 
 export type ViewConfig = z.infer<typeof ViewConfig>;
