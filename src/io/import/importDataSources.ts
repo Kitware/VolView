@@ -1,5 +1,5 @@
-import Pipeline from '@/src/core/pipeline';
-import { ImportHandler } from '@/src/io/import/common';
+import Pipeline, { PipelineResult } from '@/src/core/pipeline';
+import { ImportHandler, ImportResult } from '@/src/io/import/common';
 import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
 import { nonNullable } from '@/src/utils';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
@@ -34,6 +34,76 @@ const unhandledResource: ImportHandler = () => {
   throw new Error('Failed to handle resource');
 };
 
+const importConfigs = async (
+  results: Array<PipelineResult<DataSource, ImportResult>>
+) => {
+  try {
+    results
+      .flatMap((pipelineResult) =>
+        pipelineResult.ok ? pipelineResult.data : []
+      )
+      .map((result) => result.config)
+      .filter(nonNullable)
+      .forEach(applyConfig);
+    return {
+      ok: true as const,
+      data: [],
+    };
+  } catch (err) {
+    return {
+      ok: false as const,
+      errors: [
+        {
+          message: toMeaningfulErrorString(err),
+          cause: err,
+          inputDataStackTrace: [],
+        },
+      ],
+    };
+  }
+};
+
+const importDicomFiles = async (
+  dicomDataSources: Array<DataSourceWithFile>
+) => {
+  const resultSources: DataSource = {
+    dicomSrc: {
+      sources: dicomDataSources,
+    },
+  };
+  try {
+    if (!dicomDataSources.length) {
+      return {
+        ok: true as const,
+        data: [],
+      };
+    }
+    const volumeKeys = await useDICOMStore().importFiles(dicomDataSources);
+    return {
+      ok: true as const,
+      data: volumeKeys.map(
+        (key) =>
+          ({
+            dataID: key,
+            dataType: 'dicom' as const,
+            dataSource: resultSources,
+          } as const)
+      ),
+    };
+  } catch (err) {
+    return {
+      ok: false as const,
+      errors: [
+        {
+          message: toMeaningfulErrorString(err),
+          cause: err,
+          inputDataStackTrace: [resultSources],
+        },
+      ],
+    };
+  }
+};
+
 export async function importDataSources(dataSources: DataSource[]) {
   const importContext = {
     fetchFileCache: new Map<string, File>(),
@@ -51,9 +121,9 @@ export async function importDataSources(dataSources: DataSource[]) {
     downloadUrl,
     extractArchiveTargetFromCache,
     extractArchive,
-    handleConfig, // collect to apply later
+    handleConfig, // collect config files to apply later
     // should be before importSingleFile, since DICOM is more specific
-    handleDicomFile,
+    handleDicomFile, // collect DICOM files to import later
     importSingleFile,
     // catch any unhandled resource
     unhandledResource,
@@ -64,82 +134,15 @@ export async function importDataSources(dataSources: DataSource[]) {
     dataSources.map((r) => loader.execute(r, importContext))
   );
 
-  // Apply config.JSONs
-  const configResult = await (async () => {
-    try {
-      results
-        .flatMap((pipelineResult) =>
-          pipelineResult.ok ? pipelineResult.data : []
-        )
-        .map((result) => result.config)
-        .filter(nonNullable)
-        .forEach(applyConfig);
-      return {
-        ok: true as const,
-        data: [],
-      };
-    } catch (err) {
-      return {
-        ok: false as const,
-        errors: [
-          {
-            message: toMeaningfulErrorString(err),
-            cause: err,
-            inputDataStackTrace: [],
-          },
-        ],
-      };
-    }
-  })();
-
-  // handle DICOM loading
-  const dicomDataSource: DataSource = {
-    dicomSrc: {
-      sources: importContext.dicomDataSources,
-    },
-  };
-  const dicomResult = await (async () => {
-    try {
-      if (!importContext.dicomDataSources.length) {
-        return {
-          ok: true as const,
-          data: [],
-        };
-      }
-      const volumeKeys = await useDICOMStore().importFiles(
-        importContext.dicomDataSources
-      );
-      return {
-        ok: true as const,
-        data: volumeKeys.map(
-          (key) =>
-            ({
-              dataID: key,
-              dataType: 'dicom' as const,
-              dataSource: dicomDataSource,
-            } as const)
-        ),
-      };
-    } catch (err) {
-      return {
-        ok: false as const,
-        errors: [
-          {
-            message: toMeaningfulErrorString(err),
-            cause: err,
-            inputDataStackTrace: [dicomDataSource],
-          },
-        ],
-      };
-    }
-  })();
+  const configResult = await importConfigs(results);
+  const dicomResult = await importDicomFiles(importContext.dicomDataSources);
 
   return [
     ...results,
     dicomResult,
     configResult,
     // remove ok results that have no result data
-  ].filter((result) => !result.ok || (result.ok && result.data.length));
+  ].filter((result) => !result.ok || result.data.length);
 }
 
 export type ImportDataSourcesResult = Awaited<
