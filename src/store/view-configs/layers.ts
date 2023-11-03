@@ -1,4 +1,3 @@
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import {
   getColorFunctionRangeFromPreset,
@@ -119,18 +118,8 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     updateOpacityFunction(viewID, layerID, opFunc);
   };
 
-  const resetToDefault = (
-    viewID: string,
-    dataID: LayerID,
-    image: vtkImageData
-  ) => {
-    const scalars = image.getPointData().getScalars();
-
-    updateColorBy(viewID, dataID, {
-      arrayName: scalars.getName() + dataID,
-      location: 'pointData',
-    });
-    setColorPreset(viewID, dataID, getPreset(dataID));
+  const resetColorPreset = (viewID: string, layerID: LayerID) => {
+    setColorPreset(viewID, layerID, getPreset(layerID));
   };
 
   const removeView = (viewID: string) => {
@@ -163,8 +152,8 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     updateColorTransferFunction,
     updateOpacityFunction,
     updateBlendConfig,
-    resetToDefault,
     setColorPreset,
+    resetColorPreset,
     removeView,
     removeData,
     serialize,
