@@ -6,7 +6,8 @@ import { URL } from 'whatwg-url';
  * @param uri
  * @returns
  */
-export const isAmazonS3Uri = (uri: string) => new URL(uri).protocol === 's3:';
+export const isAmazonS3Uri = (uri: string) =>
+  new URL(uri, window.location.origin).protocol === 's3:';
 
 export type ObjectAvailableCallback = (url: string, name: string) => void;
 

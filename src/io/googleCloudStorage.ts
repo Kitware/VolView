@@ -23,7 +23,7 @@ interface GcsObjectListResult {
  * @returns
  */
 export const isGoogleCloudStorageUri = (uri: string) =>
-  new URL(uri).protocol === 'gs:';
+  new URL(uri, window.location.origin).protocol === 'gs:';
 
 /**
  * Extracts bucket and prefix from `gs://` URIs

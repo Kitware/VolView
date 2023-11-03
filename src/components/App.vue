@@ -280,9 +280,10 @@ import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
 import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { partition, wrapInArray } from '../utils';
+import { wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
 import { VTKResliceCursor } from '../constants';
+import { partitionResults } from '../core/pipeline';
 
 async function loadFiles(
   sources: DataSource[],
@@ -298,7 +299,7 @@ async function loadFiles(
     return;
   }
 
-  const [succeeded, errored] = partition((result) => result.ok, results);
+  const [succeeded, errored] = partitionResults(results);
 
   if (!dataStore.primarySelection && succeeded.length) {
     const selection = convertSuccessResultToDataSelection(succeeded[0]);

@@ -1,4 +1,28 @@
+import * as path from 'path';
+import * as fs from 'fs';
+import { Key } from 'webdriverio';
+import { cleanuptotal } from 'wdio-cleanuptotal-service';
+import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 import Page from './page';
+
+let lastId = 0;
+const getId = () => {
+  return lastId++;
+};
+
+export const setValueVueInput = async (
+  input: WebdriverIO.Element,
+  value: string
+) => {
+  // input.setValue does not clear existing input, so click and backspace
+  await input.click();
+  const oldValue = await input.getValue();
+  if (oldValue) {
+    const backspaces = new Array(oldValue.length).fill(Key.Backspace);
+    await browser.keys([Key.ArrowRight, ...backspaces]);
+  }
+  await input.setValue(value);
+};
 
 class VolViewPage extends Page {
   get samplesList() {
@@ -22,15 +46,86 @@ class VolViewPage extends Page {
     return $$('div[data-testid~="vtk-view"] > canvas');
   }
 
-  async waitForViews() {
+  async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
     const this_ = this;
-    await browser.waitUntil(async function viewsExist() {
-      const views = await this_.views;
-      return (
-        views.length > 0 && views.every((view) => view.isDisplayedInViewport())
-      );
+    await browser.waitUntil(
+      async function viewsExist() {
+        const views = await this_.views;
+        if (views.length === 0) return false;
+        const inView = await Promise.all(
+          views.map((v) => v.isDisplayedInViewport())
+        );
+        return inView.every(Boolean);
+      },
+      {
+        timeout,
+        timeoutMsg: `expected at least 1 view to be displayed in viewport`,
+      }
+    );
+  }
+
+  get rectangleButton() {
+    return $('button span i[class~=mdi-vector-square]');
+  }
+
+  async activateRectangle() {
+    const button = await this.rectangleButton;
+    await button.click();
+  }
+
+  get twoViews() {
+    return $$('div[data-testid~="vtk-two-view"] > canvas');
+  }
+
+  get viewTwoContainer() {
+    return $('div[data-testid~="two-view-container"]');
+  }
+
+  get saveButton() {
+    return $('button span i[class~=mdi-content-save-all]');
+  }
+
+  get saveSessionFilenameInput() {
+    return $('#session-state-filename');
+  }
+
+  get saveSessionConfirmButton() {
+    return $('span[data-testid="save-session-confirm-button"]');
+  }
+
+  async saveSession() {
+    const save = await this.saveButton;
+    await save.click();
+
+    const input = await this.saveSessionFilenameInput;
+    const id = getId();
+    const fileName = `${id}-session.volview.zip`;
+
+    await setValueVueInput(input, fileName);
+
+    const confirm = await this.saveSessionConfirmButton;
+    await confirm.click();
+
+    cleanuptotal.addCleanup(async () => {
+      fs.unlinkSync(path.join(TEMP_DIR, fileName));
     });
+
+    return fileName;
+  }
+
+  get editLabelButtons() {
+    return $$('button[data-testid="edit-label-button"]');
+  }
+
+  get labelStrokeWidthInput() {
+    return $('#label-stroke-width-input');
+  }
+
+  get editLabelModalDoneButton() {
+    return $('button[data-testid="edit-label-done-button"]');
   }
 }
 
-export default new VolViewPage();
+export const volViewPage = new VolViewPage();
+
+export default volViewPage;

@@ -73,6 +73,7 @@ watchEffect(() => {
                       editDialog = true;
                     }
                   "
+                  data-testid="edit-label-button"
                 />
               </v-chip>
             </v-item>

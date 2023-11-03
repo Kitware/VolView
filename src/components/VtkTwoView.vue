@@ -28,7 +28,11 @@
         @input="setSlice"
       />
     </div>
-    <div class="vtk-container" :class="active ? 'active' : ''">
+    <div
+      class="vtk-container"
+      :class="active ? 'active' : ''"
+      data-testid="two-view-container"
+    >
       <div class="vtk-sub-container">
         <div
           class="vtk-view"
