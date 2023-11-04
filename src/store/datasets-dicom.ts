@@ -127,6 +127,8 @@ export const useDICOMStore = defineStore('dicom', {
       const allFiles = [...fileToDataSource.keys()];
 
       const volumeToFiles = await dicomIO.categorizeFiles(allFiles);
+      if (Object.keys(volumeToFiles).length === 0)
+        throw new Error('No volumes categorized from DICOM file(s)');
 
       const fileStore = useFileStore();
 
