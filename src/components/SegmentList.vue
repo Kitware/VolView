@@ -5,7 +5,6 @@ import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import {
   useLabelmapStore,
   makeDefaultSegmentName,
-  ERASER_SEGMENT,
 } from '@/src/store/datasets-labelmaps';
 import { Maybe } from '@/src/types';
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
@@ -58,10 +57,6 @@ watch(
   { immediate: true }
 );
 
-const segmentsWithEraser = computed(() => {
-  return [ERASER_SEGMENT, ...segments.value];
-});
-
 // --- editing state --- //
 
 const editingSegmentValue = ref<Maybe<number>>(null);
@@ -107,7 +102,7 @@ function deleteEditingSegment() {
 <template>
   <editable-chip-list
     v-model="selectedSegment"
-    :items="segmentsWithEraser"
+    :items="segments"
     item-key="value"
     item-title="name"
     create-label-text="New segment"
@@ -123,24 +118,22 @@ function deleteEditingSegment() {
       </div>
     </template>
     <template #item-append="{ key }">
-      <template v-if="key !== ERASER_SEGMENT.value">
-        <v-btn
-          icon="mdi-pencil"
-          size="small"
-          density="compact"
-          class="ml-auto mr-1"
-          variant="plain"
-          @click.stop="startEditing(key as number)"
-        />
-        <v-btn
-          icon="mdi-delete"
-          size="small"
-          density="compact"
-          class="ml-auto"
-          variant="plain"
-          @click.stop="deleteSegment(key as number)"
-        />
-      </template>
+      <v-btn
+        icon="mdi-pencil"
+        size="small"
+        density="compact"
+        class="ml-auto mr-1"
+        variant="plain"
+        @click.stop="startEditing(key as number)"
+      />
+      <v-btn
+        icon="mdi-delete"
+        size="small"
+        density="compact"
+        class="ml-auto"
+        variant="plain"
+        @click.stop="deleteSegment(key as number)"
+      />
     </template>
   </editable-chip-list>
 

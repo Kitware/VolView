@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { Maybe } from '@/src/types';
+import { PaintMode } from '@/src/core/tools/paint';
 import { Tools } from './types';
 import { useLabelmapStore } from '../datasets-labelmaps';
 
@@ -13,6 +14,7 @@ const DEFAULT_BRUSH_SIZE = 4;
 export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
 
+  const activeMode = ref(PaintMode.CirclePaint);
   const activeLabelmapID = ref<string | null>(null);
   const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
@@ -33,6 +35,15 @@ export const usePaintToolStore = defineStore('paint', () => {
   });
 
   // --- actions --- //
+
+  /**
+   * Sets the painting mode.
+   * @param mode
+   */
+  function setMode(this: _This, mode: PaintMode) {
+    activeMode.value = mode;
+    this.$paint.setMode(mode);
+  }
 
   /**
    * Sets the active labelmap.
@@ -202,6 +213,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   return {
     // state
+    activeMode,
     activeLabelmapID,
     activeSegment,
     brushSize,
@@ -214,6 +226,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     activateTool,
     deactivateTool,
 
+    setMode,
     setActiveLabelmap,
     setActiveLabelmapFromImage,
     setActiveSegment,

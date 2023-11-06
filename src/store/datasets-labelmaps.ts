@@ -28,11 +28,6 @@ export type LabelmapArrayType = Uint8Array;
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
 export const DEFAULT_SEGMENT_COLOR: RGBAColor = [255, 0, 0, 255];
-export const ERASER_SEGMENT: LabelMapSegment = {
-  name: 'Eraser',
-  value: 0,
-  color: [0, 0, 0, 0],
-};
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
 export const makeDefaultLabelmapName = (baseName: string, index: number) =>
   `Labelmap ${index} for ${baseName}`;

@@ -6,8 +6,16 @@ import { Maybe } from '@/src/types';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 
+export const ERASE_BRUSH_VALUE = 0;
+
+export enum PaintMode {
+  CirclePaint,
+  Erase,
+}
+
 export default class PaintTool {
   readonly factory: vtkPaintWidget;
+  private mode: PaintMode;
   private brush: IPaintBrush;
   private brushValue: Maybe<number>;
 
@@ -15,6 +23,7 @@ export default class PaintTool {
     this.factory = vtkPaintWidget.newInstance();
     this.brush = new EllipsePaintBrush();
     this.brushValue = 1;
+    this.mode = PaintMode.CirclePaint;
   }
 
   private updateWidgetStencil() {
@@ -32,6 +41,10 @@ export default class PaintTool {
   setBrushScale(scale: Vector2) {
     this.brush.setScale(scale);
     this.updateWidgetStencil();
+  }
+
+  setMode(mode: PaintMode) {
+    this.mode = mode;
   }
 
   /**
@@ -65,6 +78,8 @@ export default class PaintTool {
   ) {
     if (this.brushValue == null) return;
 
+    const brushValue =
+      this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
     const stencil = this.brush.getStencil();
 
     const start = [
@@ -132,7 +147,7 @@ export default class PaintTool {
             if (isInBounds(rounded)) {
               const offset =
                 rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
-              labelmapPixels[offset] = this.brushValue;
+              labelmapPixels[offset] = brushValue;
             }
 
             // undo adding the slice axis value
