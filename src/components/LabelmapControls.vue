@@ -91,42 +91,45 @@ function createLabelmap() {
 </script>
 
 <template>
-  <v-select
-    v-if="currentImageID"
-    v-model="selectedLabelmapID"
-    :items="currentLabelmaps"
-    item-title="name"
-    item-value="id"
-    placeholder="Select a labelmap"
-    variant="outlined"
-    density="compact"
-    class="labelmap-select"
-  >
-    <template #append>
-      <v-btn icon size="x-small" variant="flat" style="top: -4px">
-        <v-icon>mdi-dots-vertical</v-icon>
-        <v-menu activator="parent">
-          <v-list>
-            <v-list-item v-if="currentImageID" @click="createLabelmap">
-              Create a new labelmap
-            </v-list-item>
-            <v-list-item
-              v-if="selectedLabelmapID"
-              @click="startEditing(selectedLabelmapID)"
-            >
-              Edit Name
-            </v-list-item>
-            <v-list-item
-              v-if="selectedLabelmapID"
-              @click="deleteLabelmap(selectedLabelmapID)"
-            >
-              Delete
-            </v-list-item>
-          </v-list>
-        </v-menu>
-      </v-btn>
-    </template>
-  </v-select>
+  <div class="labelmap-list mb-2" v-if="currentImageID">
+    <v-btn
+      variant="tonal"
+      color="secondary"
+      class="mb-4"
+      @click.stop="createLabelmap"
+    >
+      <v-icon class="mr-1">mdi-plus</v-icon> New Labelmap
+    </v-btn>
+    <v-radio-group v-model="selectedLabelmapID">
+      <v-radio
+        v-for="labelmap in currentLabelmaps"
+        :key="labelmap.id"
+        :value="labelmap.id"
+      >
+        <template #label>
+          <div
+            class="d-flex flex-row align-center w-100"
+            :title="labelmap.name"
+          >
+            <span class="labelmap-name">{{ labelmap.name }}</span>
+            <v-spacer />
+            <v-btn
+              icon="mdi-pencil"
+              size="x-small"
+              variant="flat"
+              @click.stop="startEditing(labelmap.id)"
+            ></v-btn>
+            <v-btn
+              icon="mdi-delete"
+              size="x-small"
+              variant="flat"
+              @click.stop="deleteLabelmap(labelmap.id)"
+            ></v-btn>
+          </div>
+        </template>
+      </v-radio>
+    </v-radio-group>
+  </div>
   <div v-else class="text-center text-caption">No selected image</div>
   <segment-list v-if="selectedLabelmapID" :labelmap-id="selectedLabelmapID" />
 
@@ -150,7 +153,19 @@ function createLabelmap() {
 </template>
 
 <style>
+.labelmap-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 .labelmap-select > .v-input__append {
   margin-left: 8px;
+}
+
+.labelmap-name {
+  word-wrap: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
