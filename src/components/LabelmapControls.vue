@@ -91,7 +91,7 @@ function createLabelmap() {
 </script>
 
 <template>
-  <div class="labelmap-list mb-2" v-if="currentImageID">
+  <div class="mb-2" v-if="currentImageID">
     <v-btn
       variant="tonal"
       color="secondary"
@@ -100,7 +100,14 @@ function createLabelmap() {
     >
       <v-icon class="mr-1">mdi-plus</v-icon> New Labelmap
     </v-btn>
-    <v-radio-group v-model="selectedLabelmapID">
+    <div class="text-grey text-subtitle-2">Segment Groups</div>
+    <v-divider />
+    <v-radio-group
+      v-model="selectedLabelmapID"
+      hide-details
+      density="comfortable"
+      class="my-1 segment-group-list"
+    >
       <v-radio
         v-for="labelmap in currentLabelmaps"
         :key="labelmap.id"
@@ -129,6 +136,7 @@ function createLabelmap() {
         </template>
       </v-radio>
     </v-radio-group>
+    <v-divider />
   </div>
   <div v-else class="text-center text-caption">No selected image</div>
   <segment-list v-if="selectedLabelmapID" :labelmap-id="selectedLabelmapID" />
@@ -153,7 +161,7 @@ function createLabelmap() {
 </template>
 
 <style>
-.labelmap-list {
+.segment-group-list {
   max-height: 240px;
   overflow-y: auto;
 }
