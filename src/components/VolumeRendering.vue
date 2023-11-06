@@ -7,6 +7,7 @@ import {
   watch,
   watchEffect,
 } from 'vue';
+import { onKeyDown, onKeyUp } from '@vueuse/core';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
@@ -119,6 +120,7 @@ export default defineComponent({
           {
             mode,
             shift: pwfWidget.getOpacityPointShift(),
+            shiftAlpha: pwfWidget.getOpacityAlphaShift(),
           }
         );
       }
@@ -227,9 +229,10 @@ export default defineComponent({
           const points = getShiftedOpacityFromPreset(
             opFunc.preset,
             opFunc.mappingRange,
+            0,
             0
           );
-          pwfWidget.setOpacityPoints(points, opFunc.shift);
+          pwfWidget.setOpacityPoints(points, opFunc.shift, opFunc.shiftAlpha);
         }
       },
       { immediate: true }
@@ -278,6 +281,9 @@ export default defineComponent({
 
     const rangeShift = ref(0);
     const rangeWidth = ref(0);
+
+    onKeyDown('Control', () => pwfWidget.setCtrlKeyIsDown(true));
+    onKeyUp('Control', () => pwfWidget.setCtrlKeyIsDown(false));
 
     // reset case
     watch(
