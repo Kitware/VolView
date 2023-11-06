@@ -36,23 +36,6 @@ watch(currentLabelmaps, () => {
   }
 });
 
-function createLabelmap() {
-  if (!currentImageID.value)
-    throw new Error('Cannot create a labelmap without a base image');
-
-  const id = labelmapStore.newLabelmapFromImage(currentImageID.value);
-  if (!id) throw new Error('Could not create a new labelmap');
-
-  // copy segments from current labelmap
-  if (selectedLabelmapID.value) {
-    const metadata = labelmapStore.labelmapMetadata[selectedLabelmapID.value];
-    const copied = structuredClone(toRaw(metadata.segments));
-    labelmapStore.updateMetadata(id, { segments: copied });
-  }
-
-  selectedLabelmapID.value = id;
-}
-
 function deleteLabelmap(id: string) {
   labelmapStore.removeLabelmap(id);
 }
@@ -83,6 +66,27 @@ function stopEditing(commit: boolean) {
       name: editState.name || UNNAMED_LABELMAP_NAME,
     });
   editingLabelmapID.value = null;
+}
+
+// --- //
+
+function createLabelmap() {
+  if (!currentImageID.value)
+    throw new Error('Cannot create a labelmap without a base image');
+
+  const id = labelmapStore.newLabelmapFromImage(currentImageID.value);
+  if (!id) throw new Error('Could not create a new labelmap');
+
+  // copy segments from current labelmap
+  if (selectedLabelmapID.value) {
+    const metadata = labelmapStore.labelmapMetadata[selectedLabelmapID.value];
+    const copied = structuredClone(toRaw(metadata.segments));
+    labelmapStore.updateMetadata(id, { segments: copied });
+  }
+
+  selectedLabelmapID.value = id;
+
+  startEditing(id);
 }
 </script>
 
