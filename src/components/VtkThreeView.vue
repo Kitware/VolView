@@ -249,7 +249,7 @@ function useCvrEffect(
         (dataRange[1] - dataRange[0]) * 0.01
       );
       property.setGradientOpacityMinimumOpacity(0, 0.0);
-      property.setGradientOpacityMinimumOpacity(0, 1.0);
+      property.setGradientOpacityMaximumOpacity(0, 1.0);
 
       // do not toggle these parameters when animating
       property.setAmbient(enabled ? ambient_ : DEFAULT_AMBIENT);
