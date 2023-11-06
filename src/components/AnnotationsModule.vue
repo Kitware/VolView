@@ -56,7 +56,7 @@ watch(
 <template>
   <div class="overflow-y-auto mx-2 fill-height">
     <tool-controls />
-    <v-divider />
+    <v-divider thickness="4" />
     <v-tabs v-model="tab" align-tabs="center" density="compact" class="my-1">
       <v-tab value="measurements" class="tab-header">Measurements</v-tab>
       <v-tab value="labelmaps" class="tab-header">Labelmaps</v-tab>
