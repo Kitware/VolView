@@ -4,14 +4,11 @@ import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
-import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
-import { useErrorMessage } from '@/src/composables/useErrorMessage';
 import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
   ImageSelection,
-  makeImageSelection,
   selectionEquals,
   useDatasetStore,
 } from '../store/datasets';
@@ -33,7 +30,6 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
-    const labelmapStore = useLabelmapStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -67,8 +63,6 @@ export default defineComponent({
         const layerLoaded = loadedLayerImageIDs.includes(id);
         const layerLoading = isLayer && !layerLoaded;
         const layerable = id !== selectedImageID && primarySelection.value;
-        const showConvertToLabelmap =
-          primarySelection.value && selectedImageID !== id;
         return {
           id,
           cacheKey: imageCacheKey(id),
@@ -80,26 +74,12 @@ export default defineComponent({
           layerable,
           layerLoading,
           isLayer,
-          showConvertToLabelmap,
           layerHandler: () => {
             if (!layerLoading && layerable) {
               if (isLayer)
                 layersStore.deleteLayer(primarySelection.value, selectionKey);
               else layersStore.addLayer(primarySelection.value, selectionKey);
             }
-          },
-          convertToLabelmap: () => {
-            useErrorMessage(
-              "Image does not match current image's physical space",
-              () => {
-                if (!primarySelection.value)
-                  throw new Error('Cannot convert image without a parent');
-                return labelmapStore.convertImageToLabelmap(
-                  makeImageSelection(id),
-                  primarySelection.value
-                );
-              }
-            );
           },
         };
       });
@@ -263,12 +243,6 @@ export default defineComponent({
                       <span v-if="image.isLayer">Remove as layer</span>
                       <span v-else>Add as layer</span>
                     </template>
-                  </v-list-item>
-                  <v-list-item
-                    v-if="image.showConvertToLabelmap"
-                    @click="image.convertToLabelmap()"
-                  >
-                    Convert to Labelmap
                   </v-list-item>
                   <v-list-item @click="removeData(image.id)">
                     Delete
