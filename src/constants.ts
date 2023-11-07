@@ -45,13 +45,6 @@ export const VTKThreeViewWidgetManager: InjectionKey<
 export const ToolContainer: InjectionKey<Ref<Maybe<HTMLElement>>> =
   Symbol('ToolContainer');
 
-export const DataTypes = {
-  Image: 'Image',
-  Labelmap: 'Labelmap',
-  Dicom: 'DICOM',
-  Model: 'Model',
-};
-
 export const Messages = {
   WebGLLost: {
     title: 'Viewer Error',

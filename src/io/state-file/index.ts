@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
+import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -17,7 +17,7 @@ export const MANIFEST_VERSION = '3.0.0';
 export async function serialize() {
   const datasetStore = useDatasetStore();
   const viewStore = useViewStore();
-  const labelStore = useLabelmapStore();
+  const labelStore = useSegmentGroupStore();
   const toolStore = useToolStore();
   const layersStore = useLayersStore();
 
@@ -32,7 +32,7 @@ export async function serialize() {
         position: [0, 0, 0],
       },
       paint: {
-        activeLabelmapID: null,
+        activeSegmentGroupID: null,
         activeSegment: null,
         brushSize: 8,
         labelmapOpacity: 1,

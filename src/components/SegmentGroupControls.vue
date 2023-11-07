@@ -1,59 +1,60 @@
 <script setup lang="ts">
 import SegmentList from '@/src/components/SegmentList.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
+import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
 
-const UNNAMED_LABELMAP_NAME = 'Unnamed Labelmap';
+const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
 
-const labelmapStore = useLabelmapStore();
+const segmentGroupStore = useSegmentGroupStore();
 const { currentImageID } = useCurrentImage();
 
-const currentLabelmaps = computed(() => {
+const currentSegmentGroups = computed(() => {
   if (!currentImageID.value) return [];
-  if (!(currentImageID.value in labelmapStore.orderByParent)) return [];
-  return labelmapStore.orderByParent[currentImageID.value].map((id) => {
+  const { orderByParent, metadataByID } = segmentGroupStore;
+  if (!(currentImageID.value in orderByParent)) return [];
+  return orderByParent[currentImageID.value].map((id) => {
     return {
       id,
-      name: labelmapStore.labelmapMetadata[id].name,
+      name: metadataByID[id].name,
     };
   });
 });
 
 const paintStore = usePaintToolStore();
-const selectedLabelmapID = computed({
-  get: () => paintStore.activeLabelmapID,
+const currentSegmentGroupID = computed({
+  get: () => paintStore.activeSegmentGroupID,
   set: (id) => paintStore.setActiveLabelmap(id),
 });
 
-// clear selection if we delete the labelmaps
-watch(currentLabelmaps, () => {
-  const selection = selectedLabelmapID.value;
-  if (selection && !(selection in labelmapStore.dataIndex)) {
-    selectedLabelmapID.value = null;
+// clear selection if we delete the active segment group
+watch(currentSegmentGroups, () => {
+  const selection = currentSegmentGroupID.value;
+  if (selection && !(selection in segmentGroupStore.dataIndex)) {
+    currentSegmentGroupID.value = null;
   }
 });
 
-function deleteLabelmap(id: string) {
-  labelmapStore.removeLabelmap(id);
+function deleteGroup(id: string) {
+  segmentGroupStore.removeGroup(id);
 }
 
 // --- editing state --- //
 
-const editingLabelmapID = ref<Maybe<string>>(null);
+const editingGroupID = ref<Maybe<string>>(null);
 const editState = reactive({ name: '' });
 const editDialog = ref(false);
 
 const editingMetadata = computed(() => {
-  if (!editingLabelmapID.value) return null;
-  return labelmapStore.labelmapMetadata[editingLabelmapID.value];
+  if (!editingGroupID.value) return null;
+  return segmentGroupStore.metadataByID[editingGroupID.value];
 });
 
 const existingNames = computed(() => {
   return new Set(
-    Object.values(labelmapStore.labelmapMetadata).map((meta) => meta.name)
+    Object.values(segmentGroupStore.metadataByID).map((meta) => meta.name)
   );
 });
 
@@ -71,7 +72,7 @@ function uniqueNameRule(name: string) {
 
 function startEditing(id: string) {
   editDialog.value = true;
-  editingLabelmapID.value = id;
+  editingGroupID.value = id;
   if (editingMetadata.value) {
     editState.name = editingMetadata.value.name;
   }
@@ -81,30 +82,31 @@ function stopEditing(commit: boolean) {
   if (editingNameConflict.value) return;
 
   editDialog.value = false;
-  if (editingLabelmapID.value && commit)
-    labelmapStore.updateMetadata(editingLabelmapID.value, {
-      name: editState.name || UNNAMED_LABELMAP_NAME,
+  if (editingGroupID.value && commit)
+    segmentGroupStore.updateMetadata(editingGroupID.value, {
+      name: editState.name || UNNAMED_GROUP_NAME,
     });
-  editingLabelmapID.value = null;
+  editingGroupID.value = null;
 }
 
 // --- //
 
-function createLabelmap() {
+function createSegmentGroup() {
   if (!currentImageID.value)
     throw new Error('Cannot create a labelmap without a base image');
 
-  const id = labelmapStore.newLabelmapFromImage(currentImageID.value);
+  const id = segmentGroupStore.newLabelmapFromImage(currentImageID.value);
   if (!id) throw new Error('Could not create a new labelmap');
 
   // copy segments from current labelmap
-  if (selectedLabelmapID.value) {
-    const metadata = labelmapStore.labelmapMetadata[selectedLabelmapID.value];
+  if (currentSegmentGroupID.value) {
+    const metadata =
+      segmentGroupStore.metadataByID[currentSegmentGroupID.value];
     const copied = structuredClone(toRaw(metadata.segments));
-    labelmapStore.updateMetadata(id, { segments: copied });
+    segmentGroupStore.updateMetadata(id, { segments: copied });
   }
 
-  selectedLabelmapID.value = id;
+  currentSegmentGroupID.value = id;
 
   startEditing(id);
 }
@@ -116,41 +118,38 @@ function createLabelmap() {
       variant="tonal"
       color="secondary"
       class="mb-4"
-      @click.stop="createLabelmap"
+      @click.stop="createSegmentGroup"
     >
-      <v-icon class="mr-1">mdi-plus</v-icon> New Labelmap
+      <v-icon class="mr-1">mdi-plus</v-icon> New Segment Group
     </v-btn>
     <div class="text-grey text-subtitle-2">Segment Groups</div>
     <v-divider />
     <v-radio-group
-      v-model="selectedLabelmapID"
+      v-model="currentSegmentGroupID"
       hide-details
       density="comfortable"
       class="my-1 segment-group-list"
     >
       <v-radio
-        v-for="labelmap in currentLabelmaps"
-        :key="labelmap.id"
-        :value="labelmap.id"
+        v-for="group in currentSegmentGroups"
+        :key="group.id"
+        :value="group.id"
       >
         <template #label>
-          <div
-            class="d-flex flex-row align-center w-100"
-            :title="labelmap.name"
-          >
-            <span class="labelmap-name">{{ labelmap.name }}</span>
+          <div class="d-flex flex-row align-center w-100" :title="group.name">
+            <span class="group-name">{{ group.name }}</span>
             <v-spacer />
             <v-btn
               icon="mdi-pencil"
               size="x-small"
               variant="flat"
-              @click.stop="startEditing(labelmap.id)"
+              @click.stop="startEditing(group.id)"
             ></v-btn>
             <v-btn
               icon="mdi-delete"
               size="x-small"
               variant="flat"
-              @click.stop="deleteLabelmap(labelmap.id)"
+              @click.stop="deleteGroup(group.id)"
             ></v-btn>
           </div>
         </template>
@@ -159,14 +158,17 @@ function createLabelmap() {
     <v-divider />
   </div>
   <div v-else class="text-center text-caption">No selected image</div>
-  <segment-list v-if="selectedLabelmapID" :labelmap-id="selectedLabelmapID" />
+  <segment-list
+    v-if="currentSegmentGroupID"
+    :group-id="currentSegmentGroupID"
+  />
 
   <v-dialog v-model="editDialog" max-width="400px">
     <v-card>
       <v-card-text>
         <v-text-field
           v-model="editState.name"
-          :placeholder="UNNAMED_LABELMAP_NAME"
+          :placeholder="UNNAMED_GROUP_NAME"
           :rules="[uniqueNameRule]"
           @keydown.stop.enter="stopEditing(true)"
         />
@@ -188,11 +190,7 @@ function createLabelmap() {
   overflow-y: auto;
 }
 
-.labelmap-select > .v-input__append {
-  margin-left: 8px;
-}
-
-.labelmap-name {
+.group-name {
   word-wrap: none;
   white-space: nowrap;
   overflow: hidden;

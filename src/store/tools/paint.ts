@@ -7,7 +7,7 @@ import { defineStore } from 'pinia';
 import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
 import { Tools } from './types';
-import { useLabelmapStore } from '../datasets-labelmaps';
+import { useSegmentGroupStore } from '../segmentGroups';
 
 const DEFAULT_BRUSH_SIZE = 4;
 
@@ -15,7 +15,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
 
   const activeMode = ref(PaintMode.CirclePaint);
-  const activeLabelmapID = ref<string | null>(null);
+  const activeSegmentGroupID = ref<string | null>(null);
   const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
   const strokePoints = ref<vec3[]>([]);
@@ -29,9 +29,9 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   const activeLabelmap = computed(() => {
-    if (!activeLabelmapID.value) return null;
-    const labelmapStore = useLabelmapStore();
-    return labelmapStore.dataIndex[activeLabelmapID.value] ?? null;
+    if (!activeSegmentGroupID.value) return null;
+    const segmentGroupStore = useSegmentGroupStore();
+    return segmentGroupStore.dataIndex[activeSegmentGroupID.value] ?? null;
   });
 
   // --- actions --- //
@@ -48,8 +48,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   /**
    * Sets the active labelmap.
    */
-  function setActiveLabelmap(labelmapID: string | null) {
-    activeLabelmapID.value = labelmapID;
+  function setActiveLabelmap(segmentGroupID: string | null) {
+    activeSegmentGroupID.value = segmentGroupID;
   }
 
   /**
@@ -63,12 +63,13 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
-    const labelmapStore = useLabelmapStore();
-    const labelmaps = labelmapStore.orderByParent[imageID];
+    const segmentGroupStore = useSegmentGroupStore();
+    const labelmaps = segmentGroupStore.orderByParent[imageID];
     if (labelmaps?.length) {
-      activeLabelmapID.value = labelmaps[0];
+      activeSegmentGroupID.value = labelmaps[0];
     } else {
-      activeLabelmapID.value = labelmapStore.newLabelmapFromImage(imageID);
+      activeSegmentGroupID.value =
+        segmentGroupStore.newLabelmapFromImage(imageID);
     }
   }
 
@@ -80,12 +81,12 @@ export const usePaintToolStore = defineStore('paint', () => {
    */
   function setActiveSegment(this: _This, segValue: Maybe<number>) {
     if (segValue) {
-      if (!activeLabelmapID.value)
+      if (!activeSegmentGroupID.value)
         throw new Error('Cannot set active segment without a labelmap');
 
-      const labelmapStore = useLabelmapStore();
+      const segmentGroupStore = useSegmentGroupStore();
       const { segments } =
-        labelmapStore.labelmapMetadata[activeLabelmapID.value];
+        segmentGroupStore.metadataByID[activeSegmentGroupID.value];
 
       if (!(segValue in segments.byValue))
         throw new Error('Segment is not available for the active labelmap');
@@ -170,14 +171,14 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function deactivateTool() {
-    activeLabelmapID.value = null;
+    activeSegmentGroupID.value = null;
     isActive.value = false;
   }
 
   function serialize(state: StateFile) {
     const { paint } = state.manifest.tools;
 
-    paint.activeLabelmapID = activeLabelmapID.value;
+    paint.activeSegmentGroupID = activeSegmentGroupID.value;
     paint.brushSize = brushSize.value;
     paint.activeSegment = activeSegment.value;
     paint.labelmapOpacity = labelmapOpacity.value;
@@ -186,7 +187,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   function deserialize(
     this: _This,
     manifest: Manifest,
-    labelmapIDMap: Record<string, string>
+    segmentGroupIDMap: Record<string, string>
   ) {
     const { paint } = manifest.tools;
     setBrushSize.call(this, paint.brushSize);
@@ -194,8 +195,9 @@ export const usePaintToolStore = defineStore('paint', () => {
     setLabelmapOpacity.call(this, paint.labelmapOpacity);
     isActive.value = manifest.tools.current === Tools.Paint;
 
-    if (paint.activeLabelmapID !== null) {
-      activeLabelmapID.value = labelmapIDMap[paint.activeLabelmapID];
+    if (paint.activeSegmentGroupID !== null) {
+      activeSegmentGroupID.value =
+        segmentGroupIDMap[paint.activeSegmentGroupID];
     }
   }
 
@@ -214,7 +216,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   return {
     // state
     activeMode,
-    activeLabelmapID,
+    activeSegmentGroupID,
     activeSegment,
     brushSize,
     strokePoints,
