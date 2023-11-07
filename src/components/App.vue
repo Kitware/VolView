@@ -111,6 +111,7 @@
                 :content="messageCount"
                 :color="messageBadgeColor"
                 :model-value="messageCount > 0"
+                id="notifications"
               >
                 <tool-button
                   size="40"

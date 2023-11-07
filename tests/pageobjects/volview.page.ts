@@ -64,6 +64,24 @@ class VolViewPage extends Page {
     );
   }
 
+  get notifications() {
+    return $('#notifications');
+  }
+
+  async waitForNotification() {
+    const this_ = this;
+    await browser.waitUntil(
+      async () => {
+        const badge = await this_.notifications.$('span[aria-label="Badge"]');
+        const notificationCount = parseInt(await badge.getHTML(), 10);
+        return notificationCount >= 1;
+      },
+      {
+        timeoutMsg: `expected notification badge to display`,
+      }
+    );
+  }
+
   get rectangleButton() {
     return $('button span i[class~=mdi-vector-square]');
   }
