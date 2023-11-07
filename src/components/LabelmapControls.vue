@@ -51,6 +51,24 @@ const editingMetadata = computed(() => {
   return labelmapStore.labelmapMetadata[editingLabelmapID.value];
 });
 
+const existingNames = computed(() => {
+  return new Set(
+    Object.values(labelmapStore.labelmapMetadata).map((meta) => meta.name)
+  );
+});
+
+function isUniqueEditingName(name: string) {
+  return !existingNames.value.has(name) || name === editingMetadata.value?.name;
+}
+
+const editingNameConflict = computed(() => {
+  return !isUniqueEditingName(editState.name);
+});
+
+function uniqueNameRule(name: string) {
+  return isUniqueEditingName(name) || 'Name is not unique';
+}
+
 function startEditing(id: string) {
   editDialog.value = true;
   editingLabelmapID.value = id;
@@ -60,6 +78,8 @@ function startEditing(id: string) {
 }
 
 function stopEditing(commit: boolean) {
+  if (editingNameConflict.value) return;
+
   editDialog.value = false;
   if (editingLabelmapID.value && commit)
     labelmapStore.updateMetadata(editingLabelmapID.value, {
@@ -147,14 +167,16 @@ function createLabelmap() {
         <v-text-field
           v-model="editState.name"
           :placeholder="UNNAMED_LABELMAP_NAME"
-          hide-details
+          :rules="[uniqueNameRule]"
           @keydown.stop.enter="stopEditing(true)"
         />
       </v-card-text>
       <v-card-actions>
         <v-spacer />
         <v-btn color="error" @click="stopEditing(false)">Cancel</v-btn>
-        <v-btn @click="stopEditing(true)">Done</v-btn>
+        <v-btn :disabled="editingNameConflict" @click="stopEditing(true)">
+          Done
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
