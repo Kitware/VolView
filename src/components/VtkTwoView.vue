@@ -824,7 +824,7 @@ export default defineComponent({
                     opFunc.preset,
                     opFunc.mappingRange,
                     opFunc.shift,
-                    opFunc.shiftAlpha,
+                    opFunc.shiftAlpha
                   );
                   if (opacityPoints) {
                     pwf.setPoints(opacityPoints);

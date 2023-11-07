@@ -52,7 +52,11 @@ export function samplePiecewiseLinear(
       } else if (slope === -Infinity) {
         sampledPoints.push(0);
       } else {
-        sampledPoints.push(slope * (sx - p1[0]) + (p1[1] - shiftAlpha));
+        // Non-zero values should be affected by shift
+        // but original values of zero should not
+        let value = slope * (sx - p1[0]) + p1[1];
+        value = value && value - shiftAlpha;
+        sampledPoints.push(value);
       }
     }
   }

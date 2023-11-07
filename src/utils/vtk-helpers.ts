@@ -129,7 +129,13 @@ export function getShiftedOpacityFromPreset(
 
     const [xmin, xmax] = effectiveRange;
     const width = xmax - xmin;
-    return points.map(([x, y]) => [(x - xmin) / width + shift, y - shiftAlpha]);
+    return points.map(([x, y]) => {
+      // Non-zero values should be affected by shift
+      // but preset values of zero should not
+      const shifted = y && y - shiftAlpha;
+      const yVal = Math.max(Math.min(shifted, 1), 0);
+      return [(x - xmin) / width + shift, yVal];
+    });
   }
   return null;
 }
