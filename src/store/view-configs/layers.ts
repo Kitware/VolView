@@ -14,29 +14,30 @@ import {
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
+import { LAYER_PRESET_BY_MODALITY, LAYER_PRESET_DEFAULT } from '@/src/config';
 import { createViewConfigSerializer } from './common';
-import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
 import { ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
 import { LayerID, useLayersStore } from '../datasets-layers';
 import { useDICOMStore } from '../datasets-dicom';
 
-export const MODALITY_TO_PRESET: Record<string, string> = {
-  PT: '2hot',
-};
-
 function getPreset(id: LayerID) {
   const layersStore = useLayersStore();
   const layer = layersStore.getLayer(id);
-  if (layer) {
-    if (layer.selection.type === 'dicom') {
-      const dicomStore = useDICOMStore();
-      const { Modality = undefined } =
-        dicomStore.volumeInfo[layer.selection.volumeKey];
-      return (Modality && MODALITY_TO_PRESET[Modality]) || DEFAULT_PRESET;
-    }
+  if (!layer) {
+    throw new Error(`Layer ${id} not found`);
   }
-  return DEFAULT_PRESET;
+
+  if (layer.selection.type === 'dicom') {
+    const dicomStore = useDICOMStore();
+    const { Modality = undefined } =
+      dicomStore.volumeInfo[layer.selection.volumeKey];
+    return (
+      (Modality && LAYER_PRESET_BY_MODALITY[Modality]) || LAYER_PRESET_DEFAULT
+    );
+  }
+
+  return LAYER_PRESET_DEFAULT;
 }
 
 export const defaultLayersConfig = (): LayersConfig => ({

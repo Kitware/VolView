@@ -245,6 +245,7 @@ import {
   WL_HIST_BINS,
 } from '../constants';
 import { useProxyManager } from '../composables/proxyManager';
+import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
@@ -815,7 +816,28 @@ export default defineComponent({
               const pwf = proxyManager.getPiecewiseFunction(arrayName);
               pwf.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
               pwf.setDataRange(...opFunc.mappingRange);
-              pwf.setPoints([[0, 1]]); // only slice mesh controls opacity
+
+              switch (opFunc.mode) {
+                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
+                  pwf.setGaussians(opFunc.gaussians);
+                  break;
+                case vtkPiecewiseFunctionProxy.Mode.Points: {
+                  const opacityPoints = getShiftedOpacityFromPreset(
+                    opFunc.preset,
+                    opFunc.mappingRange,
+                    opFunc.shift
+                  );
+                  if (opacityPoints) {
+                    pwf.setPoints(opacityPoints);
+                  }
+                  break;
+                }
+                case vtkPiecewiseFunctionProxy.Mode.Nodes:
+                  pwf.setNodes(opFunc.nodes);
+                  break;
+                default:
+              }
+
               rep.setOpacity(blendConfig.opacity);
 
               // control color range manually
