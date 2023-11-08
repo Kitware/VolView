@@ -12,6 +12,10 @@ const handleConfig: ImportHandler = async (dataSource, { done }) => {
   if (fileSrc?.fileType === 'application/json') {
     try {
       const manifest = await readConfigFile(fileSrc.file);
+      // Don't consume JSON if it has no known key
+      if (Object.keys(manifest).length === 0) {
+        return dataSource;
+      }
       return done({ dataSource, config: manifest });
     } catch (err) {
       throw new Error('Failed to parse config file', {

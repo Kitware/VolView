@@ -73,7 +73,8 @@ class VolViewPage extends Page {
     await browser.waitUntil(
       async () => {
         const badge = await this_.notifications.$('span[aria-label="Badge"]');
-        const notificationCount = parseInt(await badge.getHTML(), 10);
+        const innerText = await badge.getText();
+        const notificationCount = parseInt(innerText, 10);
         return notificationCount >= 1;
       },
       {
