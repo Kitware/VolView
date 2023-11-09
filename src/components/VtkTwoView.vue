@@ -223,7 +223,7 @@ import PolygonTool from './tools/polygon/PolygonTool.vue';
 import PaintTool from './tools/paint/PaintTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
-import { useLabelmapStore } from '../store/datasets-labelmaps';
+import { useSegmentGroupStore } from '../store/segmentGroups';
 import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import useWindowingStore from '../store/view-configs/windowing';
@@ -572,10 +572,10 @@ export default defineComponent({
 
     // --- scene setup --- //
 
-    const labelmapStore = useLabelmapStore();
+    const segmentGroupStore = useSegmentGroupStore();
 
-    const labelmapIDs = computed(() =>
-      curImageID.value ? labelmapStore.orderByParent[curImageID.value] : []
+    const segmentGroupIDs = computed(() =>
+      curImageID.value ? segmentGroupStore.orderByParent[curImageID.value] : []
     );
 
     const layerIDs = computed(() => currentLayers.value.map(({ id }) => id));
@@ -586,7 +586,7 @@ export default defineComponent({
       vtkIJKSliceRepresentationProxy
     >(viewID, {
       baseImage: curImageID,
-      labelmaps: labelmapIDs,
+      labelmaps: segmentGroupIDs,
       layers: layerIDs,
     });
 

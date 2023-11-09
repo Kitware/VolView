@@ -26,7 +26,7 @@ import {
   makeImageSelection,
   useDatasetStore,
 } from '@/src/store/datasets';
-import { useLabelmapStore } from '@/src/store/datasets-labelmaps';
+import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
@@ -266,14 +266,14 @@ const restoreStateFile: ImportHandler = async (
     useViewStore().deserialize(manifest.views, stateIDToStoreID);
 
     // Restore the labelmaps
-    const labelmapIDMap = await useLabelmapStore().deserialize(
+    const segmentGroupIDMap = await useSegmentGroupStore().deserialize(
       manifest,
       restOfStateFile,
       stateIDToStoreID
     );
 
     // Restore the tools
-    useToolStore().deserialize(manifest, labelmapIDMap, stateIDToStoreID);
+    useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 

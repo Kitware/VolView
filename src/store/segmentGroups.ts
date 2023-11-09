@@ -8,11 +8,15 @@ import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
 import { compareImageSpaces } from '@/src/utils/imageSpace';
-import { LabelMapSegment } from '@/src/types/labelmap';
-import { DEFAULT_LABELMAP_SEGMENTS } from '@/src/config';
+import { SegmentMask } from '@/src/types/segment';
+import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { RGBAColor } from '@kitware/vtk.js/types';
 import vtkLabelMap from '../vtk/LabelMap';
-import { StateFile, Manifest, LabelMapMetadata } from '../io/state-file/schema';
+import {
+  StateFile,
+  Manifest,
+  SegmentGroupMetadata,
+} from '../io/state-file/schema';
 import { vtiReader, vtiWriter } from '../io/vtk/async';
 import { FileEntry } from '../io/types';
 import {
@@ -29,15 +33,15 @@ export type LabelmapArrayType = Uint8Array;
 export const LABELMAP_BACKGROUND_VALUE = 0;
 export const DEFAULT_SEGMENT_COLOR: RGBAColor = [255, 0, 0, 255];
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
-export const makeDefaultLabelmapName = (baseName: string, index: number) =>
-  `Labelmap ${index} for ${baseName}`;
+export const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
+  `Segment Group ${index} for ${baseName}`;
 
-export interface LabelMapMetadata {
+export interface SegmentGroupMetadata {
   name: string;
   parentImage: string;
   segments: {
     order: number[];
-    byValue: Record<number, LabelMapSegment>;
+    byValue: Record<number, SegmentMask>;
   };
 }
 
@@ -75,34 +79,34 @@ export function toLabelMap(imageData: vtkImageData) {
   return labelmap;
 }
 
-export const useLabelmapStore = defineStore('labelmap', () => {
-  type _This = ReturnType<typeof useLabelmapStore>;
+export const useSegmentGroupStore = defineStore('segmentGroup', () => {
+  type _This = ReturnType<typeof useSegmentGroupStore>;
 
   const dataIndex = reactive<Record<string, vtkLabelMap>>(Object.create(null));
-  const labelmapMetadata = reactive<Record<string, LabelMapMetadata>>(
+  const metadataByID = reactive<Record<string, SegmentGroupMetadata>>(
     Object.create(null)
   );
   const orderByParent = ref<Record<string, string[]>>(Object.create(null));
 
   /**
    * Gets the metadata for a labelmap.
-   * @param labelmapID
+   * @param segmentGroupID
    * @param segmentValue
    */
-  function getMetadata(labelmapID: string) {
-    if (!(labelmapID in labelmapMetadata))
+  function getMetadata(segmentGroupID: string) {
+    if (!(segmentGroupID in metadataByID))
       throw new Error('No such labelmap ID');
-    return labelmapMetadata[labelmapID];
+    return metadataByID[segmentGroupID];
   }
 
   /**
    * Gets a segment.
-   * @param labelmapID
+   * @param segmentGroupID
    * @param segmentValue
    * @returns
    */
-  function getSegment(labelmapID: string, segmentValue: number) {
-    const metadata = getMetadata(labelmapID);
+  function getSegment(segmentGroupID: string, segmentValue: number) {
+    const metadata = getMetadata(segmentGroupID);
     if (!(segmentValue in metadata.segments.byValue))
       throw new Error('No such segment');
     return metadata.segments.byValue[segmentValue];
@@ -112,15 +116,15 @@ export const useLabelmapStore = defineStore('labelmap', () => {
    * Validates that a segment does not violate constraints.
    *
    * Assumes that the given segment is not yet part of the labelmap segments.
-   * @param labelmapID
+   * @param segmentGroupID
    * @param segment
    */
-  function validateSegment(labelmapID: string, segment: LabelMapSegment) {
+  function validateSegment(segmentGroupID: string, segment: SegmentMask) {
     return (
       // cannot be zero (background)
       segment.value !== 0 &&
       // cannot already exist
-      !(segment.value in getMetadata(labelmapID).segments.byValue)
+      !(segment.value in getMetadata(segmentGroupID).segments.byValue)
     );
   }
 
@@ -130,12 +134,12 @@ export const useLabelmapStore = defineStore('labelmap', () => {
   function addLabelmap(
     this: _This,
     labelmap: vtkLabelMap,
-    metadata: LabelMapMetadata
+    metadata: SegmentGroupMetadata
   ) {
     const id = useIdStore().nextId();
 
     dataIndex[id] = labelmap;
-    labelmapMetadata[id] = metadata;
+    metadataByID[id] = metadata;
     orderByParent.value[metadata.parentImage] ??= [];
     orderByParent.value[metadata.parentImage].push(id);
 
@@ -168,19 +172,19 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     const labelmap = createLabelmapFromImage(imageData);
 
     const { order, byKey } = normalizeForStore(
-      structuredClone(DEFAULT_LABELMAP_SEGMENTS),
+      structuredClone(DEFAULT_SEGMENT_MASKS),
       'value'
     );
 
     // pick a unique name
     let name = '';
     const existingNames = new Set(
-      Object.values(labelmapMetadata).map((meta) => meta.name)
+      Object.values(metadataByID).map((meta) => meta.name)
     );
     do {
       const nameIndex = nextDefaultIndex[parentID] ?? 1;
       nextDefaultIndex[parentID] = nameIndex + 1;
-      name = makeDefaultLabelmapName(baseName, nameIndex);
+      name = makeDefaultSegmentGroupName(baseName, nameIndex);
     } while (existingNames.has(name));
 
     return addLabelmap.call(this, labelmap, {
@@ -193,12 +197,12 @@ export const useLabelmapStore = defineStore('labelmap', () => {
   /**
    * Deletes a labelmap.
    */
-  function removeLabelmap(id: string) {
+  function removeGroup(id: string) {
     if (!(id in dataIndex)) return;
-    const { parentImage } = labelmapMetadata[id];
+    const { parentImage } = metadataByID[id];
     removeFromArray(orderByParent.value[parentImage], id);
     delete dataIndex[id];
-    delete labelmapMetadata[id];
+    delete metadataByID[id];
   }
 
   /**
@@ -223,13 +227,13 @@ export const useLabelmapStore = defineStore('labelmap', () => {
     if (!compareImageSpaces(childImage, parentImage))
       throw new Error('Image does not match parent image space');
 
-    const labelmapStore = useLabelmapStore();
+    const segmentGroupStore = useSegmentGroupStore();
     const labelmapImage = toLabelMap(childImage);
     const { order, byKey } = normalizeForStore(
-      structuredClone(DEFAULT_LABELMAP_SEGMENTS),
+      structuredClone(DEFAULT_SEGMENT_MASKS),
       'value'
     );
-    labelmapStore.addLabelmap(labelmapImage, {
+    segmentGroupStore.addLabelmap(labelmapImage, {
       name: imageStore.metadata[imageID].name,
       parentImage: parentID,
       segments: { order, byValue: byKey },
@@ -240,15 +244,15 @@ export const useLabelmapStore = defineStore('labelmap', () => {
 
   /**
    * Updates a labelmap's metadata
-   * @param labelmapID
+   * @param segmentGroupID
    * @param metadata
    */
   function updateMetadata(
-    labelmapID: string,
-    metadata: Partial<LabelMapMetadata>
+    segmentGroupID: string,
+    metadata: Partial<SegmentGroupMetadata>
   ) {
-    labelmapMetadata[labelmapID] = {
-      ...getMetadata(labelmapID),
+    metadataByID[segmentGroupID] = {
+      ...getMetadata(segmentGroupID),
       ...metadata,
     };
   }
@@ -257,10 +261,10 @@ export const useLabelmapStore = defineStore('labelmap', () => {
    * Creates a new default segment with an unallocated value.
    *
    * The value picked is the smallest unused value greater than 0.
-   * @param labelmapID
+   * @param segmentGroupID
    */
-  function createNewSegment(labelmapID: string): LabelMapSegment {
-    const { segments } = getMetadata(labelmapID);
+  function createNewSegment(segmentGroupID: string): SegmentMask {
+    const { segments } = getMetadata(segmentGroupID);
 
     let value = 1;
     for (; value <= segments.order.length; value++) {
@@ -279,13 +283,14 @@ export const useLabelmapStore = defineStore('labelmap', () => {
    *
    * If no segment is provided, a default one is provided.
    * Duplicate segment values throw an error.
-   * @param labelmapID
+   * @param segmentGroupID
    * @param segment
    */
-  function addSegment(labelmapID: string, segment?: LabelMapSegment) {
-    const metadata = getMetadata(labelmapID);
-    const seg = segment ?? createNewSegment(labelmapID);
-    if (!validateSegment(labelmapID, seg)) throw new Error('Invalid segment');
+  function addSegment(segmentGroupID: string, segment?: SegmentMask) {
+    const metadata = getMetadata(segmentGroupID);
+    const seg = segment ?? createNewSegment(segmentGroupID);
+    if (!validateSegment(segmentGroupID, seg))
+      throw new Error('Invalid segment');
     metadata.segments.byValue[seg.value] = seg;
     metadata.segments.order.push(seg.value);
   }
@@ -294,17 +299,17 @@ export const useLabelmapStore = defineStore('labelmap', () => {
    * Updates a segment's properties.
    *
    * Does not allow updating the segment value.
-   * @param labelmapID
+   * @param segmentGroupID
    * @param segmentValue
    * @param segmentUpdate
    */
   function updateSegment(
-    labelmapID: string,
+    segmentGroupID: string,
     segmentValue: number,
-    segmentUpdate: Partial<Omit<LabelMapSegment, 'value'>>
+    segmentUpdate: Partial<Omit<SegmentMask, 'value'>>
   ) {
-    const metadata = getMetadata(labelmapID);
-    const segment = getSegment(labelmapID, segmentValue);
+    const metadata = getMetadata(segmentGroupID);
+    const segment = getSegment(segmentGroupID, segmentValue);
     metadata.segments.byValue[segmentValue] = {
       ...segment,
       ...segmentUpdate,
@@ -313,15 +318,15 @@ export const useLabelmapStore = defineStore('labelmap', () => {
 
   /**
    * Deletes a segment from a labelmap.
-   * @param labelmapID
+   * @param segmentGroupID
    * @param segmentValue
    */
-  function deleteSegment(labelmapID: string, segmentValue: number) {
-    const { segments } = getMetadata(labelmapID);
+  function deleteSegment(segmentGroupID: string, segmentValue: number) {
+    const { segments } = getMetadata(segmentGroupID);
     removeFromArray(segments.order, segmentValue);
     delete segments.byValue[segmentValue];
 
-    dataIndex[labelmapID].replaceLabelValue(
+    dataIndex[segmentGroupID].replaceLabelValue(
       segmentValue,
       LABELMAP_BACKGROUND_VALUE
     );
@@ -338,9 +343,9 @@ export const useLabelmapStore = defineStore('labelmap', () => {
 
     const parents = Object.keys(orderByParent.value);
     const serialized = parents.flatMap((parentID) => {
-      const labelmapIDs = orderByParent.value[parentID];
-      return labelmapIDs.map((id) => {
-        const metadata = labelmapMetadata[id];
+      const segmentGroupIDs = orderByParent.value[parentID];
+      return segmentGroupIDs.map((id) => {
+        const metadata = metadataByID[id];
         return {
           id,
           path: `labels/${id}.vti`,
@@ -374,7 +379,7 @@ export const useLabelmapStore = defineStore('labelmap', () => {
   ) {
     const { labelMaps } = manifest;
 
-    const labelmapIDMap: Record<string, string> = {};
+    const segmentGroupIDMap: Record<string, string> = {};
 
     // First restore the data, then restore the store.
     // This preserves ordering from orderByParent.
@@ -406,32 +411,33 @@ export const useLabelmapStore = defineStore('labelmap', () => {
       metadata.parentImage = parentImage;
 
       const newID = newLabelmapIDs[index];
-      labelmapIDMap[labelMap.id] = newID;
+      segmentGroupIDMap[labelMap.id] = newID;
 
-      labelmapMetadata[newID] = metadata;
+      metadataByID[newID] = metadata;
       orderByParent.value[parentImage] ??= [];
       orderByParent.value[parentImage].push(newID);
     });
 
-    return labelmapIDMap;
+    return segmentGroupIDMap;
   }
 
   // --- sync segments --- //
 
-  const segmentsByLabelmapID = computed(() => {
-    return Object.entries(labelmapMetadata).reduce<
-      Record<string, LabelMapSegment[]>
-    >((acc, [id, metadata]) => {
-      const {
-        segments: { order, byValue },
-      } = metadata;
-      const segments = order.map((value) => byValue[value]);
-      return { ...acc, [id]: segments };
-    }, {});
+  const segmentByGroupID = computed(() => {
+    return Object.entries(metadataByID).reduce<Record<string, SegmentMask[]>>(
+      (acc, [id, metadata]) => {
+        const {
+          segments: { order, byValue },
+        } = metadata;
+        const segments = order.map((value) => byValue[value]);
+        return { ...acc, [id]: segments };
+      },
+      {}
+    );
   });
 
   watch(
-    segmentsByLabelmapID,
+    segmentByGroupID,
     (segsByID) => {
       Object.entries(segsByID).forEach(([id, segments]) => {
         // ensure segments are not proxies
@@ -445,8 +451,8 @@ export const useLabelmapStore = defineStore('labelmap', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentID) => {
-      orderByParent.value[parentID].forEach((labelmapID) => {
-        removeLabelmap(labelmapID);
+      orderByParent.value[parentID].forEach((segmentGroupID) => {
+        removeGroup(segmentGroupID);
       });
     });
   });
@@ -455,12 +461,12 @@ export const useLabelmapStore = defineStore('labelmap', () => {
 
   return {
     dataIndex,
-    labelmapMetadata,
+    metadataByID,
     orderByParent,
-    segmentsByLabelmapID,
+    segmentByGroupID,
     addLabelmap,
     newLabelmapFromImage,
-    removeLabelmap,
+    removeGroup,
     convertImageToLabelmap,
     updateMetadata,
     addSegment,

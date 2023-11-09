@@ -3,33 +3,33 @@ import EditableChipList from '@/src/components/EditableChipList.vue';
 import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import {
-  useLabelmapStore,
+  useSegmentGroupStore,
   makeDefaultSegmentName,
-} from '@/src/store/datasets-labelmaps';
+} from '@/src/store/segmentGroups';
 import { Maybe } from '@/src/types';
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 import { reactive, ref, toRefs, computed, watch } from 'vue';
-import { LabelMapSegment } from '@/src/types/labelmap';
+import { SegmentMask } from '@/src/types/segment';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 
 const props = defineProps({
-  labelmapId: {
+  groupId: {
     required: true,
     type: String,
   },
 });
 
-const { labelmapId } = toRefs(props);
+const { groupId } = toRefs(props);
 
-const labelmapStore = useLabelmapStore();
+const segmentGroupStore = useSegmentGroupStore();
 const paintStore = usePaintToolStore();
 
-const segments = computed<LabelMapSegment[]>(() => {
-  return labelmapStore.segmentsByLabelmapID[labelmapId.value] ?? [];
+const segments = computed<SegmentMask[]>(() => {
+  return segmentGroupStore.segmentByGroupID[groupId.value] ?? [];
 });
 
 function addNewSegment() {
-  labelmapStore.addSegment(labelmapId.value);
+  segmentGroupStore.addSegment(groupId.value);
 }
 
 // --- selection --- //
@@ -68,7 +68,7 @@ const editDialog = ref(false);
 
 const editingSegment = computed(() => {
   if (editingSegmentValue.value == null) return null;
-  return labelmapStore.getSegment(labelmapId.value, editingSegmentValue.value);
+  return segmentGroupStore.getSegment(groupId.value, editingSegmentValue.value);
 });
 
 function startEditing(value: number) {
@@ -81,7 +81,7 @@ function startEditing(value: number) {
 
 function stopEditing(commit: boolean) {
   if (editingSegmentValue.value && commit)
-    labelmapStore.updateSegment(labelmapId.value, editingSegmentValue.value, {
+    segmentGroupStore.updateSegment(groupId.value, editingSegmentValue.value, {
       name: editState.name ?? makeDefaultSegmentName(editingSegmentValue.value),
       color: hexaToRGBA(editState.color),
     });
@@ -90,7 +90,7 @@ function stopEditing(commit: boolean) {
 }
 
 function deleteSegment(value: number) {
-  labelmapStore.deleteSegment(labelmapId.value, value);
+  segmentGroupStore.deleteSegment(groupId.value, value);
 }
 
 function deleteEditingSegment() {

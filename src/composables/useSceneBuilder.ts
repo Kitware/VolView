@@ -35,8 +35,8 @@ export function useSceneBuilder<
   });
 
   const labelmapReps = computed(() => {
-    const labelmapIDs = sceneIDs.labelmaps?.value ?? [];
-    return labelmapIDs
+    const ids = sceneIDs.labelmaps?.value ?? [];
+    return ids
       .map((id) =>
         viewStore.getDataRepresentationForView<LabelMapType>(id, viewID.value)
       )
