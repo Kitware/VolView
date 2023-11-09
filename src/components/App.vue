@@ -130,6 +130,7 @@
               <layout-grid v-show="hasData" :layout="currentLayout" />
               <welcome-page
                 v-if="!hasData"
+                :loading="isLoadingData"
                 class="clickable"
                 @click="userPromptFiles"
               >
@@ -228,6 +229,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import WelcomePage from '@/src/components/WelcomePage.vue';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -346,6 +348,7 @@ export default defineComponent({
 
   setup() {
     const imageStore = useImageStore();
+    const dicomStore = useDICOMStore();
     const messageStore = useMessageStore();
     const viewStore = useViewStore();
 
@@ -439,13 +442,29 @@ export default defineComponent({
 
     // --- file handling --- //
 
+    const hasData = computed(
+      () =>
+        imageStore.idList.length > 0 ||
+        Object.keys(dicomStore.volumeInfo).length > 0
+    );
+    const loadingDataCounter = ref(0);
+    const isLoadingData = computed(
+      // hasData: show loading during dicom loading/rendering
+      () => loadingDataCounter.value > 0 || hasData.value
+    );
+
     async function openFiles(files: FileList | null) {
       if (!files) {
         return;
       }
 
       const dataSources = Array.from(files).map(fileToDataSource);
-      runAsLoading((setError) => loadFiles(dataSources, setError));
+      try {
+        loadingDataCounter.value += 1;
+        await runAsLoading((setError) => loadFiles(dataSources, setError));
+      } finally {
+        loadingDataCounter.value -= 1;
+      }
     }
 
     const fileEl = document.createElement('input');
@@ -502,7 +521,6 @@ export default defineComponent({
 
     // --- --- //
 
-    const hasData = computed(() => imageStore.idList.length > 0);
     const messageCount = computed(() => messageStore.importantMessages.length);
     const messageBadgeColor = computed(() => {
       if (
@@ -580,6 +598,7 @@ export default defineComponent({
       saveUrl,
       serverConnectionIcon,
       serverUrl,
+      isLoadingData,
     };
   },
 });
