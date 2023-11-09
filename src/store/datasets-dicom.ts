@@ -110,6 +110,22 @@ const readDicomTags = (dicomIO: DICOMIO, file: File) =>
     { name: 'WindowWidth', tag: '0028|1051' },
   ]);
 
+/**
+ * Trims and collapses multiple spaces into one.
+ * @param name
+ * @returns string
+ */
+const cleanupName = (name: string) => {
+  return name.trim().replace(/\s+/g, ' ');
+};
+
+export const getDisplayName = (info: VolumeInfo) => {
+  return (
+    cleanupName(info.SeriesDescription || info.SeriesNumber) ||
+    info.SeriesInstanceUID
+  );
+};
+
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
@@ -136,6 +152,8 @@ export const useDICOMStore = defineStore('dicom', {
       const allFiles = [...fileToDataSource.keys()];
 
       const volumeToFiles = await dicomIO.categorizeFiles(allFiles);
+      if (Object.keys(volumeToFiles).length === 0)
+        throw new Error('No volumes categorized from DICOM file(s)');
 
       const fileStore = useFileStore();
 

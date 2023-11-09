@@ -3,7 +3,7 @@ import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
 import { Image } from 'itk-wasm';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { useDICOMStore } from '../store/datasets-dicom';
+import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
   DICOMSelection,
@@ -104,6 +104,7 @@ export default defineComponent({
           // for thumbnailing
           cacheKey: dicomCacheKey(volumeKey),
           info: volumeInfo[volumeKey],
+          name: getDisplayName(volumeInfo[volumeKey]),
           // for UI selection
           selectionKey,
           isLayer,
@@ -319,7 +320,7 @@ export default defineComponent({
                 class="text--primary text-caption text-center series-desc mt-n3"
               >
                 <div class="text-ellipsis">
-                  {{ volume.info.SeriesDescription || '(no description)' }}
+                  {{ volume.name }}
                 </div>
               </v-card-text>
             </v-card>

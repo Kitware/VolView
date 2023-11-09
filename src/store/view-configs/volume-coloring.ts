@@ -4,7 +4,7 @@ import {
   getColorFunctionRangeFromPreset,
   getOpacityFunctionFromPreset,
 } from '@/src/utils/vtk-helpers';
-import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
+import { DEFAULT_PRESET_BY_MODALITY, DEFAULT_PRESET } from '@/src/config';
 import { ColorTransferFunction } from '@/src/types/views';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
@@ -17,7 +17,6 @@ import {
 import { DeepPartial, Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
 import { createViewConfigSerializer } from './common';
-import { DEFAULT_PRESET } from '../../vtk/ColorMaps';
 import { ViewConfig } from '../../io/state-file/schema';
 import { VolumeColorConfig } from './types';
 import { useDICOMStore } from '../datasets-dicom';

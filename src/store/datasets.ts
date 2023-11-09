@@ -34,8 +34,10 @@ export type DataSelection = DICOMSelection | ImageSelection;
 
 export const getImageID = (selection: DataSelection) => {
   if (selection.type === 'image') return selection.dataID;
-  if (selection.type === 'dicom')
-    return useDICOMStore().volumeToImageID[selection.volumeKey]; // volume selected, but image may not have been made yet
+  if (selection.type === 'dicom') {
+    // possibly undefined because image may not have been made yet
+    return useDICOMStore().volumeToImageID[selection.volumeKey];
+  }
 
   const _exhaustiveCheck: never = selection;
   throw new Error(`invalid selection type ${_exhaustiveCheck}`);

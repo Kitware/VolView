@@ -9,6 +9,13 @@ function registerPresets(presets: typeof MedicalPresets) {
 
 registerPresets(MedicalPresets);
 
+const twoHotOpaque = {
+  ...vtkColorMaps.getPresetByName('2hot'),
+  Name: '2hot-opaque',
+  OpacityPoints: [0, 1],
+};
+vtkColorMaps.addPreset(twoHotOpaque);
+
 /* prettier-ignore */
 const GroupedPresets = [
   {
@@ -61,6 +68,5 @@ const GroupedPresets = [
   },
 ];
 
-export const DEFAULT_PRESET = 'CT-AAA';
 export const PresetNameList = GroupedPresets.flatMap((group) => group.presets);
 export default GroupedPresets;

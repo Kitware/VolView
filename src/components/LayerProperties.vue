@@ -4,8 +4,8 @@ import { InitViewSpecs } from '../config';
 import { useImageStore } from '../store/datasets-images';
 import { BlendConfig } from '../types/views';
 import { Layer } from '../store/datasets-layers';
-import { useDICOMStore } from '../store/datasets-dicom';
 import useLayerColoringStore from '../store/view-configs/layers';
+import { getImageID } from '../store/datasets';
 
 const VIEWS_2D = Object.entries(InitViewSpecs)
   .filter(([, { viewType }]) => viewType === '2D')
@@ -25,13 +25,9 @@ export default defineComponent({
 
     const imageName = computed(() => {
       const { selection } = props.layer;
-      if (selection.type === 'dicom')
-        return useDICOMStore().volumeInfo[selection.volumeKey].Modality;
-      if (selection.type === 'image')
-        return imageStore.metadata[selection.dataID].name;
-
-      const _exhaustiveCheck: never = selection;
-      throw new Error(`invalid selection type ${_exhaustiveCheck}`);
+      const imageID = getImageID(selection);
+      if (imageID === undefined) throw new Error('imageID is undefined');
+      return imageStore.metadata[imageID].name;
     });
 
     const layerColoringStore = useLayerColoringStore();
@@ -70,8 +66,15 @@ export default defineComponent({
 
 <template>
   <div class="mx-2" v-if="blendConfig">
+    <v-tooltip :text="imageName" location="top">
+      <template v-slot:activator="{ props }">
+        <h4 class="text-ellipsis" v-bind="props">{{ imageName }}</h4>
+      </template>
+    </v-tooltip>
+    <!-- padding top so thumb value tip does not overlap image name too much -->
     <v-slider
-      :label="imageName + ' Opacity'"
+      class="pt-4"
+      label="Opacity"
       min="0"
       max="1"
       step="0.01"
