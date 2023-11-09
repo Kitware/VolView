@@ -128,48 +128,26 @@
             </div>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="currentLayout" />
-              <v-row
-                v-show="!hasData"
-                no-gutters
-                align="center"
-                class="clickable bg-grey-darken-3"
+              <welcome-page
+                v-if="!hasData"
+                class="clickable"
                 @click="userPromptFiles"
               >
-                <v-col>
-                  <v-row justify="center">
-                    <v-card
-                      flat
-                      dark
-                      color="transparent"
-                      class="text-center headline"
-                    >
-                      <div>
-                        <v-icon size="64">mdi-folder-open</v-icon>
-                      </div>
-                      <div>Click to open local files.</div>
-                      <div class="mt-8">
-                        <v-icon size="64">mdi-arrow-down-bold</v-icon>
-                      </div>
-                      <div>Drag &amp; drop your DICOM files.</div>
-
-                      <div v-if="!saveUrl" class="vertical-offset-margin">
-                        <v-icon size="64">mdi-cloud-off-outline</v-icon>
-                      </div>
-                      <div v-if="!saveUrl">
-                        Secure: Image data never leaves your machine.
-                      </div>
-                      <v-btn
-                        class="mt-2"
-                        variant="tonal"
-                        color="secondary"
-                        @click.stop="dataSecurityDialog = true"
-                      >
-                        Learn More
-                      </v-btn>
-                    </v-card>
-                  </v-row>
-                </v-col>
-              </v-row>
+                <div v-if="!saveUrl" class="vertical-offset-margin">
+                  <v-icon size="64">mdi-cloud-off-outline</v-icon>
+                </div>
+                <div v-if="!saveUrl">
+                  Secure: Image data never leaves your machine.
+                </div>
+                <v-btn
+                  class="mt-2"
+                  variant="tonal"
+                  color="secondary"
+                  @click.stop="dataSecurityDialog = true"
+                >
+                  Learn More
+                </v-btn>
+              </welcome-page>
             </div>
           </div>
         </v-main>
@@ -249,6 +227,7 @@ import vtkResliceCursorWidget, {
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
+import WelcomePage from '@/src/components/WelcomePage.vue';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -362,6 +341,7 @@ export default defineComponent({
     SaveSession,
     PersistentOverlay,
     KeyboardShortcuts,
+    WelcomePage,
   },
 
   setup() {
