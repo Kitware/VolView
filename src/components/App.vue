@@ -490,10 +490,15 @@ export default defineComponent({
       // TODO remove this nextTick when we switch away from
       // vue-toastification.
       // We run in nextTick to ensure the library is mounted.
-      nextTick(() => {
-        runAsLoading((setError) =>
-          loadRemoteFilesFromURLParams(urlParams, setError)
-        );
+      nextTick(async () => {
+        try {
+          loadingDataCounter.value += 1;
+          await runAsLoading((setError) =>
+            loadRemoteFilesFromURLParams(urlParams, setError)
+          );
+        } finally {
+          loadingDataCounter.value -= 1;
+        }
       });
     });
 
