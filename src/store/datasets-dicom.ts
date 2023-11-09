@@ -16,15 +16,6 @@ export function imageCacheMultiKey(offset: number, asThumbnail: boolean) {
   return `${offset}!!${asThumbnail}`;
 }
 
-/**
- * Trims and collapses spaces in a string.
- * @param name
- * @returns
- */
-function cleanupName(name: string) {
-  return name.trim().replace(/\s+/g, ' ');
-}
-
 export interface VolumeKeys {
   patientKey: string;
   studyKey: string;
