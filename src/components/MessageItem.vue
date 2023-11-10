@@ -75,9 +75,11 @@ export default defineComponent({
   flex-flow: row;
   justify-content: space-between;
   align-items: center;
+  user-select: text;
 }
 
 .details {
   white-space: break-spaces;
+  user-select: text;
 }
 </style>
