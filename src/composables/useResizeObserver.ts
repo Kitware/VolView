@@ -1,4 +1,4 @@
-import { onBeforeUnmount, Ref, unref, watch } from 'vue';
+import { onBeforeUnmount, Ref, watch } from 'vue';
 
 /**
  * Invokes a callback whenever an element is resized.
@@ -27,10 +27,7 @@ export function useResizeObserver(
   );
 
   onBeforeUnmount(() => {
-    const targetEl = unref(targetElRef);
-    if (targetEl) {
-      observer.unobserve(targetEl);
-    }
+    observer.disconnect();
   });
 
   return observer;
