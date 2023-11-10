@@ -438,7 +438,7 @@ export default defineComponent({
     const canvasRef = ref<HTMLCanvasElement | null>(null);
 
     const interactor = computed(() => viewProxy.value.getInteractor());
-    onVTKEvent(interactor, 'onRenderEvent', () => {
+    onVTKEvent(interactor, 'onRenderEvent' as 'onModified', () => {
       if (!canvasRef.value) return;
       const ctx = canvasRef.value.getContext('2d');
       const src = viewProxy.value.getOpenGLRenderWindow().getCanvas();

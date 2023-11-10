@@ -10,6 +10,7 @@ export interface ViewProxyCustomizations {
   getInteractorStyle3D(): vtkInteractorStyleManipulator;
   setInteractionContainer(el: Maybe<HTMLElement>): boolean;
   getInteractionContainer(): Maybe<HTMLElement>;
+  setSize(w: number, h: number): boolean;
 }
 
 export interface vtkLPSView3DProxy
