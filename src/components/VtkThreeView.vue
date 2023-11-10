@@ -443,7 +443,6 @@ export default defineComponent({
       const ctx = canvasRef.value.getContext('2d');
       const src = viewProxy.value.getOpenGLRenderWindow().getCanvas();
       if (ctx && src) ctx.drawImage(src, 0, 0);
-      if (src) console.log(src.width, src.height);
     });
 
     onMounted(() => {
@@ -455,7 +454,6 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       // setViewProxyContainer(null);
-      viewProxy.value.setContainer(null);
     });
 
     useResizeObserver(vtkContainerRef, (entry) => {

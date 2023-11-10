@@ -423,6 +423,7 @@ export default defineComponent({
 
     onMounted(() => {
       // setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setInteractionContainer(canvasRef.value);
       viewProxy.value.setOrientationAxesVisibility(false);
     });
 

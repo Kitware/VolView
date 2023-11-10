@@ -1,8 +1,12 @@
 import { vec3 } from 'gl-matrix';
 import { vtkView2DProxy } from '@kitware/vtk.js/Proxy/Core/View2DProxy';
-import { ViewProxyCustomizations } from '@/src/vtk/LPSView3DProxy';
+import vtkLPSView3DProxy, {
+  ViewProxyCustomizations,
+} from '@/src/vtk/LPSView3DProxy';
 
-export interface vtkLPSView2DProxy extends vtkView2DProxy {
+export interface vtkLPSView2DProxy
+  extends vtkView2DProxy,
+    ViewProxyCustomizations {
   resizeToFit(lookAxis: Vector3, viewUpAxis: Vector3, worldDims: Vector3);
   resetCamera(boundsToUse?: number[]);
   /**
