@@ -475,6 +475,8 @@ export default defineComponent({
 
     useResizeObserver(vtkContainerRef, (entry) => {
       const bbox = entry.contentRect;
+      if (!bbox.width || !bbox.height) return;
+
       canvasRef.value?.setAttribute(
         'width',
         String(bbox.width * window.devicePixelRatio)

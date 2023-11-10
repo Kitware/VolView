@@ -449,6 +449,7 @@ export default defineComponent({
       viewProxy.value.setOrientationAxesVisibility(true);
       viewProxy.value.setOrientationAxesType('cube');
       viewProxy.value.setBackground([0, 0, 0, 0]);
+      viewProxy.value.setInteractionContainer(canvasRef.value);
       // setViewProxyContainer(vtkContainerRef.value);
     });
 
@@ -458,6 +459,8 @@ export default defineComponent({
 
     useResizeObserver(vtkContainerRef, (entry) => {
       const bbox = entry.contentRect;
+      if (!bbox.width || !bbox.height) return;
+
       canvasRef.value?.setAttribute(
         'width',
         String(bbox.width * window.devicePixelRatio)

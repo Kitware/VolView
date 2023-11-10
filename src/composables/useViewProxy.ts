@@ -1,6 +1,6 @@
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import { computed, onUnmounted, ref, unref, watch, watchEffect } from 'vue';
-import { MaybeRef, useElementSize } from '@vueuse/core';
+import { computed, onUnmounted, ref, unref, watch } from 'vue';
+import { MaybeRef } from '@vueuse/core';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { Maybe } from '@/src/types';
 import { ViewProxyType } from '../core/proxies';
@@ -44,21 +44,14 @@ export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
 function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<Maybe<T>>
 ) {
-  const mounted = ref(false);
-
   const container = ref<Maybe<HTMLElement>>(unref(viewProxy)?.getContainer());
   onVTKEvent<vtkViewProxy, 'onModified'>(viewProxy, 'onModified', () => {
     container.value = unref(viewProxy)?.getContainer();
   });
 
-  const { width, height } = useElementSize(container);
-
-  const updateMounted = () => {
-    // view is considered mounted when the container has a non-zero size
-    mounted.value = !!(width.value && height.value);
-  };
-
-  watchEffect(() => updateMounted());
+  const mounted = computed(() => {
+    return !!container.value;
+  });
 
   return mounted;
 }

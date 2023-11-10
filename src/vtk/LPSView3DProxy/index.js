@@ -91,9 +91,11 @@ export function commonViewCustomizations(publicAPI, model) {
   publicAPI.setSize = (width, height) => {
     const container = publicAPI.getContainer();
     if (!container) throw new Error('No container');
-    container.style.width = `${width}px`;
-    container.style.height = `${height}px`;
-    publicAPI.resize();
+    setTimeout(() => {
+      container.style.width = `${width}px`;
+      container.style.height = `${height}px`;
+      publicAPI.resize();
+    }, 0);
   };
 
   publicAPI.setInteractionContainer = (el) => {
