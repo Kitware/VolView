@@ -5,7 +5,11 @@ export function useGlobalErrorHook() {
   const messageStore = useMessageStore();
 
   const onError = (event: ErrorEvent) => {
-    messageStore.addError('Application error (click for details)', event.error);
+    console.error(event);
+    const details = event.error
+      ? event.error
+      : { details: event.message ?? 'Unknown error' };
+    messageStore.addError('Application error (click for details)', details);
   };
 
   onMounted(() => {
