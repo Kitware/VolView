@@ -412,7 +412,10 @@ export default defineComponent({
       if (!canvasRef.value) return;
       const ctx = canvasRef.value.getContext('2d');
       const src = viewProxy.value.getOpenGLRenderWindow().getCanvas();
-      if (ctx && src) ctx.drawImage(src, 0, 0);
+      if (ctx && src) {
+        ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+        ctx.drawImage(src, 0, 0);
+      }
     });
 
     onBeforeMount(() => {

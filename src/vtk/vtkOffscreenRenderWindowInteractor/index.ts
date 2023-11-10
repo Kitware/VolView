@@ -51,6 +51,8 @@ function vtkOffscreenRenderWindowInteractor(
   publicAPI: vtkOffscreenRenderWindowInteractor,
   model: Model
 ) {
+  model.classHierarchy.push('vtkOffscreenRenderWindowInteractor');
+
   const { setInteractionContainer } = publicAPI;
 
   publicAPI.setInteractionContainer = (el: Maybe<HTMLElement>) => {
