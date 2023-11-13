@@ -325,6 +325,7 @@ export default defineComponent({
       rangeShiftMax: computed(() => fullMappingRangeWidth.value / 2),
       rangeShift,
       rangeWidth,
+      rangeWidthMax: computed(() => fullMappingRangeWidth.value * 2),
       request3DAnimation,
       cancel3DAnimation,
       selectPreset,
@@ -356,7 +357,7 @@ export default defineComponent({
         hide-details
         label="Width"
         min="1"
-        :max="fullMappingRange[1] - fullMappingRange[0]"
+        :max="rangeWidthMax"
         :step="colorSliderStep"
         @pointerdown="request3DAnimation"
         @pointerup="cancel3DAnimation"
