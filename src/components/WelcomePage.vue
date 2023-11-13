@@ -50,5 +50,6 @@ withDefaults(
   display: flex;
   flex-flow: row;
   align-items: center;
+  max-width: 100%;
 }
 </style>
