@@ -237,10 +237,27 @@ const View = z.object({
 
 export type View = z.infer<typeof View>;
 
+const RGBAColor = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+
+const SegmentMask = z.object({
+  value: z.number(),
+  name: z.string(),
+  color: RGBAColor,
+});
+
+export const SegmentGroupMetadata = z.object({
+  name: z.string(),
+  parentImage: z.string(),
+  segments: z.object({
+    order: z.number().array(),
+    byValue: z.record(z.string(), SegmentMask),
+  }),
+});
+
 export const LabelMap = z.object({
   id: z.string(),
-  parent: z.string(),
   path: z.string(),
+  metadata: SegmentGroupMetadata,
 });
 
 export type LabelMap = z.infer<typeof LabelMap>;
@@ -300,9 +317,9 @@ export type Crosshairs = z.infer<typeof Crosshairs>;
 const ToolsEnumNative = z.nativeEnum(ToolsEnum);
 
 const Paint = z.object({
-  activeLabelmapID: z.string().nullable(),
+  activeSegmentGroupID: z.string().nullable(),
+  activeSegment: z.number().nullish(),
   brushSize: z.number(),
-  brushValue: z.number(),
   labelmapOpacity: z.number(),
 });
 

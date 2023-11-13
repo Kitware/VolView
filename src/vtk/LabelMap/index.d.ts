@@ -1,11 +1,25 @@
+import { SegmentMask } from '@/src/types/segment';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Vector4 } from '@kitware/vtk.js/types';
 
 export interface vtkLabelMap extends vtkImageData {
-  setLabelColor(label: number, color: Vector4): void;
-  removeLabel(label: number): void;
-  setColorMap(colorMap: Record<number, number[]>): boolean;
-  getColorMap(): Record<number, number[]>;
+  /**
+   * Sets the segments of the labelmap.
+   * @param segments
+   */
+  setSegments(segments: SegmentMask[]): boolean;
+
+  /**
+   * Gets the segments of the labelmap.
+   */
+  getSegments(): SegmentMask[];
+
+  /**
+   * Replaces a labelmap value with another value.
+   * @param from
+   * @param to
+   */
+  replaceLabelValue(from: number, to: number): void;
 }
 
 export function newInstance(initialValues?: any): vtkLabelMap;

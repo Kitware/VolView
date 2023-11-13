@@ -1,117 +1,124 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref, reactive } from 'vue';
+import EditableChipList from '@/src/components/EditableChipList.vue';
 import { LabelsStore } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
-import CloseableDialog from '@/src/components/CloseableDialog.vue';
-import LabelEditor from './LabelEditor.vue';
+import ToolLabelEditor from '@/src/components/ToolLabelEditor.vue';
+import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 
 const props = defineProps<{
-  labelsStore: LabelsStore<AnnotationTool>;
+  labelsStore: LabelsStore<Pick<AnnotationTool, 'strokeWidth'>>;
 }>();
 
-const labels = computed(() => Object.entries(props.labelsStore.labels));
-// item groups need an index, not a value
-const activeLabelIndex = computed(() => {
-  return labels.value.findIndex(
-    ([name]) => name === props.labelsStore.activeLabel
-  );
+const labels = computed(() =>
+  Object.entries(props.labelsStore.labels).map(([id, label]) => ({
+    id,
+    name: label.labelName ?? '(no name)',
+    color: label.color,
+  }))
+);
+
+const selectedLabel = computed({
+  get: () => props.labelsStore.activeLabel,
+  set: (id) => {
+    if (id != null) props.labelsStore.setActiveLabel(id);
+  },
 });
 
-const editingLabel =
-  ref<Maybe<keyof typeof props.labelsStore.labels>>(undefined);
+// --- editing state --- //
+
+type LabelID = keyof typeof props.labelsStore.labels;
+const editingLabelID = ref<Maybe<LabelID>>(undefined);
+const editDialog = ref(false);
+const editState = reactive({
+  labelName: '',
+  strokeWidth: 1,
+  color: '',
+});
+
+const editingLabel = computed(() => {
+  if (!editingLabelID.value) return null;
+  return props.labelsStore.labels[editingLabelID.value];
+});
 
 const createLabel = () => {
-  editingLabel.value = props.labelsStore.addLabel();
+  editingLabelID.value = props.labelsStore.addLabel();
 };
 
-const editDialog = ref(false);
-watchEffect(() => {
-  editDialog.value = !!editingLabel.value;
-});
+function startEditing(label: LabelID) {
+  editDialog.value = true;
+  editingLabelID.value = label;
+  if (editingLabel.value) {
+    editState.labelName = editingLabel.value.labelName ?? '';
+    editState.strokeWidth = editingLabel.value.strokeWidth ?? 0;
+    editState.color = editingLabel.value.color ?? '';
+  }
+}
+
+function stopEditing(commit: boolean) {
+  if (editingLabelID.value && commit) {
+    props.labelsStore.updateLabel(editingLabelID.value, editState);
+  }
+  editDialog.value = false;
+  editingLabelID.value = null;
+}
+
+function deleteEditingLabel() {
+  if (editingLabelID.value) {
+    props.labelsStore.deleteLabel(editingLabelID.value);
+  }
+  stopEditing(false);
+}
 </script>
 
 <template>
   <v-card class="pt-2">
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
-      <v-item-group
-        :model-value="activeLabelIndex"
-        selected-class="card-active"
-        mandatory
+      <editable-chip-list
+        v-model="selectedLabel"
+        :items="labels"
+        item-key="id"
+        item-title="name"
+        create-label-text="New label"
+        @create="createLabel"
       >
-        <v-row dense>
-          <v-col
-            cols="6"
-            v-for="[id, { labelName, color }] in labels"
-            :key="id"
-          >
-            <v-item v-slot="{ selectedClass, toggle }">
-              <v-chip
-                variant="tonal"
-                :class="['w-100 d-flex', selectedClass]"
-                @click="
-                  () => {
-                    toggle();
-                    labelsStore.setActiveLabel(id);
-                  }
-                "
-              >
-                <!-- dot container keeps overflowing name from squishing dot width  -->
-                <div class="dot-container mr-3">
-                  <div class="color-dot" :style="{ background: color }" />
-                </div>
-                <span class="overflow-hidden">{{ labelName }}</span>
-                <v-btn
-                  icon="mdi-pencil"
-                  density="compact"
-                  class="ml-auto"
-                  variant="plain"
-                  @click.stop="
-                    () => {
-                      editingLabel = id;
-                      editDialog = true;
-                    }
-                  "
-                  data-testid="edit-label-button"
-                />
-              </v-chip>
-            </v-item>
-          </v-col>
-
-          <!-- Add Label button -->
-          <v-col cols="6">
-            <v-chip variant="outlined" class="w-100" @click="createLabel">
-              <v-icon class="mr-2">mdi-plus</v-icon>
-              Add Label
-            </v-chip>
-          </v-col>
-        </v-row>
-      </v-item-group>
+        <template #item-prepend="{ item }">
+          <!-- dot container keeps overflowing name from squishing dot width  -->
+          <div class="dot-container mr-3">
+            <div class="color-dot" :style="{ background: item.color }" />
+          </div>
+        </template>
+        <template #item-append="{ key }">
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            density="compact"
+            class="ml-auto mr-1"
+            variant="plain"
+            @click.stop="startEditing(key as string)"
+            data-testid="edit-label-button"
+          />
+        </template>
+      </editable-chip-list>
     </v-container>
   </v-card>
 
-  <closeable-dialog v-model="editDialog">
-    <template v-slot="{ close }">
-      <LabelEditor
-        @done="
-          editingLabel = undefined;
-          close();
-        "
-        v-if="editingLabel"
-        :label="editingLabel"
-        :labelsStore="labelsStore"
-      />
-    </template>
-  </closeable-dialog>
+  <isolated-dialog v-model="editDialog">
+    <ToolLabelEditor
+      v-if="editingLabelID"
+      v-model:name="editState.labelName"
+      v-model:stroke-width="editState.strokeWidth"
+      v-model:color="editState.color"
+      @delete="deleteEditingLabel"
+      @cancel="stopEditing(false)"
+      @done="stopEditing(true)"
+    />
+  </isolated-dialog>
 </template>
 
 <style scoped>
-.card-active {
-  background-color: rgb(var(--v-theme-selection-bg-color));
-  border-color: rgb(var(--v-theme-selection-border-color));
-}
-
 .color-dot {
   width: 18px;
   height: 18px;

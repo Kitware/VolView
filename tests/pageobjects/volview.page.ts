@@ -137,7 +137,8 @@ class VolViewPage extends Page {
   }
 
   get labelStrokeWidthInput() {
-    return $('#label-stroke-width-input');
+    // there should only be one on the screen at any given time
+    return $('.label-stroke-width-input');
   }
 
   get editLabelModalDoneButton() {

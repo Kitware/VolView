@@ -59,9 +59,9 @@ export default defineComponent({
           type: 'image',
           dataID: id,
         } as DataSelection;
-        const layerAdded = layerImageIDs.includes(id);
+        const isLayer = layerImageIDs.includes(id);
         const layerLoaded = loadedLayerImageIDs.includes(id);
-        const loading = layerAdded && !layerLoaded;
+        const layerLoading = isLayer && !layerLoaded;
         const layerable = id !== selectedImageID && primarySelection.value;
         return {
           id,
@@ -72,12 +72,11 @@ export default defineComponent({
           dimensions: metadata[id].dimensions,
           spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
           layerable,
-          loading,
-          layerIcon: layerAdded ? 'mdi-layers-minus' : 'mdi-layers-plus',
-          layerTooltip: layerAdded ? 'Remove Layer' : 'Add Layer',
+          layerLoading,
+          isLayer,
           layerHandler: () => {
-            if (!loading && layerable) {
-              if (layerAdded)
+            if (!layerLoading && layerable) {
+              if (isLayer)
                 layersStore.deleteLayer(primarySelection.value, selectionKey);
               else layersStore.addLayer(primarySelection.value, selectionKey);
             }
@@ -133,12 +132,17 @@ export default defineComponent({
       selected.value = [];
     }
 
+    function removeData(id: string) {
+      imageStore.deleteData(id);
+    }
+
     return {
       selected,
       selectedAll,
       selectedSome,
       toggleSelectAll,
       removeSelection,
+      removeData,
       images,
       thumbnails,
       primarySelection,
@@ -199,7 +203,7 @@ export default defineComponent({
       >
         <image-list-card
           v-model="selected"
-          class="mt-1"
+          class="mt-1 position-relative"
           selectable
           :inputValue="image.id"
           :active="active"
@@ -209,30 +213,59 @@ export default defineComponent({
           :id="image.id"
           @click="select"
         >
-          <div class="text-body-2 font-weight-bold text-no-wrap text-truncate">
-            {{ image.name }}
+          <div class="d-flex flex-row justify-space-between">
+            <div class="allow-trunc-text-flex-child">
+              <div
+                class="text-body-2 font-weight-bold text-no-wrap text-truncate"
+              >
+                {{ image.name }}
+              </div>
+              <div class="text-caption">
+                Dims: ({{ image.dimensions.join(', ') }})
+              </div>
+              <div class="text-caption">
+                Spacing: ({{ image.spacing.join(', ') }})
+              </div>
+            </div>
+            <v-btn icon variant="plain" size="x-small" class="dataset-menu">
+              <v-menu activator="parent">
+                <v-list>
+                  <v-list-item
+                    v-if="image.layerable"
+                    @click.stop="image.layerHandler()"
+                  >
+                    <template v-if="image.layerLoading">
+                      <div style="margin: 0 auto">
+                        <v-progress-circular indeterminate size="small" />
+                      </div>
+                    </template>
+                    <template v-else>
+                      <span v-if="image.isLayer">Remove as layer</span>
+                      <span v-else>Add as layer</span>
+                    </template>
+                  </v-list-item>
+                  <v-list-item @click="removeData(image.id)">
+                    Delete
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+              <v-icon size="medium">mdi-dots-vertical</v-icon>
+            </v-btn>
           </div>
-          <div class="text-caption">
-            Dims: ({{ image.dimensions.join(', ') }})
-          </div>
-          <div class="text-caption">
-            Spacing: ({{ image.spacing.join(', ') }})
-          </div>
-          <v-btn
-            icon
-            variant="text"
-            :disabled="!image.layerable"
-            :loading="image.loading"
-            @click.stop="image.layerHandler()"
-            class="mt-1"
-          >
-            <v-icon :icon="image.layerIcon" />
-            <v-tooltip location="top" activator="parent">
-              {{ image.layerTooltip }}
-            </v-tooltip>
-          </v-btn>
         </image-list-card>
       </groupable-item>
     </item-group>
   </div>
 </template>
+
+<style scoped>
+.allow-trunc-text-flex-child {
+  min-width: 0;
+}
+
+.dataset-menu {
+  position: relative;
+  top: -8px;
+  right: -4px;
+}
+</style>

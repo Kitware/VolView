@@ -309,3 +309,20 @@ type Entries<T> = {
 // Object.entries with keys preserved rather as string
 export const getEntries = <T extends object>(obj: T) =>
   Object.entries(obj) as Entries<T>;
+
+/**
+ * Normalizes a list of objects to { order, byKey }
+ * @param objects
+ * @param key
+ * @returns
+ */
+export function normalizeForStore<T, K extends keyof T>(objects: T[], key: K) {
+  type KeyType = T[K];
+  const order: KeyType[] = objects.map((obj) => obj[key]);
+  const byKey = objects.reduce<Record<K, T>>(
+    (acc, obj) => ({ ...acc, [obj[key] as string | number | symbol]: obj }),
+    {} as Record<string | number | symbol, T>
+  );
+
+  return { order, byKey };
+}

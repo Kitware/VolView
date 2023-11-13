@@ -4,6 +4,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
+import { compareImageSpaces } from '@/src/utils/imageSpace';
 import { resample } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
 import {
@@ -87,11 +88,16 @@ export const useLayersStore = defineStore('layer', () => {
       );
     }
 
-    const itkImage = await resample(
-      vtkITKHelper.convertVtkToItkImage(parentImage),
-      vtkITKHelper.convertVtkToItkImage(sourceImage)
-    );
-    const image = vtkITKHelper.convertItkToVtkImage(itkImage);
+    let image: vtkImageData;
+    if (compareImageSpaces(parentImage, sourceImage)) {
+      image = sourceImage;
+    } else {
+      const itkImage = await resample(
+        vtkITKHelper.convertVtkToItkImage(parentImage),
+        vtkITKHelper.convertVtkToItkImage(sourceImage)
+      );
+      image = vtkITKHelper.convertItkToVtkImage(itkImage);
+    }
 
     this.$proxies.addData(id, image);
 

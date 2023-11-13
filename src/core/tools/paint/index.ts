@@ -2,18 +2,28 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
+import { Maybe } from '@/src/types';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 
+export const ERASE_BRUSH_VALUE = 0;
+
+export enum PaintMode {
+  CirclePaint,
+  Erase,
+}
+
 export default class PaintTool {
   readonly factory: vtkPaintWidget;
+  private mode: PaintMode;
   private brush: IPaintBrush;
-  private brushValue: number;
+  private brushValue: Maybe<number>;
 
   constructor() {
     this.factory = vtkPaintWidget.newInstance();
     this.brush = new EllipsePaintBrush();
     this.brushValue = 1;
+    this.mode = PaintMode.CirclePaint;
   }
 
   private updateWidgetStencil() {
@@ -33,7 +43,17 @@ export default class PaintTool {
     this.updateWidgetStencil();
   }
 
-  setBrushValue(value: number) {
+  setMode(mode: PaintMode) {
+    this.mode = mode;
+  }
+
+  /**
+   * Sets the brush value.
+   *
+   * If the brush value is null | undefined, then no paint will occur.
+   * @param value
+   */
+  setBrushValue(value: Maybe<number>) {
     this.brushValue = value;
   }
 
@@ -56,6 +76,10 @@ export default class PaintTool {
     startPoint: vec3,
     endPoint?: vec3
   ) {
+    if (this.brushValue == null) return;
+
+    const brushValue =
+      this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
     const stencil = this.brush.getStencil();
 
     const start = [
@@ -123,7 +147,7 @@ export default class PaintTool {
             if (isInBounds(rounded)) {
               const offset =
                 rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
-              labelmapPixels[offset] = this.brushValue;
+              labelmapPixels[offset] = brushValue;
             }
 
             // undo adding the slice axis value

@@ -22,25 +22,40 @@ function vtkLabelMapSliceRepProxy(publicAPI, model) {
   model.property.setInterpolationType(InterpolationType.NEAREST);
   model.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
-  let cachedColorMap = null;
+  let cachedSegments = null;
 
   function updateTransferFunctions(labelmap) {
-    const colorMap = labelmap.getColorMap();
-    if (colorMap === cachedColorMap) {
+    const segments = labelmap.getSegments();
+    if (segments === cachedSegments) {
       return;
     }
     // Cache the colormap using ref equality. This will
     // avoid updating the colormap unnecessarily.
-    cachedColorMap = colorMap;
+    cachedSegments = segments;
 
     const cfun = vtkColorTransferFunction.newInstance();
     const ofun = vtkPiecewiseFunction.newInstance();
 
-    Object.keys(colorMap).forEach((label) => {
-      const l = Number(label);
-      cfun.addRGBPoint(l, ...colorMap[label].slice(0, 3).map((c) => c / 255));
-      ofun.addPoint(l, colorMap[label][3] / 255);
+    let maxValue = 0;
+
+    segments.forEach((segment) => {
+      const r = segment.color[0] || 0;
+      const g = segment.color[1] || 0;
+      const b = segment.color[2] || 0;
+      const a = segment.color[3] || 0;
+      cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
+      ofun.addPoint(segment.value, a / 255);
+
+      if (segment.value > maxValue) {
+        maxValue = segment.value;
+      }
     });
+
+    // add min/max values of the colormap range
+    cfun.addRGBPoint(0, 0, 0, 0);
+    ofun.addPoint(0, 0);
+    cfun.addRGBPoint(maxValue + 1, 0, 0, 0);
+    ofun.addPoint(maxValue + 1, 0);
 
     model.property.setRGBTransferFunction(cfun);
     model.property.setScalarOpacity(ofun);

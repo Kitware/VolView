@@ -38,10 +38,8 @@
               <slot name="image-overlay" />
             </persistent-overlay>
           </v-col>
-          <v-col :cols="selectable ? 7 : 8">
-            <div class="ml-2">
-              <slot></slot>
-            </div>
+          <v-col :cols="selectable ? 7 : 8" class="ml-2">
+            <slot></slot>
           </v-col>
         </v-row>
       </v-container>

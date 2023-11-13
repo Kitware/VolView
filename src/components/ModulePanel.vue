@@ -75,6 +75,7 @@ const autoSwitchToAnnotationsTools = [
   Tools.Rectangle,
   Tools.Ruler,
   Tools.Polygon,
+  Tools.Paint,
 ];
 
 export default defineComponent({

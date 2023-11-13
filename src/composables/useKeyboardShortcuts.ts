@@ -17,7 +17,12 @@ export function useKeyboardShortcuts() {
       unwatchFuncs.forEach((unwatch) => unwatch());
 
       unwatchFuncs = getEntries(actionMap).map(([action, key]) => {
-        return whenever(keys[key], ACTION_TO_FUNC[action]);
+        return whenever(keys[key], () => {
+          // basic detection for exact modifier match
+          if (keys.current.size === key.split('+').length) {
+            ACTION_TO_FUNC[action]();
+          }
+        });
       });
     },
     { immediate: true, deep: true }

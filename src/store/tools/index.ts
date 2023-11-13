@@ -90,7 +90,7 @@ export const useToolStore = defineStore('tool', {
     },
     deserialize(
       manifest: Manifest,
-      labelmapIDMap: Record<string, string>,
+      segmentGroupIDMap: Record<string, string>,
       dataIDMap: Record<string, string>
     ) {
       const { tools } = manifest;
