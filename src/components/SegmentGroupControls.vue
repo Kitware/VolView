@@ -113,16 +113,20 @@ function createSegmentGroup() {
 </script>
 
 <template>
-  <div class="mb-2" v-if="currentImageID">
-    <v-btn
-      variant="tonal"
-      color="secondary"
-      class="mb-4"
-      @click.stop="createSegmentGroup"
+  <div class="my-2" v-if="currentImageID">
+    <div
+      class="text-grey text-subtitle-2 d-flex flex-row align-center justify-space-between mb-2"
     >
-      <v-icon class="mr-1">mdi-plus</v-icon> New Segment Group
-    </v-btn>
-    <div class="text-grey text-subtitle-2">Segment Groups</div>
+      <div>Segment Groups</div>
+      <v-btn
+        variant="tonal"
+        color="secondary"
+        density="compact"
+        @click.stop="createSegmentGroup"
+      >
+        <v-icon class="mr-1">mdi-plus</v-icon> New Group
+      </v-btn>
+    </div>
     <v-divider />
     <v-radio-group
       v-model="currentSegmentGroupID"
