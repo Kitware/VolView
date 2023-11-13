@@ -67,4 +67,8 @@ export const MIME_TYPES = new Set(Object.values(FILE_EXT_TO_MIME));
 /**
  * Supported archives
  */
-export const ARCHIVE_FILE_TYPES = new Set(['application/zip']);
+export const ARCHIVE_FILE_TYPES = new Set([
+  FILE_EXT_TO_MIME.zip,
+  // Windows uploads files with this non-standard mime type
+  'application/x-zip-compressed',
+]);
