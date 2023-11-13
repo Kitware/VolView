@@ -212,7 +212,6 @@ import {
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
-import { URL } from 'whatwg-url';
 import { useDisplay } from 'vuetify';
 
 import { basename } from '@/src/utils/path';
@@ -231,6 +230,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import WelcomePage from '@/src/components/WelcomePage.vue';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { parseUrl } from '@/src/utils/url';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -317,7 +317,9 @@ async function loadRemoteFilesFromURLParams(
   const sources = urls.map((url, idx) =>
     uriToDataSource(
       url,
-      names[idx] || basename(new URL(url, window.location.href).pathname) || url
+      names[idx] ||
+        basename(parseUrl(url, window.location.href).pathname) ||
+        url
     )
   );
 

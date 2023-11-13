@@ -48,7 +48,6 @@
     "vue": "^3.3.4",
     "vue-toastification": "^2.0.0-rc.5",
     "vuetify": "^3.1.14",
-    "whatwg-url": "^12.0.1",
     "zod": "^3.22.3"
   },
   "devDependencies": {
@@ -64,7 +63,6 @@
     "@types/mocha": "^9.1.1",
     "@types/sinon": "^10.0.11",
     "@types/sinon-chai": "^3.2.8",
-    "@types/whatwg-url": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "@vitejs/plugin-vue": "^4.2.3",

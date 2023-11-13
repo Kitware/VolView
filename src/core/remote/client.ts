@@ -12,7 +12,7 @@ import { nanoid } from 'nanoid';
 import { Socket, io } from 'socket.io-client';
 import { z } from 'zod';
 import * as ChunkedParser from '@/src/core/remote/chunkedParser';
-import { URL } from 'whatwg-url';
+import { parseUrl } from '@/src/utils/url';
 
 const CLIENT_ID_SIZE = 24;
 const RPC_ID_SIZE = 24;
@@ -109,7 +109,7 @@ export interface RpcClientOptions {
 }
 
 function justHostUrl(url: string) {
-  const parts = new URL(url);
+  const parts = parseUrl(url);
   parts.pathname = '';
   return String(parts);
 }

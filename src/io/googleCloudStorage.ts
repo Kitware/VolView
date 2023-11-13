@@ -1,4 +1,4 @@
-import { URL } from 'whatwg-url';
+import { parseUrl } from '@/src/utils/url';
 import { fetchJSON } from '../utils/fetch';
 
 export interface GcsObject {
@@ -23,7 +23,7 @@ interface GcsObjectListResult {
  * @returns
  */
 export const isGoogleCloudStorageUri = (uri: string) =>
-  new URL(uri, window.location.origin).protocol === 'gs:';
+  parseUrl(uri, window.location.origin).protocol === 'gs:';
 
 /**
  * Extracts bucket and prefix from `gs://` URIs
@@ -31,7 +31,7 @@ export const isGoogleCloudStorageUri = (uri: string) =>
  * @returns
  */
 export const extractBucketAndPrefixFromGsUri = (uri: string) => {
-  const { hostname: bucket, pathname } = new URL(uri);
+  const { hostname: bucket, pathname } = parseUrl(uri);
   // drop the leading forward slash
   const objectName = pathname.replace(/^\//, '');
   return [bucket, objectName] as const;
@@ -50,7 +50,7 @@ async function fetchObjectsWithPagination(
   const objects: GcsObject[] = [];
 
   const paginate = async (nextToken?: string) => {
-    const url = new URL(getObjectEndpoint(bucket));
+    const url = parseUrl(getObjectEndpoint(bucket));
     url.searchParams.append('prefix', prefix);
     url.searchParams.append('maxResults', '1000');
     if (nextToken) {

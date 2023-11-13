@@ -1,6 +1,6 @@
-import { URL } from 'whatwg-url';
 import { z } from 'zod';
 import { TypedArray } from 'itk-wasm';
+import { parseUrl } from '@/src/utils/url';
 import { EPSILON } from '../constants';
 import { Maybe } from '../types';
 
@@ -203,7 +203,7 @@ export function wrapInArray<T>(maybeArray: T | T[]): T[] {
  * Extracts the basename from a URL.
  */
 export function getURLBasename(url: string) {
-  return new URL(url, window.location.href).pathname.split('/').at(-1) ?? '';
+  return parseUrl(url, window.location.href).pathname.split('/').at(-1) ?? '';
 }
 
 // from https://stackoverflow.com/a/18650828
