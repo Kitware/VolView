@@ -116,7 +116,8 @@ export function getCSSCoordinatesFromEvent(eventData: any) {
 export function getShiftedOpacityFromPreset(
   presetName: string,
   effectiveRange: [number, number],
-  shift: number
+  shift: number,
+  shiftAlpha: number
 ) {
   const preset = vtkColorMaps.getPresetByName(presetName);
   if (preset.OpacityPoints) {
@@ -128,7 +129,13 @@ export function getShiftedOpacityFromPreset(
 
     const [xmin, xmax] = effectiveRange;
     const width = xmax - xmin;
-    return points.map(([x, y]) => [(x - xmin) / width + shift, y]);
+    return points.map(([x, y]) => {
+      // Non-zero values should be affected by shift
+      // but preset values of zero should not
+      const shifted = y && y - shiftAlpha;
+      const yVal = Math.max(Math.min(shifted, 1), 0);
+      return [(x - xmin) / width + shift, yVal];
+    });
   }
   return null;
 }
@@ -146,6 +153,7 @@ export function getOpacityFunctionFromPreset(
       mode: vtkPiecewiseFunctionProxy.Mode.Points,
       preset: presetName,
       shift: 0,
+      shiftAlpha: 0,
     };
   }
   return {

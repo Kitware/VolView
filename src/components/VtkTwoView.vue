@@ -823,7 +823,8 @@ export default defineComponent({
                   const opacityPoints = getShiftedOpacityFromPreset(
                     opFunc.preset,
                     opFunc.mappingRange,
-                    opFunc.shift
+                    opFunc.shift,
+                    opFunc.shiftAlpha
                   );
                   if (opacityPoints) {
                     pwf.setPoints(opacityPoints);

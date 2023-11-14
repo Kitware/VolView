@@ -361,7 +361,8 @@ function useColoringEffect(
           const opacityPoints = getShiftedOpacityFromPreset(
             opacityFunc.preset,
             opacityFunc.mappingRange,
-            opacityFunc.shift
+            opacityFunc.shift,
+            opacityFunc.shiftAlpha
           );
           if (opacityPoints) {
             pwf.setPoints(opacityPoints);

@@ -27,6 +27,7 @@ export interface OpacityPoints {
   // base preset that has the opacity points
   preset: string;
   shift: number;
+  shiftAlpha: number;
   mappingRange: [number, number];
 }
 

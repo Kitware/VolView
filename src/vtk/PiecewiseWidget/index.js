@@ -16,7 +16,12 @@ export const ADJUST_POSITION_CURSOR = '-webkit-grab';
  * Assumes normalized x/y coordinate points.
  */
 
-export function samplePiecewiseLinear(points, shift = 0, samples = 256) {
+export function samplePiecewiseLinear(
+  points,
+  shift = 0,
+  shiftAlpha = 0,
+  samples = 256
+) {
   const filledPoints = [...points];
   // set endpoints to drop to 0
   filledPoints.push([points[0][0], 0]);
@@ -47,7 +52,11 @@ export function samplePiecewiseLinear(points, shift = 0, samples = 256) {
       } else if (slope === -Infinity) {
         sampledPoints.push(0);
       } else {
-        sampledPoints.push(slope * (sx - p1[0]) + p1[1]);
+        // Non-zero values should be affected by shift
+        // but original values of zero should not
+        let value = slope * (sx - p1[0]) + p1[1];
+        value = value && value - shiftAlpha;
+        sampledPoints.push(value);
       }
     }
   }
@@ -66,6 +75,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
   model.pwMode = Mode.Gaussians;
   model.opacityPoints = [];
   model.opacityPointShift = 0;
+  model.opacityValueShift = 0;
 
   publicAPI.setGaussiansMode = () => {
     model.pwMode = Mode.Gaussians;
@@ -82,8 +92,13 @@ function vtkPiecewiseWidget(publicAPI, model) {
   publicAPI.getMode = () => model.pwMode;
 
   publicAPI.shiftPosition = (coords, meta) => {
-    model.opacityPointShift =
-      meta.originalOpacityPointShift + coords[0] - meta.originalXY[0];
+    if (model.shiftOpacityValues) {
+      model.opacityValueShift =
+        meta.originalOpacityValueShift + coords[1] - meta.originalXY[1];
+    } else {
+      model.opacityPointShift =
+        meta.originalOpacityPointShift + coords[0] - meta.originalXY[0];
+    }
     return true;
   };
 
@@ -122,6 +137,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
     model.dragAction = {
       originalXY: mouseCoords,
       originalOpacityPointShift: model.opacityPointShift,
+      originalOpacityValueShift: model.opacityValueShift,
     };
 
     return true;
@@ -140,7 +156,8 @@ function vtkPiecewiseWidget(publicAPI, model) {
     if (publicAPI.shiftPosition(normCoords, model.dragAction)) {
       model.opacities = samplePiecewiseLinear(
         model.opacityPoints,
-        model.opacityPointShift
+        model.opacityPointShift,
+        model.opacityValueShift
       );
       publicAPI.invokeOpacityChange(publicAPI, true);
     }
@@ -149,22 +166,27 @@ function vtkPiecewiseWidget(publicAPI, model) {
     return true;
   };
 
-  publicAPI.setOpacityPoints = (points, shift = 0) => {
+  publicAPI.setOpacityPoints = (points, shift = 0, shiftAlpha = 0) => {
     if (publicAPI.isModePoints()) {
       // deep copy
       model.opacityPoints = points.map((p) => [p[0], p[1]]);
       model.opacityPointShift = shift;
+      model.opacityValueShift = shiftAlpha;
 
       model.opacities = samplePiecewiseLinear(
         model.opacityPoints,
-        model.opacityPointShift
+        model.opacityPointShift,
+        model.opacityValueShift
       );
       publicAPI.modified();
     }
   };
 
   publicAPI.getEffectiveOpacityPoints = () =>
-    model.opacityPoints.map((p) => [p[0] + model.opacityPointShift, p[1]]);
+    model.opacityPoints.map((p) => [
+      p[0] + model.opacityPointShift,
+      p[1] + model.opacityValueShift,
+    ]);
 
   publicAPI.render = () => {
     if (publicAPI.isModePoints()) {
@@ -188,7 +210,12 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   vtkPiecewiseGaussianWidget.extend(publicAPI, model, initialValues);
 
-  macro.setGet(publicAPI, model, ['opacityPoints', 'opacityPointShift']);
+  macro.setGet(publicAPI, model, [
+    'opacityPoints',
+    'opacityPointShift',
+    'opacityValueShift',
+    'shiftOpacityValues',
+  ]);
 
   // Object specific methods
   vtkPiecewiseWidget(publicAPI, model);

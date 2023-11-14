@@ -153,6 +153,7 @@ const OpacityPoints = z.object({
   mode: z.literal(vtkPiecewiseFunctionProxy.Mode.Points),
   preset: z.string(),
   shift: z.number(),
+  shiftAlpha: z.number(),
   mappingRange: z.tuple([z.number(), z.number()]),
 }) satisfies z.ZodType<OpacityPoints>;
 
