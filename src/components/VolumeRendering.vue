@@ -120,7 +120,7 @@ export default defineComponent({
           {
             mode,
             shift: pwfWidget.getOpacityPointShift(),
-            shiftAlpha: pwfWidget.getOpacityAlphaShift(),
+            shiftAlpha: pwfWidget.getOpacityValueShift(),
           }
         );
       }
@@ -282,8 +282,8 @@ export default defineComponent({
     const rangeShift = ref(0);
     const rangeWidth = ref(0);
 
-    onKeyDown('Control', () => pwfWidget.setCtrlKeyIsDown(true));
-    onKeyUp('Control', () => pwfWidget.setCtrlKeyIsDown(false));
+    onKeyDown('Control', () => pwfWidget.setShiftOpacityValues(true));
+    onKeyUp('Control', () => pwfWidget.setShiftOpacityValues(false));
 
     // reset case
     watch(

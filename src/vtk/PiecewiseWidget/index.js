@@ -75,7 +75,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
   model.pwMode = Mode.Gaussians;
   model.opacityPoints = [];
   model.opacityPointShift = 0;
-  model.opacityAlphaShift = 0;
+  model.opacityValueShift = 0;
 
   publicAPI.setGaussiansMode = () => {
     model.pwMode = Mode.Gaussians;
@@ -92,9 +92,9 @@ function vtkPiecewiseWidget(publicAPI, model) {
   publicAPI.getMode = () => model.pwMode;
 
   publicAPI.shiftPosition = (coords, meta) => {
-    if (model.ctrlKeyIsDown) {
-      model.opacityAlphaShift =
-        meta.originalOpacityAlphaShift + coords[1] - meta.originalXY[1];
+    if (model.shiftOpacityValues) {
+      model.opacityValueShift =
+        meta.originalOpacityValueShift + coords[1] - meta.originalXY[1];
     } else {
       model.opacityPointShift =
         meta.originalOpacityPointShift + coords[0] - meta.originalXY[0];
@@ -137,7 +137,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
     model.dragAction = {
       originalXY: mouseCoords,
       originalOpacityPointShift: model.opacityPointShift,
-      originalOpacityAlphaShift: model.opacityAlphaShift,
+      originalOpacityValueShift: model.opacityValueShift,
     };
 
     return true;
@@ -157,7 +157,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
       model.opacities = samplePiecewiseLinear(
         model.opacityPoints,
         model.opacityPointShift,
-        model.opacityAlphaShift
+        model.opacityValueShift
       );
       publicAPI.invokeOpacityChange(publicAPI, true);
     }
@@ -171,12 +171,12 @@ function vtkPiecewiseWidget(publicAPI, model) {
       // deep copy
       model.opacityPoints = points.map((p) => [p[0], p[1]]);
       model.opacityPointShift = shift;
-      model.opacityAlphaShift = shiftAlpha;
+      model.opacityValueShift = shiftAlpha;
 
       model.opacities = samplePiecewiseLinear(
         model.opacityPoints,
         model.opacityPointShift,
-        model.opacityAlphaShift
+        model.opacityValueShift
       );
       publicAPI.modified();
     }
@@ -185,7 +185,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
   publicAPI.getEffectiveOpacityPoints = () =>
     model.opacityPoints.map((p) => [
       p[0] + model.opacityPointShift,
-      p[1] + model.opacityAlphaShift,
+      p[1] + model.opacityValueShift,
     ]);
 
   publicAPI.render = () => {
@@ -213,8 +213,8 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.setGet(publicAPI, model, [
     'opacityPoints',
     'opacityPointShift',
-    'opacityAlphaShift',
-    'ctrlKeyIsDown',
+    'opacityValueShift',
+    'shiftOpacityValues',
   ]);
 
   // Object specific methods
