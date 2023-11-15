@@ -3,12 +3,14 @@ import {
   errorReportingConfigured,
   useErrorReporting,
 } from '@/src/utils/errorReporting';
-import { watch, ref } from 'vue';
+import { computed } from 'vue';
 
 const errorStore = useErrorReporting();
-const reportingEnabled = ref(!errorStore.disableReporting);
-watch(reportingEnabled, (enabled) => {
-  errorStore.disableReporting = !enabled;
+const reportingEnabled = computed({
+  get: () => !errorStore.disableReporting,
+  set: (enabled) => {
+    errorStore.disableReporting = !enabled;
+  },
 });
 </script>
 
