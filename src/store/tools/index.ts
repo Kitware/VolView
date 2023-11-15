@@ -95,7 +95,11 @@ export const useToolStore = defineStore('tool', {
     ) {
       const { tools } = manifest;
 
+      usePaintToolStore().deserialize(manifest, segmentGroupIDMap);
+
       Object.values(ToolStoreMap)
+        // paint store uses segmentGroupIDMap
+        .filter((useStore) => useStore !== usePaintToolStore)
         .map((useStore) => useStore?.())
         .filter((store): store is IToolStore => !!store)
         .forEach((store) => {

@@ -191,13 +191,14 @@ export const usePaintToolStore = defineStore('paint', () => {
   ) {
     const { paint } = manifest.tools;
     setBrushSize.call(this, paint.brushSize);
-    setActiveSegment.call(this, paint.activeSegment);
     setLabelmapOpacity.call(this, paint.labelmapOpacity);
     isActive.value = manifest.tools.current === Tools.Paint;
 
     if (paint.activeSegmentGroupID !== null) {
       activeSegmentGroupID.value =
         segmentGroupIDMap[paint.activeSegmentGroupID];
+      setActiveLabelmap(activeSegmentGroupID.value);
+      setActiveSegment.call(this, paint.activeSegment);
     }
   }
 
