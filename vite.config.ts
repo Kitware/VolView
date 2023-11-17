@@ -145,21 +145,21 @@ export default defineConfig({
         {
           src: resolvePath(
             resolveNodeModulePath('itk-wasm'),
-            'dist/web-workers/bundles/pipeline.worker.js'
+            'dist/core/web-workers/bundles/itk-wasm-pipeline.min.worker.js'
           ),
           dest: 'itk',
         },
         {
           src: resolvePath(
             resolveNodeModulePath('itk-image-io'),
-            '*{.wasm,.js}'
+            '*{.wasm,.js,.zst}'
           ),
           dest: 'itk/image-io',
         },
         {
           src: resolvePath(
             resolveNodeModulePath('@itk-wasm/dicom'),
-            'dist/pipelines/*{.wasm,.js}'
+            'dist/pipelines/*{.wasm,.js,.zst}'
           ),
           dest: 'itk/pipelines',
         },
