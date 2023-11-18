@@ -167,6 +167,14 @@ export default defineComponent({
       />
       <v-divider class="my-8" />
 
+      <v-switch
+        label="Local Ambient Occlusion"
+        density="compact"
+        hide-details
+        :model-value="cvrParams.useLocalAmbientOcclusion"
+        @update:model-value="setCVRParam('useLocalAmbientOcclusion', !!$event)"
+      />
+
       <v-row class="my-4">
         <v-btn-toggle
           :model-value="lightingModel"
@@ -186,14 +194,6 @@ export default defineComponent({
           </v-btn>
         </v-btn-toggle>
       </v-row>
-
-      <v-switch
-        label="Local Ambient Occlusion"
-        density="compact"
-        hide-details
-        :model-value="cvrParams.useLocalAmbientOcclusion"
-        @update:model-value="setCVRParam('useLocalAmbientOcclusion', !!$event)"
-      />
 
       <v-spacer class="my-2" />
 
