@@ -191,6 +191,9 @@ export default defineConfig({
       '/tmp': config.baseUrl!,
     },
   },
+  optimizeDeps: {
+    exclude: ['itk-wasm'],
+  },
   test: {
     environment: 'jsdom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
