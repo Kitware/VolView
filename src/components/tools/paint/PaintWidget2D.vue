@@ -155,7 +155,8 @@ export default defineComponent({
 
     const viewInteractor = computed(() => viewProxy.value!.getInteractor());
 
-    // Turn on widget visibility if mouse starts within view
+    // Turn on widget visibility and update stencil
+    // if mouse starts within view
     onVTKEvent(viewInteractor, 'onMouseMove', () => {
       if (!checkIfPointerInView) {
         return;
@@ -163,6 +164,7 @@ export default defineComponent({
       checkIfPointerInView = false;
 
       widgetRef.value!.setVisibility(true);
+      paintStore.setSliceAxis(viewAxisIndex.value);
     });
 
     onVTKEvent(viewInteractor, 'onMouseEnter', () => {
