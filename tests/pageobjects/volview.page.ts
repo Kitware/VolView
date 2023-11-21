@@ -71,6 +71,7 @@ class VolViewPage extends Page {
   async getNotificationsCount() {
     const badge = await this.notifications.$('span[aria-label="Badge"]');
     const innerText = await badge.getText();
+    if (innerText === '') return 0;
     return parseInt(innerText, 10);
   }
 

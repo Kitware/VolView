@@ -13,6 +13,8 @@ const ROOT = projectRoot();
 // TEMP_DIR is also downloads directory
 const TMP = '.tmp/';
 export const TEMP_DIR = path.resolve(ROOT, TMP);
+const FIXTURES_DIR = 'tests/fixtures/';
+export const FIXTURES = path.resolve(ROOT, FIXTURES_DIR);
 
 export const config: Options.Testrunner = {
   baseUrl: `http://localhost:${TEST_PORT}`,
