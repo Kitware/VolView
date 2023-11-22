@@ -86,10 +86,12 @@ export default {
       if (this.enabled) {
         this.dragHover = false;
         if (ev.dataTransfer.items) {
-          const entries = [...ev.dataTransfer.items].map((item) => {
-            const getAsEntry = item.webkitGetAsEntry || item.getAsEntry;
-            return getAsEntry.call(item);
-          });
+          const entries = [...ev.dataTransfer.items]
+            .map((item) => {
+              const getAsEntry = item.webkitGetAsEntry || item.getAsEntry;
+              return getAsEntry.call(item);
+            })
+            .filter(Boolean);
           const files = await readAllFiles(entries);
           this.$emit('drop-files', files);
         } else {
