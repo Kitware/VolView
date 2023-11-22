@@ -20,7 +20,7 @@ const handleRemoteManifest: ImportHandler = async (
         remotes.push({
           uriSrc: {
             uri: res.url,
-            name: res.name ?? new URL(res.url).pathname,
+            name: res.name ?? new URL(res.url, window.location.origin).pathname,
           },
           parent: dataSource,
         });
