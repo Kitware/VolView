@@ -1,22 +1,24 @@
-import { Maybe } from '@/src/types';
+function getContextFromOffscreenCanvas() {
+  if (typeof OffscreenCanvas === 'undefined') return null;
+  const canvas = new OffscreenCanvas(1, 1);
+  return canvas.getContext('webgl2') as WebGL2RenderingContext | null;
+}
+
+function getContextFromHTMLCanvas() {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  return canvas.getContext('webgl2') as WebGL2RenderingContext | null;
+}
 
 /**
  * Retrieves the GPU renderer and vendor info.
  * @returns
  */
 export function getGPUInfo() {
-  let canvas: Maybe<OffscreenCanvas | HTMLCanvasElement> = null;
-  if (typeof OffscreenCanvas !== 'undefined') {
-    canvas = new OffscreenCanvas(1, 1);
-  } else if (typeof document !== 'undefined') {
-    canvas = document.createElement('canvas');
-  } else {
-    throw new Error('Cannot init a canvas');
-  }
-
-  const gl = canvas.getContext('webgl2') as WebGL2RenderingContext;
+  // try offscreencanvas to support usage in webworkers
+  const gl = getContextFromOffscreenCanvas() ?? getContextFromHTMLCanvas();
   if (!gl) {
-    throw new Error('Cannot get a WebGL2 context');
+    throw new Error('Cannot get a webgl2 context');
   }
 
   const info = {
