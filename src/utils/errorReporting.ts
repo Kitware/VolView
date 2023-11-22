@@ -18,7 +18,11 @@ export const init = (app: App<Element>) => {
       dsn: VITE_SENTRY_DSN,
     });
 
-  Sentry.setContext('gpu', getGPUInfo());
+  try {
+    Sentry.setContext('gpu', getGPUInfo());
+  } catch (err) {
+    Sentry.captureException(err);
+  }
 };
 
 const setEnabled = (enabled: boolean) => {
