@@ -1,3 +1,4 @@
+import { getGPUInfo } from '@/src/utils/gpuInfo';
 import * as Sentry from '@sentry/vue';
 import { useLocalStorage } from '@vueuse/core';
 import { defineStore } from 'pinia';
@@ -16,6 +17,8 @@ export const init = (app: App<Element>) => {
       app,
       dsn: VITE_SENTRY_DSN,
     });
+
+  Sentry.setContext('gpu', getGPUInfo());
 };
 
 const setEnabled = (enabled: boolean) => {
