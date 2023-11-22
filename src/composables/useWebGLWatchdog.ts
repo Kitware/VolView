@@ -1,3 +1,4 @@
+import { captureException, captureMessage } from '@sentry/vue';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { useEventListener, useThrottleFn } from '@vueuse/core';
 import { Messages } from '../constants';
@@ -7,9 +8,14 @@ import { onProxyManagerEvent, ProxyManagerEvent } from './onProxyManagerEvent';
 export function useWebGLWatchdog() {
   const watchdogs = new Map<string, () => void>();
 
-  const reportError = useThrottleFn(() => {
+  const reportError = useThrottleFn((event) => {
     const messageStore = useMessageStore();
     messageStore.addError(Messages.WebGLLost.title, Messages.WebGLLost.details);
+    if (event) {
+      captureException(event);
+    } else {
+      captureMessage('WebGL2 context was lost');
+    }
   }, 100);
 
   onProxyManagerEvent(ProxyManagerEvent.ProxyCreated, (id, obj) => {
