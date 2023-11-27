@@ -10,8 +10,8 @@ export const TEST_PORT = 4567;
 export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 5000);
 
 const ROOT = projectRoot();
-// TEMP_DIR is also downloads directory
 const TMP = '.tmp/';
+// TEMP_DIR is also browser downloads directory
 export const TEMP_DIR = path.resolve(ROOT, TMP);
 const FIXTURES_DIR = 'tests/fixtures/';
 export const FIXTURES = path.resolve(ROOT, FIXTURES_DIR);

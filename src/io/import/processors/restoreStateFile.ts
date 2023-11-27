@@ -26,13 +26,130 @@ import {
   makeImageSelection,
   useDatasetStore,
 } from '@/src/store/datasets';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import {
+  makeDefaultSegmentGroupName,
+  useSegmentGroupStore,
+} from '@/src/store/segmentGroups';
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
 import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
+
+const LABELMAP_PALETTE_2_1_0 = {
+  '0': {
+    value: 0,
+    name: 'Segment 0',
+    color: [0, 0, 0, 0],
+  },
+  '1': {
+    value: 1,
+    name: 'Segment 1',
+    color: [153, 153, 0, 255],
+  },
+  '2': {
+    value: 2,
+    name: 'Segment 2',
+    color: [76, 76, 0, 255],
+  },
+  '3': {
+    value: 3,
+    name: 'Segment 3',
+    color: [255, 255, 0, 255],
+  },
+  '4': {
+    value: 4,
+    name: 'Segment 4',
+    color: [0, 76, 0, 255],
+  },
+  '5': {
+    value: 5,
+    name: 'Segment 5',
+    color: [0, 153, 0, 255],
+  },
+  '6': {
+    value: 6,
+    name: 'Segment 6',
+    color: [0, 255, 0, 255],
+  },
+  '7': {
+    value: 7,
+    name: 'Segment 7',
+    color: [76, 0, 0, 255],
+  },
+  '8': {
+    value: 8,
+    name: 'Segment 8',
+    color: [153, 0, 0, 255],
+  },
+  '9': {
+    value: 9,
+    name: 'Segment 9',
+    color: [255, 0, 0, 255],
+  },
+  '10': {
+    value: 10,
+    name: 'Segment 10',
+    color: [0, 76, 76, 255],
+  },
+  '11': {
+    value: 11,
+    name: 'Segment 11',
+    color: [0, 153, 153, 255],
+  },
+  '12': {
+    value: 12,
+    name: 'Segment 12',
+    color: [0, 255, 255, 255],
+  },
+  '13': {
+    value: 13,
+    name: 'Segment 13',
+    color: [0, 0, 76, 255],
+  },
+  '14': {
+    value: 14,
+    name: 'Segment 14',
+    color: [0, 0, 153, 255],
+  },
+};
+
+const OLD_MANIFEST_VERSIONS = ['2.1.0', '1.1.0', '1.0.0', '0.5.0'];
+
+const migrateManifest = (manifestString: string) => {
+  const inputManifest = JSON.parse(manifestString);
+
+  if (
+    OLD_MANIFEST_VERSIONS.some(
+      (oldVersion) => oldVersion === inputManifest.version
+    )
+  ) {
+    inputManifest.tools.paint.activeSegmentGroupID =
+      inputManifest.tools.paint.activeLabelmapID;
+    delete inputManifest.tools.paint.activeLabelmapID;
+
+    const order = Object.keys(LABELMAP_PALETTE_2_1_0).map((key) => Number(key));
+    inputManifest.labelMaps = inputManifest.labelMaps.map(
+      (labelMap: any, index: number) => ({
+        id: labelMap.id,
+        path: labelMap.path,
+        metadata: {
+          parentImage: labelMap.parent,
+          name: makeDefaultSegmentGroupName('My Image', index),
+          segments: {
+            order,
+            byValue: LABELMAP_PALETTE_2_1_0,
+          },
+        },
+      })
+    );
+
+    inputManifest.version = '3.0.0';
+  }
+
+  return inputManifest;
+};
 
 const resolveUriSource: ImportHandler = async (dataSource, { extra, done }) => {
   const { uriSrc } = dataSource;
@@ -234,9 +351,9 @@ const restoreStateFile: ImportHandler = async (
       throw new Error('State file does not have exactly 1 manifest');
     }
 
-    const manifest = ManifestSchema.parse(
-      JSON.parse(await manifests[0].file.text())
-    );
+    const manifestString = await manifests[0].file.text();
+    const migrated = migrateManifest(manifestString);
+    const manifest = ManifestSchema.parse(migrated);
 
     // We restore the view first, so that the appropriate watchers are triggered
     // in the views as the data is loaded
