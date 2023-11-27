@@ -74,6 +74,7 @@ import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Vector3 } from '@kitware/vtk.js/types';
+import * as Features from '@/src/utils/features';
 
 import { useProxyManager } from '@/src/composables/proxyManager';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
@@ -210,6 +211,11 @@ function useCvrEffect(
         let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
         // Adjust the volume sampling by the quality slider value
         sampleDistance /= volumeQuality_ > 1 ? 0.5 * volumeQuality_ ** 2 : 1.0;
+        if (Features.IS_WEBGL_USING_ANGLE) {
+          // prevent setting too low of a sample distance
+          sampleDistance = Math.max(0.5, sampleDistance);
+        }
+
         const samplesPerRay = spatialDiagonal / sampleDistance + 1;
         mapper.setMaximumSamplesPerRay(samplesPerRay);
         mapper.setSampleDistance(sampleDistance);
