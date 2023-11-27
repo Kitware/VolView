@@ -3,6 +3,9 @@
     <v-card-title class="d-flex flex-row justify-center">
       <vol-view-full-logo />
     </v-card-title>
+    <v-alert color="secondary" variant="tonal" class="notice">
+      For investigational use only
+    </v-alert>
     <v-card-text>
       <h2 class="mt-2">About VolView</h2>
       <v-divider class="mb-2" />
@@ -182,10 +185,10 @@
 </template>
 
 <style scoped>
-.close-button {
-  position: absolute;
-  right: 12px;
-  top: 12px;
+.notice {
+  width: fit-content;
+  margin: 0 auto;
+  text-transform: uppercase;
 }
 </style>
 
