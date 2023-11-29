@@ -14,7 +14,7 @@ import {
   fileToDataSource,
 } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
-import { ensureError, partition } from '@/src/utils';
+import { ensureError, partition, pipe } from '@/src/utils';
 import Pipeline, { PipelineContext } from '@/src/core/pipeline';
 import { Awaitable } from '@vueuse/core';
 import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
@@ -38,11 +38,6 @@ import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
 
 const LABELMAP_PALETTE_2_1_0 = {
-  '0': {
-    value: 0,
-    name: 'Segment 0',
-    color: [0, 0, 0, 0],
-  },
   '1': {
     value: 1,
     name: 'Segment 1',
@@ -115,40 +110,54 @@ const LABELMAP_PALETTE_2_1_0 = {
   },
 };
 
-const OLD_MANIFEST_VERSIONS = ['2.1.0', '1.1.0', '1.0.0', '0.5.0'];
+const migrateOrPass =
+  (versions: Array<string>, migrationFunc: (manifest: any) => any) =>
+  (inputManifest: any) => {
+    if (versions.includes(inputManifest.version)) {
+      return migrationFunc(inputManifest);
+    }
+    return inputManifest;
+  };
+
+const migrateBefore210 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  manifest.version = '2.1.0';
+  return manifest;
+};
+
+const migrate210To300 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  manifest.tools.paint.activeSegmentGroupID =
+    inputManifest.tools.paint.activeLabelmapID;
+  delete manifest.tools.paint.activeLabelmapID;
+
+  const order = Object.keys(LABELMAP_PALETTE_2_1_0).map((key) => Number(key));
+  manifest.labelMaps = inputManifest.labelMaps.map(
+    (labelMap: any, index: number) => ({
+      id: labelMap.id,
+      path: labelMap.path,
+      metadata: {
+        parentImage: labelMap.parent,
+        name: makeDefaultSegmentGroupName('My Image', index),
+        segments: {
+          order,
+          byValue: LABELMAP_PALETTE_2_1_0,
+        },
+      },
+    })
+  );
+
+  manifest.version = '3.0.0';
+  return manifest;
+};
 
 const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
-
-  if (
-    OLD_MANIFEST_VERSIONS.some(
-      (oldVersion) => oldVersion === inputManifest.version
-    )
-  ) {
-    inputManifest.tools.paint.activeSegmentGroupID =
-      inputManifest.tools.paint.activeLabelmapID;
-    delete inputManifest.tools.paint.activeLabelmapID;
-
-    const order = Object.keys(LABELMAP_PALETTE_2_1_0).map((key) => Number(key));
-    inputManifest.labelMaps = inputManifest.labelMaps.map(
-      (labelMap: any, index: number) => ({
-        id: labelMap.id,
-        path: labelMap.path,
-        metadata: {
-          parentImage: labelMap.parent,
-          name: makeDefaultSegmentGroupName('My Image', index),
-          segments: {
-            order,
-            byValue: LABELMAP_PALETTE_2_1_0,
-          },
-        },
-      })
-    );
-
-    inputManifest.version = '3.0.0';
-  }
-
-  return inputManifest;
+  return pipe(
+    inputManifest,
+    migrateOrPass(['1.1.0', '1.0.0', '0.5.0'], migrateBefore210),
+    migrateOrPass(['2.1.0'], migrate210To300)
+  );
 };
 
 const resolveUriSource: ImportHandler = async (dataSource, { extra, done }) => {
