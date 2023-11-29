@@ -45,12 +45,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const {
-      widgetManager,
-      viewDirection,
-      slice,
-      viewId: viewID,
-    } = toRefs(props);
+    const { widgetManager, viewDirection, slice, viewId } = toRefs(props);
 
     const paintStore = usePaintToolStore();
     const widgetFactory = paintStore.getWidgetFactory();
@@ -70,7 +65,7 @@ export default defineComponent({
       return indexPoint;
     };
 
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewID.value));
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
 
     onViewProxyMounted(viewProxy, () => {
       widgetRef.value = widgetManager.value.addWidget(
@@ -78,7 +73,7 @@ export default defineComponent({
       ) as vtkPaintViewWidget;
 
       if (!widgetRef.value) {
-        throw new Error('[PaintWidget2D] failed to create view widget');
+        throw new Error('PaintWidget2D failed to create view widget');
       }
 
       widgetManager.value.renderWidgets();

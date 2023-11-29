@@ -3,11 +3,11 @@ import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   defineComponent,
   onBeforeUnmount,
-  onMounted,
   PropType,
   ref,
   toRefs,
   watchEffect,
+  computed,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -15,6 +15,8 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
+import { useViewStore } from '@/src/store/views';
+import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 
 export default defineComponent({
   name: 'CrosshairsWidget2D',
@@ -41,22 +43,23 @@ export default defineComponent({
       widgetManager: widgetManagerRef,
       viewDirection,
       slice,
+      viewId,
     } = toRefs(props);
-
-    const crosshairsStore = useCrosshairsToolStore();
-    const factory = crosshairsStore.getWidgetFactory();
 
     const widgetRef = ref<vtkCrosshairsViewWidget>();
 
-    const { currentImageMetadata } = useCurrentImage();
-    onMounted(() => {
+    const crosshairsStore = useCrosshairsToolStore();
+    const factory = crosshairsStore.getWidgetFactory();
+    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+
+    onViewProxyMounted(viewProxy, () => {
       const widgetManager = widgetManagerRef.value;
       widgetRef.value = widgetManager.addWidget(
         factory
       ) as vtkCrosshairsViewWidget;
 
       if (!widgetRef.value) {
-        throw new Error('[PaintWidget2D] failed to create view widget');
+        throw new Error('CrosshairsWidget2D failed to create view widget');
       }
     });
 
@@ -64,10 +67,11 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
 
-    onMounted(() => {
+    onViewProxyMounted(viewProxy, () => {
       widgetRef.value!.setManipulator(manipulator);
     });
 
+    const { currentImageMetadata } = useCurrentImage();
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
         manipulator,
@@ -79,13 +83,13 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    onMounted(() => {
+    onViewProxyMounted(viewProxy, () => {
       widgetRef.value!.setVisibility(true);
     });
 
     // --- focus and rendering --- //
 
-    onMounted(() => {
+    onViewProxyMounted(viewProxy, () => {
       const widgetManager = widgetManagerRef.value;
       widgetManager.renderWidgets();
     });
