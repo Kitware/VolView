@@ -68,13 +68,18 @@ class VolViewPage extends Page {
     return $('#notifications');
   }
 
+  async getNotificationsCount() {
+    const badge = await this.notifications.$('span[aria-label="Badge"]');
+    const innerText = await badge.getText();
+    if (innerText === '') return 0;
+    return parseInt(innerText, 10);
+  }
+
   async waitForNotification() {
     const this_ = this;
     await browser.waitUntil(
       async () => {
-        const badge = await this_.notifications.$('span[aria-label="Badge"]');
-        const innerText = await badge.getText();
-        const notificationCount = parseInt(innerText, 10);
+        const notificationCount = await this_.getNotificationsCount();
         return notificationCount >= 1;
       },
       {
@@ -138,7 +143,7 @@ class VolViewPage extends Page {
 
   get labelStrokeWidthInput() {
     // there should only be one on the screen at any given time
-    return $('.label-stroke-width-input');
+    return $('.label-stroke-width-input').$('input');
   }
 
   get editLabelModalDoneButton() {
