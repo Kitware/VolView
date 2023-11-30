@@ -3,11 +3,7 @@
     <template v-slot="{ dragHover }">
       <v-app>
         <v-app-bar app clipped-left :height="48">
-          <v-btn
-            v-if="mobile"
-            icon="mdi-menu"
-            @click="leftSideBar = !leftSideBar"
-          />
+          <v-btn icon="mdi-menu" @click="leftSideBar = !leftSideBar" />
           <v-toolbar-title class="d-flex flex-row align-center mt-3">
             <vol-view-logo v-if="mobile" />
             <vol-view-full-logo v-else />
