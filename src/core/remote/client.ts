@@ -7,7 +7,7 @@ import {
 import { Maybe } from '@/src/types';
 import { Deferred, defer } from '@/src/utils';
 import { debug } from '@/src/utils/loggers';
-import pipe from '@/src/utils/pipe';
+import { flow } from '@/src/utils/functional';
 import { nanoid } from 'nanoid';
 import { Socket, io } from 'socket.io-client';
 import { z } from 'zod';
@@ -160,13 +160,8 @@ export default class RpcClient {
     this.socket.on(STREAM_RESULT_EVENT, this.onStreamResultEvent);
   }
 
-  protected serialize = (obj: any) => {
-    return pipe(...this.serializers)(obj);
-  };
-
-  protected deserialize = (obj: any) => {
-    return pipe(...this.deserializers)(obj);
-  };
+  protected serialize = flow(...this.serializers);
+  protected deserialize = flow(...this.deserializers);
 
   async connect(uri: string) {
     await this.disconnect();

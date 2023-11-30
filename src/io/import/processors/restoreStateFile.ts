@@ -14,7 +14,8 @@ import {
   fileToDataSource,
 } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
-import { ensureError, partition, pipe } from '@/src/utils';
+import { ensureError, partition } from '@/src/utils';
+import { pipe } from '@/src/utils/functional';
 import Pipeline, { PipelineContext } from '@/src/core/pipeline';
 import { Awaitable } from '@vueuse/core';
 import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
