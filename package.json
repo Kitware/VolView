@@ -27,6 +27,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.435.0",
     "@itk-wasm/dicom": "^5.0.0",
+    "@itk-wasm/image-io": "^0.5.0",
     "@kitware/vtk.js": "^28.13.0",
     "@netlify/edge-functions": "^2.0.0",
     "@sentry/vue": "^7.54.0",

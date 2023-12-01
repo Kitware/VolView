@@ -3,7 +3,7 @@ import { DataSource, FileSource } from '@/src/io/import/dataSource';
 import { Handler } from '@/src/core/pipeline';
 import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { Awaitable } from '@vueuse/core';
-import { Config } from '@/src/io/import/configSchema';
+import { Config } from '@/src/io/import/configJson';
 
 interface DataResult {
   dataSource: DataSource;
