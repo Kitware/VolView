@@ -12,7 +12,9 @@ import { createPinia } from 'pinia';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
+import { setPipelinesBaseUrl, setPipelineWorkerUrl } from '@itk-wasm/image-io';
 
+import itkConfig from '@/src/io/itk/itkConfig';
 import App from './components/App.vue';
 import vuetify from './plugins/vuetify';
 import { DICOMIO } from './io/dicom';
@@ -43,6 +45,10 @@ const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
 
 const dicomIO = new DICOMIO();
 dicomIO.initialize();
+
+// for @itk-wasm/image-io
+setPipelineWorkerUrl(itkConfig.pipelineWorkerUrl);
+setPipelinesBaseUrl(itkConfig.imageIOUrl);
 
 const pinia = createPinia();
 pinia.use(
