@@ -60,6 +60,7 @@ const writeImage = async (format: string, image: vtkImageData) => {
   }
 
   const result = await writeImageItk(null, itkImage, `image.${format}`);
+  result.webWorker?.terminate();
   return result.serializedImage.data;
 };
 
