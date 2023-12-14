@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import SegmentList from '@/src/components/SegmentList.vue';
+import CloseableDialog from '@/src/components/CloseableDialog.vue';
+import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { selectionEquals, useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
@@ -143,6 +145,13 @@ function createSegmentGroupFromImage(selectedImageID: string) {
     );
   }
 }
+
+const saveId = ref('');
+const saveDialog = ref(false);
+function openSaveDialog(id: string) {
+  saveId.value = id;
+  saveDialog.value = true;
+}
 </script>
 
 <template>
@@ -203,14 +212,20 @@ function createSegmentGroupFromImage(selectedImageID: string) {
             <span class="group-name">{{ group.name }}</span>
             <v-spacer />
             <v-btn
+              icon="mdi-content-save"
+              size="small"
+              variant="flat"
+              @click.stop="openSaveDialog(group.id)"
+            ></v-btn>
+            <v-btn
               icon="mdi-pencil"
-              size="x-small"
+              size="small"
               variant="flat"
               @click.stop="startEditing(group.id)"
             ></v-btn>
             <v-btn
               icon="mdi-delete"
-              size="x-small"
+              size="small"
               variant="flat"
               @click.stop="deleteGroup(group.id)"
             ></v-btn>
@@ -245,6 +260,12 @@ function createSegmentGroupFromImage(selectedImageID: string) {
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <closeable-dialog v-model="saveDialog" max-width="30%">
+    <template v-slot="{ close }">
+      <save-segment-group-dialog :close="close" :id="saveId" />
+    </template>
+  </closeable-dialog>
 </template>
 
 <style>

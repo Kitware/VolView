@@ -64,6 +64,7 @@ export default defineComponent({
     }
 
     onMounted(() => {
+      // triggers form validation check so can immediately save with default value
       fileName.value = DEFAULT_FILENAME;
     });
 
