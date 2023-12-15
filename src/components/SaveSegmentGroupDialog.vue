@@ -43,6 +43,7 @@ import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { writeImage } from '@/src/io/readWriteImage';
+import { onKeyDown } from '@vueuse/core';
 
 const EXTENSIONS = [
   'dcm',
@@ -57,7 +58,7 @@ const EXTENSIONS = [
 ];
 
 const props = defineProps<{
-  close: () => undefined;
+  close: () => void;
   id: string;
 }>();
 const fileName = ref('');
@@ -85,6 +86,10 @@ async function saveSegmentGroup() {
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
   fileName.value = segmentGroupStore.metadataByID[props.id].name;
+});
+
+onKeyDown('Enter', () => {
+  saveSegmentGroup();
 });
 
 function validFileName(name: string) {

@@ -33,6 +33,7 @@
 <script lang="ts">
 import { defineComponent, onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
+import { onKeyDown } from '@vueuse/core';
 
 import { serialize } from '../io/state-file';
 
@@ -66,6 +67,10 @@ export default defineComponent({
     onMounted(() => {
       // triggers form validation check so can immediately save with default value
       fileName.value = DEFAULT_FILENAME;
+    });
+
+    onKeyDown('Enter', () => {
+      saveSession();
     });
 
     function validFileName(name: string) {
