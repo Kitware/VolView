@@ -79,9 +79,7 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
    * param label: label to merge
    * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
    */
-  const mergeLabel = (label: ToolLabel, clearDefault: boolean = true) => {
-    if (clearDefault) clearDefaultLabels();
-
+  const mergeLabel = (label: ToolLabel) => {
     const { labelName } = label;
     const matchingName = findLabel(labelName);
 
@@ -100,12 +98,9 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
    * param newLabels: each key is the label name
    * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
    */
-  const mergeLabels = (
-    newLabels: Maybe<ToolLabels>,
-    clearDefault: boolean = true
-  ) => {
+  const mergeLabels = (newLabels: Maybe<ToolLabels>) => {
     Object.entries(newLabels ?? {}).forEach(([labelName, props]) =>
-      mergeLabel({ ...props, labelName }, clearDefault)
+      mergeLabel({ ...props, labelName })
     );
   };
 
@@ -116,9 +111,9 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
     addLabel,
     deleteLabel,
     updateLabel,
-    mergeLabel,
     mergeLabels,
     findLabel,
+    clearDefaultLabels,
   };
 };
 

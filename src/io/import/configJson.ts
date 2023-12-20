@@ -11,6 +11,7 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 
 const layout = z
   .object({
@@ -82,17 +83,25 @@ const applyLabels = (manifest: Config) => {
   if (!manifest.labels) return;
 
   // pass through null labels, use fallback labels if undefined
-  const labelsIfUndefined = (
-    toolLabels: (typeof manifest.labels)[keyof typeof manifest.labels]
-  ) => {
+  const defaultLabelsIfUndefined = <T>(toolLabels: T) => {
     if (toolLabels === undefined) return manifest.labels?.defaultLabels;
     return toolLabels;
   };
 
+  const applyLabelsToStore = (
+    maybeLabels: (typeof manifest.labels)[keyof typeof manifest.labels],
+    store: AnnotationToolStore
+  ) => {
+    const labelsOrFallback = defaultLabelsIfUndefined(maybeLabels);
+    if (!labelsOrFallback) return;
+    store.clearDefaultLabels();
+    store.mergeLabels(labelsOrFallback);
+  };
+
   const { rulerLabels, rectangleLabels, polygonLabels } = manifest.labels;
-  useRulerStore().mergeLabels(labelsIfUndefined(rulerLabels));
-  useRectangleStore().mergeLabels(labelsIfUndefined(rectangleLabels));
-  usePolygonStore().mergeLabels(labelsIfUndefined(polygonLabels));
+  applyLabelsToStore(rulerLabels, useRulerStore());
+  applyLabelsToStore(rectangleLabels, useRectangleStore());
+  applyLabelsToStore(polygonLabels, usePolygonStore());
 };
 
 const applySampleData = (manifest: Config) => {

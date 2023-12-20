@@ -73,7 +73,7 @@ export const useAnnotationTool = <
     ...annotationToolLabelDefault,
     ...newLabelDefault,
   });
-  labels.mergeLabels(initialLabels, false);
+  labels.mergeLabels(initialLabels);
 
   function makePropsFromLabel(label: string | undefined) {
     if (!label) return { labelName: '' };
@@ -190,9 +190,12 @@ export const useAnnotationTool = <
     serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>
   ) {
+    if (serialized?.labels) {
+      labels.clearDefaultLabels();
+    }
     const labelIDMap = Object.fromEntries(
       Object.entries(serialized?.labels ?? {}).map(([id, label]) => {
-        const newID = labels.mergeLabel(label); // side effect
+        const newID = labels.addLabel(label); // side effect in Array.map
         return [id, newID];
       })
     );

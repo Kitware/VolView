@@ -105,7 +105,7 @@ function deleteEditingLabel() {
     </v-container>
   </v-card>
 
-  <isolated-dialog v-model="editDialog">
+  <isolated-dialog v-model="editDialog" max-width="800px">
     <ToolLabelEditor
       v-if="editingLabelID"
       v-model:name="editState.labelName"
