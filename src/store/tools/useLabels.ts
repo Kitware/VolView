@@ -27,13 +27,18 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
     activeLabel.value = id;
   };
 
+  let nextToolColorIndex = 0;
+
   const addLabel = (label: ToolLabel = {}) => {
     const id = useIdStore().nextId();
     labels.value[id] = {
       ...labelDefault,
       ...newLabelDefault,
+      color: TOOL_COLORS[nextToolColorIndex],
       ...label,
     };
+
+    nextToolColorIndex = (nextToolColorIndex + 1) % TOOL_COLORS.length;
 
     setActiveLabel(id);
     return id;
@@ -74,7 +79,7 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
   };
 
   /*
-   * If new label have the same name as existing label, overwrite existing label.
+   * If input label has the same name as existing label, update existing label with input label properties.
    *
    * param label: label to merge
    * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
@@ -93,7 +98,7 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
   };
 
   /*
-   * If new label have the same name as existing label, overwrite existing label.
+   * If input label has the same name as existing label, update existing label with input label properties.
    *
    * param newLabels: each key is the label name
    * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared

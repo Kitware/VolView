@@ -42,8 +42,22 @@ const editingLabel = computed(() => {
   return props.labelsStore.labels[editingLabelID.value];
 });
 
+const makeUniqueName = (name: string) => {
+  const existingNames = new Set(
+    Object.values(props.labelsStore.labels).map((label) => label.labelName)
+  );
+  let uniqueName = name;
+  let i = 1;
+  while (existingNames.has(uniqueName)) {
+    uniqueName = `${name} (${i})`;
+    i++;
+  }
+  return uniqueName;
+};
+
 const createLabel = () => {
-  editingLabelID.value = props.labelsStore.addLabel();
+  const labelName = makeUniqueName('New Label');
+  editingLabelID.value = props.labelsStore.addLabel({ labelName });
 };
 
 function startEditing(label: LabelID) {
@@ -114,6 +128,7 @@ function deleteEditingLabel() {
       @delete="deleteEditingLabel"
       @cancel="stopEditing(false)"
       @done="stopEditing(true)"
+      :labelsStore="labelsStore"
     />
   </isolated-dialog>
 </template>

@@ -89,8 +89,8 @@ const applyLabels = (manifest: Config) => {
   };
 
   const applyLabelsToStore = (
-    maybeLabels: (typeof manifest.labels)[keyof typeof manifest.labels],
-    store: AnnotationToolStore
+    store: AnnotationToolStore,
+    maybeLabels: (typeof manifest.labels)[keyof typeof manifest.labels]
   ) => {
     const labelsOrFallback = defaultLabelsIfUndefined(maybeLabels);
     if (!labelsOrFallback) return;
@@ -99,9 +99,9 @@ const applyLabels = (manifest: Config) => {
   };
 
   const { rulerLabels, rectangleLabels, polygonLabels } = manifest.labels;
-  applyLabelsToStore(rulerLabels, useRulerStore());
-  applyLabelsToStore(rectangleLabels, useRectangleStore());
-  applyLabelsToStore(polygonLabels, usePolygonStore());
+  applyLabelsToStore(useRulerStore(), rulerLabels);
+  applyLabelsToStore(useRectangleStore(), rectangleLabels);
+  applyLabelsToStore(usePolygonStore(), polygonLabels);
 };
 
 const applySampleData = (manifest: Config) => {
