@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import SegmentList from '@/src/components/SegmentList.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { selectionEquals, useDatasetStore } from '@/src/store/datasets';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useImageStore } from '@/src/store/datasets-images';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
@@ -10,6 +13,9 @@ const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
 
 const segmentGroupStore = useSegmentGroupStore();
 const { currentImageID } = useCurrentImage();
+const imageStore = useImageStore();
+const dicomStore = useDICOMStore();
+const dataStore = useDatasetStore();
 
 const currentSegmentGroups = computed(() => {
   if (!currentImageID.value) return [];
@@ -110,14 +116,40 @@ function createSegmentGroup() {
 
   startEditing(id);
 }
+
+// Filter and collect all acceptable images, excluding
+// the current background image, that can be converted into
+// a SegmentGroup (labelmap) for the current background image.
+const nonDICOMImages = computed(() => {
+  const primarySelection = dataStore.primarySelection;
+  const ids = imageStore.idList.filter(
+    (id) =>
+      !(id in dicomStore.imageIDToVolumeKey) &&
+      primarySelection &&
+      !selectionEquals({ type: 'image', dataID: id }, primarySelection)
+  );
+  return ids.map((id) => ({ id, name: imageStore.metadata[id].name }));
+});
+
+function createSegmentGroupFromImage(selectedImageID: string) {
+  if (!selectedImageID) {
+    throw new Error('Cannot create a labelmap without a base image');
+  }
+  const primarySelection = dataStore.primarySelection;
+  if (primarySelection) {
+    segmentGroupStore.convertImageToLabelmap(
+      { type: 'image', dataID: selectedImageID },
+      primarySelection
+    );
+  }
+}
 </script>
 
 <template>
   <div class="my-2" v-if="currentImageID">
     <div
-      class="text-grey text-subtitle-2 d-flex flex-row align-center justify-space-between mb-2"
+      class="text-grey text-subtitle-2 d-flex align-center justify-space-evenly mb-2"
     >
-      <div>Segment Groups</div>
       <v-btn
         variant="tonal"
         color="secondary"
@@ -126,6 +158,33 @@ function createSegmentGroup() {
       >
         <v-icon class="mr-1">mdi-plus</v-icon> New Group
       </v-btn>
+      <v-menu location="bottom">
+        <template v-slot:activator="{ props }">
+          <v-btn
+            variant="tonal"
+            color="secondary"
+            density="compact"
+            v-bind="props"
+          >
+            <v-icon class="mr-1">mdi-chevron-down</v-icon>From Image
+          </v-btn>
+        </template>
+        <v-list v-if="nonDICOMImages.length !== 0">
+          <v-list-item
+            v-for="(item, index) in nonDICOMImages"
+            :key="index"
+            @click="createSegmentGroupFromImage(item.id)"
+          >
+            {{ item.name }}
+            <v-tooltip activator="parent" location="end" max-width="200px">
+              Convert to segment group
+            </v-tooltip>
+          </v-list-item>
+        </v-list>
+        <v-list v-else>
+          <v-list-item class="font-italic" title="No eligible images found" />
+        </v-list>
+      </v-menu>
     </div>
     <v-divider />
     <v-radio-group

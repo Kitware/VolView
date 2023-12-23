@@ -4,6 +4,7 @@ import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
+import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useImageStore } from '../store/datasets-images';
 import { useDICOMStore } from '../store/datasets-dicom';
 import {
@@ -30,6 +31,7 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
+    const segmentGroupStore = useSegmentGroupStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -62,7 +64,8 @@ export default defineComponent({
         const isLayer = layerImageIDs.includes(id);
         const layerLoaded = loadedLayerImageIDs.includes(id);
         const layerLoading = isLayer && !layerLoaded;
-        const layerable = id !== selectedImageID && primarySelection.value;
+        const layerable =
+          id !== selectedImageID && primarySelection.value != null;
         return {
           id,
           cacheKey: imageCacheKey(id),
@@ -132,6 +135,15 @@ export default defineComponent({
       selected.value = [];
     }
 
+    function convertToLabelMap(key: string) {
+      if (primarySelection.value) {
+        segmentGroupStore.convertImageToLabelmap(
+          { type: 'image', dataID: key },
+          primarySelection.value
+        );
+      }
+    }
+
     function removeData(id: string) {
       imageStore.deleteData(id);
     }
@@ -143,6 +155,7 @@ export default defineComponent({
       toggleSelectAll,
       removeSelection,
       removeData,
+      convertToLabelMap,
       images,
       thumbnails,
       primarySelection,
@@ -243,6 +256,24 @@ export default defineComponent({
                       <span v-if="image.isLayer">Remove as layer</span>
                       <span v-else>Add as layer</span>
                     </template>
+                  </v-list-item>
+                  <v-list-item
+                    @click="
+                      image.layerable ? convertToLabelMap(image.id) : null
+                    "
+                  >
+                    <v-icon v-if="!image.layerable" class="mr-1"
+                      >mdi-alert</v-icon
+                    >
+                    Convert to Segment Group
+                    <v-tooltip
+                      activator="parent"
+                      location="end"
+                      max-width="200px"
+                      :disabled="image.layerable"
+                    >
+                      Must load a background image before converting
+                    </v-tooltip>
                   </v-list-item>
                   <v-list-item @click="removeData(image.id)">
                     Delete
