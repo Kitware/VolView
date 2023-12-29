@@ -11,7 +11,8 @@ export const readImage = async (file: File) => {
   if (file.name.endsWith('.vti'))
     return (await vtiReader(file)) as vtkImageData;
 
-  const { image } = await readImageItk(null, file);
+  const { image, webWorker } = await readImageItk(null, file);
+  webWorker.terminate();
   return vtkITKHelper.convertItkToVtkImage(image);
 };
 
