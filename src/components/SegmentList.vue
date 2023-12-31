@@ -70,6 +70,12 @@ const editingSegment = computed(() => {
   if (editingSegmentValue.value == null) return null;
   return segmentGroupStore.getSegment(groupId.value, editingSegmentValue.value);
 });
+const invalidNames = computed(() => {
+  const names = new Set(segments.value.map((seg) => seg.name));
+  const currentName = editingSegment.value?.name;
+  if (currentName) names.delete(currentName); // allow current name
+  return names;
+});
 
 function startEditing(value: number) {
   editDialog.value = true;
@@ -145,6 +151,7 @@ function deleteEditingSegment() {
       @delete="deleteEditingSegment"
       @cancel="stopEditing(false)"
       @done="stopEditing(true)"
+      :invalidNames="invalidNames"
     />
   </isolated-dialog>
 </template>

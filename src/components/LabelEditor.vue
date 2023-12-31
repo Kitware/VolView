@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { toRefs } from 'vue';
+import { computed, toRefs } from 'vue';
 
 const emit = defineEmits(['done', 'cancel', 'delete', 'update:color']);
-const props = defineProps({
-  color: String,
+const props = defineProps<{ color: string; valid: boolean }>();
+const { color, valid } = toRefs(props);
+const doneDisabled = computed(() => {
+  return !valid.value;
 });
-const { color } = toRefs(props);
 
 const done = () => {
   emit('done');
@@ -40,6 +41,7 @@ const onDelete = () => {
               color="secondary"
               variant="elevated"
               @click="done"
+              :disabled="doneDisabled"
               data-testid="edit-label-done-button"
             >
               Done

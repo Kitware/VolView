@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import LabelEditor from '@/src/components/LabelEditor.vue';
-import type { LabelsStore } from '../store/tools/useLabels';
-import type { AnnotationTool } from '../types/annotation-tool';
 
 defineEmits([
   'done',
@@ -17,28 +15,26 @@ const props = defineProps<{
   name: string;
   strokeWidth: number;
   color: string;
-  labelsStore: LabelsStore<Pick<AnnotationTool, 'strokeWidth'>>;
+  invalidNames: Set<string>;
 }>();
 
-const existingNames = computed(
-  () =>
-    new Set(
-      Object.values(props.labelsStore.labels).map((label) => label.labelName)
-    )
-);
-
 function isUniqueEditingName(name: string) {
-  return !existingNames.value.has(name);
+  return !props.invalidNames.has(name.trim());
 }
 
 function uniqueNameRule(name: string) {
   return isUniqueEditingName(name) || 'Name is not unique';
 }
+
+const valid = computed(() => {
+  return isUniqueEditingName(props.name);
+});
 </script>
 
 <template>
   <label-editor
     :color="color"
+    :valid="valid"
     @update:color="$emit('update:color', $event)"
     @cancel="$emit('cancel')"
     @done="$emit('done')"
@@ -53,7 +49,7 @@ function uniqueNameRule(name: string) {
       <v-text-field
         label="Name"
         class="flex-grow-0"
-        :model-value="name"
+        :model-value="props.name"
         @update:model-value="$emit('update:name', $event)"
         @keydown.stop.enter="done"
         :rules="[uniqueNameRule]"
