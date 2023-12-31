@@ -23,7 +23,7 @@ import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { makeDICOMSelection, makeImageSelection } from '@/src/store/datasets';
-import { applyConfig } from '@/src/io/import/configSchema';
+import { applyConfig } from '@/src/io/import/configJson';
 
 /**
  * Tries to turn a thrown object into a meaningful error string.

@@ -1,6 +1,12 @@
 import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import { copyImage } from 'itk-wasm';
+import {
+  readImage as readImageItk,
+  writeImage as writeImageItk,
+} from '@itk-wasm/image-io';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
@@ -26,6 +32,37 @@ import {
   getImageID,
   selectionEquals,
 } from './datasets';
+
+const readImage = async (file: File) => {
+  if (file.name.endsWith('.vti'))
+    return (await vtiReader(file)) as vtkImageData;
+
+  const { image } = await readImageItk(null, file);
+  return vtkITKHelper.convertItkToVtkImage(image);
+};
+
+const writeImage = async (format: string, image: vtkImageData) => {
+  if (format === 'vti') {
+    return vtiWriter(image);
+  }
+  // copyImage so writeImage does not detach live data when passing to worker
+  const itkImage = copyImage(vtkITKHelper.convertVtkToItkImage(image));
+
+  // Transpose the direction matrix to fix bug in @itk-wasm/image-io.writeImage
+  // Remove when @itk-wasm/image-io version is above 0.5.0 https://github.com/InsightSoftwareConsortium/itk-wasm/commit/ad9ca85eedc47c9d3444cf36859569c529886bde
+  const oldDirection = [...itkImage.direction];
+  const { dimension } = itkImage.imageType;
+  for (let idx = 0; idx < dimension; ++idx) {
+    for (let idy = 0; idy < dimension; ++idy) {
+      itkImage.direction[idx + idy * dimension] =
+        oldDirection[idy + idx * dimension];
+    }
+  }
+
+  const result = await writeImageItk(null, itkImage, `image.${format}`);
+  result.webWorker?.terminate();
+  return result.serializedImage.data;
+};
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -332,6 +369,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     );
   }
 
+  const saveFormat = ref('vti');
+
   /**
    * Serializes the store's state.
    */
@@ -348,7 +387,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
         const metadata = metadataByID[id];
         return {
           id,
-          path: `labels/${id}.vti`,
+          path: `labels/${id}.${saveFormat.value}`,
           metadata: {
             ...metadata,
             parentImage: getDataID(metadata.parentImage),
@@ -362,8 +401,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // save labelmap images
     await Promise.all(
       serialized.map(async ({ id, path }) => {
-        const vtiImage = await vtiWriter(dataIndex[id]);
-        zip.file(path, vtiImage);
+        const vtkImage = dataIndex[id];
+        const serializedImage = await writeImage(saveFormat.value, vtkImage);
+        zip.file(path, serializedImage);
       })
     );
   }
@@ -394,9 +434,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           )
           .map((entry) => entry.file);
 
-        const labelmapImage = toLabelMap(
-          (await vtiReader(file)) as vtkImageData
-        );
+        const vtkImage = await readImage(file);
+        const labelmapImage = toLabelMap(vtkImage);
+
         const id = useIdStore().nextId();
         dataIndex[id] = labelmapImage;
         this.$proxies.addData(id, labelmapImage);
@@ -464,6 +504,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     metadataByID,
     orderByParent,
     segmentByGroupID,
+    saveFormat,
     addLabelmap,
     newLabelmapFromImage,
     removeGroup,

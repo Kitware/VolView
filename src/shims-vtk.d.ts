@@ -11,12 +11,6 @@ declare module '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator/Pre
   export default any;
 }
 
-declare module '@kitware/vtk.js/Common/DataModel/ITKHelper' {
-  import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-  export function convertVtkToItkImage(image: vtkImageData): Image;
-  export function convertItkToVtkImage(image: Image): vtkImageData;
-}
-
 declare module '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps' {
   export declare const vtkColorMaps: {
     addPreset(preset: any): void;

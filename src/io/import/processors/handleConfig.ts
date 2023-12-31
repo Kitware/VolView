@@ -1,6 +1,6 @@
 import { ImportHandler } from '@/src/io/import/common';
 import { ensureError } from '@/src/utils';
-import { readConfigFile } from '@/src/io/import/configSchema';
+import { readConfigFile } from '@/src/io/import/configJson';
 
 /**
  * Reads a JSON file with label config and updates stores.

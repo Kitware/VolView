@@ -30,3 +30,4 @@ sidebar:
     rendering: Cinematic Rendering
     state_files: State Files
     server: Remote Server Capabilities
+    configuration_file: Configuration File

@@ -151,8 +151,8 @@ export default defineConfig({
         },
         {
           src: resolvePath(
-            resolveNodeModulePath('itk-image-io'),
-            '*{.wasm,.js,.zst}'
+            resolveNodeModulePath('@itk-wasm/image-io'),
+            'dist/pipelines/*{.wasm,.js,.zst}'
           ),
           dest: 'itk/image-io',
         },

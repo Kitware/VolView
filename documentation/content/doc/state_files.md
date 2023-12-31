@@ -2,7 +2,7 @@
 
 VolView state files are a great way to save your scene and data to either be used later, or for distributing to collaborators and other users. These files store all of the information you need to restore the state of VolView: your data, annotations, camera positions, background colors, colormaps, and more.
 
-State files can be saved by clicking on "Disk" icon in the top of the toolbar. This button will generate a `*.volview` file that can then be re-opened in VolView at any time.
+State files can be saved by clicking on "Disk" icon in the top of the toolbar. This button will generate a `*.volview.zip` file that can then be re-opened in VolView at any time.
 
 When saving VolView state, your data is saved along with the application state. This way, when you send a state file to a collaborator, they too can open the state file and load the previously saved data. However, this means that your state file will be as large as your dataset(s) and may contain patient identifying information. Please follow your institutes HIPAA, IRB and other regulatory and confidentiality requirements.
 

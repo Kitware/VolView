@@ -1,8 +1,9 @@
 import vtkITKImageReader from '@kitware/vtk.js/IO/Misc/ITKImageReader';
+import { convertItkToVtkImage } from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { readImageArrayBuffer, extensionToImageIO } from 'itk-wasm';
+import { readImage } from '@itk-wasm/image-io';
 import { FileReaderMap } from '.';
 
-import { readFileAsArrayBuffer } from './io';
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
 import { FILE_EXT_TO_MIME } from './mimeTypes';
 
@@ -17,18 +18,9 @@ export const ITK_IMAGE_MIME_TYPES = Array.from(
 vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
 
 async function itkReader(file: File) {
-  const fileBuffer = await readFileAsArrayBuffer(file);
-
-  const reader = vtkITKImageReader.newInstance();
-  reader.setFileName(file.name);
-  try {
-    await reader.parseAsArrayBuffer(fileBuffer);
-  } catch (e) {
-    // itkreader doesn't give us a meaningful error
-    throw new Error('Failed to parse file');
-  }
-
-  return reader.getOutputData();
+  const { image, webWorker } = await readImage(null, file);
+  webWorker.terminate();
+  return convertItkToVtkImage(image);
 }
 
 /**

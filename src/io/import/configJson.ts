@@ -10,6 +10,7 @@ import { useDataBrowserStore } from '@/src/store/data-browser';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 
 const layout = z
   .object({
@@ -54,11 +55,18 @@ const labels = z
   })
   .optional();
 
+const io = z
+  .object({
+    segmentGroupSaveFormat: z.string().optional(),
+  })
+  .optional();
+
 export const config = z.object({
   layout,
   dataBrowser,
   labels,
   shortcuts,
+  io,
 });
 
 export type Config = z.infer<typeof config>;
@@ -107,9 +115,17 @@ const applyShortcuts = (manifest: Config) => {
   };
 };
 
+const applyIo = (manifest: Config) => {
+  if (!manifest.io) return;
+
+  if (manifest.io.segmentGroupSaveFormat)
+    useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
+};
+
 export const applyConfig = (manifest: Config) => {
   applyLayout(manifest);
   applyLabels(manifest);
   applySampleData(manifest);
   applyShortcuts(manifest);
+  applyIo(manifest);
 };
