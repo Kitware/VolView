@@ -2,7 +2,7 @@ import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
-import { DataSourceWithFile } from '@/src/io/import/dataSource';
+import { FileDataSource } from '@/src/io/import/dataSource';
 import * as DICOM from '@/src/io/dicom';
 import { identity, pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
@@ -161,9 +161,9 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importFiles(datasets: DataSourceWithFile[]) {
-      if (!datasets.length) return [];
 
+    async importFiles(datasets: FileDataSource[]) {
+      if (!datasets.length) return [];
 
       const fileToDataSource = new Map(
         datasets.map((ds) => [ds.fileSrc.file, ds])
@@ -321,7 +321,7 @@ export const useDICOMStore = defineStore('dicom', {
       await serializeData(stateFile, dataIDs, DatasetType.DICOM);
     },
 
-    async deserialize(files: DataSourceWithFile[]) {
+    async deserialize(files: FileDataSource[]) {
       return this.importFiles(files).then((volumeKeys) => {
         if (volumeKeys.length !== 1) {
           // Volumes are store individually so we should get one back.

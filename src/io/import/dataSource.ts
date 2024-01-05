@@ -1,4 +1,4 @@
-import { Maybe } from '@/src/types';
+import { Maybe, PartialWithRequired } from '@/src/types';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -62,7 +62,10 @@ export interface DataSource {
   parent?: DataSource;
 }
 
-export type DataSourceWithFile = DataSource & { fileSrc: FileSource };
+/**
+ * A data source that has a File.
+ */
+export type FileDataSource = PartialWithRequired<DataSource, 'fileSrc'>;
 
 /**
  * Creates a DataSource from a single file.

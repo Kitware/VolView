@@ -5,7 +5,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
 import { FILE_READERS } from '@/src/io';
 import { ImportHandler } from '@/src/io/import/common';
-import { DataSourceWithFile } from '@/src/io/import/dataSource';
+import { FileDataSource } from '@/src/io/import/dataSource';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useMessageStore } from '@/src/store/messages';
 
@@ -34,7 +34,7 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
       fileSrc.file.name,
       dataObject as vtkImageData
     );
-    fileStore.add(dataID, [dataSource as DataSourceWithFile]);
+    fileStore.add(dataID, [dataSource as FileDataSource]);
 
     return done({
       dataID,
@@ -53,7 +53,7 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
       fileSrc.file.name,
       dataObject as vtkPolyData
     );
-    fileStore.add(dataID, [dataSource as DataSourceWithFile]);
+    fileStore.add(dataID, [dataSource as FileDataSource]);
 
     return done({
       dataID,
