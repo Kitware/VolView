@@ -10,7 +10,7 @@ import {
 } from '@/src/io/import/common';
 import {
   DataSource,
-  DataSourceWithFile,
+  FileDataSource,
   fileToDataSource,
 } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
@@ -290,7 +290,7 @@ async function restoreDatasets(
       );
 
       // do the import
-      const dicomSources: DataSourceWithFile[] = [];
+      const dicomSources: FileDataSource[] = [];
       const importResults = await Promise.all(
         datasetDataSources.map((source) =>
           execute(source, {
