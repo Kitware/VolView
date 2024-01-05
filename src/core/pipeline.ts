@@ -85,6 +85,11 @@ export interface PipelineContext<DataType, ResultType, ExtraContext> {
     extra?: ExtraContext
   ): Promise<PipelineResult<DataType, ResultType>>;
   /**
+   * Register cleanup code
+   * @param callback
+   */
+  onCleanup(callback: Function): void;
+  /**
    * Any extra user-supplied data.
    */
   extra?: ExtraContext;
@@ -179,8 +184,17 @@ export default class Pipeline<
       Promise<PipelineResult<DataType, ResultType>>
     > = [];
     const execution = defer<Maybe<ResultType>>();
+    const cleanupCallbacks: Function[] = [];
 
     const terminate = (result: Maybe<ResultType>, error?: Error) => {
+      cleanupCallbacks.forEach((callback) => {
+        try {
+          callback();
+        } catch (e) {
+          console.error(e);
+        }
+      });
+
       if (error) {
         execution.reject(error);
       } else {
@@ -208,6 +222,9 @@ export default class Pipeline<
           const promise = this.execute(arg, innerExtra ?? extraContext);
           nestedExecutions.push(promise);
           return promise;
+        },
+        onCleanup: (callback: Function) => {
+          cleanupCallbacks.push(callback);
         },
         extra: extraContext,
       };
