@@ -9,9 +9,8 @@ import {
   isLoadableResult,
   VolumeResult,
 } from '@/src/io/import/common';
-import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
+import { FileDataSource, DataSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
-import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTargetFromCache from '@/src/io/import/processors/extractArchiveTarget';
 import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
@@ -23,6 +22,9 @@ import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { applyConfig } from '@/src/io/import/configJson';
+import updateUriType from '@/src/io/import/processors/updateUriType';
+import openUriStream from '@/src/io/import/processors/openUriStream';
+import downloadStream from '@/src/io/import/processors/downloadStream';
 
 /**
  * Tries to turn a thrown object into a meaningful error string.
@@ -88,11 +90,9 @@ const importConfigs = async (
   }
 };
 
-const importDicomFiles = async (
-  dicomDataSources: Array<DataSourceWithFile>
-) => {
+const importDicomFiles = async (dicomDataSources: Array<FileDataSource>) => {
   const resultSources: DataSource = {
-    dicomSrc: {
+    collectionSrc: {
       sources: dicomDataSources,
     },
   };
@@ -126,21 +126,30 @@ const importDicomFiles = async (
   }
 };
 
-export async function importDataSources(dataSources: DataSource[]) {
+export async function importDataSources(
+  dataSources: DataSource[]
+): Promise<PipelineResult<DataSource, ImportResult>[]> {
   const importContext = {
     fetchFileCache: new Map<string, File>(),
-    dicomDataSources: [] as DataSourceWithFile[],
+    dicomDataSources: [],
   };
 
   const middleware = [
-    // updating the file type should be first in the pipeline
+    openUriStream,
+
+    // updating the file/uri type should be first step in the pipeline
     updateFileMimeType,
+    updateUriType,
+
     // before extractArchive as .zip extension is part of state file check
     restoreStateFile,
     handleRemoteManifest,
     handleGoogleCloudStorage,
     handleAmazonS3,
-    downloadUrl,
+
+    // stream handling
+    downloadStream,
+
     extractArchiveTargetFromCache,
     extractArchive,
     handleConfig, // collect config files to apply later
