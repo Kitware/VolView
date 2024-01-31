@@ -1,7 +1,7 @@
 import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { VtkProxy } from '@kitware/vtk.js/macros';
 import { onBeforeUnmount } from 'vue';
-import { withProxyManager } from './proxyManager';
+import { requireProxyManager } from './proxyManager';
 
 export enum ProxyManagerEvent {
   ProxyCreated,
@@ -15,36 +15,39 @@ export function onProxyManagerEvent(
   cb: (proxyID: string, obj: VtkProxy | null) => void
 ) {
   const subs: vtkSubscription[] = [];
+  const proxyManager = requireProxyManager();
 
-  withProxyManager((proxyManager) => {
-    const proxySubs = Object.create(null);
+  const proxySubs: Record<string, vtkSubscription> = Object.create(null);
 
-    subs.push(
-      proxyManager.onProxyRegistrationChange((info) => {
-        const { action, proxyId, proxy } = info;
-        if (action === 'register') {
-          if (event === ProxyManagerEvent.ProxyCreated) {
-            cb(proxyId, proxy);
-          }
-          if (event === ProxyManagerEvent.ProxyModified) {
-            proxySubs[proxyId] = proxy.onModified(() => cb(proxyId, proxy));
-          }
-        } else if (action === 'unregister') {
-          if (proxyId in proxySubs) {
-            proxySubs[proxyId].unsubscribe();
-            delete proxySubs[proxyId];
-          }
-          if (event === ProxyManagerEvent.ProxyDeleted) {
-            cb(proxyId, null);
-          }
+  subs.push(
+    proxyManager.onProxyRegistrationChange((info) => {
+      const { action, proxyId, proxy } = info;
+      if (action === 'register') {
+        if (event === ProxyManagerEvent.ProxyCreated) {
+          cb(proxyId, proxy);
         }
-      })
-    );
-  });
+        if (event === ProxyManagerEvent.ProxyModified) {
+          proxySubs[proxyId] = proxy.onModified(() => cb(proxyId, proxy));
+        }
+      } else if (action === 'unregister') {
+        if (proxyId in proxySubs) {
+          proxySubs[proxyId].unsubscribe();
+          delete proxySubs[proxyId];
+        }
+        if (event === ProxyManagerEvent.ProxyDeleted) {
+          cb(proxyId, null);
+        }
+      }
+    })
+  );
 
   onBeforeUnmount(() => {
     while (subs.length) {
       subs.pop()!.unsubscribe();
     }
+    Object.entries(proxySubs).forEach(([id, sub]) => {
+      sub.unsubscribe();
+      delete proxySubs[id];
+    });
   });
 }
