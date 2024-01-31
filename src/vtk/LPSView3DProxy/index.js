@@ -1,10 +1,9 @@
 import { vec3 } from 'gl-matrix';
 import macro from '@kitware/vtk.js/macro';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
+import { batchForNextTask } from '@/src/utils/batchForNextTask';
 
 export function commonViewCustomizations(publicAPI, model) {
-  const delayedRender = macro.debounce(model.renderWindow.render, 5);
-
   // override resize to avoid flickering from rendering later
   publicAPI.resize = () => {
     if (model.container) {
@@ -17,29 +16,20 @@ export function commonViewCustomizations(publicAPI, model) {
       const height = Math.max(10, Math.floor(devicePixelRatio * dims.height));
       model.renderWindow.getViews()[0].setSize(width, height);
       publicAPI.invokeResize({ width, height });
-      publicAPI.render(true);
+      publicAPI.render();
     }
   };
 
   // override render to not reset camera
-  publicAPI.render = (blocking = true) => {
+  publicAPI.render = () => {
     model.orientationWidget.updateMarkerOrientation();
-    if (blocking) {
-      model.renderWindow.render();
-    } else {
-      delayedRender();
-    }
+    model.renderWindow.render();
   };
 
   // provide a renderLater impl that schedules for the next js task
-  let timeout = null;
-  publicAPI.renderLater = () => {
-    if (timeout != null) return;
-    timeout = setTimeout(() => {
-      publicAPI.render();
-      timeout = null;
-    }, 0);
-  };
+  publicAPI.renderLater = batchForNextTask(() => {
+    publicAPI.render();
+  });
 
   // add helper function
   publicAPI.removeAllRepresentations = () => {
@@ -56,11 +46,14 @@ export function commonViewCustomizations(publicAPI, model) {
     model.camera.setViewUp(...viewUp);
   };
 
-  // disable the built-in corner annotations
   const { setContainer } = publicAPI;
   publicAPI.setContainer = (el) => {
+    const changed = model.container !== el;
     setContainer(el);
+    // disable the built-in corner annotations
     model.cornerAnnotation.setContainer(null);
+    // trigger onModified
+    if (changed) publicAPI.modified();
   };
 
   const { resetCamera } = publicAPI;
