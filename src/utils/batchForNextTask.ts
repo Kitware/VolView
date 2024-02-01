@@ -5,13 +5,14 @@
  * @param fn
  * @returns
  */
-export function batchForNextTask(fn: () => void) {
+export function batchForNextTask<T extends (...args: any[]) => void>(fn: T) {
   let timeout: NodeJS.Timeout | null = null;
-  return () => {
+  const wrapper = ((...args: any[]) => {
     if (timeout != null) return;
     timeout = setTimeout(() => {
       timeout = null;
-      fn();
+      fn(...args);
     }, 0);
-  };
+  }) as T;
+  return wrapper;
 }
