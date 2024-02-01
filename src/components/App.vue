@@ -29,7 +29,7 @@
                 size="40"
                 icon="mdi-content-save-all"
                 name="Save session"
-                :loading="saveHappening"
+                :loading="isSaving"
                 @click="handleSave"
               />
               <div class="my-1 tool-separator" />
@@ -102,20 +102,6 @@
                 class="clickable"
                 @click="loadUserPromptedFiles"
               >
-                <div v-if="!saveUrl" class="vertical-offset-margin">
-                  <v-icon size="64">mdi-cloud-off-outline</v-icon>
-                </div>
-                <div v-if="!saveUrl">
-                  Secure: Image data never leaves your machine.
-                </div>
-                <v-btn
-                  class="mt-2"
-                  variant="tonal"
-                  color="secondary"
-                  @click.stop="dataSecurityDialog = true"
-                >
-                  Learn More
-                </v-btn>
               </welcome-page>
             </div>
           </div>
@@ -135,10 +121,6 @@
           <template v-slot="{ close }">
             <save-session :close="close" />
           </template>
-        </closeable-dialog>
-
-        <closeable-dialog v-model="dataSecurityDialog">
-          <data-security-box />
         </closeable-dialog>
 
         <keyboard-shortcuts />
@@ -176,6 +158,7 @@ import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import useLoadDataStore from '@/src/store/load-data';
+import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
 import {
   loadFiles,
@@ -200,14 +183,12 @@ import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
 import PersistentOverlay from './PersistentOverlay.vue';
-import DataSecurityBox from './DataSecurityBox.vue';
 import KeyboardShortcuts from './KeyboardShortcuts.vue';
 import { useImageStore } from '../store/datasets-images';
 import { useViewStore } from '../store/views';
 import { ConnectionState, useServerStore } from '../store/server';
 import { MessageType, useMessageStore } from '../store/messages';
 import { Layouts } from '../config';
-import { serialize } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
@@ -222,7 +203,6 @@ export default defineComponent({
     LayoutGrid,
     DragAndDrop,
     CloseableDialog,
-    DataSecurityBox,
     ToolStrip,
     ModulePanel,
     MessageCenter,
@@ -399,35 +379,17 @@ export default defineComponent({
     });
 
     const saveDialog = ref(false);
-    const saveUrl =
-      import.meta.env.VITE_ENABLE_REMOTE_SAVE && (urlParams.save as string);
-    const saveHappening = ref(false);
 
-    const handleSave = async () => {
-      if (saveUrl) {
-        try {
-          saveHappening.value = true;
+    const remoteSaveStateStore = useRemoteSaveStateStore();
+    const { isSaving, saveUrl } = storeToRefs(remoteSaveStateStore);
 
-          const blob = await serialize();
-          const saveResult = await fetch(saveUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/zip',
-              'Content-Length': blob.size.toString(),
-            },
-            body: blob,
-          });
+    if (import.meta.env.VITE_ENABLE_REMOTE_SAVE) {
+      remoteSaveStateStore.setSaveUrl(urlParams.save.toString());
+    }
 
-          if (saveResult.ok) messageStore.addSuccess('Save Successful');
-          else messageStore.addError('Save Failed', 'Network response not OK');
-        } catch (error) {
-          messageStore.addError(
-            'Save Failed with error',
-            `Failed from: ${error}`
-          );
-        } finally {
-          saveHappening.value = false;
-        }
+    const handleSave = () => {
+      if (saveUrl.value !== '') {
+        remoteSaveStateStore.saveState();
       } else {
         saveDialog.value = true;
       }
@@ -441,7 +403,7 @@ export default defineComponent({
       dataSecurityDialog: ref(false),
       saveDialog,
       handleSave,
-      saveHappening,
+      isSaving,
       leftSideBar: ref(!display.mobile.value),
       mobile: display.mobile,
       messageCount,
@@ -452,7 +414,6 @@ export default defineComponent({
       loadUserPromptedFiles,
       loadFiles,
       hasData,
-      saveUrl,
       serverConnectionIcon,
       serverUrl,
       showLoading,
@@ -507,10 +468,6 @@ export default defineComponent({
   height: 1px;
   border: none;
   border-top: 1px solid rgb(112, 112, 112);
-}
-
-.vertical-offset-margin {
-  margin-top: 128px;
 }
 
 .dnd-prompt {

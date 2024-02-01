@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue';
+import CloseableDialog from '@/src/components/CloseableDialog.vue';
+import DataSecurityBox from '@/src/components/DataSecurityBox.vue';
+import useRemoteSaveStateStore from '@/src/store/remote-save-state';
+
 withDefaults(
   defineProps<{
     loading?: boolean;
@@ -7,6 +12,11 @@ withDefaults(
     loading: false,
   }
 );
+
+const isRemoteSaveDisabled = computed(
+  () => useRemoteSaveStateStore().saveUrl === ''
+);
+const dataSecurityDialog = ref(false);
 </script>
 
 <template>
@@ -31,7 +41,20 @@ withDefaults(
             <div>Drag &amp; drop your DICOM files.</div>
 
             <div class="vertical-offset-margin">
-              <slot></slot>
+              <div v-if="isRemoteSaveDisabled" class="vertical-offset-margin">
+                <v-icon size="64">mdi-cloud-off-outline</v-icon>
+              </div>
+              <div v-if="isRemoteSaveDisabled">
+                Secure: Image data never leaves your machine.
+              </div>
+              <v-btn
+                class="mt-2"
+                variant="tonal"
+                color="secondary"
+                @click.stop="dataSecurityDialog = true"
+              >
+                Learn More
+              </v-btn>
             </div>
           </template>
           <template v-else>
@@ -42,6 +65,9 @@ withDefaults(
       </v-row>
     </v-col>
   </v-container>
+  <closeable-dialog v-model="dataSecurityDialog">
+    <data-security-box />
+  </closeable-dialog>
 </template>
 
 <style scoped>
@@ -51,5 +77,9 @@ withDefaults(
   flex-flow: row;
   align-items: center;
   max-width: 100%;
+}
+
+.vertical-offset-margin {
+  margin-top: 128px;
 }
 </style>
