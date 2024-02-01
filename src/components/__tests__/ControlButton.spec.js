@@ -2,9 +2,9 @@ import { describe, it } from 'vitest';
 import { expect } from 'chai';
 import { shallowMount } from '@vue/test-utils';
 
-import ToolButton from '@/src/components/ToolButton.vue';
+import ControlButton from '@/src/components/ControlButton.vue';
 
-describe('ToolButton.vue', () => {
+describe('ControlButton.vue', () => {
   const propsData = {
     size: '80',
     name: 'TEST BUTTON',
@@ -12,7 +12,7 @@ describe('ToolButton.vue', () => {
   };
 
   it('computes icon size', () => {
-    const wrapper = shallowMount(ToolButton, { propsData });
+    const wrapper = shallowMount(ControlButton, { propsData });
     expect(wrapper.vm.iconSize).to.equal(48);
   });
 
@@ -21,11 +21,11 @@ describe('ToolButton.vue', () => {
     let wrapper;
 
     props = { ...propsData, buttonClass: 'c1 c2 c3' };
-    wrapper = shallowMount(ToolButton, { propsData: props });
+    wrapper = shallowMount(ControlButton, { propsData: props });
     expect(wrapper.vm.classV).to.equal('c1 c2 c3');
 
     props = { ...propsData, buttonClass: ['c1', 'c2', 'c3'] };
-    wrapper = shallowMount(ToolButton, { propsData: props });
+    wrapper = shallowMount(ControlButton, { propsData: props });
     expect(wrapper.vm.classV).to.equal('c1 c2 c3');
 
     props = {
@@ -36,7 +36,7 @@ describe('ToolButton.vue', () => {
         c3: false,
       },
     };
-    wrapper = shallowMount(ToolButton, { propsData: props });
+    wrapper = shallowMount(ControlButton, { propsData: props });
     expect(wrapper.vm.classV).to.equal('c1 c2');
   });
 });

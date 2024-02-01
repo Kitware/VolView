@@ -9,7 +9,7 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
     >
-      <menu-tool-button
+      <menu-control-button
         icon="mdi-circle-half-full"
         name="Window & Level"
         :active="active"
@@ -17,10 +17,10 @@
         @click="toggle"
       >
         <window-level-controls />
-      </menu-tool-button>
+      </menu-control-button>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
-      <tool-button
+      <control-button
         icon="mdi-cursor-move"
         name="Pan"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -29,7 +29,7 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Zoom">
-      <tool-button
+      <control-button
         icon="mdi-magnify-plus-outline"
         name="Zoom"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -41,7 +41,7 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.Crosshairs"
     >
-      <tool-button
+      <control-button
         icon="mdi-crosshairs"
         name="Crosshairs"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -51,7 +51,7 @@
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Select">
-      <tool-button
+      <control-button
         icon="mdi-cursor-default"
         name="Select"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -60,19 +60,19 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <tool-button
+      <control-button
         icon="mdi-brush"
         name="Paint"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
-      ></tool-button>
+      ></control-button>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <menu-tool-button
+      <menu-control-button
         icon="mdi-vector-square"
         name="Rectangle"
         :mobileOnlyMenu="true"
@@ -81,10 +81,10 @@
         @click="toggle"
       >
         <rectangle-controls />
-      </menu-tool-button>
+      </menu-control-button>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
-      <menu-tool-button
+      <menu-control-button
         icon="mdi-pentagon-outline"
         name="Polygon"
         :mobileOnlyMenu="true"
@@ -93,10 +93,10 @@
         @click="toggle"
       >
         <polygon-controls />
-      </menu-tool-button>
+      </menu-control-button>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <menu-tool-button
+      <menu-control-button
         icon="mdi-ruler"
         name="Ruler"
         :mobileOnlyMenu="true"
@@ -105,12 +105,12 @@
         @click="toggle"
       >
         <ruler-controls />
-      </menu-tool-button>
+      </menu-control-button>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <menu-tool-button
+      <menu-control-button
         icon="mdi-crop"
         name="Crop"
         :active="active"
@@ -118,7 +118,7 @@
         @click="toggle"
       >
         <crop-controls />
-      </menu-tool-button>
+      </menu-control-button>
     </groupable-item>
     <div class="my-1 tool-separator" />
     <reset-views />
@@ -130,24 +130,24 @@ import { computed, defineComponent, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { onKeyDown } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
-import ToolButton from './ToolButton.vue';
-import ItemGroup from './ItemGroup.vue';
-import GroupableItem from './GroupableItem.vue';
-import { useDatasetStore } from '../store/datasets';
-import { useToolStore } from '../store/tools';
-import { useViewStore } from '../store/views';
-import MenuToolButton from './MenuToolButton.vue';
-import CropControls from './tools/crop/CropControls.vue';
-import ResetViews from './tools/ResetViews.vue';
-import RulerControls from './RulerControls.vue';
-import RectangleControls from './RectangleControls.vue';
-import PolygonControls from './PolygonControls.vue';
-import WindowLevelControls from './tools/windowing/WindowLevelControls.vue';
+import ControlButton from '@/src/components/ControlButton.vue';
+import ItemGroup from '@/src/components/ItemGroup.vue';
+import GroupableItem from '@/src/components/GroupableItem.vue';
+import { useDatasetStore } from '@/src/store/datasets';
+import { useToolStore } from '@/src/store/tools';
+import { useViewStore } from '@/src/store/views';
+import MenuControlButton from '@/src/components/MenuControlButton.vue';
+import CropControls from '@/src/components/tools/crop/CropControls.vue';
+import ResetViews from '@/src/components/tools/ResetViews.vue';
+import RulerControls from '@/src/components/RulerControls.vue';
+import RectangleControls from '@/src/components/RectangleControls.vue';
+import PolygonControls from '@/src/components/PolygonControls.vue';
+import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 
 export default defineComponent({
   components: {
-    ToolButton,
-    MenuToolButton,
+    ControlButton,
+    MenuControlButton,
     ItemGroup,
     GroupableItem,
     CropControls,

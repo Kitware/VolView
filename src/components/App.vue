@@ -15,87 +15,9 @@
         </v-navigation-drawer>
         <v-main id="content-main">
           <div class="fill-height d-flex flex-row flex-grow-1">
-            <div
-              id="tools-strip"
-              class="bg-grey-darken-4 d-flex flex-column align-center"
-            >
-              <tool-button
-                size="40"
-                icon="mdi-folder-open"
-                name="Open files"
-                @click="loadUserPromptedFiles"
-              />
-              <tool-button
-                size="40"
-                icon="mdi-content-save-all"
-                name="Save session"
-                :loading="isSaving"
-                @click="handleSave"
-              />
-              <div class="my-1 tool-separator" />
-              <v-menu location="right" :close-on-content-click="true">
-                <template v-slot:activator="{ props }">
-                  <div>
-                    <tool-button
-                      v-bind="props"
-                      size="40"
-                      icon="mdi-view-dashboard"
-                      name="Layouts"
-                    />
-                  </div>
-                </template>
-                <v-card>
-                  <v-card-text>
-                    <v-radio-group
-                      v-model="layoutName"
-                      class="mt-0"
-                      hide-details
-                    >
-                      <v-radio
-                        v-for="(value, key) in Layouts"
-                        :key="key"
-                        :label="value.name"
-                        :value="key"
-                      />
-                    </v-radio-group>
-                  </v-card-text>
-                </v-card>
-              </v-menu>
-              <template v-if="hasData">
-                <tool-strip />
-              </template>
-              <v-spacer />
-              <tool-button
-                v-if="serverUrl"
-                size="40"
-                :icon="serverConnectionIcon"
-                name="Open Server Settings"
-                @click="settingsDialog = true"
-              />
-              <v-badge
-                offset-x="10"
-                offset-y="10"
-                :content="messageCount"
-                :color="messageBadgeColor"
-                :model-value="messageCount > 0"
-                id="notifications"
-              >
-                <tool-button
-                  size="40"
-                  icon="mdi-bell-outline"
-                  name="Notifications"
-                  @click="messageDialog = true"
-                />
-              </v-badge>
-              <tool-button
-                size="40"
-                icon="mdi-cog"
-                name="Settings"
-                @click="settingsDialog = true"
-              />
-            </div>
+            <controls-strip :has-data="hasData"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
-              <layout-grid v-show="hasData" :layout="currentLayout" />
+              <layout-grid v-show="hasData" :layout="layout" />
               <welcome-page
                 v-if="!hasData"
                 :loading="showLoading"
@@ -106,23 +28,6 @@
             </div>
           </div>
         </v-main>
-
-        <closeable-dialog v-model="messageDialog" content-class="fill-height">
-          <message-center />
-        </closeable-dialog>
-
-        <message-notifications @open-notifications="messageDialog = true" />
-
-        <closeable-dialog v-model="settingsDialog">
-          <settings />
-        </closeable-dialog>
-
-        <closeable-dialog v-model="saveDialog" max-width="30%">
-          <template v-slot="{ close }">
-            <save-session :close="close" />
-          </template>
-        </closeable-dialog>
-
         <keyboard-shortcuts />
       </v-app>
       <persistent-overlay
@@ -144,22 +49,16 @@
 </template>
 
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  onMounted,
-  provide,
-  Ref,
-  ref,
-  watch,
-} from 'vue';
+import { computed, defineComponent, onMounted, provide, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import useLoadDataStore from '@/src/store/load-data';
+import { useViewStore } from '@/src/store/views';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
+import ControlsStrip from '@/src/components/ControlsStrip.vue';
 import {
   loadFiles,
   loadUserPromptedFiles,
@@ -173,42 +72,26 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import WelcomePage from '@/src/components/WelcomePage.vue';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
-import ToolButton from './ToolButton.vue';
-import LayoutGrid from './LayoutGrid.vue';
-import ModulePanel from './ModulePanel.vue';
-import DragAndDrop from './DragAndDrop.vue';
-import CloseableDialog from './CloseableDialog.vue';
-import ToolStrip from './ToolStrip.vue';
-import MessageCenter from './MessageCenter.vue';
-import MessageNotifications from './MessageNotifications.vue';
-import Settings from './Settings.vue';
-import PersistentOverlay from './PersistentOverlay.vue';
-import KeyboardShortcuts from './KeyboardShortcuts.vue';
-import { useImageStore } from '../store/datasets-images';
-import { useViewStore } from '../store/views';
-import { ConnectionState, useServerStore } from '../store/server';
-import { MessageType, useMessageStore } from '../store/messages';
-import { Layouts } from '../config';
-import SaveSession from './SaveSession.vue';
-import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
-import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
-import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
-import { VTKResliceCursor } from '../constants';
+import LayoutGrid from '@/src/components/LayoutGrid.vue';
+import ModulePanel from '@/src/components/ModulePanel.vue';
+import DragAndDrop from '@/src/components/DragAndDrop.vue';
+import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
+import KeyboardShortcuts from '@/src/components/KeyboardShortcuts.vue';
+import { useImageStore } from '@/src/store/datasets-images';
+import { useServerStore } from '@/src/store/server';
+import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
+import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
+import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import { VTKResliceCursor } from '@/src/constants';
 
 export default defineComponent({
   name: 'App',
 
   components: {
-    ToolButton,
+    ControlsStrip,
     LayoutGrid,
     DragAndDrop,
-    CloseableDialog,
-    ToolStrip,
     ModulePanel,
-    MessageCenter,
-    MessageNotifications,
-    Settings,
-    SaveSession,
     PersistentOverlay,
     KeyboardShortcuts,
     WelcomePage,
@@ -218,39 +101,12 @@ export default defineComponent({
   setup() {
     const imageStore = useImageStore();
     const dicomStore = useDICOMStore();
-    const messageStore = useMessageStore();
-    const viewStore = useViewStore();
 
     useGlobalErrorHook();
     useWebGLWatchdog();
     useKeyboardShortcuts();
 
     const { currentImageData, currentImageMetadata } = useCurrentImage();
-
-    // --- layout --- //
-
-    const layoutName: Ref<string> = ref('Quad View');
-    const { layout: currentLayout } = storeToRefs(viewStore);
-
-    watch(
-      layoutName,
-      () => {
-        const layout = Layouts[layoutName.value] || [];
-        viewStore.setLayout(layout);
-      },
-      {
-        immediate: true,
-      }
-    );
-
-    watch(currentLayout, () => {
-      if (
-        currentLayout.value?.name &&
-        currentLayout.value.name !== layoutName.value
-      ) {
-        layoutName.value = currentLayout.value.name;
-      }
-    });
 
     // --- ResliceCursorWidget --- //
     // Construct the common instance of vtkResliceCursorWidget and provide it
@@ -338,85 +194,33 @@ export default defineComponent({
     // --- remote server --- //
 
     const serverStore = useServerStore();
-    const { url: serverUrl } = storeToRefs(serverStore);
-
-    const serverConnectionIcon = computed(() => {
-      switch (serverStore.connState) {
-        case ConnectionState.Connected:
-          return 'mdi-lan-check';
-        case ConnectionState.Disconnected:
-          return 'mdi-lan-disconnect';
-        case ConnectionState.Pending:
-          return 'mdi-lan-pending';
-        default:
-          throw new Error('Invalid connection state');
-      }
-    });
 
     onMounted(() => {
       serverStore.connect();
     });
 
-    // --- --- //
-
-    const messageCount = computed(() => messageStore.importantMessages.length);
-    const messageBadgeColor = computed(() => {
-      if (
-        messageStore.importantMessages.find(
-          (msg) => msg.type === MessageType.Error
-        )
-      ) {
-        return 'error';
-      }
-      if (
-        messageStore.importantMessages.find(
-          (msg) => msg.type === MessageType.Warning
-        )
-      ) {
-        return 'warning';
-      }
-      return 'primary';
-    });
-
-    const saveDialog = ref(false);
+    // --- save state --- //
 
     const remoteSaveStateStore = useRemoteSaveStateStore();
-    const { isSaving, saveUrl } = storeToRefs(remoteSaveStateStore);
-
     if (import.meta.env.VITE_ENABLE_REMOTE_SAVE) {
       remoteSaveStateStore.setSaveUrl(urlParams.save.toString());
     }
 
-    const handleSave = () => {
-      if (saveUrl.value !== '') {
-        remoteSaveStateStore.saveState();
-      } else {
-        saveDialog.value = true;
-      }
-    };
+    // --- layout --- //
+
+    const { layout } = storeToRefs(useViewStore());
+
+    // --- //
 
     const display = useDisplay();
 
     return {
-      messageDialog: ref(false),
-      settingsDialog: ref(false),
-      dataSecurityDialog: ref(false),
-      saveDialog,
-      handleSave,
-      isSaving,
       leftSideBar: ref(!display.mobile.value),
-      mobile: display.mobile,
-      messageCount,
-      messageBadgeColor,
-      layoutName,
-      currentLayout,
-      Layouts,
       loadUserPromptedFiles,
       loadFiles,
       hasData,
-      serverConnectionIcon,
-      serverUrl,
       showLoading,
+      layout,
     };
   },
 });
@@ -456,18 +260,6 @@ export default defineComponent({
 #app-container {
   width: 100%;
   height: 100%;
-}
-
-#tools-strip {
-  border-left: 1px solid #212121;
-  flex: 0 0 40px;
-}
-
-.tool-separator {
-  width: 75%;
-  height: 1px;
-  border: none;
-  border-top: 1px solid rgb(112, 112, 112);
 }
 
 .dnd-prompt {
