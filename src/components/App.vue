@@ -1,5 +1,5 @@
 <template>
-  <drag-and-drop enabled @drop-files="openFiles" id="app-container">
+  <drag-and-drop enabled @drop-files="loadFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
         <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
@@ -23,7 +23,7 @@
                 size="40"
                 icon="mdi-folder-open"
                 name="Open files"
-                @click="userPromptFiles"
+                @click="loadUserPromptedFiles"
               />
               <tool-button
                 size="40"
@@ -98,9 +98,9 @@
               <layout-grid v-show="hasData" :layout="currentLayout" />
               <welcome-page
                 v-if="!hasData"
-                :loading="isLoadingData"
+                :loading="showLoading"
                 class="clickable"
-                @click="userPromptFiles"
+                @click="loadUserPromptedFiles"
               >
                 <div v-if="!saveUrl" class="vertical-offset-margin">
                   <v-icon size="64">mdi-cloud-off-outline</v-icon>
@@ -165,7 +165,6 @@
 import {
   computed,
   defineComponent,
-  nextTick,
   onMounted,
   provide,
   Ref,
@@ -176,15 +175,13 @@ import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
+import useLoadDataStore from '@/src/store/load-data';
 import AppBar from '@/src/components/AppBar.vue';
-import { basename } from '@/src/utils/path';
-import { useDatasetStore } from '@/src/store/datasets';
-import { logError } from '@/src/utils/loggers';
 import {
-  importDataSources,
-  ImportDataSourcesResult,
-  convertSuccessResultToDataSelection,
-} from '@/src/io/import/importDataSources';
+  loadFiles,
+  loadUserPromptedFiles,
+  loadUrls,
+} from '@/src/actions/loadUserFiles';
 import vtkResliceCursorWidget, {
   ResliceCursorWidgetState,
 } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
@@ -193,7 +190,6 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import WelcomePage from '@/src/components/WelcomePage.vue';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
-import { parseUrl } from '@/src/utils/url';
 import ToolButton from './ToolButton.vue';
 import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
@@ -206,12 +202,6 @@ import Settings from './Settings.vue';
 import PersistentOverlay from './PersistentOverlay.vue';
 import DataSecurityBox from './DataSecurityBox.vue';
 import KeyboardShortcuts from './KeyboardShortcuts.vue';
-import {
-  DataSource,
-  fileToDataSource,
-  getDataSourceName,
-  uriToDataSource,
-} from '../io/import/dataSource';
 import { useImageStore } from '../store/datasets-images';
 import { useViewStore } from '../store/views';
 import { ConnectionState, useServerStore } from '../store/server';
@@ -221,70 +211,8 @@ import { serialize } from '../io/state-file';
 import SaveSession from './SaveSession.vue';
 import { useGlobalErrorHook } from '../composables/useGlobalErrorHook';
 import { useWebGLWatchdog } from '../composables/useWebGLWatchdog';
-import { useAppLoadingNotifications } from '../composables/useAppLoadingNotifications';
-import { wrapInArray } from '../utils';
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts';
 import { VTKResliceCursor } from '../constants';
-import { partitionResults } from '../core/pipeline';
-
-async function loadFiles(
-  sources: DataSource[],
-  setError: (err: Error) => void
-) {
-  const dataStore = useDatasetStore();
-
-  let results: ImportDataSourcesResult[];
-  try {
-    results = await importDataSources(sources);
-  } catch (error) {
-    setError(error as Error);
-    return;
-  }
-
-  const [succeeded, errored] = partitionResults(results);
-
-  if (!dataStore.primarySelection && succeeded.length) {
-    const selection = convertSuccessResultToDataSelection(succeeded[0]);
-    if (selection) {
-      dataStore.setPrimarySelection(selection);
-    }
-  }
-
-  if (errored.length) {
-    const errorMessages = errored.map((errResult) => {
-      // pick first error
-      const [firstError] = errResult.errors;
-      // pick innermost dataset that errored
-      const name = getDataSourceName(firstError.inputDataStackTrace[0]);
-      // log error for debugging
-      logError(firstError.cause);
-      return `- ${name}: ${firstError.message}`;
-    });
-    const failedError = new Error(
-      `These files failed to load:\n${errorMessages.join('\n')}`
-    );
-
-    setError(failedError);
-  }
-}
-
-async function loadRemoteFilesFromURLParams(
-  params: UrlParams,
-  setError: (err: Error) => void
-) {
-  const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const sources = urls.map((url, idx) =>
-    uriToDataSource(
-      url,
-      names[idx] ||
-        basename(parseUrl(url, window.location.href).pathname) ||
-        url
-    )
-  );
-
-  await loadFiles(sources, setError);
-}
 
 export default defineComponent({
   name: 'App',
@@ -317,7 +245,6 @@ export default defineComponent({
     useWebGLWatchdog();
     useKeyboardShortcuts();
 
-    const { runAsLoading } = useAppLoadingNotifications();
     const { currentImageData, currentImageMetadata } = useCurrentImage();
 
     // --- layout --- //
@@ -403,41 +330,18 @@ export default defineComponent({
 
     // --- file handling --- //
 
+    const loadDataStore = useLoadDataStore();
     const hasData = computed(
       () =>
         imageStore.idList.length > 0 ||
         Object.keys(dicomStore.volumeInfo).length > 0
     );
-    const loadingDataCounter = ref(0);
-    const isLoadingData = computed(
-      // hasData: show loading during dicom loading/rendering
-      () => loadingDataCounter.value > 0 || hasData.value
+    // show loading if actually loading or has any data,
+    // since the welcome screen shouldn't be visible when
+    // a dataset is opened.
+    const showLoading = computed(
+      () => loadDataStore.isLoading || hasData.value
     );
-
-    async function openFiles(files: FileList | null) {
-      if (!files) {
-        return;
-      }
-
-      const dataSources = Array.from(files).map(fileToDataSource);
-      try {
-        loadingDataCounter.value += 1;
-        await runAsLoading((setError) => loadFiles(dataSources, setError));
-      } finally {
-        loadingDataCounter.value -= 1;
-      }
-    }
-
-    const fileEl = document.createElement('input');
-    fileEl.setAttribute('type', 'file');
-    fileEl.setAttribute('multiple', 'multiple');
-    fileEl.setAttribute('accept', '*');
-    fileEl.addEventListener('change', () => openFiles(fileEl.files));
-
-    function userPromptFiles() {
-      fileEl.value = '';
-      fileEl.click();
-    }
 
     // --- parse URL -- //
 
@@ -448,19 +352,7 @@ export default defineComponent({
         return;
       }
 
-      // TODO remove this nextTick when we switch away from
-      // vue-toastification.
-      // We run in nextTick to ensure the library is mounted.
-      nextTick(async () => {
-        try {
-          loadingDataCounter.value += 1;
-          await runAsLoading((setError) =>
-            loadRemoteFilesFromURLParams(urlParams, setError)
-          );
-        } finally {
-          loadingDataCounter.value -= 1;
-        }
-      });
+      loadUrls(urlParams);
     });
 
     // --- remote server --- //
@@ -557,13 +449,13 @@ export default defineComponent({
       layoutName,
       currentLayout,
       Layouts,
-      userPromptFiles,
-      openFiles,
+      loadUserPromptedFiles,
+      loadFiles,
       hasData,
       saveUrl,
       serverConnectionIcon,
       serverUrl,
-      isLoadingData,
+      showLoading,
     };
   },
 });
