@@ -75,7 +75,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
-import { useProxyManager } from '@/src/composables/proxyManager';
+import { useProxyManager } from '@/src/composables/useProxyManager';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
