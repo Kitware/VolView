@@ -2,36 +2,7 @@
   <drag-and-drop enabled @drop-files="openFiles" id="app-container">
     <template v-slot="{ dragHover }">
       <v-app>
-        <v-app-bar app clipped-left :height="48">
-          <v-btn icon="mdi-menu" @click="leftSideBar = !leftSideBar" />
-          <v-toolbar-title class="d-flex flex-row align-center mt-3">
-            <vol-view-logo v-if="mobile" />
-            <vol-view-full-logo v-else />
-          </v-toolbar-title>
-          <v-btn
-            variant="text"
-            icon
-            :rounded="0"
-            class="toolbar-button"
-            href="https://volview.kitware.com/feedback/"
-            target="_blank"
-          >
-            <v-icon icon="mdi-comment-question-outline"></v-icon>
-            <v-tooltip activator="parent" location="bottom">
-              Ask Question/Submit Feedback
-            </v-tooltip>
-          </v-btn>
-          <v-btn
-            variant="text"
-            icon
-            :rounded="0"
-            class="toolbar-button"
-            @click="aboutBoxDialog = !aboutBoxDialog"
-          >
-            <v-icon icon="mdi-information-outline"></v-icon>
-            <v-tooltip activator="parent" location="bottom">About</v-tooltip>
-          </v-btn>
-        </v-app-bar>
+        <app-bar @click:left-menu="leftSideBar = !leftSideBar"></app-bar>
         <v-navigation-drawer
           v-model="leftSideBar"
           app
@@ -150,10 +121,6 @@
           </div>
         </v-main>
 
-        <closeable-dialog v-model="aboutBoxDialog">
-          <about-box />
-        </closeable-dialog>
-
         <closeable-dialog v-model="messageDialog" content-class="fill-height">
           <message-center />
         </closeable-dialog>
@@ -209,7 +176,7 @@ import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
-
+import AppBar from '@/src/components/AppBar.vue';
 import { basename } from '@/src/utils/path';
 import { useDatasetStore } from '@/src/store/datasets';
 import { logError } from '@/src/utils/loggers';
@@ -232,15 +199,12 @@ import LayoutGrid from './LayoutGrid.vue';
 import ModulePanel from './ModulePanel.vue';
 import DragAndDrop from './DragAndDrop.vue';
 import CloseableDialog from './CloseableDialog.vue';
-import AboutBox from './AboutBox.vue';
 import ToolStrip from './ToolStrip.vue';
 import MessageCenter from './MessageCenter.vue';
 import MessageNotifications from './MessageNotifications.vue';
 import Settings from './Settings.vue';
 import PersistentOverlay from './PersistentOverlay.vue';
 import DataSecurityBox from './DataSecurityBox.vue';
-import VolViewFullLogo from './icons/VolViewFullLogo.vue';
-import VolViewLogo from './icons/VolViewLogo.vue';
 import KeyboardShortcuts from './KeyboardShortcuts.vue';
 import {
   DataSource,
@@ -330,19 +294,17 @@ export default defineComponent({
     LayoutGrid,
     DragAndDrop,
     CloseableDialog,
-    AboutBox,
     DataSecurityBox,
     ToolStrip,
     ModulePanel,
     MessageCenter,
     MessageNotifications,
-    VolViewFullLogo,
-    VolViewLogo,
     Settings,
     SaveSession,
     PersistentOverlay,
     KeyboardShortcuts,
     WelcomePage,
+    AppBar,
   },
 
   setup() {
@@ -582,7 +544,6 @@ export default defineComponent({
     const display = useDisplay();
 
     return {
-      aboutBoxDialog: ref(false),
       messageDialog: ref(false),
       settingsDialog: ref(false),
       dataSecurityDialog: ref(false),
@@ -647,10 +608,6 @@ export default defineComponent({
 #tools-strip {
   border-left: 1px solid #212121;
   flex: 0 0 40px;
-}
-
-.toolbar-button {
-  min-height: 100%; /* fill toolbar height */
 }
 
 .tool-separator {
