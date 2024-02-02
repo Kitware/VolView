@@ -22,10 +22,11 @@ import { FILE_READERS } from './io';
 import { registerAllReaders } from './io/readers';
 import proxyConfiguration from './vtk/proxy';
 import { CorePiniaProviderPlugin } from './core/provider';
-import ProxyWrapper from './core/proxies';
+import ProxyManagerWrapper from './core/proxies';
 import { patchExitPointerLock } from './utils/hacks';
 import { init as initErrorReporting } from './utils/errorReporting';
 import { StoreRegistry } from './plugins/storeRegistry';
+import { PROXY_MANAGER_WRAPPER_INJECT_KEY } from './composables/useProxyManager';
 
 // patches
 patchExitPointerLock();
@@ -41,7 +42,9 @@ vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
 
 registerAllReaders(FILE_READERS);
 
-const proxyManager = vtkProxyManager.newInstance({ proxyConfiguration });
+const proxyManagerWrapper = new ProxyManagerWrapper(
+  vtkProxyManager.newInstance({ proxyConfiguration })
+);
 
 const dicomIO = new DICOMIO();
 dicomIO.initialize();
@@ -53,7 +56,7 @@ setPipelinesBaseUrl(itkConfig.imageIOUrl);
 const pinia = createPinia();
 pinia.use(
   CorePiniaProviderPlugin({
-    proxies: new ProxyWrapper(proxyManager),
+    proxies: proxyManagerWrapper,
     dicomIO,
   })
 );
@@ -63,7 +66,7 @@ const app = createApp(App);
 
 initErrorReporting(app);
 
-app.provide('ProxyManager', proxyManager);
+app.provide(PROXY_MANAGER_WRAPPER_INJECT_KEY, proxyManagerWrapper);
 app.use(pinia);
 app.use(VueToast);
 app.use(vuetify);

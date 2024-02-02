@@ -1,12 +1,12 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import ToolButton from '@/src/components/ToolButton.vue';
+import ControlButton from '@/src/components/ControlButton.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useCropStore } from '@/src/store/tools/crop';
 
 export default defineComponent({
   components: {
-    ToolButton,
+    ControlButton,
   },
   setup() {
     const { currentImageID } = useCurrentImage();
@@ -28,7 +28,7 @@ export default defineComponent({
 
 <template>
   <v-card dark>
-    <tool-button
+    <control-button
       size="40"
       icon="mdi-restore"
       name="Reset Crop"

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { watch, ref, computed, defineComponent } from 'vue';
 import { useDisplay } from 'vuetify';
-import ToolButton from './ToolButton.vue';
+import ControlButton from './ControlButton.vue';
 
 export default defineComponent({
   name: 'MenuToolButton',
@@ -14,7 +14,7 @@ export default defineComponent({
     mobileOnlyMenu: Boolean,
   },
   components: {
-    ToolButton,
+    ControlButton,
   },
   setup(props) {
     const display = useDisplay();
@@ -54,7 +54,7 @@ export default defineComponent({
     class="overflow-auto"
   >
     <template #activator="{ props }">
-      <tool-button
+      <control-button
         :icon="icon"
         :name="name"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
@@ -70,7 +70,7 @@ export default defineComponent({
         >
           {{ showLeft ? 'mdi-menu-left' : 'mdi-menu-right' }}
         </v-icon>
-      </tool-button>
+      </control-button>
     </template>
 
     <div class="menu-content elevation-24">

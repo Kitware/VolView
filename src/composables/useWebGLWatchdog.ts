@@ -3,10 +3,10 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import { useEventListener, useThrottleFn } from '@vueuse/core';
 import { Maybe } from '@/src/types';
-import { useProxyManager } from '@/src/composables/proxyManager';
+import { useProxyManager } from '@/src/composables/useProxyManager';
 import { Messages } from '../constants';
 import { useMessageStore } from '../store/messages';
-import { onProxyManagerEvent, ProxyManagerEvent } from './onProxyManagerEvent';
+import { onProxyManagerEvent } from './onProxyManagerEvent';
 
 /**
  * Collects relevant context for debugging 3D crashes.
@@ -50,7 +50,7 @@ export function useWebGLWatchdog() {
     });
   }, 150);
 
-  onProxyManagerEvent(ProxyManagerEvent.ProxyCreated, (id, obj) => {
+  onProxyManagerEvent('ProxyCreated', (id, obj) => {
     if (!obj || !obj.isA('vtkViewProxy')) return;
     const view = obj as vtkViewProxy;
     // TODO getCanvas() typing
@@ -63,7 +63,7 @@ export function useWebGLWatchdog() {
     watchdogs.set(id, cleanup);
   });
 
-  onProxyManagerEvent(ProxyManagerEvent.ProxyDeleted, (id) => {
+  onProxyManagerEvent('ProxyDeleted', (id) => {
     if (watchdogs.has(id)) {
       watchdogs.get(id)!();
       watchdogs.delete(id);

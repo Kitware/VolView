@@ -244,7 +244,7 @@ import {
   WL_AUTO_DEFAULT,
   WL_HIST_BINS,
 } from '../constants';
-import { useProxyManager } from '../composables/proxyManager';
+import { useProxyManager } from '../composables/useProxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
@@ -911,3 +911,4 @@ export default defineComponent({
   cursor: pointer;
 }
 </style>
+../composables/useProxyManager

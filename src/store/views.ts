@@ -62,7 +62,7 @@ export const useViewStore = defineStore('view', {
     removeView(id: string) {
       if (id in this.viewSpecs) {
         delete this.viewSpecs[id];
-        this.$proxies.removeView(id);
+        this.$proxies.deleteView(id);
       }
     },
     setLayout(layout: Layout) {

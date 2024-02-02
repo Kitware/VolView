@@ -1,50 +1,61 @@
 import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import { VtkProxy } from '@kitware/vtk.js/macros';
 import { onBeforeUnmount } from 'vue';
-import { withProxyManager } from './proxyManager';
+import { requireProxyManager } from './useProxyManager';
 
-export enum ProxyManagerEvent {
-  ProxyCreated,
-  ProxyModified,
-  ProxyDeleted,
-  ProxyRegistrationChange,
-}
+export type ProxyManagerEvent =
+  | 'ProxyCreated'
+  | 'ProxyModified'
+  | 'ProxyDeleted'
+  | 'ProxyRegistrationChange';
 
 export function onProxyManagerEvent(
   event: ProxyManagerEvent,
-  cb: (proxyID: string, obj: VtkProxy | null) => void
+  cb: (
+    proxyID: string,
+    obj: VtkProxy | null,
+    action: 'register' | 'unregister' | 'modified'
+  ) => void
 ) {
   const subs: vtkSubscription[] = [];
+  const proxyManager = requireProxyManager();
 
-  withProxyManager((proxyManager) => {
-    const proxySubs = Object.create(null);
+  const proxySubs: Record<string, vtkSubscription> = Object.create(null);
 
-    subs.push(
-      proxyManager.onProxyRegistrationChange((info) => {
-        const { action, proxyId, proxy } = info;
-        if (action === 'register') {
-          if (event === ProxyManagerEvent.ProxyCreated) {
-            cb(proxyId, proxy);
-          }
-          if (event === ProxyManagerEvent.ProxyModified) {
-            proxySubs[proxyId] = proxy.onModified(() => cb(proxyId, proxy));
-          }
-        } else if (action === 'unregister') {
-          if (proxyId in proxySubs) {
-            proxySubs[proxyId].unsubscribe();
-            delete proxySubs[proxyId];
-          }
-          if (event === ProxyManagerEvent.ProxyDeleted) {
-            cb(proxyId, null);
-          }
+  subs.push(
+    proxyManager.onProxyRegistrationChange((info) => {
+      const { action, proxyId, proxy } = info;
+      if (action === 'register') {
+        if (event === 'ProxyCreated') {
+          cb(proxyId, proxy, 'register');
         }
-      })
-    );
-  });
+        if (event === 'ProxyModified') {
+          proxySubs[proxyId] = proxy.onModified(() =>
+            cb(proxyId, proxy, 'modified')
+          );
+        }
+      } else if (action === 'unregister') {
+        if (proxyId in proxySubs) {
+          proxySubs[proxyId].unsubscribe();
+          delete proxySubs[proxyId];
+        }
+        if (event === 'ProxyDeleted') {
+          cb(proxyId, null, 'unregister');
+        }
+      }
+      if (event === 'ProxyRegistrationChange') {
+        cb(proxyId, proxy, action);
+      }
+    })
+  );
 
   onBeforeUnmount(() => {
     while (subs.length) {
       subs.pop()!.unsubscribe();
     }
+    Object.entries(proxySubs).forEach(([id, sub]) => {
+      sub.unsubscribe();
+      delete proxySubs[id];
+    });
   });
 }

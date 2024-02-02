@@ -5,7 +5,7 @@
     data-testid="layout-grid"
   >
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
-      <layout-grid v-if="item.type === 'layout'" :layout="item" />
+      <layout-grid v-if="item.type === 'layout'" :layout="(item as Layout)" />
       <div v-else class="layout-item">
         <component
           :is="item.component"

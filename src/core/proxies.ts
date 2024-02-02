@@ -17,10 +17,10 @@ export enum ViewProxyType {
  * Wrapper around the vtkProxyManager, since we don't need some of
  * its complexities.
  */
-export default class ProxyWrapper {
+export default class ProxyManagerWrapper {
   private viewProxies: Map<string, vtkViewProxy>;
   private dataProxies: Map<string, vtkSourceProxy<vtkObject>>;
-  private proxyManager: vtkProxyManager;
+  public readonly proxyManager: vtkProxyManager;
 
   constructor(proxyManager: vtkProxyManager) {
     this.viewProxies = new Map();
@@ -28,17 +28,20 @@ export default class ProxyWrapper {
     this.proxyManager = proxyManager;
   }
 
-  delete() {
+  clearAll() {
     const deleteProxy = (proxy: VtkProxy) =>
       this.proxyManager.deleteProxy(proxy);
 
     this.viewProxies.forEach(deleteProxy);
     this.dataProxies.forEach(deleteProxy);
+
+    this.viewProxies.clear();
+    this.dataProxies.clear();
   }
 
   createView(id: string, type: ViewProxyType) {
     if (this.viewProxies.has(id)) {
-      throw new Error('Cannot create a view with the same ID');
+      throw new Error(`Cannot create a view with the same ID "${id}"`);
     }
 
     const proxy = this.proxyManager.createProxy<vtkViewProxy>('Views', type, {
@@ -53,7 +56,7 @@ export default class ProxyWrapper {
     return <T | null>this.viewProxies.get(id);
   }
 
-  removeView(id: string) {
+  deleteView(id: string) {
     const proxy = this.viewProxies.get(id);
     if (proxy) {
       this.proxyManager.deleteProxy(proxy);
