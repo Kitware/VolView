@@ -136,9 +136,10 @@ export const useAnnotationTool = <
     });
   });
 
+  const { currentImageID, currentImageMetadata } = useCurrentImage();
+
   function jumpToTool(toolID: ToolID) {
     const tool = toolByID.value[toolID];
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
 
     const imageID = currentImageID.value;
     if (!imageID || tool.imageID !== imageID) return;

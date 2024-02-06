@@ -96,7 +96,7 @@ export default defineComponent({
         range.step,
         () => scrollVal.value,
         (slice) => {
-          if (currentImageID.value !== null) {
+          if (currentImageID.value != null) {
             viewSliceStore.updateConfig(viewID.value, currentImageID.value, {
               slice,
             });

@@ -15,7 +15,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
 
   const activeMode = ref(PaintMode.CirclePaint);
-  const activeSegmentGroupID = ref<string | null>(null);
+  const activeSegmentGroupID = ref<Maybe<string>>(null);
   const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
   const strokePoints = ref<vec3[]>([]);
@@ -48,7 +48,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   /**
    * Sets the active labelmap.
    */
-  function setActiveLabelmap(segmentGroupID: string | null) {
+  function setActiveLabelmap(segmentGroupID: Maybe<string>) {
     activeSegmentGroupID.value = segmentGroupID;
   }
 
@@ -57,7 +57,7 @@ export const usePaintToolStore = defineStore('paint', () => {
    *
    * If a labelmap exists, pick the first one. If no labelmap exists, create one.
    */
-  function setActiveLabelmapFromImage(imageID: string | null) {
+  function setActiveLabelmapFromImage(imageID: Maybe<string>) {
     if (!imageID) {
       setActiveLabelmap(null);
       return;
@@ -178,7 +178,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   function serialize(state: StateFile) {
     const { paint } = state.manifest.tools;
 
-    paint.activeSegmentGroupID = activeSegmentGroupID.value;
+    paint.activeSegmentGroupID = activeSegmentGroupID.value ?? null;
     paint.brushSize = brushSize.value;
     paint.activeSegment = activeSegment.value;
     paint.labelmapOpacity = labelmapOpacity.value;

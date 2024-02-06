@@ -219,7 +219,7 @@ export default defineComponent({
       get: () => windowingStore.getConfig(viewID.value, curImageID.value),
       set: (newValue) => {
         const imageID = curImageID.value;
-        if (imageID !== null && newValue != null) {
+        if (imageID != null && newValue != null) {
           windowingStore.updateConfig(viewID.value, imageID, newValue);
         }
       },
@@ -229,7 +229,7 @@ export default defineComponent({
     const windowLevel = computed(() => wlConfig.value?.level);
     const dicomInfo = computed(() => {
       if (
-        curImageID.value !== null &&
+        curImageID.value != null &&
         curImageID.value in dicomStore.imageIDToVolumeKey
       ) {
         const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];

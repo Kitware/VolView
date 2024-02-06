@@ -1,4 +1,13 @@
-import { Ref, UnwrapRef, computed, readonly, ref, watch } from 'vue';
+import {
+  MaybeRef,
+  Ref,
+  UnwrapRef,
+  computed,
+  readonly,
+  ref,
+  unref,
+  watch,
+} from 'vue';
 import { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
@@ -19,34 +28,35 @@ import {
   ContextMenuEvent,
   vtkAnnotationToolWidget,
 } from '@/src/vtk/ToolWidgetUtils/types';
+import { ImageMetadata } from '@/src/types/image';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
 // does the tools's frame of reference match
 // the view's axis
 export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
-  viewAxis: Ref<LPSAxis>,
-  tool: Partial<Tool>
+  viewAxis: MaybeRef<LPSAxis>,
+  tool: Partial<Tool>,
+  imageMetadata: MaybeRef<ImageMetadata>
 ) => {
   if (!tool.frameOfReference) return false;
 
-  const { currentImageMetadata } = useCurrentImage();
   const toolAxis = frameOfReferenceToImageSliceAndAxis(
     tool.frameOfReference,
-    currentImageMetadata.value,
+    unref(imageMetadata),
     {
       allowOutOfBoundsSlice: true,
     }
   );
-  return !!toolAxis && toolAxis.axis === viewAxis.value;
+  return !!toolAxis && toolAxis.axis === unref(viewAxis);
 };
 
 export const useCurrentTools = <S extends AnnotationToolStore>(
   toolStore: S,
   viewAxis: Ref<LPSAxis>
-) =>
-  computed(() => {
-    const { currentImageID } = useCurrentImage();
+) => {
+  const { currentImageID, currentImageMetadata } = useCurrentImage();
+  return computed(() => {
     const curImageID = currentImageID.value;
 
     type ToolType = S['tools'][number];
@@ -55,11 +65,12 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
       // current view axis and not hidden
       return (
         tool.imageID === curImageID &&
-        doesToolFrameMatchViewAxis(viewAxis, tool) &&
+        doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata) &&
         !tool.hidden
       );
     });
   });
+};
 
 // --- Context Menu --- //
 
