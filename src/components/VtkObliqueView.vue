@@ -131,7 +131,9 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
+import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
@@ -143,7 +145,6 @@ import ResliceCursorTool from './tools/ResliceCursorTool.vue';
 import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useResetViewsEvents } from './tools/ResetViews.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
-import useWindowingStore from '../store/view-configs/windowing';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
@@ -187,7 +188,6 @@ export default defineComponent({
     ResliceCursorTool,
   },
   setup(props) {
-    const windowingStore = useWindowingStore();
     const viewSliceStore = useViewSliceStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -330,8 +330,6 @@ export default defineComponent({
       setViewProxyContainer(null);
     });
 
-    // --- apply windowing and slice configs --- //
-
     // Function to compute float range of slicing for oblique slicing.
     // Range is calculated as distance along the plane normal (as originating from {0,0,0} ).
     function slicePlaneRange(
@@ -405,14 +403,6 @@ export default defineComponent({
         }
 
         updateViewFromResliceCursor();
-
-        // TODO listen to changes in point data
-        const range = imageData.getPointData().getScalars().getRange();
-        windowingStore.updateConfig(viewID.value, curImageID.value, {
-          min: range[0],
-          max: range[1],
-        });
-        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
       },
       {
         immediate: true,
@@ -455,21 +445,10 @@ export default defineComponent({
       };
     });
 
-    watch(
-      [viewID, curImageID, viewDirection],
-      ([viewID_, imageID, viewDir]) => {
-        if (!imageID || sliceConfig.value != null) {
-          return;
-        }
+    // --- apply windowing and slice configs --- //
 
-        viewSliceStore.updateConfig(viewID_, imageID, {
-          ...sliceDomain.value,
-          axisDirection: viewDir,
-        });
-        viewSliceStore.resetSlice(viewID_, imageID);
-      },
-      { immediate: true }
-    );
+    useSliceConfigInitializer(viewID, curImageID, viewDirection, sliceDomain);
+    useWindowingConfigInitializer(viewID, curImageID);
 
     watch(
       baseImageRep,
