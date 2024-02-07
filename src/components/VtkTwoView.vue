@@ -19,13 +19,12 @@
         </v-tooltip>
       </v-btn>
       <slice-slider
+        v-model="currentSlice"
         class="slice-slider"
-        :slice="currentSlice"
-        :min="sliceMin"
-        :max="sliceMax"
+        :min="sliceRange[0]"
+        :max="sliceRange[1]"
         :step="1"
         :handle-height="20"
-        @input="setSlice"
       />
     </div>
     <div
@@ -94,7 +93,7 @@
         </template>
         <template v-slot:bottom-left>
           <div class="annotation-cell">
-            <div>Slice: {{ currentSlice + 1 }}/{{ sliceMax + 1 }}</div>
+            <div>Slice: {{ currentSlice + 1 }}/{{ sliceRange[1] + 1 }}</div>
             <div
               v-if="
                 typeof windowWidth === 'number' &&
@@ -190,10 +189,12 @@ import {
   toRefs,
   watch,
   watchEffect,
+  MaybeRef,
+  unref,
 } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
-
+import { Maybe } from '@/src/types';
 import { useResizeToFit } from '@/src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
@@ -208,10 +209,12 @@ import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import type { TypedArray } from '@kitware/vtk.js/types';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
-import { useCurrentImage } from '../composables/useCurrentImage';
+import { useCurrentImage, useImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import WindowLevelTool from './tools/windowing/WindowLevelTool.vue';
 import SliceScrollTool from './tools/SliceScrollTool.vue';
@@ -233,9 +236,7 @@ import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
-import useViewSliceStore, {
-  defaultSliceConfig,
-} from '../store/view-configs/slicing';
+import useViewSliceStore from '../store/view-configs/slicing';
 import CropTool from './tools/crop/CropTool.vue';
 import {
   ToolContainer,
@@ -257,6 +258,69 @@ const SLICE_OFFSET_KEYS: Record<string, number> = {
   ArrowUp: -1,
   ArrowDown: 1,
 } as const;
+
+function useSliceConfigInitializer(
+  viewID: MaybeRef<string>,
+  imageID: MaybeRef<Maybe<string>>,
+  viewDirection: MaybeRef<LPSAxisDir>
+) {
+  const { metadata } = useImage(imageID);
+
+  const viewAxis = computed(() => getLPSAxisFromDir(unref(viewDirection)));
+  const sliceDomain = computed(() => {
+    const { lpsOrientation, dimensions } = metadata.value;
+    const ijkIndex = lpsOrientation[viewAxis.value];
+    const dimMax = dimensions[ijkIndex];
+
+    return {
+      min: 0,
+      max: dimMax - 1,
+    };
+  });
+
+  const store = useViewSliceStore();
+  const { config: sliceConfig } = useSliceConfig(viewID, imageID);
+
+  watch(
+    sliceConfig,
+    (config) => {
+      const imageIdVal = unref(imageID);
+      const viewIdVal = unref(viewID);
+      if (config || !imageIdVal) return;
+      store.updateConfig(viewIdVal, imageIdVal, {
+        ...sliceDomain.value,
+        axisDirection: unref(viewDirection),
+      });
+      store.resetSlice(viewIdVal, imageIdVal);
+    },
+    { immediate: true }
+  );
+}
+
+function useWindowingConfigInitializer(
+  viewID: MaybeRef<string>,
+  imageID: MaybeRef<Maybe<string>>
+) {
+  const { imageData } = useImage(imageID);
+
+  const store = useWindowingStore();
+  const { config: windowConfig } = useWindowingConfig(viewID, imageID);
+
+  watch(
+    windowConfig,
+    (config) => {
+      const image = imageData.value;
+      const imageIdVal = unref(imageID);
+      const viewIdVal = unref(viewID);
+      if (config || !image || !imageIdVal) return;
+
+      const [min, max] = image.getPointData().getScalars().getRange();
+      store.updateConfig(viewIdVal, imageIdVal, { min, max });
+      store.resetWindowLevel(viewIdVal, imageIdVal);
+    },
+    { immediate: true }
+  );
+}
 
 export default defineComponent({
   name: 'VtkTwoView',
@@ -315,32 +379,17 @@ export default defineComponent({
 
     const dicomStore = useDICOMStore();
 
-    const sliceConfigDefaults = defaultSliceConfig();
-    const sliceConfig = computed(() =>
-      viewSliceStore.getConfig(viewID.value, curImageID.value)
-    );
-    const currentSlice = computed(
-      () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
-    );
-    const sliceMin = computed(
-      () => sliceConfig.value?.min ?? sliceConfigDefaults.min
-    );
-    const sliceMax = computed(
-      () => sliceConfig.value?.max ?? sliceConfigDefaults.max
-    );
+    const {
+      config: sliceConfig,
+      slice: currentSlice,
+      range: sliceRange,
+    } = useSliceConfig(viewID, curImageID);
+    const {
+      config: wlConfig,
+      width: windowWidth,
+      level: windowLevel,
+    } = useWindowingConfig(viewID, curImageID);
 
-    const wlConfig = computed({
-      get: () => windowingStore.getConfig(viewID.value, curImageID.value),
-      set: (newValue) => {
-        const imageID = curImageID.value;
-        if (imageID != null && newValue != null) {
-          windowingStore.updateConfig(viewID.value, imageID, newValue);
-        }
-      },
-    });
-
-    const windowWidth = computed(() => wlConfig.value?.width);
-    const windowLevel = computed(() => wlConfig.value?.level);
     const autoRange = computed<keyof typeof WLAutoRanges>(
       () => wlConfig.value?.auto || WL_AUTO_DEFAULT
     );
@@ -374,26 +423,10 @@ export default defineComponent({
       return null;
     });
 
-    const sliceDomain = computed(() => {
-      const { lpsOrientation, dimensions } = curImageMetadata.value;
-      const ijkIndex = lpsOrientation[viewAxis.value];
-      const dimMax = dimensions[ijkIndex];
+    // --- initializers --- //
 
-      return {
-        min: 0,
-        max: dimMax - 1,
-      };
-    });
-
-    // --- setters --- //
-
-    const setSlice = (slice: number) => {
-      if (curImageID.value != null) {
-        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
-          slice,
-        });
-      }
-    };
+    useSliceConfigInitializer(viewID, curImageID, viewDirection);
+    useWindowingConfigInitializer(viewID, curImageID);
 
     // --- view proxy setup --- //
 
@@ -421,22 +454,6 @@ export default defineComponent({
       const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
       viewProxy.value.setSlicingMode('IJK'[ijkIndex]);
     });
-
-    watch(
-      [viewID, curImageID, viewDirection],
-      ([viewID_, imageID, viewDir]) => {
-        if (!imageID || sliceConfig.value != null) {
-          return;
-        }
-
-        viewSliceStore.updateConfig(viewID_, imageID, {
-          ...sliceDomain.value,
-          axisDirection: viewDir,
-        });
-        viewSliceStore.resetSlice(viewID_, imageID);
-      },
-      { immediate: true }
-    );
 
     // --- arrows change slice --- //
 
@@ -882,14 +899,12 @@ export default defineComponent({
       viewAxis,
       active: true,
       currentSlice,
-      sliceMin,
-      sliceMax,
+      sliceRange,
       windowWidth,
       windowLevel,
       topLabel,
       leftLabel,
       isImageLoading,
-      setSlice,
       widgetManager,
       dicomInfo,
       enableResizeToFit() {

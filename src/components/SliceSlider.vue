@@ -35,7 +35,7 @@ function getYOffsetFromTransform(matStr) {
 
 export default {
   props: {
-    slice: {
+    modelValue: {
       type: Number,
       default: 0,
     },
@@ -57,6 +57,8 @@ export default {
     },
   },
 
+  emits: ['update:modelValue'],
+
   data() {
     return {
       maxHandlePos: 0,
@@ -70,7 +72,7 @@ export default {
   computed: {
     handlePosition() {
       const range = this.max - this.min <= 0 ? 1 : this.max - this.min;
-      const pos = this.maxHandlePos * ((this.slice - this.min) / range);
+      const pos = this.maxHandlePos * ((this.modelValue - this.min) / range);
       return this.dragging ? this.draggingHandlePos : pos;
     },
     draggingHandlePos() {
@@ -118,7 +120,7 @@ export default {
           Math.min(this.maxHandlePos, ev.pageY - y - this.handleHeight / 2)
         );
         const newSlice = this.getNearestSlice(this.initialHandlePos);
-        this.$emit('input', newSlice);
+        this.$emit('modelValue', newSlice);
       }
 
       this.yOffset = 0;
@@ -132,7 +134,7 @@ export default {
 
       this.yOffset = ev.pageY - this.initialMousePosY;
       const slice = this.getNearestSlice(this.handlePosition);
-      this.$emit('input', slice);
+      this.$emit('modelValue', slice);
     },
 
     onDragEnd(ev) {
@@ -142,7 +144,7 @@ export default {
 
       this.dragging = false;
       const slice = this.getNearestSlice(this.handlePosition);
-      this.$emit('input', slice);
+      this.$emit('modelValue', slice);
     },
 
     getNearestSlice(pos) {

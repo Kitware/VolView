@@ -130,6 +130,8 @@ import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/Resl
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
@@ -146,9 +148,7 @@ import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
 import { useWidgetManager } from '../composables/useWidgetManager';
-import useViewSliceStore, {
-  defaultSliceConfig,
-} from '../store/view-configs/slicing';
+import useViewSliceStore from '../store/view-configs/slicing';
 import {
   OBLIQUE_OUTLINE_COLORS,
   ToolContainer,
@@ -207,26 +207,16 @@ export default defineComponent({
 
     const dicomStore = useDICOMStore();
 
-    const sliceConfigDefaults = defaultSliceConfig();
-    const sliceConfig = computed(() =>
-      viewSliceStore.getConfig(viewID.value, curImageID.value)
+    const { slice: currentSlice, config: sliceConfig } = useSliceConfig(
+      viewID,
+      curImageID
     );
-    const currentSlice = computed(
-      () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
-    );
+    const {
+      width: windowWidth,
+      level: windowLevel,
+      config: wlConfig,
+    } = useWindowingConfig(viewID, curImageID);
 
-    const wlConfig = computed({
-      get: () => windowingStore.getConfig(viewID.value, curImageID.value),
-      set: (newValue) => {
-        const imageID = curImageID.value;
-        if (imageID != null && newValue != null) {
-          windowingStore.updateConfig(viewID.value, imageID, newValue);
-        }
-      },
-    });
-
-    const windowWidth = computed(() => wlConfig.value?.width);
-    const windowLevel = computed(() => wlConfig.value?.level);
     const dicomInfo = computed(() => {
       if (
         curImageID.value != null &&
