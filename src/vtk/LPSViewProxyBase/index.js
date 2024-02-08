@@ -28,8 +28,9 @@ export function applyLPSViewProxyBase(publicAPI, model) {
     }
   };
 
-  // override render to not reset camera
+  // override render to not reset camera and to not render during animation
   publicAPI.render = () => {
+    if (model.interactor.isAnimating()) return;
     model.orientationWidget.updateMarkerOrientation();
     model.renderWindow.render();
   };
