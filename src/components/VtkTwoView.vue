@@ -106,61 +106,9 @@
         </template>
         <template v-slot:top-right>
           <div class="annotation-cell">
-            <v-menu
-              open-on-hover
-              location="bottom left"
-              left
-              nudge-left="10"
-              dark
-              v-if="dicomInfo !== null"
-              max-width="300px"
-            >
-              <template v-slot:activator="{ props }">
-                <v-icon
-                  v-bind="props"
-                  dark
-                  size="x-large"
-                  class="pointer-events-all hover-info"
-                >
-                  mdi-information
-                </v-icon>
-              </template>
-              <v-list class="bg-grey-darken-3">
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    PATIENT / CASE
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    ID: {{ dicomInfo.patientID }}
-                  </v-list-item-title>
-                </v-list-item>
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    STUDY
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    ID: {{ dicomInfo.studyID }}
-                  </v-list-item-title>
-                  <v-list-item-title>
-                    {{ dicomInfo.studyDescription }}
-                  </v-list-item-title>
-                </v-list-item>
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    SERIES
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    Series #: {{ dicomInfo.seriesNumber }}
-                  </v-list-item-title>
-                  <v-list-item-title>
-                    {{ dicomInfo.seriesDescription }}
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
+            <dicom-quick-info-button
+              :image-id="curImageID"
+            ></dicom-quick-info-button>
           </div>
         </template>
       </view-overlay-grid>
@@ -212,6 +160,7 @@ import { useWindowingConfigInitializer } from '@/src/composables/useWindowingCon
 import { useBaseSliceRepresentation } from '@/src/composables/useBaseSliceRepresentation';
 import { useLabelMapRepresentations } from '@/src/composables/useLabelMapRepresentations';
 import { useLayerRepresentations } from '@/src/composables/useLayerRepresentations';
+import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -225,7 +174,6 @@ import RulerTool from './tools/ruler/RulerTool.vue';
 import RectangleTool from './tools/rectangle/RectangleTool.vue';
 import PolygonTool from './tools/polygon/PolygonTool.vue';
 import PaintTool from './tools/paint/PaintTool.vue';
-import { useDICOMStore } from '../store/datasets-dicom';
 import { useSegmentGroupStore } from '../store/segmentGroups';
 import { usePaintToolStore } from '../store/tools/paint';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
@@ -282,6 +230,7 @@ export default defineComponent({
     CrosshairsTool,
     CropTool,
     SelectTool,
+    DicomQuickInfoButton,
   },
   setup(props) {
     const viewSliceStore = useViewSliceStore();
@@ -304,8 +253,6 @@ export default defineComponent({
       currentLayers,
     } = useCurrentImage();
 
-    const dicomStore = useDICOMStore();
-
     const {
       config: sliceConfig,
       slice: currentSlice,
@@ -316,36 +263,6 @@ export default defineComponent({
       width: windowWidth,
       level: windowLevel,
     } = useWindowingConfig(viewID, curImageID);
-
-    const dicomInfo = computed(() => {
-      if (
-        curImageID.value != null &&
-        curImageID.value in dicomStore.imageIDToVolumeKey
-      ) {
-        const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];
-        const volumeInfo = dicomStore.volumeInfo[volumeKey];
-        const studyKey = dicomStore.volumeStudy[volumeKey];
-        const studyInfo = dicomStore.studyInfo[studyKey];
-        const patientKey = dicomStore.studyPatient[studyKey];
-        const patientInfo = dicomStore.patientInfo[patientKey];
-
-        const patientID = patientInfo.PatientID;
-        const studyID = studyInfo.StudyID;
-        const studyDescription = studyInfo.StudyDescription;
-        const seriesNumber = volumeInfo.SeriesNumber;
-        const seriesDescription = volumeInfo.SeriesDescription;
-
-        return {
-          patientID,
-          studyID,
-          studyDescription,
-          seriesNumber,
-          seriesDescription,
-        };
-      }
-
-      return null;
-    });
 
     // --- initializers --- //
 
@@ -735,6 +652,7 @@ export default defineComponent({
       viewProxy,
       viewAxis,
       active: true,
+      curImageID,
       currentSlice,
       sliceRange,
       windowWidth,
@@ -743,7 +661,6 @@ export default defineComponent({
       leftLabel,
       isImageLoading,
       widgetManager,
-      dicomInfo,
       enableResizeToFit() {
         resizeToFit.value = true;
       },
@@ -756,10 +673,3 @@ export default defineComponent({
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
 <style scoped src="@/src/components/styles/utils.css"></style>
-<style scoped>
-.hover-info {
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-}
-</style>
