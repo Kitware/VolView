@@ -138,8 +138,6 @@ import { onKeyStroke } from '@vueuse/core';
 import { useResizeToFit } from '@/src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
-import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
@@ -156,6 +154,7 @@ import { useBaseSliceRepresentation } from '@/src/composables/useBaseSliceRepres
 import { useLabelMapRepresentations } from '@/src/composables/useLabelMapRepresentations';
 import { useLayerRepresentations } from '@/src/composables/useLayerRepresentations';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import { applyColoring } from '@/src/composables/useColoringEffect';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -180,7 +179,6 @@ import useViewSliceStore from '../store/view-configs/slicing';
 import CropTool from './tools/crop/CropTool.vue';
 import { ToolContainer } from '../constants';
 import { useProxyManager } from '../composables/useProxyManager';
-import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
@@ -532,85 +530,44 @@ export default defineComponent({
       layersConfigs.value.map((config) => config?.blendConfig)
     );
 
-    watch(
-      [layerReps, colorBys, transferFunctions, opacityFunctions, blendConfigs],
-      () => {
-        layerReps.value
-          .map(
-            (layerRep, idx) =>
-              [
-                layerRep,
-                colorBys.value[idx],
-                transferFunctions.value[idx],
-                opacityFunctions.value[idx],
-                blendConfigs.value[idx],
-              ] as const
-          )
-          .forEach(
-            ([
-              rep,
-              colorBy,
-              transferFunction,
-              opacityFunction,
-              blendConfig,
-            ]) => {
-              if (
-                !colorBy ||
-                !transferFunction ||
-                !opacityFunction ||
-                !blendConfig
-              ) {
-                return;
-              }
-
-              const { arrayName, location } = colorBy;
-              const ctFunc = transferFunction;
-              const opFunc = opacityFunction;
-
-              const lut = proxyManager.getLookupTable(arrayName);
-              lut.setMode(LookupTableProxyMode.Preset);
-              lut.setPresetName(ctFunc.preset);
-              lut.setDataRange(...ctFunc.mappingRange);
-
-              const pwf = proxyManager.getPiecewiseFunction(arrayName);
-              pwf.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
-              pwf.setDataRange(...opFunc.mappingRange);
-
-              switch (opFunc.mode) {
-                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-                  pwf.setGaussians(opFunc.gaussians);
-                  break;
-                case vtkPiecewiseFunctionProxy.Mode.Points: {
-                  const opacityPoints = getShiftedOpacityFromPreset(
-                    opFunc.preset,
-                    opFunc.mappingRange,
-                    opFunc.shift,
-                    opFunc.shiftAlpha
-                  );
-                  if (opacityPoints) {
-                    pwf.setPoints(opacityPoints);
-                  }
-                  break;
-                }
-                case vtkPiecewiseFunctionProxy.Mode.Nodes:
-                  pwf.setNodes(opFunc.nodes);
-                  break;
-                default:
-              }
-
-              rep.setOpacity(blendConfig.opacity);
-
-              // control color range manually
-              rep.setRescaleOnColorBy(false);
-              rep.setColorBy(arrayName, location);
-
-              // Need to trigger a render for when we are restoring from a state file
-              viewProxy.value.renderLater();
+    watchEffect(() => {
+      layerReps.value
+        .map(
+          (layerRep, idx) =>
+            [
+              layerRep,
+              colorBys.value[idx],
+              transferFunctions.value[idx],
+              opacityFunctions.value[idx],
+              blendConfigs.value[idx],
+            ] as const
+        )
+        .forEach(
+          ([rep, colorBy, transferFunction, opacityFunction, blendConfig]) => {
+            if (
+              !colorBy ||
+              !transferFunction ||
+              !opacityFunction ||
+              !blendConfig
+            ) {
+              return;
             }
-          );
-      },
-      { immediate: true, deep: true }
-    );
+
+            applyColoring({
+              colorBy,
+              colorFunc: transferFunction,
+              opacityFunc: opacityFunction,
+              rep,
+              proxyManager,
+            });
+
+            rep.setOpacity(blendConfig.opacity);
+
+            // Need to trigger a render for when we are restoring from a state file
+            viewProxy.value.renderLater();
+          }
+        );
+    });
 
     // --- selection points --- //
 

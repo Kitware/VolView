@@ -63,11 +63,9 @@ export function applyColoring({
     default:
   }
 
-  if (rep) {
-    // control color range manually
-    rep.setRescaleOnColorBy(false);
-    rep.setColorBy(arrayName, location);
-  }
+  // control color range manually
+  rep.setRescaleOnColorBy(false);
+  rep.setColorBy(arrayName, location);
 }
 
 export function useColoringEffect(
