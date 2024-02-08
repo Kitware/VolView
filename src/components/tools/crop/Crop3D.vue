@@ -1,7 +1,6 @@
 <script lang="ts">
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { VTKThreeViewWidgetManager } from '@/src/constants';
 import { useCropStore } from '@/src/store/tools/crop';
 import { LPSCroppingPlanes } from '@/src/types/crop';
 import { useViewStore } from '@/src/store/views';
@@ -17,7 +16,6 @@ import {
   computed,
   DeepReadonly,
   defineComponent,
-  inject,
   onBeforeUnmount,
   ref,
   toRefs,
@@ -55,15 +53,11 @@ export default defineComponent({
   setup(props) {
     const { viewId: viewID } = toRefs(props);
 
-    const widgetManager = inject(VTKThreeViewWidgetManager);
-    if (!widgetManager) {
-      throw new Error('Crop3D component cannot access the 2D widget manager.');
-    }
-
     const viewStore = useViewStore();
     const viewProxy = computed(
       () => viewStore.getViewProxy<vtkLPSView3DProxy>(viewID.value)!
     );
+    const widgetManager = computed(() => viewProxy.value.getWidgetManager());
 
     const cropStore = useCropStore();
     const { currentImageID, currentImageMetadata } = useCurrentImage();

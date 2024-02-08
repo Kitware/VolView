@@ -1,6 +1,5 @@
 import { Maybe } from '@/src/types';
 import type { RGBColor } from '@kitware/vtk.js/types';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import vtkResliceCursorWidget, {
   vtkResliceCursorViewWidget,
 } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
@@ -24,20 +23,6 @@ export const VTKResliceCursor: InjectionKey<vtkResliceCursorWidget> =
 export const VTKResliceCursorViewWidget: InjectionKey<
   ComputedRef<vtkResliceCursorViewWidget>
 > = Symbol('VTKResliceCursorViewWidget');
-
-/**
- * Retrieves the parent VtkTwoView's widget manager.
- */
-export const VTKTwoViewWidgetManager: InjectionKey<
-  ComputedRef<vtkWidgetManager>
-> = Symbol('VTKTwoViewWidgetManager');
-
-/**
- * Retrieves the parent VtkThreeView's widget manager.
- */
-export const VTKThreeViewWidgetManager: InjectionKey<
-  ComputedRef<vtkWidgetManager>
-> = Symbol('VTKThreeViewWidgetManager');
 
 /**
  * Retrieves the parent tool HTML element.

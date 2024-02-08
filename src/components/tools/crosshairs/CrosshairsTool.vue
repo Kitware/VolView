@@ -11,7 +11,6 @@
       :slice="slice"
       :view-id="viewId"
       :view-direction="viewDirection"
-      :widget-manager="widgetManager"
     />
   </div>
 </template>
@@ -19,7 +18,6 @@
 <script lang="ts">
 import { storeToRefs } from 'pinia';
 import { computed, defineComponent, PropType, toRefs } from 'vue';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useToolStore } from '@/src/store/tools';
@@ -43,10 +41,6 @@ export default defineComponent({
     },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
       required: true,
     },
   },

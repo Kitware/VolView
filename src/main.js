@@ -11,7 +11,6 @@ import VueToast from 'vue-toastification';
 import { createPinia } from 'pinia';
 import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
-import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import { setPipelinesBaseUrl, setPipelineWorkerUrl } from '@itk-wasm/image-io';
 
 import itkConfig from '@/src/io/itk/itkConfig';
@@ -36,9 +35,6 @@ patchExitPointerLock();
 vtkMapper.setResolveCoincidentTopologyToPolygonOffset();
 vtkMapper.setResolveCoincidentTopologyPolygonOffsetParameters(-3, -3);
 vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-3, -3);
-// image poly in the back
-vtkImageMapper.setResolveCoincidentTopologyToPolygonOffset();
-vtkImageMapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
 
 registerAllReaders(FILE_READERS);
 

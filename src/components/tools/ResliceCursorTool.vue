@@ -15,11 +15,7 @@ import {
   vtkResliceCursorViewWidget,
   ResliceCursorWidgetState,
 } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
-import {
-  OBLIQUE_OUTLINE_COLORS,
-  VTKTwoViewWidgetManager,
-  VTKResliceCursor,
-} from '@/src/constants';
+import { OBLIQUE_OUTLINE_COLORS, VTKResliceCursor } from '@/src/constants';
 import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 import { getLPSAxisFromDir, getVTKViewTypeFromLPSAxis } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -39,12 +35,6 @@ export default defineComponent({
   setup(props) {
     const active = true;
     const { viewId: viewID, viewDirection } = toRefs(props);
-    const widgetManager = inject(VTKTwoViewWidgetManager);
-    if (!widgetManager) {
-      throw new Error(
-        'ResliceCursorTool component cannot access the 2D widget manager.'
-      );
-    }
 
     const { currentImageMetadata: curImageMetadata, currentImageData } =
       useCurrentImage();
@@ -53,6 +43,7 @@ export default defineComponent({
     const viewProxy = computed(
       () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
     );
+    const widgetManager = computed(() => viewProxy.value.getWidgetManager());
 
     const viewType = computed(() => {
       return viewStore.viewSpecs[viewID.value].viewType;

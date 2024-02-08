@@ -4,7 +4,6 @@ import vtkRulerWidget, {
   vtkRulerViewWidget,
   vtkRulerWidgetState,
 } from '@/src/vtk/RulerWidget';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   reactive,
   computed,
@@ -33,6 +32,7 @@ import {
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
 import { ToolID } from '@/src/types/annotation-tool';
+import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -40,10 +40,6 @@ export default defineComponent({
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
       required: true,
     },
     viewId: {
@@ -67,19 +63,16 @@ export default defineComponent({
     RulerSVG2D,
   },
   setup(props, { emit }) {
-    const {
-      toolId,
-      viewId,
-      widgetManager,
-      viewDirection,
-      currentSlice,
-      isPlacing,
-    } = toRefs(props);
+    const { toolId, viewId, viewDirection, currentSlice, isPlacing } =
+      toRefs(props);
 
     const rulerStore = useRulerStore();
     const ruler = computed(() => rulerStore.rulerByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+    const viewProxy = computed(() =>
+      useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
+    );
+    const widgetManager = computed(() => viewProxy.value?.getWidgetManager());
 
     const widgetFactory = vtkRulerWidget.newInstance({
       id: toolId.value,
@@ -88,7 +81,7 @@ export default defineComponent({
     const widget = ref<vtkRulerViewWidget | null>(null);
 
     onViewProxyMounted(viewProxy, () => {
-      widget.value = widgetManager.value.addWidget(
+      widget.value = widgetManager.value?.addWidget(
         widgetFactory
       ) as vtkRulerViewWidget;
     });
@@ -98,7 +91,7 @@ export default defineComponent({
         return;
       }
       // widgetManager calls widget.delete()
-      widgetManager.value.removeWidget(widget.value);
+      widgetManager.value?.removeWidget(widget.value);
       widgetFactory.delete();
     });
 

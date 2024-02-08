@@ -30,61 +30,9 @@
         </template>
         <template v-slot:top-right>
           <div class="annotation-cell">
-            <v-menu
-              open-on-hover
-              location="bottom left"
-              left
-              nudge-left="10"
-              dark
-              v-if="dicomInfo !== null"
-              max-width="300px"
-            >
-              <template v-slot:activator="{ props }">
-                <v-icon
-                  v-bind="props"
-                  dark
-                  size="x-large"
-                  class="pointer-events-all hover-info"
-                >
-                  mdi-information
-                </v-icon>
-              </template>
-              <v-list class="bg-grey-darken-3">
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    PATIENT / CASE
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    ID: {{ dicomInfo.patientID }}
-                  </v-list-item-title>
-                </v-list-item>
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    STUDY
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    ID: {{ dicomInfo.studyID }}
-                  </v-list-item-title>
-                  <v-list-item-title>
-                    {{ dicomInfo.studyDescription }}
-                  </v-list-item-title>
-                </v-list-item>
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    SERIES
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    Series #: {{ dicomInfo.seriesNumber }}
-                  </v-list-item-title>
-                  <v-list-item-title>
-                    {{ dicomInfo.seriesDescription }}
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
+            <dicom-quick-info-button
+              :image-id="curImageID"
+            ></dicom-quick-info-button>
           </div>
         </template>
       </view-overlay-grid>
@@ -121,7 +69,7 @@ import { onKeyStroke } from '@vueuse/core';
 import type { RGBColor, Vector3 } from '@kitware/vtk.js/types';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
-import vtkReslicReperesentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
+import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 import { useResizeToFit } from '@/src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
@@ -130,6 +78,12 @@ import { ResliceCursorWidgetState } from '@kitware/vtk.js/Widgets/Widgets3D/Resl
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
+import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
+import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
+import { useProxyRepresentation } from '@/src/composables/useProxyRepresentations';
+import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
@@ -138,21 +92,14 @@ import WindowLevelTool from './tools/windowing/WindowLevelTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import ResliceCursorTool from './tools/ResliceCursorTool.vue';
-import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useResetViewsEvents } from './tools/ResetViews.vue';
-import { useDICOMStore } from '../store/datasets-dicom';
-import useWindowingStore from '../store/view-configs/windowing';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
-import { useWidgetManager } from '../composables/useWidgetManager';
-import useViewSliceStore, {
-  defaultSliceConfig,
-} from '../store/view-configs/slicing';
+import useViewSliceStore from '../store/view-configs/slicing';
 import {
   OBLIQUE_OUTLINE_COLORS,
   ToolContainer,
-  VTKTwoViewWidgetManager,
   VTKResliceCursor,
 } from '../constants';
 
@@ -185,9 +132,9 @@ export default defineComponent({
     PanTool,
     ZoomTool,
     ResliceCursorTool,
+    DicomQuickInfoButton,
   },
   setup(props) {
-    const windowingStore = useWindowingStore();
     const viewSliceStore = useViewSliceStore();
 
     const { id: viewID, viewDirection, viewUp } = toRefs(props);
@@ -205,62 +152,22 @@ export default defineComponent({
       isImageLoading,
     } = useCurrentImage();
 
-    const dicomStore = useDICOMStore();
-
-    const sliceConfigDefaults = defaultSliceConfig();
-    const sliceConfig = computed(() =>
-      viewSliceStore.getConfig(viewID.value, curImageID.value)
+    const { slice: currentSlice, config: sliceConfig } = useSliceConfig(
+      viewID,
+      curImageID
     );
-    const currentSlice = computed(
-      () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
-    );
-
-    const wlConfig = computed({
-      get: () => windowingStore.getConfig(viewID.value, curImageID.value),
-      set: (newValue) => {
-        const imageID = curImageID.value;
-        if (imageID != null && newValue != null) {
-          windowingStore.updateConfig(viewID.value, imageID, newValue);
-        }
-      },
-    });
-
-    const windowWidth = computed(() => wlConfig.value?.width);
-    const windowLevel = computed(() => wlConfig.value?.level);
-    const dicomInfo = computed(() => {
-      if (
-        curImageID.value != null &&
-        curImageID.value in dicomStore.imageIDToVolumeKey
-      ) {
-        const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];
-        const volumeInfo = dicomStore.volumeInfo[volumeKey];
-        const studyKey = dicomStore.volumeStudy[volumeKey];
-        const studyInfo = dicomStore.studyInfo[studyKey];
-        const patientKey = dicomStore.studyPatient[studyKey];
-        const patientInfo = dicomStore.patientInfo[patientKey];
-
-        const patientID = patientInfo.PatientID;
-        const studyID = studyInfo.StudyID;
-        const studyDescription = studyInfo.StudyDescription;
-        const seriesNumber = volumeInfo.SeriesNumber;
-        const seriesDescription = volumeInfo.SeriesDescription;
-
-        return {
-          patientID,
-          studyID,
-          studyDescription,
-          seriesNumber,
-          seriesDescription,
-        };
-      }
-
-      return null;
-    });
+    const {
+      width: windowWidth,
+      level: windowLevel,
+      config: wlConfig,
+    } = useWindowingConfig(viewID, curImageID);
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Oblique);
+    const { viewProxy } = useViewProxy<vtkLPSView2DProxy>(
+      viewID,
+      ViewProxyType.Oblique
+    );
 
     const resliceCursor = inject(VTKResliceCursor);
     if (!resliceCursor) {
@@ -279,12 +186,8 @@ export default defineComponent({
       }
     });
 
-    const { baseImageRep } = useSceneBuilder<vtkReslicReperesentationProxy>(
-      viewID,
-      {
-        baseImage: curImageID,
-      }
-    );
+    const { representation: baseImageRep } =
+      useProxyRepresentation<vtkResliceRepresentationProxy>(curImageID, viewID);
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
@@ -321,7 +224,7 @@ export default defineComponent({
     );
 
     onMounted(() => {
-      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setContainer(vtkContainerRef.value ?? null);
       viewProxy.value.setOrientationAxesVisibility(false);
 
       // Initialize camera points during construction
@@ -337,10 +240,8 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
+      viewProxy.value.setContainer(null);
     });
-
-    // --- apply windowing and slice configs --- //
 
     // Function to compute float range of slicing for oblique slicing.
     // Range is calculated as distance along the plane normal (as originating from {0,0,0} ).
@@ -400,11 +301,6 @@ export default defineComponent({
     const toolContainer = ref<HTMLElement>();
     provide(ToolContainer, toolContainer);
 
-    // --- widget manager --- //
-
-    const { widgetManager } = useWidgetManager(viewProxy);
-    provide(VTKTwoViewWidgetManager, widgetManager);
-
     // --- window/level setup --- //
 
     watch(
@@ -415,14 +311,6 @@ export default defineComponent({
         }
 
         updateViewFromResliceCursor();
-
-        // TODO listen to changes in point data
-        const range = imageData.getPointData().getScalars().getRange();
-        windowingStore.updateConfig(viewID.value, curImageID.value, {
-          min: range[0],
-          max: range[1],
-        });
-        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
       },
       {
         immediate: true,
@@ -465,21 +353,10 @@ export default defineComponent({
       };
     });
 
-    watch(
-      [viewID, curImageID, viewDirection],
-      ([viewID_, imageID, viewDir]) => {
-        if (!imageID || sliceConfig.value != null) {
-          return;
-        }
+    // --- apply windowing and slice configs --- //
 
-        viewSliceStore.updateConfig(viewID_, imageID, {
-          ...sliceDomain.value,
-          axisDirection: viewDir,
-        });
-        viewSliceStore.resetSlice(viewID_, imageID);
-      },
-      { immediate: true }
-    );
+    useSliceConfigInitializer(viewID, curImageID, viewDirection, sliceDomain);
+    useWindowingConfigInitializer(viewID, curImageID);
 
     watch(
       baseImageRep,
@@ -666,12 +543,11 @@ export default defineComponent({
       viewProxy,
       viewAxis,
       active: true,
+      curImageID,
       currentSlice,
       windowWidth,
       windowLevel,
       isImageLoading,
-      widgetManager,
-      dicomInfo,
       enableResizeToFit,
       hover,
     };

@@ -1,16 +1,13 @@
 import { vec3 } from 'gl-matrix';
 import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
+import { LPSViewProxyBase } from '@/src/vtk/LPSViewProxyBase';
 
-export interface vtkLPSView3DProxy extends vtkViewProxy {
-  removeAllRepresentations(): void;
-  updateCamera(directionOfProjection: vec3, viewUp: vec3, focalPoint: vec3);
-  getInteractorStyle2D(): vtkInteractorStyleManipulator;
-  getInteractorStyle3D(): vtkInteractorStyleManipulator;
-}
+export interface vtkLPSView3DProxy extends LPSViewProxyBase, vtkViewProxy {}
 
-export function commonViewCustomizations(publicAPI: any, model: any): void;
+export function extend(publicAPI: object, model: object): void;
 
-// TODO extend, newInstance...
-export declare const vtkLPSView3DProxy: {};
+export declare const vtkLPSView3DProxy: {
+  extend: typeof extend;
+};
+
 export default vtkLPSView3DProxy;

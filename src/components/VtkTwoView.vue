@@ -19,13 +19,12 @@
         </v-tooltip>
       </v-btn>
       <slice-slider
+        v-model="currentSlice"
         class="slice-slider"
-        :slice="currentSlice"
-        :min="sliceMin"
-        :max="sliceMax"
+        :min="sliceRange[0]"
+        :max="sliceRange[1]"
         :step="1"
         :handle-height="20"
-        @input="setSlice"
       />
     </div>
     <div
@@ -48,35 +47,30 @@
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
-        <select-tool :view-id="viewID" :widget-manager="widgetManager" />
+        <select-tool :view-id="viewID" />
         <ruler-tool
           :view-id="viewID"
-          :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
         <rectangle-tool
           :view-id="viewID"
-          :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
         <polygon-tool
           :view-id="viewID"
-          :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
-          :widget-manager="widgetManager"
           :slice="currentSlice"
         />
         <crosshairs-tool
           :view-id="viewID"
           :view-direction="viewDirection"
-          :widget-manager="widgetManager"
           :slice="currentSlice"
         />
         <crop-tool :view-id="viewID" />
@@ -94,7 +88,7 @@
         </template>
         <template v-slot:bottom-left>
           <div class="annotation-cell">
-            <div>Slice: {{ currentSlice + 1 }}/{{ sliceMax + 1 }}</div>
+            <div>Slice: {{ currentSlice + 1 }}/{{ sliceRange[1] + 1 }}</div>
             <div
               v-if="
                 typeof windowWidth === 'number' &&
@@ -107,61 +101,9 @@
         </template>
         <template v-slot:top-right>
           <div class="annotation-cell">
-            <v-menu
-              open-on-hover
-              location="bottom left"
-              left
-              nudge-left="10"
-              dark
-              v-if="dicomInfo !== null"
-              max-width="300px"
-            >
-              <template v-slot:activator="{ props }">
-                <v-icon
-                  v-bind="props"
-                  dark
-                  size="x-large"
-                  class="pointer-events-all hover-info"
-                >
-                  mdi-information
-                </v-icon>
-              </template>
-              <v-list class="bg-grey-darken-3">
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    PATIENT / CASE
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    ID: {{ dicomInfo.patientID }}
-                  </v-list-item-title>
-                </v-list-item>
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    STUDY
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    ID: {{ dicomInfo.studyID }}
-                  </v-list-item-title>
-                  <v-list-item-title>
-                    {{ dicomInfo.studyDescription }}
-                  </v-list-item-title>
-                </v-list-item>
-                <v-list-item>
-                  <v-list-item-title class="font-weight-bold">
-                    SERIES
-                  </v-list-item-title>
-                  <v-divider />
-                  <v-list-item-title>
-                    Series #: {{ dicomInfo.seriesNumber }}
-                  </v-list-item-title>
-                  <v-list-item-title>
-                    {{ dicomInfo.seriesDescription }}
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
+            <dicom-quick-info-button
+              :image-id="curImageID"
+            ></dicom-quick-info-button>
           </div>
         </template>
       </view-overlay-grid>
@@ -193,12 +135,9 @@ import {
 } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { onKeyStroke } from '@vueuse/core';
-
 import { useResizeToFit } from '@/src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkIJKSliceRepresentationProxy from '@/src/vtk/IJKSliceRepresentationProxy';
-import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
@@ -207,7 +146,15 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
-import type { TypedArray } from '@kitware/vtk.js/types';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
+import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
+import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
+import { useBaseSliceRepresentation } from '@/src/composables/useBaseSliceRepresentation';
+import { useLabelMapRepresentations } from '@/src/composables/useLabelMapRepresentations';
+import { useLayerRepresentations } from '@/src/composables/useLayerRepresentations';
+import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import { applyColoring } from '@/src/composables/useColoringEffect';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -221,31 +168,17 @@ import RulerTool from './tools/ruler/RulerTool.vue';
 import RectangleTool from './tools/rectangle/RectangleTool.vue';
 import PolygonTool from './tools/polygon/PolygonTool.vue';
 import PaintTool from './tools/paint/PaintTool.vue';
-import { useSceneBuilder } from '../composables/useSceneBuilder';
-import { useDICOMStore } from '../store/datasets-dicom';
 import { useSegmentGroupStore } from '../store/segmentGroups';
-import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
-import useWindowingStore from '../store/view-configs/windowing';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/crosshairs/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
-import { useWidgetManager } from '../composables/useWidgetManager';
-import useViewSliceStore, {
-  defaultSliceConfig,
-} from '../store/view-configs/slicing';
+import useViewSliceStore from '../store/view-configs/slicing';
 import CropTool from './tools/crop/CropTool.vue';
-import {
-  ToolContainer,
-  VTKTwoViewWidgetManager,
-  WLAutoRanges,
-  WL_AUTO_DEFAULT,
-  WL_HIST_BINS,
-} from '../constants';
+import { ToolContainer } from '../constants';
 import { useProxyManager } from '../composables/useProxyManager';
-import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewCameraStore } from '../store/view-configs/camera';
 import useLayerColoringStore from '../store/view-configs/layers';
@@ -289,9 +222,9 @@ export default defineComponent({
     CrosshairsTool,
     CropTool,
     SelectTool,
+    DicomQuickInfoButton,
   },
   setup(props) {
-    const windowingStore = useWindowingStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
     const layerColoringStore = useLayerColoringStore();
@@ -306,73 +239,24 @@ export default defineComponent({
     // --- computed vars --- //
 
     const {
-      currentImageData: curImageData,
       currentImageID: curImageID,
       currentImageMetadata: curImageMetadata,
       isImageLoading,
       currentLayers,
     } = useCurrentImage();
 
-    const dicomStore = useDICOMStore();
+    const {
+      config: sliceConfig,
+      slice: currentSlice,
+      range: sliceRange,
+    } = useSliceConfig(viewID, curImageID);
+    const {
+      config: wlConfig,
+      width: windowWidth,
+      level: windowLevel,
+    } = useWindowingConfig(viewID, curImageID);
 
-    const sliceConfigDefaults = defaultSliceConfig();
-    const sliceConfig = computed(() =>
-      viewSliceStore.getConfig(viewID.value, curImageID.value)
-    );
-    const currentSlice = computed(
-      () => sliceConfig.value?.slice ?? sliceConfigDefaults.slice
-    );
-    const sliceMin = computed(
-      () => sliceConfig.value?.min ?? sliceConfigDefaults.min
-    );
-    const sliceMax = computed(
-      () => sliceConfig.value?.max ?? sliceConfigDefaults.max
-    );
-
-    const wlConfig = computed({
-      get: () => windowingStore.getConfig(viewID.value, curImageID.value),
-      set: (newValue) => {
-        const imageID = curImageID.value;
-        if (imageID != null && newValue != null) {
-          windowingStore.updateConfig(viewID.value, imageID, newValue);
-        }
-      },
-    });
-
-    const windowWidth = computed(() => wlConfig.value?.width);
-    const windowLevel = computed(() => wlConfig.value?.level);
-    const autoRange = computed<keyof typeof WLAutoRanges>(
-      () => wlConfig.value?.auto || WL_AUTO_DEFAULT
-    );
-    const dicomInfo = computed(() => {
-      if (
-        curImageID.value != null &&
-        curImageID.value in dicomStore.imageIDToVolumeKey
-      ) {
-        const volumeKey = dicomStore.imageIDToVolumeKey[curImageID.value];
-        const volumeInfo = dicomStore.volumeInfo[volumeKey];
-        const studyKey = dicomStore.volumeStudy[volumeKey];
-        const studyInfo = dicomStore.studyInfo[studyKey];
-        const patientKey = dicomStore.studyPatient[studyKey];
-        const patientInfo = dicomStore.patientInfo[patientKey];
-
-        const patientID = patientInfo.PatientID;
-        const studyID = studyInfo.StudyID;
-        const studyDescription = studyInfo.StudyDescription;
-        const seriesNumber = volumeInfo.SeriesNumber;
-        const seriesDescription = volumeInfo.SeriesDescription;
-
-        return {
-          patientID,
-          studyID,
-          studyDescription,
-          seriesNumber,
-          seriesDescription,
-        };
-      }
-
-      return null;
-    });
+    // --- initializers --- //
 
     const sliceDomain = computed(() => {
       const { lpsOrientation, dimensions } = curImageMetadata.value;
@@ -385,20 +269,15 @@ export default defineComponent({
       };
     });
 
-    // --- setters --- //
-
-    const setSlice = (slice: number) => {
-      if (curImageID.value != null) {
-        viewSliceStore.updateConfig(viewID.value, curImageID.value, {
-          slice,
-        });
-      }
-    };
+    useSliceConfigInitializer(viewID, curImageID, viewDirection, sliceDomain);
+    useWindowingConfigInitializer(viewID, curImageID);
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Slice);
+    const { viewProxy } = useViewProxy<vtkLPSView2DProxy>(
+      viewID,
+      ViewProxyType.Slice
+    );
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
@@ -407,12 +286,12 @@ export default defineComponent({
     });
 
     onMounted(() => {
-      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setContainer(vtkContainerRef.value ?? null);
       viewProxy.value.setOrientationAxesVisibility(false);
     });
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
+      viewProxy.value.setContainer(null);
     });
 
     // --- Slicing setup --- //
@@ -421,22 +300,6 @@ export default defineComponent({
       const ijkIndex = curImageMetadata.value.lpsOrientation[viewAxis.value];
       viewProxy.value.setSlicingMode('IJK'[ijkIndex]);
     });
-
-    watch(
-      [viewID, curImageID, viewDirection],
-      ([viewID_, imageID, viewDir]) => {
-        if (!imageID || sliceConfig.value != null) {
-          return;
-        }
-
-        viewSliceStore.updateConfig(viewID_, imageID, {
-          ...sliceDomain.value,
-          axisDirection: viewDir,
-        });
-        viewSliceStore.resetSlice(viewID_, imageID);
-      },
-      { immediate: true }
-    );
 
     // --- arrows change slice --- //
 
@@ -463,114 +326,6 @@ export default defineComponent({
     const toolContainer = ref<HTMLElement>();
     provide(ToolContainer, toolContainer);
 
-    // --- widget manager --- //
-
-    const { widgetManager } = useWidgetManager(viewProxy);
-    provide(VTKTwoViewWidgetManager, widgetManager);
-
-    // --- window/level setup --- //
-
-    const histogram = (
-      data: number[] | TypedArray,
-      dataRange: number[],
-      numberOfBins: number
-    ) => {
-      const [min, max] = dataRange;
-      const width = (max - min + 1) / numberOfBins;
-      const hist = new Array(numberOfBins).fill(0);
-      data.forEach((value) => hist[Math.floor((value - min) / width)]++);
-      return hist;
-    };
-
-    const autoRangeValues = computed(() => {
-      // Pre-compute the auto-range values
-      if (curImageData?.value) {
-        const scalarData = curImageData.value.getPointData().getScalars();
-        const [min, max] = scalarData.getRange();
-        const hist = histogram(scalarData.getData(), [min, max], WL_HIST_BINS);
-        const cumm = hist.reduce((acc, val, idx) => {
-          const prev = idx !== 0 ? acc[idx - 1] : 0;
-          acc.push(val + prev);
-          return acc;
-        }, []);
-
-        const width = (max - min + 1) / WL_HIST_BINS;
-        return Object.fromEntries(
-          Object.entries(WLAutoRanges).map(([key, value]) => {
-            const startIdx = cumm.findIndex(
-              (v: number) => v >= value * 0.01 * scalarData.getData().length
-            );
-            const endIdx = cumm.findIndex(
-              (v: number) =>
-                v >= (1 - value * 0.01) * scalarData.getData().length
-            );
-            const start = Math.max(min, min + width * startIdx);
-            const end = Math.min(max, min + width * endIdx + width);
-            return [key, [start, end]];
-          })
-        );
-      }
-      return {};
-    });
-
-    const firstTag = computed(() => {
-      if (
-        curImageID.value &&
-        curImageID.value in dicomStore.imageIDToVolumeKey
-      ) {
-        const volKey = dicomStore.imageIDToVolumeKey[curImageID.value];
-        const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
-        return {
-          width: WindowWidth.split('\\')[0],
-          level: WindowLevel.split('\\')[0],
-        };
-      }
-      return {};
-    });
-
-    watch(
-      curImageData,
-      (imageData) => {
-        if (curImageID.value == null || wlConfig.value != null || !imageData) {
-          return;
-        }
-
-        const range = autoRangeValues.value[autoRange.value];
-        windowingStore.updateConfig(viewID.value, curImageID.value, {
-          min: range[0],
-          max: range[1],
-        });
-        if (firstTag.value?.width) {
-          windowingStore.updateConfig(viewID.value, curImageID.value, {
-            preset: {
-              width: parseFloat(firstTag.value.width),
-              level: parseFloat(firstTag.value.level),
-            },
-          });
-        }
-        windowingStore.resetWindowLevel(viewID.value, curImageID.value);
-      },
-      {
-        immediate: true,
-      }
-    );
-
-    watch(autoRange, (percentile) => {
-      if (
-        curImageID.value == null ||
-        wlConfig.value == null ||
-        !curImageData.value
-      ) {
-        return;
-      }
-      const range = autoRangeValues.value[percentile];
-      windowingStore.updateConfig(viewID.value, curImageID.value, {
-        min: range[0],
-        max: range[1],
-      });
-      windowingStore.resetWindowLevel(viewID.value, curImageID.value);
-    });
-
     // --- scene setup --- //
 
     const segmentGroupStore = useSegmentGroupStore();
@@ -581,15 +336,19 @@ export default defineComponent({
 
     const layerIDs = computed(() => currentLayers.value.map(({ id }) => id));
 
-    const { baseImageRep, labelmapReps, layerReps } = useSceneBuilder<
-      vtkIJKSliceRepresentationProxy,
-      vtkLabelMapSliceRepProxy,
-      vtkIJKSliceRepresentationProxy
-    >(viewID, {
-      baseImage: curImageID,
-      labelmaps: segmentGroupIDs,
-      layers: layerIDs,
-    });
+    const { representation: baseImageRep } =
+      useBaseSliceRepresentation<vtkIJKSliceRepresentationProxy>(
+        curImageID,
+        viewID
+      );
+
+    const { representations: labelmapReps } = useLabelMapRepresentations(
+      segmentGroupIDs,
+      viewID
+    );
+
+    const { representations: layerReps } =
+      useLayerRepresentations<vtkIJKSliceRepresentationProxy>(layerIDs, viewID);
 
     // --- camera setup --- //
 
@@ -771,85 +530,44 @@ export default defineComponent({
       layersConfigs.value.map((config) => config?.blendConfig)
     );
 
-    watch(
-      [layerReps, colorBys, transferFunctions, opacityFunctions, blendConfigs],
-      () => {
-        layerReps.value
-          .map(
-            (layerRep, idx) =>
-              [
-                layerRep,
-                colorBys.value[idx],
-                transferFunctions.value[idx],
-                opacityFunctions.value[idx],
-                blendConfigs.value[idx],
-              ] as const
-          )
-          .forEach(
-            ([
-              rep,
-              colorBy,
-              transferFunction,
-              opacityFunction,
-              blendConfig,
-            ]) => {
-              if (
-                !colorBy ||
-                !transferFunction ||
-                !opacityFunction ||
-                !blendConfig
-              ) {
-                return;
-              }
-
-              const { arrayName, location } = colorBy;
-              const ctFunc = transferFunction;
-              const opFunc = opacityFunction;
-
-              const lut = proxyManager.getLookupTable(arrayName);
-              lut.setMode(LookupTableProxyMode.Preset);
-              lut.setPresetName(ctFunc.preset);
-              lut.setDataRange(...ctFunc.mappingRange);
-
-              const pwf = proxyManager.getPiecewiseFunction(arrayName);
-              pwf.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
-              pwf.setDataRange(...opFunc.mappingRange);
-
-              switch (opFunc.mode) {
-                case vtkPiecewiseFunctionProxy.Mode.Gaussians:
-                  pwf.setGaussians(opFunc.gaussians);
-                  break;
-                case vtkPiecewiseFunctionProxy.Mode.Points: {
-                  const opacityPoints = getShiftedOpacityFromPreset(
-                    opFunc.preset,
-                    opFunc.mappingRange,
-                    opFunc.shift,
-                    opFunc.shiftAlpha
-                  );
-                  if (opacityPoints) {
-                    pwf.setPoints(opacityPoints);
-                  }
-                  break;
-                }
-                case vtkPiecewiseFunctionProxy.Mode.Nodes:
-                  pwf.setNodes(opFunc.nodes);
-                  break;
-                default:
-              }
-
-              rep.setOpacity(blendConfig.opacity);
-
-              // control color range manually
-              rep.setRescaleOnColorBy(false);
-              rep.setColorBy(arrayName, location);
-
-              // Need to trigger a render for when we are restoring from a state file
-              viewProxy.value.renderLater();
+    watchEffect(() => {
+      layerReps.value
+        .map(
+          (layerRep, idx) =>
+            [
+              layerRep,
+              colorBys.value[idx],
+              transferFunctions.value[idx],
+              opacityFunctions.value[idx],
+              blendConfigs.value[idx],
+            ] as const
+        )
+        .forEach(
+          ([rep, colorBy, transferFunction, opacityFunction, blendConfig]) => {
+            if (
+              !colorBy ||
+              !transferFunction ||
+              !opacityFunction ||
+              !blendConfig
+            ) {
+              return;
             }
-          );
-      },
-      { immediate: true, deep: true }
-    );
+
+            applyColoring({
+              colorBy,
+              colorFunc: transferFunction,
+              opacityFunc: opacityFunction,
+              rep,
+              proxyManager,
+            });
+
+            rep.setOpacity(blendConfig.opacity);
+
+            // Need to trigger a render for when we are restoring from a state file
+            viewProxy.value.renderLater();
+          }
+        );
+    });
 
     // --- selection points --- //
 
@@ -881,17 +599,14 @@ export default defineComponent({
       viewProxy,
       viewAxis,
       active: true,
+      curImageID,
       currentSlice,
-      sliceMin,
-      sliceMax,
+      sliceRange,
       windowWidth,
       windowLevel,
       topLabel,
       leftLabel,
       isImageLoading,
-      setSlice,
-      widgetManager,
-      dicomInfo,
       enableResizeToFit() {
         resizeToFit.value = true;
       },
@@ -904,11 +619,3 @@ export default defineComponent({
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
 <style scoped src="@/src/components/styles/utils.css"></style>
-<style scoped>
-.hover-info {
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-}
-</style>
-../composables/useProxyManager

@@ -1,13 +1,10 @@
 import macro from '@kitware/vtk.js/macro';
 import vtkView2DProxy from '@kitware/vtk.js/Proxy/Core/View2DProxy';
-
-import { commonViewCustomizations } from '@/src/vtk/LPSView3DProxy';
+import { applyLPSViewProxyBase } from '@/src/vtk/LPSViewProxyBase';
 
 function vtkLPSView2DProxy(publicAPI, model) {
   model.classHierarchy.push('vtkLPSView2DProxy');
   const superClass = { ...publicAPI };
-
-  commonViewCustomizations(publicAPI, model);
 
   // override; we will set the manipulator ourselves
   publicAPI.bindRepresentationToManipulator = () => {};
@@ -87,6 +84,7 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.setGet(publicAPI, model, ['slicingMode']);
 
   vtkView2DProxy.extend(publicAPI, model, initialValues);
+  applyLPSViewProxyBase(publicAPI, model);
 
   vtkLPSView2DProxy(publicAPI, model);
 }

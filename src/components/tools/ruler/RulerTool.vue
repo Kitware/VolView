@@ -9,7 +9,6 @@
         :current-slice="currentSlice"
         :view-id="viewId"
         :view-direction="viewDirection"
-        :widget-manager="widgetManager"
         @contextmenu="openContextMenu(ruler.id, $event)"
         @placed="onRulerPlaced"
         @widgetHover="onHover(ruler.id, $event)"
@@ -35,7 +34,6 @@ import { Tools } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import RulerWidget2D from '@/src/components/tools/ruler/RulerWidget2D.vue';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { LPSAxisDir } from '@/src/types/lps';
 import { storeToRefs } from 'pinia';
 import {
@@ -61,10 +59,6 @@ export default defineComponent({
     },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
       required: true,
     },
   },
