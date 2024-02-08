@@ -209,6 +209,9 @@ import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
+import { useBaseSliceRepresentation } from '@/src/composables/useBaseSliceRepresentation';
+import { useLabelMapRepresentations } from '@/src/composables/useLabelMapRepresentations';
+import { useLayerRepresentations } from '@/src/composables/useLayerRepresentations';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useOrientationLabels } from '../composables/useOrientationLabels';
 import { getLPSAxisFromDir } from '../utils/lps';
@@ -222,10 +225,8 @@ import RulerTool from './tools/ruler/RulerTool.vue';
 import RectangleTool from './tools/rectangle/RectangleTool.vue';
 import PolygonTool from './tools/polygon/PolygonTool.vue';
 import PaintTool from './tools/paint/PaintTool.vue';
-import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useSegmentGroupStore } from '../store/segmentGroups';
-import vtkLabelMapSliceRepProxy from '../vtk/LabelMapSliceRepProxy';
 import { usePaintToolStore } from '../store/tools/paint';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
 import CrosshairsTool from './tools/crosshairs/CrosshairsTool.vue';
@@ -430,15 +431,19 @@ export default defineComponent({
 
     const layerIDs = computed(() => currentLayers.value.map(({ id }) => id));
 
-    const { baseImageRep, labelmapReps, layerReps } = useSceneBuilder<
-      vtkIJKSliceRepresentationProxy,
-      vtkLabelMapSliceRepProxy,
-      vtkIJKSliceRepresentationProxy
-    >(viewID, {
-      baseImage: curImageID,
-      labelmaps: segmentGroupIDs,
-      layers: layerIDs,
-    });
+    const { representation: baseImageRep } =
+      useBaseSliceRepresentation<vtkIJKSliceRepresentationProxy>(
+        curImageID,
+        viewID
+      );
+
+    const { representations: labelmapReps } = useLabelMapRepresentations(
+      segmentGroupIDs,
+      viewID
+    );
+
+    const { representations: layerReps } =
+      useLayerRepresentations<vtkIJKSliceRepresentationProxy>(layerIDs, viewID);
 
     // --- camera setup --- //
 
@@ -758,4 +763,3 @@ export default defineComponent({
   cursor: pointer;
 }
 </style>
-../composables/useProxyManager

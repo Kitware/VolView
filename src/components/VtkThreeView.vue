@@ -74,16 +74,14 @@ import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Vector3 } from '@kitware/vtk.js/types';
-
+import { useProxyRepresentation } from '@/src/composables/useProxyRepresentations';
 import { useProxyManager } from '@/src/composables/useProxyManager';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { useCameraOrientation } from '../composables/useCameraOrientation';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';
-import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { usePersistCameraConfig } from '../composables/usePersistCameraConfig';
-import { useModelStore } from '../store/datasets-models';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
 import { ViewProxyType } from '../core/proxies';
@@ -107,7 +105,7 @@ import { useResetViewsEvents } from './tools/ResetViews.vue';
 
 function useCvrEffect(
   config: Ref<Maybe<VolumeColorConfig>>,
-  imageRep: Ref<vtkVolumeRepresentationProxy | null>,
+  imageRep: Ref<Maybe<vtkVolumeRepresentationProxy>>,
   viewProxy: Ref<vtkLPSView3DProxy>
 ) {
   const cvrParams = computed(() => config.value?.cvr);
@@ -326,7 +324,7 @@ function useCvrEffect(
 
 function useColoringEffect(
   config: Ref<Maybe<ColoringConfig>>,
-  imageRep: Ref<vtkVolumeRepresentationProxy | null>,
+  imageRep: Ref<Maybe<vtkVolumeRepresentationProxy>>,
   viewProxy: Ref<vtkLPSView3DProxy>
 ) {
   const colorBy = computed(() => config.value?.colorBy);
@@ -409,7 +407,6 @@ export default defineComponent({
     PanTool,
   },
   setup(props) {
-    const modelStore = useModelStore();
     const volumeColoringStore = useVolumeColoringStore();
     const viewCameraStore = useViewCameraStore();
 
@@ -447,13 +444,8 @@ export default defineComponent({
 
     // --- scene setup --- //
 
-    const { baseImageRep } = useSceneBuilder<vtkVolumeRepresentationProxy>(
-      viewID,
-      {
-        baseImage: curImageID,
-        models: computed(() => modelStore.idList),
-      }
-    );
+    const { representation: baseImageRep } =
+      useProxyRepresentation<vtkVolumeRepresentationProxy>(curImageID, viewID);
 
     // --- picking --- //
 

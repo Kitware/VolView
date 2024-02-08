@@ -63,6 +63,7 @@ import vtkMultiSliceRepresentationProxy, {
 } from '@/src/vtk/MultiSliceRepresentationProxy';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useProxyRepresentation } from '@/src/composables/useProxyRepresentations';
 import PanTool from './tools/PanTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { useViewProxy } from '../composables/useViewProxy';
@@ -74,7 +75,6 @@ import { InitViewIDs } from '../config';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useResetViewsEvents } from './tools/ResetViews.vue';
 import { VTKResliceCursor, OBLIQUE_OUTLINE_COLORS } from '../constants';
-import { useSceneBuilder } from '../composables/useSceneBuilder';
 import useWindowingStore from '../store/view-configs/windowing';
 
 export default defineComponent({
@@ -109,12 +109,11 @@ export default defineComponent({
     const { viewProxy, setContainer: setViewProxyContainer } =
       useViewProxy<vtkLPSView3DProxy>(viewID, ViewProxyType.Oblique3D);
 
-    const { baseImageRep } = useSceneBuilder<vtkMultiSliceRepresentationProxy>(
-      viewID,
-      {
-        baseImage: currentImageID,
-      }
-    );
+    const { representation: baseImageRep } =
+      useProxyRepresentation<vtkMultiSliceRepresentationProxy>(
+        currentImageID,
+        viewID
+      );
 
     // --- Set the data and slice outline properties --- //
     const setOutlineProperties = () => {

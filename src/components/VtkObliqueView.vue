@@ -121,7 +121,7 @@ import { onKeyStroke } from '@vueuse/core';
 import type { RGBColor, Vector3 } from '@kitware/vtk.js/types';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
-import vtkReslicReperesentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
+import vtkResliceRepresentationProxy from '@kitware/vtk.js/Proxy/Representations/ResliceRepresentationProxy';
 import { useResizeToFit } from '@/src/composables/useResizeToFit';
 import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
@@ -134,6 +134,7 @@ import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
+import { useProxyRepresentation } from '@/src/composables/useProxyRepresentations';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { getLPSAxisFromDir } from '../utils/lps';
 import { useCurrentImage } from '../composables/useCurrentImage';
@@ -142,7 +143,6 @@ import WindowLevelTool from './tools/windowing/WindowLevelTool.vue';
 import PanTool from './tools/PanTool.vue';
 import ZoomTool from './tools/ZoomTool.vue';
 import ResliceCursorTool from './tools/ResliceCursorTool.vue';
-import { useSceneBuilder } from '../composables/useSceneBuilder';
 import { useResetViewsEvents } from './tools/ResetViews.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { LPSAxisDir } from '../types/lps';
@@ -269,12 +269,8 @@ export default defineComponent({
       }
     });
 
-    const { baseImageRep } = useSceneBuilder<vtkReslicReperesentationProxy>(
-      viewID,
-      {
-        baseImage: curImageID,
-      }
-    );
+    const { representation: baseImageRep } =
+      useProxyRepresentation<vtkResliceRepresentationProxy>(curImageID, viewID);
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
