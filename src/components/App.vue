@@ -202,7 +202,7 @@ export default defineComponent({
     // --- save state --- //
 
     const remoteSaveStateStore = useRemoteSaveStateStore();
-    if (import.meta.env.VITE_ENABLE_REMOTE_SAVE) {
+    if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
       remoteSaveStateStore.setSaveUrl(urlParams.save.toString());
     }
 
