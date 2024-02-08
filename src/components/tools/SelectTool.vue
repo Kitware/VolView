@@ -3,18 +3,20 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useViewStore } from '@/src/store/views';
 import { computed, toRefs } from 'vue';
 import { WIDGET_PRIORITY } from '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/types';
+import type { vtkLPSViewProxy } from '@/src/types/vtk-types';
 
 const props = defineProps<{
   viewId: string;
-  widgetManager: vtkWidgetManager;
 }>();
 
-const { viewId, widgetManager } = toRefs(props);
+const { viewId } = toRefs(props);
 
-const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+const viewProxy = computed(() =>
+  useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
+);
+const widgetManager = computed(() => viewProxy.value?.getWidgetManager());
 const interactor = computed(() => viewProxy.value?.getInteractor());
 const selectionStore = useToolSelectionStore();
 
@@ -22,6 +24,7 @@ onVTKEvent(
   interactor,
   'onLeftButtonPress',
   (event: any) => {
+    if (!widgetManager.value) return;
     const withModifiers = !!(event.shiftKey || event.controlKey);
     const selectedData = widgetManager.value.getSelectedData();
     if ('widget' in selectedData) {

@@ -1,5 +1,4 @@
 <script lang="ts">
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   defineComponent,
   onBeforeUnmount,
@@ -17,14 +16,11 @@ import { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useViewStore } from '@/src/store/views';
 import { onViewProxyMounted } from '@/src/composables/useViewProxy';
+import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 
 export default defineComponent({
   name: 'CrosshairsWidget2D',
   props: {
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
-      required: true,
-    },
     viewId: {
       type: String,
       required: true,
@@ -39,22 +35,22 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const {
-      widgetManager: widgetManagerRef,
-      viewDirection,
-      slice,
-      viewId,
-    } = toRefs(props);
+    const { viewDirection, slice, viewId } = toRefs(props);
 
     const widgetRef = ref<vtkCrosshairsViewWidget>();
 
     const crosshairsStore = useCrosshairsToolStore();
     const factory = crosshairsStore.getWidgetFactory();
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+    const viewProxy = computed(() =>
+      useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
+    );
+    const widgetManagerRef = computed(() =>
+      viewProxy.value?.getWidgetManager()
+    );
 
     onViewProxyMounted(viewProxy, () => {
       const widgetManager = widgetManagerRef.value;
-      widgetRef.value = widgetManager.addWidget(
+      widgetRef.value = widgetManager?.addWidget(
         factory
       ) as vtkCrosshairsViewWidget;
 
@@ -91,11 +87,11 @@ export default defineComponent({
 
     onViewProxyMounted(viewProxy, () => {
       const widgetManager = widgetManagerRef.value;
-      widgetManager.renderWidgets();
+      widgetManager?.renderWidgets();
     });
 
     onBeforeUnmount(() => {
-      widgetManagerRef.value.removeWidget(widgetRef.value!);
+      widgetManagerRef.value?.removeWidget(widgetRef.value!);
     });
 
     return () => null;

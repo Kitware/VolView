@@ -1,21 +1,22 @@
 import { vec3 } from 'gl-matrix';
 import { vtkView2DProxy } from '@kitware/vtk.js/Proxy/Core/View2DProxy';
 import { ViewProxyCustomizations } from '@/src/vtk/LPSView3DProxy';
+import { LPSViewProxyBase } from '@/src/vtk/LPSViewProxyBase';
 
-export interface vtkLPSView2DProxy extends vtkView2DProxy {
+// LPSViewProxyBase changes some types from vtkView2DProxy
+export interface vtkLPSView2DProxy extends LPSViewProxyBase, vtkView2DProxy {
   resizeToFit(lookAxis: Vector3, viewUpAxis: Vector3, worldDims: Vector3);
   resetCamera(boundsToUse?: number[]);
   /**
    * @param mode One of IJKXYZ
    */
   setSlicingMode(mode: string);
-
-  removeAllRepresentations(): void;
-  updateCamera(directionOfProjection: vec3, viewUp: vec3, focalPoint: vec3);
-  getInteractorStyle2D(): vtkInteractorStyleManipulator;
-  getInteractorStyle3D(): vtkInteractorStyleManipulator;
 }
 
-// TODO extend, newInstance...
-export declare const vtkLPSView2DProxy: {};
+export function extend(publicAPI: object, model: object): void;
+
+export declare const vtkLPSView2DProxy: {
+  extend: typeof extend;
+};
+
 export default vtkLPSView2DProxy;

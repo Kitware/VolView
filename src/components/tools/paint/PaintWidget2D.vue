@@ -1,5 +1,4 @@
 <script lang="ts">
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
@@ -23,14 +22,11 @@ import {
   onViewProxyMounted,
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
+import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 
 export default defineComponent({
   name: 'PaintWidget2D',
   props: {
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
-      required: true,
-    },
     viewId: {
       type: String,
       required: true,
@@ -45,7 +41,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const { widgetManager, viewDirection, slice, viewId } = toRefs(props);
+    const { viewDirection, slice, viewId } = toRefs(props);
 
     const paintStore = usePaintToolStore();
     const widgetFactory = paintStore.getWidgetFactory();
@@ -65,10 +61,13 @@ export default defineComponent({
       return indexPoint;
     };
 
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+    const viewProxy = computed(() =>
+      useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
+    );
+    const widgetManager = computed(() => viewProxy.value?.getWidgetManager());
 
     onViewProxyMounted(viewProxy, () => {
-      widgetRef.value = widgetManager.value.addWidget(
+      widgetRef.value = widgetManager.value?.addWidget(
         widgetFactory
       ) as vtkPaintViewWidget;
 
@@ -76,15 +75,15 @@ export default defineComponent({
         throw new Error('PaintWidget2D failed to create view widget');
       }
 
-      widgetManager.value.renderWidgets();
-      widgetManager.value.grabFocus(widgetRef.value);
+      widgetManager.value?.renderWidgets();
+      widgetManager.value?.grabFocus(widgetRef.value);
     });
 
     onViewProxyUnmounted(viewProxy, () => {
       if (!widgetRef.value) {
         return;
       }
-      widgetManager.value.removeWidget(widgetRef.value);
+      widgetManager.value?.removeWidget(widgetRef.value);
     });
 
     // --- widget representation config --- //

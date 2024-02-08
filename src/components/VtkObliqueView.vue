@@ -96,12 +96,10 @@ import { useResetViewsEvents } from './tools/ResetViews.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
-import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore from '../store/view-configs/slicing';
 import {
   OBLIQUE_OUTLINE_COLORS,
   ToolContainer,
-  VTKTwoViewWidgetManager,
   VTKResliceCursor,
 } from '../constants';
 
@@ -302,11 +300,6 @@ export default defineComponent({
     // Used by SVG tool widgets for resizeCallback
     const toolContainer = ref<HTMLElement>();
     provide(ToolContainer, toolContainer);
-
-    // --- widget manager --- //
-
-    const { widgetManager } = useWidgetManager(viewProxy);
-    provide(VTKTwoViewWidgetManager, widgetManager);
 
     // --- window/level setup --- //
 
@@ -555,7 +548,6 @@ export default defineComponent({
       windowWidth,
       windowLevel,
       isImageLoading,
-      widgetManager,
       enableResizeToFit,
       hover,
     };

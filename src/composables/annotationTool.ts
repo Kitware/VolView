@@ -246,7 +246,7 @@ export const usePlacingAnnotationTool = (
 export const useWidgetVisibility = <T extends vtkAbstractWidget>(
   widget: Ref<Maybe<T>>,
   visible: Ref<boolean>,
-  widgetManager: Ref<vtkWidgetManager>,
+  widgetManager: Ref<Maybe<vtkWidgetManager>>,
   viewId: Ref<string>
 ) => {
   // toggles the pickability of the ruler handles,
@@ -267,7 +267,7 @@ export const useWidgetVisibility = <T extends vtkAbstractWidget>(
     }
     // hide handle visibility, but not picking visibility
     widget.value.setHandleVisibility(false);
-    widgetManager.value.renderWidgets();
+    widgetManager.value?.renderWidgets();
     viewProxy.value?.renderLater();
   });
 };

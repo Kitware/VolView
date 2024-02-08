@@ -57,7 +57,6 @@ import {
   onBeforeUnmount,
   onMounted,
   PropType,
-  provide,
   ref,
   toRefs,
   watch,
@@ -94,8 +93,6 @@ import useVolumeColoringStore, {
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import CropTool from './tools/crop/CropTool.vue';
 import PanTool from './tools/PanTool.vue';
-import { useWidgetManager } from '../composables/useWidgetManager';
-import { VTKThreeViewWidgetManager } from '../constants';
 import { useCropStore, croppingPlanesEqual } from '../store/tools/crop';
 import { isViewAnimating } from '../composables/isViewAnimating';
 import { ColoringConfig } from '../types/views';
@@ -460,11 +457,6 @@ export default defineComponent({
       },
       { immediate: true }
     );
-
-    // --- widget manager --- //
-
-    const { widgetManager } = useWidgetManager(viewProxy);
-    provide(VTKThreeViewWidgetManager, widgetManager);
 
     // --- camera setup --- //
 

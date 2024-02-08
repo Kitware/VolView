@@ -1,5 +1,4 @@
 <script lang="ts">
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import {
   computed,
   defineComponent,
@@ -33,6 +32,7 @@ import {
   onViewProxyUnmounted,
 } from '@/src/composables/useViewProxy';
 import { ToolID } from '@/src/types/annotation-tool';
+import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -45,10 +45,6 @@ export default defineComponent({
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
       required: true,
     },
     viewId: {
@@ -72,19 +68,16 @@ export default defineComponent({
     SVG2DComponent,
   },
   setup(props, { emit }) {
-    const {
-      toolId,
-      viewId,
-      widgetManager,
-      viewDirection,
-      currentSlice,
-      isPlacing,
-    } = toRefs(props);
+    const { toolId, viewId, viewDirection, currentSlice, isPlacing } =
+      toRefs(props);
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
     const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
+    const viewProxy = computed(() =>
+      useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
+    );
+    const widgetManager = computed(() => viewProxy.value?.getWidgetManager());
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
@@ -93,7 +86,9 @@ export default defineComponent({
     const widget = ref<WidgetView | null>(null);
 
     onViewProxyMounted(viewProxy, () => {
-      widget.value = widgetManager.value.addWidget(widgetFactory) as WidgetView;
+      widget.value = widgetManager.value?.addWidget(
+        widgetFactory
+      ) as WidgetView;
     });
 
     onViewProxyUnmounted(viewProxy, () => {
@@ -101,7 +96,7 @@ export default defineComponent({
         return;
       }
       // widgetManager calls widget.delete()
-      widgetManager.value.removeWidget(widget.value);
+      widgetManager.value?.removeWidget(widget.value);
       widgetFactory.delete();
     });
 

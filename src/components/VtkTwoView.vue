@@ -47,35 +47,30 @@
         <zoom-tool :view-id="viewID" />
         <slice-scroll-tool :view-id="viewID" />
         <window-level-tool :view-id="viewID" />
-        <select-tool :view-id="viewID" :widget-manager="widgetManager" />
+        <select-tool :view-id="viewID" />
         <ruler-tool
           :view-id="viewID"
-          :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
         <rectangle-tool
           :view-id="viewID"
-          :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
         <polygon-tool
           :view-id="viewID"
-          :widget-manager="widgetManager"
           :view-direction="viewDirection"
           :current-slice="currentSlice"
         />
         <paint-tool
           :view-id="viewID"
           :view-direction="viewDirection"
-          :widget-manager="widgetManager"
           :slice="currentSlice"
         />
         <crosshairs-tool
           :view-id="viewID"
           :view-direction="viewDirection"
-          :widget-manager="widgetManager"
           :slice="currentSlice"
         />
         <crop-tool :view-id="viewID" />
@@ -181,10 +176,9 @@ import CrosshairsTool from './tools/crosshairs/CrosshairsTool.vue';
 import { LPSAxisDir } from '../types/lps';
 import { ViewProxyType } from '../core/proxies';
 import { useViewProxy } from '../composables/useViewProxy';
-import { useWidgetManager } from '../composables/useWidgetManager';
 import useViewSliceStore from '../store/view-configs/slicing';
 import CropTool from './tools/crop/CropTool.vue';
-import { ToolContainer, VTKTwoViewWidgetManager } from '../constants';
+import { ToolContainer } from '../constants';
 import { useProxyManager } from '../composables/useProxyManager';
 import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
 import { useLayersStore } from '../store/datasets-layers';
@@ -333,12 +327,6 @@ export default defineComponent({
     // Used by SVG tool widgets for resizeCallback
     const toolContainer = ref<HTMLElement>();
     provide(ToolContainer, toolContainer);
-
-    // --- widget manager --- //
-
-    // TODO Attach to ViewProxy
-    const { widgetManager } = useWidgetManager(viewProxy);
-    provide(VTKTwoViewWidgetManager, widgetManager);
 
     // --- scene setup --- //
 
@@ -662,7 +650,6 @@ export default defineComponent({
       topLabel,
       leftLabel,
       isImageLoading,
-      widgetManager,
       enableResizeToFit() {
         resizeToFit.value = true;
       },

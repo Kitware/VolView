@@ -9,7 +9,6 @@
         :current-slice="currentSlice"
         :view-id="viewId"
         :view-direction="viewDirection"
-        :widget-manager="widgetManager"
         @contextmenu="openContextMenu(tool.id, $event)"
         @placed="onToolPlaced"
         @widgetHover="onHover(tool.id, $event)"
@@ -34,7 +33,6 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { LPSAxisDir } from '@/src/types/lps';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
@@ -64,10 +62,6 @@ export default defineComponent({
     },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
-    widgetManager: {
-      type: Object as PropType<vtkWidgetManager>,
       required: true,
     },
   },
