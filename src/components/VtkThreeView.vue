@@ -425,18 +425,19 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView3DProxy>(viewID, ViewProxyType.Volume);
+    const { viewProxy } = useViewProxy<vtkLPSView3DProxy>(
+      viewID,
+      ViewProxyType.Volume
+    );
 
     onMounted(() => {
       viewProxy.value.setOrientationAxesVisibility(true);
       viewProxy.value.setOrientationAxesType('cube');
       viewProxy.value.setBackground([0, 0, 0, 0]);
-      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setContainer(vtkContainerRef.value ?? null);
     });
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
       viewProxy.value.setContainer(null);
     });
 

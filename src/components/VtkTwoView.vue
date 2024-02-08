@@ -282,8 +282,10 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Slice);
+    const { viewProxy } = useViewProxy<vtkLPSView2DProxy>(
+      viewID,
+      ViewProxyType.Slice
+    );
 
     onBeforeMount(() => {
       // do this before mount, as the ManipulatorTools run onMounted
@@ -292,12 +294,12 @@ export default defineComponent({
     });
 
     onMounted(() => {
-      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setContainer(vtkContainerRef.value ?? null);
       viewProxy.value.setOrientationAxesVisibility(false);
     });
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
+      viewProxy.value.setContainer(null);
     });
 
     // --- Slicing setup --- //

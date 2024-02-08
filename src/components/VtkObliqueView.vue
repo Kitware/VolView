@@ -166,8 +166,10 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView2DProxy>(viewID, ViewProxyType.Oblique);
+    const { viewProxy } = useViewProxy<vtkLPSView2DProxy>(
+      viewID,
+      ViewProxyType.Oblique
+    );
 
     const resliceCursor = inject(VTKResliceCursor);
     if (!resliceCursor) {
@@ -224,7 +226,7 @@ export default defineComponent({
     );
 
     onMounted(() => {
-      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setContainer(vtkContainerRef.value ?? null);
       viewProxy.value.setOrientationAxesVisibility(false);
 
       // Initialize camera points during construction
@@ -240,7 +242,7 @@ export default defineComponent({
     });
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
+      viewProxy.value.setContainer(null);
     });
 
     // Function to compute float range of slicing for oblique slicing.

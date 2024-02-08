@@ -12,34 +12,16 @@ export function useViewProxy<T extends vtkViewProxy = vtkViewProxy>(
 ) {
   const viewStore = useViewStore();
 
-  const container = ref<HTMLElement | null>(null);
-
-  const setContainer = (el: HTMLElement | null | undefined) => {
-    container.value = el ?? null;
-  };
-
   const viewProxy = computed<T>(() =>
     viewStore.createOrGetViewProxy(unref(id), unref(type))
   );
 
-  watch(viewProxy, (curViewProxy, oldViewProxy) => {
-    oldViewProxy.setContainer(null);
-    curViewProxy.setContainer(container.value);
-  });
-
-  watch(container, (curContainer) => {
-    viewProxy.value.setContainer(curContainer);
-    // setContainer doesn't call modified
-    viewProxy.value.modified();
-  });
-
   return {
     viewProxy,
-    setContainer,
   };
 }
 
-function useMountedViewProxy<T extends vtkViewProxy = vtkViewProxy>(
+function isViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<Maybe<T>>
 ) {
   const mounted = ref(false);
@@ -65,7 +47,7 @@ export function onViewProxyMounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<Maybe<T>>,
   callback: () => void
 ) {
-  const mounted = useMountedViewProxy(viewProxy);
+  const mounted = isViewProxyMounted(viewProxy);
 
   watch(
     mounted,
@@ -80,7 +62,7 @@ export function onViewProxyUnmounted<T extends vtkViewProxy = vtkViewProxy>(
   viewProxy: MaybeRef<Maybe<T>>,
   callback: () => void
 ) {
-  const mounted = useMountedViewProxy(viewProxy);
+  const mounted = isViewProxyMounted(viewProxy);
   let invoked = false;
   const invokeCallback = () => {
     if (invoked) return;

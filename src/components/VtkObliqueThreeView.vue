@@ -106,8 +106,10 @@ export default defineComponent({
 
     // --- view proxy setup --- //
 
-    const { viewProxy, setContainer: setViewProxyContainer } =
-      useViewProxy<vtkLPSView3DProxy>(viewID, ViewProxyType.Oblique3D);
+    const { viewProxy } = useViewProxy<vtkLPSView3DProxy>(
+      viewID,
+      ViewProxyType.Oblique3D
+    );
 
     const { representation: baseImageRep } =
       useProxyRepresentation<vtkMultiSliceRepresentationProxy>(
@@ -134,7 +136,6 @@ export default defineComponent({
     };
 
     onBeforeUnmount(() => {
-      setViewProxyContainer(null);
       viewProxy.value.setContainer(null);
     });
 
@@ -143,7 +144,7 @@ export default defineComponent({
       viewProxy.value.setOrientationAxesType('cube');
       viewProxy.value.setBackground([0, 0, 0, 0]);
       viewProxy.value.getCamera().setParallelProjection(true);
-      setViewProxyContainer(vtkContainerRef.value);
+      viewProxy.value.setContainer(vtkContainerRef.value ?? null);
     });
 
     const resliceCursor = inject(VTKResliceCursor);
