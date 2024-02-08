@@ -2,7 +2,7 @@ import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
 import { vtkLPSViewProxy } from '@/src/types/vtk-types';
 import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-import { MaybeRef, computed, unref, watchEffect } from 'vue';
+import { MaybeRef, computed, unref, watchPostEffect } from 'vue';
 
 export function useProxyRepresentations<
   T extends vtkAbstractRepresentationProxy = vtkAbstractRepresentationProxy
@@ -22,10 +22,15 @@ export function useProxyRepresentations<
       .filter((rep): rep is T => !!rep);
   });
 
-  watchEffect((onCleanup) => {
-    const reps = representations.value;
+  // Wait for the component to have mounted with PostEffect.
+  // When changing layouts, it's possible for the new component instance to
+  // execute effects prior to the old component running onCleanup callbacks.
+  watchPostEffect((onCleanup) => {
     const view = viewProxy.value;
     if (!view) return;
+
+    const reps = representations.value;
+    if (!reps.length) return;
 
     reps.forEach((rep) => {
       view.addRepresentation(rep);
