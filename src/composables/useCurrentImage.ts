@@ -46,12 +46,13 @@ export function getImageSpatialExtent(imageID: Maybe<string>) {
 
 export function getImageMetadata(imageID: Maybe<string>) {
   const { metadata } = useImageStore();
-  return imageID ? metadata[imageID] : defaultImageMetadata();
+  if (!imageID) return defaultImageMetadata();
+  return metadata[imageID] ?? defaultImageMetadata();
 }
 
 export function getImageData(imageID: Maybe<string>) {
   const { dataIndex } = useImageStore();
-  return imageID ? dataIndex[imageID] : null;
+  return imageID ? dataIndex[imageID] ?? null : null;
 }
 
 export function getIsImageLoading(imageID: Maybe<string>) {
