@@ -91,6 +91,11 @@ export const InitViewSpecs: Record<string, ViewSpec> = {
 export const DefaultViewSpec = InitViewSpecs[InitViewIDs.Axial];
 
 /**
+ * The default layout.
+ */
+export const DefaultLayoutName = 'Quad View';
+
+/**
  * Defines the default layouts.
  */
 export const Layouts: Record<string, Layout> = [
