@@ -13,7 +13,7 @@ import MessageCenter from '@/src/components/MessageCenter.vue';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import { ConnectionState, useServerStore } from '@/src/store/server';
 import { useViewStore } from '@/src/store/views';
-import { Layouts } from '@/src/config';
+import { Layouts, DefaultLayoutName } from '@/src/config';
 
 interface Props {
   hasData: boolean;
@@ -23,7 +23,7 @@ defineProps<Props>();
 
 function useViewLayout() {
   const viewStore = useViewStore();
-  const layoutName = ref('Quad View');
+  const layoutName = ref(DefaultLayoutName);
   const { layout: currentLayout } = storeToRefs(viewStore);
 
   watch(
