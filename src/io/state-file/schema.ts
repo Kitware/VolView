@@ -25,7 +25,6 @@ import {
 import { LPSAxisDir, LPSAxis } from '../../types/lps';
 import { LayoutDirection } from '../../types/layout';
 import {
-  ViewType,
   ColorBy,
   ColorTransferFunction,
   OpacityFunction,
@@ -220,18 +219,11 @@ const ViewConfig = z.object({
   volumeColorConfig: VolumeColorConfig.optional(),
 });
 
-const ViewType = z.union([
-  z.literal('2D'),
-  z.literal('3D'),
-  z.literal('Oblique'),
-  z.literal('Oblique3D'),
-]) satisfies z.ZodType<ViewType>;
-
 export type ViewConfig = z.infer<typeof ViewConfig>;
 
 const View = z.object({
   id: z.string(),
-  type: ViewType,
+  type: z.string(),
   props: z.record(z.any()),
   config: z.record(ViewConfig),
 });
