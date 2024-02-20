@@ -153,6 +153,7 @@ export interface SetCinematicVolumeShadingParameters {
   ambient: number;
   diffuse: number;
   specular: number;
+  component?: number;
 }
 
 export function setCinematicVolumeShading({
@@ -162,6 +163,7 @@ export function setCinematicVolumeShading({
   ambient,
   diffuse,
   specular,
+  component = 0,
 }: SetCinematicVolumeShadingParameters) {
   property.setScalarOpacityUnitDistance(
     0,
@@ -170,15 +172,15 @@ export function setCinematicVolumeShading({
   );
 
   property.setShade(true);
-  property.setUseGradientOpacity(0, !enabled);
-  property.setGradientOpacityMinimumValue(0, 0.0);
+  property.setUseGradientOpacity(component, !enabled);
+  property.setGradientOpacityMinimumValue(component, 0.0);
   const dataRange = image.getPointData().getScalars().getRange();
   property.setGradientOpacityMaximumValue(
-    0,
+    component,
     (dataRange[1] - dataRange[0]) * 0.01
   );
-  property.setGradientOpacityMinimumOpacity(0, 0.0);
-  property.setGradientOpacityMaximumOpacity(0, 1.0);
+  property.setGradientOpacityMinimumOpacity(component, 0.0);
+  property.setGradientOpacityMaximumOpacity(component, 1.0);
 
   // do not toggle these parameters when animating
   property.setAmbient(enabled ? ambient : DEFAULT_AMBIENT);
@@ -197,6 +199,7 @@ export function setCinematicVolumeScatter({
   mapper,
   blending,
 }: SetCinematicVolumeScatterParameters) {
+  (window as any).am = mapper;
   mapper.setVolumetricScatteringBlending(enabled ? blending : 0);
 }
 
