@@ -258,18 +258,7 @@ export default defineComponent({
 
     // --- initializers --- //
 
-    const sliceDomain = computed(() => {
-      const { lpsOrientation, dimensions } = curImageMetadata.value;
-      const ijkIndex = lpsOrientation[viewAxis.value];
-      const dimMax = dimensions[ijkIndex];
-
-      return {
-        min: 0,
-        max: dimMax - 1,
-      };
-    });
-
-    useSliceConfigInitializer(viewID, curImageID, viewDirection, sliceDomain);
+    useSliceConfigInitializer(viewID, curImageID, viewDirection);
     useWindowingConfigInitializer(viewID, curImageID);
 
     // --- view proxy setup --- //

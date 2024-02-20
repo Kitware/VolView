@@ -25,6 +25,8 @@ import { useImageStore } from '../datasets-images';
 export const DEFAULT_AMBIENT = 0.2;
 export const DEFAULT_DIFFUSE = 0.7;
 export const DEFAULT_SPECULAR = 0.3;
+export const DEFAULT_EDGE_GRADIENT = 0.2;
+export const DEFAULT_SAMPLING_DISTANCE = 0.2;
 
 function getPresetFromImageModality(imageID: string) {
   const dicomStore = useDICOMStore();
