@@ -9,8 +9,6 @@ import useVolumeColoringStore, {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
-  DEFAULT_EDGE_GRADIENT,
-  DEFAULT_SAMPLING_DISTANCE,
 } from '@/src/store/view-configs/volume-coloring';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
@@ -18,8 +16,6 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import { isViewAnimatingNew as isViewAnimating } from '@/src/composables/isViewAnimating';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/VolumeProperty/Constants';
 import {
-  setEdgeGradient,
-  setSamplingDistance,
   setCinematicLighting,
   setCinematicLocalAmbientOcclusion,
   setCinematicVolumeSampling,
@@ -67,14 +63,6 @@ rep.property.setSpecular(DEFAULT_SPECULAR);
   onVTKEvent(obj, 'onModified', view.requestRender);
 });
 
-// set initial edge gradient + sampling distance
-watchEffect(() => {
-  if (!imageData.value) return;
-  const dataArray = imageData.value.getPointData().getScalars();
-  setEdgeGradient(rep.property, DEFAULT_EDGE_GRADIENT, dataArray);
-  setSamplingDistance(rep.mapper, DEFAULT_SAMPLING_DISTANCE, imageData.value);
-});
-
 // cinematic volume rendering
 const cvrParams = computed(() => coloringConfig.value?.cvr);
 const center = computed(() =>
@@ -87,7 +75,7 @@ watchEffect(() => {
   if (!cvrParams.value || !image) return;
 
   const {
-    enabled,
+    enabled: cvrEnabled,
     lightFollowsCamera,
     ambient,
     diffuse,
@@ -101,25 +89,34 @@ watchEffect(() => {
   } = cvrParams.value;
   const { property, mapper } = rep;
 
+  const enabled = cvrEnabled && !isAnimating.value;
+  const dataArray = image.getPointData().getScalars();
+
   setCinematicLighting({
     enabled,
     renderer: view.renderer,
     lightFollowsCamera,
     center: center.value,
   });
-  setCinematicVolumeShading({
-    enabled,
-    image,
-    ambient,
-    diffuse,
-    specular,
-    property,
-  });
+
+  for (let comp = 0; comp < dataArray.getNumberOfComponents(); comp++) {
+    setCinematicVolumeShading({
+      enabled,
+      image,
+      ambient,
+      diffuse,
+      specular,
+      property,
+      component: comp,
+    });
+  }
+
   setCinematicVolumeScatter({
     enabled: enabled && useVolumetricScatteringBlending,
     mapper,
     blending: volumetricScatteringBlending,
   });
+
   setCinematicVolumeSampling({
     enabled,
     image,
@@ -127,6 +124,7 @@ watchEffect(() => {
     quality: volumeQuality,
     isAnimating: isAnimating.value,
   });
+
   setCinematicLocalAmbientOcclusion({
     enabled: enabled && useLocalAmbientOcclusion,
     kernelRadius: laoKernelRadius,
