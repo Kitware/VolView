@@ -2,7 +2,6 @@
 import { ref, toRefs, computed, provide, toRaw } from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
-import vtkMouseCameraTrackballZoomManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -22,6 +21,7 @@ import { useAutoFitState } from '@/src/composables/useAutoFitState';
 import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
+import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 
 interface Props {
   viewId: string;
@@ -59,7 +59,7 @@ useVtkInteractionManipulator(
 );
 useVtkInteractionManipulator(
   interactorStyle,
-  vtkMouseCameraTrackballZoomManipulator,
+  vtkMouseCameraTrackballZoomToMouseManipulator,
   { button: 3 }
 );
 const { instance: rangeManipulator } = useVtkInteractionManipulator(
