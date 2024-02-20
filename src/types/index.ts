@@ -57,3 +57,7 @@ export type DeepPartial<T> = T extends object
       [P in keyof T]?: DeepPartial<T[P]>;
     }
   : T;
+
+export type FirstParam<T> = T extends (first: infer R, ...args: any[]) => any
+  ? R
+  : never;

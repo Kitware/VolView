@@ -276,3 +276,23 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
   // Just forwarding vtk-js's definition as default export:
   export default vtkResliceCursorWidget;
 }
+
+declare module '@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget' {
+  import type { Vector2 } from '@kitware/vtk.js/types';
+  import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
+
+  export interface vtkPiecewiseGaussianWidget {}
+
+  function applyGaussianToPiecewiseFunction(
+    gaussians: any,
+    sampling: number,
+    rangeToUse: Vector2,
+    piecewiseFunction: vtkPiecewiseFunction
+  ): void;
+
+  export declare const vtkPiecewiseGaussianWidget: {
+    applyGaussianToPiecewiseFunction: typeof applyGaussianToPiecewiseFunction;
+  };
+
+  export default vtkPiecewiseWidget;
+}
