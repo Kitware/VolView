@@ -100,8 +100,10 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
 
   // set size
   const setSize = (width: number, height: number) => {
-    const scaledWidth = width * globalThis.devicePixelRatio;
-    const scaledHeight = height * globalThis.devicePixelRatio;
+    // ensure we have a non-zero size, otherwise
+    // the framebuffers might not be populated correctly
+    const scaledWidth = Math.max(1, width * globalThis.devicePixelRatio);
+    const scaledHeight = Math.max(1, height * globalThis.devicePixelRatio);
     renderWindowView.setSize(scaledWidth, scaledHeight);
     requestRender({ immediate: true });
   };
