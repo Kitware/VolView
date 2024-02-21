@@ -30,14 +30,18 @@ interface Props {
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
+  disableAutoResetCamera?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  disableAutoResetCamera: false,
+});
 const {
   viewId: viewID,
   imageId: imageID,
   viewDirection,
   viewUp,
+  disableAutoResetCamera,
 } = toRefs(props);
 
 const vtkContainerRef = ref<HTMLElement>();
@@ -91,7 +95,10 @@ function resetCamera() {
   );
 }
 
-watchImmediate([viewID, imageID], resetCamera);
+watchImmediate([disableAutoResetCamera, viewID, imageID], (noAutoReset) => {
+  if (noAutoReset) return;
+  resetCamera();
+});
 
 // persistent camera config
 usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
