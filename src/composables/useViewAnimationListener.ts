@@ -2,11 +2,12 @@ import { View } from '@/src/core/vtk/useVtkView';
 import useViewAnimationStore, {
   matchesViewFilter,
 } from '@/src/store/view-animation';
+import { Maybe } from '@/src/types';
 import { storeToRefs } from 'pinia';
 import { MaybeRef, computed, unref, watchEffect } from 'vue';
 
 export function useViewAnimationListener(
-  view: View,
+  view: MaybeRef<Maybe<View>>,
   viewId: MaybeRef<string>,
   viewType: MaybeRef<string>
 ) {
@@ -19,11 +20,14 @@ export function useViewAnimationListener(
   let requested = false;
 
   watchEffect(() => {
+    const viewVal = unref(view);
+    if (!viewVal) return;
+
     if (!animating.value) {
-      view.interactor.cancelAnimation(store);
+      viewVal.interactor.cancelAnimation(store);
       requested = false;
     } else if (!requested && canAnimate.value) {
-      view.interactor.requestAnimation(store);
+      viewVal.interactor.requestAnimation(store);
       requested = true;
     }
   });

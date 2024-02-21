@@ -23,23 +23,19 @@ import {
   setCinematicVolumeShading,
 } from '@/src/utils/volumeProperties';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { vtkObject } from '@kitware/vtk.js/interfaces';
+import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 
 interface Props {
   viewId: string;
-  viewType: string;
   imageId: Maybe<string>;
 }
 
 const props = defineProps<Props>();
-const { viewId: viewID, imageId: imageID, viewType } = toRefs(props);
+const { viewId: viewID, imageId: imageID } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
-
-useViewAnimationListener(view, viewID, viewType);
 
 const { imageData, metadata: imageMetadata } = useImage(imageID);
 const coloringConfig = computed(() =>

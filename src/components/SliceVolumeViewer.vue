@@ -66,14 +66,14 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
+import { LayoutViewProps } from '@/src/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
 import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
+import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 
-interface Props {
-  id: string;
-  viewType: string;
+interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
 }
@@ -82,7 +82,7 @@ const vtkView = ref<VtkViewApi>();
 
 const props = defineProps<Props>();
 
-const { viewDirection, viewUp } = toRefs(props);
+const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
 const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 const hover = ref(false);
@@ -91,6 +91,8 @@ function resetCamera() {
   if (!vtkView.value) return;
   vtkView.value.resetCamera();
 }
+
+useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
 const { currentImageID, currentLayers } = useCurrentImage();
