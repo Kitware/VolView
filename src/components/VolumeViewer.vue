@@ -25,7 +25,6 @@
         >
           <vtk-base-volume-representation
             :view-id="id"
-            :view-type="type"
             :image-id="currentImageID"
           ></vtk-base-volume-representation>
           <slot></slot>
@@ -41,11 +40,11 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxisDir } from '@/src/types/lps';
 import VtkVolumeView from '@/src/components/vtk/VtkVolumeView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
+import { LayoutViewProps } from '@/src/types';
 import VtkBaseVolumeRepresentation from '@/src/components/vtk/VtkBaseVolumeRepresentation.vue';
+import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 
-interface Props {
-  id: string;
-  type: string;
+interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
 }
@@ -54,12 +53,14 @@ const vtkView = ref<VtkViewApi>();
 
 const props = defineProps<Props>();
 
-const { viewDirection, viewUp } = toRefs(props);
+const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
 
 function resetCamera() {
   if (!vtkView.value) return;
   vtkView.value.resetCamera();
 }
+
+useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
 const { currentImageID } = useCurrentImage();
