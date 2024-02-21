@@ -22,6 +22,6 @@ export interface vtkWriter extends vtkObject {
 export type vtkLPSViewProxy = vtkLPSView2DProxy | vtkLPSView3DProxy;
 
 export interface VtkViewApi extends View {
-  interactorStyle: vtkInteractorStyle;
+  interactorStyle?: vtkInteractorStyle;
   resetCamera(): void;
 }
