@@ -40,10 +40,11 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { writeImage } from '@/src/io/readWriteImage';
-import { onKeyDown } from '@vueuse/core';
+import { useErrorMessage } from '@/src/composables/useErrorMessage';
 
 const EXTENSIONS = [
   'dcm',
@@ -72,15 +73,15 @@ async function saveSegmentGroup() {
   if (fileName.value.trim().length === 0) {
     return;
   }
-  try {
-    saving.value = true;
+
+  saving.value = true;
+  await useErrorMessage('Failed to save segment group', async () => {
     const image = segmentGroupStore.dataIndex[props.id];
     const serialized = await writeImage(fileFormat.value, image);
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
-    props.close();
-  } finally {
-    saving.value = false;
-  }
+  });
+  saving.value = false;
+  props.close();
 }
 
 onMounted(() => {
