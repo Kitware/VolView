@@ -14,13 +14,11 @@
           id="filename"
         />
 
-        <v-radio-group v-model="fileFormat" label="Format">
-          <v-radio v-for="ext in EXTENSIONS" :key="ext" :value="ext">
-            <template #label>
-              {{ ext }}
-            </template>
-          </v-radio>
-        </v-radio-group>
+        <v-select
+          label="Format"
+          v-model="fileFormat"
+          :items="EXTENSIONS"
+        ></v-select>
       </v-form>
     </v-card-text>
     <v-card-actions>
@@ -47,11 +45,11 @@ import { writeImage } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
 
 const EXTENSIONS = [
-  'dcm',
   'nrrd',
-  'hdf5',
   'nii',
   'nii.gz',
+  'dcm',
+  'hdf5',
   'tif',
   'mha',
   'vtk',
