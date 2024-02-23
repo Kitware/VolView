@@ -22,6 +22,7 @@ import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import type { vtkRange } from '@kitware/vtk.js/interfaces';
 
 interface Props {
   viewId: string;
@@ -29,6 +30,7 @@ interface Props {
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
   disableAutoResetCamera?: boolean;
+  sliceRange?: vtkRange;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -40,6 +42,7 @@ const {
   viewDirection,
   viewUp,
   disableAutoResetCamera,
+  sliceRange,
 } = toRefs(props);
 
 const vtkContainerRef = ref<HTMLElement>();
@@ -81,7 +84,7 @@ const computeStep = (range: Vector2) => {
 };
 const wlStep = computed(() => computeStep(wlConfig.range.value));
 
-useSliceConfigInitializer(viewID, imageID, viewDirection);
+useSliceConfigInitializer(viewID, imageID, viewDirection, sliceRange?.value);
 useWindowingConfigInitializer(viewID, imageID);
 
 const horiz = useMouseRangeManipulatorListener(
