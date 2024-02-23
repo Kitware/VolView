@@ -4,6 +4,7 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { Maybe } from '@/src/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
+import type { vtkRange } from '@kitware/vtk.js/interfaces';
 import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, toRef, unref } from 'vue';
 
@@ -11,7 +12,7 @@ export function useSliceConfigInitializer(
   viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>,
   viewDirection: MaybeRef<LPSAxisDir>,
-  slicingDomain?: MaybeRef<{ min: number; max: number }>
+  slicingDomain?: MaybeRef<vtkRange>
 ) {
   const store = useViewSliceStore();
   const { config: sliceConfig } = useSliceConfig(viewID, imageID);
