@@ -4,7 +4,7 @@ import {
   toRefs,
   provide,
   watchEffect,
-  toRaw,
+  markRaw,
   effectScope,
   onUnmounted,
 } from 'vue';
@@ -104,7 +104,7 @@ watchImmediate([disableAutoResetCamera, viewID, imageID], (noAutoReset) => {
 usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 // exposed API
-const api: VtkViewApi = toRaw({
+const api: VtkViewApi = markRaw({
   ...view,
   interactorStyle,
   resetCamera,
