@@ -5,6 +5,7 @@ import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { useElementSize } from '@vueuse/core';
 import {
   MaybeRef,
@@ -23,6 +24,7 @@ export interface View {
   renderer: vtkRenderer;
   interactor: vtkRenderWindowInteractor;
   renderWindowView: vtkOpenGLRenderWindow;
+  widgetManager: vtkWidgetManager;
   requestRender(opts?: RequestRenderOptions): void;
 }
 
@@ -44,6 +46,21 @@ export function useWebGLRenderWindow(container: MaybeRef<Maybe<HTMLElement>>) {
   });
 
   return renderWindowView;
+}
+
+export function useWidgetManager(renderer: vtkRenderer) {
+  const manager = vtkWidgetManager.newInstance();
+  manager.setRenderer(renderer);
+
+  onVTKEvent(manager, 'onModified', () => {
+    if (manager.getWidgets().length) {
+      manager.enablePicking();
+    } else {
+      manager.disablePicking();
+    }
+  });
+
+  return manager;
 }
 
 export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
@@ -74,6 +91,9 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
       if (interactor.getContainer()) interactor.unbindEvents();
     });
   });
+
+  // widget manager
+  const widgetManager = useWidgetManager(renderer);
 
   // render API
   const deferredRender = batchForNextTask(() => {
@@ -127,6 +147,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     renderWindow,
     interactor,
     renderWindowView,
+    widgetManager,
     requestRender,
   };
 }
