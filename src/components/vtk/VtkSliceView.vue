@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRefs, computed, provide, toRaw } from 'vue';
+import { ref, toRefs, computed, provide, markRaw } from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
@@ -156,7 +156,7 @@ watchImmediate([disableAutoResetCamera, viewID, imageID], (noAutoReset) => {
 usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 // exposed API
-const api: VtkViewApi = toRaw({
+const api: VtkViewApi = markRaw({
   ...view,
   interactorStyle,
   resetCamera,
