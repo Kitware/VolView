@@ -57,9 +57,11 @@ const EXTENSIONS = [
 ];
 
 const props = defineProps<{
-  close: () => void;
   id: string;
 }>();
+
+const emit = defineEmits(['done']);
+
 const fileName = ref('');
 const valid = ref(true);
 const saving = ref(false);
@@ -79,7 +81,7 @@ async function saveSegmentGroup() {
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
   });
   saving.value = false;
-  props.close();
+  emit('done');
 }
 
 onMounted(() => {

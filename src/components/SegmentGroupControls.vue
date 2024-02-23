@@ -263,7 +263,7 @@ function openSaveDialog(id: string) {
 
   <closeable-dialog v-model="saveDialog" max-width="30%">
     <template v-slot="{ close }">
-      <save-segment-group-dialog :close="close" :id="saveId" />
+      <save-segment-group-dialog :id="saveId" @done="close" />
     </template>
   </closeable-dialog>
 </template>
