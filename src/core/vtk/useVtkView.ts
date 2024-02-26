@@ -1,4 +1,5 @@
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { View } from '@/src/core/vtk/types';
 import { Maybe } from '@/src/types';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
@@ -14,19 +15,6 @@ import {
   watchEffect,
   watchPostEffect,
 } from 'vue';
-
-export interface RequestRenderOptions {
-  immediate?: boolean;
-}
-
-export interface View {
-  renderWindow: vtkRenderWindow;
-  renderer: vtkRenderer;
-  interactor: vtkRenderWindowInteractor;
-  renderWindowView: vtkOpenGLRenderWindow;
-  widgetManager: vtkWidgetManager;
-  requestRender(opts?: RequestRenderOptions): void;
-}
 
 export function useWebGLRenderWindow(container: MaybeRef<Maybe<HTMLElement>>) {
   const renderWindowView = vtkOpenGLRenderWindow.newInstance();

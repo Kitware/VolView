@@ -2,8 +2,7 @@ import { MaybeRef, onScopeDispose, unref, watchEffect } from 'vue';
 import { vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkAbstractMapper from '@kitware/vtk.js/Rendering/Core/AbstractMapper';
 import vtkProp from '@kitware/vtk.js/Rendering/Core/Prop';
-import { VtkObjectConstructor } from '@/src/core/vtk/types';
-import { View } from '@/src/core/vtk/useVtkView';
+import type { View, VtkObjectConstructor } from '@/src/core/vtk/types';
 import { Maybe } from '@/src/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 

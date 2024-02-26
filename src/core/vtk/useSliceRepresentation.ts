@@ -4,7 +4,7 @@ import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';
 import { useVtkRepresentation } from '@/src/core/vtk/useVtkRepresentation';
 import { Maybe } from '@/src/types';
-import { View } from '@/src/core/vtk/useVtkView';
+import { View } from '@/src/core/vtk/types';
 
 export function useSliceRepresentation(
   view: View,

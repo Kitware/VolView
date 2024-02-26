@@ -1,4 +1,4 @@
-import { View } from '@/src/core/vtk/useVtkView';
+import { View } from '@/src/core/vtk/types';
 import { ImageMetadata } from '@/src/types/image';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir, getLPSDirections } from '@/src/utils/lps';

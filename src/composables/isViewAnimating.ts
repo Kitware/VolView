@@ -2,7 +2,7 @@ import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { computed, ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { View } from '@/src/core/vtk/useVtkView';
+import { View } from '@/src/core/vtk/types';
 
 export function isViewAnimating(viewProxy: MaybeRef<vtkViewProxy>) {
   const isAnimating = ref(false);
