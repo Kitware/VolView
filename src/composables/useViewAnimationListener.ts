@@ -1,4 +1,4 @@
-import { View } from '@/src/core/vtk/useVtkView';
+import { View } from '@/src/core/vtk/types';
 import useViewAnimationStore, {
   matchesViewFilter,
 } from '@/src/store/view-animation';

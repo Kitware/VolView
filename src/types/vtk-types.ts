@@ -1,6 +1,6 @@
 import { vtkAlgorithm, vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkDataSet from '@kitware/vtk.js/Common/DataModel/DataSet';
-import { View } from '@/src/core/vtk/useVtkView';
+import { View } from '@/src/core/vtk/types';
 import vtkInteractorStyle from '@kitware/vtk.js/Rendering/Core/InteractorStyle';
 import vtkLPSView2DProxy from '../vtk/LPSView2DProxy';
 import vtkLPSView3DProxy from '../vtk/LPSView3DProxy';

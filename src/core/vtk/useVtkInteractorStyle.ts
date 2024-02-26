@@ -2,7 +2,7 @@ import { VtkObjectConstructor } from '@/src/core/vtk/types';
 import vtkInteractorStyle from '@kitware/vtk.js/Rendering/Core/InteractorStyle';
 import { vtkWarningMacro } from '@kitware/vtk.js/macros';
 import { onScopeDispose } from 'vue';
-import type { View } from '@/src/core/vtk/useVtkView';
+import type { View } from '@/src/core/vtk/types';
 
 export function useVtkInteractorStyle<T extends vtkInteractorStyle>(
   vtkCtor: VtkObjectConstructor<T>,
