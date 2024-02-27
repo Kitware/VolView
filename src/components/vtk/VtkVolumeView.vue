@@ -95,7 +95,7 @@ function resetCamera() {
   );
 }
 
-watchImmediate([disableAutoResetCamera, viewID, imageID], (noAutoReset) => {
+watchImmediate([disableAutoResetCamera, viewID, imageID], ([noAutoReset]) => {
   if (noAutoReset) return;
   resetCamera();
 });
