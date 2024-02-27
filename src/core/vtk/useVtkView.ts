@@ -40,13 +40,18 @@ export function useWidgetManager(renderer: vtkRenderer) {
   const manager = vtkWidgetManager.newInstance();
   manager.setRenderer(renderer);
 
-  onVTKEvent(manager, 'onModified', () => {
-    if (manager.getWidgets().length) {
+  const updatePickingState = () => {
+    const enabled = manager.getPickingEnabled();
+    const widgetCount = manager.getWidgets().length;
+    if (!enabled && widgetCount) {
       manager.enablePicking();
-    } else {
+    } else if (enabled && !widgetCount) {
       manager.disablePicking();
     }
-  });
+  };
+
+  onVTKEvent(manager, 'onModified', updatePickingState);
+  updatePickingState();
 
   return manager;
 }
@@ -67,13 +72,13 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
   // interactor
   const interactor = vtkRenderWindowInteractor.newInstance();
   renderWindow.setInteractor(interactor);
+  interactor.setView(renderWindowView);
 
   watchPostEffect((onCleanup) => {
     const el = unref(container);
     if (!el) return;
 
     interactor.initialize();
-    interactor.setView(renderWindowView);
     interactor.bindEvents(el);
     onCleanup(() => {
       if (interactor.getContainer()) interactor.unbindEvents();
@@ -87,6 +92,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
   const deferredRender = batchForNextTask(() => {
     // don't need to re-render during animation
     if (interactor.isAnimating()) return;
+    widgetManager.renderWidgets();
     renderWindow.render();
   });
 
