@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, toRefs, computed, provide, markRaw } from 'vue';
+import {
+  ref,
+  toRefs,
+  computed,
+  provide,
+  markRaw,
+  effectScope,
+  onUnmounted,
+} from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
@@ -49,7 +57,14 @@ const vtkContainerRef = ref<HTMLElement>();
 
 const { metadata: imageMetadata } = useImage(imageID);
 
-const view = useVtkView(vtkContainerRef);
+// use a detached scope so that actors can be removed from
+// the renderer before the renderer is deleted.
+const scope = effectScope(true);
+const view = scope.run(() => useVtkView(vtkContainerRef))!;
+onUnmounted(() => {
+  scope.stop();
+});
+
 view.renderer.setBackground(0, 0, 0);
 view.renderer.getActiveCamera().setParallelProjection(true);
 
