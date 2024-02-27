@@ -1,7 +1,8 @@
 import { MaybeRef, Ref, computed, customRef, triggerRef, unref } from 'vue';
 import { vtkObject } from '@kitware/vtk.js/interfaces';
 import { capitalize } from '@kitware/vtk.js/macros';
-import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
+import { batchForNextTask } from '@/src/utils/batchForNextTask';
 
 type NonEmptyString<T extends string> = T extends '' ? never : T;
 
@@ -35,6 +36,9 @@ export function vtkFieldRef<T extends vtkObject, F extends GettableFields<T>>(
     () => unref(obj)[setterName] as ((v: any) => boolean) | undefined
   );
 
+  let pause: () => void;
+  let resume: () => void;
+
   const ref = customRef<GetterReturnType<T, F>>((track, trigger) => {
     return {
       get: () => {
@@ -46,11 +50,17 @@ export function vtkFieldRef<T extends vtkObject, F extends GettableFields<T>>(
         if (!set) throw new Error(`No setter for field '${fieldName}'`);
 
         let changed = false;
-        // handle certain array setters not accepting an array as input
-        if (Array.isArray(v) && set.length === v.length) {
-          changed = (set as ArraySetter)(...v);
-        } else {
-          changed = set(v);
+        pause();
+
+        try {
+          // handle certain array setters not accepting an array as input
+          if (Array.isArray(v) && set.length === v.length) {
+            changed = (set as ArraySetter)(...v);
+          } else {
+            changed = set(v);
+          }
+        } finally {
+          resume();
         }
 
         // in the event a setter returns undefined, assume something changed.
@@ -61,11 +71,15 @@ export function vtkFieldRef<T extends vtkObject, F extends GettableFields<T>>(
     };
   });
 
-  const onModified = () => {
+  const onModified = batchForNextTask(() => {
     triggerRef(ref);
-  };
+  });
 
-  onVTKEvent(obj as vtkObject, 'onModified', onModified);
+  ({ pause, resume } = onPausableVTKEvent(
+    obj as vtkObject,
+    'onModified',
+    onModified
+  ));
 
   return ref;
 }
