@@ -22,49 +22,84 @@ type GetterReturnType<T, F extends string> = NameToGetter<F> extends keyof T
 
 type ArraySetter = (...args: any[]) => boolean;
 
+export type GetterSetterFactory<T> = {
+  get(): T;
+  set(v: T): boolean | undefined;
+};
+
+/**
+ * A custom set/get vtk object ref that operates based on the given field name.
+ * @param obj
+ * @param fieldName
+ */
 export function vtkFieldRef<T extends vtkObject, F extends GettableFields<T>>(
   obj: MaybeRef<T>,
   fieldName: F
-): Ref<GetterReturnType<T, F>> {
-  const getterName = `get${capitalize(fieldName)}` as keyof T;
-  const setterName = `set${capitalize(fieldName)}` as keyof T;
+): Ref<GetterReturnType<T, F>>;
 
-  const getter = computed(
-    () => unref(obj)[getterName] as () => GetterReturnType<T, F>
-  );
-  const setter = computed(
-    () => unref(obj)[setterName] as ((v: any) => boolean) | undefined
-  );
+/**
+ * A customRef wrapper that triggers the ref based on a vtk object modification event.
+ * @param obj
+ * @param factory
+ */
+export function vtkFieldRef<T extends vtkObject, R>(
+  obj: MaybeRef<T>,
+  factory: GetterSetterFactory<R>
+): Ref<R>;
+
+export function vtkFieldRef<T extends vtkObject>(
+  obj: MaybeRef<T>,
+  fieldNameOrFactory: string | GetterSetterFactory<any>
+): any {
+  let getter: () => any;
+  let setter: (v: any) => boolean | undefined;
+
+  if (typeof fieldNameOrFactory === 'string') {
+    const getterName = `get${capitalize(fieldNameOrFactory)}` as keyof T;
+    const setterName = `set${capitalize(fieldNameOrFactory)}` as keyof T;
+
+    const _getter = computed(() => unref(obj)[getterName] as () => any);
+    const _setter = computed(
+      () => unref(obj)[setterName] as ((...args: any[]) => boolean) | undefined
+    );
+
+    getter = () => _getter.value();
+    setter = (v: any) => {
+      const set = _setter.value;
+      if (!set) throw new Error(`No setter for field '${fieldNameOrFactory}'`);
+      // handle certain array setters not accepting an array as input
+      if (Array.isArray(v) && set.length === v.length) {
+        return (set as ArraySetter)(...v);
+      }
+      return set(v);
+    };
+  } else {
+    getter = fieldNameOrFactory.get;
+    setter = fieldNameOrFactory.set;
+  }
 
   let pause: () => void;
   let resume: () => void;
 
-  const ref = customRef<GetterReturnType<T, F>>((track, trigger) => {
+  const ref = customRef<any>((track, trigger) => {
     return {
       get: () => {
         track();
-        return getter.value();
+        return getter();
       },
       set: (v) => {
-        const set = setter.value;
-        if (!set) throw new Error(`No setter for field '${fieldName}'`);
-
         let changed = false;
         pause();
 
         try {
-          // handle certain array setters not accepting an array as input
-          if (Array.isArray(v) && set.length === v.length) {
-            changed = (set as ArraySetter)(...v);
-          } else {
-            changed = set(v);
-          }
+          const ret = setter(v);
+          // in the event a setter returns undefined, assume something changed.
+          changed = ret === undefined ? true : ret;
         } finally {
           resume();
         }
 
-        // in the event a setter returns undefined, assume something changed.
-        if (changed === true || changed === undefined) {
+        if (changed) {
           trigger();
         }
       },
