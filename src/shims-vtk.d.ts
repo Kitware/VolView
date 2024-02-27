@@ -271,6 +271,8 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
     getCenter(): Vector3;
     setScrollingMethod(mode: number): boolean;
     setOpacity(opacity: number): boolean;
+    setImage(image: vtkImageData): boolean;
+    getImage(): vtkImageData;
   }
 
   // Just forwarding vtk-js's definition as default export:
