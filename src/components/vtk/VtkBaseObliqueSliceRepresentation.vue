@@ -46,10 +46,7 @@ sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
 const slicePlane = vtkPlane.newInstance();
 sliceRep.mapper.setSlicePlane(slicePlane);
 
-// TODO initialize visual properties
-// outlineRep.actor.setVisibility(true);
-// outlineRep.actor.setLineWidth(4.0);
-// outlineRep.actor.setColor(outlineColor);
+// initialize visual properties
 sliceRep.mapper.setSlabType(SlabTypes.MAX);
 sliceRep.mapper.setSlabThickness(1);
 

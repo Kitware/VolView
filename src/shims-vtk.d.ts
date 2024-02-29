@@ -298,3 +298,9 @@ declare module '@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget' {
 
   export default vtkPiecewiseWidget;
 }
+
+declare module '@kitware/vtk.js/Filters/Core/Cutter' {
+  export type vtkCutter = any;
+  export declare const vtkCutter: any;
+  export default vtkCutter;
+}
