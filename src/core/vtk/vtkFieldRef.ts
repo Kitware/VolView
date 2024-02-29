@@ -107,6 +107,7 @@ export function vtkFieldRef<T extends vtkObject>(
   });
 
   const onModified = batchForNextTask(() => {
+    if (unref(obj).isDeleted()) return;
     triggerRef(ref);
   });
 
