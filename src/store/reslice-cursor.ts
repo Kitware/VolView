@@ -42,7 +42,6 @@ function useResliceInit(
   watchEffect(() => {
     const image = currentImageData.value;
     if (!image) return;
-    // TODO just do syncRefs on vtkFieldRefs
     resliceCursor.setImage(image);
     // Reset to default plane values before transforming based on current image-data.
     resetReslicePlanes(resliceCursorState, currentImageMetadata.value);
