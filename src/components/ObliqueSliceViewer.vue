@@ -26,6 +26,14 @@
             :plane-normal="planeNormal"
             :plane-origin="planeOrigin"
           ></vtk-base-oblique-slice-representation>
+          <vtk-image-outline-representation
+            :view-id="id"
+            :image-id="currentImageID"
+            :plane-normal="planeNormal"
+            :plane-origin="planeOrigin"
+            :thickness="4"
+            :color="outlineColor"
+          ></vtk-image-outline-representation>
           <reslice-cursor-tool
             :view-id="id"
             :view-direction="viewDirection"
@@ -38,26 +46,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRefs, computed, watchEffect } from 'vue';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { LPSAxisDir } from '@/src/types/lps';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
-import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
-import { VtkViewApi } from '@/src/types/vtk-types';
-import { LayoutViewProps } from '@/src/types';
+import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
+import ResliceCursorTool from '@/src/components/tools/ResliceCursorToolNew.vue';
 import VtkBaseObliqueSliceRepresentation from '@/src/components/vtk/VtkBaseObliqueSliceRepresentation.vue';
-import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
-import useResliceCursorStore from '@/src/store/reslice-cursor';
-import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
-import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import VtkImageOutlineRepresentation from '@/src/components/vtk/VtkImageOutlineRepresentation.vue';
+import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
+import { OBLIQUE_OUTLINE_COLORS } from '@/src/constants';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import useResliceCursorStore from '@/src/store/reslice-cursor';
+import { LayoutViewProps } from '@/src/types';
+import { LPSAxisDir } from '@/src/types/lps';
+import { VtkViewApi } from '@/src/types/vtk-types';
+import { batchForNextTask } from '@/src/utils/batchForNextTask';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
+import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
+import { RGBColor } from '@kitware/vtk.js/types';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
-import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
-import { batchForNextTask } from '@/src/utils/batchForNextTask';
-import ResliceCursorTool from '@/src/components/tools/ResliceCursorToolNew.vue';
-import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import { computed, ref, toRefs, watchEffect } from 'vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -217,6 +228,16 @@ onVTKEvent(
 watchImmediate(currentImageID, () => {
   updateResliceCamera(true);
 });
+
+// slicing plane colors
+const outlineColor = computed(
+  () =>
+    vec3.scale(
+      [0, 0, 0],
+      OBLIQUE_OUTLINE_COLORS[viewId.value],
+      1 / 255
+    ) as RGBColor
+);
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
