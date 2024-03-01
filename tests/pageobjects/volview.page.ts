@@ -53,7 +53,7 @@ class VolViewPage extends Page {
         const views = await this_.views;
         if (views.length === 0) return false;
         const inView = await Promise.all(
-          views.map((v) => v.isDisplayedInViewport())
+          Array.from(views).map((v) => v.isDisplayedInViewport())
         );
         return inView.every(Boolean);
       },

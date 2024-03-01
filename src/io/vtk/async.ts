@@ -18,15 +18,18 @@ interface FailResult {
 type ReadResult = SuccessReadResult | FailResult;
 
 export const runAsyncVTKReader = (readerName: string) => async (file: File) => {
-  const worker = new PromiseWorker(
-    new Worker(new URL('./async.reader.worker.ts', import.meta.url), {
+  const asyncWorker = new Worker(
+    new URL('./async.reader.worker.ts', import.meta.url),
+    {
       type: 'module',
-    })
+    }
   );
+  const worker = new PromiseWorker(asyncWorker);
   const data = (await worker.postMessage({
     file,
     readerName,
   })) as ReadResult;
+  asyncWorker.terminate();
   if (data.status === 'success') {
     return vtk(data.obj) as vtkObject;
   }
@@ -41,15 +44,18 @@ type WriteResult = SuccessWriteResult | FailResult;
 
 export const runAsyncVTKWriter =
   (writerName: string) => async (dataSet: vtkDataSet) => {
-    const worker = new PromiseWorker(
-      new Worker(new URL('./async.writer.worker.ts', import.meta.url), {
+    const asyncWorker = new Worker(
+      new URL('./async.writer.worker.ts', import.meta.url),
+      {
         type: 'module',
-      })
+      }
     );
+    const worker = new PromiseWorker(asyncWorker);
     const result = (await worker.postMessage({
       obj: dataSet.getState(),
       writerName,
     })) as WriteResult;
+    asyncWorker.terminate();
     if (result.status === 'success') {
       return result.data;
     }
