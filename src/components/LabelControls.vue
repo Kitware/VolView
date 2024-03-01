@@ -6,6 +6,7 @@ import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
 import ToolLabelEditor from '@/src/components/ToolLabelEditor.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
+import { nonNullable } from '@/src/utils';
 
 const props = defineProps<{
   labelsStore: LabelsStore<Pick<AnnotationTool, 'strokeWidth'>>;
@@ -42,8 +43,33 @@ const editingLabel = computed(() => {
   return props.labelsStore.labels[editingLabelID.value];
 });
 
+const invalidNames = computed(() => {
+  const names = new Set(
+    Object.values(props.labelsStore.labels)
+      .map(({ labelName }) => labelName)
+      .filter(nonNullable)
+  );
+  const currentName = editingLabel.value?.labelName;
+  if (currentName) names.delete(currentName); // allow current name
+  return names;
+});
+
+const makeUniqueName = (name: string) => {
+  const existingNames = new Set(
+    Object.values(props.labelsStore.labels).map((label) => label.labelName)
+  );
+  let uniqueName = name;
+  let i = 1;
+  while (existingNames.has(uniqueName)) {
+    uniqueName = `${name} (${i})`;
+    i++;
+  }
+  return uniqueName;
+};
+
 const createLabel = () => {
-  editingLabelID.value = props.labelsStore.addLabel();
+  const labelName = makeUniqueName('New Label');
+  editingLabelID.value = props.labelsStore.addLabel({ labelName });
 };
 
 function startEditing(label: LabelID) {
@@ -85,7 +111,7 @@ function deleteEditingLabel() {
         @create="createLabel"
       >
         <template #item-prepend="{ item }">
-          <!-- dot container keeps overflowing name from squishing dot width  -->
+          <!-- dot-container class keeps overflowing name from squishing dot width  -->
           <div class="dot-container mr-3">
             <div class="color-dot" :style="{ background: item.color }" />
           </div>
@@ -105,8 +131,8 @@ function deleteEditingLabel() {
     </v-container>
   </v-card>
 
-  <isolated-dialog v-model="editDialog">
-    <ToolLabelEditor
+  <isolated-dialog v-model="editDialog" max-width="800px">
+    <tool-label-editor
       v-if="editingLabelID"
       v-model:name="editState.labelName"
       v-model:stroke-width="editState.strokeWidth"
@@ -114,6 +140,7 @@ function deleteEditingLabel() {
       @delete="deleteEditingLabel"
       @cancel="stopEditing(false)"
       @done="stopEditing(true)"
+      :invalidNames="invalidNames"
     />
   </isolated-dialog>
 </template>

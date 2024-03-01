@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import LabelEditor from '@/src/components/LabelEditor.vue';
 
 defineEmits([
@@ -10,16 +11,30 @@ defineEmits([
   'update:color',
 ]);
 
-defineProps({
-  name: String,
-  strokeWidth: Number,
-  color: String,
+const props = defineProps<{
+  name: string;
+  strokeWidth: number;
+  color: string;
+  invalidNames: Set<string>;
+}>();
+
+function isUniqueEditingName(name: string) {
+  return !props.invalidNames.has(name.trim());
+}
+
+function uniqueNameRule(name: string) {
+  return isUniqueEditingName(name) || 'Name is not unique';
+}
+
+const valid = computed(() => {
+  return isUniqueEditingName(props.name);
 });
 </script>
 
 <template>
   <label-editor
     :color="color"
+    :valid="valid"
     @update:color="$emit('update:color', $event)"
     @cancel="$emit('cancel')"
     @done="$emit('done')"
@@ -34,9 +49,10 @@ defineProps({
       <v-text-field
         label="Name"
         class="flex-grow-0"
-        :model-value="name"
+        :model-value="props.name"
         @update:model-value="$emit('update:name', $event)"
         @keydown.stop.enter="done"
+        :rules="[uniqueNameRule]"
       />
       <v-text-field
         label="Stroke Width"
