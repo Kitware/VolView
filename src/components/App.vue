@@ -201,9 +201,14 @@ export default defineComponent({
 
     // --- save state --- //
 
-    const remoteSaveStateStore = useRemoteSaveStateStore();
     if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
-      remoteSaveStateStore.setSaveUrl(urlParams.save.toString());
+      // Avoid dropping JSON or array query param arguments on the "save" query parameter
+      // by parsing query params without casting to native types in vtkURLExtract.
+      const queryParams = new URLSearchParams(window.location.search);
+      const saveUrl = queryParams.get('save');
+      if (saveUrl) {
+        useRemoteSaveStateStore().setSaveUrl(saveUrl);
+      }
     }
 
     // --- layout --- //
