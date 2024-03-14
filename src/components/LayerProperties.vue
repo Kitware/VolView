@@ -83,6 +83,7 @@ export default defineComponent({
       thumb-label
       :model-value="blendConfig.opacity"
       @update:model-value="setBlendConfig('opacity', $event)"
+      data-testid="layer-opacity-slider"
     />
   </div>
 </template>

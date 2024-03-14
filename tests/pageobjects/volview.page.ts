@@ -149,6 +149,18 @@ class VolViewPage extends Page {
   get editLabelModalDoneButton() {
     return $('button[data-testid="edit-label-done-button"]');
   }
+
+  get datasetMenuButtons() {
+    return $$('button[data-testid="dataset-menu-button"]');
+  }
+
+  get renderingModuleTab() {
+    return $('button[data-testid="module-tab-Rendering"]');
+  }
+
+  get layerOpacitySliders() {
+    return $$('div[data-testid="layer-opacity-slider"] input');
+  }
 }
 
 export const volViewPage = new VolViewPage();
