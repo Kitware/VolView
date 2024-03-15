@@ -63,6 +63,15 @@ export const getDataID = (imageID: string) => {
   return dicomStore.imageIDToVolumeKey[imageID] ?? imageID;
 };
 
+export const getDataSelection = (imageID: string) => {
+  const dicomStore = useDICOMStore();
+  const volumeKey = dicomStore.imageIDToVolumeKey[imageID];
+  if (volumeKey) {
+    return makeDICOMSelection(volumeKey);
+  }
+  return makeImageSelection(imageID);
+};
+
 // Pass VolumeKey or ImageID and get ImageID
 export const findImageID = (dataID: string) => {
   const dicomStore = useDICOMStore();
