@@ -3,6 +3,7 @@ import { vtkObject } from '@kitware/vtk.js/interfaces';
 import { capitalize } from '@kitware/vtk.js/macros';
 import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
+import { Maybe } from '@/src/types';
 
 type NonEmptyString<T extends string> = T extends '' ? never : T;
 
@@ -14,7 +15,11 @@ type GettableFields<T> = FilterGetters<string & keyof T>;
 
 type NameToGetter<T extends string> = `get${Capitalize<T>}`;
 
-type GetterReturnType<T, F extends string> = NameToGetter<F> extends keyof T
+type Just<T> = Exclude<T, null | undefined>;
+
+type GetterReturnType<T, F extends string> = T extends null | undefined
+  ? undefined
+  : NameToGetter<F> extends keyof T
   ? T[NameToGetter<F>] extends (...args: any[]) => infer R
     ? R
     : never
@@ -32,22 +37,22 @@ export type GetterSetterFactory<T> = {
  * @param obj
  * @param fieldName
  */
-export function vtkFieldRef<T extends vtkObject, F extends GettableFields<T>>(
-  obj: MaybeRef<T>,
-  fieldName: F
-): Ref<GetterReturnType<T, F>>;
+export function vtkFieldRef<
+  T extends Maybe<vtkObject>,
+  F extends GettableFields<Just<T>>
+>(obj: MaybeRef<T>, fieldName: F): Ref<GetterReturnType<T, F>>;
 
 /**
  * A customRef wrapper that triggers the ref based on a vtk object modification event.
  * @param obj
  * @param factory
  */
-export function vtkFieldRef<T extends vtkObject, R>(
+export function vtkFieldRef<T extends Maybe<vtkObject>, R>(
   obj: MaybeRef<T>,
   factory: GetterSetterFactory<R>
 ): Ref<R>;
 
-export function vtkFieldRef<T extends vtkObject>(
+export function vtkFieldRef<T extends Maybe<vtkObject>>(
   obj: MaybeRef<T>,
   fieldNameOrFactory: string | GetterSetterFactory<any>
 ): any {
@@ -58,15 +63,27 @@ export function vtkFieldRef<T extends vtkObject>(
     const getterName = `get${capitalize(fieldNameOrFactory)}` as keyof T;
     const setterName = `set${capitalize(fieldNameOrFactory)}` as keyof T;
 
-    const _getter = computed(() => unref(obj)[getterName] as () => any);
+    const _getter = computed(
+      () => unref(obj)?.[getterName] as (() => any) | undefined
+    );
     const _setter = computed(
-      () => unref(obj)[setterName] as ((...args: any[]) => boolean) | undefined
+      () =>
+        unref(obj)?.[setterName] as ((...args: any[]) => boolean) | undefined
     );
 
-    getter = () => _getter.value();
+    const notNull = computed(() => !!unref(obj));
+    const hasSetter = computed(() => {
+      const val = unref(obj);
+      return val ? setterName in val : false;
+    });
+
+    getter = () => _getter.value?.();
     setter = (v: any) => {
       const set = _setter.value;
-      if (!set) throw new Error(`No setter for field '${fieldNameOrFactory}'`);
+      if (!notNull.value) return false;
+      if (!hasSetter.value || !set)
+        throw new Error(`No setter for field '${fieldNameOrFactory}'`);
+
       // handle certain array setters not accepting an array as input
       if (Array.isArray(v) && set.length === v.length) {
         return (set as ArraySetter)(...v);
@@ -107,7 +124,7 @@ export function vtkFieldRef<T extends vtkObject>(
   });
 
   const onModified = batchForNextTask(() => {
-    if (unref(obj).isDeleted()) return;
+    if (unref(obj)?.isDeleted()) return;
     triggerRef(ref);
   });
 
