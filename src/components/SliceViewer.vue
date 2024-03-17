@@ -30,6 +30,9 @@
           :view-direction="viewDirection"
           :view-up="viewUp"
         >
+          <div class="overlay-no-events tool-layer">
+            <svg class="overlay-no-events"></svg>
+          </div>
           <vtk-base-slice-representation
             :view-id="id"
             :image-id="currentImageID"
