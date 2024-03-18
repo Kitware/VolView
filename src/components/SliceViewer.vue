@@ -30,9 +30,6 @@
           :view-direction="viewDirection"
           :view-up="viewUp"
         >
-          <div class="overlay-no-events tool-layer">
-            <svg class="overlay-no-events"></svg>
-          </div>
           <vtk-base-slice-representation
             :view-id="id"
             :image-id="currentImageID"
@@ -55,6 +52,7 @@
               :axis="viewAxis"
             ></vtk-layer-slice-representation>
           </template>
+          <crop-tool :view-id="viewId" :image-id="currentImageID" />
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -75,6 +73,7 @@ import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmenta
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
+import CropTool from '@/src/components/tools/crop/CropTool.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;

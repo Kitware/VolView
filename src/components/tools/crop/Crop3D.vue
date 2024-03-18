@@ -1,12 +1,10 @@
 <script lang="ts">
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useCropStore } from '@/src/store/tools/crop';
 import { LPSCroppingPlanes } from '@/src/types/crop';
-import { useViewStore } from '@/src/store/views';
 import { arrayEquals } from '@/src/utils';
 import { getAxisBounds, LPSAxes } from '@/src/utils/lps';
-import vtkLPSView3DProxy from '@/src/vtk/LPSView3DProxy';
 import type { Bounds } from '@kitware/vtk.js/types';
 import vtkImageCroppingWidget, {
   ImageCroppingWidgetState,
@@ -16,12 +14,14 @@ import {
   computed,
   DeepReadonly,
   defineComponent,
+  inject,
   onBeforeUnmount,
-  ref,
+  PropType,
   toRefs,
-  watch,
 } from 'vue';
-import { onViewProxyMounted } from '@/src/composables/useViewProxy';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import { Maybe } from '@/src/types';
+import { watchImmediate } from '@vueuse/core';
 
 function isValidCroppingPlanes(planes: LPSCroppingPlanes) {
   return (
@@ -44,27 +44,23 @@ function lpsPlanesEqual(a: LPSCroppingPlanes, b: LPSCroppingPlanes) {
 
 export default defineComponent({
   props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
+    imageId: String as PropType<Maybe<string>>,
   },
-
   setup(props) {
-    const { viewId: viewID } = toRefs(props);
+    const view = inject(VtkViewContext);
+    if (!view) throw new Error('No VtkView');
 
-    const viewStore = useViewStore();
-    const viewProxy = computed(
-      () => viewStore.getViewProxy<vtkLPSView3DProxy>(viewID.value)!
-    );
-    const widgetManager = computed(() => viewProxy.value.getWidgetManager());
+    console.log('whee');
+
+    const { widgetManager } = view;
+
+    const { imageId } = toRefs(props);
 
     const cropStore = useCropStore();
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
     const croppingPlanes = computed(() => {
-      const imageID = currentImageID.value;
-      if (imageID && imageID in cropStore.croppingByImageID) {
-        return cropStore.croppingByImageID[imageID];
+      const id = imageId.value;
+      if (id && id in cropStore.croppingByImageID) {
+        return cropStore.croppingByImageID[id];
       }
       return null;
     });
@@ -76,53 +72,30 @@ export default defineComponent({
     factory.setFaceHandlesEnabled(true);
     factory.setCornerHandlesEnabled(true);
 
-    const widget = ref<vtkImageCroppingViewWidget>();
+    const widget = widgetManager.addWidget(
+      factory
+    ) as vtkImageCroppingViewWidget;
 
-    watch(widgetManager, (wm, oldWm) => {
-      if (oldWm) {
-        oldWm.removeWidget(factory);
-      }
-      if (wm) {
-        widget.value = wm.addWidget(factory) as vtkImageCroppingViewWidget;
-      }
-    });
-
-    onViewProxyMounted(viewProxy, () => {
-      if (widgetManager.value) {
-        widget.value = widgetManager.value.addWidget(
-          factory
-        ) as vtkImageCroppingViewWidget;
-
-        // update representation to not be as 3D
-        widget.value.getRepresentations().forEach((rep) => {
-          rep.getActors().forEach((actor) => {
-            actor.getProperty().setAmbient(1);
-          });
-        });
-
-        // show widget
-        viewProxy.value.renderLater();
-      }
+    // update representation to not be as 3D
+    widget.getRepresentations().forEach((rep) => {
+      rep.getActors().forEach((actor) => {
+        actor.getProperty().setAmbient(1);
+      });
     });
 
     onBeforeUnmount(() => {
-      if (widgetManager.value) {
-        widgetManager.value.removeWidget(factory);
-      }
+      widgetManager.removeWidget(factory);
     });
 
-    watch(
-      currentImageMetadata,
-      (metadata) => {
-        state.setWorldToIndexT(metadata.worldToIndex);
-        state.setIndexToWorldT(metadata.indexToWorld);
-        state.placeWidget(metadata.worldBounds);
-      },
-      { immediate: true }
-    );
+    const { metadata: imageMetadata } = useImage(imageId);
+    watchImmediate(imageMetadata, (metadata) => {
+      state.setWorldToIndexT(metadata.worldToIndex);
+      state.setIndexToWorldT(metadata.indexToWorld);
+      state.placeWidget(metadata.worldBounds);
+    });
 
     const applyPlanes = (lpsPlanes: DeepReadonly<LPSCroppingPlanes>) => {
-      const { lpsOrientation: dirs } = currentImageMetadata.value;
+      const { lpsOrientation: dirs } = imageMetadata.value;
       // LPSCroppingPlanes -> Bounds
       const planes = [0, 0, 0, 0, 0, 0] as Bounds;
       LPSAxes.forEach((axis) => {
@@ -132,27 +105,23 @@ export default defineComponent({
       // prevent infinite loops
       if (!arrayEquals(planes, state.getCroppingPlanes().getPlanes())) {
         state.getCroppingPlanes().setPlanes(planes);
-        viewProxy.value.renderLater();
+        view.requestRender();
       }
     };
 
-    watch(
-      croppingPlanes,
-      (lpsPlanes) => {
-        if (lpsPlanes) {
-          applyPlanes(lpsPlanes);
-        }
-      },
-      { immediate: true }
-    );
+    watchImmediate(croppingPlanes, (lpsPlanes) => {
+      if (lpsPlanes) {
+        applyPlanes(lpsPlanes);
+      }
+    });
 
     onVTKEvent(state.getCroppingPlanes(), 'onModified', () => {
-      const imageID = currentImageID.value;
-      if (!imageID) return;
+      const id = imageId.value;
+      if (!id) return;
 
       // Bounds -> LPSCroppingPlanes
       const planes = state.getCroppingPlanes().getPlanes();
-      const { lpsOrientation } = currentImageMetadata.value;
+      const { lpsOrientation } = imageMetadata.value;
       const lpsPlanes: LPSCroppingPlanes = {
         Sagittal: getAxisBounds(planes, 'Sagittal', lpsOrientation),
         Coronal: getAxisBounds(planes, 'Coronal', lpsOrientation),
@@ -169,7 +138,7 @@ export default defineComponent({
       }
 
       if (isValidCroppingPlanes(lpsPlanes)) {
-        cropStore.setCropping(imageID, lpsPlanes);
+        cropStore.setCropping(id, lpsPlanes);
       } else if (planesFromStore) {
         applyPlanes(planesFromStore);
       }
