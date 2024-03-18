@@ -7,7 +7,11 @@
         icons-and-text
         show-arrows
       >
-        <v-tab v-for="item in Modules" :key="item.name">
+        <v-tab
+          v-for="item in Modules"
+          :key="item.name"
+          :data-testid="`module-tab-${item.name}`"
+        >
           <div class="tab-content">
             <span class="mb-0 mt-1 module-text">{{ item.name }}</span>
             <v-icon>mdi-{{ item.icon }}</v-icon>

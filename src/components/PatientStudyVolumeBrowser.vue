@@ -291,12 +291,14 @@ export default defineComponent({
                   size="x-small"
                   class="dataset-menu"
                   @click.stop
+                  data-testid="dataset-menu-button"
                 >
                   <v-menu activator="parent">
                     <v-list>
                       <v-list-item
                         v-if="volume.layerable"
                         @click.stop="volume.layerHandler()"
+                        data-testid="dataset-menu-layer-item"
                       >
                         <template v-if="volume.layerLoading">
                           <div style="margin: 0 auto">

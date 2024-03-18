@@ -14,7 +14,11 @@ import {
 } from '@/src/store/datasets-images';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '@/src/utils/lps';
-import { getImageID, useDatasetStore } from '@/src/store/datasets';
+import {
+  getDataSelection,
+  getImageID,
+  useDatasetStore,
+} from '@/src/store/datasets';
 import { storeToRefs } from 'pinia';
 
 export interface CurrentImageContext {
@@ -66,9 +70,11 @@ export function getIsImageLoading(imageID: Maybe<string>) {
 }
 
 export function getImageLayers(imageID: Maybe<string>) {
+  if (!imageID) return [];
+  const selection = getDataSelection(imageID);
   const layersStore = useLayersStore();
   return layersStore
-    .getLayers(imageID ? { type: 'image', dataID: imageID } : null)
+    .getLayers(selection)
     .filter(({ id }) => id in layersStore.layerImages);
 }
 

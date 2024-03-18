@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const RemoteResource = z.object({
+export const RemoteResource = z.object({
   url: z.string(),
   name: z.optional(z.string()),
 });
