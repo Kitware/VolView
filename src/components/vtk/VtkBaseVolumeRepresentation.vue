@@ -25,6 +25,8 @@ import {
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useCroppingEffect } from '@/src/composables/useCroppingEffect';
+import { useCropStore } from '@/src/store/tools/crop';
 
 interface Props {
   viewId: string;
@@ -135,6 +137,11 @@ watchEffect(() => {
 useVolumeColoringInitializer(viewID, imageID);
 
 useColoringEffect(coloringConfig, cfun, ofun);
+
+// cropping
+const cropStore = useCropStore();
+const croppingPlanes = cropStore.getComputedVTKPlanes(imageID);
+useCroppingEffect(rep.mapper, croppingPlanes);
 </script>
 
 <template>

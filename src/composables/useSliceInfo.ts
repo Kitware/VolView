@@ -1,9 +1,10 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { computed, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
-import { getLPSAxisFromDir } from '../utils/lps';
-import { useCurrentImage } from './useCurrentImage';
-import useViewSliceStore from '../store/view-configs/slicing';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { useImage } from '@/src/composables/useCurrentImage';
+import useViewSliceStore from '@/src/store/view-configs/slicing';
+import { Maybe } from '@/src/types';
 
 /**
  * Returns information about the current slice.
@@ -15,26 +16,26 @@ import useViewSliceStore from '../store/view-configs/slicing';
  * planeOrigin: slice plane origin
  * @param viewID
  */
-export function useCurrentSlice(viewID: MaybeRef<string | null>) {
+export function useSliceInfo(
+  viewID: MaybeRef<string | null>,
+  imageID: MaybeRef<Maybe<string>>
+) {
   const viewSliceStore = useViewSliceStore();
-  const { currentImageMetadata, currentImageID } = useCurrentImage();
+  const { metadata: imageMetadata } = useImage(imageID);
   return computed(() => {
-    const config = viewSliceStore.getConfig(
-      unref(viewID),
-      currentImageID.value
-    );
+    const config = viewSliceStore.getConfig(unref(viewID), unref(imageID));
     if (!config) {
       return null;
     }
 
-    const { lpsOrientation } = currentImageMetadata.value;
+    const { lpsOrientation } = imageMetadata.value;
     const axis = getLPSAxisFromDir(config.axisDirection);
     const planeOrigin = [0, 0, 0] as Vector3;
     planeOrigin[lpsOrientation[axis]] = config.slice;
     return {
       axisName: axis,
       axisIndex: lpsOrientation[axis],
-      number: config.slice,
+      slice: config.slice,
       planeNormal: lpsOrientation[config.axisDirection] as Vector3,
       planeOrigin,
     };

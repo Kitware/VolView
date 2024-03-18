@@ -27,6 +27,7 @@
             :view-id="id"
             :image-id="currentImageID"
           ></vtk-base-volume-representation>
+          <crop-tool :view-id="viewId" :image-id="currentImageID"></crop-tool>
           <slot></slot>
         </vtk-volume-view>
       </div>
@@ -43,6 +44,7 @@ import { VtkViewApi } from '@/src/types/vtk-types';
 import { LayoutViewProps } from '@/src/types';
 import VtkBaseVolumeRepresentation from '@/src/components/vtk/VtkBaseVolumeRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
+import CropTool from '@/src/components/tools/crop/CropTool.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
