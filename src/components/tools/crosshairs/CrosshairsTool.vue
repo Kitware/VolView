@@ -1,14 +1,10 @@
 <template>
   <div v-if="active" class="overlay-no-events">
     <svg class="overlay-no-events">
-      <CrosshairSVG2D
-        v-show="isVisible"
-        :view-id="viewId"
-        :position="position"
-      />
+      <CrosshairSVG2D v-show="isVisible" :position="position" />
     </svg>
     <CrosshairsWidget2D
-      :slice="slice"
+      :image-id="imageId"
       :view-id="viewId"
       :view-direction="viewDirection"
     />
@@ -25,6 +21,8 @@ import { Tools } from '@/src/store/tools/types';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { clampValue } from '@/src/utils';
+import { Maybe } from '@/src/types';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import CrosshairsWidget2D from './CrosshairsWidget2D.vue';
 import CrosshairSVG2D from './CrosshairSVG2D.vue';
 
@@ -35,28 +33,29 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    slice: {
-      type: Number,
-      required: true,
-    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
+    imageId: String as PropType<Maybe<string>>,
   },
   components: {
     CrosshairsWidget2D,
     CrosshairSVG2D,
   },
   setup(props) {
-    const { viewDirection, slice } = toRefs(props);
+    const { viewId, imageId, viewDirection } = toRefs(props);
 
     const toolStore = useToolStore();
     const { position, imagePosition } = storeToRefs(useCrosshairsToolStore());
 
+    const sliceInfo = useSliceInfo(viewId, imageId);
+
     const { currentImageMetadata } = useCurrentImage();
     const active = computed(() => toolStore.currentTool === Tools.Crosshairs);
     const isVisible = computed(() => {
+      if (!sliceInfo.value) return false;
+
       const { lpsOrientation, dimensions } = currentImageMetadata.value;
       const axis = getLPSAxisFromDir(viewDirection.value);
       const index = lpsOrientation[axis];
@@ -67,7 +66,7 @@ export default defineComponent({
         0,
         dimensions[index] - 1
       );
-      return Math.round(crosshairsSlice) === slice.value;
+      return Math.round(crosshairsSlice) === sliceInfo.value.slice;
     });
 
     return {

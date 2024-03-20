@@ -43,9 +43,7 @@
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { ToolContainer } from '@/src/constants';
-import { useViewStore } from '@/src/store/views';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
-import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import {
   PropType,
@@ -57,6 +55,7 @@ import {
   computed,
   inject,
 } from 'vue';
+import { VtkViewContext } from '@/src/components/vtk/context';
 
 type SVGPoint = {
   x: number;
@@ -66,23 +65,16 @@ type SVGPoint = {
 export default defineComponent({
   props: {
     position: Array as PropType<Array<number>>,
-    viewId: {
-      type: String,
-      required: true,
-    },
   },
   setup(props) {
-    const { viewId: viewID, position } = toRefs(props);
+    const { position } = toRefs(props);
     const position2D = ref<SVGPoint>();
 
-    const viewStore = useViewStore();
-
-    const viewProxy = computed(
-      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
-    );
+    const view = inject(VtkViewContext);
+    if (!view) throw new Error('No VtkView');
 
     const updatePoints = () => {
-      const viewRenderer = viewProxy.value.getRenderer();
+      const viewRenderer = view.renderer;
       const pt = unref(position) as Vector3 | undefined;
       if (pt) {
         const point2D = worldToSVG(pt, viewRenderer);
@@ -95,8 +87,7 @@ export default defineComponent({
       }
     };
 
-    const camera = computed(() => viewProxy.value.getCamera());
-    onVTKEvent(camera, 'onModified', updatePoints);
+    onVTKEvent(view.renderer.getActiveCamera(), 'onModified', updatePoints);
 
     watchEffect(updatePoints);
 
