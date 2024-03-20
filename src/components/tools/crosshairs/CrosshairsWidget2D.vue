@@ -1,12 +1,13 @@
 <script lang="ts">
 import {
   defineComponent,
-  onBeforeUnmount,
   PropType,
-  ref,
   toRefs,
   watchEffect,
   computed,
+  inject,
+  onUnmounted,
+  onMounted,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -14,9 +15,9 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
-import { useViewStore } from '@/src/store/views';
-import { onViewProxyMounted } from '@/src/composables/useViewProxy';
-import { vtkLPSViewProxy } from '@/src/types/vtk-types';
+import { Maybe } from '@/src/types';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
 
 export default defineComponent({
   name: 'CrosshairsWidget2D',
@@ -29,46 +30,37 @@ export default defineComponent({
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    slice: {
-      type: Number,
-      required: true,
-    },
+    imageId: String as PropType<Maybe<string>>,
   },
   setup(props) {
-    const { viewDirection, slice, viewId } = toRefs(props);
+    const { viewDirection, imageId, viewId } = toRefs(props);
 
-    const widgetRef = ref<vtkCrosshairsViewWidget>();
+    const view = inject(VtkViewContext);
+    if (!view) throw new Error('No VtkView');
+
+    const sliceInfo = useSliceInfo(viewId, imageId);
+    const slice = computed(() => {
+      return sliceInfo.value?.slice;
+    });
 
     const crosshairsStore = useCrosshairsToolStore();
     const factory = crosshairsStore.getWidgetFactory();
-    const viewProxy = computed(() =>
-      useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
-    );
-    const widgetManagerRef = computed(() =>
-      viewProxy.value?.getWidgetManager()
-    );
+    const widget = view.widgetManager.addWidget(
+      factory
+    ) as vtkCrosshairsViewWidget;
 
-    onViewProxyMounted(viewProxy, () => {
-      const widgetManager = widgetManagerRef.value;
-      widgetRef.value = widgetManager?.addWidget(
-        factory
-      ) as vtkCrosshairsViewWidget;
-
-      if (!widgetRef.value) {
-        throw new Error('CrosshairsWidget2D failed to create view widget');
-      }
+    onUnmounted(() => {
+      view.widgetManager.removeWidget(factory);
     });
 
     // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
-
-    onViewProxyMounted(viewProxy, () => {
-      widgetRef.value!.setManipulator(manipulator);
-    });
+    widget.setManipulator(manipulator);
 
     const { currentImageMetadata } = useCurrentImage();
     watchEffect(() => {
+      if (slice.value == null) return;
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
@@ -79,19 +71,12 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    onViewProxyMounted(viewProxy, () => {
-      widgetRef.value!.setVisibility(true);
-    });
+    widget.setVisibility(true);
 
     // --- focus and rendering --- //
 
-    onViewProxyMounted(viewProxy, () => {
-      const widgetManager = widgetManagerRef.value;
-      widgetManager?.renderWidgets();
-    });
-
-    onBeforeUnmount(() => {
-      widgetManagerRef.value?.removeWidget(widgetRef.value!);
+    onMounted(() => {
+      view.widgetManager.renderWidgets();
     });
 
     return () => null;
