@@ -58,6 +58,11 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           />
+          <paint-tool
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          />
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -80,6 +85,7 @@ import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepre
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
 import CrosshairsTool from '@/src/components/tools/crosshairs/CrosshairsTool.vue';
+import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;

@@ -2,8 +2,8 @@
   <div class="overlay-no-events">
     <PaintWidget2D
       v-if="active"
-      :slice="slice"
       :view-id="viewId"
+      :image-id="imageId"
       :view-direction="viewDirection"
     />
   </div>
@@ -13,6 +13,7 @@
 import { computed, defineComponent, PropType } from 'vue';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { LPSAxisDir } from '@/src/types/lps';
+import { Maybe } from '@/src/types';
 import PaintWidget2D from './PaintWidget2D.vue';
 
 export default defineComponent({
@@ -22,14 +23,11 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    slice: {
-      type: Number,
-      required: true,
-    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
+    imageId: String as PropType<Maybe<string>>,
   },
   components: {
     PaintWidget2D,
