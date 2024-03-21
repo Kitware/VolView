@@ -120,7 +120,7 @@ export default {
           Math.min(this.maxHandlePos, ev.pageY - y - this.handleHeight / 2)
         );
         const newSlice = this.getNearestSlice(this.initialHandlePos);
-        this.$emit('modelValue', newSlice);
+        this.$emit('update:modelValue', newSlice);
       }
 
       this.yOffset = 0;
@@ -134,7 +134,7 @@ export default {
 
       this.yOffset = ev.pageY - this.initialMousePosY;
       const slice = this.getNearestSlice(this.handlePosition);
-      this.$emit('modelValue', slice);
+      this.$emit('update:modelValue', slice);
     },
 
     onDragEnd(ev) {
@@ -144,7 +144,7 @@ export default {
 
       this.dragging = false;
       const slice = this.getNearestSlice(this.handlePosition);
-      this.$emit('modelValue', slice);
+      this.$emit('update:modelValue', slice);
     },
 
     getNearestSlice(pos) {
