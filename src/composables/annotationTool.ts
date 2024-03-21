@@ -3,6 +3,7 @@ import {
   Ref,
   UnwrapRef,
   computed,
+  onMounted,
   readonly,
   ref,
   unref,
@@ -20,15 +21,14 @@ import { getCSSCoordinatesFromEvent } from '@/src//utils/vtk-helpers';
 import { LPSAxis } from '@/src/types/lps';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
-import { useViewStore } from '@/src/store/views';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { usePopperState } from '@/src/composables/usePopperState';
-import { onViewProxyMounted } from '@/src/composables/useViewProxy';
 import {
   ContextMenuEvent,
   vtkAnnotationToolWidget,
 } from '@/src/vtk/ToolWidgetUtils/types';
 import { ImageMetadata } from '@/src/types/image';
+import { View } from '@/src/core/vtk/types';
+import { watchImmediate } from '@vueuse/core';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
@@ -89,7 +89,7 @@ export const useContextMenu = () => {
 
 export const useRightClickContextMenu = (
   emit: (event: 'contextmenu', ...args: any[]) => void,
-  widget: Ref<vtkAnnotationToolWidget | null>
+  widget: MaybeRef<vtkAnnotationToolWidget | null>
 ) => {
   onVTKEvent(widget, 'onRightClickEvent', (eventData) => {
     const displayXY = getCSSCoordinatesFromEvent(eventData);
@@ -106,7 +106,7 @@ export const useRightClickContextMenu = (
 
 export const useHoverEvent = (
   emit: (event: 'widgetHover', ...args: any[]) => void,
-  widget: Ref<vtkAnnotationToolWidget | null>
+  widget: MaybeRef<vtkAnnotationToolWidget | null>
 ) => {
   onVTKEvent(widget, 'onHoverEvent', (eventData: any) => {
     const displayXY = getCSSCoordinatesFromEvent(eventData);
@@ -244,30 +244,23 @@ export const usePlacingAnnotationTool = (
 };
 
 export const useWidgetVisibility = <T extends vtkAbstractWidget>(
-  widget: Ref<Maybe<T>>,
+  widget: T,
   visible: Ref<boolean>,
-  widgetManager: Ref<Maybe<vtkWidgetManager>>,
-  viewId: Ref<string>
+  view: View
 ) => {
   // toggles the pickability of the ruler handles,
   // since the 3D ruler parts are visually hidden.
-  watch(
-    () => !!widget.value && visible.value,
+  watchImmediate(
+    () => visible.value,
     (visibility) => {
-      widget.value?.setVisibility(visibility);
-    },
-    { immediate: true }
+      widget.setVisibility(visibility);
+    }
   );
 
-  const viewProxy = computed(() => useViewStore().getViewProxy(viewId.value));
-
-  onViewProxyMounted(viewProxy, () => {
-    if (!widget.value) {
-      return;
-    }
+  onMounted(() => {
     // hide handle visibility, but not picking visibility
-    widget.value.setHandleVisibility(false);
-    widgetManager.value?.renderWidgets();
-    viewProxy.value?.renderLater();
+    widget.setHandleVisibility(false);
+    view.widgetManager.renderWidgets();
+    view.requestRender();
   });
 };

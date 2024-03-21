@@ -63,6 +63,16 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           />
+          <polygon-tool
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          />
+          <ruler-tool
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          />
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -86,6 +96,8 @@ import { useViewAnimationListener } from '@/src/composables/useViewAnimationList
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
 import CrosshairsTool from '@/src/components/tools/crosshairs/CrosshairsTool.vue';
 import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
+import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
+import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
