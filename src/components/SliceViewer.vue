@@ -18,6 +18,14 @@
           Reset Camera
         </v-tooltip>
       </v-btn>
+      <slice-slider
+        v-model="currentSlice"
+        class="slice-slider"
+        :min="sliceRange[0]"
+        :max="sliceRange[1]"
+        :step="1"
+        :handle-height="20"
+      />
     </div>
     <div class="vtk-container" data-testid="two-view-container">
       <div class="vtk-sub-container">
@@ -111,11 +119,12 @@ import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import SliceSlider from '@/src/components/SliceSlider.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -142,8 +151,10 @@ useViewAnimationListener(vtkView, viewId, viewType);
 // base image
 const { currentImageID, currentLayers, currentImageMetadata } =
   useCurrentImage();
-const sliceInfo = useSliceInfo(viewId, currentImageID);
-const currentSlice = computed(() => sliceInfo.value?.slice);
+const { slice: currentSlice, range: sliceRange } = useSliceConfig(
+  viewId,
+  currentImageID
+);
 
 // segmentations
 const segmentations = computed(() => {
