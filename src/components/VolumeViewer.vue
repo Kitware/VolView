@@ -31,6 +31,14 @@
           <slot></slot>
         </vtk-volume-view>
       </div>
+      <transition name="loading">
+        <div v-if="isImageLoading" class="overlay-no-events loading">
+          <div>Loading the image</div>
+          <div>
+            <v-progress-circular indeterminate color="blue" />
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -67,7 +75,7 @@ useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID } = useCurrentImage();
+const { currentImageID, isImageLoading } = useCurrentImage();
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
