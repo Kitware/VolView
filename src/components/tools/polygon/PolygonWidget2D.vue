@@ -4,13 +4,14 @@ import {
   computed,
   defineComponent,
   PropType,
-  ref,
   toRefs,
   watch,
   watchEffect,
+  inject,
+  onUnmounted,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
@@ -25,13 +26,9 @@ import vtkWidgetFactory, {
 } from '@/src/vtk/PolygonWidget';
 import { Maybe } from '@/src/types';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import { useViewStore } from '@/src/store/views';
-import {
-  onViewProxyMounted,
-  onViewProxyUnmounted,
-} from '@/src/composables/useViewProxy';
 import { ToolID } from '@/src/types/annotation-tool';
-import { vtkLPSViewProxy } from '@/src/types/vtk-types';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
@@ -50,56 +47,44 @@ export default defineComponent({
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
-    currentSlice: {
-      type: Number,
-      required: true,
-    },
     isPlacing: {
       type: Boolean,
       default: false,
     },
+    imageId: String as PropType<Maybe<string>>,
   },
   components: {
     SVG2DComponent,
   },
   setup(props, { emit }) {
-    const { toolId, viewId, viewDirection, currentSlice, isPlacing } =
-      toRefs(props);
+    const { toolId, viewId, viewDirection, imageId, isPlacing } = toRefs(props);
+
+    const view = inject(VtkViewContext);
+    if (!view) throw new Error('No VtkView');
+
+    const sliceInfo = useSliceInfo(viewId, imageId);
+    const slice = computed(() => sliceInfo.value?.slice);
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
-    const viewProxy = computed(() =>
-      useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
-    );
-    const widgetManager = computed(() => viewProxy.value?.getWidgetManager());
+    const { metadata: imageMetadata } = useImage(imageId);
 
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
     });
-    const widget = ref<WidgetView | null>(null);
+    const widget = view.widgetManager.addWidget(widgetFactory) as WidgetView;
 
-    onViewProxyMounted(viewProxy, () => {
-      widget.value = widgetManager.value?.addWidget(
-        widgetFactory
-      ) as WidgetView;
-    });
-
-    onViewProxyUnmounted(viewProxy, () => {
-      if (!widget.value) {
-        return;
-      }
-      // widgetManager calls widget.delete()
-      widgetManager.value?.removeWidget(widget.value);
+    onUnmounted(() => {
+      view.widgetManager.removeWidget(widget);
       widgetFactory.delete();
     });
 
     // --- reset on slice/image changes --- //
 
-    watch([currentSlice, currentImageID, widget], () => {
-      if (widget.value && isPlacing.value) {
-        widget.value.resetInteractions();
-        widget.value.getWidgetState().clearHandles();
+    watch([slice, imageId], () => {
+      if (isPlacing.value) {
+        widget.resetInteractions();
+        widget.getWidgetState().clearHandles();
       }
     });
 
@@ -116,27 +101,21 @@ export default defineComponent({
     // --- manipulator --- //
 
     const manipulator = vtkPlaneManipulator.newInstance();
-
-    onViewProxyMounted(viewProxy, () => {
-      if (!widget.value) {
-        return;
-      }
-      widget.value.setManipulator(manipulator);
-    });
+    widget.setManipulator(manipulator);
 
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        tool.value?.slice ?? currentSlice.value,
-        currentImageMetadata.value
+        tool.value?.slice ?? slice.value ?? 0,
+        imageMetadata.value
       );
     });
 
     // --- visibility --- //
 
-    const isVisible = computed(() => tool.value?.slice === currentSlice.value);
-    useWidgetVisibility(widget, isVisible, widgetManager, viewId);
+    const isVisible = computed(() => tool.value?.slice === slice.value);
+    useWidgetVisibility(widget, isVisible, view);
 
     // --- //
 
@@ -152,6 +131,7 @@ export default defineComponent({
     });
 
     return {
+      slice,
       tool,
       editState,
     };
@@ -161,8 +141,7 @@ export default defineComponent({
 
 <template>
   <SVG2DComponent
-    v-show="currentSlice === tool.slice"
-    :view-id="viewId"
+    v-show="slice === tool.slice"
     :points="tool.points"
     :color="tool.color"
     :stroke-width="tool.strokeWidth"
