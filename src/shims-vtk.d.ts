@@ -304,3 +304,7 @@ declare module '@kitware/vtk.js/Filters/Core/Cutter' {
   export declare const vtkCutter: any;
   export default vtkCutter;
 }
+
+declare module '@kitware/vtk.js/Rendering/Core/AnnotatedCubeActor/Presets' {
+  export default {} as any;
+}

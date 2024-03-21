@@ -27,6 +27,7 @@
             :view-id="id"
             :image-id="currentImageID"
           ></vtk-base-volume-representation>
+          <vtk-orientation-marker></vtk-orientation-marker>
           <crop-tool :view-id="viewId" :image-id="currentImageID"></crop-tool>
           <slot></slot>
         </vtk-volume-view>
@@ -54,6 +55,7 @@ import VtkBaseVolumeRepresentation from '@/src/components/vtk/VtkBaseVolumeRepre
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
+import VtkOrientationMarker from '@/src/components/vtk/VtkOrientationMarker.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
