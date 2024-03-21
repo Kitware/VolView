@@ -88,6 +88,7 @@ const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
 function resetCamera() {
   if (!vtkView.value) return;
   vtkView.value.resetCamera();
+  vtkView.value.renderer.updateLightsGeometryToFollowCamera();
 }
 
 useWebGLWatchdog(vtkView);
