@@ -101,7 +101,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     renderWindow.render();
   };
 
-  const requestRender = ({ immediate } = { immediate: true }) => {
+  const requestRender = ({ immediate } = { immediate: false }) => {
     if (immediate) {
       immediateRender();
     }
