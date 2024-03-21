@@ -31,12 +31,9 @@
 </template>
 
 <script lang="ts">
-import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { ToolContainer, ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
-import { useViewStore } from '@/src/store/views';
+import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
-import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import {
@@ -49,6 +46,9 @@ import {
   watch,
   inject,
 } from 'vue';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { useResizeObserver } from '@vueuse/core';
 
 type SVGPoint = {
   x: number;
@@ -62,24 +62,17 @@ export default defineComponent({
     color: String,
     fillColor: String,
     strokeWidth: Number,
-    viewId: {
-      type: String,
-      required: true,
-    },
   },
   setup(props) {
-    const { viewId: viewID, point1, point2 } = toRefs(props);
+    const { point1, point2 } = toRefs(props);
     const firstPoint = ref<SVGPoint | null>();
     const secondPoint = ref<SVGPoint | null>();
 
-    const viewStore = useViewStore();
-
-    const viewProxy = computed(
-      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
-    );
+    const view = inject(VtkViewContext);
+    if (!view) throw new Error('No VtkView');
 
     const updatePoints = () => {
-      const viewRenderer = viewProxy.value.getRenderer();
+      const viewRenderer = view.renderer;
       const pt1 = unref(point1) as Vector3 | undefined;
       const pt2 = unref(point2) as Vector3 | undefined;
       if (pt1) {
@@ -124,19 +117,18 @@ export default defineComponent({
       };
     });
 
-    const camera = computed(() => viewProxy.value.getCamera());
+    const camera = vtkFieldRef(view.renderer, 'activeCamera');
     onVTKEvent(camera, 'onModified', updatePoints);
 
-    watch([viewProxy, point1, point2], updatePoints, {
+    watch([point1, point2], updatePoints, {
       deep: true,
       immediate: true,
     });
 
     // --- resize --- //
 
-    const containerEl = inject(ToolContainer)!;
-
-    useResizeObserver(containerEl, () => {
+    const container = vtkFieldRef(view.renderWindowView, 'container');
+    useResizeObserver(container, () => {
       updatePoints();
     });
 

@@ -11,7 +11,7 @@ import {
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
@@ -58,14 +58,14 @@ export default defineComponent({
     const manipulator = vtkPlaneManipulator.newInstance();
     widget.setManipulator(manipulator);
 
-    const { currentImageMetadata } = useCurrentImage();
+    const { metadata: imageMetadata } = useImage(imageId);
     watchEffect(() => {
       if (slice.value == null) return;
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
         slice.value,
-        currentImageMetadata.value
+        imageMetadata.value
       );
     });
 

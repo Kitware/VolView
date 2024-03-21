@@ -73,6 +73,16 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           />
+          <rectangle-tool
+            :view-id="viewId"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          />
+          <select-tool />
+          <svg class="overlay-no-events">
+            <bounding-rectangle :points="selectionPoints" />
+          </svg>
+
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -98,6 +108,13 @@ import CrosshairsTool from '@/src/components/tools/crosshairs/CrosshairsTool.vue
 import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
 import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
 import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
+import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
+import SelectTool from '@/src/components/tools/SelectTool.vue';
+import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import { useAnnotationToolStore } from '@/src/store/tools';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -121,7 +138,10 @@ function resetCamera() {
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID, currentLayers } = useCurrentImage();
+const { currentImageID, currentLayers, currentImageMetadata } =
+  useCurrentImage();
+const sliceInfo = useSliceInfo(viewId, currentImageID);
+const currentSlice = computed(() => sliceInfo.value?.slice);
 
 // segmentations
 const segmentations = computed(() => {
@@ -130,7 +150,22 @@ const segmentations = computed(() => {
   return store.orderByParent[currentImageID.value];
 });
 
-// TODO selection points to bounding box
+// --- selection points --- //
+
+const selectionStore = useToolSelectionStore();
+const selectionPoints = computed(() => {
+  return selectionStore.selection
+    .map((sel) => {
+      const store = useAnnotationToolStore(sel.type);
+      return { store, tool: store.toolByID[sel.id] };
+    })
+    .filter(
+      ({ tool }) =>
+        tool.slice === currentSlice.value &&
+        doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata)
+    )
+    .flatMap(({ store, tool }) => store.getPoints(tool.id));
+});
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>

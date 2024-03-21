@@ -31,7 +31,7 @@ import { ToolID } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import { watchImmediate } from '@vueuse/core';
+import { whenever } from '@vueuse/core';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -84,11 +84,13 @@ export default defineComponent({
       widgetFactory.delete();
     });
 
-    watchImmediate(isPlacing, (placing) => {
-      if (placing) {
+    whenever(
+      isPlacing,
+      () => {
         widget.setInteractionState(InteractionState.PlacingFirst);
-      }
-    });
+      },
+      { immediate: true }
+    );
 
     // --- reset on slice/image changes --- //
 

@@ -63,6 +63,7 @@ import {
 } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useResizeObserver } from '@vueuse/core';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 
 type SVGPoint = {
   x: number;
@@ -122,7 +123,8 @@ export default defineComponent({
       }
     };
 
-    onVTKEvent(view.renderer.getActiveCamera(), 'onModified', updatePoints);
+    const camera = vtkFieldRef(view.renderer, 'activeCamera');
+    onVTKEvent(camera, 'onModified', updatePoints);
 
     watch([point1, point2], updatePoints, {
       deep: true,
@@ -144,7 +146,8 @@ export default defineComponent({
 
     // --- resize --- //
 
-    useResizeObserver(view.renderWindowView.getContainer(), () => {
+    const container = vtkFieldRef(view.renderWindowView, 'container');
+    useResizeObserver(container, () => {
       updatePoints();
     });
 
