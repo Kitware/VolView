@@ -21,11 +21,16 @@ if (!view) throw new Error('No VtkView');
 
 const { top: topLabel, left: leftLabel } = useOrientationLabels(view);
 
-const { slice, range: sliceRange } = useSliceConfig(viewId, imageId);
-const { width: windowWidth, level: windowLevel } = useWindowingConfig(
-  viewId,
-  imageId
-);
+const {
+  config: sliceConfig,
+  slice,
+  range: sliceRange,
+} = useSliceConfig(viewId, imageId);
+const {
+  config: wlConfig,
+  width: windowWidth,
+  level: windowLevel,
+} = useWindowingConfig(viewId, imageId);
 </script>
 
 <template>
@@ -42,8 +47,10 @@ const { width: windowWidth, level: windowLevel } = useWindowingConfig(
     </template>
     <template v-slot:bottom-left>
       <div class="annotation-cell">
-        <div>Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}</div>
-        <div>
+        <div v-if="sliceConfig">
+          Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}
+        </div>
+        <div v-if="wlConfig">
           W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
         </div>
       </div>

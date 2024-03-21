@@ -10,7 +10,7 @@ type ListenerType = 'vertical' | 'horizontal' | 'scroll';
 const DEFAULT_STEP = 1;
 
 export function useMouseRangeManipulatorListener(
-  manipulator: MaybeRef<vtkMouseRangeManipulator>,
+  manipulator: MaybeRef<Maybe<vtkMouseRangeManipulator>>,
   type: ListenerType,
   range: MaybeRef<Maybe<[number, number]>>,
   step: MaybeRef<Maybe<number>>,
@@ -21,7 +21,7 @@ export function useMouseRangeManipulatorListener(
   watchCompare(
     [toRef(range), toRef(step), toRef(manipulator)],
     ([newRange, , manip], _, onCleanup) => {
-      if (!newRange) return;
+      if (!newRange || !manip) return;
 
       const setterName = `set${
         capitalize(type) as Capitalize<ListenerType>

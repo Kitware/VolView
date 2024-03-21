@@ -13,6 +13,14 @@
           :view-up="viewUp"
           :slice-range="sliceDomain"
         >
+          <vtk-slice-view-window-manipulator
+            :view-id="id"
+            :image-id="currentImageID"
+          ></vtk-slice-view-window-manipulator>
+          <slice-viewer-overlay
+            :view-id="id"
+            :image-id="currentImageID"
+          ></slice-viewer-overlay>
           <vtk-base-oblique-slice-representation
             :view-id="id"
             :image-id="currentImageID"
@@ -64,6 +72,8 @@ import { RGBColor } from '@kitware/vtk.js/types';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { computed, ref, toRefs, watchEffect } from 'vue';
+import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
+import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;

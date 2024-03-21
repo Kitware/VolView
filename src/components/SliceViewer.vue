@@ -38,6 +38,15 @@
           :view-direction="viewDirection"
           :view-up="viewUp"
         >
+          <vtk-slice-view-slicing-manipulator
+            :view-id="id"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          ></vtk-slice-view-slicing-manipulator>
+          <vtk-slice-view-window-manipulator
+            :view-id="id"
+            :image-id="currentImageID"
+          ></vtk-slice-view-window-manipulator>
           <slice-viewer-overlay
             :view-id="id"
             :image-id="currentImageID"
@@ -137,6 +146,9 @@ import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
+import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
+import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -167,6 +179,9 @@ const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
+
+// initialize configs
+useSliceConfigInitializer(viewId, currentImageID, viewDirection);
 
 // segmentations
 const segmentations = computed(() => {

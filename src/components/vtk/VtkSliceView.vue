@@ -1,28 +1,13 @@
 <script setup lang="ts">
-import {
-  ref,
-  toRefs,
-  computed,
-  provide,
-  markRaw,
-  effectScope,
-  onUnmounted,
-} from 'vue';
+import { ref, toRefs, provide, markRaw, effectScope, onUnmounted } from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
-import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useVtkInteractorStyle } from '@/src/core/vtk/useVtkInteractorStyle';
 import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionManipulator';
-import { useMouseRangeManipulatorListener } from '@/src/core/vtk/useMouseRangeManipulatorListener';
-import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
-import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
-import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
 import { LPSAxisDir } from '@/src/types/lps';
-import type { Vector2 } from '@kitware/vtk.js/types';
-import { syncRef, useResizeObserver, watchImmediate } from '@vueuse/core';
+import { useResizeObserver, watchImmediate } from '@vueuse/core';
 import { resetCameraToImage, resizeToFitImage } from '@/src/utils/camera';
 import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfig';
 import { useAutoFitState } from '@/src/composables/useAutoFitState';
@@ -30,7 +15,6 @@ import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
-import type { vtkRange } from '@kitware/vtk.js/interfaces';
 
 interface Props {
   viewId: string;
@@ -38,7 +22,6 @@ interface Props {
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
   disableAutoResetCamera?: boolean;
-  sliceRange?: vtkRange;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -50,7 +33,6 @@ const {
   viewDirection,
   viewUp,
   disableAutoResetCamera,
-  sliceRange,
 } = toRefs(props);
 
 const vtkContainerRef = ref<HTMLElement>();
@@ -84,52 +66,8 @@ useVtkInteractionManipulator(
   vtkMouseCameraTrackballZoomToMouseManipulator,
   { button: 3 }
 );
-const { instance: rangeManipulator } = useVtkInteractionManipulator(
-  interactorStyle,
-  vtkMouseRangeManipulator,
-  { button: 1, dragEnabled: true, scrollEnabled: true }
-);
 
-// initialize and bind slice and window configs
-const sliceConfig = useSliceConfig(viewID, imageID);
-const wlConfig = useWindowingConfig(viewID, imageID);
-
-const computeStep = (range: Vector2) => {
-  return Math.min(range[1] - range[0], 1) / 256;
-};
-const wlStep = computed(() => computeStep(wlConfig.range.value));
-
-useSliceConfigInitializer(viewID, imageID, viewDirection, sliceRange?.value);
-useWindowingConfigInitializer(viewID, imageID);
-
-const horiz = useMouseRangeManipulatorListener(
-  rangeManipulator,
-  'horizontal',
-  wlConfig.range,
-  wlStep,
-  wlConfig.level.value
-);
-
-const vert = useMouseRangeManipulatorListener(
-  rangeManipulator,
-  'vertical',
-  computed(() => [1e-12, wlConfig.range.value[1] - wlConfig.range.value[0]]),
-  wlStep,
-  wlConfig.width.value
-);
-
-const scroll = useMouseRangeManipulatorListener(
-  rangeManipulator,
-  'scroll',
-  sliceConfig.range,
-  1,
-  sliceConfig.slice.value
-);
-
-syncRef(horiz, wlConfig.level, { immediate: true });
-syncRef(vert, wlConfig.width, { immediate: true });
-syncRef(scroll, sliceConfig.slice, { immediate: true });
-
+// bind slice and window configs
 // resizeToFit camera controls
 const { autoFit, withoutAutoFitEffect } = useAutoFitState(
   view.renderer.getActiveCamera()
