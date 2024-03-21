@@ -2,7 +2,6 @@
 import { toRefs, watchEffect, inject } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useResliceRepresentation } from '@/src/core/vtk/useResliceRepresentation';
-import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
@@ -31,8 +30,7 @@ if (!view) throw new Error('No VtkView');
 
 const { imageData } = useImage(imageID);
 
-// bind slice and window configs
-const sliceConfig = useSliceConfig(viewID, imageID);
+// bind window configs
 const wlConfig = useWindowingConfig(viewID, imageID);
 
 // setup base image
@@ -56,11 +54,6 @@ watchImmediate([planeNormal, planeOrigin], ([normal, origin]) => {
   if (!plane) return;
   plane.setNormal(normal);
   plane.setOrigin(origin);
-});
-
-// sync slicing
-watchEffect(() => {
-  sliceRep.mapper.setSlice(sliceConfig.slice.value);
 });
 
 // sync windowing

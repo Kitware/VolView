@@ -5,6 +5,8 @@ import { useVtkRepresentation } from '@/src/core/vtk/useVtkRepresentation';
 import { Maybe } from '@/src/types';
 import { View } from '@/src/core/vtk/types';
 import vtkImageResliceMapper from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 
 export function useResliceRepresentation(
   view: View,
@@ -15,6 +17,11 @@ export function useResliceRepresentation(
     data: imageData,
     vtkActorClass: vtkImageSlice,
     vtkMapperClass: vtkImageResliceMapper,
+  });
+
+  const plane = vtkFieldRef(sliceRep.mapper, 'slicePlane');
+  onVTKEvent(plane, 'onModified', () => {
+    view.requestRender();
   });
 
   return sliceRep;

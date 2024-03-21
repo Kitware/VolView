@@ -1,12 +1,5 @@
 <template>
-  <div
-    class="vtk-container-wrapper"
-    tabindex="0"
-    @pointerenter="hover = true"
-    @pointerleave="hover = false"
-    @focusin="hover = true"
-    @focusout="hover = false"
-  >
+  <div class="vtk-container-wrapper" tabindex="0">
     <div class="vtk-gutter"></div>
     <div class="vtk-container">
       <div class="vtk-sub-container">
@@ -57,7 +50,9 @@ import { useViewAnimationListener } from '@/src/composables/useViewAnimationList
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { OBLIQUE_OUTLINE_COLORS } from '@/src/constants';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
-import useResliceCursorStore from '@/src/store/reslice-cursor';
+import useResliceCursorStore, {
+  mapAxisToViewType,
+} from '@/src/store/reslice-cursor';
 import { LayoutViewProps } from '@/src/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { VtkViewApi } from '@/src/types/vtk-types';
@@ -65,7 +60,6 @@ import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import { RGBColor } from '@kitware/vtk.js/types';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
@@ -83,8 +77,6 @@ const props = defineProps<Props>();
 const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
 const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
-const hover = ref(false);
-
 useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
@@ -96,18 +88,7 @@ const { currentImageID, currentImageData, currentImageMetadata } =
 const resliceStore = useResliceCursorStore();
 const { resliceCursor, resliceCursorState } = resliceStore;
 
-const widgetViewType = computed(() => {
-  switch (viewAxis.value) {
-    case 'Coronal':
-      return ViewTypes.XZ_PLANE;
-    case 'Sagittal':
-      return ViewTypes.YZ_PLANE;
-    case 'Axial':
-      return ViewTypes.XY_PLANE;
-    default:
-      throw new Error(`Invalid view axis: ${viewAxis.value}`);
-  }
-});
+const widgetViewType = computed(() => mapAxisToViewType(viewAxis.value));
 
 watchEffect(() => {
   if (currentImageData.value) {
@@ -207,7 +188,6 @@ function resetCamera() {
 
   const { worldBounds } = metadata;
   planeOrigin.value = vtkBoundingBox.getCenter(worldBounds);
-  console.log('center', planeOrigin.value);
   resliceCursorState.placeWidget(worldBounds);
 
   vtkView.value.resetCamera();

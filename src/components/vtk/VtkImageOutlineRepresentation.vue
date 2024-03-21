@@ -11,7 +11,7 @@ import vtkCutter from '@kitware/vtk.js/Filters/Core/Cutter';
 import vtkImageDataOutlineFilter from '@kitware/vtk.js/Filters/General/ImageDataOutlineFilter';
 import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { syncRefs, watchImmediate } from '@vueuse/core';
 import { inject, toRefs, watchEffect } from 'vue';
 

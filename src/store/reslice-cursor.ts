@@ -1,5 +1,6 @@
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { ImageMetadata } from '@/src/types/image';
+import { LPSAxis } from '@/src/types/lps';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import vtkResliceCursorWidget, {
   ResliceCursorWidgetState,
@@ -7,6 +8,19 @@ import vtkResliceCursorWidget, {
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { toRaw, watchEffect } from 'vue';
+
+export function mapAxisToViewType(axis: LPSAxis) {
+  switch (axis) {
+    case 'Coronal':
+      return ViewTypes.XZ_PLANE;
+    case 'Sagittal':
+      return ViewTypes.YZ_PLANE;
+    case 'Axial':
+      return ViewTypes.XY_PLANE;
+    default:
+      throw new Error(`Invalid view axis: ${axis}`);
+  }
+}
 
 function resetReslicePlanes(
   resliceCursorState: ResliceCursorWidgetState,
