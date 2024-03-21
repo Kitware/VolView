@@ -1,139 +1,62 @@
-import { manageVTKSubscription } from '@/src/composables/manageVTKSubscription';
-import { Ref } from 'vue';
+import { MaybeRef, Ref, computed, unref } from 'vue';
 import { Maybe } from '@/src/types';
-import { CameraConfig } from '../store/view-configs/types';
-import { vtkLPSViewProxy } from '../types/vtk-types';
-import useViewCameraStore from '../store/view-configs/camera';
+import { CameraConfig } from '@/src/store/view-configs/types';
+import useViewCameraStore from '@/src/store/view-configs/camera';
+import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { syncRef } from '@vueuse/core';
+import { guardedWritableRef } from '@/src/utils/guardedWritableRef';
 
 export function usePersistCameraConfig(
-  viewID: Ref<string>,
-  dataID: Ref<Maybe<string>>,
-  viewProxy: Ref<vtkLPSViewProxy>,
-  ...toPersist: (keyof CameraConfig)[]
+  viewID: MaybeRef<string>,
+  dataID: MaybeRef<Maybe<string>>,
+  camera: MaybeRef<vtkCamera>
 ) {
   const viewCameraStore = useViewCameraStore();
-  let persistCameraConfig = true;
 
-  // We setup this list of functions to avoid if and indexOf in the onModified
-  // call.
-  const persist: (() => void)[] = [];
+  type KeyType = keyof CameraConfig;
+  const keys: KeyType[] = [
+    'position',
+    'focalPoint',
+    'viewUp',
+    'parallelScale',
+    'directionOfProjection',
+  ];
 
-  if (toPersist.indexOf('position') > -1) {
-    persist.push(() => {
-      if (dataID.value != null && persistCameraConfig) {
-        viewCameraStore.updateConfig(viewID.value, dataID.value, {
-          position: viewProxy.value.getCamera().getPosition(),
-        });
-      }
-    });
-  }
-  if (toPersist.indexOf('viewUp') > -1) {
-    persist.push(() => {
-      if (dataID.value != null && persistCameraConfig) {
-        viewCameraStore.updateConfig(viewID.value, dataID.value, {
-          viewUp: viewProxy.value.getCamera().getViewUp(),
-        });
-      }
-    });
-  }
-  if (toPersist.indexOf('focalPoint') > -1) {
-    persist.push(() => {
-      if (dataID.value != null && persistCameraConfig) {
-        viewCameraStore.updateConfig(viewID.value, dataID.value, {
-          focalPoint: viewProxy.value.getCamera().getFocalPoint(),
-        });
-      }
-    });
-  }
-  if (toPersist.indexOf('directionOfProjection') > -1) {
-    persist.push(() => {
-      if (dataID.value != null && persistCameraConfig) {
-        viewCameraStore.updateConfig(viewID.value, dataID.value, {
-          directionOfProjection: viewProxy.value
-            .getCamera()
-            .getDirectionOfProjection(),
-        });
-      }
-    });
-  }
-  if (toPersist.indexOf('parallelScale') > -1) {
-    persist.push(() => {
-      if (dataID.value != null && persistCameraConfig) {
-        viewCameraStore.updateConfig(viewID.value, dataID.value, {
-          parallelScale: viewProxy.value.getCamera().getParallelScale(),
-        });
-      }
-    });
-  }
-
-  manageVTKSubscription(
-    viewProxy.value.getCamera().onModified(() => {
-      persist.forEach((persistFunc) => persistFunc());
-    })
+  const cameraRefs = keys.reduce(
+    (refs, key) => ({
+      ...refs,
+      [key]: guardedWritableRef(
+        vtkFieldRef(camera, key),
+        (incoming) => !!incoming
+      ),
+    }),
+    {} as Record<KeyType, Ref<any>>
   );
 
-  function blockPersistingCameraConfig(func: () => void) {
-    persistCameraConfig = false;
-    try {
-      func();
-    } finally {
-      persistCameraConfig = true;
-    }
-  }
+  const config = computed(() =>
+    viewCameraStore.getConfig(unref(viewID), unref(dataID))
+  );
 
-  function restoreCameraConfig(cameraConfig: CameraConfig) {
-    blockPersistingCameraConfig(() => {
-      toPersist.forEach((key: keyof CameraConfig) => {
-        // Parallel scale
-        if (key === 'parallelScale' && cameraConfig.parallelScale) {
-          viewProxy.value
-            .getCamera()
-            .setParallelScale(cameraConfig.parallelScale);
-        }
-        // Position
-        else if (key === 'position' && cameraConfig.position) {
-          const { position } = cameraConfig;
-          viewProxy.value
-            .getCamera()
-            .setPosition(position[0], position[1], position[2]);
-        }
-        // Focal point
-        else if (key === 'focalPoint' && cameraConfig.focalPoint) {
-          const { focalPoint } = cameraConfig;
-          viewProxy.value
-            .getCamera()
-            .setFocalPoint(focalPoint[0], focalPoint[1], focalPoint[2]);
-          viewProxy.value
-            .getInteractorStyle2D()
-            .setCenterOfRotation([...focalPoint]);
-          viewProxy.value
-            .getInteractorStyle3D()
-            .setCenterOfRotation([...focalPoint]);
-        }
-        // Direction of projection
-        else if (
-          key === 'directionOfProjection' &&
-          cameraConfig.directionOfProjection
-        ) {
-          const { directionOfProjection } = cameraConfig;
-          viewProxy.value
-            .getCamera()
-            .setDirectionOfProjection(
-              directionOfProjection[0],
-              directionOfProjection[1],
-              directionOfProjection[2]
-            );
-        }
-        // View up
-        else if (key === 'viewUp' && cameraConfig.viewUp) {
-          const { viewUp } = cameraConfig;
-          viewProxy.value
-            .getCamera()
-            .setViewUp(viewUp[0], viewUp[1], viewUp[2]);
-        }
-      });
-    });
-  }
+  const configRefs = keys.reduce(
+    (refs, key) => ({
+      ...refs,
+      [key]: computed({
+        get: () => config.value?.[key],
+        set: (v) => {
+          const viewIDVal = unref(viewID);
+          const dataIDVal = unref(dataID);
+          if (!viewIDVal || !dataIDVal) return;
+          viewCameraStore.updateConfig(viewIDVal, dataIDVal, {
+            [key]: v,
+          });
+        },
+      }),
+    }),
+    {} as Record<KeyType, Ref<any>>
+  );
 
-  return { restoreCameraConfig };
+  keys.forEach((key) => {
+    syncRef(configRefs[key], cameraRefs[key]);
+  });
 }

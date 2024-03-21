@@ -180,8 +180,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     orderByParent.value[metadata.parentImage] ??= [];
     orderByParent.value[metadata.parentImage].push(id);
 
-    this.$proxies.addData(id, labelmap);
-
     return id;
   }
 
@@ -439,7 +437,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
         const id = useIdStore().nextId();
         dataIndex[id] = labelmapImage;
-        this.$proxies.addData(id, labelmapImage);
         return id;
       })
     );

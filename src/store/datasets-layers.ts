@@ -99,9 +99,6 @@ export const useLayersStore = defineStore('layer', () => {
       image = vtkITKHelper.convertItkToVtkImage(itkImage);
     }
 
-    this.$proxies.addData(id, image);
-
-    // calling after adding data to proxy manager delays enabling deletion, thus avoiding error
     this.layerImages[id] = image;
   }
 
@@ -137,10 +134,6 @@ export const useLayersStore = defineStore('layer', () => {
     );
 
     delete this.layerImages[layerToDelete.id];
-
-    // May have errored creating data, so check before delete
-    if (this.$proxies.getData(layerToDelete.id))
-      this.$proxies.deleteData(layerToDelete.id);
   }
 
   function getLayers(key: DataSelection | null | undefined) {

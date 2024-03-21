@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch, toRefs, toRaw, inject } from 'vue';
-import { ANNOTATION_TOOL_HANDLE_RADIUS, ToolContainer } from '@/src/constants';
+import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { nonNullable } from '@/src/utils/index';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { useResizeObserver } from '@vueuse/core';
 
 const DEFAULT_PADDING = 2;
 
@@ -70,8 +70,8 @@ watch(points, updateRectangle, { immediate: true, deep: true });
 const camera = vtkFieldRef(view.renderer, 'activeCamera');
 onVTKEvent(camera, 'onModified', updateRectangle);
 
-const containerEl = inject(ToolContainer)!;
-useResizeObserver(containerEl, () => {
+const container = vtkFieldRef(view.renderWindowView, 'container');
+useResizeObserver(container, () => {
   updateRectangle();
 });
 </script>

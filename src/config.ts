@@ -11,6 +11,8 @@ import { Action } from './constants';
 
 /**
  * These are the initial view IDs.
+ *
+ * These view IDs get mapped to components in core/viewTypes.ts.
  */
 export const InitViewIDs: Record<string, string> = {
   Coronal: 'Coronal',
@@ -81,6 +83,20 @@ export const InitViewSpecs: Record<string, ViewSpec> = {
     props: {
       viewDirection: 'Posterior',
       viewUp: 'Superior',
+      slices: [
+        {
+          viewID: InitViewIDs.ObliqueSagittal,
+          axis: 'Sagittal',
+        },
+        {
+          viewID: InitViewIDs.ObliqueCoronal,
+          axis: 'Coronal',
+        },
+        {
+          viewID: InitViewIDs.ObliqueAxial,
+          axis: 'Axial',
+        },
+      ],
     },
   },
 };

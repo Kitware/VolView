@@ -24,7 +24,7 @@ import { LPSAxisDir } from '@/src/types/lps';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { syncRef, useResizeObserver, watchImmediate } from '@vueuse/core';
 import { resetCameraToImage, resizeToFitImage } from '@/src/utils/camera';
-import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfigNew';
+import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfig';
 import { useAutoFitState } from '@/src/composables/useAutoFitState';
 import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
