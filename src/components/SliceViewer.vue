@@ -115,6 +115,7 @@ import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
+import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -135,6 +136,7 @@ function resetCamera() {
   vtkView.value.resetCamera();
 }
 
+useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image

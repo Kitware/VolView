@@ -1,24 +1,20 @@
 import { captureMessage } from '@sentry/vue';
-import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
-import vtkProxyManager from '@kitware/vtk.js/Proxy/Core/ProxyManager';
 import { useEventListener, useThrottleFn } from '@vueuse/core';
+import { Messages } from '@/src/constants';
+import { useMessageStore } from '@/src/store/messages';
+import { View } from '@/src/core/vtk/types';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { MaybeRef, computed, unref } from 'vue';
 import { Maybe } from '@/src/types';
-import { useProxyManager } from '@/src/composables/useProxyManager';
-import { Messages } from '../constants';
-import { useMessageStore } from '../store/messages';
-import { onProxyManagerEvent } from './onProxyManagerEvent';
+
+const THROTTLE_THRESHOLD = 250; // ms
 
 /**
  * Collects relevant context for debugging 3D crashes.
  * @returns
  */
-function getVolumeMapperContext(pxm: Maybe<vtkProxyManager>) {
-  if (!pxm) return null;
-
-  const view3d = pxm.getViews().find((view) => view.isA('vtkLPSView3DProxy'));
-  if (!view3d) return null;
-
-  const ren = view3d.getRenderer();
+function getVolumeMapperContext(view: View) {
+  const ren = view.renderer;
   const vol = ren.getVolumes()[0];
   if (!vol) return null;
 
@@ -34,39 +30,21 @@ function getVolumeMapperContext(pxm: Maybe<vtkProxyManager>) {
   );
 }
 
-export function useWebGLWatchdog() {
-  const watchdogs = new Map<string, () => void>();
-  const pxm = useProxyManager();
-
+export function useWebGLWatchdog(view: MaybeRef<Maybe<View>>) {
   const reportError = useThrottleFn(() => {
     const messageStore = useMessageStore();
     messageStore.addError(Messages.WebGLLost.title, Messages.WebGLLost.details);
-    captureMessage('WebGL2 context was lost', {
-      contexts: {
-        vtk: {
-          volumeMapper: getVolumeMapperContext(pxm),
-        },
-      },
-    });
-  }, 150);
 
-  onProxyManagerEvent('ProxyCreated', (id, obj) => {
-    if (!obj || !obj.isA('vtkViewProxy')) return;
-    const view = obj as vtkViewProxy;
-    // TODO getCanvas() typing
-    const canvas = view
-      .getRenderWindow()
-      .getViews()[0]
-      .getCanvas() as HTMLCanvasElement;
-
-    const cleanup = useEventListener(canvas, 'webglcontextlost', reportError);
-    watchdogs.set(id, cleanup);
-  });
-
-  onProxyManagerEvent('ProxyDeleted', (id) => {
-    if (watchdogs.has(id)) {
-      watchdogs.get(id)!();
-      watchdogs.delete(id);
+    const contexts: Record<string, any> = {};
+    const viewVal = unref(view);
+    if (viewVal) {
+      contexts.vtk = getVolumeMapperContext(viewVal);
     }
-  });
+
+    captureMessage('WebGL2 context was lost', { contexts });
+  }, THROTTLE_THRESHOLD);
+
+  const renWinView = computed(() => unref(view)?.renderWindowView);
+  const canvas = vtkFieldRef(renWinView, 'canvas');
+  useEventListener(canvas, 'webglcontextlost', reportError);
 }

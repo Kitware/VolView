@@ -54,6 +54,7 @@ import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
+import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { OBLIQUE_OUTLINE_COLORS } from '@/src/constants';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import useResliceCursorStore from '@/src/store/reslice-cursor';
@@ -84,6 +85,7 @@ const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 const hover = ref(false);
 
+useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image

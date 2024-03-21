@@ -45,6 +45,7 @@ import { LayoutViewProps } from '@/src/types';
 import VtkBaseVolumeRepresentation from '@/src/components/vtk/VtkBaseVolumeRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
+import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -62,6 +63,7 @@ function resetCamera() {
   vtkView.value.resetCamera();
 }
 
+useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
