@@ -97,6 +97,14 @@
           <slot></slot>
         </vtk-slice-view>
       </div>
+      <transition name="loading">
+        <div v-if="isImageLoading" class="overlay-no-events loading">
+          <div>Loading the image</div>
+          <div>
+            <v-progress-circular indeterminate color="blue" />
+          </div>
+        </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -153,7 +161,7 @@ useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID, currentLayers, currentImageMetadata } =
+const { currentImageID, currentLayers, currentImageMetadata, isImageLoading } =
   useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
