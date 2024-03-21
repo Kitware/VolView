@@ -1,17 +1,5 @@
 <template>
-  <div class="vtk-container-wrapper" tabindex="0">
-    <div class="vtk-gutter">
-      <v-btn dark icon size="medium" variant="text" @click="resetCamera">
-        <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
-        <v-tooltip
-          location="right"
-          activator="parent"
-          transition="slide-x-transition"
-        >
-          Reset Camera
-        </v-tooltip>
-      </v-btn>
-    </div>
+  <div class="vtk-container-wrapper volume-viewer-container" tabindex="0">
     <div class="vtk-container" data-testid="two-view-container">
       <div class="vtk-sub-container">
         <vtk-volume-view
@@ -32,6 +20,33 @@
           <slot></slot>
         </vtk-volume-view>
       </div>
+      <view-overlay-grid class="overlay-no-events view-annotations">
+        <template v-slot:top-left>
+          <div class="annotation-cell">
+            <v-btn
+              class="pointer-events-all"
+              dark
+              icon
+              size="medium"
+              variant="text"
+              @click="resetCamera"
+            >
+              <v-icon size="medium" class="py-1">
+                mdi-camera-flip-outline
+              </v-icon>
+              <v-tooltip
+                location="right"
+                activator="parent"
+                transition="slide-x-transition"
+              >
+                Reset Camera
+              </v-tooltip>
+            </v-btn>
+            <span class="ml-3">{{ presetName }}</span>
+          </div>
+        </template>
+      </view-overlay-grid>
+
       <transition name="loading">
         <div v-if="isImageLoading" class="overlay-no-events loading">
           <div>Loading the image</div>
@@ -45,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRefs } from 'vue';
+import { ref, toRefs, computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxisDir } from '@/src/types/lps';
 import VtkVolumeView from '@/src/components/vtk/VtkVolumeView.vue';
@@ -56,6 +71,8 @@ import { useViewAnimationListener } from '@/src/composables/useViewAnimationList
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import VtkOrientationMarker from '@/src/components/vtk/VtkOrientationMarker.vue';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -78,7 +95,23 @@ useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
 const { currentImageID, isImageLoading } = useCurrentImage();
+
+// color preset
+const coloringStore = useVolumeColoringStore();
+const coloringConfig = computed(() =>
+  coloringStore.getConfig(viewId.value, currentImageID.value)
+);
+const presetName = computed(
+  () => coloringConfig.value?.transferFunction.preset.replace(/-/g, ' ') ?? ''
+);
 </script>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
 <style scoped src="@/src/components/styles/utils.css"></style>
+
+<style scoped>
+.volume-viewer-container {
+  background-color: black;
+  grid-template-columns: auto;
+}
+</style>
