@@ -38,6 +38,10 @@
           :view-direction="viewDirection"
           :view-up="viewUp"
         >
+          <slice-viewer-overlay
+            :view-id="id"
+            :image-id="currentImageID"
+          ></slice-viewer-overlay>
           <vtk-base-slice-representation
             :view-id="id"
             :image-id="currentImageID"
@@ -90,7 +94,6 @@
           <svg class="overlay-no-events">
             <bounding-rectangle :points="selectionPoints" />
           </svg>
-
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -120,6 +123,7 @@ import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
+import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';

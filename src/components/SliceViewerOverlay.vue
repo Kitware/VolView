@@ -1,0 +1,59 @@
+<script setup lang="ts">
+import { inject, toRefs } from 'vue';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { Maybe } from '@/src/types';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
+import { useOrientationLabels } from '@/src/composables/useOrientationLabels';
+import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+
+interface Props {
+  viewId: string;
+  imageId: Maybe<string>;
+}
+
+const props = defineProps<Props>();
+const { viewId, imageId } = toRefs(props);
+
+const view = inject(VtkViewContext);
+if (!view) throw new Error('No VtkView');
+
+const { top: topLabel, left: leftLabel } = useOrientationLabels(view);
+
+const { slice, range: sliceRange } = useSliceConfig(viewId, imageId);
+const { width: windowWidth, level: windowLevel } = useWindowingConfig(
+  viewId,
+  imageId
+);
+</script>
+
+<template>
+  <view-overlay-grid class="overlay-no-events view-annotations">
+    <template v-slot:top-center>
+      <div class="annotation-cell">
+        <span>{{ topLabel }}</span>
+      </div>
+    </template>
+    <template v-slot:middle-left>
+      <div class="annotation-cell">
+        <span>{{ leftLabel }}</span>
+      </div>
+    </template>
+    <template v-slot:bottom-left>
+      <div class="annotation-cell">
+        <div>Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}</div>
+        <div>
+          W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
+        </div>
+      </div>
+    </template>
+    <template v-slot:top-right>
+      <div class="annotation-cell">
+        <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
+      </div>
+    </template>
+  </view-overlay-grid>
+</template>
+
+<style scoped src="@/src/components/styles/vtk-view.css"></style>
