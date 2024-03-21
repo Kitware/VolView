@@ -40,9 +40,7 @@
 </template>
 
 <script lang="ts">
-import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { ToolContainer } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import {
@@ -56,6 +54,8 @@ import {
   inject,
 } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { useResizeObserver } from '@vueuse/core';
 
 type SVGPoint = {
   x: number;
@@ -87,15 +87,15 @@ export default defineComponent({
       }
     };
 
-    onVTKEvent(view.renderer.getActiveCamera(), 'onModified', updatePoints);
+    const camera = vtkFieldRef(view.renderer, 'activeCamera');
+    onVTKEvent(camera, 'onModified', updatePoints);
 
     watchEffect(updatePoints);
 
     // --- resize --- //
 
-    const containerEl = inject(ToolContainer)!;
-
-    useResizeObserver(containerEl, () => {
+    const container = vtkFieldRef(view.renderWindowView, 'container');
+    useResizeObserver(container, () => {
       updatePoints();
     });
 

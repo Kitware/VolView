@@ -28,6 +28,7 @@ import { PropType, defineComponent, toRefs, ref, watch, inject } from 'vue';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useResizeObserver } from '@vueuse/core';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 
 const POINT_RADIUS = ANNOTATION_TOOL_HANDLE_RADIUS;
 const FINISHABLE_POINT_RADIUS = POINT_RADIUS + 6;
@@ -97,7 +98,8 @@ export default defineComponent({
       linePoints.value = lines.join(' ');
     };
 
-    onVTKEvent(view.renderer.getActiveCamera(), 'onModified', updatePoints);
+    const camera = vtkFieldRef(view.renderer, 'activeCamera');
+    onVTKEvent(camera, 'onModified', updatePoints);
 
     watch([points, movePoint, placing], updatePoints, {
       deep: true,
@@ -106,7 +108,8 @@ export default defineComponent({
 
     // --- resize --- //
 
-    useResizeObserver(view.renderWindowView.getContainer(), () => {
+    const container = vtkFieldRef(view.renderWindowView, 'container');
+    useResizeObserver(container, () => {
       updatePoints();
     });
 
