@@ -4,7 +4,7 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { useVolumeRepresentation } from '@/src/core/vtk/useVolumeRepresentation';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import { useColoringEffect } from '@/src/composables/useColoringEffectNew';
+import { useColoringEffect } from '@/src/composables/useColoringEffect';
 import useVolumeColoringStore, {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
@@ -13,7 +13,7 @@ import useVolumeColoringStore, {
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
-import { isViewAnimatingNew as isViewAnimating } from '@/src/composables/isViewAnimating';
+import { isViewAnimating } from '@/src/composables/isViewAnimating';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/VolumeProperty/Constants';
 import {
   setCinematicLighting,

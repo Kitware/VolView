@@ -18,7 +18,7 @@ import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionMa
 import { LPSAxisDir } from '@/src/types/lps';
 import { watchImmediate } from '@vueuse/core';
 import { resetCameraToImage } from '@/src/utils/camera';
-import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfigNew';
+import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfig';
 import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';

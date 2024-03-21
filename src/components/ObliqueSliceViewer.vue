@@ -40,7 +40,7 @@
 
 <script setup lang="ts">
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import ResliceCursorTool from '@/src/components/tools/ResliceCursorToolNew.vue';
+import ResliceCursorTool from '@/src/components/tools/ResliceCursorTool.vue';
 import VtkBaseObliqueSliceRepresentation from '@/src/components/vtk/VtkBaseObliqueSliceRepresentation.vue';
 import VtkImageOutlineRepresentation from '@/src/components/vtk/VtkImageOutlineRepresentation.vue';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';

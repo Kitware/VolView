@@ -18,7 +18,6 @@ export const useModelStore = defineStore('models', {
       const id = useIdStore().nextId();
       this.idList.push(id);
       this.dataIndex[id] = polyData;
-      this.$proxies.addData(id, polyData);
       return id;
     },
   },
