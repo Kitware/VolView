@@ -32,20 +32,19 @@ export function useSliceConfigInitializer(
     };
   });
 
-  watchImmediate(toRef(sliceDomain), (domain) => {
-    const imageIdVal = unref(imageID);
-    if (!imageIdVal) return;
-    store.updateConfig(unref(viewID), imageIdVal, domain);
-  });
-
-  watchImmediate(sliceConfig, (config) => {
-    const imageIdVal = unref(imageID);
-    const viewIdVal = unref(viewID);
-    if (config || !imageIdVal) return;
-    store.updateConfig(viewIdVal, imageIdVal, {
-      ...unref(sliceDomain),
-      axisDirection: unref(viewDirection),
-    });
-    store.resetSlice(viewIdVal, imageIdVal);
-  });
+  watchImmediate(
+    [toRef(sliceDomain), toRef(viewDirection)] as const,
+    ([domain, axisDirection]) => {
+      const configExisted = !!sliceConfig.value;
+      const imageIdVal = unref(imageID);
+      if (!imageIdVal) return;
+      store.updateConfig(unref(viewID), imageIdVal, {
+        ...domain,
+        axisDirection,
+      });
+      if (!configExisted) {
+        store.resetSlice(unref(viewID), imageIdVal);
+      }
+    }
+  );
 }

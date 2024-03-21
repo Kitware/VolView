@@ -46,7 +46,7 @@ export function useVtkInteractionManipulator<
     const manip = manipulator.value;
     addManipulator(style, manip);
     onCleanup(() => {
-      removeManipulator(style, manip);
+      if (!style.isDeleted()) removeManipulator(style, manip);
     });
   });
 
