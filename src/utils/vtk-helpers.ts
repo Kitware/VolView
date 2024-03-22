@@ -1,10 +1,14 @@
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { intersectDisplayWithPlane } from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { OpacityFunction } from '../types/views';
+import { OpacityFunction } from '@/src/types/views';
+import vtkFieldData from '@kitware/vtk.js/Common/DataModel/DataSetAttributes/FieldData';
+import { Maybe } from '@/src/types';
 
 export function computeWorldToDisplay(
   xyz: Vector3,
@@ -134,7 +138,7 @@ export function getShiftedOpacityFromPreset(
       // but preset values of zero should not
       const shifted = y && y - shiftAlpha;
       const yVal = Math.max(Math.min(shifted, 1), 0);
-      return [(x - xmin) / width + shift, yVal];
+      return [(x - xmin) / width + shift, yVal] as Vector2;
     });
   }
   return null;
@@ -219,4 +223,56 @@ export function getOpacityRangeFromPreset(presetName: string) {
     return [...preset.EffectiveRange] as [number, number];
   }
   return null;
+}
+
+/**
+ * Applies a set of points to a piecewise function.
+ * @param pwf
+ * @param points
+ * @param range
+ */
+export function applyPointsToPiecewiseFunction(
+  pwf: vtkPiecewiseFunction,
+  points: Vector2[],
+  range: Vector2
+) {
+  const width = range[1] - range[0];
+  const rescaled = points.map(([x, y]) => [x * width + range[0], y]);
+
+  pwf.removeAllPoints();
+  rescaled.forEach(([x, y]) => pwf.addPoint(x, y));
+}
+
+/**
+ * Applies a set of nodes to a piecewise function.
+ * @param nodes
+ * @param range
+ * @param pwf
+ */
+export function applyNodesToPiecewiseFunction(
+  pwf: vtkPiecewiseFunction,
+  nodes: any[],
+  range: Vector2
+) {
+  const width = range[1] - range[0];
+  const rescaled = nodes.map((n) => ({ ...n, x: n.x * width + range[0] }));
+
+  pwf.setNodes(rescaled);
+}
+
+/**
+ * Gets the data array given by the arrayName and arrayLocation.
+ * @param obj
+ * @param arrayName
+ * @param arrayLocation
+ * @returns
+ */
+export function getDataArray(
+  obj: vtkObject,
+  arrayName: string,
+  arrayLocation: 'pointData' | 'cellData'
+) {
+  const field: Maybe<vtkFieldData> = obj.getReferenceByName(arrayLocation);
+  const array = field?.getArrayByName(arrayName);
+  return array;
 }

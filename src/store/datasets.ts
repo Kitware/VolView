@@ -1,5 +1,4 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { vtkObject } from '@kitware/vtk.js/interfaces';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { useDICOMStore } from './datasets-dicom';
@@ -89,8 +88,6 @@ export function selectionEquals(s1: DataSelection, s2: DataSelection) {
 }
 
 export const useDatasetStore = defineStore('dataset', () => {
-  type _This = ReturnType<typeof useDatasetStore>;
-
   const imageStore = useImageStore();
   const modelStore = useModelStore();
   const dicomStore = useDICOMStore();
@@ -115,10 +112,6 @@ export const useDatasetStore = defineStore('dataset', () => {
   const allDataIDs = computed(() => {
     return [...imageStore.idList, ...modelStore.idList];
   });
-
-  function getDataProxyByID<T extends vtkObject>(this: _This, id: string) {
-    return this.$proxies.getData<T>(id);
-  }
 
   // --- actions --- //
 
@@ -192,7 +185,6 @@ export const useDatasetStore = defineStore('dataset', () => {
     primarySelection,
     primaryDataset,
     allDataIDs,
-    getDataProxyByID,
     setPrimarySelection,
     serialize,
   };

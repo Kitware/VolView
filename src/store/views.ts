@@ -1,8 +1,5 @@
-import vtkAbstractRepresentationProxy from '@kitware/vtk.js/Proxy/Core/AbstractRepresentationProxy';
-import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { defineStore } from 'pinia';
 import { DefaultViewSpec, InitViewSpecs } from '../config';
-import { ViewProxyType } from '../core/proxies';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewConfigStore } from './view-configs';
 import { ViewSpec } from '../types/views';
@@ -29,31 +26,8 @@ export const useViewStore = defineStore('view', {
     viewIDs(state) {
       return Object.keys(state.viewSpecs);
     },
-    getViewProxy() {
-      return <T extends vtkViewProxy>(id: string) => {
-        return this.$proxies.getView<T>(id);
-      };
-    },
-    getDataRepresentationForView() {
-      return <T extends vtkAbstractRepresentationProxy>(
-        dataID: string,
-        viewID: string
-      ) => {
-        return <T | null>(
-          this.$proxies.getDataRepresentationForView(dataID, viewID)
-        );
-      };
-    },
   },
   actions: {
-    createOrGetViewProxy<T extends vtkViewProxy = vtkViewProxy>(
-      id: string,
-      type: ViewProxyType
-    ) {
-      return (
-        this.$proxies.getView<T>(id) ?? <T>this.$proxies.createView(id, type)
-      );
-    },
     addView(id: string) {
       if (!(id in this.viewSpecs)) {
         this.viewSpecs[id] = structuredClone(DefaultViewSpec);
@@ -62,7 +36,6 @@ export const useViewStore = defineStore('view', {
     removeView(id: string) {
       if (id in this.viewSpecs) {
         delete this.viewSpecs[id];
-        this.$proxies.deleteView(id);
       }
     },
     setLayout(layout: Layout) {

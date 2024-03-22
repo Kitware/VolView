@@ -1,6 +1,6 @@
 import { Maybe } from '@/src/types';
 import { vtkObject, vtkSubscription } from '@kitware/vtk.js/interfaces';
-import { MaybeRef, computed, onBeforeUnmount, unref, watch } from 'vue';
+import { MaybeRef, computed, onScopeDispose, unref, watch } from 'vue';
 
 export type VTKEventHandler = (ev?: any) => any;
 export type VTKEventListener = (
@@ -23,15 +23,16 @@ export function onVTKEvent<T extends vtkObject, K extends keyof T>(
   });
 
   let subscription: Maybe<vtkSubscription> = null;
-  const stop = () => {
+
+  const cleanup = () => {
     subscription?.unsubscribe();
     subscription = null;
   };
 
-  watch(
+  const stop = watch(
     listenerRef,
     (listener) => {
-      stop();
+      cleanup();
       if (listener) {
         subscription = listener(callback, options?.priority ?? 0);
       }
@@ -39,7 +40,14 @@ export function onVTKEvent<T extends vtkObject, K extends keyof T>(
     { immediate: true }
   );
 
-  onBeforeUnmount(() => {
-    stop();
+  onScopeDispose(() => {
+    cleanup();
   });
+
+  return {
+    stop: () => {
+      cleanup();
+      stop();
+    },
+  };
 }

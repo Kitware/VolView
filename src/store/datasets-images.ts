@@ -42,8 +42,6 @@ export const useImageStore = defineStore('images', {
       this.idList.push(id);
       this.dataIndex[id] = imageData;
 
-      this.$proxies.addData(id, imageData);
-
       this.metadata[id] = { ...defaultImageMetadata(), name };
       this.updateData(id, imageData);
       return id;
@@ -65,10 +63,7 @@ export const useImageStore = defineStore('images', {
 
         this.metadata[id] = metadata;
         this.dataIndex[id] = imageData;
-
-        this.$proxies.updateData(id, imageData);
       }
-      this.$proxies.updateData(id, imageData);
       this.dataIndex[id] = imageData;
     },
 

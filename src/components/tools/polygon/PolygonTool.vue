@@ -6,7 +6,7 @@
         :key="tool.id"
         :tool-id="tool.id"
         :is-placing="tool.id === placingToolID"
-        :current-slice="currentSlice"
+        :image-id="imageId"
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(tool.id, $event)"
@@ -20,16 +20,9 @@
 </template>
 
 <script lang="ts">
-import {
-  computed,
-  defineComponent,
-  onUnmounted,
-  PropType,
-  toRefs,
-  watch,
-} from 'vue';
+import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -44,6 +37,9 @@ import {
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
+import { Maybe } from '@/src/types';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { watchImmediate } from '@vueuse/core';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 const useActiveToolStore = usePolygonStore;
@@ -56,14 +52,11 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    currentSlice: {
-      type: Number,
-      required: true,
-    },
     viewDirection: {
       type: String as PropType<LPSAxisDir>,
       required: true,
     },
+    imageId: String as PropType<Maybe<string>>,
   },
   components: {
     PolygonWidget2D,
@@ -71,12 +64,15 @@ export default defineComponent({
     AnnotationInfo,
   },
   setup(props) {
-    const { viewDirection, currentSlice } = toRefs(props);
+    const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
     const { activeLabel } = storeToRefs(activeToolStore);
 
-    const { currentImageID, currentImageMetadata } = useCurrentImage();
+    const sliceInfo = useSliceInfo(viewId, imageId);
+    const slice = computed(() => sliceInfo.value?.slice ?? 0);
+
+    const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
@@ -84,41 +80,37 @@ export default defineComponent({
 
     const frameOfReference = useFrameOfReference(
       viewDirection,
-      currentSlice,
-      currentImageMetadata
+      slice,
+      imageMetadata
     );
 
     const placingTool = usePlacingAnnotationTool(
       activeToolStore,
       computed(() => {
-        if (!currentImageID.value) return {};
+        if (!imageId.value) return {};
         return {
-          imageID: currentImageID.value,
+          imageID: imageId.value,
           frameOfReference: frameOfReference.value,
-          slice: currentSlice.value,
+          slice: slice.value,
           label: activeLabel.value,
           ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
         };
       })
     );
 
-    watch(
-      [isToolActive, currentImageID] as const,
-      ([active, imageID]) => {
-        placingTool.remove();
-        if (active && imageID) {
-          placingTool.add();
-        }
-      },
-      { immediate: true }
-    );
+    watchImmediate([isToolActive, imageId] as const, ([active, imageID]) => {
+      placingTool.remove();
+      if (active && imageID) {
+        placingTool.add();
+      }
+    });
 
     onUnmounted(() => {
       placingTool.remove();
     });
 
     const onToolPlaced = () => {
-      if (currentImageID.value) {
+      if (imageId.value) {
         placingTool.commit();
         placingTool.add();
       }
@@ -130,7 +122,7 @@ export default defineComponent({
 
     const currentTools = useCurrentTools(activeToolStore, viewAxis);
 
-    const { onHover, overlayInfo } = useHover(currentTools, currentSlice);
+    const { onHover, overlayInfo } = useHover(currentTools, slice);
 
     return {
       tools: currentTools,

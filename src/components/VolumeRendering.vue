@@ -15,6 +15,7 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import useViewAnimationStore from '@/src/store/view-animation';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import useVolumeColoringStore from '../store/view-configs/volume-coloring';
@@ -23,8 +24,6 @@ import {
   getShiftedOpacityFromPreset,
 } from '../utils/vtk-helpers';
 import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
-import { useViewProxy } from '../composables/useViewProxy';
-import { ViewProxyType } from '../core/proxies';
 import { InitViewIDs } from '../config';
 
 const WIDGET_WIDTH = 250;
@@ -133,21 +132,21 @@ export default defineComponent({
     onVTKEvent(pwfWidget, 'onOpacityChange', updateOpacityFunc);
 
     // trigger 3D view animations when updating the opacity widget
-    const { viewProxy } = useViewProxy(TARGET_VIEW_ID, ViewProxyType.Volume);
+    const viewAnimationStore = useViewAnimationStore();
     let animationRequested = false;
 
     const request3DAnimation = () => {
       if (!animationRequested) {
         animationRequested = true;
-        viewProxy.value.getInteractor().requestAnimation(pwfWidget);
+        viewAnimationStore.requestAnimation(pwfWidget, {
+          byViewType: ['3D'],
+        });
       }
     };
 
     const cancel3DAnimation = () => {
       animationRequested = false;
-      viewProxy.value
-        .getInteractor()
-        .cancelAnimation(pwfWidget, true /* skipWarning */);
+      viewAnimationStore.cancelAnimation(pwfWidget);
     };
 
     onVTKEvent(pwfWidget, 'onAnimation', (animating: boolean) => {
