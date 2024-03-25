@@ -172,20 +172,21 @@ export type ImportDataSourcesResult = Awaited<
   ReturnType<typeof importDataSources>
 >[number];
 
+export function toDataSelection(loadable: LoadableResult) {
+  const { dataID, dataType } = loadable;
+  if (dataType === 'dicom') {
+    return makeDICOMSelection(dataID);
+  }
+  if (dataType === 'image') {
+    return makeImageSelection(dataID);
+  }
+  return null;
+}
+
 export function convertSuccessResultToDataSelection(
   result: ImportDataSourcesResult
 ) {
   if (!isSelectable(result)) return null;
 
-  const { dataID, dataType } = result.data[0];
-
-  if (dataType === 'dicom') {
-    return makeDICOMSelection(dataID);
-  }
-
-  if (dataType === 'image') {
-    return makeImageSelection(dataID);
-  }
-
-  return null;
+  return toDataSelection(result.data[0]);
 }

@@ -76,6 +76,9 @@ export const useLayersStore = defineStore('layer', () => {
       [parent, source].map(getImage)
     );
 
+    if (!sourceImage) {
+      throw new Error('Failed to load layer image');
+    }
     if (
       !vtkBoundingBox.intersects(
         parentImage.getBounds(),
@@ -110,9 +113,18 @@ export const useLayersStore = defineStore('layer', () => {
     parent: DataSelection,
     source: DataSelection
   ) {
-    return useErrorMessage('Failed to build layer', () =>
-      this._addLayer(parent, source)
-    );
+    return useErrorMessage('Failed to build layer', async () => {
+      try {
+        await this._addLayer(parent, source);
+      } catch (error) {
+        // remove failed layer from parent's layer list
+        const parentKey = toDataSelectionKey(parent);
+        this.parentToLayers[parentKey] = this.parentToLayers[parentKey]?.filter(
+          ({ selection }) => !selectionEquals(selection, source)
+        );
+        throw error;
+      }
+    });
   }
 
   function deleteLayer(
