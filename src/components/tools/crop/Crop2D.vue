@@ -20,6 +20,7 @@ import {
   ref,
   Ref,
   toRefs,
+  unref,
 } from 'vue';
 import { vec3 } from 'gl-matrix';
 import useViewAnimationStore from '@/src/store/view-animation';
@@ -29,7 +30,7 @@ import Crop2DLineHandle from './Crop2DLineHandle.vue';
 import { CropLines } from './types';
 
 function computeCropLines(
-  viewID: Ref<string | null>,
+  viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>,
   cropAxis: Ref<LPSAxis | null>,
   cropPlanes: DeepReadonly<Ref<Record<LPSAxis, number[]>>>,
@@ -39,7 +40,7 @@ function computeCropLines(
 
   return computed(() => {
     // pre-check reactivity
-    const viewIDVal = viewID.value;
+    const viewIDVal = unref(viewID);
     const cropAxisVal = cropAxis.value;
     const cropPlanesVal = cropPlanes.value;
     const boundaryVal = boundary.value;
