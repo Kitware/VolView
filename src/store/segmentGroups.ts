@@ -1,7 +1,6 @@
 import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { RGBAColor } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
@@ -12,6 +11,7 @@ import { compareImageSpaces } from '@/src/utils/imageSpace';
 import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { readImage, writeImage } from '@/src/io/readWriteImage';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,

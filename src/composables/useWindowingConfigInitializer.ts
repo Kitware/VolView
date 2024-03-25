@@ -4,7 +4,7 @@ import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
-import { TypedArray } from '@kitware/vtk.js/types';
+import type { TypedArray } from '@kitware/vtk.js/types';
 import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref, watch } from 'vue';
 

@@ -1,4 +1,4 @@
-import { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 
 /**
  * Converts an RGBA tuple to a hex string with alpha.

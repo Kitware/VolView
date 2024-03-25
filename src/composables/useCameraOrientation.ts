@@ -1,4 +1,4 @@
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { computed, Ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { mat3 } from 'gl-matrix';

@@ -9,7 +9,7 @@ import {
   unref,
   watch,
 } from 'vue';
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';

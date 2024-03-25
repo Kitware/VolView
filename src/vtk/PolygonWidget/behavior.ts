@@ -1,6 +1,6 @@
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import macro from '@kitware/vtk.js/macros';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 
 import { WidgetAction } from '@/src/vtk/ToolWidgetUtils/types';

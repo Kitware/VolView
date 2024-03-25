@@ -7,7 +7,7 @@ import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionMa
 import { Maybe } from '@/src/types';
 import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { syncRef } from '@vueuse/core';
 import { inject, toRefs, computed } from 'vue';
 
