@@ -36,7 +36,8 @@ export interface IRulerWidgetInitialValues
   isPlaced: boolean;
 }
 
-export interface vtkRulerWidget extends vtkAbstractWidgetFactory {
+export interface vtkRulerWidget
+  extends vtkAbstractWidgetFactory<vtkRulerViewWidget> {
   getLength(): number;
   getWidgetState(): vtkRulerWidgetState;
 }
