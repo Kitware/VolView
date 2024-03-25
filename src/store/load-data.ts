@@ -1,11 +1,15 @@
-import { partitionResults } from '@/src/core/pipeline';
+import { PipelineResultSuccess, partitionResults } from '@/src/core/pipeline';
 import { DataSource, getDataSourceName } from '@/src/io/import/dataSource';
 import {
   ImportDataSourcesResult,
   importDataSources,
   toDataSelection,
 } from '@/src/io/import/importDataSources';
-import { isLoadableResult } from '@/src/io/import/common';
+import {
+  ImportResult,
+  LoadableResult,
+  isLoadableResult,
+} from '@/src/io/import/common';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useMessageStore } from '@/src/store/messages';
@@ -107,6 +111,30 @@ function useLoadingNotifications() {
   };
 }
 
+function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
+  // pick dicom dataset as primary selection if available
+  const dicoms = loadableDataSources.filter(
+    ({ dataType }) => dataType === 'dicom'
+  );
+  // prefer some modalities as base
+  const dicomStore = useDICOMStore();
+  return dicoms.find((dicomSource) => {
+    const volumeInfo = dicomStore.volumeInfo[dicomSource.dataID];
+    const modality = volumeInfo?.Modality;
+    return BASE_MODALITY_TYPES.includes(modality);
+  });
+}
+
+function pickBaseDataset(
+  succeeded: Array<PipelineResultSuccess<ImportResult>>
+) {
+  const loadableDataSources = succeeded.flatMap((result) => {
+    return result.data.filter(isLoadableResult);
+  });
+  const baseDicom = pickBaseDicom(loadableDataSources);
+  return baseDicom ?? loadableDataSources[0];
+}
+
 const useLoadDataStore = defineStore('loadData', () => {
   const { startLoading, stopLoading, setError, isLoading } =
     useLoadingNotifications();
@@ -136,21 +164,7 @@ const useLoadDataStore = defineStore('loadData', () => {
     const [succeeded, errored] = partitionResults(results);
 
     if (!dataStore.primarySelection && succeeded.length) {
-      const loadableDataSources = succeeded.flatMap((result) => {
-        return result.data.filter(isLoadableResult);
-      });
-      // pick dicom dataset as primary selection if available
-      const dicoms = loadableDataSources.filter(
-        ({ dataType }) => dataType === 'dicom'
-      );
-      const dicomStore = useDICOMStore();
-      // prefer some modalities as primary selection
-      const baseDicom = dicoms.find((dicomSource) => {
-        const volumeInfo = dicomStore.volumeInfo[dicomSource.dataID];
-        const modality = volumeInfo?.Modality;
-        return BASE_MODALITY_TYPES.includes(modality);
-      });
-      const primaryDataset = baseDicom ?? loadableDataSources[0];
+      const primaryDataset = pickBaseDataset(succeeded);
       const selection = toDataSelection(primaryDataset);
       if (selection) {
         dataStore.setPrimarySelection(selection);
