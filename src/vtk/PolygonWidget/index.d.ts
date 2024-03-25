@@ -30,7 +30,8 @@ export interface vtkPolygonViewWidget extends vtkAnnotationToolWidget {
 export interface IPolygonWidgetInitialValues
   extends IAnnotationToolWidgetInitialValues {}
 
-export interface vtkPolygonWidget extends vtkAbstractWidgetFactory {
+export interface vtkPolygonWidget
+  extends vtkAbstractWidgetFactory<vtkPolygonViewWidget> {
   getLength(): number;
   getWidgetState(): vtkPolygonWidgetState;
 }
