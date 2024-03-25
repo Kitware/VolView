@@ -2,9 +2,11 @@ import { partitionResults } from '@/src/core/pipeline';
 import { DataSource, getDataSourceName } from '@/src/io/import/dataSource';
 import {
   ImportDataSourcesResult,
-  convertSuccessResultToDataSelection,
   importDataSources,
+  toDataSelection,
 } from '@/src/io/import/importDataSources';
+import { isLoadableResult } from '@/src/io/import/common';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
@@ -14,6 +16,8 @@ import { computed, ref, watch } from 'vue';
 import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
+
+const BASE_MODALITY_TYPES = ['CT', 'MR', 'DX', 'US'];
 
 const NotificationMessages = {
   Loading: 'Loading datasets...',
@@ -132,7 +136,22 @@ const useLoadDataStore = defineStore('loadData', () => {
     const [succeeded, errored] = partitionResults(results);
 
     if (!dataStore.primarySelection && succeeded.length) {
-      const selection = convertSuccessResultToDataSelection(succeeded[0]);
+      const loadableDataSources = succeeded.flatMap((result) => {
+        return result.data.filter(isLoadableResult);
+      });
+      // pick dicom dataset as primary selection if available
+      const dicoms = loadableDataSources.filter(
+        ({ dataType }) => dataType === 'dicom'
+      );
+      const dicomStore = useDICOMStore();
+      // prefer some modalities as primary selection
+      const baseDicom = dicoms.find((dicomSource) => {
+        const volumeInfo = dicomStore.volumeInfo[dicomSource.dataID];
+        const modality = volumeInfo?.Modality;
+        return BASE_MODALITY_TYPES.includes(modality);
+      });
+      const primaryDataset = baseDicom ?? loadableDataSources[0];
+      const selection = toDataSelection(primaryDataset);
       if (selection) {
         dataStore.setPrimarySelection(selection);
       }
