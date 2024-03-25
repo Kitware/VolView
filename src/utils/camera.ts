@@ -101,12 +101,17 @@ export function resizeToFitImage(
   viewDirection: LPSAxisDir,
   viewUp: LPSAxisDir
 ) {
-  const { lpsOrientation, dimensions } = metadata;
+  const { lpsOrientation, dimensions, spacing } = metadata;
   const viewDirAxis = getLPSAxisFromDir(viewDirection);
   const viewUpAxis = getLPSAxisFromDir(viewUp);
   const lookAxis = lpsOrientation[viewDirAxis];
   const upAxis = lpsOrientation[viewUpAxis];
+  const dimsWithSpacing: Vector3 = [
+    dimensions[0] * spacing[0],
+    dimensions[1] * spacing[1],
+    dimensions[2] * spacing[2],
+  ];
 
-  resizeToFit(view, lookAxis, upAxis, dimensions);
+  resizeToFit(view, lookAxis, upAxis, dimsWithSpacing);
   view.requestRender();
 }
