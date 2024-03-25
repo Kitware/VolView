@@ -16,7 +16,7 @@ import { normalizeForStore, removeFromArray } from '@/src/utils';
 import { compareImageSpaces } from '@/src/utils/imageSpace';
 import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
-import { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,

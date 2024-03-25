@@ -5,7 +5,7 @@ import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
-import { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 
 export type WidgetAction = {
   name: string;

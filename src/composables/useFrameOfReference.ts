@@ -2,7 +2,7 @@ import { ImageMetadata } from '@/src/types/image';
 import { LPSAxisDir } from '@/src/types/lps';
 import { FrameOfReference } from '@/src/utils/frameOfReference';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { computed, unref } from 'vue';
 import type { ComputedRef, MaybeRef } from 'vue';

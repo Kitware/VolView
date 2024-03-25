@@ -68,7 +68,7 @@ import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import vtkMatrixBuilder from '@kitware/vtk.js/Common/Core/MatrixBuilder';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { RGBColor } from '@kitware/vtk.js/types';
+import type { RGBColor } from '@kitware/vtk.js/types';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { computed, ref, toRefs, watchEffect } from 'vue';

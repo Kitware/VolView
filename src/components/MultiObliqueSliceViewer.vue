@@ -52,7 +52,7 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { vec3 } from 'gl-matrix';
 import { OBLIQUE_OUTLINE_COLORS } from '@/src/constants';
-import { RGBColor } from '@kitware/vtk.js/types';
+import type { RGBColor } from '@kitware/vtk.js/types';
 
 interface SliceSpec {
   viewID: string;
