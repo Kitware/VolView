@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { ref, toRefs, provide, markRaw, effectScope, onUnmounted } from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
-import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useVtkInteractorStyle } from '@/src/core/vtk/useVtkInteractorStyle';
-import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionManipulator';
 import { LPSAxisDir } from '@/src/types/lps';
 import { useResizeObserver, watchImmediate } from '@vueuse/core';
 import { resetCameraToImage, resizeToFitImage } from '@/src/utils/camera';
@@ -14,7 +12,6 @@ import { useAutoFitState } from '@/src/composables/useAutoFitState';
 import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 
 interface Props {
   viewId: string;
@@ -54,17 +51,6 @@ view.renderer.getActiveCamera().setParallelProjection(true);
 const { interactorStyle } = useVtkInteractorStyle(
   vtkInteractorStyleManipulator,
   view
-);
-
-useVtkInteractionManipulator(
-  interactorStyle,
-  vtkMouseCameraTrackballPanManipulator,
-  { button: 1, shift: true }
-);
-useVtkInteractionManipulator(
-  interactorStyle,
-  vtkMouseCameraTrackballZoomToMouseManipulator,
-  { button: 3 }
 );
 
 // bind slice and window configs
