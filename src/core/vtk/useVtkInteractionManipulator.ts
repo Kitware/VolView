@@ -1,7 +1,8 @@
-import { MaybeRef, computed, ref, unref, watch, watchEffect } from 'vue';
+import { MaybeRef, computed, ref, toRef, unref, watch, watchEffect } from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { VtkObjectConstructor } from '@/src/core/vtk/types';
 import { FirstParam } from '@/src/types';
+import { stableDeepRef } from '@/src/composables/stableDeepRef';
 
 function addManipulator(style: vtkInteractorStyleManipulator, manip: any) {
   if (manip.isA('vtkCompositeMouseManipulator')) {
@@ -27,11 +28,12 @@ export function useVtkInteractionManipulator<
   T extends VtkObjectConstructor<any>
 >(
   style: vtkInteractorStyleManipulator,
-  vtkCtor: T,
+  vtkCtor: MaybeRef<T>,
   props: MaybeRef<FirstParam<T['newInstance']>>
 ) {
+  const stableProps = stableDeepRef(toRef(props));
   const manipulator = computed(() => {
-    return vtkCtor.newInstance(unref(props));
+    return unref(vtkCtor).newInstance(stableProps.value);
   });
 
   const enabled = ref(true);

@@ -38,6 +38,28 @@
           :view-direction="viewDirection"
           :view-up="viewUp"
         >
+          <vtk-mouse-interaction-manipulator
+            v-if="currentTool === Tools.Pan"
+            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
+            :manipulator-props="{ button: 1 }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
+            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
+            :manipulator-props="{ button: 1, shift: true }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
+            v-if="currentTool === Tools.Zoom"
+            :manipulator-constructor="
+              vtkMouseCameraTrackballZoomToMouseManipulator
+            "
+            :manipulator-props="{ button: 1 }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
+            :manipulator-constructor="
+              vtkMouseCameraTrackballZoomToMouseManipulator
+            "
+            :manipulator-props="{ button: 3 }"
+          ></vtk-mouse-interaction-manipulator>
           <vtk-slice-view-slicing-manipulator
             :view-id="id"
             :image-id="currentImageID"
@@ -46,6 +68,7 @@
           <vtk-slice-view-window-manipulator
             :view-id="id"
             :image-id="currentImageID"
+            :manipulator-config="windowingManipulatorProps"
           ></vtk-slice-view-window-manipulator>
           <slice-viewer-overlay
             :view-id="id"
@@ -125,7 +148,8 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
-import { LayoutViewProps } from '@/src/types';
+import type { LayoutViewProps } from '@/src/types';
+import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
 import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -142,13 +166,16 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { useAnnotationToolStore } from '@/src/store/tools';
+import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import { useSliceConfigInitializer } from '@/src/composables/useSliceConfigInitializer';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
+import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
+import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
+import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import { storeToRefs } from 'pinia';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -172,6 +199,12 @@ function resetCamera() {
 useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
+// active tool
+const { currentTool } = storeToRefs(useToolStore());
+const windowingManipulatorProps = computed(() =>
+  currentTool.value === Tools.WindowLevel ? { button: 1 } : { button: -1 }
+);
+
 // base image
 const { currentImageID, currentLayers, currentImageMetadata, isImageLoading } =
   useCurrentImage();
@@ -179,9 +212,6 @@ const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
-
-// initialize configs
-useSliceConfigInitializer(viewId, currentImageID, viewDirection);
 
 // segmentations
 const segmentations = computed(() => {

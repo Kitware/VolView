@@ -5,7 +5,9 @@ import { useWindowingConfigInitializer } from '@/src/composables/useWindowingCon
 import { useMouseRangeManipulatorListener } from '@/src/core/vtk/useMouseRangeManipulatorListener';
 import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionManipulator';
 import { Maybe } from '@/src/types';
-import vtkMouseRangeManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
+import vtkMouseRangeManipulator, {
+  IMouseRangeManipulatorInitialValues,
+} from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { syncRef } from '@vueuse/core';
@@ -14,10 +16,11 @@ import { inject, toRefs, computed } from 'vue';
 interface Props {
   viewId: string;
   imageId: Maybe<string>;
+  manipulatorConfig?: IMouseRangeManipulatorInitialValues;
 }
 
 const props = defineProps<Props>();
-const { viewId, imageId } = toRefs(props);
+const { viewId, imageId, manipulatorConfig } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -28,10 +31,19 @@ if (!interactorStyle?.isA('vtkInteractorStyleManipulator')) {
   throw new Error('No vtkInteractorStyleManipulator');
 }
 
+const config = computed(() => {
+  return {
+    button: 1,
+    dragEnabled: true,
+    scrollEnabled: false,
+    ...manipulatorConfig?.value,
+  };
+});
+
 const { instance: rangeManipulator } = useVtkInteractionManipulator(
   interactorStyle,
   vtkMouseRangeManipulator,
-  { button: 1, dragEnabled: true, scrollEnabled: false }
+  config
 );
 
 const wlConfig = useWindowingConfig(viewId, imageId);

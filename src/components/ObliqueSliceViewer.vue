@@ -13,9 +13,32 @@
           :view-up="viewUp"
           :slice-range="sliceDomain"
         >
+          <vtk-mouse-interaction-manipulator
+            v-if="currentTool === Tools.Pan"
+            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
+            :manipulator-props="{ button: 1 }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
+            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
+            :manipulator-props="{ button: 1, shift: true }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
+            v-if="currentTool === Tools.Zoom"
+            :manipulator-constructor="
+              vtkMouseCameraTrackballZoomToMouseManipulator
+            "
+            :manipulator-props="{ button: 1 }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
+            :manipulator-constructor="
+              vtkMouseCameraTrackballZoomToMouseManipulator
+            "
+            :manipulator-props="{ button: 3 }"
+          ></vtk-mouse-interaction-manipulator>
           <vtk-slice-view-window-manipulator
             :view-id="id"
             :image-id="currentImageID"
+            :manipulator-config="windowingManipulatorProps"
           ></vtk-slice-view-window-manipulator>
           <slice-viewer-overlay
             :view-id="id"
@@ -74,6 +97,12 @@ import { vec3 } from 'gl-matrix';
 import { computed, ref, toRefs, watchEffect } from 'vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
+import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
+import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
+import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import { storeToRefs } from 'pinia';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -89,6 +118,12 @@ const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
+
+// active tool
+const { currentTool } = storeToRefs(useToolStore());
+const windowingManipulatorProps = computed(() =>
+  currentTool.value === Tools.WindowLevel ? { button: 1 } : { button: -1 }
+);
 
 // base image
 const { currentImageID, currentImageData, currentImageMetadata } =
