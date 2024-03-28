@@ -142,6 +142,8 @@ useColoringEffect(coloringConfig, cfun, ofun);
 const cropStore = useCropStore();
 const croppingPlanes = cropStore.getComputedVTKPlanes(imageID);
 useCroppingEffect(rep.mapper, croppingPlanes);
+
+defineExpose(rep);
 </script>
 
 <template>

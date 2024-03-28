@@ -67,6 +67,8 @@ syncRefs(planeOrigin, slicePlaneOrigin);
 watchImmediate([slicePlaneNormal, slicePlaneOrigin], () => {
   cutterFilter.filter.modified();
 });
+
+defineExpose(rep);
 </script>
 
 <template><slot></slot></template>

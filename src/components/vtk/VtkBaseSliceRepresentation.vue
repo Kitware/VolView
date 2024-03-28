@@ -53,6 +53,8 @@ const colorLevel = vtkFieldRef(sliceRep.property, 'colorLevel');
 const colorWindow = vtkFieldRef(sliceRep.property, 'colorWindow');
 syncRefs(wlConfig.level, colorLevel, { immediate: true });
 syncRefs(wlConfig.width, colorWindow, { immediate: true });
+
+defineExpose(sliceRep);
 </script>
 
 <template>

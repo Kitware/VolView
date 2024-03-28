@@ -112,6 +112,8 @@ const applySegmentColoring = () => {
 };
 
 watchEffect(applySegmentColoring);
+
+defineExpose(sliceRep);
 </script>
 
 <template>

@@ -61,6 +61,8 @@ watchEffect(() => {
   sliceRep.property.setColorLevel(wlConfig.level.value);
   sliceRep.property.setColorWindow(wlConfig.width.value);
 });
+
+defineExpose(sliceRep);
 </script>
 
 <template>

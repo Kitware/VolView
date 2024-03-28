@@ -96,6 +96,8 @@ const applyLayerColoring = () => {
 };
 
 watchEffect(applyLayerColoring);
+
+defineExpose(sliceRep);
 </script>
 
 <template>

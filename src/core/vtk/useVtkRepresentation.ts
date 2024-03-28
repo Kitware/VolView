@@ -1,18 +1,13 @@
 import { MaybeRef, onScopeDispose, unref, watchEffect } from 'vue';
 import { vtkObject } from '@kitware/vtk.js/interfaces';
 import vtkAbstractMapper from '@kitware/vtk.js/Rendering/Core/AbstractMapper';
-import vtkProp from '@kitware/vtk.js/Rendering/Core/Prop';
-import type { View, VtkObjectConstructor } from '@/src/core/vtk/types';
+import type {
+  View,
+  VtkObjectConstructor,
+  vtkPropWithMapperProperty,
+} from '@/src/core/vtk/types';
 import { Maybe } from '@/src/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-
-type vtkPropWithMapperProperty<
-  M extends vtkAbstractMapper = vtkAbstractMapper,
-  P extends vtkObject = vtkObject
-> = vtkProp & {
-  setMapper(m: M): void;
-  getProperty(): P;
-};
 
 export interface UseVtkRepresentationParameters<Actor, Mapper> {
   view: View;
