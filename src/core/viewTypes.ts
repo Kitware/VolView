@@ -1,12 +1,12 @@
-import VtkObliqueThreeView from '@/src/components/VtkObliqueThreeView.vue';
-import VtkObliqueView from '@/src/components/VtkObliqueView.vue';
-import VtkThreeView from '@/src/components/VtkThreeView.vue';
-import VtkTwoView from '@/src/components/VtkTwoView.vue';
 import { Component } from 'vue';
+import MultiObliqueSliceViewer from '@/src/components/MultiObliqueSliceViewer.vue';
+import ObliqueSliceViewer from '@/src/components/ObliqueSliceViewer.vue';
+import SliceViewer from '@/src/components/SliceViewer.vue';
+import VolumeViewer from '@/src/components/VolumeViewer.vue';
 
 export const ViewTypeToComponent: Record<string, Component> = {
-  '2D': VtkTwoView,
-  '3D': VtkThreeView,
-  Oblique: VtkObliqueView,
-  Oblique3D: VtkObliqueThreeView,
+  '2D': SliceViewer,
+  '3D': VolumeViewer,
+  Oblique: ObliqueSliceViewer,
+  Oblique3D: MultiObliqueSliceViewer,
 };

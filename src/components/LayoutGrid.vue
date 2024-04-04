@@ -11,6 +11,7 @@
           :is="item.component"
           :key="item.id"
           :id="item.id"
+          :type="item.viewType"
           v-bind="item.props"
         />
       </div>
@@ -52,6 +53,7 @@ export default defineComponent({
           return {
             type: 'view',
             id: item,
+            viewType: spec.viewType,
             component: ViewTypeToComponent[spec.viewType],
             props: spec.props,
           };

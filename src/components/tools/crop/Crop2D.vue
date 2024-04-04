@@ -1,14 +1,12 @@
 <script lang="ts">
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useCurrentSlice } from '@/src/composables/useCurrentSlice';
+import { useImage } from '@/src/composables/useCurrentImage';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { useVTKMultiWorldToSVG } from '@/src/composables/useVTKWorldToDisplay';
 import { ImageMetadata } from '@/src/types/image';
 import { useCropStore } from '@/src/store/tools/crop';
-import { useViewStore } from '@/src/store/views';
 import { LPSAxis, LPSBounds, LPSPoint } from '@/src/types/lps';
 import { createLPSBounds, createLPSPoint, LPSAxes } from '@/src/utils/lps';
 import { intersectMouseEventWithPlane } from '@/src/utils/vtk-helpers';
-import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import {
@@ -16,25 +14,33 @@ import {
   ComputedRef,
   DeepReadonly,
   defineComponent,
+  inject,
+  MaybeRef,
+  PropType,
   ref,
   Ref,
   toRefs,
+  unref,
 } from 'vue';
 import { vec3 } from 'gl-matrix';
+import useViewAnimationStore from '@/src/store/view-animation';
+import { Maybe } from '@/src/types';
+import { VtkViewContext } from '@/src/components/vtk/context';
 import Crop2DLineHandle from './Crop2DLineHandle.vue';
 import { CropLines } from './types';
 
 function computeCropLines(
-  viewID: Ref<string | null>,
+  viewID: MaybeRef<string>,
+  imageID: MaybeRef<Maybe<string>>,
   cropAxis: Ref<LPSAxis | null>,
   cropPlanes: DeepReadonly<Ref<Record<LPSAxis, number[]>>>,
   boundary: Ref<Record<LPSAxis, number[]>>
 ): ComputedRef<CropLines<LPSPoint> | null> {
-  const currentSlice = useCurrentSlice(viewID);
+  const currentSlice = useSliceInfo(viewID, imageID);
 
   return computed(() => {
     // pre-check reactivity
-    const viewIDVal = viewID.value;
+    const viewIDVal = unref(viewID);
     const cropAxisVal = cropAxis.value;
     const cropPlanesVal = cropPlanes.value;
     const boundaryVal = boundary.value;
@@ -53,7 +59,7 @@ function computeCropLines(
     const perpBoundary = boundaryVal[perpAxis];
 
     const sliceCropRange = cropPlanesVal[sliceAxis];
-    const slice = sliceInfo.number;
+    const slice = sliceInfo.slice;
     const outOfBounds = slice < sliceCropRange[0] || sliceCropRange[1] < slice;
 
     const getLineSegments = (index: number) => {
@@ -84,7 +90,7 @@ function computeCropLines(
 function cropLinesToSVGDisplay(
   cropLines: Ref<CropLines<LPSPoint> | null>,
   imageMetadata: Ref<ImageMetadata>,
-  renderer: Ref<vtkRenderer>
+  renderer: vtkRenderer
 ): ComputedRef<CropLines<number[]> | null> {
   // gather points
   const worldPoints = computed(() => {
@@ -157,6 +163,9 @@ function useDragging({
   const initialPointerIndex = ref<LPSPoint>(createLPSPoint());
   const initialCrop = ref<number>(0);
 
+  const viewAnimationStore = useViewAnimationStore();
+  const requestor = Symbol('Crop2DRequestor');
+
   const onPointerDown = (
     ax: LPSAxis,
     selectedCropEdge: 0 | 1,
@@ -171,6 +180,10 @@ function useDragging({
     initialCrop.value = getCropEdgePos(ax, selectedCropEdge);
     activeAxis.value = ax;
     activeEdge.value = selectedCropEdge;
+
+    viewAnimationStore.requestAnimation(requestor, {
+      byViewType: ['3D'],
+    });
   };
 
   const onPointerMove = (ev: PointerEvent) => {
@@ -191,6 +204,7 @@ function useDragging({
   const onPointerUp = () => {
     activeAxis.value = null;
     activeEdge.value = null;
+    viewAnimationStore.cancelAnimation(requestor);
   };
 
   return {
@@ -206,34 +220,28 @@ export default defineComponent({
       required: true,
       type: String,
     },
+    imageId: String as PropType<Maybe<string>>,
   },
   components: {
     Crop2DLineHandle,
   },
   setup(props) {
-    const { viewId: viewID } = toRefs(props);
+    const { viewId: viewID, imageId } = toRefs(props);
 
-    const viewStore = useViewStore();
-    const viewProxy = computed(
-      () => viewStore.getViewProxy<vtkLPSView2DProxy>(viewID.value)!
-    );
-    const renderer = computed(() => viewProxy.value?.getRenderer());
+    const view = inject(VtkViewContext);
+    if (!view) throw new Error('No VtkView');
 
-    const {
-      currentImageExtent: imageExtent,
-      currentImageID,
-      currentImageMetadata,
-    } = useCurrentImage();
-    const currentSlice = useCurrentSlice(viewID);
+    const { extent: imageExtent, metadata: imageMetadata } = useImage(imageId);
+    const currentSlice = useSliceInfo(viewID, imageId);
     const currentSlicingAxis = computed(
       () => currentSlice.value?.axisName ?? null
     );
 
     const cropStore = useCropStore();
     const cropPlanes = computed((): DeepReadonly<LPSBounds> => {
-      const imageID = currentImageID.value;
-      if (imageID && imageID in cropStore.croppingByImageID) {
-        return cropStore.croppingByImageID[imageID];
+      const id = imageId.value;
+      if (id && id in cropStore.croppingByImageID) {
+        return cropStore.croppingByImageID[id];
       }
       return createLPSBounds();
     });
@@ -247,33 +255,42 @@ export default defineComponent({
     const ax2 = computed(() => inPlaneAxes.value[1] ?? null);
 
     // crop lines in image space
-    const ax1Lines = computeCropLines(viewID, ax1, cropPlanes, imageExtent);
-    const ax2Lines = computeCropLines(viewID, ax2, cropPlanes, imageExtent);
+    const ax1Lines = computeCropLines(
+      viewID,
+      imageId,
+      ax1,
+      cropPlanes,
+      imageExtent
+    );
+    const ax2Lines = computeCropLines(
+      viewID,
+      imageId,
+      ax2,
+      cropPlanes,
+      imageExtent
+    );
 
     // crop lines in display space
     const ax1SVGLines = cropLinesToSVGDisplay(
       ax1Lines,
-      currentImageMetadata,
-      renderer
+      imageMetadata,
+      view.renderer
     );
     const ax2SVGLines = cropLinesToSVGDisplay(
       ax2Lines,
-      currentImageMetadata,
-      renderer
+      imageMetadata,
+      view.renderer
     );
 
     const { onPointerDown, onPointerMove, onPointerUp } = useDragging({
       mouseEventToLPSPoint(ev: PointerEvent) {
-        const ren = renderer.value;
-        if (!ren) return null;
-
         const sliceInfo = currentSlice.value;
         if (!sliceInfo) return null;
 
-        const { lpsOrientation, worldToIndex } = currentImageMetadata.value;
+        const { lpsOrientation, worldToIndex } = imageMetadata.value;
         const coord = intersectMouseEventWithPlane(
           ev,
-          ren,
+          view.renderer,
           sliceInfo.planeOrigin,
           sliceInfo.planeNormal
         );
@@ -293,7 +310,7 @@ export default defineComponent({
         return cropPlanes.value[axis][lowerUpper];
       },
       setCropEdgePos(axis: LPSAxis, lowerUpper: 0 | 1, pos: number) {
-        if (!currentImageID.value) return;
+        if (!imageId.value) return;
 
         // enforce cropping edge bounds
         const planes = cropPlanes.value;
@@ -306,7 +323,7 @@ export default defineComponent({
           newPlanes[1] = Math.max(lower, Math.min(pos, max));
         }
 
-        cropStore.setCroppingForAxis(currentImageID.value, axis, newPlanes);
+        cropStore.setCroppingForAxis(imageId.value, axis, newPlanes);
       },
     });
 
@@ -333,35 +350,36 @@ export default defineComponent({
       <crop-2D-line-handle
         :line="ax1.lines.lowerLine"
         :out-of-bounds="ax1.lines.outOfBounds"
-        @pointerdown="onPointerDown(ax1.name, 0, $event)"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
+        @pointerdown.stop="onPointerDown(ax1.name, 0, $event)"
+        @pointermove.stop="onPointerMove"
+        @pointerup.stop="onPointerUp"
       />
       <crop-2D-line-handle
         :line="ax1.lines.upperLine"
         :out-of-bounds="ax1.lines.outOfBounds"
-        @pointerdown="onPointerDown(ax1.name, 1, $event)"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
+        @pointerdown.stop="onPointerDown(ax1.name, 1, $event)"
+        @pointermove.stop="onPointerMove"
+        @pointerup.stop="onPointerUp"
       />
     </template>
     <template v-if="ax2.lines != null">
       <crop-2D-line-handle
         :line="ax2.lines.lowerLine"
         :out-of-bounds="ax2.lines.outOfBounds"
-        @pointerdown="onPointerDown(ax2.name, 0, $event)"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
+        @pointerdown.stop="onPointerDown(ax2.name, 0, $event)"
+        @pointermove.stop="onPointerMove"
+        @pointerup.stop="onPointerUp"
       />
       <crop-2D-line-handle
         :line="ax2.lines.upperLine"
         :out-of-bounds="ax2.lines.outOfBounds"
-        @pointerdown="onPointerDown(ax2.name, 1, $event)"
-        @pointermove="onPointerMove"
-        @pointerup="onPointerUp"
+        @pointerdown.stop="onPointerDown(ax2.name, 1, $event)"
+        @pointermove.stop="onPointerMove"
+        @pointerup.stop="onPointerUp"
       />
     </template>
   </g>
 </template>
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
+@/src/composables/useSliceInfo

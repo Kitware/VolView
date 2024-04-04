@@ -29,7 +29,7 @@ function resolveNodeModulePath(moduleName: string) {
   return modulePath;
 }
 
-function resolvePath(...args) {
+function resolvePath(...args: string[]) {
   return normalizePath(path.resolve(...args));
 }
 
@@ -164,11 +164,17 @@ export default defineConfig({
           dest: 'itk/pipelines',
         },
         {
-          src: 'src/io/itk-dicom/emscripten-build/**/dicom*',
+          src: resolvePath(
+            rootDir,
+            'src/io/itk-dicom/emscripten-build/**/dicom*'
+          ),
           dest: 'itk/pipelines',
         },
         {
-          src: 'src/io/resample/emscripten-build/**/resample*',
+          src: resolvePath(
+            rootDir,
+            'src/io/resample/emscripten-build/**/resample*'
+          ),
           dest: 'itk/pipelines',
         },
       ],

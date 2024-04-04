@@ -271,8 +271,40 @@ declare module '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget' {
     getCenter(): Vector3;
     setScrollingMethod(mode: number): boolean;
     setOpacity(opacity: number): boolean;
+    setImage(image: vtkImageData): boolean;
+    getImage(): vtkImageData;
   }
 
   // Just forwarding vtk-js's definition as default export:
   export default vtkResliceCursorWidget;
+}
+
+declare module '@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget' {
+  import type { Vector2 } from '@kitware/vtk.js/types';
+  import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
+
+  export interface vtkPiecewiseGaussianWidget {}
+
+  function applyGaussianToPiecewiseFunction(
+    gaussians: any,
+    sampling: number,
+    rangeToUse: Vector2,
+    piecewiseFunction: vtkPiecewiseFunction
+  ): void;
+
+  export declare const vtkPiecewiseGaussianWidget: {
+    applyGaussianToPiecewiseFunction: typeof applyGaussianToPiecewiseFunction;
+  };
+
+  export default vtkPiecewiseWidget;
+}
+
+declare module '@kitware/vtk.js/Filters/Core/Cutter' {
+  export type vtkCutter = any;
+  export declare const vtkCutter: any;
+  export default vtkCutter;
+}
+
+declare module '@kitware/vtk.js/Rendering/Core/AnnotatedCubeActor/Presets' {
+  export default {} as any;
 }

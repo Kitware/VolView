@@ -4,7 +4,8 @@ import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
-import { TypedArray } from '@kitware/vtk.js/types';
+import type { TypedArray } from '@kitware/vtk.js/types';
+import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref, watch } from 'vue';
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
@@ -83,50 +84,40 @@ export function useWindowingConfigInitializer(
     return {};
   });
 
-  watch(
-    windowConfig,
-    (config) => {
-      const image = imageData.value;
-      const imageIdVal = unref(imageID);
-      const viewIdVal = unref(viewID);
-      if (config || !image || !imageIdVal) return;
+  watchImmediate(windowConfig, (config) => {
+    const image = imageData.value;
+    const imageIdVal = unref(imageID);
+    const viewIdVal = unref(viewID);
+    if (config || !image || !imageIdVal) return;
 
-      const [min, max] = image.getPointData().getScalars().getRange();
-      store.updateConfig(viewIdVal, imageIdVal, { min, max });
-      store.resetWindowLevel(viewIdVal, imageIdVal);
-    },
-    { immediate: true }
-  );
+    const [min, max] = image.getPointData().getScalars().getRange();
+    store.updateConfig(viewIdVal, imageIdVal, { min, max });
+    store.resetWindowLevel(viewIdVal, imageIdVal);
+  });
 
-  watch(
-    imageData,
-    (image) => {
-      const imageIdVal = unref(imageID);
-      const config = unref(windowConfig);
-      const viewIdVal = unref(viewID);
-      if (imageIdVal == null || config != null || !image) {
-        return;
-      }
-
-      const range = autoRangeValues.value[autoRange.value];
-      store.updateConfig(viewIdVal, imageIdVal, {
-        min: range[0],
-        max: range[1],
-      });
-      if (firstTag.value?.width) {
-        store.updateConfig(viewIdVal, imageIdVal, {
-          preset: {
-            width: parseFloat(firstTag.value.width),
-            level: parseFloat(firstTag.value.level),
-          },
-        });
-      }
-      store.resetWindowLevel(viewIdVal, imageIdVal);
-    },
-    {
-      immediate: true,
+  watchImmediate(imageData, (image) => {
+    const imageIdVal = unref(imageID);
+    const config = unref(windowConfig);
+    const viewIdVal = unref(viewID);
+    if (imageIdVal == null || config != null || !image) {
+      return;
     }
-  );
+
+    const range = autoRangeValues.value[autoRange.value];
+    store.updateConfig(viewIdVal, imageIdVal, {
+      min: range[0],
+      max: range[1],
+    });
+    if (firstTag.value?.width) {
+      store.updateConfig(viewIdVal, imageIdVal, {
+        preset: {
+          width: parseFloat(firstTag.value.width),
+          level: parseFloat(firstTag.value.level),
+        },
+      });
+    }
+    store.resetWindowLevel(viewIdVal, imageIdVal);
+  });
 
   watch(autoRange, (percentile) => {
     const image = imageData.value;

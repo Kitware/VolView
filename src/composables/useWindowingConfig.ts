@@ -1,6 +1,6 @@
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { MaybeRef, unref, computed } from 'vue';
 
 export function useWindowingConfig(
@@ -12,7 +12,7 @@ export function useWindowingConfig(
 
   const generateComputed = (prop: 'width' | 'level') => {
     return computed({
-      get: () => config.value?.[prop],
+      get: () => config.value?.[prop] ?? 0,
       set: (val) => {
         const imageIdVal = unref(imageID);
         if (!imageIdVal || val == null) return;

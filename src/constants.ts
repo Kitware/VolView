@@ -1,9 +1,4 @@
-import { Maybe } from '@/src/types';
 import type { RGBColor } from '@kitware/vtk.js/types';
-import vtkResliceCursorWidget, {
-  vtkResliceCursorViewWidget,
-} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
-import { ComputedRef, InjectionKey, Ref } from 'vue';
 
 export const EPSILON = 10e-6;
 export const NOOP = () => {};
@@ -13,22 +8,6 @@ export const ThemeStorageKey = 'app-theme';
 export const DarkTheme = 'kw-dark';
 export const LightTheme = 'kw-light';
 export const DefaultTheme = DarkTheme;
-
-/**
- * Retrieves the global ResliceCursorWidget instance.
- */
-export const VTKResliceCursor: InjectionKey<vtkResliceCursorWidget> =
-  Symbol('VTKResliceCursor');
-
-export const VTKResliceCursorViewWidget: InjectionKey<
-  ComputedRef<vtkResliceCursorViewWidget>
-> = Symbol('VTKResliceCursorViewWidget');
-
-/**
- * Retrieves the parent tool HTML element.
- */
-export const ToolContainer: InjectionKey<Ref<Maybe<HTMLElement>>> =
-  Symbol('ToolContainer');
 
 export const Messages = {
   WebGLLost: {
@@ -154,7 +133,7 @@ export const WLPresetsCT = {
 };
 
 export const OBLIQUE_OUTLINE_COLORS: Record<string, RGBColor> = {
-  ObliqueAxial: [51, 255, 51], // Green
+  ObliqueAxial: [0, 128, 255], // Blue
   ObliqueSagittal: [255, 255, 0], // Yellow
   ObliqueCoronal: [255, 51, 51], // Red
 };

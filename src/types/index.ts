@@ -57,3 +57,15 @@ export type DeepPartial<T> = T extends object
       [P in keyof T]?: DeepPartial<T[P]>;
     }
   : T;
+
+export type FirstParam<T> = T extends (first: infer R, ...args: any[]) => any
+  ? R
+  : never;
+
+/**
+ * The props passed to components when used as part of the LayoutGrid.
+ */
+export interface LayoutViewProps {
+  id: string;
+  type: string;
+}

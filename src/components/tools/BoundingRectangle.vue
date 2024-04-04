@@ -1,21 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch, toRefs, toRaw, inject } from 'vue';
-import { ANNOTATION_TOOL_HANDLE_RADIUS, ToolContainer } from '@/src/constants';
-import { useViewStore } from '@/src/store/views';
+import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import { nonNullable } from '@/src/utils/index';
-import vtkLPSView2DProxy from '@/src/vtk/LPSView2DProxy';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useResizeObserver } from '@/src/composables/useResizeObserver';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { useResizeObserver } from '@vueuse/core';
 
 const DEFAULT_PADDING = 2;
 
 const props = withDefaults(
   defineProps<{
     points: Array<Vector3>;
-    viewId: string;
     padding?: number;
   }>(),
   {
@@ -23,10 +22,8 @@ const props = withDefaults(
   }
 );
 
-const viewStore = useViewStore();
-const viewProxy = computed(
-  () => viewStore.getViewProxy<vtkLPSView2DProxy>(props.viewId)!
-);
+const view = inject(VtkViewContext);
+if (!view) throw new Error('No VtkView');
 
 const visible = computed(() => {
   return props.points.length > 0;
@@ -40,7 +37,7 @@ const rectangle = ref({
 });
 
 const updateRectangle = () => {
-  const viewRenderer = viewProxy.value.getRenderer();
+  const viewRenderer = view.renderer;
 
   const screenBounds = [...vtkBoundingBox.INIT_BOUNDS] as Bounds;
   toRaw(props.points)
@@ -70,11 +67,11 @@ const updateRectangle = () => {
 const { points } = toRefs(props);
 watch(points, updateRectangle, { immediate: true, deep: true });
 
-const camera = computed(() => viewProxy.value.getCamera());
+const camera = vtkFieldRef(view.renderer, 'activeCamera');
 onVTKEvent(camera, 'onModified', updateRectangle);
 
-const containerEl = inject(ToolContainer)!;
-useResizeObserver(containerEl, () => {
+const container = vtkFieldRef(view.renderWindowView, 'container');
+useResizeObserver(container, () => {
   updateRectangle();
 });
 </script>

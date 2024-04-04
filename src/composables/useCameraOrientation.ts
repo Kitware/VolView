@@ -1,9 +1,10 @@
+import type { Vector3 } from '@kitware/vtk.js/types';
 import { computed, Ref, unref } from 'vue';
 import { MaybeRef } from '@vueuse/core';
 import { mat3 } from 'gl-matrix';
-import { ImageMetadata } from '../types/image';
-import { LPSAxisDir } from '../types/lps';
-import { getLPSDirections } from '../utils/lps';
+import { ImageMetadata } from '@/src/types/image';
+import { LPSAxisDir } from '@/src/types/lps';
+import { getLPSDirections } from '@/src/utils/lps';
 
 /**
  *
@@ -23,9 +24,11 @@ export function useCameraOrientation(
     getLPSDirections(orientationMatrix.value)
   );
   const cameraDirVec = computed(
-    () => lpsDirections.value[unref(viewDirection)]
+    () => lpsDirections.value[unref(viewDirection)] as Vector3
   );
-  const cameraUpVec = computed(() => lpsDirections.value[unref(viewUp)]);
+  const cameraUpVec = computed(
+    () => lpsDirections.value[unref(viewUp)] as Vector3
+  );
 
   return {
     cameraDirVec,

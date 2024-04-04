@@ -2,7 +2,7 @@ import useViewSliceStore, {
   defaultSliceConfig,
 } from '@/src/store/view-configs/slicing';
 import { Maybe } from '@/src/types';
-import { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2 } from '@kitware/vtk.js/types';
 import { unref, MaybeRef, computed } from 'vue';
 
 export function useSliceConfig(

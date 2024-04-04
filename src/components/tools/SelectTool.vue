@@ -1,32 +1,22 @@
 <script setup lang="ts">
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useViewStore } from '@/src/store/views';
-import { computed, toRefs } from 'vue';
 import { WIDGET_PRIORITY } from '@kitware/vtk.js/Widgets/Core/AbstractWidget/Constants';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { vtkAnnotationToolWidget } from '@/src/vtk/ToolWidgetUtils/types';
-import type { vtkLPSViewProxy } from '@/src/types/vtk-types';
+import { inject } from 'vue';
+import { VtkViewContext } from '@/src/components/vtk/context';
 
-const props = defineProps<{
-  viewId: string;
-}>();
+const view = inject(VtkViewContext);
+if (!view) throw new Error('No VtkView');
 
-const { viewId } = toRefs(props);
-
-const viewProxy = computed(() =>
-  useViewStore().getViewProxy<vtkLPSViewProxy>(viewId.value)
-);
-const widgetManager = computed(() => viewProxy.value?.getWidgetManager());
-const interactor = computed(() => viewProxy.value?.getInteractor());
 const selectionStore = useToolSelectionStore();
 
 onVTKEvent(
-  interactor,
+  view.interactor,
   'onLeftButtonPress',
   (event: any) => {
-    if (!widgetManager.value) return;
     const withModifiers = !!(event.shiftKey || event.controlKey);
-    const selectedData = widgetManager.value.getSelectedData();
+    const selectedData = view.widgetManager.getSelectedData();
     if ('widget' in selectedData) {
       // clicked in empty space.
       const widget = selectedData.widget as vtkAnnotationToolWidget;

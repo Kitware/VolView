@@ -1,9 +1,10 @@
-import { computed, Ref, ref } from 'vue';
+import { computed, MaybeRef, ref, unref } from 'vue';
 import { vec3 } from 'gl-matrix';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import vtkViewProxy from '@kitware/vtk.js/Proxy/Core/ViewProxy';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { EPSILON } from '../constants';
+import { EPSILON } from '@/src/constants';
+import { View } from '@/src/core/vtk/types';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 
 export function toOrderedLabels(vec: Vector3) {
   return (
@@ -27,8 +28,9 @@ export function toOrderedLabels(vec: Vector3) {
  * vtk.js coordinate coordinate is implied to be LPS, so orientation labels
  * are determined solely from the camera' direction and view-up.
  */
-export function useOrientationLabels(view: Ref<vtkViewProxy>) {
-  const camera = computed(() => view.value.getCamera());
+export function useOrientationLabels(view: MaybeRef<View>) {
+  const renderer = computed(() => unref(view).renderer);
+  const camera = vtkFieldRef(renderer, 'activeCamera');
 
   const top = ref('');
   const left = ref('');
