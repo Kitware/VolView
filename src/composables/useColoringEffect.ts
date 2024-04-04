@@ -39,11 +39,11 @@ export function applyColoring({
     cfun.setVectorComponent(componentIndex);
   }
 
-  cfun.setMappingRange(...colorFunction.mappingRange);
   const preset = vtkColorMaps.getPresetByName(colorFunction.preset);
   if (preset) {
     cfun.applyColorMap(preset);
   }
+  cfun.setMappingRange(...colorFunction.mappingRange);
 
   const { mappingRange } = opacityFunction;
   ofun.setRange(...opacityFunction.mappingRange);
