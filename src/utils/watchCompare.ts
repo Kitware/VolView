@@ -4,7 +4,7 @@ import {
   WatchSource,
   WatchStopHandle,
   watch,
-} from "vue";
+} from 'vue';
 
 export interface WatchCompareOptions<Immediate>
   extends WatchOptions<Immediate> {
