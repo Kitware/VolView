@@ -24,7 +24,7 @@ const handleDicomStream: ImportHandler = async (dataSource, { done }) => {
     });
 
   const readTags: ReadDicomTagsFunction = async (file) => {
-    const result = await readDicomTags(getWorker(), file);
+    const result = await readDicomTags(file, { webWorker: getWorker() });
     return result.tags;
   };
 
