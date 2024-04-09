@@ -2,25 +2,17 @@ import {
   readDicomTags,
   readImageDicomFileSeriesWorkerFunction,
 } from '@itk-wasm/dicom';
-import { WorkerPool, createWorkerProxy, readImageBlob } from 'itk-wasm';
+import { readImage } from '@itk-wasm/image-io';
+import { WorkerPool, getDefaultWebWorker } from 'itk-wasm';
 
 const DEFAULT_NUM_WORKERS = 4;
 
 let readDicomSeriesWorkerPool: WorkerPool | null = null;
 let webWorker: Worker | null = null;
-let webWorkerPromise: Promise<void> | null = null;
 
 export async function ensureWorker() {
   if (webWorker) return;
-  if (!webWorkerPromise) {
-    webWorkerPromise = new Promise((resolve) => {
-      createWorkerProxy(null).then(({ worker }) => {
-        webWorker = worker;
-        resolve();
-      });
-    });
-  }
-  await webWorkerPromise;
+  webWorker = getDefaultWebWorker();
 }
 
 export function ensureDicomSeriesWorkerPool() {
@@ -49,12 +41,12 @@ export async function initItkWorker() {
 
   // preload
   try {
-    await readDicomTags(webWorker, new File([], 'a.dcm'));
+    await readDicomTags(new File([], 'a.dcm'));
   } catch (err) {
     // ignore
   }
   try {
-    await readImageBlob(webWorker, new Blob([]), 'a.dcm');
+    await readImage(new File([], 'a.dcm'));
   } catch (err) {
     // ignore
   }
