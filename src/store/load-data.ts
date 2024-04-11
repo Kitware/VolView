@@ -8,7 +8,9 @@ import {
 import {
   ImportResult,
   LoadableResult,
+  VolumeResult,
   isLoadableResult,
+  isVolumeResult,
 } from '@/src/io/import/common';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -21,6 +23,7 @@ import { useToast } from '@/src/composables/useToast';
 import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
 import { useLayersStore } from './datasets-layers';
+import { useSegmentGroupStore } from './segmentGroups';
 
 const BASE_MODALITY_TYPES = ['CT', 'MR', 'DX', 'US'];
 
@@ -126,6 +129,12 @@ function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
   });
 }
 
+function getStudyUID(volumeID: string) {
+  const dicomStore = useDICOMStore();
+  const studyKey = dicomStore.volumeStudy[volumeID];
+  return dicomStore.studyInfo[studyKey].StudyInstanceUID;
+}
+
 function pickLoadableDataSources(
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
@@ -142,39 +151,66 @@ function pickBaseDataSource(
   return baseDicom ?? loadableDataSources[0];
 }
 
-function getStudyUID(volumeID: string) {
-  const dicomStore = useDICOMStore();
-  const studyKey = dicomStore.volumeStudy[volumeID];
-  return dicomStore.studyInfo[studyKey].StudyInstanceUID;
-}
-
-function loadLayers(
-  primaryDataSource: LoadableResult,
+function pickOtherVolumesInStudy(
+  volumeID: string,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
-  if (primaryDataSource.dataType !== 'dicom') return;
+  const studyID = getStudyUID(volumeID);
   const dicomDataSources = pickLoadableDataSources(succeeded).filter(
     ({ dataType }) => dataType === 'dicom'
   );
-  const studyID = getStudyUID(primaryDataSource.dataID);
-  const otherVolumesInStudy = dicomDataSources.filter((ds) => {
+  return dicomDataSources.filter((ds) => {
     const studyUID = getStudyUID(ds.dataID);
-    return studyUID === studyID && ds.dataID !== primaryDataSource.dataID;
-  });
+    return studyUID === studyID && ds.dataID !== volumeID;
+  }) as Array<VolumeResult>;
+}
+
+// Layers a DICOM PET on a CT if found
+function loadLayers(
+  primaryDataSource: VolumeResult,
+  succeeded: Array<PipelineResultSuccess<ImportResult>>
+) {
+  if (!isVolumeResult(primaryDataSource)) return;
+  if (primaryDataSource.dataType !== 'dicom') return;
+  const otherVolumesInStudy = pickOtherVolumesInStudy(
+    primaryDataSource.dataID,
+    succeeded
+  );
   const dicomStore = useDICOMStore();
   const primaryModality =
     dicomStore.volumeInfo[primaryDataSource.dataID].Modality;
+  if (primaryModality !== 'CT') return;
   // Look for one PET volume to layer with CT.  Only one as there are often multiple "White Balance" corrected PET volumes.
   const toLayer = otherVolumesInStudy.find((ds) => {
     const otherModality = dicomStore.volumeInfo[ds.dataID].Modality;
-    return primaryModality === 'CT' && otherModality === 'PT';
+    return otherModality === 'PT';
   });
   if (!toLayer) return;
 
-  const primarySelection = toDataSelection(primaryDataSource)!;
+  const primarySelection = toDataSelection(primaryDataSource);
   const layersStore = useLayersStore();
-  const layerSelection = toDataSelection(toLayer)!;
+  const layerSelection = toDataSelection(toLayer);
   layersStore.addLayer(primarySelection, layerSelection);
+}
+
+// Converts DICOM SEG modalities to segmentations if found
+function loadSegmentations(
+  primaryDataSource: VolumeResult,
+  succeeded: Array<PipelineResultSuccess<ImportResult>>
+) {
+  const otherVolumesInStudy = pickOtherVolumesInStudy(
+    primaryDataSource.dataID,
+    succeeded
+  );
+
+  const segmentGroupStore = useSegmentGroupStore();
+  otherVolumesInStudy.forEach((ds) => {
+    const loadable = toDataSelection(ds);
+    segmentGroupStore.convertImageToLabelmap(
+      loadable,
+      toDataSelection(primaryDataSource)
+    );
+  });
 }
 
 const useLoadDataStore = defineStore('loadData', () => {
@@ -207,11 +243,12 @@ const useLoadDataStore = defineStore('loadData', () => {
 
     if (!dataStore.primarySelection && succeeded.length) {
       const primaryDataSource = pickBaseDataSource(succeeded);
-      const selection = toDataSelection(primaryDataSource);
-      if (selection) {
+      if (isVolumeResult(primaryDataSource)) {
+        const selection = toDataSelection(primaryDataSource);
         dataStore.setPrimarySelection(selection);
         loadLayers(primaryDataSource, succeeded);
-      }
+        loadSegmentations(primaryDataSource, succeeded);
+      } // else primaryDataSource.type === 'model'
     }
 
     if (errored.length) {

@@ -6,8 +6,8 @@ import {
   isConfigResult,
   ImportHandler,
   ImportResult,
-  LoadableResult,
   isLoadableResult,
+  VolumeResult,
 } from '@/src/io/import/common';
 import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
@@ -44,15 +44,16 @@ const unhandledResource: ImportHandler = () => {
 
 function isSelectable(
   result: PipelineResult<DataSource, ImportResult>
-): result is PipelineResultSuccess<LoadableResult> {
+): result is PipelineResultSuccess<VolumeResult> {
   if (!result.ok) return false;
-
   if (result.data.length === 0) {
     return false;
   }
-
   const importResult = result.data[0];
   if (!isLoadableResult(importResult)) {
+    return false;
+  }
+  if (importResult.dataType === 'model') {
     return false;
   }
 
@@ -172,7 +173,7 @@ export type ImportDataSourcesResult = Awaited<
   ReturnType<typeof importDataSources>
 >[number];
 
-export function toDataSelection(loadable: LoadableResult) {
+export function toDataSelection(loadable: VolumeResult) {
   const { dataID, dataType } = loadable;
   if (dataType === 'dicom') {
     return makeDICOMSelection(dataID);
@@ -180,13 +181,15 @@ export function toDataSelection(loadable: LoadableResult) {
   if (dataType === 'image') {
     return makeImageSelection(dataID);
   }
-  return null;
+
+  const _exhaustiveCheck: never = dataType;
+  throw new Error(`invalid loadable type ${_exhaustiveCheck}`);
 }
 
 export function convertSuccessResultToDataSelection(
   result: ImportDataSourcesResult
 ) {
   if (!isSelectable(result)) return null;
-
-  return toDataSelection(result.data[0]);
+  const importResult = result.data[0];
+  return toDataSelection(importResult);
 }

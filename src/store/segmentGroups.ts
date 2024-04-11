@@ -23,6 +23,7 @@ import {
   DataSelection,
   findImageID,
   getDataID,
+  getImage,
   getImageID,
   selectionEquals,
 } from './datasets';
@@ -205,12 +206,17 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
   /**
    * Converts an image to a labelmap.
-   * @param imageID
-   * @param parentID
    */
-  function convertImageToLabelmap(image: DataSelection, parent: DataSelection) {
+  async function convertImageToLabelmap(
+    image: DataSelection,
+    parent: DataSelection
+  ) {
     if (selectionEquals(image, parent))
       throw new Error('Cannot convert an image to be a labelmap of itself');
+
+    // Build vtkImageData for DICOMs
+    await getImage(image);
+    await getImage(parent);
 
     const imageID = getImageID(image);
     const parentID = getImageID(parent);
