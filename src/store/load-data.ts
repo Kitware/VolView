@@ -193,7 +193,7 @@ function loadLayers(
   layersStore.addLayer(primarySelection, layerSelection);
 }
 
-// Converts DICOM SEG modalities to segmentations if found
+// Loads DICOM SEG modalities to segmentations if found
 function loadSegmentations(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>

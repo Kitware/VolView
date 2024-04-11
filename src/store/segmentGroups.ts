@@ -28,6 +28,7 @@ import {
   selectionEquals,
 } from './datasets';
 import { ensureSameSpace } from '../io/resample/resample';
+import { useDICOMStore } from './datasets-dicom';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -205,6 +206,41 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     delete metadataByID[id];
   }
 
+  let lastColorIndex = 0;
+  function getNextColor() {
+    const color = DEFAULT_SEGMENT_MASKS[lastColorIndex].color;
+    lastColorIndex = (lastColorIndex + 1) % DEFAULT_SEGMENT_MASKS.length;
+    return [...color];
+  }
+
+  function decodeSegments(image: DataSelection) {
+    if (image.type === 'image') {
+      return structuredClone(DEFAULT_SEGMENT_MASKS);
+    }
+
+    const dicomStore = useDICOMStore();
+    const volumeInfo = dicomStore.volumeInfo[image.volumeKey];
+    const segmentSequence = undefined; // volumeInfo.SegmentSequence;
+    if (!segmentSequence) {
+      return [
+        {
+          value: 255,
+          name: volumeInfo.SeriesDescription || 'Unknown Segment',
+          color: getNextColor(),
+        },
+      ];
+    }
+    // TODO convert Recommended Display CIELab Value (0062,000D) tag to a segment color
+    // TODO convert SegmentDescription (0062,0006) tag to a segment name
+    return [
+      {
+        value: 255,
+        name: volumeInfo.SeriesDescription || 'Unknown Segment',
+        color: [255, 0, 255, 255],
+      },
+    ];
+  }
+
   /**
    * Converts an image to a labelmap.
    */
@@ -241,10 +277,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const resampled = await ensureSameSpace(parentImage, childImage, true);
     const labelmapImage = toLabelMap(resampled);
 
-    const { order, byKey } = normalizeForStore(
-      structuredClone(DEFAULT_SEGMENT_MASKS),
-      'value'
-    );
+    const segments = decodeSegments(image);
+
+    const { order, byKey } = normalizeForStore(segments, 'value');
     const segmentGroupStore = useSegmentGroupStore();
     segmentGroupStore.addLabelmap(labelmapImage, {
       name: imageStore.metadata[imageID].name,

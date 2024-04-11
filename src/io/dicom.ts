@@ -219,36 +219,6 @@ export class DICOMIO {
     return result.outputs[0].data as Image;
   }
 
-  async resample(fixed: SpatialParameters, moving: Image) {
-    await this.initialize();
-
-    const { size, spacing, origin, direction } = fixed;
-    const args = [
-      '--action',
-      'resample',
-      '0', // space for input image
-
-      '--size',
-      size.join(','),
-      '--spacing',
-      spacing.join(','),
-      '--origin',
-      origin.join(','),
-      '--direction',
-      direction.join(','),
-
-      '--memory-io',
-      '0',
-    ];
-
-    const inputs = [{ type: InterfaceTypes.Image, data: moving }];
-    const outputs = [{ type: InterfaceTypes.Image }];
-
-    const result = await this.runTask('dicom', args, inputs, outputs);
-    const image = result.outputs[0].data as Image;
-    return image;
-  }
-
   /**
    * Builds a volume for a set of files.
    * @async
