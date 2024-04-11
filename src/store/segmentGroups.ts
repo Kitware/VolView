@@ -396,7 +396,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   async function serialize(state: StateFile) {
     const { zip } = state;
 
-    // orderByParent is implicity preserved based on
+    // orderByParent is implicitly preserved based on
     // the order of serialized entries.
 
     const parents = Object.keys(orderByParent.value);
