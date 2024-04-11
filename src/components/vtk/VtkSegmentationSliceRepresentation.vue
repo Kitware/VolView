@@ -15,6 +15,7 @@ import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { storeToRefs } from 'pinia';
+import { ValueOf } from '@/src/types';
 
 interface Props {
   viewId: string;
@@ -29,9 +30,9 @@ const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const segmentationStore = useSegmentGroupStore();
-const metadata = computed(
-  () => segmentationStore.metadataByID[segmentationId.value]
-);
+const metadata = computed<
+  ValueOf<typeof segmentationStore.metadataByID> | undefined
+>(() => segmentationStore.metadataByID[segmentationId.value]);
 const imageData = computed(
   () => segmentationStore.dataIndex[segmentationId.value]
 );
@@ -64,7 +65,7 @@ watchEffect(() => {
 });
 
 // set slicing mode
-const parentImageId = computed(() => metadata.value.parentImage);
+const parentImageId = computed(() => metadata.value?.parentImage);
 const { metadata: parentMetadata } = useImage(parentImageId);
 
 watchEffect(() => {
@@ -88,6 +89,8 @@ const applySegmentColoring = () => {
   ofun.removeAllPoints();
 
   let maxValue = 0;
+
+  if (!metadata.value) return; // segment group just deleted
 
   const { segments } = metadata.value;
   segments.order.forEach((segId) => {
