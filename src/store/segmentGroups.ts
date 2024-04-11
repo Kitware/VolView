@@ -1,13 +1,13 @@
 import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
 import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
-import { compareImageSpaces } from '@/src/utils/imageSpace';
 import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { readImage, writeImage } from '@/src/io/readWriteImage';
@@ -27,6 +27,7 @@ import {
   getImageID,
   selectionEquals,
 } from './datasets';
+import { ensureSameSpace } from '../io/resample/resample';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -215,8 +216,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       throw new Error('Cannot convert an image to be a labelmap of itself');
 
     // Build vtkImageData for DICOMs
-    await getImage(image);
-    await getImage(parent);
+    const [childImage, parentImage] = await Promise.all(
+      [image, parent].map(getImage)
+    );
 
     const imageID = getImageID(image);
     const parentID = getImageID(parent);
@@ -225,18 +227,25 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       throw new Error('Image and/or parent datasets do not exist');
 
     const imageStore = useImageStore();
-    const parentImage = imageStore.dataIndex[parentID];
-    const childImage = imageStore.dataIndex[imageID];
 
-    if (!compareImageSpaces(childImage, parentImage))
-      throw new Error('Image does not match parent image space');
+    const intersects = vtkBoundingBox.intersects(
+      parentImage.getBounds(),
+      childImage.getBounds()
+    );
+    if (!intersects) {
+      throw new Error(
+        'Segment group and parent image bounds do not intersect. So no overlap in physical space.'
+      );
+    }
 
-    const segmentGroupStore = useSegmentGroupStore();
-    const labelmapImage = toLabelMap(childImage);
+    const resampled = await ensureSameSpace(parentImage, childImage, true);
+    const labelmapImage = toLabelMap(resampled);
+
     const { order, byKey } = normalizeForStore(
       structuredClone(DEFAULT_SEGMENT_MASKS),
       'value'
     );
+    const segmentGroupStore = useSegmentGroupStore();
     segmentGroupStore.addLabelmap(labelmapImage, {
       name: imageStore.metadata[imageID].name,
       parentImage: parentID,

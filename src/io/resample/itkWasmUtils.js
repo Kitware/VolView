@@ -8,6 +8,7 @@ import {
 
 import itkConfig from '@/src/io/itk/itkConfig';
 
+// Splits the input image into multiple slices and processes them in parallel
 export async function runWasm(
   pipeline,
   args,
