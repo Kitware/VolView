@@ -423,8 +423,7 @@ export const useDICOMStore = defineStore('dicom', {
         imageStore.updateData(existingImageID, image);
       } else {
         const info = this.volumeInfo[volumeKey];
-        const name =
-          cleanupName(info.SeriesDescription) || info.SeriesInstanceUID;
+        const name = getDisplayName(info);
         const newImageID = imageStore.addVTKImageData(name, image);
         this.imageIDToVolumeKey[newImageID] = volumeKey;
         this.volumeToImageID[volumeKey] = newImageID;

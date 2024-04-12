@@ -1,9 +1,8 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { useDICOMStore } from './datasets-dicom';
+import { getDisplayName, useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
-import { useModelStore } from './datasets-models';
 import { useFileStore } from './datasets-files';
 import { StateFile } from '../io/state-file/schema';
 import { useErrorMessage } from '../composables/useErrorMessage';
@@ -62,13 +61,16 @@ export const getDataID = (imageID: string) => {
   return dicomStore.imageIDToVolumeKey[imageID] ?? imageID;
 };
 
-export const getDataSelection = (imageID: string) => {
+// @param id - VolumeKey or ImageID
+export const getDataSelection = (id: string) => {
   const dicomStore = useDICOMStore();
-  const volumeKey = dicomStore.imageIDToVolumeKey[imageID];
+  const volumeKey =
+    dicomStore.imageIDToVolumeKey[id] ??
+    (id in dicomStore.volumeInfo ? id : undefined);
   if (volumeKey) {
     return makeDICOMSelection(volumeKey);
   }
-  return makeImageSelection(imageID);
+  return makeImageSelection(id);
 };
 
 // Pass VolumeKey or ImageID and get ImageID
@@ -87,9 +89,23 @@ export function selectionEquals(s1: DataSelection, s2: DataSelection) {
   return false;
 }
 
+const getImageName = (imageID: string) => {
+  return useImageStore().metadata[imageID].name;
+};
+
+export const getSelectionName = (selection: DataSelection) => {
+  if (selection.type === 'image') return getImageName(selection.dataID);
+  if (selection.type === 'dicom') {
+    const imageID = getImageID(selection);
+    if (imageID) return getImageName(imageID);
+    return getDisplayName(useDICOMStore().volumeInfo[selection.volumeKey]);
+  }
+  const _exhaustiveCheck: never = selection;
+  throw new Error(`invalid selection type ${_exhaustiveCheck}`);
+};
+
 export const useDatasetStore = defineStore('dataset', () => {
   const imageStore = useImageStore();
-  const modelStore = useModelStore();
   const dicomStore = useDICOMStore();
   const fileStore = useFileStore();
 
@@ -109,8 +125,12 @@ export const useDatasetStore = defineStore('dataset', () => {
     return (primaryImageID.value && dataIndex[primaryImageID.value]) || null;
   });
 
-  const allDataIDs = computed(() => {
-    return [...imageStore.idList, ...modelStore.idList];
+  const selectees = computed(() => {
+    const volumeKeys = Object.keys(dicomStore.volumeInfo);
+    const images = imageStore.idList.filter(
+      (id) => !(id in dicomStore.imageIDToVolumeKey)
+    );
+    return [...volumeKeys, ...images].map(getDataSelection);
   });
 
   // --- actions --- //
@@ -161,6 +181,12 @@ export const useDatasetStore = defineStore('dataset', () => {
       }
       // remove file store entry
       fileStore.remove(id);
+
+      const volumeKey = dicomStore.imageIDToVolumeKey[id];
+      if (volumeKey) {
+        delete dicomStore.volumeToImageID[volumeKey];
+        delete dicomStore.imageIDToVolumeKey[id];
+      }
     });
   });
 
@@ -184,7 +210,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     primaryImageID,
     primarySelection,
     primaryDataset,
-    allDataIDs,
+    selectees,
     setPrimarySelection,
     serialize,
   };

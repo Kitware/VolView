@@ -3,9 +3,12 @@ import SegmentList from '@/src/components/SegmentList.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { selectionEquals, useDatasetStore } from '@/src/store/datasets';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
-import { useImageStore } from '@/src/store/datasets-images';
+import {
+  getSelectionName,
+  selectionEquals,
+  useDatasetStore,
+  DataSelection,
+} from '@/src/store/datasets';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
@@ -15,8 +18,6 @@ const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
 
 const segmentGroupStore = useSegmentGroupStore();
 const { currentImageID } = useCurrentImage();
-const imageStore = useImageStore();
-const dicomStore = useDICOMStore();
 const dataStore = useDatasetStore();
 
 const currentSegmentGroups = computed(() => {
@@ -119,31 +120,25 @@ function createSegmentGroup() {
   startEditing(id);
 }
 
-// Filter and collect all acceptable images, excluding
-// the current background image, that can be converted into
-// a SegmentGroup (labelmap) for the current background image.
-const nonDICOMImages = computed(() => {
+// Collect images that can be converted into
+// a SegmentGroup for the current background image.
+const segmentGroupConvertibles = computed(() => {
   const primarySelection = dataStore.primarySelection;
-  const ids = imageStore.idList.filter(
-    (id) =>
-      !(id in dicomStore.imageIDToVolumeKey) &&
-      primarySelection &&
-      !selectionEquals({ type: 'image', dataID: id }, primarySelection)
-  );
-  return ids.map((id) => ({ id, name: imageStore.metadata[id].name }));
+  if (!primarySelection) return [];
+  return dataStore.selectees
+    .filter((selection) => !selectionEquals(selection, primarySelection))
+    .map((selection) => ({
+      selection,
+      name: getSelectionName(selection),
+    }));
 });
 
-function createSegmentGroupFromImage(selectedImageID: string) {
-  if (!selectedImageID) {
-    throw new Error('Cannot create a labelmap without a base image');
-  }
+function createSegmentGroupFromImage(selection: DataSelection) {
   const primarySelection = dataStore.primarySelection;
-  if (primarySelection) {
-    segmentGroupStore.convertImageToLabelmap(
-      { type: 'image', dataID: selectedImageID },
-      primarySelection
-    );
+  if (!primarySelection) {
+    throw new Error('No primary selection');
   }
+  segmentGroupStore.convertImageToLabelmap(selection, primarySelection);
 }
 
 const saveId = ref('');
@@ -178,11 +173,11 @@ function openSaveDialog(id: string) {
             <v-icon class="mr-1">mdi-chevron-down</v-icon>From Image
           </v-btn>
         </template>
-        <v-list v-if="nonDICOMImages.length !== 0">
+        <v-list v-if="segmentGroupConvertibles.length !== 0">
           <v-list-item
-            v-for="(item, index) in nonDICOMImages"
+            v-for="(item, index) in segmentGroupConvertibles"
             :key="index"
-            @click="createSegmentGroupFromImage(item.id)"
+            @click="createSegmentGroupFromImage(item.selection)"
           >
             {{ item.name }}
             <v-tooltip activator="parent" location="end" max-width="200px">
