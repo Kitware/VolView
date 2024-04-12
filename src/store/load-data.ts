@@ -24,8 +24,15 @@ import { TYPE } from 'vue-toastification';
 import { ToastID, ToastOptions } from 'vue-toastification/dist/types/types';
 import { useLayersStore } from './datasets-layers';
 import { useSegmentGroupStore } from './segmentGroups';
+import { nonNullable } from '../utils';
 
-const BASE_MODALITY_TYPES = ['CT', 'MR', 'DX', 'US'];
+// higher value priority is preferred for picking a primary selection
+const BASE_MODALITY_TYPES = {
+  CT: { priority: 3 },
+  MR: { priority: 3 },
+  US: { priority: 2 },
+  DX: { priority: 1 },
+} as const;
 
 const NotificationMessages = {
   Loading: 'Loading datasets...',
@@ -122,11 +129,34 @@ function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
   );
   // prefer some modalities as base
   const dicomStore = useDICOMStore();
-  return dicoms.find((dicomSource) => {
-    const volumeInfo = dicomStore.volumeInfo[dicomSource.dataID];
-    const modality = volumeInfo?.Modality;
-    return BASE_MODALITY_TYPES.includes(modality);
-  });
+  const baseDicomVolumes = dicoms
+    .map((dicomSource) => {
+      const volumeInfo = dicomStore.volumeInfo[dicomSource.dataID];
+      const modality = volumeInfo?.Modality as keyof typeof BASE_MODALITY_TYPES;
+      if (modality in BASE_MODALITY_TYPES)
+        return {
+          dicomSource,
+          priority: BASE_MODALITY_TYPES[modality]?.priority,
+          volumeInfo,
+        };
+      return undefined;
+    })
+    .filter(nonNullable)
+    .sort(
+      (
+        { priority: a, volumeInfo: infoA },
+        { priority: b, volumeInfo: infoB }
+      ) => {
+        const priorityDiff = a - b;
+        if (priorityDiff !== 0) return priorityDiff;
+        // same modality, then more slices preferred
+        if (!infoA.NumberOfSlices) return 1;
+        if (!infoB.NumberOfSlices) return -1;
+        return infoB.NumberOfSlices - infoA.NumberOfSlices;
+      }
+    );
+  if (baseDicomVolumes.length) return baseDicomVolumes[0].dicomSource;
+  return undefined;
 }
 
 function getStudyUID(volumeID: string) {
