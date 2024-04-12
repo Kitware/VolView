@@ -184,8 +184,7 @@ export const useDatasetStore = defineStore('dataset', () => {
 
       const volumeKey = dicomStore.imageIDToVolumeKey[id];
       if (volumeKey) {
-        delete dicomStore.volumeToImageID[volumeKey];
-        delete dicomStore.imageIDToVolumeKey[id];
+        dicomStore.imageDeleted(volumeKey);
       }
     });
   });

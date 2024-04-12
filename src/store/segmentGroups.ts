@@ -270,24 +270,32 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     );
     if (!intersects) {
       throw new Error(
-        'Segment group and parent image bounds do not intersect. So no overlap in physical space.'
+        'Segment group and parent image bounds do not intersect. So there is no overlap in physical space.'
       );
     }
 
+    const name = imageStore.metadata[imageID].name;
+    // Don't remove image if DICOM as user may have selected child image as primary selection by now
+    const deleteImage = image.type !== 'dicom';
+    if (deleteImage) {
+      imageStore.deleteData(imageID);
+    }
+
     const resampled = await ensureSameSpace(parentImage, childImage, true);
-    const labelmapImage = toLabelMap(resampled);
+    const copyNeeded = resampled === childImage && !deleteImage;
+    const ownedMemoryImage = copyNeeded
+      ? structuredClone(resampled)
+      : resampled;
+    const labelmapImage = toLabelMap(ownedMemoryImage);
 
     const segments = decodeSegments(image);
-
     const { order, byKey } = normalizeForStore(segments, 'value');
     const segmentGroupStore = useSegmentGroupStore();
     segmentGroupStore.addLabelmap(labelmapImage, {
-      name: imageStore.metadata[imageID].name,
+      name,
       parentImage: parentID,
       segments: { order, byValue: byKey },
     });
-
-    imageStore.deleteData(imageID);
   }
 
   /**

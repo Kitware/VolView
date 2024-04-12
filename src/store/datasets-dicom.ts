@@ -301,6 +301,15 @@ export const useDICOMStore = defineStore('dicom', {
       }
     },
 
+    imageDeleted(volumeKey: string) {
+      const imageID = this.volumeToImageID[volumeKey];
+      if (imageID) {
+        delete this.imageIDToVolumeKey[imageID];
+      }
+      delete this.volumeToImageID[volumeKey];
+      delete this.volumeImageData[volumeKey];
+    },
+
     deleteStudy(studyKey: string) {
       if (studyKey in this.studyInfo) {
         const patientKey = this.studyPatient[studyKey];

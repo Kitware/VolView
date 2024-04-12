@@ -75,9 +75,10 @@ export default defineComponent({
     const datasetStore = useDatasetStore();
     const layersStore = useLayersStore();
 
+    const primarySelectionRef = computed(() => datasetStore.primarySelection);
     const volumes = computed(() => {
-      const { volumeInfo } = dicomStore;
-      const { primarySelection } = datasetStore;
+      const volumeInfo = dicomStore.volumeInfo;
+      const primarySelection = primarySelectionRef.value;
       const layerVolumes = layersStore
         .getLayers(primarySelection)
         .filter(({ selection }) => selection.type === 'dicom');

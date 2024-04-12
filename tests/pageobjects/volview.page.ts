@@ -83,6 +83,7 @@ class VolViewPage extends Page {
         return notificationCount >= 1;
       },
       {
+        timeout: DOWNLOAD_TIMEOUT,
         timeoutMsg: `expected notification badge to display`,
       }
     );
