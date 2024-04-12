@@ -223,18 +223,23 @@ function loadLayers(
   layersStore.addLayer(primarySelection, layerSelection);
 }
 
-// Loads DICOM SEG modalities to segmentations if found
+// Loads DICOM SEG modalities as Segment Groups if found
 function loadSegmentations(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
-  const otherVolumesInStudy = pickOtherVolumesInStudy(
+  const dicomStore = useDICOMStore();
+  const otherSegVolumesInStudy = pickOtherVolumesInStudy(
     primaryDataSource.dataID,
     succeeded
-  );
+  ).filter((ds) => {
+    const modality = dicomStore.volumeInfo[ds.dataID].Modality;
+    if (!modality) return false;
+    return modality.trim() === 'SEG';
+  });
 
   const segmentGroupStore = useSegmentGroupStore();
-  otherVolumesInStudy.forEach((ds) => {
+  otherSegVolumesInStudy.forEach((ds) => {
     const loadable = toDataSelection(ds);
     segmentGroupStore.convertImageToLabelmap(
       loadable,
