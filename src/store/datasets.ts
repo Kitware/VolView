@@ -125,7 +125,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     return (primaryImageID.value && dataIndex[primaryImageID.value]) || null;
   });
 
-  const selectees = computed(() => {
+  const idsAsSelections = computed(() => {
     const volumeKeys = Object.keys(dicomStore.volumeInfo);
     const images = imageStore.idList.filter(
       (id) => !(id in dicomStore.imageIDToVolumeKey)
@@ -209,7 +209,7 @@ export const useDatasetStore = defineStore('dataset', () => {
     primaryImageID,
     primarySelection,
     primaryDataset,
-    selectees,
+    idsAsSelections,
     setPrimarySelection,
     serialize,
   };

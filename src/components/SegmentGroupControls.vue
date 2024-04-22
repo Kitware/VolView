@@ -125,7 +125,7 @@ function createSegmentGroup() {
 const segmentGroupConvertibles = computed(() => {
   const primarySelection = dataStore.primarySelection;
   if (!primarySelection) return [];
-  return dataStore.selectees
+  return dataStore.idsAsSelections
     .filter((selection) => !selectionEquals(selection, primarySelection))
     .map((selection) => ({
       selection,

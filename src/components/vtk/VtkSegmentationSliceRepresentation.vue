@@ -6,7 +6,10 @@ import { LPSAxis } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import {
+  useSegmentGroupStore,
+  SegmentGroupMetadata,
+} from '@/src/store/segmentGroups';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/ImageProperty/Constants';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
@@ -15,7 +18,6 @@ import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { storeToRefs } from 'pinia';
-import { ValueOf } from '@/src/types';
 
 interface Props {
   viewId: string;
@@ -30,9 +32,9 @@ const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const segmentationStore = useSegmentGroupStore();
-const metadata = computed<
-  ValueOf<typeof segmentationStore.metadataByID> | undefined
->(() => segmentationStore.metadataByID[segmentationId.value]);
+const metadata = computed<SegmentGroupMetadata | undefined>(
+  () => segmentationStore.metadataByID[segmentationId.value]
+);
 const imageData = computed(
   () => segmentationStore.dataIndex[segmentationId.value]
 );
