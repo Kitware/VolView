@@ -2,6 +2,7 @@ import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
@@ -11,7 +12,14 @@ import { normalizeForStore, removeFromArray } from '@/src/utils';
 import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { readImage, writeImage } from '@/src/io/readWriteImage';
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import {
+  DataSelection,
+  getImage,
+  selectionEquals,
+  findImageID,
+  getImageID,
+  getDataID,
+} from '@/src/utils/dataSelection';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,
@@ -19,14 +27,6 @@ import {
   SegmentGroupMetadata,
 } from '../io/state-file/schema';
 import { FileEntry } from '../io/types';
-import {
-  DataSelection,
-  findImageID,
-  getDataID,
-  getImage,
-  getImageID,
-  selectionEquals,
-} from './datasets';
 import { ensureSameSpace } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
 

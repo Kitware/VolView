@@ -3,12 +3,12 @@ import SegmentList from '@/src/components/SegmentList.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useDatasetStore } from '@/src/store/datasets';
 import {
   getSelectionName,
   selectionEquals,
-  useDatasetStore,
   DataSelection,
-} from '@/src/store/datasets';
+} from '@/src/utils/dataSelection';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';

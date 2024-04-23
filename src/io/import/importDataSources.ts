@@ -22,7 +22,10 @@ import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
-import { makeDICOMSelection, makeImageSelection } from '@/src/store/datasets';
+import {
+  makeDICOMSelection,
+  makeImageSelection,
+} from '@/src/utils/dataSelection';
 import { applyConfig } from '@/src/io/import/configJson';
 
 /**

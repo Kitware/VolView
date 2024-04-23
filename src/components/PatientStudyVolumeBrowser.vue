@@ -3,12 +3,9 @@ import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
 import { Image } from 'itk-wasm';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
+import { DataSelection, DICOMSelection } from '@/src/utils/dataSelection';
 import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
-import {
-  DataSelection,
-  DICOMSelection,
-  useDatasetStore,
-} from '../store/datasets';
+import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
 import { useLayersStore } from '../store/datasets-layers';
@@ -168,13 +165,12 @@ export default defineComponent({
       useMultiSelection(volumeKeys);
 
     const removeData = (key: string) => {
-      dicomStore.deleteVolume(key);
+      datasetStore.remove(key);
     };
 
     const removeSelectedDICOMVolumes = () => {
-      selected.value.forEach((volumeKey) => {
-        removeData(volumeKey);
-      });
+      // make copy of selected as removing selected will change the array
+      [...selected.value].forEach(removeData);
 
       selected.value = [];
     };

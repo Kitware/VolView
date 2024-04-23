@@ -55,7 +55,7 @@ interface State {
   sliceData: Record<string, Record<string, Image>>;
 
   // volumeKey -> imageID
-  volumeToImageID: Record<string, string | undefined>;
+  volumeToImageID: Record<string, string>;
   // imageID -> volumeKey
   imageIDToVolumeKey: Record<string, string>;
 
@@ -275,8 +275,9 @@ export const useDICOMStore = defineStore('dicom', {
       }
     },
 
+    // You should probably call datasetStore.remove instead as this does not
+    // remove files/images/layers associated with the volume
     deleteVolume(volumeKey: string) {
-      const imageStore = useImageStore();
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
         delete this.volumeInfo[volumeKey];
@@ -285,7 +286,6 @@ export const useDICOMStore = defineStore('dicom', {
 
         if (volumeKey in this.volumeToImageID) {
           const imageID = this.volumeToImageID[volumeKey]!;
-          imageStore.deleteData(imageID!);
           delete this.volumeToImageID[volumeKey];
           delete this.imageIDToVolumeKey[imageID];
         }
@@ -296,21 +296,12 @@ export const useDICOMStore = defineStore('dicom', {
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
         if (this.studyVolumes[studyKey].length === 0) {
-          this.deleteStudy(studyKey);
+          this._deleteStudy(studyKey);
         }
       }
     },
 
-    imageDeleted(volumeKey: string) {
-      const imageID = this.volumeToImageID[volumeKey];
-      if (imageID) {
-        delete this.imageIDToVolumeKey[imageID];
-      }
-      delete this.volumeToImageID[volumeKey];
-      delete this.volumeImageData[volumeKey];
-    },
-
-    deleteStudy(studyKey: string) {
+    _deleteStudy(studyKey: string) {
       if (studyKey in this.studyInfo) {
         const patientKey = this.studyPatient[studyKey];
         delete this.studyInfo[studyKey];
@@ -323,17 +314,17 @@ export const useDICOMStore = defineStore('dicom', {
 
         removeFromArray(this.patientStudies[patientKey], studyKey);
         if (this.patientStudies[patientKey].length === 0) {
-          this.deletePatient(patientKey);
+          this._deletePatient(patientKey);
         }
       }
     },
 
-    deletePatient(patientKey: string) {
+    _deletePatient(patientKey: string) {
       if (patientKey in this.patientInfo) {
         delete this.patientInfo[patientKey];
 
         [...this.patientStudies[patientKey]].forEach((studyKey) =>
-          this.deleteStudy(studyKey)
+          this._deleteStudy(studyKey)
         );
         delete this.patientStudies[patientKey];
       }

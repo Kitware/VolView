@@ -3,17 +3,15 @@ import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { defineStore } from 'pinia';
-import { useImageStore } from '@/src/store/datasets-images';
 import { compareImageSpaces } from '@/src/utils/imageSpace';
-import { resample } from '../io/resample/resample';
-import { useDICOMStore } from './datasets-dicom';
 import {
   DataSelection,
+  getImage,
   makeDICOMSelection,
   makeImageSelection,
   selectionEquals,
-  getImage,
-} from './datasets';
+} from '@/src/utils/dataSelection';
+import { resample } from '../io/resample/resample';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
 
@@ -160,39 +158,17 @@ export const useLayersStore = defineStore('layer', () => {
       .flat()
       .find(({ id }) => id === layerID);
 
-  // --- watch for deletion --- //
-
-  const deleteSelection = (deleteKey: DataSelection) => {
+  const remove = (selectionToRemove: DataSelection) => {
     const layerStore = useLayersStore();
     // delete as parent
     layerStore
-      .getLayers(deleteKey)
-      .forEach(({ selection }) => layerStore.deleteLayer(deleteKey, selection));
+      .getLayers(selectionToRemove)
+      .forEach(({ selection }) => layerStore.deleteLayer(selection, selection));
     // delete from layer lists
     Object.keys(layerStore.parentToLayers)
       .map((key) => toDataSelectionFromKey(key as DataSelectionKey))
-      .forEach((parent) => layerStore.deleteLayer(parent, deleteKey));
+      .forEach((parent) => layerStore.deleteLayer(parent, selectionToRemove));
   };
-
-  const imageStore = useImageStore();
-  imageStore.$onAction(({ name, args }) => {
-    if (name !== 'deleteData') {
-      return;
-    }
-    const [id] = args;
-    const selection = makeImageSelection(id);
-    deleteSelection(selection);
-  });
-
-  const dicomStore = useDICOMStore();
-  dicomStore.$onAction(({ name, args }) => {
-    if (name !== 'deleteVolume') {
-      return;
-    }
-    const [volumeKey] = args;
-    const selection = makeDICOMSelection(volumeKey);
-    deleteSelection(selection);
-  });
 
   function serialize(this: _This, state: StateFile) {
     state.manifest.parentToLayers = Object.entries(this.parentToLayers).map(
@@ -242,6 +218,7 @@ export const useLayersStore = defineStore('layer', () => {
     _addLayer,
     addLayer,
     deleteLayer,
+    remove,
     getLayers,
     getLayer,
     serialize,

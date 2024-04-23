@@ -14,11 +14,8 @@ import {
 } from '@/src/store/datasets-images';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '@/src/utils/lps';
-import {
-  getDataSelection,
-  getImageID,
-  useDatasetStore,
-} from '@/src/store/datasets';
+import { useDatasetStore } from '@/src/store/datasets';
+import { getDataSelection, getImageID } from '@/src/utils/dataSelection';
 import { storeToRefs } from 'pinia';
 
 export interface CurrentImageContext {

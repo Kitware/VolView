@@ -1,11 +1,11 @@
 <script lang="ts">
 import { computed, defineComponent, PropType, toRefs } from 'vue';
+import { getImageID } from '@/src/utils/dataSelection';
 import { InitViewSpecs } from '../config';
 import { useImageStore } from '../store/datasets-images';
 import { BlendConfig } from '../types/views';
 import { Layer } from '../store/datasets-layers';
 import useLayerColoringStore from '../store/view-configs/layers';
-import { getImageID } from '../store/datasets';
 
 const VIEWS_2D = Object.entries(InitViewSpecs)
   .filter(([, { viewType }]) => viewType === '2D')
