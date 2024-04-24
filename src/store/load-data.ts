@@ -162,7 +162,7 @@ function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
 function getStudyUID(volumeID: string) {
   const dicomStore = useDICOMStore();
   const studyKey = dicomStore.volumeStudy[volumeID];
-  return dicomStore.studyInfo[studyKey].StudyInstanceUID;
+  return dicomStore.studyInfo[studyKey]?.StudyInstanceUID;
 }
 
 function pickLoadableDataSources(
@@ -185,13 +185,13 @@ function pickOtherVolumesInStudy(
   volumeID: string,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
-  const studyID = getStudyUID(volumeID);
+  const targetStudyUID = getStudyUID(volumeID);
   const dicomDataSources = pickLoadableDataSources(succeeded).filter(
     ({ dataType }) => dataType === 'dicom'
   );
   return dicomDataSources.filter((ds) => {
-    const studyUID = getStudyUID(ds.dataID);
-    return studyUID === studyID && ds.dataID !== volumeID;
+    const sourceStudyUID = getStudyUID(ds.dataID);
+    return sourceStudyUID === targetStudyUID && ds.dataID !== volumeID;
   }) as Array<VolumeResult>;
 }
 
@@ -200,7 +200,6 @@ function loadLayers(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
-  if (!isVolumeResult(primaryDataSource)) return;
   if (primaryDataSource.dataType !== 'dicom') return;
   const otherVolumesInStudy = pickOtherVolumesInStudy(
     primaryDataSource.dataID,
@@ -283,7 +282,7 @@ const useLoadDataStore = defineStore('loadData', () => {
         dataStore.setPrimarySelection(selection);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(primaryDataSource, succeeded);
-      } // else primaryDataSource.type === 'model'
+      } // then must be primaryDataSource.type === 'model'
     }
 
     if (errored.length) {
