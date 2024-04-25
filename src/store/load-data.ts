@@ -122,8 +122,8 @@ function useLoadingNotifications() {
   };
 }
 
-function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
-  // pick dicom dataset as primary selection if available
+function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
+  // find dicom dataset for primary selection if available
   const dicoms = loadableDataSources.filter(
     ({ dataType }) => dataType === 'dicom'
   );
@@ -160,7 +160,7 @@ function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
 }
 
 // returns image and dicom sources, no config files
-function pickLoadableDataSources(
+function filterLoadableDataSources(
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
   return succeeded.flatMap((result) => {
@@ -170,15 +170,15 @@ function pickLoadableDataSources(
 
 // Returns list of dataSources with file names where the name has the extension argument
 // and the start of the file name matches the primary file name.
-function pickMatchingNames(
+function filterMatchingNames(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>,
-  extension: string = 'segmentation'
+  extension: string
 ) {
   const primaryName = getDataSourceName(primaryDataSource.dataSource);
   if (!primaryName) return [];
   const primaryNamePrefix = primaryName.split('.').slice(0, 1).join();
-  return pickLoadableDataSources(succeeded)
+  return filterLoadableDataSources(succeeded)
     .filter((ds) => ds !== primaryDataSource)
     .map((importResult) => ({
       importResult,
@@ -200,20 +200,20 @@ function getStudyUID(volumeID: string) {
   return dicomStore.studyInfo[studyKey]?.StudyInstanceUID;
 }
 
-function pickBaseDataSource(
+function findBaseDataSource(
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
-  const loadableDataSources = pickLoadableDataSources(succeeded);
-  const baseDicom = pickBaseDicom(loadableDataSources);
+  const loadableDataSources = filterLoadableDataSources(succeeded);
+  const baseDicom = findBaseDicom(loadableDataSources);
   return baseDicom ?? loadableDataSources[0];
 }
 
-function pickOtherVolumesInStudy(
+function filterOtherVolumesInStudy(
   volumeID: string,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
   const targetStudyUID = getStudyUID(volumeID);
-  const dicomDataSources = pickLoadableDataSources(succeeded).filter(
+  const dicomDataSources = filterLoadableDataSources(succeeded).filter(
     ({ dataType }) => dataType === 'dicom'
   );
   return dicomDataSources.filter((ds) => {
@@ -228,7 +228,7 @@ function loadLayers(
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
   if (primaryDataSource.dataType !== 'dicom') return;
-  const otherVolumesInStudy = pickOtherVolumesInStudy(
+  const otherVolumesInStudy = filterOtherVolumesInStudy(
     primaryDataSource.dataID,
     succeeded
   );
@@ -249,19 +249,21 @@ function loadLayers(
   layersStore.addLayer(primarySelection, layerSelection);
 }
 
-// Loads DICOM SEG modalities as Segment Groups if found
+// Loads other DataSources Segment Groups:
+// - DICOM SEG modalities with matching StudyUIDs.
+// - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
-  const matchingNames = pickMatchingNames(
+  const matchingNames = filterMatchingNames(
     primaryDataSource,
     succeeded,
     'segmentation'
   ).filter(isVolumeResult); // filter out models
 
   const dicomStore = useDICOMStore();
-  const otherSegVolumesInStudy = pickOtherVolumesInStudy(
+  const otherSegVolumesInStudy = filterOtherVolumesInStudy(
     primaryDataSource.dataID,
     succeeded
   ).filter((ds) => {
@@ -309,7 +311,7 @@ const useLoadDataStore = defineStore('loadData', () => {
     const [succeeded, errored] = partitionResults(results);
 
     if (!dataStore.primarySelection && succeeded.length) {
-      const primaryDataSource = pickBaseDataSource(succeeded);
+      const primaryDataSource = findBaseDataSource(succeeded);
       if (isVolumeResult(primaryDataSource)) {
         const selection = toDataSelection(primaryDataSource);
         dataStore.setPrimarySelection(selection);
