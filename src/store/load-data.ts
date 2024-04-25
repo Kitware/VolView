@@ -159,18 +159,45 @@ function pickBaseDicom(loadableDataSources: Array<LoadableResult>) {
   return undefined;
 }
 
-function getStudyUID(volumeID: string) {
-  const dicomStore = useDICOMStore();
-  const studyKey = dicomStore.volumeStudy[volumeID];
-  return dicomStore.studyInfo[studyKey]?.StudyInstanceUID;
-}
-
+// returns image and dicom sources, no config files
 function pickLoadableDataSources(
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
   return succeeded.flatMap((result) => {
     return result.data.filter(isLoadableResult);
   });
+}
+
+// Returns list of dataSources with file names where the name has the extension argument
+// and the start of the file name matches the primary file name.
+function pickMatchingNames(
+  primaryDataSource: VolumeResult,
+  succeeded: Array<PipelineResultSuccess<ImportResult>>,
+  extension: string = 'segmentation'
+) {
+  const primaryName = getDataSourceName(primaryDataSource.dataSource);
+  if (!primaryName) return [];
+  const primaryNamePrefix = primaryName.split('.').slice(0, 1).join();
+  return pickLoadableDataSources(succeeded)
+    .filter((ds) => ds !== primaryDataSource)
+    .map((importResult) => ({
+      importResult,
+      name: getDataSourceName(importResult.dataSource),
+    }))
+    .filter(({ name }) => {
+      if (!name) return false;
+      const extensions = name.split('.').slice(1);
+      const hasExtension = extensions.includes(extension);
+      const nameMatchesPrimary = name.startsWith(primaryNamePrefix);
+      return hasExtension && nameMatchesPrimary;
+    })
+    .map(({ importResult }) => importResult);
+}
+
+function getStudyUID(volumeID: string) {
+  const dicomStore = useDICOMStore();
+  const studyKey = dicomStore.volumeStudy[volumeID];
+  return dicomStore.studyInfo[studyKey]?.StudyInstanceUID;
 }
 
 function pickBaseDataSource(
@@ -227,6 +254,12 @@ function loadSegmentations(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>
 ) {
+  const matchingNames = pickMatchingNames(
+    primaryDataSource,
+    succeeded,
+    'segmentation'
+  ).filter(isVolumeResult); // filter out models
+
   const dicomStore = useDICOMStore();
   const otherSegVolumesInStudy = pickOtherVolumesInStudy(
     primaryDataSource.dataID,
@@ -238,7 +271,7 @@ function loadSegmentations(
   });
 
   const segmentGroupStore = useSegmentGroupStore();
-  otherSegVolumesInStudy.forEach((ds) => {
+  [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
     const loadable = toDataSelection(ds);
     segmentGroupStore.convertImageToLabelmap(
       loadable,
