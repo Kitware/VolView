@@ -254,13 +254,14 @@ function loadLayers(
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(
   primaryDataSource: VolumeResult,
-  succeeded: Array<PipelineResultSuccess<ImportResult>>
+  succeeded: Array<PipelineResultSuccess<ImportResult>>,
+  matchNames: boolean
 ) {
-  const matchingNames = filterMatchingNames(
-    primaryDataSource,
-    succeeded,
-    'segmentation'
-  ).filter(isVolumeResult); // filter out models
+  const matchingNames = matchNames
+    ? filterMatchingNames(primaryDataSource, succeeded, 'segmentation').filter(
+        isVolumeResult // filter out models
+      )
+    : [];
 
   const dicomStore = useDICOMStore();
   const otherSegVolumesInStudy = filterOtherVolumesInStudy(
@@ -297,6 +298,8 @@ const useLoadDataStore = defineStore('loadData', () => {
     };
   };
 
+  const matchNames = ref(false);
+
   const loadDataSources = wrapWithLoading(async (sources: DataSource[]) => {
     const dataStore = useDatasetStore();
 
@@ -316,7 +319,7 @@ const useLoadDataStore = defineStore('loadData', () => {
         const selection = toDataSelection(primaryDataSource);
         dataStore.setPrimarySelection(selection);
         loadLayers(primaryDataSource, succeeded);
-        loadSegmentations(primaryDataSource, succeeded);
+        loadSegmentations(primaryDataSource, succeeded, matchNames.value);
       } // then must be primaryDataSource.type === 'model'
     }
 
@@ -340,6 +343,7 @@ const useLoadDataStore = defineStore('loadData', () => {
 
   return {
     isLoading,
+    matchNames,
     loadDataSources,
   };
 });

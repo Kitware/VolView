@@ -49,9 +49,25 @@ VolView will include in the volview.zip file.
 }
 ```
 
-These are the supported file formats:
+Working segment group file formats:
 
 hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
+
+## Automatic Segment Groups by File Name
+
+When loading files, VolView can automatically convert images to segment groups
+if they follow this naming convention: An image with name like `foo.segmentation.bar`
+will be converted to a segment group for a base image named like `foo.baz`.  
+The key is the `segmentation` extension to identify the segment group image.
+Also the `matchNames` key must be set to `true`. The default is false.
+
+```json
+{
+  "io": {
+    "matchNames": true
+  }
+}
+```
 
 ## Keyboard Shortcuts
 
