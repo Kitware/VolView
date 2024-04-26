@@ -1,41 +1,13 @@
+import type { TypedArray } from '@kitware/vtk.js/types';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import { watchImmediate } from '@vueuse/core';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
-import type { TypedArray } from '@kitware/vtk.js/types';
-import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref, watch } from 'vue';
-
-// Original source from https://www.npmjs.com/package/compute-range and vtkDataArray
-// Modified to assume one component array
-function fastComputeRange(arr: number[] | TypedArray) {
-  const len = arr.length;
-  let min = Number.MAX_VALUE;
-  let max = -Number.MAX_VALUE;
-  let x;
-  let i;
-
-  // find first non-NaN value
-  for (i = 0; i < len; i++) {
-    if (!Number.isNaN(arr[i])) {
-      min = arr[i];
-      max = min;
-      break;
-    }
-  }
-
-  for (; i < len; i++) {
-    x = arr[i];
-    if (x < min) {
-      min = x;
-    } else if (x > max) {
-      max = x;
-    }
-  }
-  return { min, max };
-}
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
   const { imageData } = useImage(imageID);
@@ -60,7 +32,11 @@ function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
     // Pre-compute the auto-range values
     const scalarData = imageData.value.getPointData().getScalars();
     // Assumes all data is one component
-    const { min, max } = fastComputeRange(scalarData.getData());
+    const { min, max } = vtkDataArray.fastComputeRange(
+      scalarData.getData() as number[],
+      0,
+      1
+    );
     const hist = histogram(scalarData.getData(), [min, max], WL_HIST_BINS);
     const cumm = hist.reduce((acc, val, idx) => {
       const prev = idx !== 0 ? acc[idx - 1] : 0;
