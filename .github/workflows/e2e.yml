@@ -40,6 +40,6 @@ jobs:
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: image_comparison_results
+          name: image_comparison_results_${{ matrix.os }}
           path: .tmp
           retention-days: 5
