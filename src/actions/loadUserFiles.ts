@@ -36,6 +36,8 @@ const BASE_MODALITY_TYPES = {
   DX: { priority: 1 },
 } as const;
 
+const SEGMENTATION_EXTENSION = 'segmentation';
+
 function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
   // find dicom dataset for primary selection if available
   const dicoms = loadableDataSources.filter(
@@ -73,6 +75,25 @@ function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
   return undefined;
 }
 
+function isSegmentation(extension: string, name: string) {
+  const extensions = name.split('.').slice(1);
+  return extensions.includes(extension);
+}
+
+// does not pick segmentation images
+function findBaseImage(loadableDataSources: Array<LoadableResult>) {
+  const baseImages = loadableDataSources
+    .filter(({ dataType }) => dataType === 'image')
+    .filter((importResult) => {
+      const name = getDataSourceName(importResult.dataSource);
+      if (!name) return false;
+      return !isSegmentation(SEGMENTATION_EXTENSION, name);
+    });
+
+  if (baseImages.length) return baseImages[0];
+  return undefined;
+}
+
 // returns image and dicom sources, no config files
 function filterLoadableDataSources(
   succeeded: Array<PipelineResultSuccess<ImportResult>>
@@ -100,8 +121,7 @@ function filterMatchingNames(
     }))
     .filter(({ name }) => {
       if (!name) return false;
-      const extensions = name.split('.').slice(1);
-      const hasExtension = extensions.includes(extension);
+      const hasExtension = isSegmentation(extension, name);
       const nameMatchesPrimary = name.startsWith(primaryNamePrefix);
       return hasExtension && nameMatchesPrimary;
     })
@@ -119,7 +139,10 @@ function findBaseDataSource(
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
   const baseDicom = findBaseDicom(loadableDataSources);
-  return baseDicom ?? loadableDataSources[0];
+  if (baseDicom) return baseDicom;
+  const baseImage = findBaseImage(loadableDataSources);
+  if (baseImage) return baseImage;
+  return loadableDataSources[0];
 }
 
 function filterOtherVolumesInStudy(
@@ -172,7 +195,11 @@ function loadSegmentations(
   matchNames: boolean
 ) {
   const matchingNames = matchNames
-    ? filterMatchingNames(primaryDataSource, succeeded, 'segmentation').filter(
+    ? filterMatchingNames(
+        primaryDataSource,
+        succeeded,
+        SEGMENTATION_EXTENSION
+      ).filter(
         isVolumeResult // filter out models
       )
     : [];
