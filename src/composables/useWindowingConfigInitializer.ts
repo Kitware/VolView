@@ -1,11 +1,12 @@
+import type { TypedArray } from '@kitware/vtk.js/types';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import { watchImmediate } from '@vueuse/core';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
-import type { TypedArray } from '@kitware/vtk.js/types';
-import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref, watch } from 'vue';
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
@@ -30,7 +31,12 @@ function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
 
     // Pre-compute the auto-range values
     const scalarData = imageData.value.getPointData().getScalars();
-    const [min, max] = scalarData.getRange();
+    // Assumes all data is one component
+    const { min, max } = vtkDataArray.fastComputeRange(
+      scalarData.getData() as number[],
+      0,
+      1
+    );
     const hist = histogram(scalarData.getData(), [min, max], WL_HIST_BINS);
     const cumm = hist.reduce((acc, val, idx) => {
       const prev = idx !== 0 ? acc[idx - 1] : 0;
@@ -75,13 +81,12 @@ export function useWindowingConfigInitializer(
     const id = unref(imageID);
     if (id && id in dicomStore.imageIDToVolumeKey) {
       const volKey = dicomStore.imageIDToVolumeKey[id];
-      const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
-      return {
-        width: WindowWidth.split('\\')[0],
-        level: WindowLevel.split('\\')[0],
-      };
+      const windowLevels = getWindowLevels(dicomStore.volumeInfo[volKey]);
+      if (windowLevels.length) {
+        return windowLevels[0];
+      }
     }
-    return {};
+    return undefined;
   });
 
   watchImmediate(windowConfig, (config) => {
@@ -103,16 +108,17 @@ export function useWindowingConfigInitializer(
       return;
     }
 
-    const range = autoRangeValues.value[autoRange.value];
+    const [min, max] = autoRangeValues.value[autoRange.value];
     store.updateConfig(viewIdVal, imageIdVal, {
-      min: range[0],
-      max: range[1],
+      min,
+      max,
     });
-    if (firstTag.value?.width) {
+    const firstTagVal = unref(firstTag);
+    if (firstTagVal?.width) {
       store.updateConfig(viewIdVal, imageIdVal, {
         preset: {
-          width: parseFloat(firstTag.value.width),
-          level: parseFloat(firstTag.value.level),
+          width: firstTagVal.width,
+          level: firstTagVal.level,
         },
       });
     }

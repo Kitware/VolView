@@ -6,7 +6,7 @@ import useWindowingStore, {
 } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
 import { WLAutoRanges, WLPresetsCT, WL_AUTO_DEFAULT } from '@/src/constants';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 
 export default defineComponent({
   setup() {
@@ -97,22 +97,13 @@ export default defineComponent({
     });
 
     // --- Tag WL Options --- //
-
-    function parseTags(text: string) {
-      return text.split('\\');
-    }
-
     const tags = computed(() => {
       if (
         currentImageID.value &&
         currentImageID.value in dicomStore.imageIDToVolumeKey
       ) {
         const volKey = dicomStore.imageIDToVolumeKey[currentImageID.value];
-        const { WindowWidth, WindowLevel } = dicomStore.volumeInfo[volKey];
-        const levels = parseTags(WindowLevel);
-        return parseTags(WindowWidth).map((val, idx) => {
-          return { width: parseFloat(val), level: parseFloat(levels[idx]) };
-        });
+        return getWindowLevels(dicomStore.volumeInfo[volKey]);
       }
       return [];
     });

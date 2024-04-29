@@ -117,6 +117,27 @@ export const getDisplayName = (info: VolumeInfo) => {
   );
 };
 
+export const getWindowLevels = (info: VolumeInfo) => {
+  const { WindowWidth, WindowLevel } = info;
+  if (WindowWidth === '') return []; // missing tag
+  const widths = WindowWidth.split('\\').map(parseFloat);
+  const levels = WindowLevel.split('\\').map(parseFloat);
+  if (
+    widths.some((w) => Number.isNaN(w)) ||
+    levels.some((l) => Number.isNaN(l))
+  ) {
+    console.error('Invalid WindowWidth or WindowLevel DICOM tags');
+    return [];
+  }
+  if (widths.length !== levels.length) {
+    console.error(
+      'Different numbers of WindowWidth and WindowLevel DICOM tags'
+    );
+    return [];
+  }
+  return widths.map((width, i) => ({ width, level: levels[i] }));
+};
+
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
