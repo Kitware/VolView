@@ -21,12 +21,12 @@ import { Awaitable } from '@vueuse/core';
 import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useViewStore } from '@/src/store/views';
+import { useDatasetStore } from '@/src/store/datasets';
 import {
   DataSelection,
   makeDICOMSelection,
   makeImageSelection,
-  useDatasetStore,
-} from '@/src/store/datasets';
+} from '@/src/utils/dataSelection';
 import {
   makeDefaultSegmentGroupName,
   useSegmentGroupStore,

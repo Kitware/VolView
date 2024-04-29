@@ -1,17 +1,25 @@
 import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
 import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
-import { compareImageSpaces } from '@/src/utils/imageSpace';
 import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { readImage, writeImage } from '@/src/io/readWriteImage';
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import {
+  DataSelection,
+  getImage,
+  selectionEquals,
+  findImageID,
+  getImageID,
+  getDataID,
+} from '@/src/utils/dataSelection';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,
@@ -19,13 +27,8 @@ import {
   SegmentGroupMetadata,
 } from '../io/state-file/schema';
 import { FileEntry } from '../io/types';
-import {
-  DataSelection,
-  findImageID,
-  getDataID,
-  getImageID,
-  selectionEquals,
-} from './datasets';
+import { ensureSameSpace } from '../io/resample/resample';
+import { useDICOMStore } from './datasets-dicom';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -203,14 +206,55 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     delete metadataByID[id];
   }
 
+  let lastColorIndex = 0;
+  function getNextColor() {
+    const color = DEFAULT_SEGMENT_MASKS[lastColorIndex].color;
+    lastColorIndex = (lastColorIndex + 1) % DEFAULT_SEGMENT_MASKS.length;
+    return [...color];
+  }
+
+  function decodeSegments(image: DataSelection) {
+    if (image.type === 'image') {
+      return structuredClone(DEFAULT_SEGMENT_MASKS);
+    }
+
+    const dicomStore = useDICOMStore();
+    const volumeInfo = dicomStore.volumeInfo[image.volumeKey];
+    const segmentSequence = undefined; // volumeInfo.SegmentSequence;
+    if (!segmentSequence) {
+      return [
+        {
+          value: 255,
+          name: volumeInfo.SeriesDescription || 'Unknown Segment',
+          color: getNextColor(),
+        },
+      ];
+    }
+    // TODO convert Recommended Display CIELab Value (0062,000D) tag to a segment color
+    // TODO convert SegmentDescription (0062,0006) tag to a segment name
+    return [
+      {
+        value: 255,
+        name: volumeInfo.SeriesDescription || 'Unknown Segment',
+        color: [255, 0, 255, 255],
+      },
+    ];
+  }
+
   /**
    * Converts an image to a labelmap.
-   * @param imageID
-   * @param parentID
    */
-  function convertImageToLabelmap(image: DataSelection, parent: DataSelection) {
+  async function convertImageToLabelmap(
+    image: DataSelection,
+    parent: DataSelection
+  ) {
     if (selectionEquals(image, parent))
       throw new Error('Cannot convert an image to be a labelmap of itself');
+
+    // Build vtkImageData for DICOMs
+    const [childImage, parentImage] = await Promise.all(
+      [image, parent].map(getImage)
+    );
 
     const imageID = getImageID(image);
     const parentID = getImageID(parent);
@@ -219,25 +263,39 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       throw new Error('Image and/or parent datasets do not exist');
 
     const imageStore = useImageStore();
-    const parentImage = imageStore.dataIndex[parentID];
-    const childImage = imageStore.dataIndex[imageID];
 
-    if (!compareImageSpaces(childImage, parentImage))
-      throw new Error('Image does not match parent image space');
-
-    const segmentGroupStore = useSegmentGroupStore();
-    const labelmapImage = toLabelMap(childImage);
-    const { order, byKey } = normalizeForStore(
-      structuredClone(DEFAULT_SEGMENT_MASKS),
-      'value'
+    const intersects = vtkBoundingBox.intersects(
+      parentImage.getBounds(),
+      childImage.getBounds()
     );
+    if (!intersects) {
+      throw new Error(
+        'Segment group and parent image bounds do not intersect. So there is no overlap in physical space.'
+      );
+    }
+
+    const name = imageStore.metadata[imageID].name;
+    // Don't remove image if DICOM as user may have selected child image as primary selection by now
+    const deleteImage = image.type !== 'dicom';
+    if (deleteImage) {
+      imageStore.deleteData(imageID);
+    }
+
+    const resampled = await ensureSameSpace(parentImage, childImage, true);
+    const copyNeeded = resampled === childImage && !deleteImage;
+    const ownedMemoryImage = copyNeeded
+      ? structuredClone(resampled)
+      : resampled;
+    const labelmapImage = toLabelMap(ownedMemoryImage);
+
+    const segments = decodeSegments(image);
+    const { order, byKey } = normalizeForStore(segments, 'value');
+    const segmentGroupStore = useSegmentGroupStore();
     segmentGroupStore.addLabelmap(labelmapImage, {
-      name: imageStore.metadata[imageID].name,
+      name,
       parentImage: parentID,
       segments: { order, byValue: byKey },
     });
-
-    imageStore.deleteData(imageID);
   }
 
   /**

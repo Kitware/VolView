@@ -19,6 +19,7 @@
 #include "itkVectorImage.h"
 #include "itkResampleImageFilter.h"
 #include "itkLinearInterpolateImageFunction.h"
+#include "itkLabelImageGenericInterpolateImageFunction.h"
 #include "itkImageRegionSplitterSlowDimension.h"
 #include "itkExtractImageFilter.h"
 #include "itkRGBPixel.h"
@@ -53,6 +54,9 @@ int Resample(itk::wasm::Pipeline &pipeline, itk::wasm::InputImage<TImage> &input
   OutputImageType outputImage;
   pipeline.add_option("OutputImage", outputImage, "Output image")->required();
 
+  bool label = false;
+  pipeline.add_flag("-l,--label", label, "Interpolate for label image")->default_val(false);
+
   std::vector<unsigned int> outSize;
   pipeline.add_option("-z,--size", outSize, "New image size for each direction")->expected(2, 3)->delimiter(',');
 
@@ -81,6 +85,12 @@ int Resample(itk::wasm::Pipeline &pipeline, itk::wasm::InputImage<TImage> &input
 
   using ResampleFilterType = itk::ResampleImageFilter<ImageType, ImageType>;
   auto resampleFilter = ResampleFilterType::New();
+  if (label)
+  {
+    using InterpolatorType = itk::LabelImageGenericInterpolateImageFunction<ImageType, itk::LinearInterpolateImageFunction>;
+    resampleFilter->SetInterpolator(InterpolatorType::New());
+  }
+
   resampleFilter->SetInput(inImage);
 
   typename ImageType::SizeType outputSize;

@@ -5,14 +5,15 @@ import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useImageStore } from '../store/datasets-images';
-import { useDICOMStore } from '../store/datasets-dicom';
 import {
   DataSelection,
   ImageSelection,
   selectionEquals,
-  useDatasetStore,
-} from '../store/datasets';
+} from '@/src/utils/dataSelection';
+import { useImageStore } from '../store/datasets-images';
+import { useDICOMStore } from '../store/datasets-dicom';
+import { useDatasetStore } from '../store/datasets';
+
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useLayersStore } from '../store/datasets-layers';
 
@@ -129,9 +130,7 @@ export default defineComponent({
       useMultiSelection(nonDICOMImages);
 
     function removeSelection() {
-      selected.value.forEach((id) => {
-        imageStore.deleteData(id);
-      });
+      selected.value.forEach(dataStore.remove);
       selected.value = [];
     }
 
@@ -145,7 +144,7 @@ export default defineComponent({
     }
 
     function removeData(id: string) {
-      imageStore.deleteData(id);
+      dataStore.remove(id);
     }
 
     return {

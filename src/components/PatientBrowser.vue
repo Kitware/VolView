@@ -1,12 +1,9 @@
 <script lang="ts">
 import { computed, defineComponent, ref, toRefs, watch } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
+import { DataSelection, selectionEquals } from '@/src/utils/dataSelection';
 import { useDICOMStore } from '../store/datasets-dicom';
-import {
-  DataSelection,
-  selectionEquals,
-  useDatasetStore,
-} from '../store/datasets';
+import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import PatientStudyVolumeBrowser from './PatientStudyVolumeBrowser.vue';
 
@@ -62,15 +59,10 @@ export default defineComponent({
       useMultiSelection(studyKeys);
 
     const removeSelectedStudies = () => {
-      selected.value.forEach(async (study) => {
-        dicomStore.deleteStudy(study);
-      });
+      selected.value
+        .flatMap((study) => dicomStore.studyVolumes[study])
+        .forEach(dataStore.remove);
       selected.value = [];
-
-      // Handle the case where we are deleting the selected study
-      // if (selected.value.indexOf(selectedStudy.value) !== -1) {
-      //   dataStore.setPrimarySelection(null);
-      // }
     };
 
     return {

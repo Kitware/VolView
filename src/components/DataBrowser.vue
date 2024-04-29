@@ -8,6 +8,7 @@ import PatientList from './dicom-web/PatientList.vue';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
 import { useDataBrowserStore } from '../store/data-browser';
+import { useDatasetStore } from '../store/datasets';
 import { removeFromArray } from '../utils';
 
 const SAMPLE_DATA_KEY = 'sampleData';
@@ -27,6 +28,7 @@ export default defineComponent({
     const imageStore = useImageStore();
     const dicomWeb = useDicomWebStore();
     const dataBrowserStore = useDataBrowserStore();
+    const datasetStore = useDatasetStore();
 
     // TODO show patient ID in parens if there is a name conflict
     const patients = computed(() =>
@@ -65,10 +67,16 @@ export default defineComponent({
 
     const hideSampleData = computed(() => dataBrowserStore.hideSampleData);
 
+    const deletePatient = (key: string) => {
+      dicomStore.patientStudies[key]
+        .flatMap((study) => dicomStore.studyVolumes[study])
+        .forEach(datasetStore.remove);
+    };
+
     return {
       panels,
       patients,
-      deletePatient: dicomStore.deletePatient,
+      deletePatient,
       hasAnonymousImages,
       dicomWeb,
       SAMPLE_DATA_KEY,

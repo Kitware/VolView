@@ -6,7 +6,10 @@ import { LPSAxis } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import {
+  useSegmentGroupStore,
+  SegmentGroupMetadata,
+} from '@/src/store/segmentGroups';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/ImageProperty/Constants';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
@@ -29,7 +32,7 @@ const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const segmentationStore = useSegmentGroupStore();
-const metadata = computed(
+const metadata = computed<SegmentGroupMetadata | undefined>(
   () => segmentationStore.metadataByID[segmentationId.value]
 );
 const imageData = computed(
@@ -64,7 +67,7 @@ watchEffect(() => {
 });
 
 // set slicing mode
-const parentImageId = computed(() => metadata.value.parentImage);
+const parentImageId = computed(() => metadata.value?.parentImage);
 const { metadata: parentMetadata } = useImage(parentImageId);
 
 watchEffect(() => {
@@ -88,6 +91,8 @@ const applySegmentColoring = () => {
   ofun.removeAllPoints();
 
   let maxValue = 0;
+
+  if (!metadata.value) return; // segment group just deleted
 
   const { segments } = metadata.value;
   segments.order.forEach((segId) => {

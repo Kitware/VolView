@@ -1,4 +1,5 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
@@ -54,12 +55,15 @@ interface State {
   sliceData: Record<string, Record<string, Image>>;
 
   // volumeKey -> imageID
-  volumeToImageID: Record<string, string | undefined>;
+  volumeToImageID: Record<string, string>;
   // imageID -> volumeKey
   imageIDToVolumeKey: Record<string, string>;
 
   // volume invalidation information
   needsRebuild: Record<string, boolean>;
+
+  // Avoid recomputing image data for the same volume by checking this for existing buildVolume tasks
+  volumeImageData: Record<string, Promise<vtkImageData>>;
 
   // patientKey -> patient info
   patientInfo: Record<string, PatientInfo>;
@@ -138,11 +142,22 @@ export const getWindowLevels = (info: VolumeInfo) => {
   return widths.map((width, i) => ({ width, level: levels[i] }));
 };
 
+const constructImage = async (dicomIO: DICOMIO, volumeKey: string) => {
+  const fileStore = useFileStore();
+  const files = fileStore.getFiles(volumeKey);
+  if (!files) throw new Error('No files for volume key');
+  const image = vtkITKHelper.convertItkToVtkImage(
+    await dicomIO.buildImage(files)
+  );
+  return image;
+};
+
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
     volumeToImageID: {},
     imageIDToVolumeKey: {},
+    volumeImageData: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -260,8 +275,9 @@ export const useDICOMStore = defineStore('dicom', {
       }
     },
 
+    // You should probably call datasetStore.remove instead as this does not
+    // remove files/images/layers associated with the volume
     deleteVolume(volumeKey: string) {
-      const imageStore = useImageStore();
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
         delete this.volumeInfo[volumeKey];
@@ -270,19 +286,22 @@ export const useDICOMStore = defineStore('dicom', {
 
         if (volumeKey in this.volumeToImageID) {
           const imageID = this.volumeToImageID[volumeKey]!;
-          imageStore.deleteData(imageID!);
           delete this.volumeToImageID[volumeKey];
           delete this.imageIDToVolumeKey[imageID];
         }
 
+        if (volumeKey in this.volumeImageData) {
+          delete this.volumeImageData[volumeKey];
+        }
+
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
         if (this.studyVolumes[studyKey].length === 0) {
-          this.deleteStudy(studyKey);
+          this._deleteStudy(studyKey);
         }
       }
     },
 
-    deleteStudy(studyKey: string) {
+    _deleteStudy(studyKey: string) {
       if (studyKey in this.studyInfo) {
         const patientKey = this.studyPatient[studyKey];
         delete this.studyInfo[studyKey];
@@ -295,17 +314,17 @@ export const useDICOMStore = defineStore('dicom', {
 
         removeFromArray(this.patientStudies[patientKey], studyKey);
         if (this.patientStudies[patientKey].length === 0) {
-          this.deletePatient(patientKey);
+          this._deletePatient(patientKey);
         }
       }
     },
 
-    deletePatient(patientKey: string) {
+    _deletePatient(patientKey: string) {
       if (patientKey in this.patientInfo) {
         delete this.patientInfo[patientKey];
 
         [...this.patientStudies[patientKey]].forEach((studyKey) =>
-          this.deleteStudy(studyKey)
+          this._deleteStudy(studyKey)
         );
         delete this.patientStudies[patientKey];
       }
@@ -377,35 +396,38 @@ export const useDICOMStore = defineStore('dicom', {
 
     async buildVolume(volumeKey: string, forceRebuild: boolean = false) {
       const imageStore = useImageStore();
-      const dicomIO = this.$dicomIO;
 
-      const rebuild = forceRebuild || this.needsRebuild[volumeKey];
+      const alreadyBuilt = volumeKey in this.volumeImageData;
+      const buildNeeded =
+        forceRebuild || this.needsRebuild[volumeKey] || !alreadyBuilt;
+      delete this.needsRebuild[volumeKey];
 
-      if (!rebuild && this.volumeToImageID[volumeKey]) {
-        const imageID = this.volumeToImageID[volumeKey]!;
-        return imageStore.dataIndex[imageID];
-      }
+      // wait for old buildVolume call so we can run imageStore update side effects after
+      const oldImagePromise = alreadyBuilt
+        ? [this.volumeImageData[volumeKey]]
+        : [];
+      // actually build volume or wait for existing build?
+      const newImagePromise = buildNeeded
+        ? constructImage(this.$dicomIO, volumeKey)
+        : this.volumeImageData[volumeKey];
+      // let other calls to buildVolume reuse this constructImage work
+      this.volumeImageData[volumeKey] = newImagePromise;
+      const [image] = await Promise.all([newImagePromise, ...oldImagePromise]);
 
-      const fileStore = useFileStore();
-      const files = fileStore.getFiles(volumeKey);
-      if (!files) throw new Error('No files for volume key');
-      const image = vtkITKHelper.convertItkToVtkImage(
-        await dicomIO.buildImage(files)
-      );
-
+      // update image store
       const existingImageID = this.volumeToImageID[volumeKey];
-      if (existingImageID) {
+      const imageExists =
+        existingImageID && imageStore.dataIndex[existingImageID];
+      if (imageExists) {
+        // was a rebuild
         imageStore.updateData(existingImageID, image);
       } else {
         const info = this.volumeInfo[volumeKey];
-        const name =
-          cleanupName(info.SeriesDescription) || info.SeriesInstanceUID;
-        const imageID = imageStore.addVTKImageData(name, image);
-        this.imageIDToVolumeKey[imageID] = volumeKey;
-        this.volumeToImageID[volumeKey] = imageID;
+        const name = getDisplayName(info);
+        const newImageID = imageStore.addVTKImageData(name, image);
+        this.imageIDToVolumeKey[newImageID] = volumeKey;
+        this.volumeToImageID[volumeKey] = newImageID;
       }
-
-      delete this.needsRebuild[volumeKey];
 
       return image;
     },
