@@ -99,10 +99,10 @@ const useLoadDataStore = defineStore('loadData', () => {
   const { startLoading, stopLoading, setError, isLoading } =
     useLoadingNotifications();
 
-  const matchNames = ref(false);
+  const segmentGroupExtension = ref('');
 
   return {
-    matchNames,
+    segmentGroupExtension,
     isLoading,
     startLoading,
     stopLoading,

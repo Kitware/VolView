@@ -36,8 +36,6 @@ const BASE_MODALITY_TYPES = {
   DX: { priority: 1 },
 } as const;
 
-const SEGMENTATION_EXTENSION = 'segmentation';
-
 function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
   // find dicom dataset for primary selection if available
   const dicoms = loadableDataSources.filter(
@@ -76,18 +74,22 @@ function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
 }
 
 function isSegmentation(extension: string, name: string) {
+  if (!extension) return false; // avoid 'foo..bar' if extension is ''
   const extensions = name.split('.').slice(1);
   return extensions.includes(extension);
 }
 
 // does not pick segmentation images
-function findBaseImage(loadableDataSources: Array<LoadableResult>) {
+function findBaseImage(
+  loadableDataSources: Array<LoadableResult>,
+  segmentGroupExtension: string
+) {
   const baseImages = loadableDataSources
     .filter(({ dataType }) => dataType === 'image')
     .filter((importResult) => {
       const name = getDataSourceName(importResult.dataSource);
       if (!name) return false;
-      return !isSegmentation(SEGMENTATION_EXTENSION, name);
+      return !isSegmentation(segmentGroupExtension, name);
     });
 
   if (baseImages.length) return baseImages[0];
@@ -135,12 +137,14 @@ function getStudyUID(volumeID: string) {
 }
 
 function findBaseDataSource(
-  succeeded: Array<PipelineResultSuccess<ImportResult>>
+  succeeded: Array<PipelineResultSuccess<ImportResult>>,
+  segmentGroupExtension: string
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
   const baseDicom = findBaseDicom(loadableDataSources);
   if (baseDicom) return baseDicom;
-  const baseImage = findBaseImage(loadableDataSources);
+
+  const baseImage = findBaseImage(loadableDataSources, segmentGroupExtension);
   if (baseImage) return baseImage;
   return loadableDataSources[0];
 }
@@ -186,23 +190,21 @@ function loadLayers(
   layersStore.addLayer(primarySelection, layerSelection);
 }
 
-// Loads other DataSources Segment Groups:
+// Loads other DataSources as Segment Groups:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(
   primaryDataSource: VolumeResult,
   succeeded: Array<PipelineResultSuccess<ImportResult>>,
-  matchNames: boolean
+  segmentGroupExtension: string
 ) {
-  const matchingNames = matchNames
-    ? filterMatchingNames(
-        primaryDataSource,
-        succeeded,
-        SEGMENTATION_EXTENSION
-      ).filter(
-        isVolumeResult // filter out models
-      )
-    : [];
+  const matchingNames = filterMatchingNames(
+    primaryDataSource,
+    succeeded,
+    segmentGroupExtension
+  ).filter(
+    isVolumeResult // filter out models
+  );
 
   const dicomStore = useDICOMStore();
   const otherSegVolumesInStudy = filterOtherVolumesInStudy(
@@ -240,7 +242,11 @@ function loadDataSources(sources: DataSource[]) {
     const [succeeded, errored] = partitionResults(results);
 
     if (!dataStore.primarySelection && succeeded.length) {
-      const primaryDataSource = findBaseDataSource(succeeded);
+      const primaryDataSource = findBaseDataSource(
+        succeeded,
+        loadDataStore.segmentGroupExtension
+      );
+
       if (isVolumeResult(primaryDataSource)) {
         const selection = toDataSelection(primaryDataSource);
         dataStore.setPrimarySelection(selection);
@@ -248,7 +254,7 @@ function loadDataSources(sources: DataSource[]) {
         loadSegmentations(
           primaryDataSource,
           succeeded,
-          loadDataStore.matchNames
+          loadDataStore.segmentGroupExtension
         );
       } // then must be primaryDataSource.type === 'model'
     }

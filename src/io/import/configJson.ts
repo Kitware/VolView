@@ -14,6 +14,9 @@ import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
 
+// --------------------------------------------------------------------------
+// Interface
+
 const layout = z
   .object({
     activeLayout: zodEnumFromObjKeys(Layouts).optional(),
@@ -57,10 +60,13 @@ const labels = z
   })
   .optional();
 
+// --------------------------------------------------------------------------
+// IO
+
 const io = z
   .object({
     segmentGroupSaveFormat: z.string().optional(),
-    matchNames: z.boolean().optional(),
+    segmentGroupExtension: z.string().default(''),
   })
   .optional();
 
@@ -131,7 +137,7 @@ const applyIo = (manifest: Config) => {
 
   if (manifest.io.segmentGroupSaveFormat)
     useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
-  useLoadDataStore().matchNames = manifest.io.matchNames ?? false;
+  useLoadDataStore().segmentGroupExtension = manifest.io.segmentGroupExtension;
 };
 
 export const applyConfig = (manifest: Config) => {

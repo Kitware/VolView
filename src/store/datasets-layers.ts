@@ -1,9 +1,7 @@
 import { ref } from 'vue';
-import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { defineStore } from 'pinia';
-import { compareImageSpaces } from '@/src/utils/imageSpace';
 import {
   DataSelection,
   getImage,
@@ -11,7 +9,7 @@ import {
   makeImageSelection,
   selectionEquals,
 } from '@/src/utils/dataSelection';
-import { resample } from '../io/resample/resample';
+import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
 
@@ -89,16 +87,7 @@ export const useLayersStore = defineStore('layer', () => {
       );
     }
 
-    let image: vtkImageData;
-    if (compareImageSpaces(parentImage, sourceImage)) {
-      image = sourceImage;
-    } else {
-      const itkImage = await resample(
-        vtkITKHelper.convertVtkToItkImage(parentImage),
-        vtkITKHelper.convertVtkToItkImage(sourceImage)
-      );
-      image = vtkITKHelper.convertItkToVtkImage(itkImage);
-    }
+    const image = await ensureSameSpace(parentImage, sourceImage);
 
     this.layerImages[id] = image;
   }

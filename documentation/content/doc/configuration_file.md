@@ -56,15 +56,17 @@ hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 ## Automatic Segment Groups by File Name
 
 When loading files, VolView can automatically convert images to segment groups
-if they follow this naming convention: An image with name like `foo.segmentation.bar`
+if they follow a naming convention. For example, an image with name like `foo.segmentation.bar`
 will be converted to a segment group for a base image named like `foo.baz`.  
-The key is the `segmentation` extension to identify the segment group image.
-Also the `matchNames` key must be set to `true`. The default is false.
+The `segmentation` extension is defined by the `io.segmentGroupExtension` key, which takes a
+string. Files `foo.[segmentGroupExtension].bar` will be automatilly converted to segment groups for a base image named `foo.baz`. The default is `''` and will disable the feature.
+
+This will define `myFile.seg.nrrd` as a segment group for a `myFile.nii` base file.
 
 ```json
 {
   "io": {
-    "matchNames": true
+    "segmentGroupExtension": "seg"
   }
 }
 ```
