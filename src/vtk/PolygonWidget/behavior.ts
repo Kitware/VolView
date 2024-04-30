@@ -25,13 +25,15 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   model._isDragging = false;
 
   // overUnselectedHandle is true if mouse is over handle that was created before a mouse move event.
-  // If creating new handle and immediately dragging,
-  // widgetManager.getSelections() still points to the last actor
-  // after the mouse button is released. In this widgets case the last actor is part of the LineGlyphRepresentation.
-  // So overUnselectedHandle tracks if the mouse is over the new handle so we
+  // That happens if creating new handle and immediately dragging.
+  // Then widgetManager.getSelections() still points to the last actor
+  // after the mouse button is released. In this widgets case, the last actor is part of the LineGlyphRepresentation.
+  // overUnselectedHandle tracks if the mouse is over the new handle so we
   // don't create a another handle when clicking after without mouse move.
   // A mouse move event sets overUnselectedHandle to false as we can then rely on widgetManager.getSelections().
   let overUnselectedHandle = false;
+
+  let freeHanding = false;
 
   // Check if mouse is over line segment between handles
   const checkOverSegment = () => {
@@ -113,6 +115,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   const getWorldCoords = computeWorldCoords(model);
 
+  // returns macro.EVENT_ABORT if dragging handle or finishing
+  // to indicate event should be consumed.
   function updateActiveStateHandle(callData: any) {
     const worldCoords = getWorldCoords(callData);
 
@@ -136,6 +140,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
     return macro.VOID;
+  }
+
+  function addHandle() {
+    const moveHandle = model.widgetState.getMoveHandle();
+    const newHandle = model.widgetState.addHandle();
+    newHandle.setOrigin(moveHandle.getOrigin());
   }
 
   // --------------------------------------------------------------------------
@@ -164,12 +174,13 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    // Drop point?
     const manipulator =
       model.activeState?.getManipulator?.() ?? model.manipulator;
     if (model.widgetState.getPlacing() && manipulator) {
       // Dropping first point?
       if (model.widgetState.getHandles().length === 0) {
-        // For updateActiveStateHandle
+        // update variables used by updateActiveStateHandle
         model.activeState = model.widgetState.getMoveHandle();
         model._widgetManager.grabFocus(publicAPI);
       }
@@ -181,12 +192,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
         return macro.EVENT_ABORT;
       }
 
-      // Add handle
-      const moveHandle = model.widgetState.getMoveHandle();
-      const newHandle = model.widgetState.addHandle();
-      newHandle.setOrigin(moveHandle.getOrigin());
-
+      addHandle();
       publicAPI.invokeStartInteractionEvent();
+      freeHanding = true;
       return macro.EVENT_ABORT;
     }
 
@@ -194,7 +202,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model._isDragging = true;
       model._apiSpecificRenderWindow.setCursor('grabbing');
       model._interactor.requestAnimation(publicAPI);
-
       publicAPI.invokeStartInteractionEvent();
       return macro.EVENT_ABORT;
     }
@@ -211,16 +218,18 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.pickable &&
       model.dragable &&
       model.activeState &&
-      !ignoreKey(event)
+      !ignoreKey(event) &&
+      updateActiveStateHandle(event) === macro.EVENT_ABORT // side effect!
     ) {
-      if (updateActiveStateHandle(event) === macro.EVENT_ABORT) {
-        return macro.EVENT_ABORT;
+      if (freeHanding) {
+        addHandle();
       }
+      return macro.EVENT_ABORT; // consume event
     }
 
     // widgetManager.getSelections() updates on mouse move and not animating.
     // (Widget triggers animation when dragging.)
-    // So we can rely on getSelections() to be up to date now.
+    // So we can rely on getSelections() to be up to date now
     overUnselectedHandle = false;
 
     if (model.hasFocus) {
@@ -239,9 +248,33 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left release: Finish drag
   // --------------------------------------------------------------------------
 
-  // Detect double click by comparing these values.
+  // Detect double click by diffing these.
   let lastReleaseTime = 0;
   let lastReleasePosition: Vector3 | undefined;
+  function isDoubleClick(event: vtkMouseEvent) {
+    const currentTime = Date.now();
+    const currentDisplayPos = [
+      event.position.x,
+      event.position.y,
+      event.position.z,
+    ] as Vector3;
+    const elapsed = currentTime - lastReleaseTime;
+
+    const distance = lastReleasePosition
+      ? distance2BetweenPoints(
+          [event.position.x, event.position.y, event.position.z],
+          lastReleasePosition
+        )
+      : Number.POSITIVE_INFINITY;
+
+    const doubleClicked =
+      elapsed < DOUBLE_CLICK_TIMEOUT &&
+      distance < DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED;
+
+    lastReleaseTime = currentTime;
+    lastReleasePosition = currentDisplayPos;
+    return doubleClicked;
+  }
 
   publicAPI.handleLeftButtonRelease = (event: vtkMouseEvent) => {
     if (
@@ -252,6 +285,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    freeHanding = false;
+
     if (model._isDragging) {
       model._apiSpecificRenderWindow.setCursor('pointer');
       model._interactor.cancelAnimation(publicAPI);
@@ -259,37 +294,20 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model._widgetManager.enablePicking();
       // So a following left click without moving the mouse can immediately grab the handle,
       // we don't call model.widgetState.deactivate() here.
-
       publicAPI.invokeEndInteractionEvent();
       return macro.EVENT_ABORT;
     }
 
-    // If not placing, (and not dragging) don't consume event
+    // If not placing (and not dragging) don't consume event
     // so camera control widgets can react.
     if (!model.widgetState.getPlacing()) {
       return macro.VOID;
     }
 
-    // Double click? Then finish.
-    const currentDisplayPos = [
-      event.position.x,
-      event.position.y,
-      event.position.z,
-    ] as Vector3;
-
-    const distance = lastReleasePosition
-      ? distance2BetweenPoints(currentDisplayPos, lastReleasePosition)
-      : Number.POSITIVE_INFINITY;
-    lastReleasePosition = currentDisplayPos;
-
-    const currentTime = Date.now();
-    const elapsed = currentTime - lastReleaseTime;
-
-    const distanceThreshold =
-      DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED *
-      model._apiSpecificRenderWindow.getComputedDevicePixelRatio();
-
-    if (elapsed < DOUBLE_CLICK_TIMEOUT && distance < distanceThreshold) {
+    if (model.widgetState.getFinishable()) {
+      finishPlacing();
+    } else if (isDoubleClick(event)) {
+      // try to finish placing
       const handles = model.widgetState.getHandles();
       // Need 3 handles to finish.  Double click created 2 handles, 1 extra.
       if (handles.length >= 4) {
@@ -297,12 +315,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
         finishPlacing();
       }
     }
-    lastReleaseTime = currentTime;
 
     if (
       (model.hasFocus && !model.activeState) ||
       (model.activeState && !model.activeState.getActive())
     ) {
+      // update if mouse hovered over handle/activeState for next onDown
       model._widgetManager.enablePicking();
       model._interactor.render();
     }
