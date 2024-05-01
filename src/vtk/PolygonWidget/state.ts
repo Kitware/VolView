@@ -9,6 +9,7 @@ import { Polygon } from '@/src/types/polygon';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
+import decimate from './decimate';
 
 export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
@@ -110,16 +111,26 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
   };
 
+  const addPointsAsHandles = () => {
+    getTool().points.forEach((point) => {
+      const handle = publicAPI.addHandle({ addPoint: false });
+      handle.setOrigin(point);
+    });
+  };
+
   publicAPI.getPlacing = () => getTool().placing;
+
   publicAPI.setPlacing = (placing: boolean) => {
-    getTool().placing = placing;
+    const tool = getTool();
+    const optimizedLine = decimate(tool.points);
+    publicAPI.clearHandles();
+    tool.points = optimizedLine;
+    addPointsAsHandles();
+    tool.placing = placing;
   };
 
   // Setup after deserialization
-  getTool().points.forEach((point: Vector3) => {
-    const handle = publicAPI.addHandle({ addPoint: false });
-    handle.setOrigin(point);
-  });
+  addPointsAsHandles();
 }
 
 const defaultValues = (initialValues: any) => ({

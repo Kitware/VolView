@@ -74,7 +74,7 @@ export default defineComponent({
       });
 
       // Indicate finishable
-      if (finishable.value && placing.value) {
+      if (svgPoints.length > 0 && finishable.value && placing.value) {
         svgPoints[0].radius = FINISHABLE_POINT_RADIUS;
       }
 
