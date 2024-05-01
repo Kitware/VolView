@@ -7,6 +7,8 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import vtkAnnotationWidgetState from '@/src/vtk/ToolWidgetUtils/annotationWidgetState';
 import { Polygon } from '@/src/types/polygon';
 import { AnnotationToolType } from '@/src/store/tools/types';
+import { getImageMetadata } from '@/src/composables/useCurrentImage';
+import { getPixelSizeSquared } from '@/src/utils/frameOfReference';
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
 import decimate from './decimate';
@@ -14,7 +16,8 @@ import decimate from './decimate';
 export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
 
-const PIXEL_SIZE = 20;
+const HANDLE_PIXEL_SIZE = 20;
+const DECIMATE_PIXEL_SIZE_FACTOR = 0.01;
 
 type VtkObjectModel = {
   classHierarchy: string[];
@@ -66,7 +69,9 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     };
     vtkWidgetState.extend(handlePublicAPI, handleModel, {});
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
-    scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
+    scale1Mixin.extend(handlePublicAPI, handleModel, {
+      scale1: HANDLE_PIXEL_SIZE,
+    });
     const handleModelPromoted = handleModel as HandleModel;
     handleModelPromoted.classHierarchy.push('vtkPolygonHandleState');
 
@@ -122,11 +127,28 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
   publicAPI.setPlacing = (placing: boolean) => {
     const tool = getTool();
-    const optimizedLine = decimate(tool.points);
-    publicAPI.clearHandles();
-    tool.points = optimizedLine;
-    addPointsAsHandles();
     tool.placing = placing;
+    if (placing) return;
+
+    // Decimate points
+    const imageMeta = getImageMetadata(tool.imageID);
+    const pixelSizeSquared = getPixelSizeSquared(
+      tool.frameOfReference,
+      imageMeta
+    );
+    if (pixelSizeSquared) {
+      const optimizedLine = decimate(
+        tool.points,
+        pixelSizeSquared * DECIMATE_PIXEL_SIZE_FACTOR
+      );
+      publicAPI.clearHandles();
+      tool.points = optimizedLine;
+      addPointsAsHandles();
+    } else {
+      console.error(
+        'Off LPS axis pixel sizing not implemented.  Not decimating line.'
+      );
+    }
   };
 
   // Setup after deserialization
