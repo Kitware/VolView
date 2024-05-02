@@ -22,7 +22,13 @@ const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
 
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetBehavior');
-  model._isDragging = false;
+
+  const setDragging = (isDragging: boolean) => {
+    model._dragging = isDragging;
+    publicAPI.invokeDraggingEvent({
+      dragging: isDragging,
+    });
+  };
 
   // overUnselectedHandle is true if mouse is over handle that was created before a mouse move event.
   // That happens if creating new handle and immediately dragging.
@@ -52,6 +58,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   macro.event(publicAPI, model, 'RightClickEvent');
   macro.event(publicAPI, model, 'PlacedEvent');
   macro.event(publicAPI, model, 'HoverEvent');
+  macro.event(publicAPI, model, 'DraggingEvent');
 
   publicAPI.resetInteractions = () => {
     model._interactor.cancelAnimation(publicAPI, true);
@@ -123,7 +130,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (
       worldCoords?.length &&
       (model.activeState === model.widgetState.getMoveHandle() ||
-        model._isDragging)
+        model._dragging)
     ) {
       model.activeState.setOrigin(worldCoords);
 
@@ -154,12 +161,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   publicAPI.handleLeftButtonPress = (event: vtkMouseEvent) => {
     const activeWidget = model._widgetManager.getActiveWidget();
-
-    // turns off hover while dragging
-    publicAPI.invokeHoverEvent({
-      ...event,
-      hovering: false,
-    });
 
     if (
       !model.manipulator ||
@@ -199,7 +200,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
 
     if (model.activeState?.getActive() && model.pickable && model.dragable) {
-      model._isDragging = true;
+      setDragging(true);
       model._apiSpecificRenderWindow.setCursor('grabbing');
       model._interactor.requestAnimation(publicAPI);
       publicAPI.invokeStartInteractionEvent();
@@ -287,10 +288,10 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     freeHanding = false;
 
-    if (model._isDragging) {
+    if (model._dragging) {
       model._apiSpecificRenderWindow.setCursor('pointer');
       model._interactor.cancelAnimation(publicAPI);
-      model._isDragging = false;
+      setDragging(false);
       model._widgetManager.enablePicking();
       // So a following left click without moving the mouse can immediately grab the handle,
       // we don't call model.widgetState.deactivate() here.
