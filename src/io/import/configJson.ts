@@ -12,6 +12,10 @@ import { useViewStore } from '@/src/store/views';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
+import useLoadDataStore from '@/src/store/load-data';
+
+// --------------------------------------------------------------------------
+// Interface
 
 const layout = z
   .object({
@@ -56,9 +60,13 @@ const labels = z
   })
   .optional();
 
+// --------------------------------------------------------------------------
+// IO
+
 const io = z
   .object({
     segmentGroupSaveFormat: z.string().optional(),
+    segmentGroupExtension: z.string().default(''),
   })
   .optional();
 
@@ -129,6 +137,7 @@ const applyIo = (manifest: Config) => {
 
   if (manifest.io.segmentGroupSaveFormat)
     useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
+  useLoadDataStore().segmentGroupExtension = manifest.io.segmentGroupExtension;
 };
 
 export const applyConfig = (manifest: Config) => {
