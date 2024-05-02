@@ -77,14 +77,14 @@ export function frameOfReferenceToImageSliceAndAxis(
   return { axis, slice };
 }
 
-export function getPixelSizeSquared(
+export function getSmallestSpacing(
   frame: FrameOfReference,
   metadata: ImageMetadata
-): number | null {
-  const toolImageFrame = frameOfReferenceToImageSliceAndAxis(frame, metadata);
-  if (!toolImageFrame) return null;
-  const axisIndex = metadata.lpsOrientation[toolImageFrame.axis];
+): number {
+  const sliceAxis = frameOfReferenceToImageSliceAndAxis(frame, metadata);
+  if (!sliceAxis) return Math.min(...metadata.spacing); // off orthogonal
+  const axisIndex = metadata.lpsOrientation[sliceAxis.axis];
   const spacing = [...metadata.spacing];
   spacing.splice(axisIndex, 1);
-  return spacing[0] * spacing[0] + spacing[1] * spacing[1];
+  return Math.min(...spacing);
 }

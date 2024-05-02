@@ -8,7 +8,7 @@ import vtkAnnotationWidgetState from '@/src/vtk/ToolWidgetUtils/annotationWidget
 import { Polygon } from '@/src/types/polygon';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { getImageMetadata } from '@/src/composables/useCurrentImage';
-import { getPixelSizeSquared } from '@/src/utils/frameOfReference';
+import { getSmallestSpacing } from '@/src/utils/frameOfReference';
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
 import decimate from './decimate';
@@ -17,7 +17,7 @@ export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
 
 const HANDLE_PIXEL_SIZE = 20;
-const DECIMATE_PIXEL_SIZE_FACTOR = 0.01;
+const DECIMATE_PIXEL_SIZE_FACTOR = 0.2;
 
 type VtkObjectModel = {
   classHierarchy: string[];
@@ -132,23 +132,14 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
 
     // Decimate points
     const imageMeta = getImageMetadata(tool.imageID);
-    const pixelSizeSquared = getPixelSizeSquared(
-      tool.frameOfReference,
-      imageMeta
+    const pixelScale = getSmallestSpacing(tool.frameOfReference, imageMeta);
+    const optimizedLine = decimate(
+      tool.points,
+      pixelScale * DECIMATE_PIXEL_SIZE_FACTOR
     );
-    if (pixelSizeSquared) {
-      const optimizedLine = decimate(
-        tool.points,
-        pixelSizeSquared * DECIMATE_PIXEL_SIZE_FACTOR
-      );
-      publicAPI.clearHandles();
-      tool.points = optimizedLine;
-      addPointsAsHandles();
-    } else {
-      console.error(
-        'Off LPS axis pixel sizing not implemented.  Not decimating line.'
-      );
-    }
+    publicAPI.clearHandles();
+    tool.points = optimizedLine;
+    addPointsAsHandles();
   };
 
   // Setup after deserialization
