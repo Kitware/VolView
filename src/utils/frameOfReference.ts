@@ -76,3 +76,15 @@ export function frameOfReferenceToImageSliceAndAxis(
 
   return { axis, slice };
 }
+
+export function getSmallestSpacing(
+  frame: FrameOfReference,
+  metadata: ImageMetadata
+): number {
+  const sliceAxis = frameOfReferenceToImageSliceAndAxis(frame, metadata);
+  if (!sliceAxis) return Math.min(...metadata.spacing); // off orthogonal
+  const axisIndex = metadata.lpsOrientation[sliceAxis.axis];
+  const spacing = [...metadata.spacing];
+  spacing.splice(axisIndex, 1);
+  return Math.min(...spacing);
+}

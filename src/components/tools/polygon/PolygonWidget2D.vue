@@ -9,6 +9,7 @@ import {
   watchEffect,
   inject,
   onUnmounted,
+  ref,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -16,10 +17,10 @@ import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import {
-  useHoverEvent,
   useRightClickContextMenu,
   useWidgetVisibility,
 } from '@/src/composables/annotationTool';
+import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
 import vtkWidgetFactory, {
   vtkPolygonViewWidget as WidgetView,
@@ -92,7 +93,27 @@ export default defineComponent({
       emit('placed');
     });
 
-    useHoverEvent(emit, widget);
+    const lastHoverEventData = ref<any>(null);
+    onVTKEvent(widget, 'onHoverEvent', (eventData: any) => {
+      lastHoverEventData.value = eventData;
+    });
+    const dragging = ref(false);
+    onVTKEvent(widget, 'onDraggingEvent', (eventData: any) => {
+      dragging.value = eventData.dragging;
+    });
+    const showHandles = computed(() => {
+      return lastHoverEventData.value?.hovering && !dragging.value;
+    });
+    watchEffect(() => {
+      if (!lastHoverEventData.value) return;
+      const displayXY = getCSSCoordinatesFromEvent(lastHoverEventData.value);
+      if (displayXY) {
+        emit('widgetHover', {
+          displayXY,
+          hovering: lastHoverEventData.value?.hovering && !dragging.value,
+        });
+      }
+    });
 
     // --- right click handling --- //
 
@@ -134,6 +155,7 @@ export default defineComponent({
       slice,
       tool,
       editState,
+      showHandles,
     };
   },
 });
@@ -148,5 +170,6 @@ export default defineComponent({
     :move-point="editState.movePoint"
     :placing="tool.placing"
     :finishable="editState.finishable"
+    :show-handles="showHandles"
   />
 </template>

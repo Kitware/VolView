@@ -25,6 +25,7 @@ export interface vtkPolygonWidgetState extends vtkAnnotationWidgetState {
 
 export interface vtkPolygonViewWidget extends vtkAnnotationToolWidget {
   getWidgetState(): vtkPolygonWidgetState;
+  onDraggingEvent(callback: (e: any) => void): vtkSubscription;
 }
 
 export interface IPolygonWidgetInitialValues

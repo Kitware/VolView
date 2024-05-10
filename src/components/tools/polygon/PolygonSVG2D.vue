@@ -9,6 +9,7 @@
       :stroke-width="strokeWidth"
       fill="transparent"
       :r="radius"
+      :visibility="index === 0 ? firstHandleVisibility : handleVisibility"
     />
     <polyline
       :points="linePoints"
@@ -24,14 +25,22 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { ANNOTATION_TOOL_HANDLE_RADIUS } from '@/src/constants';
 import { worldToSVG } from '@/src/utils/vtk-helpers';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
-import { PropType, defineComponent, toRefs, ref, watch, inject } from 'vue';
+import {
+  PropType,
+  defineComponent,
+  toRefs,
+  ref,
+  watch,
+  inject,
+  computed,
+} from 'vue';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useResizeObserver } from '@vueuse/core';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 
 const POINT_RADIUS = ANNOTATION_TOOL_HANDLE_RADIUS;
-const FINISHABLE_POINT_RADIUS = POINT_RADIUS + 6;
+const FINISHABLE_POINT_RADIUS = POINT_RADIUS;
 
 export default defineComponent({
   props: {
@@ -52,12 +61,31 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    showHandles: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
-    const { points, movePoint, placing, finishable } = toRefs(props);
+    const { points, movePoint, placing, finishable, showHandles } =
+      toRefs(props);
 
     const view = inject(VtkViewContext);
     if (!view) throw new Error('No VtkView');
+
+    const finishPossible = computed(() => {
+      return points.value.length > 0 && placing.value && finishable.value;
+    });
+
+    const handleVisibility = computed(() => {
+      return showHandles.value ? 'visible' : 'hidden';
+    });
+    const firstHandleVisibility = computed(() => {
+      if (finishPossible.value) {
+        return 'visible';
+      }
+      return handleVisibility.value;
+    });
 
     type SVGPoint = { point: Vector2; radius: number };
     const handlePoints = ref<Array<SVGPoint>>([]);
@@ -74,7 +102,7 @@ export default defineComponent({
       });
 
       // Indicate finishable
-      if (finishable.value && placing.value) {
+      if (finishPossible.value) {
         svgPoints[0].radius = FINISHABLE_POINT_RADIUS;
       }
 
@@ -117,6 +145,8 @@ export default defineComponent({
       devicePixelRatio,
       handlePoints,
       linePoints,
+      firstHandleVisibility,
+      handleVisibility,
     };
   },
 });

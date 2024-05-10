@@ -7,13 +7,17 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import vtkAnnotationWidgetState from '@/src/vtk/ToolWidgetUtils/annotationWidgetState';
 import { Polygon } from '@/src/types/polygon';
 import { AnnotationToolType } from '@/src/store/tools/types';
+import { getImageMetadata } from '@/src/composables/useCurrentImage';
+import { getSmallestSpacing } from '@/src/utils/frameOfReference';
 import createPointState from '../ToolWidgetUtils/pointState';
 import { watchState } from '../ToolWidgetUtils/utils';
+import decimate from './decimate';
 
 export const MoveHandleLabel = 'moveHandle';
 export const HandlesLabel = 'handles';
 
-const PIXEL_SIZE = 20;
+const HANDLE_PIXEL_SIZE = 20;
+const DECIMATE_PIXEL_SIZE_FACTOR = 0.2;
 
 type VtkObjectModel = {
   classHierarchy: string[];
@@ -65,7 +69,9 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     };
     vtkWidgetState.extend(handlePublicAPI, handleModel, {});
     visibleMixin.extend(handlePublicAPI, handleModel, { visible: true });
-    scale1Mixin.extend(handlePublicAPI, handleModel, { scale1: PIXEL_SIZE });
+    scale1Mixin.extend(handlePublicAPI, handleModel, {
+      scale1: HANDLE_PIXEL_SIZE,
+    });
     const handleModelPromoted = handleModel as HandleModel;
     handleModelPromoted.classHierarchy.push('vtkPolygonHandleState');
 
@@ -110,16 +116,34 @@ function vtkPolygonWidgetState(publicAPI: any, model: any) {
     }
   };
 
+  const addPointsAsHandles = () => {
+    getTool().points.forEach((point) => {
+      const handle = publicAPI.addHandle({ addPoint: false });
+      handle.setOrigin(point);
+    });
+  };
+
   publicAPI.getPlacing = () => getTool().placing;
+
   publicAPI.setPlacing = (placing: boolean) => {
-    getTool().placing = placing;
+    const tool = getTool();
+    tool.placing = placing;
+    if (placing) return;
+
+    // Decimate points
+    const imageMeta = getImageMetadata(tool.imageID);
+    const pixelScale = getSmallestSpacing(tool.frameOfReference, imageMeta);
+    const optimizedLine = decimate(
+      tool.points,
+      pixelScale * DECIMATE_PIXEL_SIZE_FACTOR
+    );
+    publicAPI.clearHandles();
+    tool.points = optimizedLine;
+    addPointsAsHandles();
   };
 
   // Setup after deserialization
-  getTool().points.forEach((point: Vector3) => {
-    const handle = publicAPI.addHandle({ addPoint: false });
-    handle.setOrigin(point);
-  });
+  addPointsAsHandles();
 }
 
 const defaultValues = (initialValues: any) => ({
