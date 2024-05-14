@@ -1,3 +1,4 @@
+import { MaybeRef, computed, unref, watch } from 'vue';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { watchImmediate } from '@vueuse/core';
@@ -7,7 +8,7 @@ import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
-import { MaybeRef, computed, unref, watch } from 'vue';
+import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
   const { imageData } = useImage(imageID);
@@ -137,6 +138,15 @@ export function useWindowingConfigInitializer(
       min: range[0],
       max: range[1],
     });
+    store.resetWindowLevel(viewIdVal, imageIdVal);
+  });
+
+  useResetViewsEvents().onClick(() => {
+    const imageIdVal = unref(imageID);
+    const viewIdVal = unref(viewID);
+    if (imageIdVal == null || windowConfig.value == null) {
+      return;
+    }
     store.resetWindowLevel(viewIdVal, imageIdVal);
   });
 }

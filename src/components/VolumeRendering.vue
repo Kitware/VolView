@@ -16,6 +16,7 @@ import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunct
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import useViewAnimationStore from '@/src/store/view-animation';
+import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { useResizeObserver } from '../composables/useResizeObserver';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import useVolumeColoringStore from '../store/view-configs/volume-coloring';
@@ -284,15 +285,14 @@ export default defineComponent({
     onKeyDown('Control', () => pwfWidget.setShiftOpacityValues(true));
     onKeyUp('Control', () => pwfWidget.setShiftOpacityValues(false));
 
+    const reset = () => {
+      rangeShift.value = 0;
+      rangeWidth.value = fullMappingRangeWidth.value;
+    };
     // reset case
-    watch(
-      [selectedPreset, currentImageID],
-      () => {
-        rangeShift.value = 0;
-        rangeWidth.value = fullMappingRangeWidth.value;
-      },
-      { immediate: true }
-    );
+    watch([selectedPreset, currentImageID], reset, { immediate: true });
+
+    useResetViewsEvents().onClick(reset);
 
     watch([rangeShift, rangeWidth], ([shift, width]) => {
       const imageID = currentImageID.value;

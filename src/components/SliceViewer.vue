@@ -143,6 +143,7 @@
 
 <script setup lang="ts">
 import { ref, toRefs, computed } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -175,7 +176,7 @@ import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSli
 import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
-import { storeToRefs } from 'pinia';
+import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -195,6 +196,8 @@ function resetCamera() {
   if (!vtkView.value) return;
   vtkView.value.resetCamera();
 }
+
+useResetViewsEvents().onClick(resetCamera);
 
 useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
