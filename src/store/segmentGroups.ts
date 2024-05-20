@@ -13,12 +13,9 @@ import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { readImage, writeImage } from '@/src/io/readWriteImage';
 import {
-  DataSelection,
+  type DataSelection,
   getImage,
-  selectionEquals,
-  findImageID,
-  getImageID,
-  getDataID,
+  isRegularImage,
 } from '@/src/utils/dataSelection';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
@@ -214,12 +211,12 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   }
 
   function decodeSegments(image: DataSelection) {
-    if (image.type === 'image') {
+    if (isRegularImage(image)) {
       return structuredClone(DEFAULT_SEGMENT_MASKS);
     }
 
     const dicomStore = useDICOMStore();
-    const volumeInfo = dicomStore.volumeInfo[image.volumeKey];
+    const volumeInfo = dicomStore.volumeInfo[image];
     const segmentSequence = undefined; // volumeInfo.SegmentSequence;
     if (!segmentSequence) {
       return [
@@ -245,19 +242,16 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
    * Converts an image to a labelmap.
    */
   async function convertImageToLabelmap(
-    image: DataSelection,
-    parent: DataSelection
+    imageID: DataSelection,
+    parentID: DataSelection
   ) {
-    if (selectionEquals(image, parent))
+    if (imageID === parentID)
       throw new Error('Cannot convert an image to be a labelmap of itself');
 
     // Build vtkImageData for DICOMs
     const [childImage, parentImage] = await Promise.all(
-      [image, parent].map(getImage)
+      [imageID, parentID].map(getImage)
     );
-
-    const imageID = getImageID(image);
-    const parentID = getImageID(parent);
 
     if (!imageID || !parentID)
       throw new Error('Image and/or parent datasets do not exist');
@@ -276,7 +270,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
     const name = imageStore.metadata[imageID].name;
     // Don't remove image if DICOM as user may have selected child image as primary selection by now
-    const deleteImage = image.type !== 'dicom';
+    const deleteImage = isRegularImage(imageID);
     if (deleteImage) {
       imageStore.deleteData(imageID);
     }
@@ -288,7 +282,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       : resampled;
     const labelmapImage = toLabelMap(ownedMemoryImage);
 
-    const segments = decodeSegments(image);
+    const segments = decodeSegments(imageID);
     const { order, byKey } = normalizeForStore(segments, 'value');
     const segmentGroupStore = useSegmentGroupStore();
     segmentGroupStore.addLabelmap(labelmapImage, {
@@ -409,7 +403,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           path: `labels/${id}.${saveFormat.value}`,
           metadata: {
             ...metadata,
-            parentImage: getDataID(metadata.parentImage),
+            parentImage: metadata.parentImage,
           },
         };
       });
@@ -465,7 +459,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     labelMaps.forEach((labelMap, index) => {
       const { metadata } = labelMap;
       // map parent id to new id
-      const parentImage = findImageID(dataIDMap[metadata.parentImage]);
+      const parentImage = dataIDMap[metadata.parentImage];
       metadata.parentImage = parentImage;
 
       const newID = newLabelmapIDs[index];

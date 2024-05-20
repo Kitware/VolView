@@ -15,6 +15,7 @@ import {
 import { Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
 import { LAYER_PRESET_BY_MODALITY, LAYER_PRESET_DEFAULT } from '@/src/config';
+import { isDicomImage } from '@/src/utils/dataSelection';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
@@ -28,10 +29,9 @@ function getPreset(id: LayerID) {
     throw new Error(`Layer ${id} not found`);
   }
 
-  if (layer.selection.type === 'dicom') {
+  if (isDicomImage(layer.selection)) {
     const dicomStore = useDICOMStore();
-    const { Modality = undefined } =
-      dicomStore.volumeInfo[layer.selection.volumeKey];
+    const { Modality = undefined } = dicomStore.volumeInfo[layer.selection];
     return (
       (Modality && LAYER_PRESET_BY_MODALITY[Modality]) || LAYER_PRESET_DEFAULT
     );

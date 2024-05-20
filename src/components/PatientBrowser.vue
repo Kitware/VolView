@@ -1,7 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, ref, toRefs, watch } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
-import { DataSelection, selectionEquals } from '@/src/utils/dataSelection';
+import { type DataSelection, selectionEquals } from '@/src/utils/dataSelection';
 import { useDICOMStore } from '../store/datasets-dicom';
 import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';

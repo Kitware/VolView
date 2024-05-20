@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { Maybe } from '@/src/types';
+import { isDicomImage } from '@/src/utils/dataSelection';
 import { computed, toRef } from 'vue';
 
 interface Props {
@@ -12,8 +13,8 @@ const imageId = toRef(props, 'imageId');
 
 const dicomStore = useDICOMStore();
 const dicomInfo = computed(() => {
-  if (imageId.value != null && imageId.value in dicomStore.imageIDToVolumeKey) {
-    const volumeKey = dicomStore.imageIDToVolumeKey[imageId.value];
+  const volumeKey = imageId.value;
+  if (volumeKey && isDicomImage(volumeKey)) {
     const volumeInfo = dicomStore.volumeInfo[volumeKey];
     const studyKey = dicomStore.volumeStudy[volumeKey];
     const studyInfo = dicomStore.studyInfo[studyKey];

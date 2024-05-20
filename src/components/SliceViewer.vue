@@ -177,6 +177,7 @@ import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInterac
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
+import { whenever } from '@vueuse/core';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -214,6 +215,13 @@ const { currentImageID, currentLayers, currentImageMetadata, isImageLoading } =
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
+);
+
+whenever(
+  computed(() => !isImageLoading.value),
+  () => {
+    resetCamera();
+  }
 );
 
 // segmentations

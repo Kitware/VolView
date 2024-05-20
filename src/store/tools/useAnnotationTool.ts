@@ -13,7 +13,6 @@ import { useViewStore } from '@/src/store/views';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
-import { findImageID, getDataID } from '@/src/utils/dataSelection';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
@@ -171,8 +170,7 @@ export const useAnnotationTool = <
       .map((toolID) => toolByID.value[toolID])
       .filter((tool) => !tool.placing)
       .map(({ imageID, ...rest }) => ({
-        // If parent image is DICOM, save VolumeKey
-        imageID: getDataID(imageID),
+        imageID,
         ...rest,
       }));
 
@@ -205,7 +203,7 @@ export const useAnnotationTool = <
         ({ imageID, label, ...rest }) =>
           ({
             ...rest,
-            imageID: findImageID(dataIDMap[imageID]),
+            imageID: dataIDMap[imageID],
             label: (label && labelIDMap[label]) || '',
           } as ToolPatch)
       )

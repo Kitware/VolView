@@ -9,6 +9,7 @@ import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
+import { isDicomImage } from '@/src/utils/dataSelection';
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
   const { imageData } = useImage(imageID);
@@ -80,8 +81,8 @@ export function useWindowingConfigInitializer(
 
   const firstTag = computed(() => {
     const id = unref(imageID);
-    if (id && id in dicomStore.imageIDToVolumeKey) {
-      const volKey = dicomStore.imageIDToVolumeKey[id];
+    if (id && isDicomImage(id)) {
+      const volKey = id;
       const windowLevels = getWindowLevels(dicomStore.volumeInfo[volKey]);
       if (windowLevels.length) {
         return windowLevels[0];

@@ -1,30 +1,31 @@
 import JSZip from 'jszip';
 import { z } from 'zod';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import vtkPiecewiseFunctionProxy, {
+import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import type {
   PiecewiseGaussian,
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
 import type { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
-import { Ruler } from '@/src/types/ruler';
-import { Rectangle } from '@/src/types/rectangle';
-import { Polygon } from '@/src/types/polygon';
-import { LPSCroppingPlanes } from '@/src/types/crop';
-import { FrameOfReference } from '@/src/utils/frameOfReference';
-import { Optional } from '@/src/types';
+import type { Ruler } from '@/src/types/ruler';
+import type { Rectangle } from '@/src/types/rectangle';
+import type { Polygon } from '@/src/types/polygon';
+import type { LPSCroppingPlanes } from '@/src/types/crop';
+import type { FrameOfReference } from '@/src/utils/frameOfReference';
+import type { Optional } from '@/src/types';
 
-import {
+import type {
   CameraConfig,
   SliceConfig,
   WindowLevelConfig,
   LayersConfig,
   VolumeColorConfig,
 } from '../../store/view-configs/types';
-import { LPSAxisDir, LPSAxis } from '../../types/lps';
+import type { LPSAxisDir, LPSAxis } from '../../types/lps';
 import { LayoutDirection } from '../../types/layout';
-import {
+import type {
   ColorBy,
   ColorTransferFunction,
   OpacityFunction,

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watch } from 'vue';
+import { isRegularImage } from '@/src/utils/dataSelection';
 import SampleDataBrowser from './SampleDataBrowser.vue';
 import { useDicomWebStore } from '../store/dicom-web/dicom-web-store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
@@ -42,9 +43,7 @@ export default defineComponent({
     );
 
     const hasAnonymousImages = computed(
-      () =>
-        imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
-          .length > 0
+      () => imageStore.idList.filter((id) => isRegularImage(id)).length > 0
     );
 
     const panels = ref<string[]>([SAMPLE_DATA_KEY, DICOM_WEB_KEY]);
