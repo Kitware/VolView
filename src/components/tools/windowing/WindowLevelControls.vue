@@ -7,6 +7,7 @@ import useWindowingStore, {
 import { useViewStore } from '@/src/store/views';
 import { WLAutoRanges, WLPresetsCT, WL_AUTO_DEFAULT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import { isDicomImage } from '@/src/utils/dataSelection';
 
 export default defineComponent({
   setup() {
@@ -31,11 +32,8 @@ export default defineComponent({
     // --- CT Preset Options --- //
 
     const modality = computed(() => {
-      if (
-        currentImageID.value &&
-        currentImageID.value in dicomStore.imageIDToVolumeKey
-      ) {
-        const volKey = dicomStore.imageIDToVolumeKey[currentImageID.value];
+      if (currentImageID.value && isDicomImage(currentImageID.value)) {
+        const volKey = currentImageID.value;
         const { Modality } = dicomStore.volumeInfo[volKey];
         return Modality;
       }
@@ -98,11 +96,8 @@ export default defineComponent({
 
     // --- Tag WL Options --- //
     const tags = computed(() => {
-      if (
-        currentImageID.value &&
-        currentImageID.value in dicomStore.imageIDToVolumeKey
-      ) {
-        const volKey = dicomStore.imageIDToVolumeKey[currentImageID.value];
+      if (currentImageID.value && isDicomImage(currentImageID.value)) {
+        const volKey = currentImageID.value;
         return getWindowLevels(dicomStore.volumeInfo[volKey]);
       }
       return [];

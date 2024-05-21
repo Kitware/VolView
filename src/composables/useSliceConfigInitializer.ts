@@ -16,7 +16,7 @@ export function useSliceConfigInitializer(
 ) {
   const store = useViewSliceStore();
   const { config: sliceConfig } = useSliceConfig(viewID, imageID);
-  const { metadata } = useImage(imageID);
+  const { metadata, isLoading } = useImage(imageID);
 
   const viewAxis = computed(() => getLPSAxisFromDir(unref(viewDirection)));
   const sliceDomain = computed(() => {
@@ -33,17 +33,22 @@ export function useSliceConfigInitializer(
   });
 
   watchImmediate(
-    [toRef(sliceDomain), toRef(viewDirection)] as const,
-    ([domain, axisDirection]) => {
+    [
+      toRef(sliceDomain),
+      toRef(viewDirection),
+      toRef(imageID),
+      isLoading,
+    ] as const,
+    ([domain, axisDirection, id, loading]) => {
+      if (loading || !id) return;
+
       const configExisted = !!sliceConfig.value;
-      const imageIdVal = unref(imageID);
-      if (!imageIdVal) return;
-      store.updateConfig(unref(viewID), imageIdVal, {
+      store.updateConfig(unref(viewID), id, {
         ...domain,
         axisDirection,
       });
       if (!configExisted) {
-        store.resetSlice(unref(viewID), imageIdVal);
+        store.resetSlice(unref(viewID), id);
       }
     }
   );

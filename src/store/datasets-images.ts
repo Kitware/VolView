@@ -36,8 +36,12 @@ export const useImageStore = defineStore('images', {
     metadata: Object.create(null),
   }),
   actions: {
-    addVTKImageData(name: string, imageData: vtkImageData) {
-      const id = useIdStore().nextId();
+    addVTKImageData(name: string, imageData: vtkImageData, useId?: string) {
+      if (useId && useId in this.dataIndex) {
+        throw new Error('ID already exists');
+      }
+
+      const id = useId || useIdStore().nextId();
 
       this.idList.push(id);
       this.dataIndex[id] = imageData;

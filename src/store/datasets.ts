@@ -2,10 +2,9 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import {
-  DataSelection,
-  getDataSelection,
-  getImageID,
-  selectionEquals,
+  isDicomImage,
+  isRegularImage,
+  type DataSelection,
 } from '@/src/utils/dataSelection';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
@@ -31,10 +30,7 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   // --- getters --- //
 
-  const primaryImageID = computed(() => {
-    if (primarySelection.value) return getImageID(primarySelection.value);
-    return undefined;
-  });
+  const primaryImageID = primarySelection;
 
   const primaryDataset = computed<vtkImageData | null>(() => {
     const { dataIndex } = imageStore;
@@ -43,25 +39,20 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   const idsAsSelections = computed(() => {
     const volumeKeys = Object.keys(dicomStore.volumeInfo);
-    const images = imageStore.idList.filter(
-      (id) => !(id in dicomStore.imageIDToVolumeKey)
-    );
-    return [...volumeKeys, ...images].map(getDataSelection);
+    const images = imageStore.idList.filter((id) => isRegularImage(id));
+    return [...volumeKeys, ...images];
   });
 
   // --- actions --- //
 
   function setPrimarySelection(sel: DataSelection | null) {
     primarySelection.value = sel;
-
-    if (sel === null) {
-      return;
-    }
+    if (!sel) return;
 
     // if selection is dicom, call buildVolume
-    if (sel.type === 'dicom') {
+    if (isDicomImage(sel)) {
       useErrorMessage('Failed to build volume', () =>
-        dicomStore.buildVolume(sel.volumeKey)
+        dicomStore.buildVolume(sel)
       );
     }
   }
@@ -70,39 +61,24 @@ export const useDatasetStore = defineStore('dataset', () => {
     await dicomStore.serialize(stateFile);
     await imageStore.serialize(stateFile);
 
-    if (primarySelection.value !== null) {
-      let id = null;
-      if (primarySelection.value.type === 'dicom') {
-        id = primarySelection.value.volumeKey;
-      } else {
-        id = primarySelection.value.dataID;
-      }
-
+    if (primarySelection.value) {
       const { manifest } = stateFile;
-      manifest.primarySelection = id;
+      manifest.primarySelection = primarySelection.value;
     }
   }
 
   const remove = (id: string) => {
-    const sel = getDataSelection(id);
-    if (
-      primarySelection.value &&
-      selectionEquals(sel, primarySelection.value)
-    ) {
+    if (id === primarySelection.value) {
       primarySelection.value = null;
     }
 
-    if (sel.type === 'dicom') {
-      if (sel.volumeKey in dicomStore.volumeToImageID) {
-        imageStore.deleteData(dicomStore.volumeToImageID[sel.volumeKey]);
-      }
-      dicomStore.deleteVolume(sel.volumeKey);
-    } else if (sel.type === 'image') {
-      imageStore.deleteData(id);
+    if (isDicomImage(id)) {
+      dicomStore.deleteVolume(id);
     }
+    imageStore.deleteData(id);
 
     fileStore.remove(id);
-    layersStore.remove(sel);
+    layersStore.remove(id);
   };
 
   return {

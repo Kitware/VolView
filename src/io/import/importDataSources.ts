@@ -22,10 +22,6 @@ import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
-import {
-  makeDICOMSelection,
-  makeImageSelection,
-} from '@/src/utils/dataSelection';
 import { applyConfig } from '@/src/io/import/configJson';
 
 /**
@@ -177,16 +173,8 @@ export type ImportDataSourcesResult = Awaited<
 >[number];
 
 export function toDataSelection(loadable: VolumeResult) {
-  const { dataID, dataType } = loadable;
-  if (dataType === 'dicom') {
-    return makeDICOMSelection(dataID);
-  }
-  if (dataType === 'image') {
-    return makeImageSelection(dataID);
-  }
-
-  const _exhaustiveCheck: never = dataType;
-  throw new Error(`invalid loadable type ${_exhaustiveCheck}`);
+  const { dataID } = loadable;
+  return dataID;
 }
 
 export function convertSuccessResultToDataSelection(

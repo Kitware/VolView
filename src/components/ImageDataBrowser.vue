@@ -6,12 +6,11 @@ import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import {
-  DataSelection,
-  ImageSelection,
+  isRegularImage,
+  type DataSelection,
   selectionEquals,
 } from '@/src/utils/dataSelection';
 import { useImageStore } from '../store/datasets-images';
-import { useDICOMStore } from '../store/datasets-dicom';
 import { useDatasetStore } from '../store/datasets';
 
 import { useMultiSelection } from '../composables/useMultiSelection';
@@ -29,7 +28,6 @@ export default defineComponent({
   },
   setup() {
     const imageStore = useImageStore();
-    const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
     const segmentGroupStore = useSegmentGroupStore();
@@ -37,7 +35,7 @@ export default defineComponent({
     const primarySelection = computed(() => dataStore.primarySelection);
 
     const nonDICOMImages = computed(() =>
-      imageStore.idList.filter((id) => !(id in dicomStore.imageIDToVolumeKey))
+      imageStore.idList.filter((id) => isRegularImage(id))
     );
 
     const images = computed(() => {
@@ -45,23 +43,17 @@ export default defineComponent({
 
       const layerImages = layersStore
         .getLayers(primarySelection.value)
-        .filter(({ selection }) => selection.type === 'image');
-      const layerImageIDs = layerImages.map(
-        ({ selection }) => (selection as ImageSelection).dataID
-      );
+        .filter(({ selection }) => isRegularImage(selection));
+      const layerImageIDs = layerImages.map(({ selection }) => selection);
       const loadedLayerImageIDs = layerImages
         .filter(({ id }) => id in layersStore.layerImages)
-        .map(({ selection }) => (selection as ImageSelection).dataID);
+        .map(({ selection }) => selection);
 
       const selectedImageID =
-        primarySelection.value?.type === 'image' &&
-        primarySelection.value?.dataID;
+        isRegularImage(primarySelection.value) && primarySelection.value;
 
       return nonDICOMImages.value.map((id) => {
-        const selectionKey = {
-          type: 'image',
-          dataID: id,
-        } as DataSelection;
+        const selectionKey = id as DataSelection;
         const isLayer = layerImageIDs.includes(id);
         const layerLoaded = loadedLayerImageIDs.includes(id);
         const layerLoading = isLayer && !layerLoaded;
@@ -136,10 +128,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (primarySelection.value) {
-        segmentGroupStore.convertImageToLabelmap(
-          { type: 'image', dataID: key },
-          primarySelection.value
-        );
+        segmentGroupStore.convertImageToLabelmap(key, primarySelection.value);
       }
     }
 
@@ -261,9 +250,9 @@ export default defineComponent({
                       image.layerable ? convertToLabelMap(image.id) : null
                     "
                   >
-                    <v-icon v-if="!image.layerable" class="mr-1"
-                      >mdi-alert</v-icon
-                    >
+                    <v-icon v-if="!image.layerable" class="mr-1">
+                      mdi-alert
+                    </v-icon>
                     Convert to Segment Group
                     <v-tooltip
                       activator="parent"

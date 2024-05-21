@@ -3,7 +3,7 @@ import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
 import { Image } from 'itk-wasm';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { DataSelection, DICOMSelection } from '@/src/utils/dataSelection';
+import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
 import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
 import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
@@ -78,21 +78,16 @@ export default defineComponent({
       const primarySelection = primarySelectionRef.value;
       const layerVolumes = layersStore
         .getLayers(primarySelection)
-        .filter(({ selection }) => selection.type === 'dicom');
-      const layerVolumeKeys = layerVolumes.map(
-        ({ selection }) => (selection as DICOMSelection).volumeKey
-      );
+        .filter(({ selection }) => isDicomImage(selection));
+      const layerVolumeKeys = layerVolumes.map(({ selection }) => selection);
       const loadedLayerVolumeKeys = layerVolumes
         .filter(({ id }) => id in layersStore.layerImages)
-        .map(({ selection }) => (selection as DICOMSelection).volumeKey);
+        .map(({ selection }) => selection);
       const selectedVolumeKey =
-        primarySelection?.type === 'dicom' && primarySelection.volumeKey;
+        isDicomImage(primarySelection) && primarySelection;
 
       return volumeKeys.value.map((volumeKey) => {
-        const selectionKey = {
-          type: 'dicom',
-          volumeKey,
-        } as DataSelection;
+        const selectionKey = volumeKey as DataSelection;
         const isLayer = layerVolumeKeys.includes(volumeKey);
         const layerLoaded = loadedLayerVolumeKeys.includes(volumeKey);
         const layerLoading = isLayer && !layerLoaded;

@@ -102,12 +102,10 @@ export default defineComponent({
 
         const selection = convertSuccessResultToDataSelection(loadResult);
         if (selection) {
-          const id =
-            selection.type === 'image' ? selection.dataID : selection.volumeKey;
-          loaded.idToURL[id] = sample.url;
-          loaded.urlToID[sample.url] = id;
+          loaded.idToURL[selection] = sample.url;
+          loaded.urlToID[sample.url] = selection;
 
-          useVolumeColoringStore().setDefaults(id, {
+          useVolumeColoringStore().setDefaults(selection, {
             transferFunction: {
               preset: sample.defaults?.colorPreset,
             },

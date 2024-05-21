@@ -54,11 +54,6 @@ interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
   sliceData: Record<string, Record<string, Image>>;
 
-  // volumeKey -> imageID
-  volumeToImageID: Record<string, string>;
-  // imageID -> volumeKey
-  imageIDToVolumeKey: Record<string, string>;
-
   // volume invalidation information
   needsRebuild: Record<string, boolean>;
 
@@ -155,8 +150,6 @@ const constructImage = async (dicomIO: DICOMIO, volumeKey: string) => {
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
-    volumeToImageID: {},
-    imageIDToVolumeKey: {},
     volumeImageData: {},
     patientInfo: {},
     patientStudies: {},
@@ -236,7 +229,7 @@ export const useDICOMStore = defineStore('dicom', {
           }
 
           // invalidate any existing volume
-          if (volumeKey in this.volumeToImageID) {
+          if (volumeKey in useImageStore().dataIndex) {
             // buildVolume requestor uses this as a rebuild hint
             this.needsRebuild[volumeKey] = true;
           }
@@ -283,12 +276,6 @@ export const useDICOMStore = defineStore('dicom', {
         delete this.volumeInfo[volumeKey];
         delete this.sliceData[volumeKey];
         delete this.volumeStudy[volumeKey];
-
-        if (volumeKey in this.volumeToImageID) {
-          const imageID = this.volumeToImageID[volumeKey]!;
-          delete this.volumeToImageID[volumeKey];
-          delete this.imageIDToVolumeKey[imageID];
-        }
 
         if (volumeKey in this.volumeImageData) {
           delete this.volumeImageData[volumeKey];
@@ -415,18 +402,14 @@ export const useDICOMStore = defineStore('dicom', {
       const [image] = await Promise.all([newImagePromise, ...oldImagePromise]);
 
       // update image store
-      const existingImageID = this.volumeToImageID[volumeKey];
-      const imageExists =
-        existingImageID && imageStore.dataIndex[existingImageID];
+      const imageExists = imageStore.dataIndex[volumeKey];
       if (imageExists) {
         // was a rebuild
-        imageStore.updateData(existingImageID, image);
+        imageStore.updateData(volumeKey, image);
       } else {
         const info = this.volumeInfo[volumeKey];
         const name = getDisplayName(info);
-        const newImageID = imageStore.addVTKImageData(name, image);
-        this.imageIDToVolumeKey[newImageID] = volumeKey;
-        this.volumeToImageID[volumeKey] = newImageID;
+        imageStore.addVTKImageData(name, image, volumeKey);
       }
 
       return image;

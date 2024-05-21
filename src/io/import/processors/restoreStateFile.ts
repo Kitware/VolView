@@ -23,11 +23,6 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useViewStore } from '@/src/store/views';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
-  DataSelection,
-  makeDICOMSelection,
-  makeImageSelection,
-} from '@/src/utils/dataSelection';
-import {
   makeDefaultSegmentGroupName,
   useSegmentGroupStore,
 } from '@/src/store/segmentGroups';
@@ -344,10 +339,7 @@ async function restoreDatasets(
   return stateIDToStoreID;
 }
 
-const restoreStateFile: ImportHandler = async (
-  dataSource,
-  { done, extra, execute }
-) => {
+const restoreStateFile: ImportHandler = async (dataSource, pipelineContext) => {
   const { fileSrc } = dataSource;
   if (fileSrc && (await isStateFile(fileSrc.file))) {
     const stateFileContents = await extractFilesFromZip(fileSrc.file);
@@ -369,24 +361,17 @@ const restoreStateFile: ImportHandler = async (
     // in the views as the data is loaded
     useViewStore().setLayout(manifest.layout);
 
-    const stateIDToStoreID = await restoreDatasets(manifest, restOfStateFile, {
-      extra,
-      execute,
-      done,
-    });
+    const stateIDToStoreID = await restoreDatasets(
+      manifest,
+      restOfStateFile,
+      pipelineContext
+    );
 
     // Restore the primary selection
     if (manifest.primarySelection !== undefined) {
       const selectedID = stateIDToStoreID[manifest.primarySelection];
-      let dataSelection: DataSelection | undefined;
 
-      if (selectedID in useDICOMStore().volumeInfo) {
-        dataSelection = makeDICOMSelection(selectedID);
-      } else {
-        dataSelection = makeImageSelection(selectedID);
-      }
-
-      useDatasetStore().setPrimarySelection(dataSelection);
+      useDatasetStore().setPrimarySelection(selectedID);
     }
 
     // Restore the views
@@ -404,7 +389,7 @@ const restoreStateFile: ImportHandler = async (
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-    return done();
+    return pipelineContext.done();
   }
   return dataSource;
 };
