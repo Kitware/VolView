@@ -129,14 +129,6 @@
           <slot></slot>
         </vtk-slice-view>
       </div>
-      <transition name="loading">
-        <div v-if="isImageLoading" class="overlay-no-events loading">
-          <div>Loading the image</div>
-          <div>
-            <v-progress-circular indeterminate color="blue" />
-          </div>
-        </div>
-      </transition>
     </div>
   </div>
 </template>
@@ -177,7 +169,8 @@ import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInterac
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import { whenever } from '@vueuse/core';
+import { watchImmediate } from '@vueuse/core';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -210,19 +203,22 @@ const windowingManipulatorProps = computed(() =>
 );
 
 // base image
-const { currentImageID, currentLayers, currentImageMetadata, isImageLoading } =
-  useCurrentImage();
+const {
+  currentImageID,
+  currentLayers,
+  currentImageMetadata,
+  currentImageData,
+} = useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
 
-whenever(
-  computed(() => !isImageLoading.value),
-  () => {
-    resetCamera();
-  }
-);
+watchImmediate(currentImageID, () => resetCamera());
+
+onVTKEvent(currentImageData, 'onModified', () => {
+  vtkView.value?.requestRender();
+});
 
 // segmentations
 const segmentations = computed(() => {
