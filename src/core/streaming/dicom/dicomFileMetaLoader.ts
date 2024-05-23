@@ -10,6 +10,14 @@ export class DicomFileMetaLoader implements MetaLoader {
     this.file = file;
   }
 
+  get meta() {
+    return this.tags;
+  }
+
+  get metaBlob() {
+    return this.file;
+  }
+
   async load() {
     if (this.tags) return;
     this.tags = await this.readDicomTags(this.file);

@@ -1,3 +1,4 @@
+import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { DicomDataLoader } from '@/src/core/streaming/dicom/dicomDataLoader';
 import {
@@ -5,7 +6,6 @@ import {
   ReadDicomTagsFunction,
 } from '@/src/core/streaming/dicom/dicomMetaLoader';
 import { getRequestPool } from '@/src/core/streaming/requestPool';
-import { ResumableFetcher } from '@/src/core/streaming/resumableFetcher';
 import { ImportHandler } from '@/src/io/import/common';
 import { getWorker } from '@/src/io/itk/worker';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
@@ -19,7 +19,7 @@ const handleDicomStream: ImportHandler = async (dataSource, { done }) => {
 
   const fetcher =
     uriSrc.fetcher ??
-    new ResumableFetcher(uriSrc.uri, {
+    new CachedStreamFetcher(uriSrc.uri, {
       fetch: (...args) => getRequestPool().fetch(...args),
     });
 

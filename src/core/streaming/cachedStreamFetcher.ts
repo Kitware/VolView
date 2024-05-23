@@ -1,4 +1,3 @@
-import { concatStreams } from '@/src/core/streaming/concatStreams';
 import {
   HTTP_STATUS_OK,
   HTTP_STATUS_PARTIAL_CONTENT,
@@ -10,7 +9,7 @@ import { Maybe } from '@/src/types';
 
 type FetchFunction = typeof fetch;
 
-export interface ResumableRequestInit extends RequestInit {
+export interface CachedStreamFetcherRequestInit extends RequestInit {
   prefixChunks?: Uint8Array[];
   contentLength?: number;
   fetch?: FetchFunction;
@@ -19,25 +18,27 @@ export interface ResumableRequestInit extends RequestInit {
 export const StopSignal = Symbol('StopSignal');
 
 /**
- * A resumable fetcher that caches previously downloaded partial streams.
+ * A cached stream fetcher that caches a URI stream.
+ *
+ * Supports servers that accept Range requests.
  *
  * This fetcher falls back to downloading the entire stream if the server does
  * not support the Range header with bytes.
- *
- * A new call to start() will stream the cached stream until empty, after which
- * the partial response is streamed.
  */
-export class ResumableFetcher implements Fetcher {
+export class CachedStreamFetcher implements Fetcher {
   private abortController: Maybe<AbortController>;
   private fetch: typeof fetch;
   private chunks: Uint8Array[];
   private contentLength: number | null = null;
   private activeNetworkStream: ReadableStream<Uint8Array> | null = null;
+  private activeNetworkStreamReader: ReadableStreamDefaultReader<Uint8Array> | null =
+    null;
+
   public contentType: string = '';
 
   constructor(
     private request: RequestInfo | URL,
-    private init?: ResumableRequestInit
+    private init?: CachedStreamFetcherRequestInit
   ) {
     this.chunks = [...(init?.prefixChunks ?? [])];
     this.contentLength = init?.contentLength ?? null;
@@ -64,7 +65,9 @@ export class ResumableFetcher implements Fetcher {
     if (this.connected) return;
 
     this.abortController = init?.abortController ?? new AbortController();
-    this.abortController.signal.addEventListener('abort', () => this.cleanup());
+    this.abortController.signal.addEventListener('abort', () => {
+      this.cleanupAfterAbort();
+    });
 
     // do not actually send the request, since we've cached the entire response
     if (this.size === this.contentLength) return;
@@ -110,63 +113,78 @@ export class ResumableFetcher implements Fetcher {
       this.chunks = [];
     }
 
-    this.activeNetworkStream = this.wrapNetworkStream(response.body);
+    this.activeNetworkStream = response.body;
+    this.activeNetworkStreamReader = this.activeNetworkStream.getReader();
   }
 
   close() {
     if (!this.abortController) return;
     this.abortController.abort(StopSignal);
-    this.cleanup();
+    this.cleanupAfterAbort();
   }
 
   getStream() {
-    return concatStreams(this.getDataChunksAsStream(), this.getNetworkStream());
+    let chunkIndex = 0;
+    return new ReadableStream({
+      pull: async (controller) => {
+        if (!this.connected) {
+          controller.close();
+        }
+
+        if (chunkIndex > this.chunks.length)
+          throw new Error('Did chunks get truncated?');
+
+        if (chunkIndex === this.chunks.length) {
+          const result = await this.readNextNetworkChunk();
+          if (result.done) {
+            controller.close();
+            return;
+          }
+        }
+
+        // invariant: chunkIndex < this.chunks.length
+        controller.enqueue(this.chunks[chunkIndex++]);
+      },
+    });
+  }
+
+  private promise: Promise<ReadableStreamReadResult<Uint8Array>> | null = null;
+
+  private readNextNetworkChunk() {
+    if (!this.activeNetworkStreamReader)
+      return Promise.resolve<ReadableStreamReadDoneResult<Uint8Array>>({
+        done: true,
+        value: undefined,
+      });
+
+    if (!this.promise) {
+      this.promise = this.activeNetworkStreamReader
+        .read()
+        .then((result) => {
+          if (!result.done) {
+            this.chunks.push(result.value);
+          }
+          return result;
+        })
+        .finally(() => {
+          this.promise = null;
+        });
+    }
+    return this.promise;
   }
 
   async blob() {
+    await this.connect();
+
     const stream = this.getStream();
     const sink = new WritableStream();
     await stream.pipeTo(sink);
     return new Blob(this.chunks, { type: this.contentType });
   }
 
-  private cleanup() {
+  private cleanupAfterAbort() {
+    this.activeNetworkStreamReader = null;
     this.activeNetworkStream = null;
     this.abortController = null;
-  }
-
-  private getDataChunksAsStream() {
-    let i = 0;
-    const self = this;
-    return new ReadableStream({
-      pull(controller) {
-        if (i < self.chunks.length) {
-          controller.enqueue(self.chunks[i]);
-          i += 1;
-        } else {
-          controller.close();
-        }
-      },
-    });
-  }
-
-  private wrapNetworkStream(stream: ReadableStream<Uint8Array>) {
-    const cacheChunkStream = new TransformStream({
-      transform: (chunk, controller) => {
-        this.chunks.push(chunk);
-        controller.enqueue(chunk);
-      },
-    });
-
-    return stream.pipeThrough(cacheChunkStream);
-  }
-
-  private getNetworkStream() {
-    if (!this.activeNetworkStream) {
-      return new ReadableStream();
-    }
-    const [s1, s2] = this.activeNetworkStream.tee();
-    this.activeNetworkStream = s2;
-    return s1;
   }
 }

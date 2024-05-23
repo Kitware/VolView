@@ -9,7 +9,7 @@ import {
   isLoadableResult,
   VolumeResult,
 } from '@/src/io/import/common';
-import { FileDataSource, DataSource } from '@/src/io/import/dataSource';
+import { DataSource, ChunkDataSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTargetFromCache from '@/src/io/import/processors/extractArchiveTarget';
@@ -20,11 +20,13 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { applyConfig } from '@/src/io/import/configJson';
 import updateUriType from '@/src/io/import/processors/updateUriType';
 import openUriStream from '@/src/io/import/processors/openUriStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
+import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { importDicomChunks } from '@/src/actions/importDicomChunks';
 
 /**
  * Tries to turn a thrown object into a meaningful error string.
@@ -90,48 +92,33 @@ const importConfigs = async (
   }
 };
 
-const importDicomFiles = async (dicomDataSources: Array<FileDataSource>) => {
-  const resultSources: DataSource = {
-    collectionSrc: {
-      sources: dicomDataSources,
-    },
-  };
-  try {
-    if (!dicomDataSources.length) {
-      return {
-        ok: true as const,
-        data: [],
-      };
-    }
-    const volumeKeys = await useDICOMStore().importFiles(dicomDataSources);
-    return {
+async function importDicomChunkSources(sources: ChunkDataSource[]) {
+  if (sources.length === 0) return [];
+
+  const dataIds = await importDicomChunks(
+    sources.map((src) => src.chunkSrc.chunk)
+  );
+  return [
+    {
       ok: true as const,
-      data: volumeKeys.map((key) => ({
-        dataID: key,
+      data: dataIds.map((id) => ({
+        dataID: id,
         dataType: 'dicom' as const,
-        dataSource: resultSources,
-      })),
-    };
-  } catch (err) {
-    return {
-      ok: false as const,
-      errors: [
-        {
-          message: toMeaningfulErrorString(err),
-          cause: err,
-          inputDataStackTrace: [resultSources],
+        dataSource: {
+          collectionSrc: {
+            sources,
+          },
         },
-      ],
-    };
-  }
-};
+      })),
+    },
+  ];
+}
 
 export async function importDataSources(
   dataSources: DataSource[]
 ): Promise<PipelineResult<DataSource, ImportResult>[]> {
   const importContext = {
     fetchFileCache: new Map<string, File>(),
-    dicomDataSources: [],
   };
 
   const middleware = [
@@ -148,6 +135,7 @@ export async function importDataSources(
     handleAmazonS3,
 
     // stream handling
+    handleDicomStream,
     downloadStream,
 
     extractArchiveTargetFromCache,
@@ -165,12 +153,25 @@ export async function importDataSources(
     dataSources.map((r) => loader.execute(r, importContext))
   );
 
+  const successfulResults = results.filter(
+    (result): result is PipelineResultSuccess<ImportResult> => result.ok
+  );
+
+  const chunks = successfulResults
+    .flatMap((result) => result.data)
+    .map((data) => data.dataSource)
+    .filter((src): src is ChunkDataSource => !!src.chunkSrc);
+
+  const dicomChunks = chunks.filter(
+    (ch) => ch.chunkSrc.mime === FILE_EXT_TO_MIME.dcm
+  );
+
   const configResult = await importConfigs(results);
-  const dicomResult = await importDicomFiles(importContext.dicomDataSources);
+  const dicomChunkResult = await importDicomChunkSources(dicomChunks);
 
   return [
     ...results,
-    dicomResult,
+    ...dicomChunkResult,
     configResult,
     // Consuming code expects only errors and image import results.
     // Remove ok results that don't result in something to load (like config.JSON files)

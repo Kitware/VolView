@@ -39,7 +39,11 @@ const { viewId: viewID, imageId: imageID } = toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
-const { imageData, metadata: imageMetadata } = useImage(imageID);
+const {
+  imageData,
+  metadata: imageMetadata,
+  isLoading: isImageStreaming,
+} = useImage(imageID);
 const coloringConfig = computed(() =>
   useVolumeColoringStore().getConfig(viewID.value, imageID.value)
 );
@@ -87,7 +91,7 @@ watchEffect(() => {
   } = cvrParams.value;
   const { property, mapper } = rep;
 
-  const enabled = cvrEnabled && !isAnimating.value;
+  const enabled = cvrEnabled && !isAnimating.value && !isImageStreaming.value;
   const dataArray = image.getPointData().getScalars();
 
   setCinematicLighting({

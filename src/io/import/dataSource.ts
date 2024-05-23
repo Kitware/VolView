@@ -1,3 +1,4 @@
+import { Chunk } from '@/src/core/streaming/chunk';
 import { Fetcher } from '@/src/core/streaming/types';
 import { Maybe, PartialWithRequired } from '@/src/types';
 
@@ -46,6 +47,14 @@ export interface CollectionSource {
 }
 
 /**
+ * Represents a data chunk for further processing and import.
+ */
+export interface ChunkSource {
+  chunk: Chunk;
+  mime: string;
+}
+
+/**
  * Represents a source of data.
  *
  * If the parent property is set, it represents the DataSource from which this
@@ -60,6 +69,7 @@ export interface DataSource {
   fileSrc?: FileSource;
   uriSrc?: UriSource;
   archiveSrc?: ArchiveSource;
+  chunkSrc?: ChunkSource;
   collectionSrc?: CollectionSource;
   parent?: DataSource;
 }
@@ -68,6 +78,18 @@ export interface DataSource {
  * A data source that has a File.
  */
 export type FileDataSource = PartialWithRequired<DataSource, 'fileSrc'>;
+
+/**
+ * An archive member data source.
+ */
+export type ArchiveDataSource = PartialWithRequired<
+  DataSource,
+  'archiveSrc' | 'fileSrc'
+> & {
+  parent: FileDataSource;
+};
+
+export type ChunkDataSource = PartialWithRequired<DataSource, 'chunkSrc'>;
 
 /**
  * Creates a DataSource from a single file.

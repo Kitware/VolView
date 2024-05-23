@@ -1,12 +1,12 @@
 import { DicomMetaLoader } from '@/src/core/streaming/dicom/dicomMetaLoader';
 import { RequestPool } from '@/src/core/streaming/requestPool';
-import { ResumableFetcher } from '@/src/core/streaming/resumableFetcher';
+import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
 import { describe, it, expect } from 'vitest';
 
 describe('dicomMetaLoader', () => {
   it('should load only metadata', async () => {
     const pool = new RequestPool();
-    const fetcher = new ResumableFetcher(
+    const fetcher = new CachedStreamFetcher(
       'https://data.kitware.com/api/v1/file/57b5d4648d777f10f2693e7e/download',
       {
         fetch: pool.fetch,
@@ -17,7 +17,7 @@ describe('dicomMetaLoader', () => {
     });
     await loader.load();
 
-    const downloaded = fetcher.dataChunks.reduce(
+    const downloaded = fetcher.cachedChunks.reduce(
       (sum, chunk) => sum + chunk.length,
       0
     );

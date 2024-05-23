@@ -37,6 +37,7 @@ const updateUriType: ImportHandler = async (dataSource) => {
 
   const { fetcher } = uriSrc;
 
+  await fetcher.connect();
   const stream = fetcher.getStream();
   const mime = await detectStreamType(stream);
 

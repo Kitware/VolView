@@ -1,5 +1,5 @@
 import { createDicomParser } from '@/src/core/streaming/dicom/dicomParser';
-import { StopSignal } from '@/src/core/streaming/resumableFetcher';
+import { StopSignal } from '@/src/core/streaming/cachedStreamFetcher';
 import { Fetcher, MetaLoader } from '@/src/core/streaming/types';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Maybe } from '@/src/types';

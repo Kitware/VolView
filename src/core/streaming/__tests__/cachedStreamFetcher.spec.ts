@@ -1,15 +1,15 @@
 /* eslint-disable no-restricted-syntax */
 import { RequestPool } from '@/src/core/streaming/requestPool';
 import {
-  ResumableFetcher,
+  CachedStreamFetcher,
   StopSignal,
-} from '@/src/core/streaming/resumableFetcher';
+} from '@/src/core/streaming/cachedStreamFetcher';
 import { describe, expect, it } from 'vitest';
 
 describe('ResumableFetcher', () => {
   it('should support stopping and resuming', async () => {
     const pool = new RequestPool();
-    const fetcher = new ResumableFetcher(
+    const fetcher = new CachedStreamFetcher(
       'https://data.kitware.com/api/v1/file/57b5d4648d777f10f2693e7e/download',
       {
         fetch: pool.fetch,
