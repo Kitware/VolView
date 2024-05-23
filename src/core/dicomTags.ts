@@ -4,6 +4,7 @@ interface Tag {
 }
 
 const tags: Tag[] = [
+  { name: 'SOPInstanceUID', tag: '0008|0018' },
   { name: 'PatientName', tag: '0010|0010' },
   { name: 'PatientID', tag: '0010|0020' },
   { name: 'PatientBirthDate', tag: '0010|0030' },
@@ -23,12 +24,16 @@ const tags: Tag[] = [
   { name: 'Rows', tag: '0028|0010' },
   { name: 'Columns', tag: '0028|0011' },
   { name: 'BitsAllocated', tag: '0028|0100' },
+  { name: 'BitsStored', tag: '0028|0101' },
   { name: 'PixelRepresentation', tag: '0028|0103' },
   { name: 'ImagePositionPatient', tag: '0020|0032' },
   { name: 'ImageOrientationPatient', tag: '0020|0037' },
   { name: 'PixelSpacing', tag: '0028|0030' },
   { name: 'SamplesPerPixel', tag: '0028|0002' },
+  { name: 'RescaleIntercept', tag: '0028|1052' },
+  { name: 'RescaleSlope', tag: '0028|1053' },
 ];
 
 export const TAG_TO_NAME = new Map(tags.map((t) => [t.tag, t.name]));
 export const NAME_TO_TAG = new Map(tags.map((t) => [t.name, t.tag]));
+export const Tags = Object.fromEntries(tags.map((t) => [t.name, t.tag]));
