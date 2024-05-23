@@ -1,5 +1,5 @@
+import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
 import { getRequestPool } from '@/src/core/streaming/requestPool';
-import { ResumableFetcher } from '@/src/core/streaming/resumableFetcher';
 import { ImportHandler } from '@/src/io/import/common';
 import { canFetchUrl } from '@/src/utils/fetch';
 
@@ -13,7 +13,7 @@ const openUriStream: ImportHandler = async (dataSource, { onCleanup }) => {
     return dataSource;
   }
 
-  const fetcher = new ResumableFetcher(uriSrc.uri, {
+  const fetcher = new CachedStreamFetcher(uriSrc.uri, {
     fetch: (...args) => getRequestPool().fetch(...args),
   });
 

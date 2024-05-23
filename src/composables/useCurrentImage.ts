@@ -16,6 +16,7 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '@/src/utils/lps';
 import { useDatasetStore } from '@/src/store/datasets';
 import { storeToRefs } from 'pinia';
+import useChunkStore from '@/src/store/chunks';
 
 export interface CurrentImageContext {
   imageID: Ref<Maybe<string>>;
@@ -57,8 +58,9 @@ export function getImageData(imageID: Maybe<string>) {
 
 export function getIsImageLoading(imageID: Maybe<string>) {
   if (!imageID) return false;
-  const imageStore = useImageStore();
-  return !imageStore.dataIndex[imageID];
+  const image = useChunkStore().chunkImageById[imageID];
+  if (!image) return false;
+  return image.isLoading;
 }
 
 export function getImageLayers(imageID: Maybe<string>) {
