@@ -41,6 +41,23 @@ export class Chunk {
     this.events = mitt();
   }
 
+  addEventListener(event: keyof ChunkEvents, callback: () => void) {
+    this.events.on(event, callback);
+    return () => this.removeEventListener(event, callback);
+  }
+
+  removeEventListener(event: keyof ChunkEvents, callback: () => void) {
+    this.events.off(event, callback);
+  }
+
+  watchForState(state: ChunkState, callback: () => void) {
+    const handler = (event: UpdateEvent<ChunkState, TransitionEvent>) => {
+      if (state === event.state) callback();
+    };
+
+    return this.machine.subscribe(handler);
+  }
+
   dispose() {
     this.machine.unsubscribe(this.onStateUpdated);
     this.events.all.clear();
@@ -68,15 +85,21 @@ export class Chunk {
     }
     return new Promise<void>((resolve, reject) => {
       this.machine.send(TransitionEvent.LoadMeta);
-      this.events.on('doneMeta', () => {
-        this.cleanupEventListeners();
+      const onDoneMeta = () => {
+        this.events.off('doneMeta', onDoneMeta);
         resolve();
-      });
-      this.events.on('error', (error) => {
-        this.cleanupEventListeners();
+      };
+      const onError = (error: any) => {
+        this.events.off('error', onError);
         reject(error);
-      });
+      };
+      this.events.on('doneMeta', onDoneMeta);
+      this.events.on('error', onError);
     });
+  }
+
+  stopLoad() {
+    this.machine.send(TransitionEvent.Cancel);
   }
 
   loadData() {
@@ -85,21 +108,17 @@ export class Chunk {
     }
     return new Promise<void>((resolve, reject) => {
       this.machine.send(TransitionEvent.LoadData);
-      this.events.on('doneData', () => {
-        this.cleanupEventListeners();
+      const onDoneData = () => {
+        this.events.off('doneData', onDoneData);
         resolve();
-      });
-      this.events.on('error', (error) => {
-        this.cleanupEventListeners();
+      };
+      const onError = (error: any) => {
+        this.events.off('error', onError);
         reject(error);
-      });
+      };
+      this.events.on('doneData', onDoneData);
+      this.events.on('error', onError);
     });
-  }
-
-  private cleanupEventListeners() {
-    this.events.off('doneMeta');
-    this.events.off('doneData');
-    this.events.off('error');
   }
 
   private onStateUpdated = async (
@@ -135,4 +154,18 @@ export class Chunk {
       this.machine.send(TransitionEvent.Cancel, { error });
     }
   };
+}
+
+export function waitForChunkState(chunk: Chunk, state: ChunkState) {
+  return new Promise<Chunk>((resolve) => {
+    if (chunk.state === state) {
+      resolve(chunk);
+      return;
+    }
+
+    const stop = chunk.watchForState(state, () => {
+      resolve(chunk);
+      stop();
+    });
+  });
 }
