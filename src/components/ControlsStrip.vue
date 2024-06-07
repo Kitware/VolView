@@ -117,6 +117,9 @@ const { icon: connIcon, url: serverUrl } = useServerConnection();
 const layoutName = useViewLayout();
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
+
+const emit = defineEmits(['click:left-menu']);
+
 </script>
 
 <template>
@@ -124,6 +127,8 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
     id="tools-strip"
     class="bg-grey-darken-4 d-flex flex-column align-center"
   >
+    <v-btn icon="mdi-menu" @click="emit('click:left-menu')" />
+    <div class="my-1 tool-separator" />
     <control-button
       size="40"
       icon="mdi-folder-open"
