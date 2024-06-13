@@ -1,0 +1,24 @@
+diff --git a/node_modules/@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget.js b/node_modules/@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget.js
+index d317f28..a8c6c71 100644
+--- a/node_modules/@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget.js
++++ b/node_modules/@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget.js
+@@ -470,16 +470,17 @@ function vtkPiecewiseGaussianWidget(publicAPI, model) {
+   // information to choose which component you want to extract the histogram
+   // from.
+ 
+-  publicAPI.setDataArray = function (array) {
++  publicAPI.setDataArray = function (dataArray) {
+     let {
+       numberOfBinToConsiders = 1,
+       numberOfBinsToSkip = 1,
+       numberOfComponents = 1,
+       component = 0
+     } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
++    const array = dataArray.getRange();
+     model.histogram = null;
+     model.histogramArray = array;
+-    model.dataRange = arrayRange(array, component, numberOfComponents);
++    model.dataRange = dataArray.getRange();
+     const [min, max] = model.dataRange;
+     const maxNumberOfWorkers = 4;
+     let arrayStride = Math.floor(array.length / maxNumberOfWorkers) || 1;
