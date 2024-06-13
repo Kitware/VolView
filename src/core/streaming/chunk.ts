@@ -41,12 +41,12 @@ export class Chunk {
     this.events = mitt();
   }
 
-  addEventListener(event: keyof ChunkEvents, callback: () => void) {
+  addEventListener(event: keyof ChunkEvents, callback: (arg?: any) => void) {
     this.events.on(event, callback);
     return () => this.removeEventListener(event, callback);
   }
 
-  removeEventListener(event: keyof ChunkEvents, callback: () => void) {
+  removeEventListener(event: keyof ChunkEvents, callback: (arg?: any) => void) {
     this.events.off(event, callback);
   }
 
