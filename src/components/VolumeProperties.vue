@@ -83,9 +83,6 @@ export default defineComponent({
 
 <template>
   <div class="mx-2">
-    <div class="mt-4" ref="editorContainerRef">
-      <div ref="pwfEditorRef" />
-    </div>
     <div v-if="!!cvrParams">
       <v-slider
         show-ticks="always"

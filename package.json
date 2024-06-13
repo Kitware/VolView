@@ -50,7 +50,7 @@
     "socket.io-parser": "^4.2.4",
     "vue": "^3.3.4",
     "vue-toastification": "^2.0.0-rc.5",
-    "vuetify": "^3.1.14",
+    "vuetify": "^3.4.0",
     "zod": "^3.22.3"
   },
   "devDependencies": {
