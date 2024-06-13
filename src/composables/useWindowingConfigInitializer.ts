@@ -1,7 +1,7 @@
 import { MaybeRef, computed, unref, watch } from 'vue';
-import type { TypedArray } from '@kitware/vtk.js/types';
+import * as Comlink from 'comlink';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { watchImmediate } from '@vueuse/core';
+import { computedAsync, watchImmediate } from '@vueuse/core';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
@@ -11,29 +11,23 @@ import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { HistogramWorker } from '@/src/utils/histogram.worker';
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
   const { imageData, isLoading: isImageLoading } = useImage(imageID);
 
-  const histogram = (
-    data: number[] | TypedArray,
-    dataRange: number[],
-    numberOfBins: number
-  ) => {
-    const [min, max] = dataRange;
-    const width = (max - min + 1) / numberOfBins;
-    if (width === 0) return [];
-    const hist = new Array(numberOfBins).fill(0);
-    data.forEach((value) => hist[Math.floor((value - min) / width)]++);
-    return hist;
-  };
+  const worker = Comlink.wrap<HistogramWorker>(
+    new Worker(new URL('@/src/utils/histogram.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+  );
 
   const scalars = vtkFieldRef(
     computed(() => imageData.value?.getPointData()),
     'scalars'
   );
 
-  const autoRangeValues = computed(() => {
+  const autoRangeValues = computedAsync(async () => {
     if (isImageLoading.value || !scalars.value) {
       return {};
     }
@@ -46,7 +40,7 @@ function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
       0,
       1
     );
-    const hist = histogram(scalarData, [min, max], WL_HIST_BINS);
+    const hist = await worker.histogram(scalarData, [min, max], WL_HIST_BINS);
     const cumm = hist.reduce((acc, val, idx) => {
       const prev = idx !== 0 ? acc[idx - 1] : 0;
       acc.push(val + prev);
@@ -67,7 +61,7 @@ function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
         return [key, [start, end]];
       })
     );
-  });
+  }, {});
 
   return { autoRangeValues };
 }
