@@ -16,16 +16,16 @@ import {
 import { Tags } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
-import { ChunkImage, ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
+import {
+  type ChunkImage,
+  ThumbnailStrategy,
+  ChunkStatus,
+  ChunkImageEvents,
+} from '@/src/core/streaming/chunkImage';
 import { ComputedRef, Ref, computed, ref } from 'vue';
+import mitt, { Emitter } from 'mitt';
 
 const { fastComputeRange } = vtkDataArray;
-
-export enum DicomChunkStatus {
-  NotLoaded,
-  Loading,
-  Loaded,
-}
 
 function getChunkId(chunk: Chunk) {
   const metadata = Object.fromEntries(chunk.metadata!);
@@ -70,10 +70,11 @@ async function dicomSliceToImageUri(blob: Blob) {
 export default class DicomChunkImage implements ChunkImage {
   protected chunks: Chunk[];
   private chunkListeners: Array<() => void>;
-  private thumbnailPromises: WeakMap<Chunk, Promise<unknown>>;
+  private thumbnailCache: WeakMap<Chunk, Promise<unknown>>;
+  private events: Emitter<ChunkImageEvents>;
   public imageData: Maybe<vtkImageData>;
   public dataId: Maybe<string>;
-  public chunkStatus: Ref<DicomChunkStatus[]>;
+  public chunkStatus: Ref<ChunkStatus[]>;
   public isLoading: ComputedRef<boolean>;
 
   constructor() {
@@ -83,19 +84,36 @@ export default class DicomChunkImage implements ChunkImage {
     this.chunkStatus = ref([]);
     this.isLoading = computed(() =>
       this.chunkStatus.value.some(
-        (status) => status !== DicomChunkStatus.Loaded
+        (status) =>
+          status !== ChunkStatus.Loaded && status !== ChunkStatus.Errored
       )
     );
-    this.thumbnailPromises = new WeakMap();
+    this.thumbnailCache = new WeakMap();
+    this.events = mitt();
+  }
+
+  addEventListener<T extends keyof ChunkImageEvents>(
+    type: T,
+    callback: (info: ChunkImageEvents[T]) => void
+  ): void {
+    this.events.on(type, callback);
+  }
+
+  removeEventListener<T extends keyof ChunkImageEvents>(
+    type: T,
+    callback: (info: ChunkImageEvents[T]) => void
+  ): void {
+    this.events.off(type, callback);
   }
 
   dispose() {
     this.unregisterChunkListeners();
+    this.events.all.clear();
     this.chunks.length = 0;
     this.imageData = null;
     this.dataId = null;
     this.chunkStatus.value = [];
-    this.thumbnailPromises = new WeakMap();
+    this.thumbnailCache = new WeakMap();
   }
 
   startLoad() {
@@ -137,11 +155,11 @@ export default class DicomChunkImage implements ChunkImage {
         case ChunkState.Init:
         case ChunkState.MetaLoading:
         case ChunkState.MetaOnly:
-          return DicomChunkStatus.NotLoaded;
+          return ChunkStatus.NotLoaded;
         case ChunkState.DataLoading:
-          return DicomChunkStatus.Loading;
+          return ChunkStatus.Loading;
         case ChunkState.Loaded:
-          return DicomChunkStatus.Loaded;
+          return ChunkStatus.Loaded;
         default:
           throw new Error('Chunk is in an invalid state');
       }
@@ -164,9 +182,9 @@ export default class DicomChunkImage implements ChunkImage {
     const middle = Math.floor(this.chunks.length / 2);
     const chunk = this.chunks[middle];
 
-    if (!this.thumbnailPromises.has(chunk)) {
+    if (!this.thumbnailCache.has(chunk)) {
       // NOTE(fli): if chunk changes, the old promise is not cancelled
-      this.thumbnailPromises.set(
+      this.thumbnailCache.set(
         chunk,
         waitForChunkState(chunk, ChunkState.Loaded).then((ch) => {
           if (!ch.dataBlob) throw new Error('No chunk data');
@@ -174,7 +192,7 @@ export default class DicomChunkImage implements ChunkImage {
         })
       );
     }
-    return this.thumbnailPromises.get(chunk)!;
+    return this.thumbnailCache.get(chunk)!;
   }
 
   private processChunks() {
@@ -188,9 +206,18 @@ export default class DicomChunkImage implements ChunkImage {
   private registerChunkListeners() {
     this.chunkListeners = [
       ...this.chunks.map((chunk, index) => {
-        return chunk.addEventListener('doneData', () => {
+        const stopDoneData = chunk.addEventListener('doneData', () => {
           this.onChunkHasData(index);
         });
+
+        const stopError = chunk.addEventListener('error', (err) => {
+          this.onChunkErrored(index, err);
+        });
+
+        return () => {
+          stopDoneData();
+          stopError();
+        };
       }),
     ];
   }
@@ -209,11 +236,6 @@ export default class DicomChunkImage implements ChunkImage {
   private async onChunkHasData(chunkIndex: number) {
     if (!this.imageData) return;
 
-    const rangeAlreadyInitialized = this.chunkStatus.value.some(
-      (status) => status === DicomChunkStatus.Loaded
-    );
-    this.chunkStatus.value[chunkIndex] = DicomChunkStatus.Loaded;
-
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
     const result = await readImage(new File([chunk.dataBlob], 'file.dcm'), {
@@ -229,6 +251,10 @@ export default class DicomChunkImage implements ChunkImage {
     const offset =
       dims[0] * dims[1] * scalars.getNumberOfComponents() * chunkIndex;
     pixelData.set(result.image.data as TypedArray, offset);
+
+    const rangeAlreadyInitialized = this.chunkStatus.value.some(
+      (status) => status === ChunkStatus.Loaded
+    );
 
     // update the data range
     for (let comp = 0; comp < scalars.getNumberOfComponents(); comp++) {
@@ -246,8 +272,22 @@ export default class DicomChunkImage implements ChunkImage {
       scalars.setRange({ min: newMin, max: newMax }, comp);
     }
 
-    scalars.modified();
+    this.events.emit('chunkLoaded', {
+      chunk,
+      updatedExtent: [0, dims[0] - 1, 0, dims[1] - 1, chunkIndex, chunkIndex],
+    });
+
+    this.chunkStatus.value[chunkIndex] = ChunkStatus.Loaded;
+
     this.imageData.modified();
+  }
+
+  private onChunkErrored(chunkIndex: number, err: unknown) {
+    this.events.emit('chunkErrored', {
+      chunk: this.chunks[chunkIndex],
+      error: err,
+    });
+    this.chunkStatus.value[chunkIndex] = ChunkStatus.Errored;
   }
 
   private updateDicomStore() {
