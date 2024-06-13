@@ -1,0 +1,39 @@
+diff --git a/node_modules/@vueuse/core/index.d.cts b/node_modules/@vueuse/core/index.d.cts
+index b8d2bbe..1bd10af 100644
+--- a/node_modules/@vueuse/core/index.d.cts
++++ b/node_modules/@vueuse/core/index.d.cts
+@@ -1852,7 +1852,7 @@ declare function useEventListener<E extends keyof HTMLElementEventMap>(target: M
+  * @param listener
+  * @param options
+  */
+-declare function useEventListener<Names extends string, EventType = Event>(target: InferEventTarget<Names>, event: Arrayable<Names>, listener: Arrayable<GeneralEventListener<EventType>>, options?: MaybeRefOrGetter<boolean | AddEventListenerOptions>): Fn;
++declare function useEventListener<Names extends string, EventType = Event>(target: MaybeRefOrGetter<InferEventTarget<Names> | null | undefined>, event: Arrayable<Names>, listener: Arrayable<GeneralEventListener<EventType>>, options?: MaybeRefOrGetter<boolean | AddEventListenerOptions>): Fn;
+ /**
+  * Register using addEventListener on mounted, and removeEventListener automatically on unmounted.
+  *
+diff --git a/node_modules/@vueuse/core/index.d.mts b/node_modules/@vueuse/core/index.d.mts
+index b8d2bbe..5107394 100644
+--- a/node_modules/@vueuse/core/index.d.mts
++++ b/node_modules/@vueuse/core/index.d.mts
+@@ -1852,7 +1852,7 @@ declare function useEventListener<E extends keyof HTMLElementEventMap>(target: M
+  * @param listener
+  * @param options
+  */
+-declare function useEventListener<Names extends string, EventType = Event>(target: InferEventTarget<Names>, event: Arrayable<Names>, listener: Arrayable<GeneralEventListener<EventType>>, options?: MaybeRefOrGetter<boolean | AddEventListenerOptions>): Fn;
++declare function useEventListener<Names extends string, EventType = Event>(target: MaybeRefOrGetteR<InferEventTarget<Names> | null | undefined>, event: Arrayable<Names>, listener: Arrayable<GeneralEventListener<EventType>>, options?: MaybeRefOrGetter<boolean | AddEventListenerOptions>): Fn;
+ /**
+  * Register using addEventListener on mounted, and removeEventListener automatically on unmounted.
+  *
+diff --git a/node_modules/@vueuse/core/index.d.ts b/node_modules/@vueuse/core/index.d.ts
+index b8d2bbe..1bd10af 100644
+--- a/node_modules/@vueuse/core/index.d.ts
++++ b/node_modules/@vueuse/core/index.d.ts
+@@ -1852,7 +1852,7 @@ declare function useEventListener<E extends keyof HTMLElementEventMap>(target: M
+  * @param listener
+  * @param options
+  */
+-declare function useEventListener<Names extends string, EventType = Event>(target: InferEventTarget<Names>, event: Arrayable<Names>, listener: Arrayable<GeneralEventListener<EventType>>, options?: MaybeRefOrGetter<boolean | AddEventListenerOptions>): Fn;
++declare function useEventListener<Names extends string, EventType = Event>(target: MaybeRefOrGetter<InferEventTarget<Names> | null | undefined>, event: Arrayable<Names>, listener: Arrayable<GeneralEventListener<EventType>>, options?: MaybeRefOrGetter<boolean | AddEventListenerOptions>): Fn;
+ /**
+  * Register using addEventListener on mounted, and removeEventListener automatically on unmounted.
+  *
