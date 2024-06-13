@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import { computed, defineComponent, ref, unref } from 'vue';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import VolumeProperties from './VolumeProperties.vue';
 import VolumeRendering from './VolumeRendering.vue';
@@ -9,8 +9,11 @@ import LayerList from './LayerList.vue';
 export default defineComponent({
   components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
   setup() {
-    const { currentImageData } = useCurrentImage();
+    const { currentImageData, currentChunkImage } = useCurrentImage();
     const hasCurrentImage = computed(() => !!currentImageData.value);
+    const isImageLoading = computed(
+      () => !!unref(currentChunkImage.value?.isLoading)
+    );
 
     const { currentLayers } = useCurrentImage();
     const hasLayers = computed(() => !!currentLayers.value.length);
@@ -21,15 +24,18 @@ export default defineComponent({
       panels,
       hasCurrentImage,
       hasLayers,
+      isImageLoading,
     };
   },
 });
 </script>
 
 <template>
-  <div class="overflow-y-auto mx-2 fill-height">
+  <div class="overflow-y-auto mx-2 mt-1 fill-height">
     <template v-if="hasCurrentImage">
-      <volume-rendering />
+      <v-skeleton-loader v-if="isImageLoading" type="image">
+      </v-skeleton-loader>
+      <volume-rendering v-else />
       <v-expansion-panels v-model="panels" multiple variant="accordion">
         <v-expansion-panel value="preset">
           <v-expansion-panel-title>
