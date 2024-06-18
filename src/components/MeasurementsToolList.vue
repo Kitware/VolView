@@ -10,6 +10,7 @@ import {
   MultipleSelectionState,
 } from '@/src/composables/useMultipleToolSelection';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import type { Maybe } from '@/src/types';
 import MeasurementToolDetails from './MeasurementToolDetails.vue';
 import { AnnotationTool } from '../types/annotation-tool';
 
@@ -80,7 +81,7 @@ const selectionStore = useToolSelectionStore();
 const { selectAll, deselectAll, selected, selectionState } =
   useMultipleToolSelection(tools);
 
-const toggleSelectAll = (shouldSelectAll: boolean) => {
+const toggleSelectAll = (shouldSelectAll: Maybe<boolean>) => {
   if (shouldSelectAll) {
     selectAll();
   } else {
