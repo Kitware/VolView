@@ -6,12 +6,15 @@ import AboutBox from '@/src/components/AboutBox.vue';
 import VolViewFullLogo from '@/src/components/icons/VolViewFullLogo.vue';
 import VolViewLogo from '@/src/components/icons/VolViewLogo.vue';
 
+const emit = defineEmits(['click:left-menu']);
+
 const { mobile } = useDisplay();
 const aboutBoxDialog = ref(false);
 </script>
 
 <template>
   <v-app-bar app clipped-left :height="48">
+    <v-btn v-if="mobile" icon="mdi-menu" @click="emit('click:left-menu')" />
     <v-toolbar-title class="d-flex flex-row align-center mt-3">
       <vol-view-logo v-if="mobile" />
       <vol-view-full-logo v-else />
