@@ -14,7 +14,7 @@ const aboutBoxDialog = ref(false);
 
 <template>
   <v-app-bar app clipped-left :height="48">
-    <v-btn v-if="mobile" icon="mdi-menu" @click="emit('click:left-menu')" />
+    <v-btn icon="mdi-menu" @click="emit('click:left-menu')" />
     <v-toolbar-title class="d-flex flex-row align-center mt-3">
       <vol-view-logo v-if="mobile" />
       <vol-view-full-logo v-else />
