@@ -60,6 +60,13 @@ export const ACTIONS = {
     readable: 'Activate next Label',
   },
 
+  changeNextImage: {
+    readable: 'Next Image',
+  },
+  changePreviousImage: {
+    readable: 'Previous Image',
+  },
+
   showKeyboardShortcuts: {
     readable: 'Show keyboard shortcuts dialog',
   },

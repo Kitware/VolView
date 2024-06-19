@@ -301,5 +301,8 @@ export const ACTION_TO_KEY = {
   decrementLabel: 'q',
   incrementLabel: 'w',
 
+  changeNextImage: 'ArrowRight',
+  changePreviousImage: 'ArrowLeft',
+
   showKeyboardShortcuts: '?',
 } satisfies Record<Action, string>;

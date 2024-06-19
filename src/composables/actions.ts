@@ -5,6 +5,7 @@ import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
 import { Action } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
+import { useDatasetStore } from '../store/datasets';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -36,6 +37,14 @@ const showKeyboardShortcuts = () => {
   keyboardStore.settingsOpen = true;
 };
 
+const changeNextImage = () => () => {
+  useDatasetStore().changeNextImage();
+};
+
+const changePreviousImage = () => () => {
+  useDatasetStore().changePreviousImage();
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
@@ -50,6 +59,9 @@ export const ACTION_TO_FUNC = {
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
+
+  changeNextImage: changeNextImage(),
+  changePreviousImage: changePreviousImage(),
 
   showKeyboardShortcuts,
 } as const satisfies Record<Action, () => void>;
