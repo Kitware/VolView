@@ -33,11 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build docs
-        run: npm run doc
+        run: npm run docs:build
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: './documentation/build-tmp/public'
+          path: './docs/.vitepress/dist'
 
   deploy:
     name: Deploy Docs

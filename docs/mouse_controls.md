@@ -1,11 +1,5 @@
 # Keyboard shortcuts
 
-<style>
-table {
-  width: 100%;
-}
-</style>
-
 ## Data management
 
 | Shortcut | Action |

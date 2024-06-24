@@ -1,9 +1,8 @@
-title: What is VolView?
-----
+# What is VolView?
 
 VolView is an open source radiological viewer developed for clinical professionals. With VolView, you can gain a deeper understanding of your data through high-quality, interactive visualizations, including cinematic volume renderings. Since VolView runs in your browser, you do not need to install software, and your data stays securely on your machine.
 
-![Welcome](../gallery/VolView-Overview.jpg)
+![Welcome](./assets/VolView-Overview.jpg)
 
 ## Features
 

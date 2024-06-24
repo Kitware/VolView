@@ -66,4 +66,4 @@ To layer images:
 1. On the Data tab, click the Add Layer button on the upper layer dataset.
 1. Under the Rendering tab, an opacity slider changes the transparency of the upper layer.
 
-![Add Layer](../images/add-layer.jpg)
+![Add Layer](./assets/add-layer.jpg)
