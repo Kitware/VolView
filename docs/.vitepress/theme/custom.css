@@ -1,0 +1,18 @@
+.gallery {
+  margin-top: 8px;
+}
+
+.gallery img {
+  width: 32%;
+  display: inline-block;
+  padding: 5px;
+}
+
+.gallery br {
+  display: none;
+}
+
+footer.VPFooter {
+  display: block !important;
+  border: none !important;
+}

@@ -1,5 +1,4 @@
-title: VolView Server Guide
----
+# VolView Server Guide
 
 The VolView server extends the VolView viewer with remote processing
 capabilities. It integrates with your Python-based code and exposes that

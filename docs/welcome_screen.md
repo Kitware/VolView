@@ -1,6 +1,6 @@
 # Welcome Screen
 
-![welcome screen](../gallery/01-volview-welcome-notes.jpg)
+![welcome screen](./assets/01-volview-welcome-notes.jpg)
 
 ## Tabs
 
