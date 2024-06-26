@@ -1,6 +1,7 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import { toFromPlane } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import { useAnnotationTool } from './useAnnotationTool';
@@ -23,13 +24,21 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   }
 
   function mergeTools(tools: Array<ToolID>) {
-    const points = tools
-      .map((id) => toolAPI.toolByID.value[id])
-      .reduce((allPoints, tool) => {
-        return allPoints.concat(tool.points);
-      }, [] as Array<Vector3>);
-    toolAPI.updateTool(tools[0], { points });
-    tools.slice(1).forEach(toolAPI.removeTool);
+    const firstTool = toolAPI.toolByID.value[tools[0]];
+    const { to2D, to3D } = toFromPlane(firstTool.frameOfReference);
+    const mergedPoints = tools
+      .flatMap((id) => toolAPI.toolByID.value[id].points)
+      .map(to2D)
+      .map(to3D);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _, ...toolProps } = firstTool;
+    const mergedTool = {
+      ...toolProps,
+      points: mergedPoints,
+    };
+    toolAPI.addTool(mergedTool);
+    tools.forEach(toolAPI.removeTool);
   }
 
   // --- serialization --- //

@@ -1,5 +1,7 @@
 import { vec3 } from 'gl-matrix';
-import type { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import vtkMath from '@kitware/vtk.js/Common/Core/Math';
+import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
 import { LPSAxis } from '../types/lps';
 import { EPSILON } from '../constants';
 import { roundIfCloseToInteger } from '.';
@@ -87,4 +89,61 @@ export function getSmallestSpacing(
   const spacing = [...metadata.spacing];
   spacing.splice(axisIndex, 1);
   return Math.min(...spacing);
+}
+
+export function toFromPlane({ planeOrigin, planeNormal }: FrameOfReference) {
+  const scratchA = [0, 0, 0] as Vector3;
+  const scratchB = [0, 0, 0] as Vector3;
+  const e1 = [0, 0, 0] as Vector3;
+  const e2 = [0, 0, 0] as Vector3;
+  if (Math.abs(planeNormal[0]) > 1e-6) {
+    e1[0] = -planeNormal[1];
+    e1[1] = planeNormal[0];
+    e1[2] = 0;
+  } else if (Math.abs(planeNormal[1]) > 1e-6) {
+    e1[0] = 0;
+    e1[1] = -planeNormal[2];
+    e1[2] = planeNormal[1];
+  } else {
+    e1[0] = planeNormal[2];
+    e1[1] = 0;
+    e1[2] = -planeNormal[0];
+  }
+  vtkMath.cross(planeNormal, e1, e2);
+  vtkMath.normalize(e1);
+  vtkMath.normalize(e2);
+
+  const plane = vtkPlane.newInstance();
+  plane.setOrigin(planeOrigin);
+  plane.setNormal(planeNormal);
+
+  const to2D = (point3D: Vector3) => {
+    plane.projectPoint(point3D, scratchA);
+    const v = vtkMath.subtract(scratchA, planeOrigin, scratchB);
+    const x = vtkMath.dot(v, e1);
+    const y = vtkMath.dot(v, e2);
+    return [x, y] as Vector2;
+  };
+
+  const to3D = (point2D: Vector2) => {
+    const [x, y] = point2D;
+
+    const point3D = [0, 0, 0] as Vector3;
+
+    scratchA[0] = e1[0];
+    scratchA[1] = e1[1];
+    scratchA[2] = e1[2];
+    scratchB[0] = e2[0];
+    scratchB[1] = e2[1];
+    scratchB[2] = e2[2];
+
+    vtkMath.multiplyScalar(scratchA, x);
+    vtkMath.multiplyScalar(scratchB, y);
+    vtkMath.add(planeOrigin, scratchA, point3D);
+    vtkMath.add(point3D, scratchB, point3D);
+
+    return point3D;
+  };
+
+  return { to2D, to3D };
 }
