@@ -8,6 +8,10 @@ import { ImportHandler } from '@/src/io/import/common';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useMessageStore } from '@/src/store/messages';
+import { useViewStore } from '@/src/store/views';
+import { useViewSliceStore } from '@/src/store/view-configs/slicing';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { InitViewSpecs } from '@/src/config';
 
 /**
  * Reads and imports a file DataSource.
@@ -36,6 +40,19 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
     );
     fileStore.add(dataID, [dataSource as DataSourceWithFile]);
 
+    // Create a default view for each viewID
+    useViewStore().viewIDs.forEach((viewID) => {
+      const { lpsOrientation, dimensions } = useImageStore().metadata[dataID];
+      const axisDir = InitViewSpecs[viewID].props.viewDirection
+      const lpsFromDir = getLPSAxisFromDir(axisDir);
+      const lpsOrient = lpsOrientation[lpsFromDir];
+
+      const dimMax = dimensions[lpsOrient];
+
+      useViewSliceStore().updateConfig(viewID, dataID, { axisDirection: axisDir, max: dimMax - 1 });
+      useViewSliceStore().resetSlice(viewID, dataID);
+    });
+    
     return done({
       dataID,
       dataSource,
