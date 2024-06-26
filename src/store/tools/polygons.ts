@@ -22,6 +22,16 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return tool.points;
   }
 
+  function mergeTools(tools: Array<ToolID>) {
+    const points = tools
+      .map((id) => toolAPI.toolByID.value[id])
+      .reduce((allPoints, tool) => {
+        return allPoints.concat(tool.points);
+      }, [] as Array<Vector3>);
+    toolAPI.updateTool(tools[0], { points });
+    tools.slice(1).forEach(toolAPI.removeTool);
+  }
+
   // --- serialization --- //
 
   function serialize(state: StateFile) {
@@ -35,6 +45,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   return {
     ...toolAPI,
     getPoints,
+    mergeTools,
     serialize,
     deserialize,
   };
