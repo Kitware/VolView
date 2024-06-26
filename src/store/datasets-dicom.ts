@@ -161,7 +161,6 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-
     async importFiles(datasets: FileDataSource[]) {
       if (!datasets.length) return [];
 

@@ -41,10 +41,7 @@ setPipelineWorkerUrl(itkConfig.pipelineWorkerUrl);
 setPipelinesBaseUrl(itkConfig.imageIOUrl);
 
 const pinia = createPinia();
-pinia.use(
-  CorePiniaProviderPlugin({
-  })
-);
+pinia.use(CorePiniaProviderPlugin({}));
 pinia.use(StoreRegistry);
 
 const app = createApp(App);
