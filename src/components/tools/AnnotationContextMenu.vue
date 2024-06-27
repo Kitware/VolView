@@ -89,6 +89,7 @@ const hideToolFromContextMenu = () => {
       </v-list-item>
 
       <!-- Optional items below stable items for muscle memory  -->
+      <slot></slot>
       <v-list-item
         v-for="action in contextMenu.widgetActions"
         @click="action.func"

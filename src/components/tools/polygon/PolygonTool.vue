@@ -14,7 +14,14 @@
         @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
-    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
+    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore">
+      <v-list-item @click="mergeTools" v-if="mergePossible">
+        <template v-slot:prepend>
+          <v-icon>mdi-vector-union</v-icon>
+        </template>
+        <v-list-item-title>Merge Polygons</v-list-item-title>
+      </v-list-item>
+    </annotation-context-menu>
     <annotation-info :info="overlayInfo" :tool-store="activeToolStore" />
   </div>
 </template>
@@ -124,12 +131,18 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, slice);
 
+    const mergePossible = computed(
+      () => activeToolStore.mergeableTools.length > 1
+    );
+
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
       onToolPlaced,
       contextMenu,
       openContextMenu,
+      mergeTools: activeToolStore.mergeTools,
+      mergePossible,
       activeToolStore,
       onHover,
       overlayInfo,
