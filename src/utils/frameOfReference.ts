@@ -91,11 +91,15 @@ export function getSmallestSpacing(
   return Math.min(...spacing);
 }
 
-export function toFromPlane({ planeOrigin, planeNormal }: FrameOfReference) {
+export function getPlaneTransforms({
+  planeOrigin,
+  planeNormal,
+}: FrameOfReference) {
   const scratchA = [0, 0, 0] as Vector3;
   const scratchB = [0, 0, 0] as Vector3;
   const e1 = [0, 0, 0] as Vector3;
   const e2 = [0, 0, 0] as Vector3;
+  // Pick a vector orthogonal to the normal
   if (Math.abs(planeNormal[0]) > 1e-6) {
     e1[0] = -planeNormal[1];
     e1[1] = planeNormal[0];

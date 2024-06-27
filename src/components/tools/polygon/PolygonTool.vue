@@ -15,7 +15,7 @@
       />
     </svg>
     <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore">
-      <v-list-item @click="mergePolygons" v-if="mergePossible">
+      <v-list-item @click="mergeTools" v-if="mergePossible">
         <template v-slot:prepend>
           <v-icon>mdi-vector-union</v-icon>
         </template>
@@ -31,8 +31,7 @@ import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
-import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { Tools, AnnotationToolType } from '@/src/store/tools/types';
+import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { usePolygonStore } from '@/src/store/tools/polygons';
@@ -132,28 +131,9 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, slice);
 
-    const selectionStore = useToolSelectionStore();
-    const mergePossible = computed(() => {
-      const selectedPolygons = selectionStore.selection
-        .filter((sel) => sel.type === AnnotationToolType.Polygon)
-        .map((sel) => {
-          return activeToolStore.toolByID[sel.id];
-        });
-      if (selectedPolygons.length < 2) return false;
-      const benchmark = selectedPolygons[0];
-      return selectedPolygons.every(
-        (polygon) =>
-          polygon.slice === benchmark.slice &&
-          polygon.frameOfReference === benchmark.frameOfReference
-      );
-    });
-    const mergePolygons = () => {
-      activeToolStore.mergeTools(
-        selectionStore.selection
-          .filter((sel) => sel.type === AnnotationToolType.Polygon)
-          .map((sel) => sel.id)
-      );
-    };
+    const mergePossible = computed(
+      () => activeToolStore.mergeableTools.length > 1
+    );
 
     return {
       tools: currentTools,
@@ -161,7 +141,7 @@ export default defineComponent({
       onToolPlaced,
       contextMenu,
       openContextMenu,
-      mergePolygons,
+      mergeTools: activeToolStore.mergeTools,
       mergePossible,
       activeToolStore,
       onHover,

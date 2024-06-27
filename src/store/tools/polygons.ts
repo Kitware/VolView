@@ -1,8 +1,14 @@
 import * as polygonClipping from 'polyclip-ts';
 import type { Vector3 } from '@kitware/vtk.js/types';
+import { computed } from 'vue';
+import {
+  ToolSelection,
+  useToolSelectionStore,
+} from '@/src/store/tools/toolSelection';
+import { AnnotationToolType } from '@/src/store/tools/types';
 import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { toFromPlane } from '@/src/utils/frameOfReference';
+import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import { useAnnotationTool } from './useAnnotationTool';
@@ -24,18 +30,36 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return tool.points;
   }
 
-  function mergeTools(tools: Array<ToolID>) {
-    const firstTool = toolAPI.toolByID.value[tools[0]];
-    const { to2D, to3D } = toFromPlane(firstTool.frameOfReference);
+  const selectionStore = useToolSelectionStore();
+  const isPolygonTool = (tool: ToolSelection) =>
+    tool.type === AnnotationToolType.Polygon;
 
-    const polygons = tools
-      .map((id) => toolAPI.toolByID.value[id].points)
-      .map((points) => points.map(to2D));
-
-    const merged = polygonClipping.union(
-      [polygons[0]], // GeoJSON Polygon can have multiple rings so wrap in array
-      ...polygons.slice(1).map((p) => [p])
+  const mergeableTools = computed(() => {
+    const selectedPolygons = selectionStore.selection
+      .filter(isPolygonTool)
+      .map((sel) => {
+        return toolAPI.toolByID.value[sel.id];
+      });
+    if (selectedPolygons.length < 2) return [];
+    const benchmark = selectedPolygons[0];
+    const mergePossible = selectedPolygons.every(
+      (polygon) =>
+        polygon.slice === benchmark.slice &&
+        polygon.frameOfReference === benchmark.frameOfReference
     );
+    return mergePossible ? selectedPolygons : [];
+  });
+
+  function mergeTools() {
+    const firstTool = mergeableTools.value[0];
+    const { to2D, to3D } = getPlaneTransforms(firstTool.frameOfReference);
+
+    const polygons = mergeableTools.value
+      .map((tool) => tool.points)
+      .map((points) => [points.map(to2D)]); // GeoJSON Polygon can have multiple rings so wrap in array
+
+    const [first, ...rest] = polygons;
+    const merged = polygonClipping.union(first, ...rest);
     const points = merged.flatMap((p) => p.flatMap((ring) => ring.map(to3D)));
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -45,7 +69,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
       points,
     };
     toolAPI.addTool(mergedTool);
-    tools.forEach(toolAPI.removeTool);
+    mergeableTools.value.map(({ id }) => id).forEach(toolAPI.removeTool);
   }
 
   // --- serialization --- //
@@ -60,6 +84,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
 
   return {
     ...toolAPI,
+    mergeableTools,
     getPoints,
     mergeTools,
     serialize,
