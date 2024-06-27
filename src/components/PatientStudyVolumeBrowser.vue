@@ -1,9 +1,10 @@
 <script lang="ts">
 import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
-import { Image } from 'itk-wasm';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
+import { ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
+import useChunkStore from '@/src/store/chunks';
 import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
 import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
@@ -11,47 +12,8 @@ import { useMessageStore } from '../store/messages';
 import { useLayersStore } from '../store/datasets-layers';
 import PersistentOverlay from './PersistentOverlay.vue';
 
-const canvas = document.createElement('canvas');
-
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
-}
-
-// Assume itkImage type is Uint8Array
-function itkImageToURI(itkImage: Image) {
-  const [width, height] = itkImage.size;
-  const im = new ImageData(width, height);
-  const arr32 = new Uint32Array(im.data.buffer);
-  const itkBuf = itkImage.data;
-  if (!itkBuf) {
-    return '';
-  }
-
-  for (let i = 0; i < itkBuf.length; i += 1) {
-    const byte = itkBuf[i] as number;
-    // ABGR order
-    // eslint-disable-next-line no-bitwise
-    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
-  }
-
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.putImageData(im, 0, 0);
-    return canvas.toDataURL('image/png');
-  }
-  return '';
-}
-
-async function generateDICOMThumbnail(
-  dicomStore: ReturnType<typeof useDICOMStore>,
-  volumeKey: string
-) {
-  if (volumeKey in dicomStore.volumeInfo) {
-    return (await dicomStore.getVolumeThumbnail(volumeKey)) as Image;
-  }
-  throw new Error('No matching volume key in dicomStore');
 }
 
 export default defineComponent({
@@ -127,12 +89,14 @@ export default defineComponent({
             return;
           }
 
+          const chunkStore = useChunkStore();
+
           try {
-            const thumb = await generateDICOMThumbnail(dicomStore, key);
-            if (thumb !== null) {
-              const encodedImage = itkImageToURI(thumb);
-              thumbnailCache[cacheKey] = encodedImage;
-            }
+            const chunk = chunkStore.chunkImageById[key];
+            const thumb = await chunk.getThumbnail(
+              ThumbnailStrategy.MiddleSlice
+            );
+            thumbnailCache[cacheKey] = thumb;
           } catch (err) {
             if (err instanceof Error) {
               const messageStore = useMessageStore();

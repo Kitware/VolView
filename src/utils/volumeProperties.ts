@@ -106,7 +106,6 @@ export interface SetCinematicVolumeSamplingParameters {
   enabled: boolean;
   mapper: vtkVolumeMapper;
   quality: number;
-  isAnimating: boolean;
   image: vtkImageData;
 }
 
@@ -114,36 +113,28 @@ export function setCinematicVolumeSampling({
   enabled,
   mapper,
   quality,
-  isAnimating,
   image,
 }: SetCinematicVolumeSamplingParameters) {
-  if (isAnimating) {
-    mapper.setSampleDistance(0.75);
-    mapper.setMaximumSamplesPerRay(1000);
-    mapper.setGlobalIlluminationReach(0);
-    mapper.setComputeNormalFromOpacity(false);
-  } else {
-    const dims = image.getDimensions();
-    const spacing = image.getSpacing();
-    const spatialDiagonal = vec3.length(
-      vec3.fromValues(
-        dims[0] * spacing[0],
-        dims[1] * spacing[1],
-        dims[2] * spacing[2]
-      )
-    );
+  const dims = image.getDimensions();
+  const spacing = image.getSpacing();
+  const spatialDiagonal = vec3.length(
+    vec3.fromValues(
+      dims[0] * spacing[0],
+      dims[1] * spacing[1],
+      dims[2] * spacing[2]
+    )
+  );
 
-    // Use the average spacing for sampling by default
-    let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
-    // Adjust the volume sampling by the quality slider value
-    sampleDistance /= quality > 1 ? 0.5 * quality ** 2 : 1.0;
-    const samplesPerRay = spatialDiagonal / sampleDistance + 1;
-    mapper.setMaximumSamplesPerRay(samplesPerRay);
-    mapper.setSampleDistance(sampleDistance);
-    // Adjust the global illumination reach by volume quality slider
-    mapper.setGlobalIlluminationReach(enabled ? 0.25 * quality : 0);
-    mapper.setComputeNormalFromOpacity(!enabled && quality > 2);
-  }
+  // Use the average spacing for sampling by default
+  let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
+  // Adjust the volume sampling by the quality slider value
+  sampleDistance /= quality > 1 ? 0.5 * quality ** 2 : 1.0;
+  const samplesPerRay = spatialDiagonal / sampleDistance + 1;
+  mapper.setMaximumSamplesPerRay(samplesPerRay);
+  mapper.setSampleDistance(sampleDistance);
+  // Adjust the global illumination reach by volume quality slider
+  mapper.setGlobalIlluminationReach(enabled ? 0.25 * quality : 0);
+  mapper.setComputeNormalFromOpacity(!enabled && quality > 2);
 }
 
 export interface SetCinematicVolumeShadingParameters {

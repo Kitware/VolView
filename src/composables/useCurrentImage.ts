@@ -16,6 +16,7 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '@/src/utils/lps';
 import { useDatasetStore } from '@/src/store/datasets';
 import { storeToRefs } from 'pinia';
+import useChunkStore from '@/src/store/chunks';
 
 export interface CurrentImageContext {
   imageID: Ref<Maybe<string>>;
@@ -57,8 +58,9 @@ export function getImageData(imageID: Maybe<string>) {
 
 export function getIsImageLoading(imageID: Maybe<string>) {
   if (!imageID) return false;
-  const imageStore = useImageStore();
-  return !imageStore.dataIndex[imageID];
+  const image = useChunkStore().chunkImageById[imageID];
+  if (!image) return false;
+  return unref(image.isLoading);
 }
 
 export function getImageLayers(imageID: Maybe<string>) {
@@ -69,6 +71,12 @@ export function getImageLayers(imageID: Maybe<string>) {
     .filter(({ id }) => id in layersStore.layerImages);
 }
 
+export function getChunkImage(imageID: Maybe<string>) {
+  if (!imageID) return null;
+  const chunkStore = useChunkStore();
+  return chunkStore.chunkImageById[imageID];
+}
+
 export function useImage(imageID: MaybeRef<Maybe<string>>) {
   return {
     id: computed(() => unref(imageID)),
@@ -77,6 +85,7 @@ export function useImage(imageID: MaybeRef<Maybe<string>>) {
     extent: computed(() => getImageSpatialExtent(unref(imageID))),
     isLoading: computed(() => getIsImageLoading(unref(imageID))),
     layers: computed(() => getImageLayers(unref(imageID))),
+    chunkImage: computed(() => getChunkImage(unref(imageID))),
   };
 }
 
@@ -87,7 +96,7 @@ export function useCurrentImage() {
     ? inject(CurrentImageInjectionKey, defaultContext)
     : defaultContext;
 
-  const { id, imageData, metadata, extent, isLoading, layers } =
+  const { id, imageData, metadata, extent, isLoading, layers, chunkImage } =
     useImage(imageID);
   return {
     currentImageID: id,
@@ -96,5 +105,6 @@ export function useCurrentImage() {
     currentImageExtent: extent,
     isImageLoading: isLoading,
     currentLayers: layers,
+    currentChunkImage: chunkImage,
   };
 }

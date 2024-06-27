@@ -189,7 +189,7 @@ export default defineComponent({
       (image) => {
         if (image) {
           const scalars = image.getPointData().getScalars();
-          pwfWidget.setDataArray(scalars.getData());
+          pwfWidget.setDataArray(scalars);
           pwfWidget.render();
         }
       },

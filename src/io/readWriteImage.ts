@@ -11,7 +11,7 @@ export const readImage = async (file: File) => {
   if (file.name.endsWith('.vti'))
     return (await vtiReader(file)) as vtkImageData;
 
-  const { image, webWorker } = await readImageItk(null, file);
+  const { image, webWorker } = await readImageItk(file);
   webWorker.terminate();
   return vtkITKHelper.convertItkToVtkImage(image);
 };
@@ -34,7 +34,7 @@ export const writeImage = async (format: string, image: vtkImageData) => {
     }
   }
 
-  const result = await writeImageItk(null, itkImage, `image.${format}`);
+  const result = await writeImageItk(itkImage, `image.${format}`);
   result.webWorker?.terminate();
   return result.serializedImage.data;
 };
