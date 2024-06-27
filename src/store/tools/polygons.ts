@@ -1,3 +1,4 @@
+import * as polygonClipping from 'polyclip-ts';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
@@ -26,16 +27,22 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   function mergeTools(tools: Array<ToolID>) {
     const firstTool = toolAPI.toolByID.value[tools[0]];
     const { to2D, to3D } = toFromPlane(firstTool.frameOfReference);
-    const mergedPoints = tools
-      .flatMap((id) => toolAPI.toolByID.value[id].points)
-      .map(to2D)
-      .map(to3D);
+
+    const polygons = tools
+      .map((id) => toolAPI.toolByID.value[id].points)
+      .map((points) => points.map(to2D));
+
+    const merged = polygonClipping.union(
+      [polygons[0]], // GeoJSON Polygon can have multiple rings so wrap in array
+      ...polygons.slice(1).map((p) => [p])
+    );
+    const points = merged.flatMap((p) => p.flatMap((ring) => ring.map(to3D)));
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _, ...toolProps } = firstTool;
     const mergedTool = {
       ...toolProps,
-      points: mergedPoints,
+      points,
     };
     toolAPI.addTool(mergedTool);
     tools.forEach(toolAPI.removeTool);
