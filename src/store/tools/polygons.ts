@@ -30,8 +30,34 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return tool.points;
   }
 
-  type Polygon = (typeof toolAPI.tools.value)[number];
+  // -- merge tool helpers -- //
+  type Tool = (typeof toolAPI.tools.value)[number];
+
+  const toGeoJSON = (polygon: Tool) => {
+    const { to2D } = getPlaneTransforms(polygon.frameOfReference);
+    if (polygon.points.length === 0) return undefined; // empty polygons are invalid to polyclip-ts
+    return [polygon.points.map(to2D)]; // GeoJSON Polygon can have multiple rings so wrap in array
+  };
+
+  const polygonsOverlap = (a: Tool, b: Tool) => {
+    const [aGeo, bGeo] = [a, b].map(toGeoJSON);
+    if (!aGeo || !bGeo) return false;
+    return polygonClipping.intersection(aGeo, bGeo).length > 0;
+  };
+
+  const sameSliceAndLabel = (a: Tool, b: Tool) =>
+    a.label === b.label &&
+    a.slice === b.slice &&
+    a.frameOfReference === b.frameOfReference;
+
+  const mergable = (a: Tool, b: Tool) => {
+    if (!sameSliceAndLabel(a, b)) return false;
+    return polygonsOverlap(a, b);
+  };
+  // --- //
+
   const selectionStore = useToolSelectionStore();
+
   const isPolygonTool = (tool: ToolSelection) =>
     tool.type === AnnotationToolType.Polygon;
 
@@ -42,61 +68,54 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
         return toolAPI.toolByID.value[sel.id];
       });
     if (selectedPolygons.length < 2) return [];
-    const benchmark = selectedPolygons[0];
-    const mergePossible = selectedPolygons.every(
-      (polygon) =>
-        polygon.label === benchmark.label &&
-        polygon.slice === benchmark.slice &&
-        polygon.frameOfReference === benchmark.frameOfReference
-    );
-    if (!mergePossible) return [];
-
-    const { to2D } = getPlaneTransforms(selectedPolygons[0].frameOfReference);
-    const toGeoJSON = (polygon: Polygon) => [polygon.points.map(to2D)];
-    const polygonsOverlap = (a: Polygon, b: Polygon) => {
-      return (
-        polygonClipping.intersection(toGeoJSON(a), toGeoJSON(b)).length > 0
+    const [first, ...rest] = selectedPolygons;
+    const overlapping = [first];
+    while (rest.length > 0) {
+      const overlappingIndex = rest.findIndex((candidate) =>
+        overlapping.some((inTool) => mergable(candidate, inTool))
       );
-    };
-    const overlappingGroups = selectedPolygons
-      .reduce((groups, candidate) => {
-        const overlappingGroup = groups.find((set) =>
-          set.some((group) => polygonsOverlap(group, candidate))
-        );
-        if (overlappingGroup) {
-          overlappingGroup.push(candidate);
-        } else {
-          groups.push([candidate]);
-        }
-        return groups;
-      }, [] as Array<Array<Polygon>>)
-      .filter((group) => group.length > 1);
-
-    return overlappingGroups;
+      if (overlappingIndex < 0) return []; // selected tool is not overlapping
+      // use splice to remove the overlapping tool from the rest array
+      overlapping.push(...rest.splice(overlappingIndex, 1));
+    }
+    return overlapping;
   });
 
+  function mergeToolGroup(mergeGroup: Tool[]) {
+    const firstTool = mergeGroup[0];
+
+    const polygons = mergeGroup.map(toGeoJSON);
+    if (polygons.some((p) => !p))
+      throw new Error('Trying to merge invalid polygons');
+
+    const [first, ...rest] = polygons as unknown as polygonClipping.Geom[];
+    const merged = polygonClipping.union(first, ...rest);
+    const { to3D } = getPlaneTransforms(firstTool.frameOfReference);
+    const points = merged.flatMap((p) => p.flatMap((ring) => ring.map(to3D)));
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _, ...toolProps } = firstTool;
+    const mergedTool = {
+      ...toolProps,
+      points,
+    };
+    toolAPI.addTool(mergedTool);
+    mergeGroup.map(({ id }) => id).forEach(toolAPI.removeTool);
+  }
+
   function mergeTools() {
-    mergeableTools.value.forEach((tools) => {
-      const firstTool = tools[0];
-      const { to2D, to3D } = getPlaneTransforms(firstTool.frameOfReference);
+    mergeToolGroup(mergeableTools.value);
+  }
 
-      const polygons = tools
-        .map((tool) => tool.points)
-        .map((points) => [points.map(to2D)]); // GeoJSON Polygon can have multiple rings so wrap in array
-
-      const [first, ...rest] = polygons;
-      const merged = polygonClipping.union(first, ...rest);
-      const points = merged.flatMap((p) => p.flatMap((ring) => ring.map(to3D)));
-
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id: _, ...toolProps } = firstTool;
-      const mergedTool = {
-        ...toolProps,
-        points,
-      };
-      toolAPI.addTool(mergedTool);
-      tools.map(({ id }) => id).forEach(toolAPI.removeTool);
-    });
+  function mergeWithOtherTools(id: ToolID) {
+    const lastTool = toolAPI.toolByID.value[id];
+    const olderTools = toolAPI.tools.value.filter(
+      (tool) => tool !== lastTool && !tool.placing
+    );
+    if (!lastTool || olderTools.length === 0) return;
+    const mergeable = olderTools.filter((older) => mergable(older, lastTool));
+    if (mergeable.length === 0) return;
+    mergeToolGroup([lastTool, ...mergeable]);
   }
 
   // --- serialization --- //
@@ -111,9 +130,10 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
 
   return {
     ...toolAPI,
-    mergeableTools,
     getPoints,
+    mergeableTools,
     mergeTools,
+    mergeWithOtherTools,
     serialize,
     deserialize,
   };

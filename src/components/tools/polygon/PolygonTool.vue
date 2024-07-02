@@ -56,7 +56,7 @@ import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
-import { watchImmediate } from '@vueuse/core';
+import { useMagicKeys, watchImmediate } from '@vueuse/core';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 const useActiveToolStore = usePolygonStore;
@@ -126,10 +126,15 @@ export default defineComponent({
       placingTool.remove();
     });
 
+    const { v: mergeKey } = useMagicKeys();
     const onToolPlaced = () => {
       if (imageId.value) {
+        const newToolId = placingTool.id.value;
         placingTool.commit();
         placingTool.add();
+        if (mergeKey.value && newToolId) {
+          activeToolStore.mergeWithOtherTools(newToolId);
+        }
       }
     };
 
