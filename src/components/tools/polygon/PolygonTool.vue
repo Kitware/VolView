@@ -54,6 +54,7 @@ import {
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
+import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { useMagicKeys, watchImmediate } from '@vueuse/core';
@@ -126,7 +127,11 @@ export default defineComponent({
       placingTool.remove();
     });
 
-    const { v: mergeKey } = useMagicKeys();
+    const keys = useMagicKeys();
+    const mergeKey = computed(
+      () => keys[actionToKey.value.mergeNewPolygon].value
+    );
+
     const onToolPlaced = () => {
       if (imageId.value) {
         const newToolId = placingTool.id.value;

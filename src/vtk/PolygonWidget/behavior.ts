@@ -68,10 +68,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Interactor events
   // --------------------------------------------------------------------------
 
-  function ignoreKey(e: any) {
-    return e.altKey || e.controlKey || e.shiftKey;
-  }
-
   const reset = () => {
     publicAPI.loseFocus();
     model.widgetState.clearHandles();
@@ -164,7 +160,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     if (
       !model.manipulator ||
-      ignoreKey(event) ||
       // If hovering over another widget, don't consume event.
       (activeWidget && activeWidget !== publicAPI)
     ) {
@@ -219,7 +214,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.pickable &&
       model.dragable &&
       model.activeState &&
-      !ignoreKey(event) &&
       updateActiveStateHandle(event) === macro.EVENT_ABORT // side effect!
     ) {
       if (freeHanding) {
@@ -400,7 +394,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   publicAPI.handleRightButtonPress = (eventData: any) => {
-    if (ignoreKey(eventData) || !model.activeState) {
+    if (!model.activeState) {
       return macro.VOID;
     }
 

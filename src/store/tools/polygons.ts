@@ -1,4 +1,4 @@
-import * as polygonClipping from 'polyclip-ts';
+import { intersection, union, Geom } from 'polyclip-ts';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { computed } from 'vue';
 import {
@@ -42,7 +42,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const polygonsOverlap = (a: Tool, b: Tool) => {
     const [aGeo, bGeo] = [a, b].map(toGeoJSON);
     if (!aGeo || !bGeo) return false;
-    return polygonClipping.intersection(aGeo, bGeo).length > 0;
+    return intersection(aGeo, bGeo).length > 0;
   };
 
   const sameSliceAndLabel = (a: Tool, b: Tool) =>
@@ -82,14 +82,13 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   });
 
   function mergeToolGroup(mergeGroup: Tool[]) {
-    const firstTool = mergeGroup[0];
-
     const polygons = mergeGroup.map(toGeoJSON);
     if (polygons.some((p) => !p))
       throw new Error('Trying to merge invalid polygons');
 
-    const [first, ...rest] = polygons as unknown as polygonClipping.Geom[];
-    const merged = polygonClipping.union(first, ...rest);
+    const [first, ...rest] = polygons as unknown as Geom[];
+    const merged = union(first, ...rest);
+    const firstTool = mergeGroup[0];
     const { to3D } = getPlaneTransforms(firstTool.frameOfReference);
     const points = merged.flatMap((p) => p.flatMap((ring) => ring.map(to3D)));
 

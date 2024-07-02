@@ -296,6 +296,7 @@ export const ACTION_TO_KEY = {
   crosshairs: 'c',
   crop: 'b',
   polygon: 'g',
+  mergeNewPolygon: 'Shift',
   select: 's',
 
   decrementLabel: 'q',
