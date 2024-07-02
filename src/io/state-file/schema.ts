@@ -113,6 +113,7 @@ const SliceConfig = z.object({
   min: z.number(),
   max: z.number(),
   axisDirection: LPSAxisDir,
+  syncState: z.boolean(),
 }) satisfies z.ZodType<SliceConfig>;
 
 const CameraConfig = z.object({
@@ -121,6 +122,7 @@ const CameraConfig = z.object({
   focalPoint: Vector3.optional(),
   directionOfProjection: Vector3.optional(),
   viewUp: Vector3.optional(),
+  syncState: z.boolean().optional(),
 }) satisfies z.ZodType<CameraConfig>;
 
 const ColorBy = z.object({

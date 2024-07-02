@@ -14,6 +14,7 @@ export interface CameraConfig {
   focalPoint?: Vector3;
   directionOfProjection?: Vector3;
   viewUp?: Vector3;
+  syncState?: boolean;
 }
 
 export interface SliceConfig {
@@ -21,6 +22,7 @@ export interface SliceConfig {
   min: number;
   max: number;
   axisDirection: LPSAxisDir;
+  syncState: boolean;
 }
 
 export interface VolumeColorConfig {
