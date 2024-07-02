@@ -15,12 +15,22 @@
       />
     </svg>
     <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore">
-      <v-list-item @click="mergeTools" v-if="mergePossible">
-        <template v-slot:prepend>
-          <v-icon>mdi-vector-union</v-icon>
+      <v-tooltip
+        :disabled="mergePossible"
+        text="Shift select multiple polygons that overlap and have the same label."
+      >
+        <template v-slot:activator="{ props }">
+          <div v-bind="props">
+            <v-list-item @click="mergeTools" :disabled="!mergePossible">
+              <template v-slot:prepend>
+                <v-icon>mdi-vector-union</v-icon>
+              </template>
+
+              <v-list-item-title>Merge Polygons</v-list-item-title>
+            </v-list-item>
+          </div>
         </template>
-        <v-list-item-title>Merge Polygons</v-list-item-title>
-      </v-list-item>
+      </v-tooltip>
     </annotation-context-menu>
     <annotation-info :info="overlayInfo" :tool-store="activeToolStore" />
   </div>
@@ -132,7 +142,7 @@ export default defineComponent({
     const { onHover, overlayInfo } = useHover(currentTools, slice);
 
     const mergePossible = computed(
-      () => activeToolStore.mergeableTools.length > 1
+      () => activeToolStore.mergeableTools.length >= 1
     );
 
     return {
