@@ -1,4 +1,4 @@
-import { intersection, union, Geom } from 'polyclip-ts';
+import polybool, { Polygon } from '@velipso/polybool';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { computed } from 'vue';
 import {
@@ -33,16 +33,46 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   // -- merge tool helpers -- //
   type Tool = (typeof toolAPI.tools.value)[number];
 
-  const toGeoJSON = (polygon: Tool) => {
+  const toPolyLibStructure = (polygon: Tool) => {
     const { to2D } = getPlaneTransforms(polygon.frameOfReference);
-    if (polygon.points.length === 0) return undefined; // empty polygons are invalid to polyclip-ts
-    return [polygon.points.map(to2D)]; // GeoJSON Polygon can have multiple rings so wrap in array
+    if (polygon.points.length === 0) return undefined; // empty polygons are invalid
+    return {
+      regions: [polygon.points.map(to2D)],
+      inverted: false,
+    };
   };
 
   const polygonsOverlap = (a: Tool, b: Tool) => {
-    const [aGeo, bGeo] = [a, b].map(toGeoJSON);
+    const [aGeo, bGeo] = [a, b].map(toPolyLibStructure);
     if (!aGeo || !bGeo) return false;
-    return intersection(aGeo, bGeo).length > 0;
+    return polybool.intersect(aGeo, bGeo).regions.length > 0;
+  };
+
+  const mergePolygons = (polygons: Array<Tool>) => {
+    const libPolygons = polygons.map(toPolyLibStructure) as Array<Polygon>;
+    if (libPolygons.some((p) => p === undefined))
+      throw new Error('Trying to merge invalid polygons');
+
+    let segments = polybool.segments(libPolygons[0]);
+    for (let i = 1; i < libPolygons.length; i++) {
+      const seg2 = polybool.segments(libPolygons[i]);
+      const comb = polybool.combine(segments, seg2);
+      segments = polybool.selectUnion(comb);
+    }
+    const unionPoly = polybool.polygon(segments);
+
+    const firstTool = polygons[0];
+    const { to3D } = getPlaneTransforms(firstTool.frameOfReference);
+
+    const points = unionPoly.regions[0].map(to3D);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _, ...toolProps } = polygons[0];
+    const mergedTool = {
+      ...toolProps,
+      points,
+    };
+    return mergedTool;
   };
 
   const sameSliceAndLabel = (a: Tool, b: Tool) =>
@@ -81,29 +111,14 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return overlapping;
   });
 
-  function mergeToolGroup(mergeGroup: Tool[]) {
-    const polygons = mergeGroup.map(toGeoJSON);
-    if (polygons.some((p) => !p))
-      throw new Error('Trying to merge invalid polygons');
-
-    const [first, ...rest] = polygons as unknown as Geom[];
-    const merged = union(first, ...rest);
-    const firstTool = mergeGroup[0];
-    const { to3D } = getPlaneTransforms(firstTool.frameOfReference);
-    const points = merged.flatMap((p) => p.flatMap((ring) => ring.map(to3D)));
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { id: _, ...toolProps } = firstTool;
-    const mergedTool = {
-      ...toolProps,
-      points,
-    };
+  function mergeTools(mergeGroup: Tool[]) {
+    const mergedTool = mergePolygons(mergeGroup);
     toolAPI.addTool(mergedTool);
     mergeGroup.map(({ id }) => id).forEach(toolAPI.removeTool);
   }
 
-  function mergeTools() {
-    mergeToolGroup(mergeableTools.value);
+  function mergeSelectedTools() {
+    mergeTools(mergeableTools.value);
   }
 
   function mergeWithOtherTools(id: ToolID) {
@@ -114,7 +129,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     if (!lastTool || olderTools.length === 0) return;
     const mergeable = olderTools.filter((older) => mergable(older, lastTool));
     if (mergeable.length === 0) return;
-    mergeToolGroup([lastTool, ...mergeable]);
+    mergeTools([lastTool, ...mergeable]);
   }
 
   // --- serialization --- //
@@ -131,7 +146,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     ...toolAPI,
     getPoints,
     mergeableTools,
-    mergeTools,
+    mergeSelectedTools,
     mergeWithOtherTools,
     serialize,
     deserialize,

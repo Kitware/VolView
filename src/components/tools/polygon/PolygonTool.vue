@@ -161,7 +161,7 @@ export default defineComponent({
       onToolPlaced,
       contextMenu,
       openContextMenu,
-      mergeTools: activeToolStore.mergeTools,
+      mergeTools: activeToolStore.mergeSelectedTools,
       mergePossible,
       activeToolStore,
       onHover,

@@ -31,6 +31,7 @@
     "@kitware/vtk.js": "^29.0.0",
     "@netlify/edge-functions": "^2.0.0",
     "@sentry/vue": "^7.54.0",
+    "@velipso/polybool": "^1.1.0",
     "@vueuse/core": "^10.7.0",
     "core-js": "3.22.5",
     "deep-equal": "^2.0.5",
