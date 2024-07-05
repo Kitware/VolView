@@ -1,5 +1,5 @@
-import polybool, { Polygon } from '@velipso/polybool';
-import type { Vector3 } from '@kitware/vtk.js/types';
+import polybool, { Polygon as LibPolygon } from '@velipso/polybool';
+import type { Vector3, Vector2 } from '@kitware/vtk.js/types';
 import { computed } from 'vue';
 import {
   ToolSelection,
@@ -48,8 +48,45 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return polybool.intersect(aGeo, bGeo).regions.length > 0;
   };
 
+  const pointEquals = (a: Vector2, b: Vector2) =>
+    a[0] === b[0] && a[1] === b[1];
+
+  // After union, regions will have shared points because we require overlap to union.
+  // Create one region/ring by splicing in the next region at the common point.
+  const mergeRegions = (regions: Array<Array<Vector2>>) => {
+    const [mergedRegion, ...candidates] = regions;
+
+    while (candidates.length > 0) {
+      let regionIndex = 0;
+      let mergedCommonPointIndex = 0;
+      let candidateCommonPointIndex = 0;
+      for (let i = 0; i < candidates.length; i++) {
+        const candidate = candidates[i];
+        let candidatePointIndex = 0;
+        const commonPointIndex = mergedRegion.findIndex((point) =>
+          candidate.some((nextPoint, index) => {
+            candidatePointIndex = index;
+            return pointEquals(point, nextPoint);
+          })
+        );
+        if (commonPointIndex !== -1) {
+          regionIndex = i;
+          mergedCommonPointIndex = commonPointIndex;
+          candidateCommonPointIndex = candidatePointIndex;
+          break;
+        }
+      }
+      const [toMerge] = candidates.splice(regionIndex, 1);
+      const oldStart = toMerge.splice(0, candidateCommonPointIndex);
+      const startWithCommonPoint = [...toMerge, ...oldStart];
+      mergedRegion.splice(mergedCommonPointIndex, 0, ...startWithCommonPoint);
+    }
+
+    return mergedRegion;
+  };
+
   const mergePolygons = (polygons: Array<Tool>) => {
-    const libPolygons = polygons.map(toPolyLibStructure) as Array<Polygon>;
+    const libPolygons = polygons.map(toPolyLibStructure) as Array<LibPolygon>;
     if (libPolygons.some((p) => p === undefined))
       throw new Error('Trying to merge invalid polygons');
 
@@ -64,7 +101,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     const firstTool = polygons[0];
     const { to3D } = getPlaneTransforms(firstTool.frameOfReference);
 
-    const points = unionPoly.regions[0].map(to3D);
+    const points = mergeRegions(unionPoly.regions).map(to3D);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _, ...toolProps } = polygons[0];
