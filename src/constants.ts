@@ -60,6 +60,10 @@ export const ACTIONS = {
     readable: 'Activate next Label',
   },
 
+  mergeNewPolygon: {
+    readable: 'Hold down to merge new polygons with overlapping polygons',
+  },
+
   showKeyboardShortcuts: {
     readable: 'Show keyboard shortcuts dialog',
   },

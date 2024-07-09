@@ -1,0 +1,12 @@
+diff --git a/node_modules/@velipso/polybool/package.json b/node_modules/@velipso/polybool/package.json
+index c0bf880..00899ce 100644
+--- a/node_modules/@velipso/polybool/package.json
++++ b/node_modules/@velipso/polybool/package.json
+@@ -11,6 +11,7 @@
+       "require": "./dist/polybool.cjs.js"
+     }
+   },
++  "types": "dist/polybool.d.ts",
+   "scripts": {
+     "test": "tsx src/polybool.test.ts",
+     "build": "rollup -c && rollup -c rollup.config.cjs.js",
