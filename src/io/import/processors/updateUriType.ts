@@ -21,11 +21,16 @@ function detectStreamType(stream: ReadableStream) {
       },
     });
 
-    stream.pipeTo(writableStream).catch((err) => {
-      if (err !== DoneSignal) {
-        reject(err);
-      }
-    });
+    stream
+      .pipeTo(writableStream)
+      .then(() => {
+        resolve('');
+      })
+      .catch((err) => {
+        if (err !== DoneSignal) {
+          reject(err);
+        }
+      });
   });
 }
 
