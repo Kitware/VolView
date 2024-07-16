@@ -1,4 +1,5 @@
-import { ImportHandler } from '@/src/io/import/common';
+import { Skip } from '@/src/utils/evaluateChain';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { ensureError } from '@/src/utils';
 
 /**
@@ -11,10 +12,11 @@ import { ensureError } from '@/src/utils';
  * @param dataSource
  * @returns
  */
-const downloadStream: ImportHandler = async (dataSource, { execute, done }) => {
-  const { fileSrc, uriSrc } = dataSource;
-  if (fileSrc || !uriSrc?.fetcher) {
-    return dataSource;
+const downloadStream: ImportHandler = async (dataSource) => {
+  const { fileSrc, uriSrc, chunkSrc } = dataSource;
+  // existence of a chunkSrc means that the stream doesn't need to be downloaded.
+  if (fileSrc || chunkSrc || !uriSrc?.fetcher) {
+    return Skip;
   }
 
   const { fetcher } = uriSrc;
@@ -26,14 +28,15 @@ const downloadStream: ImportHandler = async (dataSource, { execute, done }) => {
       type: uriSrc.mime,
     });
 
-    execute({
-      ...dataSource,
-      fileSrc: {
-        file,
-        fileType: file.type,
+    return asIntermediateResult([
+      {
+        ...dataSource,
+        fileSrc: {
+          file,
+          fileType: file.type,
+        },
       },
-    });
-    return done();
+    ]);
   } catch (err) {
     throw new Error(
       `Could not download stream associated with URL ${uriSrc.uri}`,

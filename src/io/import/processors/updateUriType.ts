@@ -1,5 +1,6 @@
+import { Skip } from '@/src/utils/evaluateChain';
 import StreamingByteReader from '@/src/core/streaming/streamingByteReader';
-import { ImportHandler } from '@/src/io/import/common';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { getFileMimeFromMagicStream } from '@/src/io/magic';
 import { asCoroutine } from '@/src/utils';
 
@@ -37,7 +38,11 @@ function detectStreamType(stream: ReadableStream) {
 const updateUriType: ImportHandler = async (dataSource) => {
   const { fileSrc, uriSrc } = dataSource;
   if (fileSrc || !uriSrc?.fetcher) {
-    return dataSource;
+    return Skip;
+  }
+
+  if (uriSrc.mime !== undefined) {
+    return Skip;
   }
 
   const { fetcher } = uriSrc;
@@ -54,7 +59,7 @@ const updateUriType: ImportHandler = async (dataSource) => {
     },
   };
 
-  return streamDataSource;
+  return asIntermediateResult([streamDataSource]);
 };
 
 export default updateUriType;

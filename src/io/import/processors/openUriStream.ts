@@ -1,16 +1,17 @@
+import { Skip } from '@/src/utils/evaluateChain';
 import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
 import { getRequestPool } from '@/src/core/streaming/requestPool';
-import { ImportHandler } from '@/src/io/import/common';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { canFetchUrl } from '@/src/utils/fetch';
 
-const openUriStream: ImportHandler = async (dataSource, { onCleanup }) => {
+const openUriStream: ImportHandler = async (dataSource, context) => {
   const { uriSrc } = dataSource;
   if (!uriSrc || !canFetchUrl(uriSrc.uri)) {
-    return dataSource;
+    return Skip;
   }
 
   if (uriSrc.fetcher?.connected) {
-    return dataSource;
+    return Skip;
   }
 
   const fetcher = new CachedStreamFetcher(uriSrc.uri, {
@@ -20,17 +21,19 @@ const openUriStream: ImportHandler = async (dataSource, { onCleanup }) => {
   await fetcher.connect();
 
   // ensure we close the connection on completion
-  onCleanup(() => {
+  context?.onCleanup?.(() => {
     fetcher.close();
   });
 
-  return {
-    ...dataSource,
-    uriSrc: {
-      ...uriSrc,
-      fetcher,
+  return asIntermediateResult([
+    {
+      ...dataSource,
+      uriSrc: {
+        ...uriSrc,
+        fetcher,
+      },
     },
-  };
+  ]);
 };
 
 export default openUriStream;
