@@ -1,28 +1,33 @@
 import { extractFilesFromZip } from '@/src/io/zip';
-import { ImportHandler, isArchive } from '@/src/io/import/common';
+import {
+  ImportHandler,
+  asIntermediateResult,
+  isArchive,
+} from '@/src/io/import/common';
+import { Skip } from '@/src/utils/evaluateChain';
 
 /**
  * Extracts all files from an archive.
  * @param dataSource
  */
-const extractArchive: ImportHandler = async (dataSource, { execute, done }) => {
+const extractArchive: ImportHandler = async (dataSource) => {
   if (isArchive(dataSource)) {
     const files = await extractFilesFromZip(dataSource.fileSrc.file);
-    files.forEach((entry) => {
-      execute({
+    const newSources = files.map((entry) => {
+      return {
         fileSrc: {
           file: entry.file,
           fileType: '',
         },
         archiveSrc: {
-          path: `${entry.archivePath}/${entry.file.name}`,
+          path: entry.archivePath,
         },
         parent: dataSource,
-      });
+      };
     });
-    return done();
+    return asIntermediateResult(newSources);
   }
-  return dataSource;
+  return Skip;
 };
 
 export default extractArchive;

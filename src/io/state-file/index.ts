@@ -25,7 +25,8 @@ export async function serialize() {
   const manifest: Manifest = {
     version: MANIFEST_VERSION,
     datasets: [],
-    remoteFiles: {},
+    dataSources: [],
+    datasetFilePath: {},
     labelMaps: [],
     tools: {
       crosshairs: {

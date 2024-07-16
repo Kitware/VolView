@@ -23,5 +23,5 @@ export async function importDicomChunks(chunks: Chunk[]) {
     })
   );
 
-  return Object.keys(chunksByVolume);
+  return chunksByVolume;
 }

@@ -1,40 +1,38 @@
 import { DataSource } from '@/src/io/import/dataSource';
-import { ImportHandler } from '@/src/io/import/common';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { readRemoteManifestFile } from '@/src/io/manifest';
+import { Skip } from '@/src/utils/evaluateChain';
+import { ZodError } from 'zod';
 
 /**
  * Reads a JSON file that conforms to the remote manifest spec.
  * @param dataSource
  * @returns
  */
-const handleRemoteManifest: ImportHandler = async (
-  dataSource,
-  { done, execute }
-) => {
+const handleRemoteManifest: ImportHandler = async (dataSource) => {
   const { fileSrc } = dataSource;
-  if (fileSrc?.fileType === 'application/json') {
-    const remotes: DataSource[] = [];
-    try {
-      const manifest = await readRemoteManifestFile(fileSrc.file);
-      manifest.resources.forEach((res) => {
-        remotes.push({
-          uriSrc: {
-            uri: res.url,
-            name: res.name ?? new URL(res.url, window.location.origin).pathname,
-          },
-          parent: dataSource,
-        });
-      });
-    } catch (err) {
-      return dataSource;
-    }
-
-    remotes.forEach((remote) => {
-      execute(remote);
-    });
-    return done();
+  if (fileSrc?.fileType !== 'application/json') {
+    return Skip;
   }
-  return dataSource;
+
+  try {
+    const remotes: DataSource[] = [];
+    const manifest = await readRemoteManifestFile(fileSrc.file);
+    manifest.resources.forEach((res) => {
+      remotes.push({
+        uriSrc: {
+          uri: res.url,
+          name: res.name ?? new URL(res.url, window.location.origin).pathname,
+        },
+        parent: dataSource,
+      });
+    });
+
+    return asIntermediateResult(remotes);
+  } catch (err) {
+    if (err instanceof ZodError) return Skip;
+    throw err;
+  }
 };
 
 export default handleRemoteManifest;

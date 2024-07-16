@@ -1,8 +1,9 @@
+import { Skip } from '@/src/utils/evaluateChain';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
 import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
 import { ReadDicomTagsFunction } from '@/src/core/streaming/dicom/dicomMetaLoader';
-import { ImportHandler } from '@/src/io/import/common';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { getWorker } from '@/src/io/itk/worker';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { readDicomTags } from '@itk-wasm/dicom';
@@ -12,10 +13,10 @@ import { readDicomTags } from '@itk-wasm/dicom';
  * @param dataSource
  * @returns
  */
-const handleDicomFile: ImportHandler = async (dataSource, { done }) => {
+const handleDicomFile: ImportHandler = async (dataSource) => {
   const { fileSrc } = dataSource;
   if (fileSrc?.fileType !== FILE_EXT_TO_MIME.dcm) {
-    return dataSource;
+    return Skip;
   }
 
   const readTags: ReadDicomTagsFunction = async (file) => {
@@ -32,15 +33,15 @@ const handleDicomFile: ImportHandler = async (dataSource, { done }) => {
 
   await chunk.loadMeta();
 
-  return done({
-    dataSource: {
+  return asIntermediateResult([
+    {
       ...dataSource,
       chunkSrc: {
         chunk,
         mime: FILE_EXT_TO_MIME.dcm,
       },
     },
-  });
+  ]);
 };
 
 export default handleDicomFile;

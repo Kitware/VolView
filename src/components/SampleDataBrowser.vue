@@ -96,8 +96,8 @@ export default defineComponent({
         if (!loadResult) {
           throw new Error('Did not receive a load result');
         }
-        if (!loadResult.ok) {
-          throw loadResult.errors[0].cause;
+        if (loadResult.type === 'error') {
+          throw loadResult.error;
         }
 
         const selection = convertSuccessResultToDataSelection(loadResult);

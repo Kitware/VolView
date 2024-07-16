@@ -6,8 +6,6 @@ import * as DICOM from '@/src/io/dicom';
 import { identity, pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
-import { StateFile, DatasetType } from '../io/state-file/schema';
-import { serializeData } from '../io/state-file/utils';
 import { useMessageStore } from './messages';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
@@ -348,22 +346,6 @@ export const useDICOMStore = defineStore('dicom', {
         );
         delete this.patientStudies[patientKey];
       }
-    },
-
-    async serialize(stateFile: StateFile) {
-      const dataIDs = Object.keys(this.volumeInfo);
-      await serializeData(stateFile, dataIDs, DatasetType.DICOM);
-    },
-
-    async deserialize(files: FileDataSource[]) {
-      return this.importFiles(files).then((volumeKeys) => {
-        if (volumeKeys.length !== 1) {
-          // Volumes are store individually so we should get one back.
-          throw new Error('Invalid state file.');
-        }
-
-        return volumeKeys[0];
-      });
     },
 
     // returns an ITK image object

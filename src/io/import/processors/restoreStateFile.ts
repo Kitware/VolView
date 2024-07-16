@@ -1,25 +1,18 @@
-import { Dataset, Manifest, ManifestSchema } from '@/src/io/state-file/schema';
-import { FileEntry } from '@/src/io/types';
-import * as path from '@/src/utils/path';
 import {
-  ArchiveContents,
+  DataSourceType,
+  Manifest,
+  ManifestSchema,
+} from '@/src/io/state-file/schema';
+import {
+  asOkayResult,
   ImportContext,
   ImportHandler,
   ImportResult,
-  isLoadableResult,
 } from '@/src/io/import/common';
-import {
-  DataSource,
-  FileDataSource,
-  fileToDataSource,
-} from '@/src/io/import/dataSource';
+import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
-import { ensureError, partition } from '@/src/utils';
+import { partition } from '@/src/utils';
 import { pipe } from '@/src/utils/functional';
-import Pipeline, { PipelineContext } from '@/src/core/pipeline';
-import { Awaitable } from '@vueuse/core';
-import doneWithDataSource from '@/src/io/import/processors/doneWithDataSource';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useViewStore } from '@/src/store/views';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
@@ -29,9 +22,14 @@ import {
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
-import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
+import { ChainHandler, evaluateChain, Skip } from '@/src/utils/evaluateChain';
+import openUriStream from '@/src/io/import/processors/openUriStream';
+import updateUriType from '@/src/io/import/processors/updateUriType';
+import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
+import downloadStream from '@/src/io/import/processors/downloadStream';
+import { FileEntry } from '@/src/io/types';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -156,190 +154,168 @@ const migrateManifest = (manifestString: string) => {
   );
 };
 
-const resolveUriSource: ImportHandler = async (dataSource, { extra, done }) => {
-  const { uriSrc } = dataSource;
-
-  if (uriSrc) {
-    const result = await new Pipeline([
-      downloadUrl,
-      updateFileMimeType,
-      doneWithDataSource,
-    ]).execute(dataSource, extra);
-    if (!result.ok) {
-      throw result.errors[0].cause;
-    }
-    // downloadUrl returns the fully resolved data source.
-    // We call done here since we've resolved the UriSource
-    // and no more processing is needed.
-    return done({
-      dataSource: result.data[0].dataSource,
-    });
-  }
-
-  return dataSource;
+type ResolvedResult = {
+  type: 'resolved';
+  dataSource: DataSource;
 };
 
-const processParentIfNoFile: ImportHandler = async (
-  dataSource,
-  { execute }
-) => {
-  const { fileSrc, parent } = dataSource;
-  if (!fileSrc && parent) {
-    const result = await execute(parent);
-    if (!result.ok) {
-      throw new Error('Could not process parent', {
-        cause: ensureError(result.errors[0].cause),
-      });
-    }
-    // update the parent
-    return {
-      ...dataSource,
-      parent: result.data[0].dataSource,
-    };
-  }
-  return dataSource;
-};
+type ResolvingImportHandler = ChainHandler<
+  DataSource,
+  ImportResult | ResolvedResult,
+  ImportContext
+>;
 
-const resolveArchiveMember: ImportHandler = async (
-  dataSource,
-  { extra, done }
-) => {
-  if (dataSource.archiveSrc) {
-    const pipeline = new Pipeline([
-      extractArchiveTarget,
-      updateFileMimeType,
-      doneWithDataSource,
-    ]);
-    const result = await pipeline.execute(dataSource, extra);
-    if (!result.ok) {
-      throw result.errors[0].cause;
-    }
-    // extractArchiveTarget returns the fully resolved data source.
-    return done({
-      dataSource: result.data[0].dataSource,
-    });
-  }
-  return dataSource;
-};
+const resolvingHandlers: ResolvingImportHandler[] = [
+  openUriStream,
 
-function getDataSourcesForDataset(
-  dataset: Dataset,
-  manifest: Manifest,
-  stateFileContents: FileEntry[]
+  // updating the file/uri type should be first step in the pipeline
+  updateFileMimeType,
+  updateUriType,
+
+  // stream handling
+  handleDicomStream,
+  downloadStream,
+
+  extractArchiveTarget,
+
+  (dataSource) => {
+    return { type: 'resolved', dataSource };
+  },
+];
+
+async function rebuildDataSources(
+  serializedDataSources: DataSourceType[],
+  fileIDToFile: Record<number, File>
 ) {
-  const inStateFile = stateFileContents
-    .filter(
-      (entry) =>
-        path.normalize(entry.archivePath) === path.normalize(dataset.path)
-    )
-    .map((entry) => fileToDataSource(entry.file));
-  const remotes = manifest.remoteFiles[dataset.id] ?? [];
-  return [...inStateFile, ...remotes];
+  const dataSourceCache: Record<string, DataSource> = {};
+  const byId: Record<string, DataSourceType> = {};
+  const leaves = new Set<number>();
+
+  serializedDataSources.forEach((serializedSrc) => {
+    byId[serializedSrc.id] = serializedSrc;
+    leaves.add(serializedSrc.id);
+  });
+
+  // serializedDataSources should be topologically ordered by
+  // ancestors first and descendants last
+  for (let i = 0; i < serializedDataSources.length; i++) {
+    const serializedSrc = serializedDataSources[i];
+
+    if (serializedSrc.id in dataSourceCache) {
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+
+    let dataSource: DataSource = {};
+
+    if (serializedSrc.fileSrc) {
+      dataSource.fileSrc = {
+        file: fileIDToFile[serializedSrc.fileSrc.fileId],
+        fileType: serializedSrc.fileSrc.fileType,
+      };
+    }
+
+    if (serializedSrc.archiveSrc) {
+      dataSource.archiveSrc = serializedSrc.archiveSrc;
+    }
+
+    if (serializedSrc.uriSrc) {
+      dataSource.uriSrc = serializedSrc.uriSrc;
+    }
+
+    if (serializedSrc.collectionSrc) {
+      serializedSrc.collectionSrc.sources.forEach((id) => {
+        leaves.delete(id);
+      });
+      dataSource.collectionSrc = {
+        sources: serializedSrc.collectionSrc.sources.map(
+          (id) => dataSourceCache[id]
+        ),
+      };
+    }
+
+    if (serializedSrc.parent) {
+      dataSource.parent = dataSourceCache[serializedSrc.parent];
+      leaves.delete(serializedSrc.parent);
+    }
+
+    let stillResolving = true;
+    while (stillResolving) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await evaluateChain(dataSource, resolvingHandlers);
+
+      stillResolving = result.type !== 'resolved';
+      if (!stillResolving) break;
+
+      if (result.type !== 'intermediate') {
+        throw new Error(
+          'Resolving pipeline does not produce intermediate results!'
+        );
+      }
+
+      dataSource = result.dataSources[0];
+    }
+
+    dataSourceCache[serializedSrc.id] = dataSource;
+  }
+
+  return { dataSourceCache, leaves };
 }
 
 async function restoreDatasets(
   manifest: Manifest,
   datasetFiles: FileEntry[],
-  { extra, execute }: PipelineContext<DataSource, ImportResult, ImportContext>
+  context?: ImportContext
 ) {
-  const archiveCache = new Map<File, Awaitable<ArchiveContents>>();
+  const { datasets, dataSources, datasetFilePath } = manifest;
+  const dataSourceIDToStateID = datasets.reduce<Record<number, string>>(
+    (acc, ds) =>
+      Object.assign(acc, {
+        [ds.dataSourceId]: ds.id,
+      }),
+    {}
+  );
+  const pathToFile = datasetFiles.reduce<Record<string, File>>(
+    (acc, datasetFile) =>
+      Object.assign(acc, {
+        [datasetFile.archivePath]: datasetFile.file,
+      }),
+    {}
+  );
+  const fileIDToFile = Object.entries(datasetFilePath).reduce<
+    Record<number, File>
+  >(
+    (acc, [fileId, filePath]) =>
+      Object.assign(acc, {
+        [fileId]: pathToFile[filePath],
+      }),
+    {}
+  );
 
-  // normalize archive paths for comparison
-  const stateDatasetFiles = datasetFiles.map((datasetFile) => {
-    return {
-      ...datasetFile,
-      archivePath: path.normalize(datasetFile.archivePath),
-    };
-  });
+  const { dataSourceCache, leaves } = await rebuildDataSources(
+    dataSources,
+    fileIDToFile
+  );
 
-  const { datasets } = manifest;
-  // Mapping of the state file ID => new store ID
   const stateIDToStoreID: Record<string, string> = {};
 
-  // This pipeline resolves data sources that have remote provenance.
-  const resolvePipeline = new Pipeline([
-    updateFileMimeType,
-    resolveUriSource,
-    // process parent after resolving the uri source, so we don't
-    // unnecessarily download ancestor UriSources.
-    processParentIfNoFile,
-    resolveArchiveMember,
-    doneWithDataSource,
-  ]);
-
   await Promise.all(
-    datasets.map(async (dataset) => {
-      let datasetDataSources = getDataSourcesForDataset(
-        dataset,
-        manifest,
-        stateDatasetFiles
-      );
+    [...leaves].map(async (leafId) => {
+      const dataSource = dataSourceCache[leafId];
+      const importResult =
+        (await context?.importDataSources?.([dataSource])) ?? [];
+      const [result] = importResult;
+      if (result?.type !== 'data' || importResult.length !== 1)
+        throw new Error('Expected a single dataset');
 
-      // resolve any remote data sources or archive members
-      datasetDataSources = await Promise.all(
-        datasetDataSources.map(async (source) => {
-          const result = await resolvePipeline.execute(source, {
-            ...extra,
-            archiveCache,
-          });
-          if (!result.ok) {
-            throw result.errors[0].cause;
-          }
-          return result.data[0].dataSource;
-        })
-      );
-
-      // do the import
-      const dicomSources: FileDataSource[] = [];
-      const importResults = await Promise.all(
-        datasetDataSources.map((source) =>
-          execute(source, {
-            ...extra,
-            archiveCache,
-            dicomDataSources: dicomSources,
-          })
-        )
-      );
-
-      if (dicomSources.length) {
-        const dicomStore = useDICOMStore();
-        const volumeKeys = await dicomStore.importFiles(dicomSources);
-        if (volumeKeys.length !== 1) {
-          throw new Error('Obtained more than one volume from DICOM import');
-        }
-
-        const [key] = volumeKeys;
-        // generate imageID so rulers and labelmaps can use stateIDToStoreID to setup there internal imageStore imageID references
-        await dicomStore.buildVolume(key);
-        stateIDToStoreID[dataset.id] = key;
-      } else if (importResults.length === 1) {
-        if (!importResults[0].ok) {
-          throw importResults[0].errors[0].cause;
-        }
-
-        const [result] = importResults;
-        if (result.data.length !== 1) {
-          throw new Error(
-            'Import encountered multiple volumes for a single dataset'
-          );
-        }
-
-        const importResult = result.data[0];
-        if (!isLoadableResult(importResult)) {
-          throw new Error('Failed to import dataset');
-        }
-
-        stateIDToStoreID[dataset.id] = importResult.dataID;
-      } else {
-        throw new Error('Could not load any data from the session');
-      }
+      stateIDToStoreID[dataSourceIDToStateID[leafId]] = result.dataID;
     })
   );
 
   return stateIDToStoreID;
 }
 
-const restoreStateFile: ImportHandler = async (dataSource, pipelineContext) => {
+const restoreStateFile: ImportHandler = async (dataSource, context) => {
   const { fileSrc } = dataSource;
   if (fileSrc && (await isStateFile(fileSrc.file))) {
     const stateFileContents = await extractFilesFromZip(fileSrc.file);
@@ -364,7 +340,7 @@ const restoreStateFile: ImportHandler = async (dataSource, pipelineContext) => {
     const stateIDToStoreID = await restoreDatasets(
       manifest,
       restOfStateFile,
-      pipelineContext
+      context
     );
 
     // Restore the primary selection
@@ -389,9 +365,9 @@ const restoreStateFile: ImportHandler = async (dataSource, pipelineContext) => {
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-    return pipelineContext.done();
+    return asOkayResult(dataSource);
   }
-  return dataSource;
+  return Skip;
 };
 
 export default restoreStateFile;

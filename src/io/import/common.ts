@@ -1,28 +1,100 @@
 import { FetchCache } from '@/src/utils/fetch';
 import { DataSource, FileSource } from '@/src/io/import/dataSource';
-import { Handler } from '@/src/core/pipeline';
 import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { Awaitable } from '@vueuse/core';
 import { Config } from '@/src/io/import/configJson';
+import { ChainHandler } from '@/src/utils/evaluateChain';
 
-interface DataResult {
+export interface LoadableResult {
+  type: 'data';
+  dataID: string;
+  dataSource: DataSource;
+  dataType: 'image' | 'model';
+}
+
+export interface LoadableVolumeResult extends LoadableResult {
+  dataType: 'image';
+}
+
+export interface LoadableModelResult extends LoadableResult {
+  dataType: 'model';
+}
+
+export interface ConfigResult {
+  type: 'config';
+  config: Config;
   dataSource: DataSource;
 }
 
-export interface LoadableResult extends DataResult {
-  dataID: string;
-  dataType: 'image' | 'dicom' | 'model';
+export interface OkayResult {
+  type: 'ok';
+  dataSource: DataSource;
 }
 
-export interface VolumeResult extends LoadableResult {
-  dataType: 'image' | 'dicom';
+export interface IntermediateResult {
+  type: 'intermediate';
+  dataSources: DataSource[];
 }
 
-export interface ConfigResult extends DataResult {
-  config: Config;
+export interface ErrorResult {
+  type: 'error';
+  error: Error;
+  dataSource: DataSource;
 }
 
-export type ImportResult = LoadableResult | ConfigResult | DataResult;
+export type ImportResult =
+  | LoadableResult
+  | ConfigResult
+  | IntermediateResult
+  | OkayResult
+  | ErrorResult;
+
+export type ImportDataSourcesResult =
+  | ConfigResult
+  | LoadableResult
+  | OkayResult
+  | ErrorResult;
+
+export const asLoadableResult = (
+  dataID: string,
+  dataSource: DataSource,
+  dataType: 'image' | 'model'
+): LoadableResult => ({
+  type: 'data',
+  dataID,
+  dataSource,
+  dataType,
+});
+
+export const asIntermediateResult = (
+  dataSources: DataSource[]
+): IntermediateResult => ({
+  type: 'intermediate',
+  dataSources,
+});
+
+export const asConfigResult = (
+  dataSource: DataSource,
+  config: Config
+): ConfigResult => ({
+  type: 'config',
+  dataSource,
+  config,
+});
+
+export const asErrorResult = (
+  error: Error,
+  dataSource: DataSource
+): ErrorResult => ({
+  type: 'error',
+  error,
+  dataSource,
+});
+
+export const asOkayResult = (dataSource: DataSource): OkayResult => ({
+  type: 'ok',
+  dataSource,
+});
 
 export type ArchiveContents = Record<string, File>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
@@ -34,9 +106,20 @@ export interface ImportContext {
   archiveCache?: ArchiveCache;
   // Records dicom files
   dicomDataSources?: DataSource[];
+  onCleanup?: (fn: () => void) => void;
+  /**
+   * A reference to importDataSources for nested imports.
+   */
+  importDataSources?: (
+    dataSources: DataSource[]
+  ) => Promise<ImportDataSourcesResult[]>;
 }
 
-export type ImportHandler = Handler<DataSource, ImportResult, ImportContext>;
+export type ImportHandler = ChainHandler<
+  DataSource,
+  ImportResult,
+  ImportContext
+>;
 
 export function isArchive(
   ds: DataSource
@@ -47,20 +130,17 @@ export function isArchive(
 export function isLoadableResult(
   importResult: ImportResult
 ): importResult is LoadableResult {
-  return 'dataID' in importResult && 'dataType' in importResult;
+  return importResult.type === 'data';
 }
 
 export function isVolumeResult(
   importResult: ImportResult
-): importResult is VolumeResult {
-  return (
-    isLoadableResult(importResult) &&
-    (importResult.dataType === 'image' || importResult.dataType === 'dicom')
-  );
+): importResult is LoadableVolumeResult {
+  return isLoadableResult(importResult) && importResult.dataType === 'image';
 }
 
 export function isConfigResult(
   importResult: ImportResult
 ): importResult is ConfigResult {
-  return 'config' in importResult;
+  return importResult.type === 'config';
 }

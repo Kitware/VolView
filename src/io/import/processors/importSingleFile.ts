@@ -1,44 +1,40 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
-import { useFileStore } from '@/src/store/datasets-files';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
 import { FILE_READERS } from '@/src/io';
-import { ImportHandler } from '@/src/io/import/common';
-import { FileDataSource } from '@/src/io/import/dataSource';
+import { ImportHandler, asLoadableResult } from '@/src/io/import/common';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { InitViewSpecs } from '@/src/config';
+import { Skip } from '@/src/utils/evaluateChain';
 
 /**
  * Reads and imports a file DataSource.
  * @param dataSource
  * @returns
  */
-const importSingleFile: ImportHandler = async (dataSource, { done }) => {
+const importSingleFile: ImportHandler = async (dataSource) => {
   if (!dataSource.fileSrc) {
-    return dataSource;
+    return Skip;
   }
 
   const { fileSrc } = dataSource;
   if (!FILE_READERS.has(fileSrc.fileType)) {
-    return dataSource;
+    return Skip;
   }
 
   const reader = FILE_READERS.get(fileSrc.fileType)!;
   const dataObject = await reader(fileSrc.file);
-
-  const fileStore = useFileStore();
 
   if (dataObject.isA('vtkImageData')) {
     const dataID = useImageStore().addVTKImageData(
       fileSrc.file.name,
       dataObject as vtkImageData
     );
-    fileStore.add(dataID, [dataSource as FileDataSource]);
 
     // Create a default view for each viewID
     useViewStore().viewIDs.forEach((viewID: string) => {
@@ -56,11 +52,7 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
       useViewSliceStore().resetSlice(viewID, dataID);
     });
 
-    return done({
-      dataID,
-      dataSource,
-      dataType: 'image',
-    });
+    return asLoadableResult(dataID, dataSource, 'image');
   }
 
   if (dataObject.isA('vtkPolyData')) {
@@ -73,13 +65,8 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
       fileSrc.file.name,
       dataObject as vtkPolyData
     );
-    fileStore.add(dataID, [dataSource as FileDataSource]);
 
-    return done({
-      dataID,
-      dataSource,
-      dataType: 'model',
-    });
+    return asLoadableResult(dataID, dataSource, 'model');
   }
 
   throw new Error('Data reader did not produce a valid dataset');
