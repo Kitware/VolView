@@ -5,7 +5,7 @@ import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
-import { join, normalize } from '@/src/utils/path';
+import { normalize } from '@/src/utils/path';
 import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
@@ -440,11 +440,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const newLabelmapIDs = await Promise.all(
       labelMaps.map(async (labelMap) => {
         const [file] = stateFiles
-          .filter(
-            (entry) =>
-              join(entry.archivePath, entry.file.name) ===
-              normalize(labelMap.path)
-          )
+          .filter((entry) => entry.archivePath === normalize(labelMap.path))
           .map((entry) => entry.file);
 
         const vtkImage = await readImage(file);

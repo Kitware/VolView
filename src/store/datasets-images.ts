@@ -6,9 +6,6 @@ import type { Bounds } from '@kitware/vtk.js/types';
 import { useIdStore } from '@/src/store/id';
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
 import { removeFromArray } from '../utils';
-import { StateFile, DatasetType } from '../io/state-file/schema';
-import { serializeData } from '../io/state-file/utils';
-import { useFileStore } from './datasets-files';
 import { ImageMetadata } from '../types/image';
 
 export const defaultImageMetadata = () => ({
@@ -77,15 +74,6 @@ export const useImageStore = defineStore('images', {
         delete this.metadata[id];
         removeFromArray(this.idList, id);
       }
-    },
-
-    async serialize(stateFile: StateFile) {
-      const fileStore = useFileStore();
-      // We want to filter out volume images (which are generated and don't have
-      // input files in fileStore with matching imageID.)
-      const dataIDs = this.idList.filter((id) => id in fileStore.byDataID);
-
-      await serializeData(stateFile, dataIDs, DatasetType.IMAGE);
     },
   },
 });

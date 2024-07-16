@@ -1,15 +1,15 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 import {
   isDicomImage,
   isRegularImage,
   type DataSelection,
 } from '@/src/utils/dataSelection';
+import { DataSource } from '@/src/io/import/dataSource';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
-import { useFileStore } from './datasets-files';
-import { StateFile } from '../io/state-file/schema';
+import * as Schema from '../io/state-file/schema';
 import { useLayersStore } from './datasets-layers';
 
 export const DataType = {
@@ -17,15 +17,90 @@ export const DataType = {
   Model: 'Model',
 };
 
+interface LoadedData {
+  dataID: string;
+  dataSource: DataSource;
+}
+
+function createIdGenerator() {
+  let nextId = 1;
+  return () => nextId++;
+}
+
+function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
+  const nextId = createIdGenerator();
+  const dataSourceToId = new Map<DataSource, number>();
+  // topologically ordered ancestor -> descendant
+  const serializedDependencies: Array<Schema.DataSourceType> = [];
+  const dataIDToDataSourceID: Record<string, number> = {};
+  const files: Record<string, File> = {};
+
+  function serializeDataSource(ds: DataSource): number {
+    if (dataSourceToId.has(ds)) {
+      return dataSourceToId.get(ds)!;
+    }
+
+    const serialized: Schema.DataSourceType = { id: nextId() };
+    dataSourceToId.set(ds, serialized.id);
+
+    if (ds.fileSrc) {
+      if (ds.archiveSrc || ds.uriSrc) {
+        // fileSrc is constructed from either an archive or uri
+        delete serialized.fileSrc;
+      } else {
+        const fileId = nextId();
+        serialized.fileSrc = { fileId, fileType: ds.fileSrc.fileType };
+        files[fileId] = ds.fileSrc.file;
+      }
+    }
+
+    if (ds.archiveSrc) {
+      serialized.archiveSrc = ds.archiveSrc;
+    }
+
+    if (ds.uriSrc) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { fetcher, ...rest } = ds.uriSrc;
+      serialized.uriSrc = rest;
+    }
+
+    if (ds.collectionSrc) {
+      serialized.collectionSrc = {
+        sources: ds.collectionSrc.sources.map((s) => serializeDataSource(s)),
+      };
+    }
+
+    const shouldSerializeParent = !!ds.archiveSrc;
+
+    if (shouldSerializeParent && ds.parent) {
+      serialized.parent = serializeDataSource(ds.parent);
+    }
+
+    serializedDependencies.push(serialized);
+    return serialized.id;
+  }
+
+  loadedDataSources.forEach(({ dataID, dataSource }) => {
+    const id = serializeDataSource(dataSource);
+    dataIDToDataSourceID[dataID] = id;
+  });
+
+  return {
+    serializedDependencies,
+    dataIDToDataSourceID,
+    files,
+  };
+}
+
 export const useDatasetStore = defineStore('dataset', () => {
   const imageStore = useImageStore();
   const dicomStore = useDICOMStore();
-  const fileStore = useFileStore();
   const layersStore = useLayersStore();
 
   // --- state --- //
 
   const primarySelection = ref<DataSelection | null>(null);
+  const loadedData = shallowRef<Array<LoadedData>>([]);
 
   // --- getters --- //
 
@@ -48,12 +123,28 @@ export const useDatasetStore = defineStore('dataset', () => {
     primarySelection.value = sel;
   }
 
-  async function serialize(stateFile: StateFile) {
-    await dicomStore.serialize(stateFile);
-    await imageStore.serialize(stateFile);
+  async function serialize(stateFile: Schema.StateFile) {
+    const { manifest, zip } = stateFile;
+
+    const { serializedDependencies, dataIDToDataSourceID, files } =
+      serializeLoadedData(loadedData.value);
+
+    // save datasets and data sources
+    manifest.datasets = loadedData.value.map(({ dataID }) => ({
+      id: dataID,
+      dataSourceId: dataIDToDataSourceID[dataID],
+    }));
+    manifest.dataSources = serializedDependencies;
+
+    // add any locally loaded files
+    manifest.datasetFilePath = {};
+    Object.entries(files).forEach(([fileId, file]) => {
+      const filePath = `data/${fileId}/${file.name}`;
+      zip.file(filePath, file);
+      manifest.datasetFilePath[fileId] = filePath;
+    });
 
     if (primarySelection.value) {
-      const { manifest } = stateFile;
       manifest.primarySelection = primarySelection.value;
     }
   }
@@ -68,15 +159,19 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
     imageStore.deleteData(id);
 
-    fileStore.remove(id);
     layersStore.remove(id);
   };
+
+  function addDataSources(sources: Array<LoadedData>) {
+    loadedData.value.push(...sources);
+  }
 
   return {
     primaryImageID,
     primarySelection,
     primaryDataset,
     idsAsSelections,
+    addDataSources,
     setPrimarySelection,
     serialize,
     remove,
