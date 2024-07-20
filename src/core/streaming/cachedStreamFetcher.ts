@@ -106,7 +106,7 @@ export class CachedStreamFetcher implements Fetcher {
       response.status !== HTTP_STATUS_OK &&
       response.status !== HTTP_STATUS_PARTIAL_CONTENT
     ) {
-      throw new HttpNotFound();
+      throw new HttpNotFound(this.request.toString());
     }
 
     if (!noMoreContent && response.status !== HTTP_STATUS_PARTIAL_CONTENT) {
