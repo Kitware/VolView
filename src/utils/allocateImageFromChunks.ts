@@ -40,16 +40,11 @@ export function getTypedArrayForDataRange(min: number, max: number) {
     isSigned
   );
 
-  switch (nbits) {
-    case 8:
-      return isSigned ? Int8Array : Uint8Array;
-    case 16:
-      return isSigned ? Int16Array : Uint16Array;
-    case 32:
-      return isSigned ? Int32Array : Uint32Array;
-    default:
-      throw new Error(`Cannot handle ${nbits}-bit sized ranges`);
-  }
+  if (nbits <= 8) return isSigned ? Int8Array : Uint8Array;
+  if (nbits <= 16) return isSigned ? Int16Array : Uint16Array;
+  if (nbits <= 32) return isSigned ? Int32Array : Uint32Array;
+
+  throw new Error(`Cannot handle ${nbits}-bit sized ranges`);
 }
 
 function getTypedArrayConstructor(
