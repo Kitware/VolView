@@ -2,11 +2,12 @@
 import { RequestPool } from '@/src/core/streaming/requestPool';
 import {
   CachedStreamFetcher,
+  sliceChunks,
   StopSignal,
 } from '@/src/core/streaming/cachedStreamFetcher';
 import { describe, expect, it } from 'vitest';
 
-describe('ResumableFetcher', () => {
+describe('CachedStreamFetcher', () => {
   it('should support stopping and resuming', async () => {
     const pool = new RequestPool();
     const fetcher = new CachedStreamFetcher(
@@ -49,5 +50,26 @@ describe('ResumableFetcher', () => {
     }
 
     fetcher.close();
+  });
+});
+
+describe('sliceChunks', () => {
+  it('should work', () => {
+    expect(sliceChunks([new Uint8Array([1, 2, 3])], 0)).toEqual([]);
+    expect(sliceChunks([new Uint8Array([1, 2, 3])], 1)).toEqual([
+      new Uint8Array([1]),
+    ]);
+    expect(sliceChunks([new Uint8Array([1])], 1)).toEqual([
+      new Uint8Array([1]),
+    ]);
+    expect(sliceChunks([new Uint8Array([1, 2])], 1)).toEqual([
+      new Uint8Array([1]),
+    ]);
+    expect(sliceChunks([new Uint8Array([1, 2])], 3)).toEqual([
+      new Uint8Array([1, 2]),
+    ]);
+    expect(
+      sliceChunks([new Uint8Array([1, 2]), new Uint8Array([3, 4])], 3)
+    ).toEqual([new Uint8Array([1, 2]), new Uint8Array([3])]);
   });
 });

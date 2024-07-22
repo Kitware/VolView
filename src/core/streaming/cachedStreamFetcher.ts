@@ -5,6 +5,10 @@ import {
   HttpNotFound,
 } from '@/src/core/streaming/httpCodes';
 import { Fetcher, FetcherInit } from '@/src/core/streaming/types';
+import {
+  ContentRange,
+  parseContentRangeHeader,
+} from '@/src/utils/parseContentRangeHeader';
 import { Maybe } from '@/src/types';
 
 type FetchFunction = typeof fetch;
@@ -16,6 +20,46 @@ export interface CachedStreamFetcherRequestInit extends RequestInit {
 }
 
 export const StopSignal = Symbol('StopSignal');
+
+export function sliceChunks(chunks: Uint8Array[], start: number) {
+  const newChunks: Uint8Array[] = [];
+  let size = 0;
+  for (let i = 0; i < chunks.length && size < start; i++) {
+    const chunk = chunks[i];
+    if (size + chunk.length > start) {
+      const offset = start - size;
+      const newChunk = chunk.slice(0, offset);
+      newChunks.push(newChunk);
+      size += newChunk.length;
+    } else {
+      newChunks.push(chunk);
+      size += chunk.length;
+    }
+  }
+  return newChunks;
+}
+
+/**
+ * Infers the content range from a full content length and a remaining content length.
+ *
+ * The remaining length is expected to be the length of the remaining bytes to
+ * be downloaded.
+ */
+function inferContentRange(
+  remainingLength: number | null,
+  totalLength: number | null
+): ContentRange {
+  if (remainingLength == null || totalLength == null)
+    return { type: 'empty-range' };
+
+  if (remainingLength > totalLength) {
+    return { type: 'invalid-range' };
+  }
+
+  const start = totalLength - remainingLength;
+  const end = totalLength - 1;
+  return { type: 'range', start, end, length: totalLength };
+}
 
 /**
  * A cached stream fetcher that caches a URI stream.
@@ -87,13 +131,29 @@ export class CachedStreamFetcher implements Fetcher {
 
     this.contentType = response.headers.get('content-type') ?? '';
 
-    if (this.size === 0 && response.headers.has('content-length')) {
-      this.contentLength = Number(response.headers.get('content-length')!);
+    let remainingContentLength: number | null = null;
+    if (response.headers.has('content-length')) {
+      remainingContentLength = Number(response.headers.get('content-length'));
+    }
+
+    // set this.contentLength if we didn't submit a partial request
+    if (
+      this.size === 0 &&
+      this.contentLength == null &&
+      remainingContentLength != null
+    ) {
+      this.contentLength = remainingContentLength;
     }
 
     if (!response.body) throw new Error('Did not receive a response body');
 
-    const noMoreContent = response.headers.get('content-length') === '0';
+    const noMoreContent = remainingContentLength === 0;
+    // Content-Range needs to be in Access-Control-Expose-Headers. If not, then
+    // try to infer based on the remaining content length and the total content
+    // length.
+    const contentRange = response.headers.has('content-range')
+      ? parseContentRangeHeader(response.headers.get('content-range'))
+      : inferContentRange(remainingContentLength, this.contentLength);
     const rangeNotSatisfiable =
       response.status === HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE;
 
@@ -109,7 +169,19 @@ export class CachedStreamFetcher implements Fetcher {
       throw new HttpNotFound(this.request.toString());
     }
 
-    if (!noMoreContent && response.status !== HTTP_STATUS_PARTIAL_CONTENT) {
+    if (response.status === HTTP_STATUS_PARTIAL_CONTENT) {
+      if (contentRange.type === 'invalid-range')
+        throw new Error('Invalid content-range header');
+      if (contentRange.type === 'unsatisfied-range')
+        throw new Error('Range could not be satisfied');
+
+      let start: number = 0;
+      if (contentRange.type === 'range') {
+        start = contentRange.start;
+      }
+
+      this.chunks = sliceChunks(this.chunks, start);
+    } else if (!noMoreContent) {
       this.chunks = [];
     }
 
