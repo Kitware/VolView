@@ -6,13 +6,13 @@ import {
   writeImage as writeImageItk,
 } from '@itk-wasm/image-io';
 import { vtiReader, vtiWriter } from '@/src/io/vtk/async';
+import { getWorker } from '@/src/io/itk/worker';
 
 export const readImage = async (file: File) => {
   if (file.name.endsWith('.vti'))
     return (await vtiReader(file)) as vtkImageData;
 
-  const { image, webWorker } = await readImageItk(file);
-  webWorker.terminate();
+  const { image } = await readImageItk(file, { webWorker: getWorker() });
   return vtkITKHelper.convertItkToVtkImage(image);
 };
 
@@ -34,7 +34,8 @@ export const writeImage = async (format: string, image: vtkImageData) => {
     }
   }
 
-  const result = await writeImageItk(itkImage, `image.${format}`);
-  result.webWorker?.terminate();
+  const result = await writeImageItk(itkImage, `image.${format}`, {
+    webWorker: getWorker(),
+  });
   return result.serializedImage.data;
 };
