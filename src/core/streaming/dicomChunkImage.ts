@@ -238,9 +238,12 @@ export default class DicomChunkImage implements ChunkImage {
 
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
-    const result = await readImage(new File([chunk.dataBlob], 'file.dcm'), {
-      webWorker: getWorker(),
-    });
+    const result = await readImage(
+      new File([chunk.dataBlob], `file-${chunkIndex}.dcm`),
+      {
+        webWorker: getWorker(),
+      }
+    );
 
     if (!result.image.data) throw new Error('No data read from chunk');
 
