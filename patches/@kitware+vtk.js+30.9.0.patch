@@ -14,7 +14,7 @@ index d317f28..a8c6c71 100644
        numberOfComponents = 1,
        component = 0
      } = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-+    const array = dataArray.getRange();
++    const array = dataArray.getData();
      model.histogram = null;
      model.histogramArray = array;
 -    model.dataRange = arrayRange(array, component, numberOfComponents);
