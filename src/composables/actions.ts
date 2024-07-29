@@ -33,7 +33,7 @@ const setTool = (tool: Tools) => () => {
 
 const showKeyboardShortcuts = () => {
   const keyboardStore = useKeyboardShortcutsStore();
-  keyboardStore.settingsOpen = true;
+  keyboardStore.settingsOpen = !keyboardStore.settingsOpen;
 };
 
 export const ACTION_TO_FUNC = {

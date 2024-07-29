@@ -17,9 +17,25 @@ export function useKeyboardShortcuts() {
       unwatchFuncs.forEach((unwatch) => unwatch());
 
       unwatchFuncs = getEntries(actionMap).map(([action, key]) => {
+        const individualKeys = key.split('+');
+        const lastKey = individualKeys[individualKeys.length - 1];
+
         return whenever(keys[key], () => {
-          // basic detection for exact modifier match
-          if (keys.current.size === key.split('+').length) {
+          const shiftPressed = keys.current.has('shift');
+          const lastPressedKey = Array.from(keys.current).pop();
+          const currentKeyWithCase = shiftPressed
+            ? lastPressedKey?.toUpperCase() ?? lastPressedKey
+            : lastPressedKey;
+
+          // keyCountMatches checks for exact modifier match
+          const keyCountMatches = keys.current.size === individualKeys.length;
+          const lastKeyMatches = lastKey === currentKeyWithCase;
+          const shiftCaseMatches =
+            shiftPressed &&
+            keys.current.size - 1 === individualKeys.length &&
+            lastKeyMatches;
+
+          if ((keyCountMatches && lastKeyMatches) || shiftCaseMatches) {
             ACTION_TO_FUNC[action]();
           }
         });
