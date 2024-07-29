@@ -43,7 +43,8 @@ async function runTask(
   inputs: any[],
   outputs: any[]
 ) {
-  return runPipeline(getWorker(), module, args, outputs, inputs, {
+  return runPipeline(module, args, outputs, inputs, {
+    webWorker: getWorker(),
     pipelineBaseUrl: itkConfig.pipelinesUrl,
     pipelineWorkerUrl: itkConfig.pipelineWorkerUrl,
   });
@@ -113,7 +114,10 @@ export async function readTags<T extends TagSpec[]>(
 ): Promise<Record<T[number]['name'], string>> {
   const tagsArgs = { tagsToRead: { tags: tags.map(({ tag }) => tag) } };
 
-  const result = await readDicomTags(getWorker(), sanitizeFile(file), tagsArgs);
+  const result = await readDicomTags(sanitizeFile(file), {
+    ...tagsArgs,
+    webWorker: getWorker(),
+  });
   const tagValues = new Map(result.tags);
 
   return tags.reduce((info, t) => {
@@ -174,7 +178,8 @@ export async function readVolumeSlice(
  */
 export async function buildImage(seriesFiles: File[]) {
   const inputImages = seriesFiles.map((file) => sanitizeFile(file));
-  const result = await readImageDicomFileSeries(getDicomSeriesWorkerPool(), {
+  const result = await readImageDicomFileSeries({
+    webWorkerPool: getDicomSeriesWorkerPool(),
     inputImages,
     singleSortedSeries: false,
   });
