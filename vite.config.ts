@@ -13,10 +13,6 @@ import replace from '@rollup/plugin-replace';
 import pkgLock from './package-lock.json';
 import { config } from './wdio.shared.conf';
 
-if (pkgLock.lockfileVersion !== 2) {
-  throw new Error('package-lock.json is not version 2!');
-}
-
 function getPackageInfo(lockInfo: typeof pkgLock) {
   if (lockInfo.lockfileVersion === 2) {
     return {
