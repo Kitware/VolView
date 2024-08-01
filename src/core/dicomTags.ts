@@ -32,6 +32,7 @@ const tags: Tag[] = [
   { name: 'SamplesPerPixel', tag: '0028|0002' },
   { name: 'RescaleIntercept', tag: '0028|1052' },
   { name: 'RescaleSlope', tag: '0028|1053' },
+  { name: 'NumberOfFrames', tag: '0028|0008' },
 ];
 
 export const TAG_TO_NAME = new Map(tags.map((t) => [t.tag, t.name]));
