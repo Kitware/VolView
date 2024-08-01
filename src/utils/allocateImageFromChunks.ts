@@ -5,6 +5,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { mat3, vec3 } from 'gl-matrix';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import { vtkWarningMacro } from '@kitware/vtk.js/macros';
 
 const ImagePositionPatientTag = NAME_TO_TAG.get('ImagePositionPatient')!;
 const ImageOrientationPatientTag = NAME_TO_TAG.get('ImageOrientationPatient')!;
@@ -16,6 +17,7 @@ const PixelRepresentationTag = NAME_TO_TAG.get('PixelRepresentation')!;
 const SamplesPerPixelTag = NAME_TO_TAG.get('SamplesPerPixel')!;
 const RescaleIntercept = NAME_TO_TAG.get('RescaleIntercept')!;
 const RescaleSlope = NAME_TO_TAG.get('RescaleSlope')!;
+const NumberOfFrames = NAME_TO_TAG.get('NumberOfFrames')!;
 
 function toVec(s: Maybe<string>): number[] | null {
   if (!s?.length) return null;
@@ -84,8 +86,18 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   const samplesPerPixel = Number(meta.get(SamplesPerPixelTag) ?? 1);
   const rescaleIntercept = Number(meta.get(RescaleIntercept) ?? 0);
   const rescaleSlope = Number(meta.get(RescaleSlope) ?? 1);
+  const numberOfFrames = meta.has(NumberOfFrames)
+    ? Number(meta.get(NumberOfFrames))
+    : null;
 
-  const slices = sortedChunks.length;
+  // If we have NumberOfFrames, chances are it's a multi-frame DICOM.
+  if (numberOfFrames !== null && sortedChunks.length > 1) {
+    vtkWarningMacro(
+      'Found a multi-frame chunk in a group of chunks of size > 1'
+    );
+  }
+
+  const slices = numberOfFrames === null ? sortedChunks.length : numberOfFrames;
   const TypedArrayCtor = getTypedArrayConstructor(
     bitsStored,
     pixelRepresentation,
