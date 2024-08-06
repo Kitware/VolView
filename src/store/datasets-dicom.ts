@@ -118,7 +118,13 @@ export const getDisplayName = (info: VolumeInfo) => {
 
 export const getWindowLevels = (info: VolumeInfo) => {
   const { WindowWidth, WindowLevel } = info;
-  if (WindowWidth === '') return []; // missing tag
+  if (
+    WindowWidth == null ||
+    WindowLevel == null ||
+    WindowWidth === '' ||
+    WindowLevel === ''
+  )
+    return []; // missing tag
   const widths = WindowWidth.split('\\').map(parseFloat);
   const levels = WindowLevel.split('\\').map(parseFloat);
   if (
