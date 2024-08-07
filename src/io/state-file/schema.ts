@@ -48,32 +48,42 @@ const LPSAxisDir = z.union([
 ]);
 
 const FileSource = z.object({
+  id: z.number(),
+  type: z.literal('file'),
   fileId: z.number(),
   fileType: z.string(),
+  parent: z.number().optional(),
 });
 
 const UriSource = z.object({
+  id: z.number(),
+  type: z.literal('uri'),
   uri: z.string(),
   name: z.string(),
   mime: z.string().optional(),
+  parent: z.number().optional(),
 });
 
 const ArchiveSource = z.object({
+  id: z.number(),
+  type: z.literal('archive'),
   path: z.string(),
+  parent: z.number(),
 });
 
 const CollectionSource = z.object({
+  id: z.number(),
+  type: z.literal('collection'),
   sources: z.number().array(),
+  parent: z.number().optional(),
 });
 
-const DataSource = z.object({
-  id: z.number(),
-  parent: z.number().optional(),
-  fileSrc: FileSource.optional(),
-  uriSrc: UriSource.optional(),
-  archiveSrc: ArchiveSource.optional(),
-  collectionSrc: CollectionSource.optional(),
-});
+const DataSource = z.union([
+  FileSource,
+  UriSource,
+  ArchiveSource,
+  CollectionSource,
+]);
 
 export type DataSourceType = z.infer<typeof DataSource>;
 

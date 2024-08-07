@@ -10,20 +10,21 @@ import { ZodError } from 'zod';
  * @returns
  */
 const handleRemoteManifest: ImportHandler = async (dataSource) => {
-  const { fileSrc } = dataSource;
-  if (fileSrc?.fileType !== 'application/json') {
+  if (
+    dataSource.type !== 'file' ||
+    dataSource.fileType !== 'application/json'
+  ) {
     return Skip;
   }
 
   try {
     const remotes: DataSource[] = [];
-    const manifest = await readRemoteManifestFile(fileSrc.file);
+    const manifest = await readRemoteManifestFile(dataSource.file);
     manifest.resources.forEach((res) => {
       remotes.push({
-        uriSrc: {
-          uri: res.url,
-          name: res.name ?? new URL(res.url, window.location.origin).pathname,
-        },
+        type: 'uri',
+        uri: res.url,
+        name: res.name ?? new URL(res.url, window.location.origin).pathname,
         parent: dataSource,
       });
     });

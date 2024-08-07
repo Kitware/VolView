@@ -14,21 +14,20 @@ import { Skip } from '@/src/utils/evaluateChain';
  * @returns
  */
 const importSingleFile: ImportHandler = async (dataSource) => {
-  if (!dataSource.fileSrc) {
+  if (dataSource.type !== 'file') {
     return Skip;
   }
 
-  const { fileSrc } = dataSource;
-  if (!FILE_READERS.has(fileSrc.fileType)) {
+  if (!FILE_READERS.has(dataSource.fileType)) {
     return Skip;
   }
 
-  const reader = FILE_READERS.get(fileSrc.fileType)!;
-  const dataObject = await reader(fileSrc.file);
+  const reader = FILE_READERS.get(dataSource.fileType)!;
+  const dataObject = await reader(dataSource.file);
 
   if (dataObject.isA('vtkImageData')) {
     const dataID = useImageStore().addVTKImageData(
-      fileSrc.file.name,
+      dataSource.file.name,
       dataObject as vtkImageData
     );
 
@@ -42,7 +41,7 @@ const importSingleFile: ImportHandler = async (dataSource) => {
       );
     }
     const dataID = useModelStore().addVTKPolyData(
-      fileSrc.file.name,
+      dataSource.file.name,
       dataObject as vtkPolyData
     );
 
