@@ -13,33 +13,29 @@ import { ensureError } from '@/src/utils';
  * @returns
  */
 const downloadStream: ImportHandler = async (dataSource) => {
-  const { fileSrc, uriSrc, chunkSrc } = dataSource;
-  // existence of a chunkSrc means that the stream doesn't need to be downloaded.
-  if (fileSrc || chunkSrc || !uriSrc?.fetcher) {
-    return Skip;
-  }
+  if (dataSource.type !== 'uri') return Skip;
+  if (!dataSource.fetcher) return Skip;
 
-  const { fetcher } = uriSrc;
+  const { fetcher } = dataSource;
   await fetcher.connect();
 
   try {
     const blob = await fetcher.blob();
-    const file = new File([blob], uriSrc.name, {
-      type: uriSrc.mime,
+    const file = new File([blob], dataSource.name, {
+      type: dataSource.mime,
     });
 
     return asIntermediateResult([
       {
-        ...dataSource,
-        fileSrc: {
-          file,
-          fileType: file.type,
-        },
+        type: 'file',
+        file,
+        fileType: file.type,
+        parent: dataSource,
       },
     ]);
   } catch (err) {
     throw new Error(
-      `Could not download stream associated with URL ${uriSrc.uri}`,
+      `Could not download stream associated with URL ${dataSource.uri}`,
       {
         cause: ensureError(err),
       }

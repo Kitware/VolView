@@ -13,16 +13,13 @@ import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { readDicomTags } from '@itk-wasm/dicom';
 
 const handleDicomStream: ImportHandler = async (dataSource) => {
-  const { fileSrc, uriSrc, chunkSrc } = dataSource;
-  if (fileSrc || uriSrc?.mime !== FILE_EXT_TO_MIME.dcm) {
+  if (dataSource.type !== 'uri' || dataSource?.mime !== FILE_EXT_TO_MIME.dcm) {
     return Skip;
   }
 
-  if (chunkSrc?.chunk && chunkSrc?.mime === FILE_EXT_TO_MIME.dcm) return Skip;
-
   const fetcher =
-    uriSrc.fetcher ??
-    new CachedStreamFetcher(uriSrc.uri, {
+    dataSource.fetcher ??
+    new CachedStreamFetcher(dataSource.uri, {
       fetch: (...args) => getRequestPool().fetch(...args),
     });
 
@@ -42,11 +39,10 @@ const handleDicomStream: ImportHandler = async (dataSource) => {
 
   return asIntermediateResult([
     {
-      ...dataSource,
-      chunkSrc: {
-        chunk,
-        mime: FILE_EXT_TO_MIME.dcm,
-      },
+      type: 'chunk',
+      chunk,
+      mime: FILE_EXT_TO_MIME.dcm,
+      parent: dataSource,
     },
   ]);
 };

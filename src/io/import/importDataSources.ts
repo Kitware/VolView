@@ -10,7 +10,7 @@ import {
   ImportDataSourcesResult,
   asIntermediateResult,
 } from '@/src/io/import/common';
-import { DataSource, ChunkDataSource } from '@/src/io/import/dataSource';
+import { DataSource, ChunkSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
@@ -34,13 +34,13 @@ import { ensureError, partition } from '@/src/utils';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 
-const unhandledResource: ImportHandler = () => {
-  throw new Error('Failed to handle resource');
+const unhandledResource: ImportHandler = (dataSource) => {
+  return asErrorResult(new Error('Failed to handle resource'), dataSource);
 };
 
 const handleCollections: ImportHandler = (dataSource) => {
-  if (!dataSource.collectionSrc) return Skip;
-  return asIntermediateResult(dataSource.collectionSrc.sources);
+  if (dataSource.type !== 'collection') return Skip;
+  return asIntermediateResult(dataSource.sources);
 };
 
 function isSelectable(result: ImportResult): result is LoadableVolumeResult {
@@ -60,26 +60,23 @@ const importConfigs = (
   });
 };
 
-async function importDicomChunkSources(sources: ChunkDataSource[]) {
+async function importDicomChunkSources(sources: ChunkSource[]) {
   if (sources.length === 0) return [];
 
-  const volumeChunks = await importDicomChunks(
-    sources.map((src) => src.chunkSrc.chunk)
-  );
+  const volumeChunks = await importDicomChunks(sources.map((src) => src.chunk));
 
-  // this is used to reconstruct the ChunkDataSource list
-  const chunkToDataSource = new Map<Chunk, ChunkDataSource>();
+  // this is used to reconstruct the ChunkSource list
+  const chunkToDataSource = new Map<Chunk, ChunkSource>();
   sources.forEach((src) => {
-    chunkToDataSource.set(src.chunkSrc.chunk, src);
+    chunkToDataSource.set(src.chunk, src);
   });
 
   return Object.entries(volumeChunks).map(([id, chunks]) =>
     asLoadableResult(
       id,
       {
-        collectionSrc: {
-          sources: chunks.map((chunk) => chunkToDataSource.get(chunk)!),
-        },
+        type: 'collection',
+        sources: chunks.map((chunk) => chunkToDataSource.get(chunk)!),
       },
       'image'
     )
@@ -151,7 +148,7 @@ export async function importDataSources(
     switch (result.type) {
       case 'intermediate': {
         const [chunks, otherSources] = partition(
-          (ds) => !!ds.chunkSrc,
+          (ds) => ds.type === 'chunk',
           result.dataSources
         );
         chunkSources.push(...chunks);
@@ -185,8 +182,8 @@ export async function importDataSources(
   results.push(
     ...(await importDicomChunkSources(
       chunkSources.filter(
-        (src): src is ChunkDataSource =>
-          src.chunkSrc?.mime === FILE_EXT_TO_MIME.dcm
+        (src): src is ChunkSource =>
+          src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
       )
     ))
   );

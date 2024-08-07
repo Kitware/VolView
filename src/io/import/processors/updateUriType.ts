@@ -36,16 +36,15 @@ function detectStreamType(stream: ReadableStream) {
 }
 
 const updateUriType: ImportHandler = async (dataSource) => {
-  const { fileSrc, uriSrc } = dataSource;
-  if (fileSrc || !uriSrc?.fetcher) {
+  if (dataSource.type !== 'uri' || !dataSource?.fetcher) {
     return Skip;
   }
 
-  if (uriSrc.mime !== undefined) {
+  if (dataSource.mime !== undefined) {
     return Skip;
   }
 
-  const { fetcher } = uriSrc;
+  const { fetcher } = dataSource;
 
   await fetcher.connect();
   const stream = fetcher.getStream();
@@ -53,10 +52,7 @@ const updateUriType: ImportHandler = async (dataSource) => {
 
   const streamDataSource = {
     ...dataSource,
-    uriSrc: {
-      ...uriSrc,
-      mime,
-    },
+    mime,
   };
 
   return asIntermediateResult([streamDataSource]);

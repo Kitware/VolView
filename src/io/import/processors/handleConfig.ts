@@ -9,10 +9,12 @@ import { Skip } from '@/src/utils/evaluateChain';
  * @returns
  */
 const handleConfig: ImportHandler = async (dataSource) => {
-  const { fileSrc } = dataSource;
-  if (fileSrc?.fileType === 'application/json') {
+  if (
+    dataSource.type === 'file' &&
+    dataSource.fileType === 'application/json'
+  ) {
     try {
-      const manifest = await readConfigFile(fileSrc.file);
+      const manifest = await readConfigFile(dataSource.file);
       // Don't consume JSON if it has no known key
       if (Object.keys(manifest).length === 0) {
         return Skip;
