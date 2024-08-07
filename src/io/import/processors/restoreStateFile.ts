@@ -4,6 +4,7 @@ import {
   ManifestSchema,
 } from '@/src/io/state-file/schema';
 import {
+  asErrorResult,
   asOkayResult,
   ImportContext,
   ImportHandler,
@@ -196,8 +197,59 @@ async function rebuildDataSources(
     leaves.add(serializedSrc.id);
   });
 
-  // serializedDataSources should be topologically ordered by
-  // ancestors first and descendants last
+  const deserialize = (
+    serialized: (typeof serializedDataSources)[number]
+  ): DataSource => {
+    const { type } = serialized;
+    switch (type) {
+      case 'file':
+        return {
+          type: 'file',
+          file: fileIDToFile[serialized.fileId],
+          fileType: serialized.fileType,
+        };
+      case 'archive': {
+        const parent = dataSourceCache[serialized.parent];
+        if (!parent)
+          throw new Error('Could not find the parent of an archive source');
+        if (parent.type !== 'file')
+          throw new Error('Archive source parent is not a file');
+        return {
+          type: 'archive',
+          path: serialized.path,
+          parent,
+        };
+      }
+      case 'uri':
+        return {
+          type: 'uri',
+          uri: serialized.uri,
+          name: serialized.name,
+          mime: serialized.mime,
+        };
+      case 'collection': {
+        // these sources are no longer leaves
+        serialized.sources.forEach((id) => {
+          leaves.delete(id);
+        });
+        const sources = serialized.sources.map((id) => dataSourceCache[id]);
+        if (sources.some((src) => !src))
+          throw new Error('Could not deserialize a collection source');
+        return {
+          type: 'collection',
+          sources,
+        };
+      }
+      default:
+        throw new Error(
+          `Encountered an invalid serialized data source: ${type}`
+        );
+    }
+  };
+
+  // serializedDataSources should be topologically ordered by ancestors first
+  // and descendants last. This is established in
+  // datasets.ts/serializeDataSource()
   for (let i = 0; i < serializedDataSources.length; i++) {
     const serializedSrc = serializedDataSources[i];
 
@@ -206,33 +258,7 @@ async function rebuildDataSources(
       continue;
     }
 
-    let dataSource: DataSource = {};
-
-    if (serializedSrc.fileSrc) {
-      dataSource.fileSrc = {
-        file: fileIDToFile[serializedSrc.fileSrc.fileId],
-        fileType: serializedSrc.fileSrc.fileType,
-      };
-    }
-
-    if (serializedSrc.archiveSrc) {
-      dataSource.archiveSrc = serializedSrc.archiveSrc;
-    }
-
-    if (serializedSrc.uriSrc) {
-      dataSource.uriSrc = serializedSrc.uriSrc;
-    }
-
-    if (serializedSrc.collectionSrc) {
-      serializedSrc.collectionSrc.sources.forEach((id) => {
-        leaves.delete(id);
-      });
-      dataSource.collectionSrc = {
-        sources: serializedSrc.collectionSrc.sources.map(
-          (id) => dataSourceCache[id]
-        ),
-      };
-    }
+    let dataSource = deserialize(serializedSrc);
 
     if (serializedSrc.parent) {
       dataSource.parent = dataSourceCache[serializedSrc.parent];
@@ -316,9 +342,8 @@ async function restoreDatasets(
 }
 
 const restoreStateFile: ImportHandler = async (dataSource, context) => {
-  const { fileSrc } = dataSource;
-  if (fileSrc && (await isStateFile(fileSrc.file))) {
-    const stateFileContents = await extractFilesFromZip(fileSrc.file);
+  if (dataSource.type === 'file' && (await isStateFile(dataSource.file))) {
+    const stateFileContents = await extractFilesFromZip(dataSource.file);
 
     const [manifests, restOfStateFile] = partition(
       (dataFile) => dataFile.file.name === MANIFEST,
@@ -331,7 +356,15 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
 
     const manifestString = await manifests[0].file.text();
     const migrated = migrateManifest(manifestString);
-    const manifest = ManifestSchema.parse(migrated);
+    let manifest: Manifest;
+    try {
+      manifest = ManifestSchema.parse(migrated);
+    } catch (_) {
+      return asErrorResult(
+        new Error('Unsupported state file schema or version'),
+        dataSource
+      );
+    }
 
     // We restore the view first, so that the appropriate watchers are triggered
     // in the views as the data is loaded

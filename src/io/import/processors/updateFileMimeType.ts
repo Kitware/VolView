@@ -7,10 +7,9 @@ import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
  * @param dataSource
  */
 const updateFileMimeType: ImportHandler = async (dataSource) => {
-  const { fileSrc } = dataSource;
-  if (!fileSrc || fileSrc.fileType !== '') return Skip;
+  if (dataSource.type !== 'file' || dataSource.fileType !== '') return Skip;
 
-  const mime = await getFileMimeType(fileSrc.file);
+  const mime = await getFileMimeType(dataSource.file);
   if (!mime) {
     throw new Error('File is unsupported');
   }
@@ -18,10 +17,7 @@ const updateFileMimeType: ImportHandler = async (dataSource) => {
   return asIntermediateResult([
     {
       ...dataSource,
-      fileSrc: {
-        ...fileSrc,
-        fileType: mime,
-      },
+      fileType: mime,
     },
   ]);
 };

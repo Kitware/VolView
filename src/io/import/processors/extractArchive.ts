@@ -5,6 +5,7 @@ import {
   isArchive,
 } from '@/src/io/import/common';
 import { Skip } from '@/src/utils/evaluateChain';
+import { DataSource } from '@/src/io/import/dataSource';
 
 /**
  * Extracts all files from an archive.
@@ -12,17 +13,17 @@ import { Skip } from '@/src/utils/evaluateChain';
  */
 const extractArchive: ImportHandler = async (dataSource) => {
   if (isArchive(dataSource)) {
-    const files = await extractFilesFromZip(dataSource.fileSrc.file);
-    const newSources = files.map((entry) => {
+    const files = await extractFilesFromZip(dataSource.file);
+    const newSources = files.map((entry): DataSource => {
       return {
-        fileSrc: {
-          file: entry.file,
-          fileType: '',
-        },
-        archiveSrc: {
+        type: 'file',
+        file: entry.file,
+        fileType: '',
+        parent: {
+          type: 'archive',
           path: entry.archivePath,
+          parent: dataSource,
         },
-        parent: dataSource,
       };
     });
     return asIntermediateResult(newSources);

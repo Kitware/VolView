@@ -5,16 +5,15 @@ import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { canFetchUrl } from '@/src/utils/fetch';
 
 const openUriStream: ImportHandler = async (dataSource, context) => {
-  const { uriSrc } = dataSource;
-  if (!uriSrc || !canFetchUrl(uriSrc.uri)) {
+  if (dataSource.type !== 'uri' || !canFetchUrl(dataSource.uri)) {
     return Skip;
   }
 
-  if (uriSrc.fetcher?.connected) {
+  if (dataSource.fetcher?.connected) {
     return Skip;
   }
 
-  const fetcher = new CachedStreamFetcher(uriSrc.uri, {
+  const fetcher = new CachedStreamFetcher(dataSource.uri, {
     fetch: (...args) => getRequestPool().fetch(...args),
   });
 
@@ -28,10 +27,7 @@ const openUriStream: ImportHandler = async (dataSource, context) => {
   return asIntermediateResult([
     {
       ...dataSource,
-      uriSrc: {
-        ...uriSrc,
-        fetcher,
-      },
+      fetcher,
     },
   ]);
 };

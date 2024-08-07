@@ -4,22 +4,20 @@ import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { DataSource } from '@/src/io/import/dataSource';
 
 const handleAmazonS3: ImportHandler = async (dataSource) => {
-  const { uriSrc } = dataSource;
-  if (uriSrc && isAmazonS3Uri(uriSrc.uri)) {
+  if (dataSource.type === 'uri' && isAmazonS3Uri(dataSource.uri)) {
     try {
       const newSources: DataSource[] = [];
-      await getObjectsFromS3(uriSrc.uri, (name, url) => {
+      await getObjectsFromS3(dataSource.uri, (name, url) => {
         newSources.push({
-          uriSrc: {
-            uri: url,
-            name,
-          },
+          type: 'uri',
+          uri: url,
+          name,
           parent: dataSource,
         });
       });
       return asIntermediateResult(newSources);
     } catch (err) {
-      throw new Error(`Could not download S3 URI ${uriSrc.uri}`, {
+      throw new Error(`Could not download S3 URI ${dataSource.uri}`, {
         cause: err instanceof Error ? err : undefined,
       });
     }

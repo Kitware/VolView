@@ -18,36 +18,25 @@ import { Skip } from '@/src/utils/evaluateChain';
  * @returns
  */
 const extractArchiveTarget: ImportHandler = async (dataSource) => {
-  const { fileSrc, archiveSrc, parent } = dataSource;
+  if (dataSource.type !== 'archive') return Skip;
 
-  if (!fileSrc && archiveSrc && parent) {
-    if (!parent?.fileSrc) {
-      throw new Error(
-        'Cannot extract an archive target with an unresolved parent'
-      );
-    }
-
-    if (!isArchive(parent)) {
-      throw new Error('Parent is not a supported archive file');
-    }
-
-    const targetFile = await extractFileFromZip(
-      parent.fileSrc.file,
-      archiveSrc.path
-    );
-
-    return asIntermediateResult([
-      {
-        ...dataSource,
-        fileSrc: {
-          file: targetFile,
-          fileType: '',
-        },
-      },
-    ]);
+  if (!isArchive(dataSource.parent)) {
+    throw new Error('Parent is not a supported archive file');
   }
 
-  return Skip;
+  const targetFile = await extractFileFromZip(
+    dataSource.parent.file,
+    dataSource.path
+  );
+
+  return asIntermediateResult([
+    {
+      type: 'file',
+      file: targetFile,
+      fileType: '',
+      parent: dataSource,
+    },
+  ]);
 };
 
 export default extractArchiveTarget;

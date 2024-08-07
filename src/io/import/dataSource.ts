@@ -1,14 +1,12 @@
 import { Chunk } from '@/src/core/streaming/chunk';
 import { Fetcher } from '@/src/core/streaming/types';
-import { Maybe, PartialWithRequired } from '@/src/types';
+import { Maybe } from '@/src/types';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
- *
- * This can optionally be paired with a FileSource, indicating that the
- * FileSource is a remote FileSource.
  */
 export interface UriSource {
+  type: 'uri';
   uri: string;
   name: string;
   mime?: string;
@@ -17,22 +15,21 @@ export interface UriSource {
 
 /**
  * Represents a user-specified file.
- *
- * This can optionally be paired with an ArchiveSource.
  */
 export interface FileSource {
+  type: 'file';
   file: File;
   fileType: string;
 }
 
 /**
- * If an archive source is specified, then it is assumed that the data source
- * has a FileSource (representing the file inside the archive), and a parent
- * data source with a FileSource that refers to the archive.
+ * Represents an archive member. The parent should exist and be a FileSource.
  */
 export interface ArchiveSource {
+  type: 'archive';
   // Full path + filename inside the archive
   path: string;
+  parent: FileSource;
 }
 
 /**
@@ -42,6 +39,7 @@ export interface ArchiveSource {
  * e.g. reconstructed DICOM.
  */
 export interface CollectionSource {
+  type: 'collection';
   // eslint-disable-next-line no-use-before-define
   sources: DataSource[];
 }
@@ -50,6 +48,7 @@ export interface CollectionSource {
  * Represents a data chunk for further processing and import.
  */
 export interface ChunkSource {
+  type: 'chunk';
   chunk: Chunk;
   mime: string;
 }
@@ -57,50 +56,25 @@ export interface ChunkSource {
 /**
  * Represents a source of data.
  *
- * If the parent property is set, it represents the DataSource from which this
- * DataSource was derived.
- *
- * Examples:
- * - { uriSrc }: a file that has yet to be downloaded.
- * - { fileSrc, parent: { uriSrc } }: a file with URI provenance info.
- * - { fileSrc, archiveSrc, parent }: a file originating from an archive.
+ * The parent chain denotes the provenance for each step of the data source resolution.
  */
-export interface DataSource {
-  fileSrc?: FileSource;
-  uriSrc?: UriSource;
-  archiveSrc?: ArchiveSource;
-  chunkSrc?: ChunkSource;
-  collectionSrc?: CollectionSource;
-  parent?: DataSource;
-}
-
-/**
- * A data source that has a File.
- */
-export type FileDataSource = PartialWithRequired<DataSource, 'fileSrc'>;
-
-/**
- * An archive member data source.
- */
-export type ArchiveDataSource = PartialWithRequired<
-  DataSource,
-  'archiveSrc' | 'fileSrc'
-> & {
-  parent: FileDataSource;
-};
-
-export type ChunkDataSource = PartialWithRequired<DataSource, 'chunkSrc'>;
+export type DataSource = { parent?: DataSource } & (
+  | FileSource
+  | UriSource
+  | ArchiveSource
+  | ChunkSource
+  | CollectionSource
+);
 
 /**
  * Creates a DataSource from a single file.
  * @param file
  * @returns
  */
-export const fileToDataSource = (file: File): DataSource => ({
-  fileSrc: {
-    file,
-    fileType: file.type,
-  },
+export const fileToDataSource = (file: File): FileSource => ({
+  type: 'file',
+  file,
+  fileType: file.type,
 });
 
 /**
@@ -112,12 +86,11 @@ export const uriToDataSource = (
   uri: string,
   name: string,
   mime?: string
-): DataSource => ({
-  uriSrc: {
-    uri,
-    name,
-    mime,
-  },
+): UriSource => ({
+  type: 'uri',
+  uri,
+  name,
+  mime,
 });
 
 /**
@@ -130,7 +103,7 @@ export const remoteFileToDataSource = (
   uri: string
 ): DataSource => ({
   ...fileToDataSource(file),
-  ...uriToDataSource(uri, file.name),
+  parent: uriToDataSource(uri, file.name),
 });
 
 /**
@@ -138,27 +111,9 @@ export const remoteFileToDataSource = (
  * @param ds
  * @returns
  */
-export function isRemoteDataSource(ds: DataSource): boolean {
-  return !!ds.uriSrc || (!!ds.parent && isRemoteDataSource(ds.parent));
-}
-
-/**
- * Flattens a data source hierarchy, ordered by descendant first.
- *
- * For a given data source `ds`, `ds` is the descendant and `ds.parent` is the
- * ancestor.
- *
- * @param ds
- * @returns
- */
-export function flattenDataSourceHierarchy(ds: DataSource): DataSource[] {
-  const sources: DataSource[] = [];
-  let cur: Maybe<DataSource> = ds;
-  while (cur) {
-    sources.push(cur);
-    cur = cur.parent;
-  }
-  return sources;
+export function isRemoteDataSource(ds: DataSource | undefined): boolean {
+  if (!ds) return false;
+  return ds.type === 'uri' || isRemoteDataSource(ds.parent);
 }
 
 /**
@@ -166,43 +121,16 @@ export function flattenDataSourceHierarchy(ds: DataSource): DataSource[] {
  * @param ds
  */
 export function getDataSourceName(ds: Maybe<DataSource>): Maybe<string> {
-  if (ds?.fileSrc) {
-    return ds.fileSrc.file.name;
-  }
+  if (!ds) return null;
 
-  if (ds?.uriSrc) {
-    return ds.uriSrc.name;
-  }
-
-  if (ds?.collectionSrc?.sources.length) {
-    const { sources } = ds.collectionSrc;
+  if (ds.type === 'file') return ds.file.name;
+  if (ds.type === 'uri') return ds.name;
+  if (ds.type === 'collection' && ds.sources.length) {
+    const { sources } = ds;
     const [first] = sources;
     const more = sources.length > 1 ? ` (+${sources.length - 1} more)` : '';
     return `${getDataSourceName(first)}${more}`;
   }
 
-  return null;
-}
-
-/**
- * Serializes a data source into a JSON formattable object.
- *
- * FileSources are stripped, as they cannot be properly serialized. This
- * includes the fileType property, which should be inferred when retyping the
- * file.
- * @param ds
- */
-export function serializeDataSource(ds: DataSource) {
-  const output = { ...ds };
-
-  if (output.uriSrc) {
-    delete output.uriSrc.fetcher;
-  }
-
-  delete output.fileSrc;
-
-  if (output.parent) {
-    output.parent = serializeDataSource(output.parent);
-  }
-  return output;
+  return getDataSourceName(ds.parent);
 }

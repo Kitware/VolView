@@ -41,44 +41,57 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
       return dataSourceToId.get(ds)!;
     }
 
-    const serialized: Schema.DataSourceType = { id: nextId() };
-    dataSourceToId.set(ds, serialized.id);
+    const id = nextId();
+    dataSourceToId.set(ds, id);
 
-    if (ds.fileSrc) {
-      if (ds.archiveSrc || ds.uriSrc) {
-        // fileSrc is constructed from either an archive or uri
-        delete serialized.fileSrc;
-      } else {
-        const fileId = nextId();
-        serialized.fileSrc = { fileId, fileType: ds.fileSrc.fileType };
-        files[fileId] = ds.fileSrc.file;
+    // don't need to serialize all parents, just the ones that are necessary.
+    const { type } = ds;
+    if (type === 'file') {
+      // file derives from the parent. Just return the serialized parent.
+      if (ds.parent) {
+        return serializeDataSource(ds.parent);
       }
+
+      const fileId = nextId();
+      files[fileId] = ds.file;
+      serializedDependencies.push({
+        id,
+        type: 'file',
+        fileId,
+        fileType: ds.fileType,
+      });
+    } else if (type === 'archive') {
+      serializedDependencies.push({
+        id,
+        type: 'archive',
+        path: ds.path,
+        parent: serializeDataSource(ds.parent),
+      });
+    } else if (type === 'uri') {
+      serializedDependencies.push({
+        id,
+        type: 'uri',
+        name: ds.name,
+        uri: ds.uri,
+        mime: ds.mime,
+      });
+    } else if (type === 'collection') {
+      serializedDependencies.push({
+        id,
+        type: 'collection',
+        sources: ds.sources.map((src) => serializeDataSource(src)),
+      });
+    } else if (type === 'chunk') {
+      // chunk derives from the parent. Just return the serialized parent.
+      if (ds.parent) {
+        return serializeDataSource(ds.parent);
+      }
+      throw new Error('Chunk does not have a parent');
+    } else {
+      throw new Error(`Invalid data source type: ${type as string}`);
     }
 
-    if (ds.archiveSrc) {
-      serialized.archiveSrc = ds.archiveSrc;
-    }
-
-    if (ds.uriSrc) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { fetcher, ...rest } = ds.uriSrc;
-      serialized.uriSrc = rest;
-    }
-
-    if (ds.collectionSrc) {
-      serialized.collectionSrc = {
-        sources: ds.collectionSrc.sources.map((s) => serializeDataSource(s)),
-      };
-    }
-
-    const shouldSerializeParent = !!ds.archiveSrc;
-
-    if (shouldSerializeParent && ds.parent) {
-      serialized.parent = serializeDataSource(ds.parent);
-    }
-
-    serializedDependencies.push(serialized);
-    return serialized.id;
+    return id;
   }
 
   loadedDataSources.forEach(({ dataID, dataSource }) => {

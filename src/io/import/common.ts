@@ -121,10 +121,8 @@ export type ImportHandler = ChainHandler<
   ImportContext
 >;
 
-export function isArchive(
-  ds: DataSource
-): ds is DataSource & { fileSrc: FileSource } {
-  return !!ds.fileSrc && ARCHIVE_FILE_TYPES.has(ds.fileSrc.fileType);
+export function isArchive(ds: DataSource): ds is FileSource {
+  return ds.type === 'file' && ARCHIVE_FILE_TYPES.has(ds.fileType);
 }
 
 export function isLoadableResult(

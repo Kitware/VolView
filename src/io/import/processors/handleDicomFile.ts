@@ -14,8 +14,10 @@ import { readDicomTags } from '@itk-wasm/dicom';
  * @returns
  */
 const handleDicomFile: ImportHandler = async (dataSource) => {
-  const { fileSrc } = dataSource;
-  if (fileSrc?.fileType !== FILE_EXT_TO_MIME.dcm) {
+  if (
+    dataSource.type !== 'file' ||
+    dataSource.fileType !== FILE_EXT_TO_MIME.dcm
+  ) {
     return Skip;
   }
 
@@ -24,8 +26,8 @@ const handleDicomFile: ImportHandler = async (dataSource) => {
     return result.tags;
   };
 
-  const metaLoader = new DicomFileMetaLoader(fileSrc.file, readTags);
-  const dataLoader = new DicomFileDataLoader(fileSrc.file);
+  const metaLoader = new DicomFileMetaLoader(dataSource.file, readTags);
+  const dataLoader = new DicomFileDataLoader(dataSource.file);
   const chunk = new Chunk({
     metaLoader,
     dataLoader,
@@ -35,11 +37,10 @@ const handleDicomFile: ImportHandler = async (dataSource) => {
 
   return asIntermediateResult([
     {
-      ...dataSource,
-      chunkSrc: {
-        chunk,
-        mime: FILE_EXT_TO_MIME.dcm,
-      },
+      type: 'chunk',
+      chunk,
+      mime: FILE_EXT_TO_MIME.dcm,
+      parent: dataSource,
     },
   ]);
 };
