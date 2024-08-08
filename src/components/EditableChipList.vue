@@ -74,4 +74,8 @@ const itemsToRender = computed(() =>
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));
 }
+
+.v-chip:deep() .v-chip__content {
+  width: 100%;
+}
 </style>
