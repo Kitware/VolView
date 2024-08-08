@@ -65,8 +65,9 @@ export default defineComponent({
       }
     });
 
+    const openDicomWeb = computed(() => dicomWeb.isConfigured);
     watch(
-      computed(() => dicomWeb.isConfigured),
+      openDicomWeb,
       (configured) => {
         if (configured) {
           panels.value.push(DICOM_WEB_KEY);
@@ -74,7 +75,8 @@ export default defineComponent({
           // Remove from panels to avoid error in vuetify group.ts
           removeFromArray(panels.value, DICOM_WEB_KEY);
         }
-      }
+      },
+      { immediate: true }
     );
 
     watch(
