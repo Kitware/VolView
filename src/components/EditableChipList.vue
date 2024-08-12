@@ -47,8 +47,7 @@ const itemsToRender = computed(() =>
             @click="toggle"
           >
             <slot name="item-prepend" :key="key" :item="items[idx]"></slot>
-            <span class="overflow-hidden">{{ title }}</span>
-            <v-spacer />
+            <span class="text-truncate">{{ title }}</span>
             <slot name="item-append" :key="key" :item="items[idx]"></slot>
           </v-chip>
         </v-item>
@@ -69,5 +68,9 @@ const itemsToRender = computed(() =>
 .selected {
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));
+}
+
+.v-chip:deep() .v-chip__content {
+  width: 100%;
 }
 </style>
