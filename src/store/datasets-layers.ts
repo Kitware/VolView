@@ -1,5 +1,4 @@
-import { computed, ref, unref } from 'vue';
-import { until } from '@vueuse/core';
+import { ref } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { defineStore } from 'pinia';
@@ -8,7 +7,7 @@ import { Maybe } from '@/src/types';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
-import useChunkStore from './chunks';
+import { untilLoaded } from '../composables/untilLoaded';
 
 export type Layer = {
   selection: DataSelection;
@@ -35,6 +34,9 @@ export const useLayersStore = defineStore('layer', () => {
       ...(this.parentToLayers[parent] ?? []),
       { selection: source, id } as Layer,
     ];
+
+    // ensureSameSpace need final image array to resample, so wait for all chunks
+    await untilLoaded(source);
 
     const [parentImage, sourceImage] = await Promise.all(
       [parent, source].map(getImage)
@@ -65,12 +67,6 @@ export const useLayersStore = defineStore('layer', () => {
     parent: DataSelection,
     source: DataSelection
   ) {
-    // ensureSameSpace need final image array to resample, so wait for all chunks
-    const doneLoading = computed(
-      () => !unref(useChunkStore().chunkImageById[source].isLoading)
-    );
-    await until(doneLoading).toBe(true);
-
     return useErrorMessage('Failed to build layer', async () => {
       try {
         await this._addLayer(parent, source);
