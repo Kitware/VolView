@@ -117,15 +117,15 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
 
   image.setSpacing([1, 1, 1]);
   if (slices > 1 && imagePositionPatient && pixelSpacing) {
-    const secondMeta = new Map(sortedChunks[1].metadata);
-    const secondIPP = toVec(secondMeta.get(ImagePositionPatientTag));
-    if (secondIPP) {
-      const spacing = [...pixelSpacing, 1];
+    const lastMeta = new Map(sortedChunks[sortedChunks.length - 1].metadata);
+    const lastIPP = toVec(lastMeta.get(ImagePositionPatientTag));
+    if (lastIPP) {
       // assumption: uniform Z spacing
       const zVec = vec3.create();
       const firstIPP = imagePositionPatient;
-      vec3.sub(zVec, secondIPP as vec3, firstIPP as vec3);
-      spacing[2] = vec3.len(zVec) || 1;
+      vec3.sub(zVec, lastIPP as vec3, firstIPP as vec3);
+      const zSpacing = vec3.len(zVec) / (sortedChunks.length - 1) || 1;
+      const spacing = [...pixelSpacing, zSpacing];
       image.setSpacing(spacing);
     }
   }
