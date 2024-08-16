@@ -15,16 +15,18 @@ import { setPipelinesBaseUrl, setPipelineWorkerUrl } from '@itk-wasm/image-io';
 import itkConfig from '@/src/io/itk/itkConfig';
 import App from './components/App.vue';
 import vuetify from './plugins/vuetify';
-import { DICOMIO } from './io/dicom';
 import { FILE_READERS } from './io';
 import { registerAllReaders } from './io/readers';
 import { CorePiniaProviderPlugin } from './core/provider';
 import { patchExitPointerLock } from './utils/hacks';
 import { init as initErrorReporting } from './utils/errorReporting';
 import { StoreRegistry } from './plugins/storeRegistry';
+import { initItkWorker } from './io/itk/worker';
 
 // patches
 patchExitPointerLock();
+
+initItkWorker();
 
 // Initialize global mapper topologies
 // polys and lines in the front
@@ -34,19 +36,12 @@ vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-3, -3);
 
 registerAllReaders(FILE_READERS);
 
-const dicomIO = new DICOMIO();
-dicomIO.initialize();
-
 // for @itk-wasm/image-io
 setPipelineWorkerUrl(itkConfig.pipelineWorkerUrl);
 setPipelinesBaseUrl(itkConfig.imageIOUrl);
 
 const pinia = createPinia();
-pinia.use(
-  CorePiniaProviderPlugin({
-    dicomIO,
-  })
-);
+pinia.use(CorePiniaProviderPlugin({}));
 pinia.use(StoreRegistry);
 
 const app = createApp(App);

@@ -285,7 +285,7 @@ export const LAYER_PRESET_BY_MODALITY: Record<string, string> = {
 };
 export const LAYER_PRESET_DEFAULT = 'Blue to Red Rainbow';
 
-// Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+A'
+// Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {
   windowLevel: 'l',
   pan: 'n',
@@ -296,6 +296,7 @@ export const ACTION_TO_KEY = {
   crosshairs: 'c',
   crop: 'b',
   polygon: 'g',
+  mergeNewPolygon: 'Shift',
   select: 's',
 
   decrementLabel: 'q',

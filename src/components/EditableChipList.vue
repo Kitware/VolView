@@ -1,7 +1,6 @@
 <script
   setup
   lang="ts"
-  ,
   generic="T, KeyProp extends keyof T, TitleProp extends keyof T"
 >
 /* global T, KeyProp, TitleProp */

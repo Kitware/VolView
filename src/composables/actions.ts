@@ -33,7 +33,7 @@ const setTool = (tool: Tools) => () => {
 
 const showKeyboardShortcuts = () => {
   const keyboardStore = useKeyboardShortcutsStore();
-  keyboardStore.settingsOpen = true;
+  keyboardStore.settingsOpen = !keyboardStore.settingsOpen;
 };
 
 export const ACTION_TO_FUNC = {
@@ -50,6 +50,8 @@ export const ACTION_TO_FUNC = {
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
+
+  mergeNewPolygon: () => {}, // acts as a modifier key rather than immediate effect, so no-op
 
   showKeyboardShortcuts,
 } as const satisfies Record<Action, () => void>;

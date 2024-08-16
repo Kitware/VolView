@@ -1,7 +1,6 @@
-import vtkITKImageReader from '@kitware/vtk.js/IO/Misc/ITKImageReader';
 import { convertItkToVtkImage } from '@kitware/vtk.js/Common/DataModel/ITKHelper';
-import { readImageArrayBuffer, extensionToImageIO } from 'itk-wasm';
-import { readImage } from '@itk-wasm/image-io';
+import { readImage, extensionToImageIo } from '@itk-wasm/image-io';
+import { getWorker } from '@/src/io/itk/worker';
 import { FileReaderMap } from '.';
 
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
@@ -9,17 +8,16 @@ import { FILE_EXT_TO_MIME } from './mimeTypes';
 
 export const ITK_IMAGE_MIME_TYPES = Array.from(
   new Set(
-    Array.from(extensionToImageIO.keys()).map(
+    Array.from(extensionToImageIo.keys()).map(
       (ext) => FILE_EXT_TO_MIME[ext.toLowerCase()]
     )
   )
 );
 
-vtkITKImageReader.setReadImageArrayBufferFromITK(readImageArrayBuffer);
-
 async function itkReader(file: File) {
-  const { image, webWorker } = await readImage(null, file);
-  webWorker.terminate();
+  const { image } = await readImage(file, {
+    webWorker: getWorker(),
+  });
   return convertItkToVtkImage(image);
 }
 

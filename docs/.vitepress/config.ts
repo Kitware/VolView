@@ -5,6 +5,7 @@ const GA_ID = 'G-MH4N62W0Z9';
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: 'VolView',
+  base: '/VolView',
   description:
     'Open-source and freely available radiological viewer that runs in your web browser and provide photo-realistic, interactive, 3D visualizations.',
 
@@ -27,7 +28,7 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: './assets/logo.svg',
+    logo: './logo.svg',
     nav: [{ text: 'Live Demo', link: 'https://volview.kitware.app' }],
 
     sidebar: [

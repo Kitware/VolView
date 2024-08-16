@@ -48,6 +48,10 @@
             :manipulator-props="{ button: 1, shift: true }"
           ></vtk-mouse-interaction-manipulator>
           <vtk-mouse-interaction-manipulator
+            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
+            :manipulator-props="{ button: 2 }"
+          ></vtk-mouse-interaction-manipulator>
+          <vtk-mouse-interaction-manipulator
             v-if="currentTool === Tools.Zoom"
             :manipulator-constructor="
               vtkMouseCameraTrackballZoomToMouseManipulator
