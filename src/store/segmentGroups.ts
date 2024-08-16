@@ -26,6 +26,7 @@ import {
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
+import { untilLoaded } from '../composables/untilLoaded';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -248,7 +249,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     if (imageID === parentID)
       throw new Error('Cannot convert an image to be a labelmap of itself');
 
-    // Build vtkImageData for DICOMs
+    await untilLoaded(imageID);
+
     const [childImage, parentImage] = await Promise.all(
       [imageID, parentID].map(getImage)
     );
