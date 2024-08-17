@@ -33,6 +33,7 @@ import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import { ensureError, partition } from '@/src/utils';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
+import { handleAhi } from './awsAhi';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -114,6 +115,7 @@ export async function importDataSources(
     handleRemoteManifest,
     handleGoogleCloudStorage,
     handleAmazonS3,
+    handleAhi,
 
     // stream handling
     handleDicomStream,
