@@ -24,9 +24,44 @@ import {
 } from '@/src/core/streaming/chunkImage';
 import { ComputedRef, Ref, computed, ref } from 'vue';
 import mitt, { Emitter } from 'mitt';
+import {
+  decode,
+  encode,
+  setPipelinesBaseUrl,
+  getPipelinesBaseUrl,
+  setPipelineWorkerUrl,
+  getPipelineWorkerUrl,
+} from '@itk-wasm/htj2k';
 
 const nameToMetaKey = {
-  SOPInstanceUID: 'ID',
+  SOPInstanceUID: 'SOPInstanceUID',
+  ImagePositionPatient: 'ImagePositionPatient',
+  ImageOrientationPatient: 'ImageOrientationPatient',
+  PixelSpacing: 'PixelSpacing',
+  Rows: 'Rows',
+  Columns: 'Columns',
+  BitsStored: 'BitsStored',
+  PixelRepresentation: 'PixelRepresentation',
+  SamplesPerPixel: 'SamplesPerPixel',
+  RescaleIntercept: 'RescaleIntercept',
+  RescaleSlope: 'RescaleSlope',
+  NumberOfFrames: 'NumberOfFrames',
+  PatientID: 'PatientID',
+  PatientName: 'PatientName',
+  PatientBirthDate: 'PatientBirthDate',
+  PatientSex: 'PatientSex',
+  StudyID: 'StudyID',
+  StudyInstanceUID: 'StudyInstanceUID',
+  StudyDate: 'StudyDate',
+  StudyTime: 'StudyTime',
+  AccessionNumber: 'AccessionNumber',
+  StudyDescription: 'StudyDescription',
+  Modality: 'Modality',
+  SeriesInstanceUID: 'SeriesInstanceUID',
+  SeriesNumber: 'SeriesNumber',
+  SeriesDescription: 'SeriesDescription',
+  WindowLevel: 'WindowLevel',
+  WindowWidth: 'WindowWidth',
 };
 
 const { fastComputeRange } = vtkDataArray;
@@ -66,9 +101,11 @@ function itkImageToURI(itkImage: Image) {
 }
 
 async function dicomSliceToImageUri(blob: Blob) {
-  const file = new File([blob], 'file.dcm');
-  const itkImage = await readVolumeSlice(file, true);
-  return itkImageToURI(itkImage);
+  const array = await blob.arrayBuffer();
+  const uint8Array = new Uint8Array(array);
+  const result = await decode(uint8Array);
+  console.log(result);
+  return itkImageToURI(result.image);
 }
 
 export default class AhiChunkImage implements ChunkImage {
@@ -244,12 +281,14 @@ export default class AhiChunkImage implements ChunkImage {
 
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
-    const result = await readImage(
-      new File([chunk.dataBlob], `file-${chunkIndex}.dcm`),
-      {
-        webWorker: getWorker(),
-      }
-    );
+
+    // await chunk.dataBlob.arrayBuffer()
+    const array = await chunk.dataBlob.arrayBuffer();
+    const uint8Array = new Uint8Array(array);
+    // const result = await decode(uint8Array, {
+    //   webWorker: getWorker(),
+    // });
+    const result = await decode(uint8Array);
 
     if (!result.image.data) throw new Error('No data read from chunk');
 
@@ -300,6 +339,7 @@ export default class AhiChunkImage implements ChunkImage {
   }
 
   private updateDicomStore() {
+    console.log('updateDicomStore', this.chunks.length);
     if (this.chunks.length === 0) return;
 
     const firstChunk = this.chunks[0];

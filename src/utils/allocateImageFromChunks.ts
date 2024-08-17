@@ -19,9 +19,41 @@ const RescaleIntercept = NAME_TO_TAG.get('RescaleIntercept')!;
 const RescaleSlope = NAME_TO_TAG.get('RescaleSlope')!;
 const NumberOfFrames = NAME_TO_TAG.get('NumberOfFrames')!;
 
-function toVec(s: Maybe<string>): number[] | null {
+const nameToMetaKey = {
+  SOPInstanceUID: 'SOPInstanceUID',
+  ImagePositionPatient: 'ImagePositionPatient',
+  ImageOrientationPatient: 'ImageOrientationPatient',
+  PixelSpacing: 'PixelSpacing',
+  Rows: 'Rows',
+  Columns: 'Columns',
+  BitsStored: 'BitsStored',
+  PixelRepresentation: 'PixelRepresentation',
+  SamplesPerPixel: 'SamplesPerPixel',
+  RescaleIntercept: 'RescaleIntercept',
+  RescaleSlope: 'RescaleSlope',
+  NumberOfFrames: 'NumberOfFrames',
+  PatientID: 'PatientID',
+  PatientName: 'PatientName',
+  PatientBirthDate: 'PatientBirthDate',
+  PatientSex: 'PatientSex',
+  StudyID: 'StudyID',
+  StudyInstanceUID: 'StudyInstanceUID',
+  StudyDate: 'StudyDate',
+  StudyTime: 'StudyTime',
+  AccessionNumber: 'AccessionNumber',
+  StudyDescription: 'StudyDescription',
+  Modality: 'Modality',
+  SeriesInstanceUID: 'SeriesInstanceUID',
+  SeriesNumber: 'SeriesNumber',
+  SeriesDescription: 'SeriesDescription',
+  WindowLevel: 'WindowLevel',
+  WindowWidth: 'WindowWidth',
+};
+
+function toVec(s: Maybe<string | string[]>): number[] | null {
   if (!s?.length) return null;
-  return s.split('\\').map((a) => Number(a)) as number[];
+  const array = Array.isArray(s) ? s : s.split('\\');
+  return array.map((a) => Number(a)) as number[];
 }
 
 function getBitStorageSize(num: number, signed: boolean) {
@@ -69,25 +101,30 @@ function getTypedArrayConstructor(
   return getTypedArrayForDataRange(outputMin, outputMax);
 }
 
-export function allocateImageFromChunks(sortedChunks: Chunk[]) {
+export function allocateImageFromChunks(
+  nameToMeta: typeof nameToMetaKey,
+  sortedChunks: Chunk[]
+) {
   if (sortedChunks.length === 0) {
     throw new Error('Cannot allocate an image from zero chunks');
   }
 
   // use the first chunk as the source of metadata
   const meta = new Map(sortedChunks[0].metadata!);
-  const imagePositionPatient = toVec(meta.get(ImagePositionPatientTag));
-  const imageOrientationPatient = toVec(meta.get(ImageOrientationPatientTag));
-  const pixelSpacing = toVec(meta.get(PixelSpacingTag));
-  const rows = Number(meta.get(RowsTag) ?? 0);
-  const columns = Number(meta.get(ColumnsTag) ?? 0);
-  const bitsStored = Number(meta.get(BitsStoredTag) ?? 0);
-  const pixelRepresentation = Number(meta.get(PixelRepresentationTag));
-  const samplesPerPixel = Number(meta.get(SamplesPerPixelTag) ?? 1);
-  const rescaleIntercept = Number(meta.get(RescaleIntercept) ?? 0);
-  const rescaleSlope = Number(meta.get(RescaleSlope) ?? 1);
-  const numberOfFrames = meta.has(NumberOfFrames)
-    ? Number(meta.get(NumberOfFrames))
+  const imagePositionPatient = toVec(meta.get(nameToMeta.ImagePositionPatient));
+  const imageOrientationPatient = toVec(
+    meta.get(nameToMeta.ImageOrientationPatient)
+  );
+  const pixelSpacing = toVec(meta.get(nameToMeta.PixelSpacing));
+  const rows = Number(meta.get(nameToMeta.Rows) ?? 0);
+  const columns = Number(meta.get(nameToMeta.Columns) ?? 0);
+  const bitsStored = Number(meta.get(nameToMeta.BitsStored) ?? 0);
+  const pixelRepresentation = Number(meta.get(nameToMeta.PixelRepresentation));
+  const samplesPerPixel = Number(meta.get(nameToMeta.SamplesPerPixel) ?? 1);
+  const rescaleIntercept = Number(meta.get(nameToMeta.RescaleIntercept) ?? 0);
+  const rescaleSlope = Number(meta.get(nameToMeta.RescaleSlope) ?? 1);
+  const numberOfFrames = meta.has(nameToMeta.NumberOfFrames)
+    ? Number(meta.get(nameToMeta.NumberOfFrames))
     : null;
 
   // If we have NumberOfFrames, chances are it's a multi-frame DICOM.
