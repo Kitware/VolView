@@ -4,7 +4,6 @@ import { defineStore } from 'pinia';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 
 import { omit, remapKeys } from '@/src/utils';
-import { fileToDataSource } from '@/src/io/import/dataSource';
 import {
   convertSuccessResultToDataSelection,
   importDataSources,
@@ -15,12 +14,11 @@ import { useMessageStore } from '../messages';
 import { useDicomMetaStore } from './dicom-meta-store';
 import {
   searchForStudies,
-  fetchSeries,
   fetchInstanceThumbnail,
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
   parseUrl,
-} from '../../core/dicom-web-api';
+} from '../../core/ahi-api';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 
@@ -41,18 +39,17 @@ export const isDownloadable = (progress?: VolumeProgress) =>
 
 const fetchFunctions = {
   host: searchForStudies,
-  studies: retrieveStudyMetadata,
-  series: retrieveSeriesMetadata,
+  'image-set': retrieveStudyMetadata,
+  // series: retrieveSeriesMetadata,
+  // 'image-set': retrieveSeriesMetadata,
 };
 
 const levelToFetchKey = {
-  studies: 'studyInstanceUID',
-  series: 'seriesInstanceUID',
+  'image-set': 'imageSet',
 };
 
 const levelToMetaKey = {
-  studies: 'StudyInstanceUID',
-  series: 'SeriesInstanceUID',
+  'image-set': 'imageSet',
 };
 
 type InitialDicomListFetchProgress = 'Idle' | 'Pending' | 'Done';
@@ -104,7 +101,8 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const instance = {
       studyInstanceUID: studyInfo.StudyInstanceUID,
       seriesInstanceUID: volumeInfo.SeriesInstanceUID,
-      sopInstanceUID: middleInstance.SopInstanceUID,
+      sopInstanceUID: middleInstance.SOPInstanceUID,
+      imageSet: studyInfo.imageSet,
     };
     return fetchInstanceThumbnail(cleanHost.value, instance);
   };
@@ -116,7 +114,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         .map((studyKey) => dicoms.studyInfo[studyKey])
         .map(async (studyMeta) => {
           const seriesMetas = await retrieveStudyMetadata(cleanHost.value, {
-            studyInstanceUID: studyMeta.StudyInstanceUID,
+            imageSet: studyMeta.imageSet,
           });
           return seriesMetas.map((seriesMeta) => ({
             ...studyMeta,
@@ -124,6 +122,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
           }));
         })
     );
+    // @ts-expect-error
     series.flat().forEach((instance) => dicoms.importMeta(instance));
   };
 
@@ -134,7 +133,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         const volumeMeta = dicoms.volumeInfo[volumeKey];
         const studyMeta = dicoms.studyInfo[dicoms.volumeStudy[volumeKey]];
         const instanceMetas = await retrieveSeriesMetadata(cleanHost.value, {
-          studyInstanceUID: studyMeta.StudyInstanceUID,
+          imageSet: studyMeta.imageSet,
           seriesInstanceUID: volumeMeta.SeriesInstanceUID,
         });
         return instanceMetas.map((instanceMeta) => ({
@@ -144,6 +143,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         }));
       })
     );
+    // @ts-expect-error
     series.flat().forEach((instance) => dicoms.importMeta(instance));
   };
 
@@ -165,29 +165,17 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     const { SeriesInstanceUID: seriesInstanceUID } =
       dicoms.volumeInfo[volumeKey];
     const studyKey = dicoms.volumeStudy[volumeKey];
-    const { StudyInstanceUID: studyInstanceUID } = dicoms.studyInfo[studyKey];
-    const seriesInfo = { studyInstanceUID, seriesInstanceUID };
-
-    const progressCallback = ({ loaded, total }: ProgressEvent) => {
-      volumes.value[volumeKey] = {
-        ...volumes.value[volumeKey],
-        loaded,
-        total,
-      };
-    };
 
     try {
-      const files = await fetchSeries(
-        cleanHost.value,
-        seriesInfo,
-        progressCallback
-      );
-
-      if (!files) {
-        throw new Error('Could not fetch series');
-      }
-
-      const [loadResult] = await importDataSources(files.map(fileToDataSource));
+      const sanProtocol = cleanHost.value.split('://')[1];
+      const ahiHost = `ahi://${sanProtocol}`;
+      const [loadResult] = await importDataSources([
+        {
+          type: 'uri',
+          name: seriesInstanceUID,
+          uri: `${ahiHost}/image-set/${dicoms.studyInfo[studyKey].imageSet}/${seriesInstanceUID}`,
+        },
+      ]);
       if (!loadResult) {
         throw new Error('Did not receive a load result');
       }
@@ -230,8 +218,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       parsedURL.value
     ).pop() as keyof typeof fetchFunctions; // at least host key guaranteed to exist
 
-    linkedToStudyOrSeries.value =
-      deepestLevel === 'studies' || deepestLevel === 'series';
+    linkedToStudyOrSeries.value = deepestLevel === 'image-set';
 
     const fetchFunc = fetchFunctions[deepestLevel];
     const urlIDs = omit(parsedURL.value, 'host');
@@ -244,19 +231,14 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
       const urlMetaIDs = remapKeys(urlIDs, levelToMetaKey);
 
-      const fullMeta = fetchedMetas.map((fetchedMeta) => ({
+      const fullMeta = fetchedMetas.map((fetchedMeta: any) => ({
         ...urlMetaIDs,
         ...fetchedMeta,
       }));
-      fullMeta.forEach((instance) => dicoms.importMeta(instance));
+      fullMeta.forEach((instance: any) => dicoms.importMeta(instance));
     } catch (error) {
       fetchError.value = error;
       console.error(error);
-    }
-
-    if (deepestLevel === 'series') {
-      const seriesID = Object.values(parsedURL.value).pop() as string;
-      downloadVolume(seriesID);
     }
 
     fetchDicomsProgress.value = 'Done';

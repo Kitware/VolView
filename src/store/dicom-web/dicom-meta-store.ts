@@ -3,14 +3,16 @@ import {
   ANONYMOUS_PATIENT,
   ANONYMOUS_PATIENT_ID,
   PatientInfo,
-  StudyInfo,
+  StudyInfo as StudyInfoDicom,
   VolumeInfo,
 } from '../datasets-dicom';
 import { pick, removeFromArray } from '../../utils';
-import { Instance } from '../../core/dicom-web-api';
+import { Instance } from '../../core/ahi-api';
+
+type StudyInfo = StudyInfoDicom & { imageSet: string };
 
 interface InstanceInfo {
-  SopInstanceUID: string;
+  SOPInstanceUID: string;
   InstanceNumber: string;
   Rows: number;
   Columns: number;
@@ -79,7 +81,8 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         'StudyDate',
         'StudyTime',
         'AccessionNumber',
-        'StudyDescription'
+        'StudyDescription',
+        'imageSet'
       );
 
       const volumeInfo = {
@@ -97,9 +100,9 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
       };
 
       const instanceInfo = {
-        ...pick(info, 'SopInstanceUID', 'InstanceNumber'),
-        Rows: Number.parseInt(info.Rows, 10),
-        Columns: Number.parseInt(info.Columns, 10),
+        ...pick(info, 'SOPInstanceUID', 'InstanceNumber'),
+        Rows: Number.parseInt(info.Rows ?? '0', 10),
+        Columns: Number.parseInt(info.Columns ?? '0', 10),
       };
 
       this._updateDatabase(patient, study, volumeInfo, instanceInfo);
@@ -172,7 +175,7 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
         this.studyVolumes[studyKey].push(volumeKey);
       }
 
-      const instanceKey = instance.SopInstanceUID;
+      const instanceKey = instance.SOPInstanceUID;
       if (instanceKey && !(instanceKey in this.instanceInfo)) {
         this.instanceInfo[instanceKey] = instance;
         this.instanceVolume[instanceKey] = volumeKey;

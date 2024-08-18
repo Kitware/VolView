@@ -112,7 +112,7 @@ export function allocateImageFromChunks(
   image.setSpacing([1, 1, 1]);
   if (slices > 1 && imagePositionPatient && pixelSpacing) {
     const lastMeta = new Map(sortedChunks[sortedChunks.length - 1].metadata);
-    const lastIPP = toVec(lastMeta.get(ImagePositionPatientTag));
+    const lastIPP = toVec(lastMeta.get(nameToMeta.ImagePositionPatient));
     if (lastIPP) {
       // assumption: uniform Z spacing
       const zVec = vec3.create();

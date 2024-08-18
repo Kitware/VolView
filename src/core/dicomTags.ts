@@ -28,6 +28,7 @@ export const Tags = {
   RescaleIntercept: '0028|1052',
   RescaleSlope: '0028|1053',
   NumberOfFrames: '0028|0008',
+  InstanceNumber: '0020|0013',
 } as const;
 
 export type NameToMeta = {

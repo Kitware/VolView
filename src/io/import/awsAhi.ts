@@ -52,8 +52,8 @@ class AhiDataLoader implements DataLoader {
   }
 }
 
-const makeAhiChunk = (uri: string, frame: any) => {
-  const pixelDataUri = `${uri}/${frame.ID}/pixel-data`;
+const makeAhiChunk = (imageSetUrl: string, frame: any) => {
+  const pixelDataUri = `${imageSetUrl}/${frame.ID}/pixel-data`;
 
   const metaLoader = new AhiMetaLoader(frame);
   const fetcher = new CachedStreamFetcher(pixelDataUri, {
@@ -68,12 +68,15 @@ const makeAhiChunk = (uri: string, frame: any) => {
 };
 
 const importAhiImageSet = async (uri: string) => {
-  const imageSetMetaUri = uri.replace('ahi:', 'http:');
-  const setResponse = await fetch(imageSetMetaUri);
+  const withProto = uri.replace('ahi:', 'http:');
+  const lastSlash = withProto.lastIndexOf('/');
+  const seriesId = withProto.substring(lastSlash + 1);
+  const imageSetUrl = withProto.substring(0, lastSlash);
+  const setResponse = await fetch(imageSetUrl);
   const imageSetMeta = await setResponse.json();
   const patentTags = imageSetMeta.Patient.DICOM;
   const studyTags = imageSetMeta.Study.DICOM;
-  const firstSeries = Object.entries(imageSetMeta.Study.Series)[0][1] as {
+  const firstSeries = imageSetMeta.Study.Series[seriesId] as {
     DICOM: Record<string, string>;
     Instances: Record<string, any>;
   };
@@ -88,9 +91,7 @@ const importAhiImageSet = async (uri: string) => {
     }))
   );
 
-  const chunks = frames.map((frame: any) =>
-    makeAhiChunk(imageSetMetaUri, frame)
-  );
+  const chunks = frames.map((frame: any) => makeAhiChunk(imageSetUrl, frame));
 
   const chunkStore = useChunkStore();
   const image = new AhiChunkImage(seriesTags);

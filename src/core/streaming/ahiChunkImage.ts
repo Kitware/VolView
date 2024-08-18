@@ -30,6 +30,7 @@ export const nameToMetaKey = {
   SOPInstanceUID: 'SOPInstanceUID',
   ImagePositionPatient: 'ImagePositionPatient',
   ImageOrientationPatient: 'ImageOrientationPatient',
+  InstanceNumber: 'InstanceNumber',
   PixelSpacing: 'PixelSpacing',
   Rows: 'Rows',
   Columns: 'Columns',
@@ -40,11 +41,11 @@ export const nameToMetaKey = {
   RescaleIntercept: 'RescaleIntercept',
   RescaleSlope: 'RescaleSlope',
   NumberOfFrames: 'NumberOfFrames',
-  PatientID: 'PatientID',
+  PatientID: 'PatientId',
   PatientName: 'PatientName',
   PatientBirthDate: 'PatientBirthDate',
   PatientSex: 'PatientSex',
-  StudyID: 'StudyID',
+  StudyID: 'StudyInstanceUID',
   StudyInstanceUID: 'StudyInstanceUID',
   StudyDate: 'StudyDate',
   StudyTime: 'StudyTime',
@@ -92,7 +93,7 @@ function itkImageToURI(itkImage: Image) {
   return '';
 }
 
-async function dicomSliceToImageUri(blob: Blob) {
+export async function dicomSliceToImageUri(blob: Blob) {
   const array = await blob.arrayBuffer();
   const uint8Array = new Uint8Array(array);
   const result = await decode(uint8Array);
@@ -263,15 +264,20 @@ export default class AhiChunkImage implements ChunkImage {
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
 
-    // await chunk.dataBlob.arrayBuffer()
     const array = await chunk.dataBlob.arrayBuffer();
     const uint8Array = new Uint8Array(array);
-    // const result = await decode(uint8Array, {
-    //   webWorker: getWorker(),
-    // });
     const result = await decode(uint8Array);
-
     if (!result.image.data) throw new Error('No data read from chunk');
+
+    const meta = new Map(chunk.metadata);
+    const rescaleInterceptMeta = meta.get(nameToMetaKey.RescaleIntercept);
+    const rescaleIntercept = rescaleInterceptMeta
+      ? Number(rescaleInterceptMeta)
+      : 0;
+    const pixels = result.image.data as unknown as number[];
+    for (let i = 0; i < pixels.length; i++) {
+      pixels[i] += rescaleIntercept;
+    }
 
     const scalars = this.imageData.getPointData().getScalars();
     const pixelData = scalars.getData() as TypedArray;
@@ -352,9 +358,9 @@ export default class AhiChunkImage implements ChunkImage {
       SeriesNumber: metadata[nameToMetaKey.SeriesNumber],
       SeriesDescription: metadata[nameToMetaKey.SeriesDescription],
       // @ts-expect-error
-      WindowLevel: metadata[nameToMetaKey.WindowLevel].join('\\'),
+      WindowLevel: metadata[nameToMetaKey.WindowLevel]?.join('\\'),
       // @ts-expect-error
-      WindowWidth: metadata[nameToMetaKey.WindowWidth].join('\\'),
+      WindowWidth: metadata[nameToMetaKey.WindowWidth]?.join('\\'),
     };
 
     store._updateDatabase(patientInfo, studyInfo, volumeInfo);
