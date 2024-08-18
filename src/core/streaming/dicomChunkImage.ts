@@ -73,14 +73,14 @@ export default class DicomChunkImage implements ChunkImage {
   private thumbnailCache: WeakMap<Chunk, Promise<unknown>>;
   private events: Emitter<ChunkImageEvents>;
   public imageData: Maybe<vtkImageData>;
-  public dataId: Maybe<string>;
+  public dataId: string;
   public chunkStatus: Ref<ChunkStatus[]>;
   public isLoading: ComputedRef<boolean>;
 
-  constructor() {
+  constructor(id: string) {
     this.chunks = [];
     this.chunkListeners = [];
-    this.dataId = null;
+    this.dataId = id;
     this.chunkStatus = ref([]);
     this.isLoading = computed(() =>
       this.chunkStatus.value.some(
@@ -111,7 +111,6 @@ export default class DicomChunkImage implements ChunkImage {
     this.events.all.clear();
     this.chunks.length = 0;
     this.imageData = null;
-    this.dataId = null;
     this.chunkStatus.value = [];
     this.thumbnailCache = new WeakMap();
   }
@@ -230,7 +229,7 @@ export default class DicomChunkImage implements ChunkImage {
 
   private reallocateImage() {
     this.imageData?.delete();
-    this.imageData = allocateImageFromChunks(this.chunks);
+    this.imageData = allocateImageFromChunks(Tags, this.chunks);
   }
 
   private async onChunkHasData(chunkIndex: number) {

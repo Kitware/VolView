@@ -1,7 +1,5 @@
-import { readVolumeSlice } from '@/src/io/dicom';
 import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
-import { Image, readImage } from '@itk-wasm/image-io';
-import { getWorker } from '@/src/io/itk/worker';
+import { Image } from '@itk-wasm/image-io';
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
 import { Maybe } from '@/src/types';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -13,7 +11,6 @@ import {
   VolumeInfo,
   useDICOMStore,
 } from '@/src/store/datasets-dicom';
-// import { Tags } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
 import {
@@ -24,16 +21,12 @@ import {
 } from '@/src/core/streaming/chunkImage';
 import { ComputedRef, Ref, computed, ref } from 'vue';
 import mitt, { Emitter } from 'mitt';
-import {
-  decode,
-  encode,
-  setPipelinesBaseUrl,
-  getPipelinesBaseUrl,
-  setPipelineWorkerUrl,
-  getPipelineWorkerUrl,
-} from '@itk-wasm/htj2k';
+import { decode } from '@itk-wasm/htj2k';
+import { NameToMeta } from '../dicomTags';
 
-const nameToMetaKey = {
+const { fastComputeRange } = vtkDataArray;
+
+export const nameToMetaKey = {
   SOPInstanceUID: 'SOPInstanceUID',
   ImagePositionPatient: 'ImagePositionPatient',
   ImageOrientationPatient: 'ImageOrientationPatient',
@@ -41,6 +34,7 @@ const nameToMetaKey = {
   Rows: 'Rows',
   Columns: 'Columns',
   BitsStored: 'BitsStored',
+  BitsAllocated: 'BitsAllocated',
   PixelRepresentation: 'PixelRepresentation',
   SamplesPerPixel: 'SamplesPerPixel',
   RescaleIntercept: 'RescaleIntercept',
@@ -60,11 +54,9 @@ const nameToMetaKey = {
   SeriesInstanceUID: 'SeriesInstanceUID',
   SeriesNumber: 'SeriesNumber',
   SeriesDescription: 'SeriesDescription',
-  WindowLevel: 'WindowLevel',
+  WindowLevel: 'WindowCenter',
   WindowWidth: 'WindowWidth',
-};
-
-const { fastComputeRange } = vtkDataArray;
+} as const satisfies NameToMeta;
 
 function getChunkId(chunk: Chunk) {
   const metadata = Object.fromEntries(chunk.metadata!);
@@ -104,7 +96,6 @@ async function dicomSliceToImageUri(blob: Blob) {
   const array = await blob.arrayBuffer();
   const uint8Array = new Uint8Array(array);
   const result = await decode(uint8Array);
-  console.log(result);
   return itkImageToURI(result.image);
 }
 
@@ -114,16 +105,16 @@ export default class AhiChunkImage implements ChunkImage {
   private thumbnailCache: WeakMap<Chunk, Promise<unknown>>;
   private events: Emitter<ChunkImageEvents>;
   public imageData: Maybe<vtkImageData>;
-  public dataId: Maybe<string>;
+  public dataId: string;
   public chunkStatus: Ref<ChunkStatus[]>;
   public isLoading: ComputedRef<boolean>;
   public seriesMeta: Record<string, string>;
 
   constructor(seriesMeta: Record<string, string>) {
     this.seriesMeta = seriesMeta;
+    this.dataId = seriesMeta.SeriesInstanceUID;
     this.chunks = [];
     this.chunkListeners = [];
-    this.dataId = null;
     this.chunkStatus = ref([]);
     this.isLoading = computed(() =>
       this.chunkStatus.value.some(
@@ -154,7 +145,6 @@ export default class AhiChunkImage implements ChunkImage {
     this.events.all.clear();
     this.chunks.length = 0;
     this.imageData = null;
-    this.dataId = null;
     this.chunkStatus.value = [];
     this.thumbnailCache = new WeakMap();
   }
@@ -180,18 +170,9 @@ export default class AhiChunkImage implements ChunkImage {
         this.chunks.push(chunk);
       });
 
-    const chunksByVolume = {
-      [this.seriesMeta.ID]: this.chunks,
-    };
-
-    const volumes = Object.entries(chunksByVolume);
-    if (volumes.length !== 1)
-      throw new Error('Did not get just a single volume!');
-
     this.unregisterChunkListeners();
 
-    // save the newly sorted chunk order
-    [this.dataId, this.chunks] = volumes[0];
+    // this.chunks = sort(this.chunks);
 
     this.chunkStatus.value = this.chunks.map((chunk) => {
       switch (chunk.state) {
@@ -339,7 +320,6 @@ export default class AhiChunkImage implements ChunkImage {
   }
 
   private updateDicomStore() {
-    console.log('updateDicomStore', this.chunks.length);
     if (this.chunks.length === 0) return;
 
     const firstChunk = this.chunks[0];
@@ -366,13 +346,15 @@ export default class AhiChunkImage implements ChunkImage {
 
     const volumeInfo: VolumeInfo = {
       NumberOfSlices: this.chunks.length,
-      VolumeID: this.dataId ?? '',
+      VolumeID: this.dataId,
       Modality: metadata[nameToMetaKey.Modality],
       SeriesInstanceUID: metadata[nameToMetaKey.SeriesInstanceUID],
       SeriesNumber: metadata[nameToMetaKey.SeriesNumber],
       SeriesDescription: metadata[nameToMetaKey.SeriesDescription],
-      WindowLevel: metadata[nameToMetaKey.WindowLevel],
-      WindowWidth: metadata[nameToMetaKey.WindowWidth],
+      // @ts-expect-error
+      WindowLevel: metadata[nameToMetaKey.WindowLevel].join('\\'),
+      // @ts-expect-error
+      WindowWidth: metadata[nameToMetaKey.WindowWidth].join('\\'),
     };
 
     store._updateDatabase(patientInfo, studyInfo, volumeInfo);

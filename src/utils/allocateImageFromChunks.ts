@@ -1,54 +1,11 @@
 import { Chunk } from '@/src/core/streaming/chunk';
+import { NameToMeta } from '@/src/core/dicomTags';
 import { Maybe } from '@/src/types';
-import { NAME_TO_TAG } from '@/src/core/dicomTags';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { mat3, vec3 } from 'gl-matrix';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { vtkWarningMacro } from '@kitware/vtk.js/macros';
-
-const ImagePositionPatientTag = NAME_TO_TAG.get('ImagePositionPatient')!;
-const ImageOrientationPatientTag = NAME_TO_TAG.get('ImageOrientationPatient')!;
-const PixelSpacingTag = NAME_TO_TAG.get('PixelSpacing')!;
-const RowsTag = NAME_TO_TAG.get('Rows')!;
-const ColumnsTag = NAME_TO_TAG.get('Columns')!;
-const BitsStoredTag = NAME_TO_TAG.get('BitsStored')!;
-const PixelRepresentationTag = NAME_TO_TAG.get('PixelRepresentation')!;
-const SamplesPerPixelTag = NAME_TO_TAG.get('SamplesPerPixel')!;
-const RescaleIntercept = NAME_TO_TAG.get('RescaleIntercept')!;
-const RescaleSlope = NAME_TO_TAG.get('RescaleSlope')!;
-const NumberOfFrames = NAME_TO_TAG.get('NumberOfFrames')!;
-
-const nameToMetaKey = {
-  SOPInstanceUID: 'SOPInstanceUID',
-  ImagePositionPatient: 'ImagePositionPatient',
-  ImageOrientationPatient: 'ImageOrientationPatient',
-  PixelSpacing: 'PixelSpacing',
-  Rows: 'Rows',
-  Columns: 'Columns',
-  BitsStored: 'BitsStored',
-  PixelRepresentation: 'PixelRepresentation',
-  SamplesPerPixel: 'SamplesPerPixel',
-  RescaleIntercept: 'RescaleIntercept',
-  RescaleSlope: 'RescaleSlope',
-  NumberOfFrames: 'NumberOfFrames',
-  PatientID: 'PatientID',
-  PatientName: 'PatientName',
-  PatientBirthDate: 'PatientBirthDate',
-  PatientSex: 'PatientSex',
-  StudyID: 'StudyID',
-  StudyInstanceUID: 'StudyInstanceUID',
-  StudyDate: 'StudyDate',
-  StudyTime: 'StudyTime',
-  AccessionNumber: 'AccessionNumber',
-  StudyDescription: 'StudyDescription',
-  Modality: 'Modality',
-  SeriesInstanceUID: 'SeriesInstanceUID',
-  SeriesNumber: 'SeriesNumber',
-  SeriesDescription: 'SeriesDescription',
-  WindowLevel: 'WindowLevel',
-  WindowWidth: 'WindowWidth',
-};
 
 function toVec(s: Maybe<string | string[]>): number[] | null {
   if (!s?.length) return null;
@@ -102,7 +59,7 @@ function getTypedArrayConstructor(
 }
 
 export function allocateImageFromChunks(
-  nameToMeta: typeof nameToMetaKey,
+  nameToMeta: NameToMeta,
   sortedChunks: Chunk[]
 ) {
   if (sortedChunks.length === 0) {

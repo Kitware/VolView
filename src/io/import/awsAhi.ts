@@ -71,10 +71,12 @@ const importAhiImageSet = async (uri: string) => {
   const imageSetMetaUri = uri.replace('ahi:', 'http:');
   const setResponse = await fetch(imageSetMetaUri);
   const imageSetMeta = await setResponse.json();
-  console.log(imageSetMeta);
   const patentTags = imageSetMeta.Patient.DICOM;
   const studyTags = imageSetMeta.Study.DICOM;
-  const [id, firstSeries] = Object.entries(imageSetMeta.Study.Series)[0] as any;
+  const firstSeries = Object.entries(imageSetMeta.Study.Series)[0][1] as {
+    DICOM: Record<string, string>;
+    Instances: Record<string, any>;
+  };
   const seriesTags = firstSeries.DICOM;
   const frames = Object.values(firstSeries.Instances).flatMap((instance: any) =>
     instance.ImageFrames.map((frame: any) => ({
@@ -91,12 +93,12 @@ const importAhiImageSet = async (uri: string) => {
   );
 
   const chunkStore = useChunkStore();
-  const image = new AhiChunkImage(firstSeries);
-  chunkStore.chunkImageById[id] = image;
+  const image = new AhiChunkImage(seriesTags);
+  chunkStore.chunkImageById[image.dataId] = image;
   await image.addChunks(chunks);
   image.startLoad();
 
-  return id;
+  return image.dataId;
 };
 
 export const isAhiUri = (uri: string) =>

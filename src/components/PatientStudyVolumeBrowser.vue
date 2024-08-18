@@ -2,7 +2,7 @@
 import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
+import { isDicomImage } from '@/src/utils/dataSelection';
 import { ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
 import useChunkStore from '@/src/store/chunks';
 import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
@@ -49,7 +49,6 @@ export default defineComponent({
         isDicomImage(primarySelection) && primarySelection;
 
       return volumeKeys.value.map((volumeKey) => {
-        const selectionKey = volumeKey as DataSelection;
         const isLayer = layerVolumeKeys.includes(volumeKey);
         const layerLoaded = loadedLayerVolumeKeys.includes(volumeKey);
         const layerLoading = isLayer && !layerLoaded;
@@ -61,15 +60,14 @@ export default defineComponent({
           info: volumeInfo[volumeKey],
           name: getDisplayName(volumeInfo[volumeKey]),
           // for UI selection
-          selectionKey,
+          selectionKey: volumeKey,
           isLayer,
           layerable,
           layerLoading,
           layerHandler: () => {
             if (!layerLoading && layerable) {
-              if (isLayer)
-                layersStore.deleteLayer(primarySelection, selectionKey);
-              else layersStore.addLayer(primarySelection, selectionKey);
+              if (isLayer) layersStore.deleteLayer(primarySelection, volumeKey);
+              else layersStore.addLayer(primarySelection, volumeKey);
             }
           },
         };
@@ -92,17 +90,18 @@ export default defineComponent({
           const chunkStore = useChunkStore();
 
           try {
-            const chunk = chunkStore.chunkImageById[key];
-            const thumb = await chunk.getThumbnail(
+            const chunkImage = chunkStore.chunkImageById[key];
+            const thumb = await chunkImage.getThumbnail(
               ThumbnailStrategy.MiddleSlice
             );
             thumbnailCache[cacheKey] = thumb;
           } catch (err) {
             if (err instanceof Error) {
               const messageStore = useMessageStore();
-              messageStore.addError('Failed to generate thumbnails', {
-                details: `${err}. More details can be found in the developer's console.`,
-              });
+              messageStore.addError(
+                'Failed to generate thumbnails. Details in dev tools console.',
+                err
+              );
             }
           }
         });

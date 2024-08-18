@@ -13,8 +13,8 @@ export async function importDicomChunks(chunks: Chunk[]) {
     Object.entries(chunksByVolume).map(async ([id, groupedChunks]) => {
       const image =
         (chunkStore.chunkImageById[id] as DicomChunkImage) ??
-        new DicomChunkImage();
-      chunkStore.chunkImageById[id] = image;
+        new DicomChunkImage(id);
+      chunkStore.chunkImageById[image.dataId] = image;
 
       await image.addChunks(groupedChunks);
 
