@@ -22,6 +22,7 @@ import {
 import { ComputedRef, Ref, computed, ref } from 'vue';
 import mitt, { Emitter } from 'mitt';
 import { decode } from '@itk-wasm/htj2k';
+import { getWorker } from '@/src/io/itk/worker';
 import { NameToMeta } from '../dicomTags';
 
 const { fastComputeRange } = vtkDataArray;
@@ -96,7 +97,9 @@ function itkImageToURI(itkImage: Image) {
 export async function dicomSliceToImageUri(blob: Blob) {
   const array = await blob.arrayBuffer();
   const uint8Array = new Uint8Array(array);
-  const result = await decode(uint8Array);
+  const result = await decode(uint8Array, {
+    webWorker: getWorker(),
+  });
   return itkImageToURI(result.image);
 }
 
@@ -266,7 +269,9 @@ export default class AhiChunkImage implements ChunkImage {
 
     const array = await chunk.dataBlob.arrayBuffer();
     const uint8Array = new Uint8Array(array);
-    const result = await decode(uint8Array);
+    const result = await decode(uint8Array, {
+      webWorker: getWorker(),
+    });
     if (!result.image.data) throw new Error('No data read from chunk');
 
     const meta = new Map(chunk.metadata);
@@ -315,6 +320,13 @@ export default class AhiChunkImage implements ChunkImage {
     this.chunkStatus.value[chunkIndex] = ChunkStatus.Loaded;
 
     this.imageData.modified();
+
+    const loaded = this.chunkStatus.value.every(
+      (status) => status === ChunkStatus.Loaded
+    );
+    if (loaded) {
+      console.timeEnd(`load time`);
+    }
   }
 
   private onChunkErrored(chunkIndex: number, err: unknown) {

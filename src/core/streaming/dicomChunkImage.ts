@@ -282,6 +282,13 @@ export default class DicomChunkImage implements ChunkImage {
     this.chunkStatus.value[chunkIndex] = ChunkStatus.Loaded;
 
     this.imageData.modified();
+
+    const loaded = this.chunkStatus.value.every(
+      (status) => status === ChunkStatus.Loaded
+    );
+    if (loaded) {
+      console.timeEnd(`load time`);
+    }
   }
 
   private onChunkErrored(chunkIndex: number, err: unknown) {

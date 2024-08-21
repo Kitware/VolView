@@ -87,6 +87,9 @@ async function importDicomChunkSources(sources: ChunkSource[]) {
 export async function importDataSources(
   dataSources: DataSource[]
 ): Promise<ImportDataSourcesResult[]> {
+  console.log('starting load timer');
+  console.time(`load time`);
+
   const cleanupHandlers: Array<() => void> = [];
   const onCleanup = (fn: () => void) => {
     cleanupHandlers.push(fn);
