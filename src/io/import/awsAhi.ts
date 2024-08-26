@@ -68,7 +68,7 @@ const makeAhiChunk = (imageSetUrl: string, frame: any) => {
 };
 
 const importAhiImageSet = async (uri: string) => {
-  const withProto = uri.replace('ahi:', 'http:');
+  const withProto = uri.replace('ahi:', 'https:');
   const lastSlash = withProto.lastIndexOf('/');
   const seriesId = withProto.substring(lastSlash + 1);
   const imageSetUrl = withProto.substring(0, lastSlash);

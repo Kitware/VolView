@@ -1,6 +1,6 @@
 import { Deferred, addEventListenerOnce, defer } from '@/src/utils';
 
-const DEFAULT_POOL_SIZE = 6;
+const DEFAULT_POOL_SIZE = 60;
 
 let nextId = 0;
 function getNextId() {
