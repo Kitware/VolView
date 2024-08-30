@@ -17,7 +17,7 @@ import { Maybe } from '@/src/types';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
-import { getCSSCoordinatesFromEvent } from '@/src//utils/vtk-helpers';
+import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { LPSAxis } from '@/src/types/lps';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
