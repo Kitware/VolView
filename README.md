@@ -1,6 +1,6 @@
 # VolView
 
-![A screenshot of a sample VolView session](./documentation/content/gallery/VolView-Overview.jpg)
+![A screenshot of a sample VolView session](./docs/assets/VolView-Overview.jpg)
 
 ## Try it
 
