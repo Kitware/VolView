@@ -17,6 +17,7 @@ import { useMultiSelection } from '../composables/useMultiSelection';
 import { useLayersStore } from '../store/datasets-layers';
 import { useViewSliceStore } from '../store/view-configs/slicing'
 import { useViewCameraStore } from '../store/view-configs/camera'
+import { useCameraAutoResetState } from '@/src/composables/useCameraAutoResetState'
 
 function imageCacheKey(dataID: string) {
   return `image-${dataID}`;
@@ -35,6 +36,7 @@ export default defineComponent({
     const segmentGroupStore = useSegmentGroupStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
+    const cameraAutoResetState = useCameraAutoResetState();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -133,6 +135,7 @@ export default defineComponent({
     function toggleSyncImages() {
       viewSliceStore.toggleSyncImages();
       viewCameraStore.toggleSyncCameras();
+      cameraAutoResetState.cameraAutoResetState.value = true;
     }
 
     watch(
