@@ -15,6 +15,8 @@ import { useDatasetStore } from '../store/datasets';
 
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useLayersStore } from '../store/datasets-layers';
+import { useViewSliceStore } from '../store/view-configs/slicing';
+import { useViewCameraStore } from '../store/view-configs/camera';
 
 function imageCacheKey(dataID: string) {
   return `image-${dataID}`;
@@ -31,6 +33,8 @@ export default defineComponent({
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
     const segmentGroupStore = useSegmentGroupStore();
+    const viewSliceStore = useViewSliceStore();
+    const viewCameraStore = useViewCameraStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -116,6 +120,26 @@ export default defineComponent({
       { immediate: true, deep: true }
     );
 
+   // --- sync --- //
+   const sameSpaceImages = computed(() => {
+      return imageStore.checkAllImagesSameSpace();
+    });
+    const isSync = computed(() => {
+      return viewSliceStore.isSync() && viewCameraStore.isSync();
+    });
+    function toggleSyncImages() {
+      viewSliceStore.toggleSyncImages();
+      viewCameraStore.toggleSyncCameras();
+      viewCameraStore.disableCameraAutoReset = isSync.value;
+    }
+    watch(
+      isSync,
+      () => {
+        viewSliceStore.updateSyncConfigs();
+        viewCameraStore.updateSyncConfigs();
+      }
+    );
+
     // --- selection --- //
 
     const { selected, selectedAll, selectedSome, toggleSelectAll } =
@@ -151,6 +175,9 @@ export default defineComponent({
       setPrimarySelection: (sel: DataSelection) => {
         dataStore.setPrimarySelection(sel);
       },
+      sameSpaceImages,
+      toggleSyncImages,
+      isSync,
     };
   },
 });
@@ -173,6 +200,22 @@ export default defineComponent({
           />
         </v-col>
         <v-col cols="6" align-self="center" class="d-flex justify-end">
+          <v-btn
+            icon
+            variant="text"
+            :disabled="!sameSpaceImages"
+            @click.stop="toggleSyncImages"
+          >
+	          <v-icon v-if="isSync">mdi-lock</v-icon>
+            <v-icon flip="vertical" v-else>mdi-lock-open-variant</v-icon>
+            <v-tooltip
+              :disabled="!sameSpaceImages"
+              location="left"
+              activator="parent"
+            >
+              Sync Images
+            </v-tooltip>
+          </v-btn>
           <v-btn
             icon
             variant="text"
