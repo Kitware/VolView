@@ -1,5 +1,4 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
@@ -50,6 +49,39 @@ export interface VolumeInfo {
   WindowWidth: string;
 }
 
+const buildImage = async (seriesFiles: File[], modality: string) => {
+  if (modality === 'SEG') {
+    return {
+      modality,
+      builtImageResults: await DICOM.buildLabelMap(seriesFiles[0]),
+      messages:
+        seriesFiles.length > 1
+          ? ['Multiple files in a SEG series. Using only the first file.']
+          : [],
+    };
+  }
+  return {
+    modality,
+    builtImageResults: await DICOM.buildImage(seriesFiles),
+    messages: [],
+  };
+};
+
+const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
+  const fileStore = useFileStore();
+  const files = fileStore.getFiles(volumeKey);
+  if (!files) throw new Error('No files for volume key');
+  const results = await buildImage(files, volumeInfo.Modality);
+  const image = vtkITKHelper.convertItkToVtkImage(
+    results.builtImageResults.outputImage
+  );
+  debugger;
+  return {
+    ...results,
+    image,
+  };
+};
+
 interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
   sliceData: Record<string, Record<string, Image>>;
@@ -58,7 +90,7 @@ interface State {
   needsRebuild: Record<string, boolean>;
 
   // Avoid recomputing image data for the same volume by checking this for existing buildVolume tasks
-  volumeImageData: Record<string, Promise<vtkImageData>>;
+  volumeBuildResults: Record<string, ReturnType<typeof constructImage>>;
 
   // patientKey -> patient info
   patientInfo: Record<string, PatientInfo>;
@@ -143,20 +175,10 @@ export const getWindowLevels = (info: VolumeInfo) => {
   return widths.map((width, i) => ({ width, level: levels[i] }));
 };
 
-const constructImage = async (volumeKey: string) => {
-  const fileStore = useFileStore();
-  const files = fileStore.getFiles(volumeKey);
-  if (!files) throw new Error('No files for volume key');
-  const image = vtkITKHelper.convertItkToVtkImage(
-    await DICOM.buildImage(files)
-  );
-  return image;
-};
-
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
-    volumeImageData: {},
+    volumeBuildResults: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -196,7 +218,11 @@ export const useDICOMStore = defineStore('dicom', {
         Object.entries(volumeToFiles).map(async ([volumeKey, files]) => {
           // Read tags of first file
           if (!(volumeKey in this.volumeInfo)) {
-            const tags = await readDicomTags(files[0]);
+            const rawTags = await readDicomTags(files[0]);
+            // trim whitespace from all values
+            const tags = Object.fromEntries(
+              Object.entries(rawTags).map(([key, value]) => [key, value.trim()])
+            );
             // TODO parse the raw string values
             const patient = {
               PatientID: tags.PatientID || ANONYMOUS_PATIENT_ID,
@@ -281,8 +307,8 @@ export const useDICOMStore = defineStore('dicom', {
         delete this.sliceData[volumeKey];
         delete this.volumeStudy[volumeKey];
 
-        if (volumeKey in this.volumeImageData) {
-          delete this.volumeImageData[volumeKey];
+        if (volumeKey in this.volumeBuildResults) {
+          delete this.volumeBuildResults[volumeKey];
         }
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
@@ -387,35 +413,38 @@ export const useDICOMStore = defineStore('dicom', {
     async buildVolume(volumeKey: string, forceRebuild: boolean = false) {
       const imageStore = useImageStore();
 
-      const alreadyBuilt = volumeKey in this.volumeImageData;
+      const alreadyBuilt = volumeKey in this.volumeBuildResults;
       const buildNeeded =
         forceRebuild || this.needsRebuild[volumeKey] || !alreadyBuilt;
       delete this.needsRebuild[volumeKey];
 
       // wait for old buildVolume call so we can run imageStore update side effects after
       const oldImagePromise = alreadyBuilt
-        ? [this.volumeImageData[volumeKey]]
+        ? [this.volumeBuildResults[volumeKey]]
         : [];
       // actually build volume or wait for existing build?
-      const newImagePromise = buildNeeded
-        ? constructImage(volumeKey)
-        : this.volumeImageData[volumeKey];
+      const newVolumeBuildResults = buildNeeded
+        ? constructImage(volumeKey, this.volumeInfo[volumeKey])
+        : this.volumeBuildResults[volumeKey];
       // let other calls to buildVolume reuse this constructImage work
-      this.volumeImageData[volumeKey] = newImagePromise;
-      const [image] = await Promise.all([newImagePromise, ...oldImagePromise]);
+      this.volumeBuildResults[volumeKey] = newVolumeBuildResults;
+      const [volumeBuildResults] = await Promise.all([
+        newVolumeBuildResults,
+        ...oldImagePromise,
+      ]);
 
       // update image store
       const imageExists = imageStore.dataIndex[volumeKey];
       if (imageExists) {
         // was a rebuild
-        imageStore.updateData(volumeKey, image);
+        imageStore.updateData(volumeKey, volumeBuildResults.image);
       } else {
         const info = this.volumeInfo[volumeKey];
         const name = getDisplayName(info);
-        imageStore.addVTKImageData(name, image, volumeKey);
+        imageStore.addVTKImageData(name, volumeBuildResults.image, volumeKey);
       }
 
-      return image;
+      return volumeBuildResults;
     },
   },
 });

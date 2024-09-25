@@ -10,9 +10,11 @@ import { createApp } from 'vue';
 import VueToast from 'vue-toastification';
 import { createPinia } from 'pinia';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
-import { setPipelinesBaseUrl, setPipelineWorkerUrl } from '@itk-wasm/image-io';
 
+import { setPipelinesBaseUrl, setPipelineWorkerUrl } from 'itk-wasm';
+import { setPipelinesBaseUrl as imageIoSetPipelinesBaseUrl } from '@itk-wasm/image-io';
 import itkConfig from '@/src/io/itk/itkConfig';
+
 import App from './components/App.vue';
 import vuetify from './plugins/vuetify';
 import { FILE_READERS } from './io';
@@ -36,9 +38,11 @@ vtkMapper.setResolveCoincidentTopologyLineOffsetParameters(-3, -3);
 
 registerAllReaders(FILE_READERS);
 
-// for @itk-wasm/image-io
+// Must be set at runtime as new version of @itk-wasm/dicom and @itk-wasm/image-io
+// do not pickup build time `../itkConfig` alias remap.
+setPipelinesBaseUrl(itkConfig.pipelinesUrl);
 setPipelineWorkerUrl(itkConfig.pipelineWorkerUrl);
-setPipelinesBaseUrl(itkConfig.imageIOUrl);
+imageIoSetPipelinesBaseUrl(itkConfig.imageIOUrl);
 
 const pinia = createPinia();
 pinia.use(CorePiniaProviderPlugin({}));
