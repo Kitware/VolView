@@ -29,12 +29,12 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
 
     patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
-  
+
   const disableCameraAutoReset = ref(false);
 
   const toggleCameraAutoReset = () => {
     disableCameraAutoReset.value = !disableCameraAutoReset.value;
-  }
+  };
 
   const removeView = (viewID: string) => {
     delete configs[viewID];
