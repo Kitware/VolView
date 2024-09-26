@@ -16,8 +16,8 @@ import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunc
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import { usePaintToolStore } from '@/src/store/tools/paint';
-import { storeToRefs } from 'pinia';
+import useLayerColoringStore from '@/src/store/view-configs/layers';
+import { useSegmentGroupConfigInitializer } from '@/src/composables/useSegmentGroupConfigInitializer';
 
 interface Props {
   viewId: string;
@@ -60,10 +60,17 @@ sliceRep.property.setUseLookupTableScalarRange(true);
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
 sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
-// set opacity from painting tool
-const { labelmapOpacity: sliceOpacity } = storeToRefs(usePaintToolStore());
+useSegmentGroupConfigInitializer(viewId.value, segmentationId.value);
+
+// opacity
+const coloringStore = useLayerColoringStore();
+const opacity = computed(
+  () =>
+    coloringStore.getConfig(viewId.value, segmentationId.value)?.blendConfig
+      .opacity
+);
 watchEffect(() => {
-  sliceRep.property.setOpacity(sliceOpacity.value);
+  sliceRep.property.setOpacity(opacity.value!);
 });
 
 // set slicing mode

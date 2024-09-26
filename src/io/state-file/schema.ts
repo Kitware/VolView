@@ -314,7 +314,7 @@ const Paint = z.object({
   activeSegmentGroupID: z.string().nullable(),
   activeSegment: z.number().nullish(),
   brushSize: z.number(),
-  labelmapOpacity: z.number(),
+  labelmapOpacity: z.number().optional(), // labelmapOpacity now ignored.  Opacity per segment group via layerColoring store.
 });
 
 const LPSCroppingPlanes = z.object({

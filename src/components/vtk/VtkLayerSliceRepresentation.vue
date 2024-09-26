@@ -10,14 +10,14 @@ import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunc
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import { LayerID, useLayersStore } from '@/src/store/datasets-layers';
+import { useLayersStore } from '@/src/store/datasets-layers';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { useLayerConfigInitializer } from '@/src/composables/useLayerConfigInitializer';
 import { applyColoring } from '@/src/composables/useColoringEffect';
 
 interface Props {
   viewId: string;
-  layerId: LayerID;
+  layerId: string;
   parentId: string;
   axis: LPSAxis;
 }

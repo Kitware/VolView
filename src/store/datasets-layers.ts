@@ -8,19 +8,16 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
 
-// differ from Image/Volume IDs with a branded type
-export type LayerID = string & { __type: 'LayerID' };
-
 export type Layer = {
   selection: DataSelection;
-  id: LayerID;
+  id: string;
 };
 
 export const useLayersStore = defineStore('layer', () => {
   type _This = ReturnType<typeof useLayersStore>;
 
   const parentToLayers = ref<Record<string, Layer[]>>({});
-  const layerImages = ref<Record<LayerID, vtkImageData>>({});
+  const layerImages = ref<Record<string, vtkImageData>>({});
 
   async function _addLayer(
     this: _This,
@@ -31,7 +28,7 @@ export const useLayersStore = defineStore('layer', () => {
       throw new Error('Tried to addLayer without parent data selection');
     }
 
-    const id = `${parent}::${source}` as LayerID;
+    const id = `${parent}::${source}` as string;
     this.parentToLayers[parent] = [
       ...(this.parentToLayers[parent] ?? []),
       { selection: source, id } as Layer,
@@ -105,7 +102,7 @@ export const useLayersStore = defineStore('layer', () => {
     return parentToLayers.value[key] ?? [];
   }
 
-  const getLayer = (layerID: LayerID) =>
+  const getLayer = (layerID: string) =>
     Object.values(parentToLayers.value)
       .flat()
       .flat()

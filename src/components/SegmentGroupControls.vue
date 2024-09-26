@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SegmentGroupOpacity from '@/src/components/SegmentGroupOpacity.vue';
 import SegmentList from '@/src/components/SegmentList.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
@@ -231,6 +232,10 @@ function openSaveDialog(id: string) {
     <v-divider />
   </div>
   <div v-else class="text-center text-caption">No selected image</div>
+  <segment-group-opacity
+    v-if="currentSegmentGroupID"
+    :group-id="currentSegmentGroupID"
+  />
   <segment-list
     v-if="currentSegmentGroupID"
     :group-id="currentSegmentGroupID"

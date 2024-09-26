@@ -35,7 +35,6 @@ export async function serialize() {
         activeSegmentGroupID: null,
         activeSegment: null,
         brushSize: 8,
-        labelmapOpacity: 1,
       },
       crop: {},
       current: Tools.WindowLevel,
