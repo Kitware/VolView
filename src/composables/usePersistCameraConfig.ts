@@ -49,7 +49,7 @@ export function usePersistCameraConfig(
           viewCameraStore.updateConfig(viewIDVal, dataIDVal, {
             [key]: v,
           });
-          if (viewCameraStore.isSync) {
+          if (viewCameraStore.isSync()) {
             viewCameraStore.updateSyncConfigs();
           }
         },
