@@ -203,6 +203,7 @@ const VolumeColorConfig = z.object({
 
 const BlendConfig = z.object({
   opacity: z.number(),
+  visibility: z.boolean(),
 }) satisfies z.ZodType<BlendConfig>;
 
 const LayersConfig = z.object({

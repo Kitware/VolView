@@ -61,16 +61,26 @@ sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
 sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
 useSegmentGroupConfigInitializer(viewId.value, segmentationId.value);
+const coloringStore = useLayerColoringStore();
+
+// visibility
+const visibility = computed(
+  () =>
+    coloringStore.getConfig(viewId.value, segmentationId.value)!.blendConfig
+      .visibility
+);
+watchEffect(() => {
+  sliceRep.actor.setVisibility(visibility.value);
+});
 
 // opacity
-const coloringStore = useLayerColoringStore();
 const opacity = computed(
   () =>
-    coloringStore.getConfig(viewId.value, segmentationId.value)?.blendConfig
+    coloringStore.getConfig(viewId.value, segmentationId.value)!.blendConfig
       .opacity
 );
 watchEffect(() => {
-  sliceRep.property.setOpacity(opacity.value!);
+  sliceRep.property.setOpacity(opacity.value);
 });
 
 // set slicing mode

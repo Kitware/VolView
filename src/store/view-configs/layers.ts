@@ -55,7 +55,7 @@ export const defaultLayersConfig = (): LayersConfig => ({
     gaussians: [],
     mappingRange: [0, 1],
   },
-  blendConfig: { opacity: 0.6 },
+  blendConfig: { opacity: 0.6, visibility: true },
 });
 
 export const useLayerColoringStore = defineStore('layerColoring', () => {

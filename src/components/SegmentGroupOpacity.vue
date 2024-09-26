@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, toRefs } from 'vue';
-import { BlendConfig } from '@/src/types/views';
-import useLayerColoringStore from '@/src/store/view-configs/layers';
-import { useSegmentGroupConfigInitializer } from '@/src/composables/useSegmentGroupConfigInitializer';
-import { InitViewSpecs } from '../config';
+import { useGlobalLayerColorConfig } from '@/src/composables/useGlobalLayerColorConfig';
 
 const props = defineProps<{
   groupId: string;
@@ -11,37 +8,24 @@ const props = defineProps<{
 
 const { groupId } = toRefs(props);
 
-const layerColoringStore = useLayerColoringStore();
+const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(groupId);
 
-const VIEWS_2D = Object.entries(InitViewSpecs)
-  .filter(([, { viewType }]) => viewType === '2D')
-  .map(([viewID]) => viewID);
+const blendConfig = computed(() => sampledConfig.value!.config!.blendConfig);
 
-useSegmentGroupConfigInitializer(VIEWS_2D[0], groupId.value);
-
-const layerConfigs = computed(() =>
-  VIEWS_2D.map((viewID) => ({
-    config: layerColoringStore.getConfig(viewID, groupId.value),
-    viewID,
-  }))
-);
-
-const blendConfig = computed(
-  () => layerConfigs.value.find(({ config }) => config)!.config!.blendConfig
-);
-
-const setBlendConfig = (key: keyof BlendConfig, value: any) => {
-  layerConfigs.value.forEach(({ viewID }) =>
-    layerColoringStore.updateBlendConfig(viewID, groupId.value, {
-      [key]: value,
-    })
-  );
+const setOpacity = (opacity: number) => {
+  updateConfig({
+    blendConfig: {
+      ...blendConfig.value,
+      // 1.0 puts us in Opaque render pass which changes stack order.
+      opacity: Math.min(opacity, 0.9999),
+    },
+  });
 };
 </script>
 
 <template>
   <v-slider
-    class="py-4"
+    class="pa-4"
     label="Segment Group Opacity"
     min="0"
     max="1"
@@ -50,6 +34,6 @@ const setBlendConfig = (key: keyof BlendConfig, value: any) => {
     hide-details
     thumb-label
     :model-value="blendConfig.opacity"
-    @update:model-value="setBlendConfig('opacity', $event)"
+    @update:model-value="setOpacity($event)"
   />
 </template>

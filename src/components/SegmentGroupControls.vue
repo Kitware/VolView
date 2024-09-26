@@ -11,6 +11,7 @@ import {
   DataSelection,
 } from '@/src/utils/dataSelection';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useGlobalLayerColorConfig } from '@/src/composables/useGlobalLayerColorConfig';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
@@ -26,9 +27,20 @@ const currentSegmentGroups = computed(() => {
   const { orderByParent, metadataByID } = segmentGroupStore;
   if (!(currentImageID.value in orderByParent)) return [];
   return orderByParent[currentImageID.value].map((id) => {
+    const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(id);
     return {
       id,
       name: metadataByID[id].name,
+      visibility: sampledConfig.value?.config?.blendConfig.visibility ?? true,
+      toggleVisibility: () => {
+        const currentBlend = sampledConfig.value!.config!.blendConfig;
+        updateConfig({
+          blendConfig: {
+            ...currentBlend,
+            visibility: !currentBlend.visibility,
+          },
+        });
+      },
     };
   });
 });
@@ -207,6 +219,20 @@ function openSaveDialog(id: string) {
           <div class="d-flex flex-row align-center w-100" :title="group.name">
             <span class="group-name">{{ group.name }}</span>
             <v-spacer />
+            <v-btn
+              icon
+              variant="flat"
+              size="small"
+              @click.stop="group.toggleVisibility"
+            >
+              <v-icon v-if="group.visibility" style="pointer-events: none"
+                >mdi-eye</v-icon
+              >
+              <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
+              <v-tooltip location="left" activator="parent">{{
+                group.visibility ? 'Hide' : 'Show'
+              }}</v-tooltip>
+            </v-btn>
             <v-btn
               icon="mdi-content-save"
               size="small"
