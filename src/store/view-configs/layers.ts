@@ -119,6 +119,9 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     updateOpacityFunction(viewID, layerID, opFunc);
   };
 
+  const initConfig = (viewID: string, dataID: string) =>
+    updateConfig(viewID, dataID, defaultLayersConfig());
+
   const resetColorPreset = (viewID: string, layerID: string) => {
     setColorPreset(viewID, layerID, getPreset(layerID));
   };
@@ -148,6 +151,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   return {
     configs,
     getConfig,
+    initConfig,
     updateConfig,
     updateColorBy,
     updateColorTransferFunction,

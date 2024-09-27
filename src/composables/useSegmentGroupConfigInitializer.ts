@@ -16,7 +16,6 @@ export function useSegmentGroupConfigInitializer(
 
     const viewIdVal = unref(viewId);
     const layerIdVal = unref(layerId);
-    // Initialize with the defaults by passing an empty patch object
-    coloringStore.updateConfig(viewIdVal, layerIdVal, {});
+    coloringStore.initConfig(viewIdVal, layerIdVal);
   });
 }
