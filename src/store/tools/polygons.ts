@@ -1,4 +1,4 @@
-import polybool, { Polygon as LibPolygon } from '@velipso/polybool';
+import polybool, { Polygon as LibPolygon, Vec2, Vec6 } from '@velipso/polybool';
 import type { Vector3, Vector2 } from '@kitware/vtk.js/types';
 import { computed } from 'vue';
 import {
@@ -18,6 +18,17 @@ const toolDefaults = () => ({
   id: '' as ToolID,
   name: 'Polygon',
 });
+
+const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {
+  const remapToVec2Needed =
+    regions.length > 0 && regions[0].length > 0 && regions[0][0].length === 6;
+  return !remapToVec2Needed
+    ? (regions as Vec2[][])
+    : regions.map((region) => {
+        // ensure Vec2 points, and not Vec6 for bezier control points
+        return region.map((point) => [point[4], point[5]] as Vec2);
+      });
+};
 
 export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
@@ -53,7 +64,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
 
   // After union, regions will have shared points because we require overlap to union.
   // Create one region/ring by splicing in the next region at the common point.
-  const mergeRegions = (regions: Array<Array<Vector2>>) => {
+  const mergeRegions = (regions: Vector2[][]) => {
     const [mergedRegion, ...candidates] = regions;
 
     while (candidates.length > 0) {
@@ -96,12 +107,13 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
       const comb = polybool.combine(segments, seg2);
       segments = polybool.selectUnion(comb);
     }
-    const unionPoly = polybool.polygon(segments);
+
+    const unionPolyRegions = polybool.polygon(segments).regions;
+    const singleRegion = mergeRegions(ensureVec2(unionPolyRegions));
 
     const firstTool = polygons[0];
     const { to3D } = getPlaneTransforms(firstTool.frameOfReference);
-
-    const points = mergeRegions(unionPoly.regions).map(to3D);
+    const points = singleRegion.map(to3D);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _, ...toolProps } = polygons[0];
