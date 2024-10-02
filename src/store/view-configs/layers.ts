@@ -19,10 +19,10 @@ import { isDicomImage } from '@/src/utils/dataSelection';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
-import { LayerID, useLayersStore } from '../datasets-layers';
+import { useLayersStore } from '../datasets-layers';
 import { useDICOMStore } from '../datasets-dicom';
 
-function getPreset(id: LayerID) {
+function getPreset(id: string) {
   const layersStore = useLayersStore();
   const layer = layersStore.getLayer(id);
   if (!layer) {
@@ -55,7 +55,7 @@ export const defaultLayersConfig = (): LayersConfig => ({
     gaussians: [],
     mappingRange: [0, 1],
   },
-  blendConfig: { opacity: 0.6 },
+  blendConfig: { opacity: 0.6, visibility: true },
 });
 
 export const useLayerColoringStore = defineStore('layerColoring', () => {
@@ -84,7 +84,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   ) => {
     return (
       viewID: string,
-      dataID: LayerID,
+      dataID: string,
       update: Partial<LayersConfig[K]>
     ) => {
       const config = getConfig(viewID, dataID) ?? defaultLayersConfig();
@@ -101,7 +101,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   const updateOpacityFunction = createUpdateFunc('opacityFunction');
   const updateBlendConfig = createUpdateFunc('blendConfig');
 
-  const setColorPreset = (viewID: string, layerID: LayerID, preset: string) => {
+  const setColorPreset = (viewID: string, layerID: string, preset: string) => {
     const layersStore = useLayersStore();
     const image = layersStore.layerImages[layerID];
     if (!image) return;
@@ -119,7 +119,10 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     updateOpacityFunction(viewID, layerID, opFunc);
   };
 
-  const resetColorPreset = (viewID: string, layerID: LayerID) => {
+  const initConfig = (viewID: string, dataID: string) =>
+    updateConfig(viewID, dataID, defaultLayersConfig());
+
+  const resetColorPreset = (viewID: string, layerID: string) => {
     setColorPreset(viewID, layerID, getPreset(layerID));
   };
 
@@ -148,6 +151,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   return {
     configs,
     getConfig,
+    initConfig,
     updateConfig,
     updateColorBy,
     updateColorTransferFunction,

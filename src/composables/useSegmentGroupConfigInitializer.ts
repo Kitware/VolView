@@ -2,7 +2,7 @@ import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref } from 'vue';
 
-export function useLayerConfigInitializer(
+export function useSegmentGroupConfigInitializer(
   viewId: MaybeRef<string>,
   layerId: MaybeRef<string>
 ) {
@@ -16,6 +16,6 @@ export function useLayerConfigInitializer(
 
     const viewIdVal = unref(viewId);
     const layerIdVal = unref(layerId);
-    coloringStore.resetColorPreset(viewIdVal, layerIdVal);
+    coloringStore.initConfig(viewIdVal, layerIdVal);
   });
 }

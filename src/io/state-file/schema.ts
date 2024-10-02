@@ -203,6 +203,7 @@ const VolumeColorConfig = z.object({
 
 const BlendConfig = z.object({
   opacity: z.number(),
+  visibility: z.boolean(),
 }) satisfies z.ZodType<BlendConfig>;
 
 const LayersConfig = z.object({
@@ -314,7 +315,7 @@ const Paint = z.object({
   activeSegmentGroupID: z.string().nullable(),
   activeSegment: z.number().nullish(),
   brushSize: z.number(),
-  labelmapOpacity: z.number(),
+  labelmapOpacity: z.number().optional(), // labelmapOpacity now ignored.  Opacity per segment group via layerColoring store.
 });
 
 const LPSCroppingPlanes = z.object({

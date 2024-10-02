@@ -66,4 +66,5 @@ export interface CVRConfig {
 
 export interface BlendConfig {
   opacity: number;
+  visibility: boolean;
 }
