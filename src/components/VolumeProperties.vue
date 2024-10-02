@@ -1,5 +1,6 @@
 <script lang="ts">
-import { computed, defineComponent, watch, ref } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
+import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import { CVRConfig } from '../types/views';
 import useVolumeColoringStore from '../store/view-configs/volume-coloring';
@@ -19,17 +20,11 @@ export default defineComponent({
 
     const { currentImageID } = useCurrentImage();
 
+    useVolumeColoringInitializer(TARGET_VIEW_ID, currentImageID);
+
     const volumeColorConfig = computed(() =>
       volumeColoringStore.getConfig(TARGET_VIEW_ID, currentImageID.value)
     );
-
-    watch(volumeColorConfig, () => {
-      const imageID = currentImageID.value;
-      if (imageID && !volumeColorConfig.value) {
-        // creates a default color config
-        volumeColoringStore.updateConfig(TARGET_VIEW_ID, imageID, {});
-      }
-    });
 
     // --- CVR --- //
 

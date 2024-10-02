@@ -173,7 +173,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
   };
 
   /**
-   * Sets the view config defaults for a dataset.
+   * Sets all views' defaults for given dataset.
    * @param dataID
    * @param defaults
    */
