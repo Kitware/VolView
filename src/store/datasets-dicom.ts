@@ -52,7 +52,7 @@ export interface VolumeInfo {
 const buildImage = async (seriesFiles: File[], modality: string) => {
   if (modality === 'SEG') {
     return {
-      modality,
+      modality: 'SEG',
       builtImageResults: await DICOM.buildLabelMap(seriesFiles[0]),
       messages:
         seriesFiles.length > 1
@@ -61,7 +61,6 @@ const buildImage = async (seriesFiles: File[], modality: string) => {
     };
   }
   return {
-    modality,
     builtImageResults: await DICOM.buildImage(seriesFiles),
     messages: [],
   };
@@ -75,7 +74,6 @@ const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
   const image = vtkITKHelper.convertItkToVtkImage(
     results.builtImageResults.outputImage
   );
-  debugger;
   return {
     ...results,
     image,
