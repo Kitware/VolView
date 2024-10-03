@@ -33,6 +33,7 @@
           class="vtk-view"
           ref="vtkView"
           data-testid="vtk-view vtk-two-view"
+          :disable-auto-reset-camera="cameraAutoResetState"
           :view-id="id"
           :image-id="currentImageID"
           :view-direction="viewDirection"
@@ -182,6 +183,7 @@ import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/M
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { whenever } from '@vueuse/core';
+import { useCameraAutoResetState } from '@/src/composables/useCameraAutoResetState';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -201,6 +203,8 @@ function resetCamera() {
   if (!vtkView.value) return;
   vtkView.value.resetCamera();
 }
+
+const { cameraAutoResetState } = storeToRefs(useCameraAutoResetState());
 
 useResetViewsEvents().onClick(resetCamera);
 
