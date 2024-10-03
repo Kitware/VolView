@@ -3,11 +3,13 @@ import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import * as DICOM from '@/src/io/dicom';
+import { pullComponent0 } from '@/src/utils/images';
 import { identity, pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
+import { useMessageStore } from './messages';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -50,19 +52,29 @@ export interface VolumeInfo {
 }
 
 const buildImage = async (seriesFiles: File[], modality: string) => {
+  const messages: string[] = [];
   if (modality === 'SEG') {
+    const segFile = seriesFiles[0];
+    const results = await DICOM.buildLabelMap(segFile);
+    if (results.outputImage.imageType.components !== 1) {
+      messages.push(
+        `${segFile.name} SEG file has overlapping segments. Using first set.`
+      );
+      results.outputImage = pullComponent0(results.segImage);
+    }
+    if (seriesFiles.length > 1)
+      messages.push(
+        'SEG image has multiple components. Using only the first component.'
+      );
     return {
       modality: 'SEG',
-      builtImageResults: await DICOM.buildLabelMap(seriesFiles[0]),
-      messages:
-        seriesFiles.length > 1
-          ? ['Multiple files in a SEG series. Using only the first file.']
-          : [],
+      builtImageResults: results,
+      messages,
     };
   }
   return {
     builtImageResults: await DICOM.buildImage(seriesFiles),
-    messages: [],
+    messages,
   };
 };
 
@@ -441,6 +453,12 @@ export const useDICOMStore = defineStore('dicom', {
         const name = getDisplayName(info);
         imageStore.addVTKImageData(name, volumeBuildResults.image, volumeKey);
       }
+
+      const messageStore = useMessageStore();
+      volumeBuildResults.messages.forEach((message) => {
+        console.warn(message);
+        messageStore.addWarning(message);
+      });
 
       return volumeBuildResults;
     },

@@ -277,12 +277,12 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       imageStore.deleteData(imageID);
     }
 
-    const resampled = await ensureSameSpace(parentImage, childImage, true);
-    const copyNeeded = resampled === childImage && !deleteImage;
-    const ownedMemoryImage = copyNeeded
-      ? structuredClone(resampled)
-      : resampled;
-    const labelmapImage = toLabelMap(ownedMemoryImage);
+    const matchingParentSpace = await ensureSameSpace(
+      parentImage,
+      childImage,
+      true
+    );
+    const labelmapImage = toLabelMap(matchingParentSpace);
 
     const segments = await decodeSegments(imageID, labelmapImage);
     const { order, byKey } = normalizeForStore(segments, 'value');
