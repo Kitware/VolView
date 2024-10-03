@@ -74,18 +74,20 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
       imageStore.idList.forEach((imageID) => {
         const { syncState } = {
           ...defaultSliceConfig(),
-          ...getConfig(viewID, imageID)
+          ...getConfig(viewID, imageID),
         };
         updateConfig(viewID, imageID, { syncState: !syncState });
       });
     });
-  }
+  };
 
   const isSync = () => {
-    const allSync = Object.keys(configs).every((sc) => Object.keys(configs[sc]).every((c) => configs[sc][c].syncState));
+    const allSync = Object.keys(configs).every((sc) =>
+      Object.keys(configs[sc]).every((c) => configs[sc][c].syncState)
+    );
 
     return allSync;
-  }
+  };
 
   const updateSyncConfigs = () => {
     Object.keys(configs).forEach((viewID) => {
@@ -94,7 +96,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
       imageStore.idList.forEach((imageID) => {
         const { syncState } = {
           ...defaultSliceConfig(),
-          ...getConfig(viewID, imageID)
+          ...getConfig(viewID, imageID),
         };
 
         if (syncState) {
@@ -102,7 +104,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
         }
       });
     });
-  }
+  };
 
   const serialize = createViewConfigSerializer(configs, 'slice');
 

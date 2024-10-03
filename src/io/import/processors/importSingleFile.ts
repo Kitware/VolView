@@ -43,13 +43,16 @@ const importSingleFile: ImportHandler = async (dataSource, { done }) => {
     // Create a default view for each viewID
     useViewStore().viewIDs.forEach((viewID: string) => {
       const { lpsOrientation, dimensions } = useImageStore().metadata[dataID];
-      const axisDir = InitViewSpecs[viewID].props.viewDirection
+      const axisDir = InitViewSpecs[viewID].props.viewDirection;
       const lpsFromDir = getLPSAxisFromDir(axisDir);
       const lpsOrient = lpsOrientation[lpsFromDir];
 
       const dimMax = dimensions[lpsOrient];
 
-      useViewSliceStore().updateConfig(viewID, dataID, { axisDirection: axisDir, max: dimMax - 1 });
+      useViewSliceStore().updateConfig(viewID, dataID, {
+        axisDirection: axisDir,
+        max: dimMax - 1,
+      });
       useViewSliceStore().resetSlice(viewID, dataID);
     });
 

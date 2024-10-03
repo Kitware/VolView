@@ -32,12 +32,12 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
 
     patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
-  
+
   const disableCameraAutoReset = ref(false);
 
   const toggleCameraAutoReset = () => {
     disableCameraAutoReset.value = !disableCameraAutoReset.value;
-  }
+  };
 
   const removeView = (viewID: string) => {
     delete configs[viewID];
@@ -56,18 +56,20 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     Object.keys(configs).forEach((viewID) => {
       imageStore.idList.forEach((imageID) => {
         const { syncState } = {
-          ...getConfig(viewID, imageID)
+          ...getConfig(viewID, imageID),
         };
         updateConfig(viewID, imageID, { syncState: !syncState });
       });
     });
-  }
+  };
 
   const isSync = () => {
-    const allSync = Object.keys(configs).every((sc) => Object.keys(configs[sc]).every((c) => configs[sc][c].syncState));
+    const allSync = Object.keys(configs).every((sc) =>
+      Object.keys(configs[sc]).every((c) => configs[sc][c].syncState)
+    );
 
     return allSync;
-  }
+  };
 
   const updateSyncConfigs = () => {
     Object.keys(configs).forEach((viewID) => {
@@ -75,15 +77,19 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
       const config = getConfig(viewID, currentImageID.value);
       imageStore.idList.forEach((imageID) => {
         const { syncState } = {
-          ...getConfig(viewID, imageID)
+          ...getConfig(viewID, imageID),
         };
 
         if (syncState) {
-          updateConfig(viewID, imageID, { position: config?.position, focalPoint: config?.focalPoint, parallelScale: config?.parallelScale });
+          updateConfig(viewID, imageID, {
+            position: config?.position,
+            focalPoint: config?.focalPoint,
+            parallelScale: config?.parallelScale,
+          });
         }
       });
     });
-  }
+  };
 
   const serialize = createViewConfigSerializer(configs, 'camera');
 

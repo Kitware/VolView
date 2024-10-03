@@ -120,8 +120,8 @@ export default defineComponent({
       { immediate: true, deep: true }
     );
 
-   // --- sync --- //
-   const sameSpaceImages = computed(() => {
+    // --- sync --- //
+    const sameSpaceImages = computed(() => {
       return imageStore.checkAllImagesSameSpace();
     });
     const isSync = computed(() => {
@@ -132,13 +132,10 @@ export default defineComponent({
       viewCameraStore.toggleSyncCameras();
       viewCameraStore.disableCameraAutoReset = isSync.value;
     }
-    watch(
-      isSync,
-      () => {
-        viewSliceStore.updateSyncConfigs();
-        viewCameraStore.updateSyncConfigs();
-      }
-    );
+    watch(isSync, () => {
+      viewSliceStore.updateSyncConfigs();
+      viewCameraStore.updateSyncConfigs();
+    });
 
     // --- selection --- //
 
@@ -206,7 +203,7 @@ export default defineComponent({
             :disabled="!sameSpaceImages"
             @click.stop="toggleSyncImages"
           >
-	          <v-icon v-if="isSync">mdi-lock</v-icon>
+            <v-icon v-if="isSync">mdi-lock</v-icon>
             <v-icon flip="vertical" v-else>mdi-lock-open-variant</v-icon>
             <v-tooltip
               :disabled="!sameSpaceImages"

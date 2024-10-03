@@ -85,7 +85,7 @@ export const useImageStore = defineStore('images', {
 
       const dataFirst = this.dataIndex[this.idList[0]];
       const allEqual = this.idList.slice(1).every((id) => {
-	      return compareImageSpaces(this.dataIndex[id], dataFirst);
+        return compareImageSpaces(this.dataIndex[id], dataFirst);
       });
 
       return allEqual;
