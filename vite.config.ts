@@ -57,7 +57,6 @@ function resolvePath(...args: string[]) {
 
 const rootDir = resolvePath(__dirname);
 const distDir = resolvePath(rootDir, 'dist');
-const itkConfig = resolvePath(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
 
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
@@ -112,17 +111,6 @@ export default defineConfig({
       {
         find: '@src',
         replacement: resolvePath(rootDir, 'src'),
-      },
-      // Patch itk-wasm library code with image-io .wasm file paths
-      // itkConfig alias only applies to itk-wasm library code after "npm run build"
-      // During "npm run serve", itk-wasm fetches image-io .wasm files from CDN
-      {
-        find: '../itkConfig.js',
-        replacement: itkConfig,
-      },
-      {
-        find: '../../itkConfig.js',
-        replacement: itkConfig,
       },
     ],
   },

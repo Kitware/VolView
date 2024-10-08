@@ -1,6 +1,11 @@
 import { runPipeline, TextStream, InterfaceTypes, Image } from 'itk-wasm';
 
-import { readDicomTags, readImageDicomFileSeries } from '@itk-wasm/dicom';
+import {
+  readDicomTags,
+  readImageDicomFileSeries,
+  readOverlappingSegmentation,
+  ReadOverlappingSegmentationResult,
+} from '@itk-wasm/dicom';
 
 import itkConfig from '@/src/io/itk/itkConfig';
 import { getDicomSeriesWorkerPool, getWorker } from '@/src/io/itk/worker';
@@ -170,6 +175,33 @@ export async function readVolumeSlice(
   return result.outputs[0].data as Image;
 }
 
+type Segment = {
+  SegmentLabel: string;
+  labelID: number;
+  recommendedDisplayRGBValue: [number, number, number];
+};
+
+type ReadOverlappingSegmentationMeta = {
+  segmentAttributes: Segment[][];
+};
+
+type ReadOverlappingSegmentationResultWithRealMeta =
+  ReadOverlappingSegmentationResult & {
+    metaInfo: ReadOverlappingSegmentationMeta;
+  };
+
+export async function buildLabelMap(file: File) {
+  const inputImage = sanitizeFile(file);
+  const result = (await readOverlappingSegmentation(inputImage, {
+    webWorker: getWorker(),
+    mergeSegments: true,
+  })) as ReadOverlappingSegmentationResultWithRealMeta;
+  return {
+    ...result,
+    outputImage: result.segImage,
+  };
+}
+
 /**
  * Builds a volume for a set of files.
  * @async
@@ -183,6 +215,5 @@ export async function buildImage(seriesFiles: File[]) {
     inputImages,
     singleSortedSeries: false,
   });
-
-  return result.outputImage;
+  return result;
 }
