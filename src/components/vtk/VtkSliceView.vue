@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, toRefs, provide, markRaw, effectScope, onUnmounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -12,6 +13,7 @@ import { useAutoFitState } from '@/src/composables/useAutoFitState';
 import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
+import { useViewCameraStore } from '@/src/store/view-configs/camera';
 
 interface Props {
   viewId: string;
@@ -21,18 +23,17 @@ interface Props {
   disableAutoResetCamera?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  disableAutoResetCamera: false,
-});
+const props = defineProps<Props>();
 const {
   viewId: viewID,
   imageId: imageID,
   viewDirection,
   viewUp,
-  disableAutoResetCamera,
 } = toRefs(props);
 
 const vtkContainerRef = ref<HTMLElement>();
+
+const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
 
 const { metadata: imageMetadata } = useImage(imageID);
 
@@ -72,7 +73,7 @@ function autoFitImage() {
 }
 
 useResizeObserver(vtkContainerRef, () => {
-  if (disableAutoResetCamera.value) return;
+  if (disableCameraAutoReset.value) return;
   autoFitImage();
 });
 
@@ -89,7 +90,7 @@ function resetCamera() {
   });
 }
 
-watchImmediate([disableAutoResetCamera, viewID, imageID], ([noAutoReset]) => {
+watchImmediate([disableCameraAutoReset, viewID, imageID], ([noAutoReset]) => {
   if (noAutoReset) return;
   resetCamera();
 });

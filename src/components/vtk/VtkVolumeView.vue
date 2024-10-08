@@ -8,11 +8,13 @@ import {
   effectScope,
   onUnmounted,
 } from 'vue';
+import { storeToRefs } from 'pinia';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
 import { useImage } from '@/src/composables/useCurrentImage';
+import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { useVtkInteractorStyle } from '@/src/core/vtk/useVtkInteractorStyle';
 import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionManipulator';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -30,21 +32,19 @@ interface Props {
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
-  disableAutoResetCamera?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  disableAutoResetCamera: false,
-});
+const props = defineProps<Props>();
 const {
   viewId: viewID,
   imageId: imageID,
   viewDirection,
   viewUp,
-  disableAutoResetCamera,
 } = toRefs(props);
 
 const vtkContainerRef = ref<HTMLElement>();
+
+const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
 
 const { metadata: imageMetadata } = useImage(imageID);
 
@@ -95,7 +95,7 @@ function resetCamera() {
   );
 }
 
-watchImmediate([disableAutoResetCamera, viewID, imageID], ([noAutoReset]) => {
+watchImmediate([disableCameraAutoReset, viewID, imageID], ([noAutoReset]) => {
   if (noAutoReset) return;
   resetCamera();
 });

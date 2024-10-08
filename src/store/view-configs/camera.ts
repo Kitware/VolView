@@ -5,7 +5,7 @@ import {
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { Maybe } from '@/src/types';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
@@ -28,6 +28,12 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     };
 
     patchDoubleKeyRecord(configs, viewID, dataID, config);
+  };
+
+  const disableCameraAutoReset = ref(false);
+
+  const toggleCameraAutoReset = () => {
+    disableCameraAutoReset.value = !disableCameraAutoReset.value;
   };
 
   const removeView = (viewID: string) => {
@@ -56,6 +62,8 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     configs,
     getConfig,
     updateConfig,
+    disableCameraAutoReset,
+    toggleCameraAutoReset,
     removeView,
     removeData,
     serialize,

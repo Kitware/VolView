@@ -11,6 +11,14 @@
       ></v-switch>
 
       <v-switch
+        :label="`Camera Auto Reset (${disableCameraAutoReset ? 'On' : 'Off'})`"
+        v-model="disableCameraAutoReset"
+        color="secondary"
+        density="compact"
+        hide-details
+      ></v-switch>
+
+      <v-switch
         v-if="errorReportingConfigured"
         :label="`Error Reporting (${reportingEnabled ? 'On' : 'Off'})`"
         v-model="reportingEnabled"
@@ -39,6 +47,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useTheme } from 'vuetify';
 import { useLocalStorage } from '@vueuse/core';
 
@@ -50,6 +59,7 @@ import {
   useErrorReporting,
   errorReportingConfigured,
 } from '../utils/errorReporting';
+import { useViewCameraStore } from '@/src/store/view-configs/camera';
 
 export default defineComponent({
   setup() {
@@ -68,6 +78,8 @@ export default defineComponent({
       errorReportingStore.disableReporting = !enabled;
     });
 
+    const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
+
     const keyboardStore = useKeyboardShortcutsStore();
     const openKeyboardShortcuts = () => {
       keyboardStore.settingsOpen = true;
@@ -78,6 +90,7 @@ export default defineComponent({
       reportingEnabled,
       errorReportingConfigured,
       openKeyboardShortcuts,
+      disableCameraAutoReset,
     };
   },
   components: {
