@@ -10,6 +10,7 @@ import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { useFileStore } from './datasets-files';
 import { ImageMetadata } from '../types/image';
+import { compareImageSpaces } from '../utils/imageSpace';
 
 export const defaultImageMetadata = () => ({
   name: '(none)',
@@ -77,6 +78,17 @@ export const useImageStore = defineStore('images', {
         delete this.metadata[id];
         removeFromArray(this.idList, id);
       }
+    },
+
+    checkAllImagesSameSpace() {
+      if (this.idList.length < 2) return false;
+
+      const dataFirst = this.dataIndex[this.idList[0]];
+      const allEqual = this.idList.slice(1).every((id) => {
+        return compareImageSpaces(this.dataIndex[id], dataFirst);
+      });
+
+      return allEqual;
     },
 
     async serialize(stateFile: StateFile) {

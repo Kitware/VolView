@@ -1,6 +1,5 @@
 import { MaybeRef, Ref, computed, unref } from 'vue';
 import { Maybe } from '@/src/types';
-import { CameraConfig } from '@/src/store/view-configs/types';
 import useViewCameraStore from '@/src/store/view-configs/camera';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
@@ -14,14 +13,14 @@ export function usePersistCameraConfig(
 ) {
   const viewCameraStore = useViewCameraStore();
 
-  type KeyType = keyof CameraConfig;
-  const keys: KeyType[] = [
+  const keys = [
     'position',
     'focalPoint',
     'viewUp',
     'parallelScale',
     'directionOfProjection',
-  ];
+  ] as const;
+  type KeyType = (typeof keys)[number];
 
   const cameraRefs = keys.reduce(
     (refs, key) => ({
@@ -50,6 +49,9 @@ export function usePersistCameraConfig(
           viewCameraStore.updateConfig(viewIDVal, dataIDVal, {
             [key]: v,
           });
+          if (viewCameraStore.isSync()) {
+            viewCameraStore.updateSyncConfigs();
+          }
         },
       }),
     }),
