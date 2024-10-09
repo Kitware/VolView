@@ -50,8 +50,6 @@ export default defineComponent({
     const view = inject(VtkViewContext);
     if (!view) throw new Error('No VtkView');
 
-    console.log('whee');
-
     const { widgetManager } = view;
 
     const { imageId } = toRefs(props);
