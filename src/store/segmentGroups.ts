@@ -210,32 +210,34 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     return [...color];
   }
 
-  function decodeSegments(image: DataSelection) {
-    if (isRegularImage(image)) {
-      return structuredClone(DEFAULT_SEGMENT_MASKS);
+  async function decodeSegments(imageId: DataSelection, image: vtkLabelMap) {
+    if (!isRegularImage(imageId)) {
+      // dicom image
+      const dicomStore = useDICOMStore();
+
+      const volumeBuildResults = await dicomStore.volumeBuildResults[imageId];
+      if (volumeBuildResults.modality === 'SEG') {
+        const segments =
+          volumeBuildResults.builtImageResults.metaInfo.segmentAttributes[0];
+        return segments.map((segment) => ({
+          value: segment.labelID,
+          name: segment.SegmentLabel,
+          color: [...segment.recommendedDisplayRGBValue, 255],
+        }));
+      }
     }
 
-    const dicomStore = useDICOMStore();
-    const volumeInfo = dicomStore.volumeInfo[image];
-    const segmentSequence = undefined; // volumeInfo.SegmentSequence;
-    if (!segmentSequence) {
-      return [
-        {
-          value: 255,
-          name: volumeInfo.SeriesDescription || 'Unknown Segment',
-          color: getNextColor(),
-        },
-      ];
-    }
-    // TODO convert Recommended Display CIELab Value (0062,000D) tag to a segment color
-    // TODO convert SegmentDescription (0062,0006) tag to a segment name
-    return [
-      {
-        value: 255,
-        name: volumeInfo.SeriesDescription || 'Unknown Segment',
-        color: [255, 0, 255, 255],
-      },
-    ];
+    const [min, max] = image.getPointData().getScalars().getRange();
+    const noZeroBackground = Math.max(min, 1);
+    const values = Array.from(
+      { length: max - noZeroBackground + 1 },
+      (_, i) => i + noZeroBackground
+    );
+    return values.map((value) => ({
+      value,
+      name: makeDefaultSegmentName(value),
+      color: getNextColor(),
+    }));
   }
 
   /**
@@ -269,20 +271,20 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     }
 
     const name = imageStore.metadata[imageID].name;
-    // Don't remove image if DICOM as user may have selected child image as primary selection by now
+    // Don't remove image if DICOM as user may have selected segment group image as primary selection by now
     const deleteImage = isRegularImage(imageID);
     if (deleteImage) {
       imageStore.deleteData(imageID);
     }
 
-    const resampled = await ensureSameSpace(parentImage, childImage, true);
-    const copyNeeded = resampled === childImage && !deleteImage;
-    const ownedMemoryImage = copyNeeded
-      ? structuredClone(resampled)
-      : resampled;
-    const labelmapImage = toLabelMap(ownedMemoryImage);
+    const matchingParentSpace = await ensureSameSpace(
+      parentImage,
+      childImage,
+      true
+    );
+    const labelmapImage = toLabelMap(matchingParentSpace);
 
-    const segments = decodeSegments(imageID);
+    const segments = await decodeSegments(imageID, labelmapImage);
     const { order, byKey } = normalizeForStore(segments, 'value');
     const segmentGroupStore = useSegmentGroupStore();
     segmentGroupStore.addLabelmap(labelmapImage, {

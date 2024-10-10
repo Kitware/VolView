@@ -1,9 +1,10 @@
 <script lang="ts">
-import { computed, defineComponent, watch } from 'vue';
+import { computed, defineComponent } from 'vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
+import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
 import PersistentOverlay from './PersistentOverlay.vue';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import useVolumeColoringStore from '../store/view-configs/volume-coloring';
@@ -26,17 +27,11 @@ export default defineComponent({
 
     const { currentImageID, currentImageData } = useCurrentImage();
 
+    useVolumeColoringInitializer(TARGET_VIEW_ID, currentImageID);
+
     const volumeColorConfig = computed(() =>
       volumeColoringStore.getConfig(TARGET_VIEW_ID, currentImageID.value)
     );
-
-    watch(volumeColorConfig, () => {
-      const imageID = currentImageID.value;
-      if (imageID && !volumeColorConfig.value) {
-        // creates a default color config
-        volumeColoringStore.updateConfig(TARGET_VIEW_ID, imageID, {});
-      }
-    });
 
     const colorTransferFunctionRef = computed(
       () => volumeColorConfig.value?.transferFunction

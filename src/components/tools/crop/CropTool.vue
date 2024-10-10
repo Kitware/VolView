@@ -1,7 +1,7 @@
 <script lang="ts">
 import { useViewStore } from '@/src/store/views';
 import { PropType, computed, defineComponent, toRefs } from 'vue';
-import { watchImmediate } from '@vueuse/core';
+import { wheneverImageLoaded } from '@/src/composables/wheneverImageLoaded';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -29,7 +29,7 @@ export default defineComponent({
 
     const active = computed(() => toolStore.currentTool === Tools.Crop);
 
-    watchImmediate(imageId, (id) => {
+    wheneverImageLoaded(imageId, ({ id }) => {
       if (id && !(id in cropStore.croppingByImageID)) {
         cropStore.resetCropping(id);
       }

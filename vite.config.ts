@@ -13,8 +13,30 @@ import replace from '@rollup/plugin-replace';
 import pkgLock from './package-lock.json';
 import { config } from './wdio.shared.conf';
 
-if (pkgLock.lockfileVersion !== 2) {
-  throw new Error('package-lock.json is not version 2!');
+function getPackageInfo(lockInfo: typeof pkgLock) {
+  if (lockInfo.lockfileVersion === 2) {
+    return {
+      versions: {
+        volview: lockInfo.version,
+        'vtk.js': lockInfo.dependencies['@kitware/vtk.js'].version,
+        'itk-wasm': lockInfo.dependencies['itk-wasm'].version,
+      },
+    };
+  }
+
+  if (lockInfo.lockfileVersion === 3) {
+    return {
+      versions: {
+        volview: lockInfo.version,
+        'vtk.js': lockInfo.packages['node_modules/@kitware/vtk.js'].version,
+        'itk-wasm': lockInfo.packages['node_modules/itk-wasm'].version,
+      },
+    };
+  }
+
+  throw new Error(
+    'VolView build: your package-lock.json version is not 2 or 3. Cannot extract dependency versions.'
+  );
 }
 
 function resolveNodeModulePath(moduleName: string) {
@@ -35,10 +57,11 @@ function resolvePath(...args: string[]) {
 
 const rootDir = resolvePath(__dirname);
 const distDir = resolvePath(rootDir, 'dist');
-const itkConfig = resolvePath(rootDir, 'src', 'io', 'itk', 'itkConfig.js');
 
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
+
+const pkgInfo = getPackageInfo(pkgLock);
 
 function configureSentryPlugin() {
   return SENTRY_AUTH_TOKEN && SENTRY_ORG && SENTRY_PROJECT
@@ -74,9 +97,9 @@ export default defineConfig({
   },
   define: {
     __VERSIONS__: {
-      volview: pkgLock.version,
-      'vtk.js': pkgLock.dependencies['@kitware/vtk.js'].version,
-      'itk-wasm': pkgLock.dependencies['itk-wasm'].version,
+      volview: pkgInfo.versions.volview,
+      'vtk.js': pkgInfo.versions['@kitware/vtk.js'],
+      'itk-wasm': pkgInfo.versions['itk-wasm'],
     },
   },
   resolve: {
@@ -88,17 +111,6 @@ export default defineConfig({
       {
         find: '@src',
         replacement: resolvePath(rootDir, 'src'),
-      },
-      // Patch itk-wasm library code with image-io .wasm file paths
-      // itkConfig alias only applies to itk-wasm library code after "npm run build"
-      // During "npm run serve", itk-wasm fetches image-io .wasm files from CDN
-      {
-        find: '../itkConfig.js',
-        replacement: itkConfig,
-      },
-      {
-        find: '../../itkConfig.js',
-        replacement: itkConfig,
       },
     ],
   },
@@ -145,7 +157,7 @@ export default defineConfig({
         {
           src: resolvePath(
             resolveNodeModulePath('itk-wasm'),
-            'dist/core/web-workers/bundles/itk-wasm-pipeline.min.worker.js'
+            'dist/pipeline/web-workers/bundles/itk-wasm-pipeline.min.worker.js'
           ),
           dest: 'itk',
         },

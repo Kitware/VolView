@@ -34,7 +34,7 @@ const setTool = (tool: Tools) => () => {
 
 const showKeyboardShortcuts = () => {
   const keyboardStore = useKeyboardShortcutsStore();
-  keyboardStore.settingsOpen = true;
+  keyboardStore.settingsOpen = !keyboardStore.settingsOpen;
 };
 
 const changeNextImage = () => () => {
@@ -62,6 +62,8 @@ export const ACTION_TO_FUNC = {
 
   changeNextImage: changeNextImage(),
   changePreviousImage: changePreviousImage(),
+
+  mergeNewPolygon: () => {}, // acts as a modifier key rather than immediate effect, so no-op
 
   showKeyboardShortcuts,
 } as const satisfies Record<Action, () => void>;

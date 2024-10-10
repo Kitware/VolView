@@ -2,15 +2,15 @@
 
 ## Layout
 
-Use the layout button to choose between window arrangements. As in all things, if you have a particular layout that you would like to see added, please make a feature request on our ["issue tracker"](https://github.com/Kitware/VolView/issues).
+Use the layout button to choose between window arrangements. As in all things, if you have a particular layout that you would like to see added, please make a feature request on our [issue tracker](https://github.com/Kitware/VolView/issues).
 
-![Layout](../gallery/07-volview-layout-notes.jpg)
+![Layout](./assets/07-volview-layout-notes.jpg)
 
 ## 2D View left mouse button
 
 Window / Level, Pan, Zoom, or Crosshairs: Select these options to control the function of the left mouse button in the 2D windows.
 
-![Window-Level, Pan, Zoom, Crosshairs](../gallery/10-volview-wl-pan-zoom-notes.jpg)
+![Window-Level, Pan, Zoom, Crosshairs](./assets/10-volview-wl-pan-zoom-notes.jpg)
 
 ## 2D Annotations
 
@@ -52,7 +52,7 @@ When the ruler tool selected, the left mouse button is used to place and adjust 
 
 Ruler annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
 
-![2D Annotations](../gallery/11-volview-paint-notes.jpg)
+![2D Annotations](./assets/11-volview-paint-notes.jpg)
 
 ### Label Configuration
 
@@ -113,6 +113,6 @@ ie `rectangleLabels` or `rulerLabels`.
 
 Select this tool to adjust the extent of data shown in the 3D rendering. In the 3D window you can pick and move the corner, edge, and side markers to make adjustments. In the 2D windows, grab and move the edges of the bounding box overlaid on the data.
 
-![Crop](../gallery/13-volview-crop.jpg)
+![Crop](./assets/13-volview-crop.jpg)
 
 [**_Watch the video!_**](https://youtu.be/Bj4ijh_VLUQ)

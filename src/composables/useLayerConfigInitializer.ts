@@ -1,11 +1,10 @@
-import { LayerID } from '@/src/store/datasets-layers';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref } from 'vue';
 
 export function useLayerConfigInitializer(
   viewId: MaybeRef<string>,
-  layerId: MaybeRef<LayerID>
+  layerId: MaybeRef<string>
 ) {
   const coloringStore = useLayerColoringStore();
   const colorConfig = computed(() =>

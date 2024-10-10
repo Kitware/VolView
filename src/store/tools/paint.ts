@@ -19,7 +19,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
   const strokePoints = ref<vec3[]>([]);
-  const labelmapOpacity = ref(1);
   const isActive = ref(false);
 
   const { currentImageID } = useCurrentImage();
@@ -106,10 +105,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushSize(size);
   }
 
-  function setLabelmapOpacity(opacity: number) {
-    labelmapOpacity.value = Math.min(1, Math.max(0, opacity));
-  }
-
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2) {
     if (!activeLabelmap.value) {
       return;
@@ -181,7 +176,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     paint.activeSegmentGroupID = activeSegmentGroupID.value ?? null;
     paint.brushSize = brushSize.value;
     paint.activeSegment = activeSegment.value;
-    paint.labelmapOpacity = labelmapOpacity.value;
   }
 
   function deserialize(
@@ -191,7 +185,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   ) {
     const { paint } = manifest.tools;
     setBrushSize.call(this, paint.brushSize);
-    setLabelmapOpacity.call(this, paint.labelmapOpacity);
     isActive.value = manifest.tools.current === Tools.Paint;
 
     if (paint.activeSegmentGroupID !== null) {
@@ -221,7 +214,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     activeSegment,
     brushSize,
     strokePoints,
-    labelmapOpacity,
     isActive,
 
     getWidgetFactory,
@@ -234,7 +226,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     setActiveLabelmapFromImage,
     setActiveSegment,
     setBrushSize,
-    setLabelmapOpacity,
     setSliceAxis,
     startStroke,
     placeStrokePoint,

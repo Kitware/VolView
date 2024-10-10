@@ -1,6 +1,6 @@
 # Configuration JSON File
 
-By loading a JSON file, you can set VolView's:
+By loading a JSON file, you can set VolView's configuration:
 
 - Starting view layout (Axial Only, 3D Primary, etc).
 - Labels for tools

@@ -14,7 +14,24 @@
         @widgetHover="onHover(tool.id, $event)"
       />
     </svg>
-    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore" />
+    <annotation-context-menu ref="contextMenu" :tool-store="activeToolStore">
+      <v-tooltip
+        :disabled="mergePossible"
+        text="Shift select multiple polygons that overlap and have the same label."
+      >
+        <template v-slot:activator="{ props }">
+          <div v-bind="props">
+            <v-list-item @click="mergeTools" :disabled="!mergePossible">
+              <template v-slot:prepend>
+                <v-icon>mdi-vector-union</v-icon>
+              </template>
+
+              <v-list-item-title>Merge Polygons</v-list-item-title>
+            </v-list-item>
+          </div>
+        </template>
+      </v-tooltip>
+    </annotation-context-menu>
     <annotation-info :info="overlayInfo" :tool-store="activeToolStore" />
   </div>
 </template>
@@ -37,9 +54,10 @@ import {
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
+import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
-import { watchImmediate } from '@vueuse/core';
+import { useMagicKeys, watchImmediate } from '@vueuse/core';
 import PolygonWidget2D from './PolygonWidget2D.vue';
 
 const useActiveToolStore = usePolygonStore;
@@ -109,10 +127,19 @@ export default defineComponent({
       placingTool.remove();
     });
 
+    const keys = useMagicKeys();
+    const mergeKey = computed(
+      () => keys[actionToKey.value.mergeNewPolygon].value
+    );
+
     const onToolPlaced = () => {
       if (imageId.value) {
+        const newToolId = placingTool.id.value;
         placingTool.commit();
         placingTool.add();
+        if (mergeKey.value && newToolId) {
+          activeToolStore.mergeWithOtherTools(newToolId);
+        }
       }
     };
 
@@ -124,12 +151,18 @@ export default defineComponent({
 
     const { onHover, overlayInfo } = useHover(currentTools, slice);
 
+    const mergePossible = computed(
+      () => activeToolStore.mergeableTools.length >= 1
+    );
+
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
       onToolPlaced,
       contextMenu,
       openContextMenu,
+      mergeTools: activeToolStore.mergeSelectedTools,
+      mergePossible,
       activeToolStore,
       onHover,
       overlayInfo,

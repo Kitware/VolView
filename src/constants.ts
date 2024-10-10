@@ -66,6 +66,10 @@ export const ACTIONS = {
   changePreviousImage: {
     readable: 'Previous Image',
   },
+  
+  mergeNewPolygon: {
+    readable: 'Hold down to merge new polygons with overlapping polygons',
+  },
 
   showKeyboardShortcuts: {
     readable: 'Show keyboard shortcuts dialog',

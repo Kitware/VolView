@@ -8,18 +8,22 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { SliceConfig } from './types';
+import { useImageStore } from '../datasets-images';
 
 export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
   min: 0,
   max: 1,
   axisDirection: 'Inferior',
+  syncState: false,
 });
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
+  const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
 
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
@@ -64,6 +68,44 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     }
   };
 
+  const toggleSyncImages = () => {
+    // Synchronize all images when toggled
+    Object.keys(configs).forEach((viewID) => {
+      imageStore.idList.forEach((imageID) => {
+        const { syncState } = {
+          ...defaultSliceConfig(),
+          ...getConfig(viewID, imageID),
+        };
+        updateConfig(viewID, imageID, { syncState: !syncState });
+      });
+    });
+  };
+
+  const isSync = () => {
+    const allSync = Object.keys(configs).every((sc) =>
+      Object.keys(configs[sc]).every((c) => configs[sc][c].syncState)
+    );
+
+    return allSync;
+  };
+
+  const updateSyncConfigs = () => {
+    Object.keys(configs).forEach((viewID) => {
+      const { currentImageID } = useCurrentImage();
+      const config = getConfig(viewID, currentImageID.value);
+      imageStore.idList.forEach((imageID) => {
+        const { syncState } = {
+          ...defaultSliceConfig(),
+          ...getConfig(viewID, imageID),
+        };
+
+        if (syncState) {
+          updateConfig(viewID, imageID, { slice: config?.slice });
+        }
+      });
+    });
+  };
+
   const serialize = createViewConfigSerializer(configs, 'slice');
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
@@ -81,6 +123,9 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     resetSlice,
     removeView,
     removeData,
+    toggleSyncImages,
+    updateSyncConfigs,
+    isSync,
     serialize,
     deserialize,
   };
