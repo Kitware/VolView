@@ -135,6 +135,28 @@ const applySegmentColoring = () => {
 
 watchEffect(applySegmentColoring);
 
+sliceRep.property.setUseLabelOutline(true);
+sliceRep.property.setUseLookupTableScalarRange(true); // For the labelmap is rendered correctly
+
+// watchEffect(() => {
+//   sliceRep.property.setLabelOutlineOpacity(opacity.value);
+// });
+
+const outlinePixelThickness = 2;
+watchEffect(() => {
+  if (!metadata.value) return; // segment group just deleted
+
+  const { segments } = metadata.value;
+  const max = Math.max(...segments.order);
+
+  const segThicknesses = Array.from({ length: max }, (_, i) => {
+    const value = i + 1;
+    const segment = segments.byValue[value];
+    return ((!segment || segment.visible) && outlinePixelThickness) || 0;
+  });
+  sliceRep.property.setLabelOutlineThickness(segThicknesses);
+});
+
 defineExpose(sliceRep);
 </script>
 
