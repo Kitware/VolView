@@ -1,7 +1,7 @@
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, watchEffect } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { Maybe } from '@/src/types';
@@ -27,9 +27,10 @@ export const usePaintToolStore = defineStore('paint', () => {
     return this.$paint.factory;
   }
 
+  const segmentGroupStore = useSegmentGroupStore();
+
   const activeLabelmap = computed(() => {
     if (!activeSegmentGroupID.value) return null;
-    const segmentGroupStore = useSegmentGroupStore();
     return segmentGroupStore.dataIndex[activeSegmentGroupID.value] ?? null;
   });
 
@@ -62,7 +63,6 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
-    const segmentGroupStore = useSegmentGroupStore();
     const labelmaps = segmentGroupStore.orderByParent[imageID];
     if (labelmaps?.length) {
       activeSegmentGroupID.value = labelmaps[0];
@@ -83,7 +83,6 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (!activeSegmentGroupID.value)
         throw new Error('Cannot set active segment without a labelmap');
 
-      const segmentGroupStore = useSegmentGroupStore();
       const { segments } =
         segmentGroupStore.metadataByID[activeSegmentGroupID.value];
 
@@ -206,6 +205,14 @@ export const usePaintToolStore = defineStore('paint', () => {
     },
     { immediate: true }
   );
+
+  watchEffect(() => {
+    if (!currentImageID.value) return;
+    const segmentGroups = segmentGroupStore.orderByParent[currentImageID.value];
+    if (segmentGroups?.length === 1) {
+      activeSegmentGroupID.value = segmentGroups[0];
+    }
+  });
 
   return {
     // state
