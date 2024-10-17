@@ -17,6 +17,10 @@ function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
 }
 
+type Thumbnail =
+  | { kind: 'image'; value: string }
+  | { kind: 'text'; value: string };
+
 // Assume itkImage type is Uint8Array
 function itkImageToURI(itkImage: Image) {
   const [width, height] = itkImage.size;
@@ -116,7 +120,7 @@ export default defineComponent({
 
     // --- thumbnails --- //
 
-    const thumbnailCache = reactive<Record<string, string>>({});
+    const thumbnailCache = reactive<Record<string, Thumbnail>>({});
 
     watch(
       volumeKeys,
@@ -131,7 +135,12 @@ export default defineComponent({
             const thumb = await generateDICOMThumbnail(dicomStore, key);
             if (thumb !== null) {
               const encodedImage = itkImageToURI(thumb);
-              thumbnailCache[cacheKey] = encodedImage;
+              thumbnailCache[cacheKey] = { kind: 'image', value: encodedImage };
+            } else {
+              thumbnailCache[cacheKey] = {
+                kind: 'text',
+                value: dicomStore.volumeInfo[key].Modality,
+              };
             }
           } catch (err) {
             if (err instanceof Error) {
@@ -140,6 +149,10 @@ export default defineComponent({
                 details: `${err}. More details can be found in the developer's console.`,
               });
             }
+            thumbnailCache[cacheKey] = {
+              kind: 'text',
+              value: dicomStore.volumeInfo[key].Modality,
+            };
           }
         });
 
@@ -240,7 +253,12 @@ export default defineComponent({
                     cover
                     height="150"
                     width="150"
-                    :src="(thumbnailCache || {})[volume.cacheKey] || ''"
+                    :src="
+                      (thumbnailCache[volume.cacheKey] &&
+                        thumbnailCache[volume.cacheKey].kind === 'image' &&
+                        thumbnailCache[volume.cacheKey].value) ||
+                      ''
+                    "
                   >
                     <template v-slot:placeholder>
                       <v-row
@@ -249,9 +267,18 @@ export default defineComponent({
                         justify="center"
                       >
                         <v-progress-circular
+                          v-if="thumbnailCache[volume.cacheKey] === undefined"
                           indeterminate
                           color="grey-lighten-5"
                         />
+                        <span
+                          v-else-if="
+                            thumbnailCache[volume.cacheKey] &&
+                            thumbnailCache[volume.cacheKey].kind === 'text'
+                          "
+                        >
+                          {{ thumbnailCache[volume.cacheKey].value }}
+                        </span>
                       </v-row>
                     </template>
                     <persistent-overlay>
