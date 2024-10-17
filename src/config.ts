@@ -184,16 +184,19 @@ export const DEFAULT_SEGMENT_MASKS: SegmentMask[] = [
     value: 1,
     name: 'Tissue',
     color: [255, 0, 0, 255],
+    visible: true,
   },
   {
     value: 2,
     name: 'Liver',
     color: [0, 255, 0, 255],
+    visible: true,
   },
   {
     value: 3,
     name: 'Heart',
     color: [0, 0, 255, 255],
+    visible: true,
   },
 ];
 
