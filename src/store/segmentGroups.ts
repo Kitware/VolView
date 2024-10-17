@@ -10,7 +10,7 @@ import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
 import { SegmentMask } from '@/src/types/segment';
-import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
+import { DEFAULT_SEGMENT_MASKS, CATEGORICAL_COLORS } from '@/src/config';
 import { readImage, writeImage } from '@/src/io/readWriteImage';
 import {
   type DataSelection,
@@ -203,11 +203,11 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     delete metadataByID[id];
   }
 
-  let lastColorIndex = 0;
+  let nextColorIndex = 0;
   function getNextColor() {
-    const color = DEFAULT_SEGMENT_MASKS[lastColorIndex].color;
-    lastColorIndex = (lastColorIndex + 1) % DEFAULT_SEGMENT_MASKS.length;
-    return [...color];
+    const color = CATEGORICAL_COLORS[nextColorIndex];
+    nextColorIndex = (nextColorIndex + 1) % CATEGORICAL_COLORS.length;
+    return [...color, 255];
   }
 
   async function decodeSegments(imageId: DataSelection, image: vtkLabelMap) {
