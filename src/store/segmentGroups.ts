@@ -26,6 +26,7 @@ import {
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
+import { vi } from 'vitest';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -223,6 +224,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           value: segment.labelID,
           name: segment.SegmentLabel,
           color: [...segment.recommendedDisplayRGBValue, 255],
+          visible: true,
         }));
       }
     }
@@ -237,6 +239,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       value,
       name: makeDefaultSegmentName(value),
       color: getNextColor(),
+      visible: true,
     }));
   }
 
@@ -327,6 +330,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       name: makeDefaultSegmentName(value),
       value,
       color: DEFAULT_SEGMENT_COLOR,
+      visible: true,
     };
   }
 

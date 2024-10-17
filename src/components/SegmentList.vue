@@ -88,6 +88,14 @@ const setSegmentOpacity = (opacity: number) => {
   );
 };
 
+const toggleVisible = (value: number) => {
+  const segment = segmentGroupStore.getSegment(groupId.value, value);
+  if (!segment) return;
+  segmentGroupStore.updateSegment(groupId.value, value, {
+    visible: !segment.visible,
+  });
+};
+
 // --- editing state --- //
 
 const editingSegmentValue = ref<Maybe<number>>(null);
@@ -166,7 +174,23 @@ function deleteEditingSegment() {
         />
       </div>
     </template>
-    <template #item-append="{ key }">
+    <template #item-append="{ key, item }">
+      <v-btn
+        icon
+        size="small"
+        density="compact"
+        class="ml-auto mr-1"
+        variant="plain"
+        @click.stop="toggleVisible(key as number)"
+      >
+        <v-icon v-if="item.visible" style="pointer-events: none"
+          >mdi-eye</v-icon
+        >
+        <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
+        <v-tooltip location="left" activator="parent">{{
+          item.visible ? 'Hide' : 'Show'
+        }}</v-tooltip>
+      </v-btn>
       <v-btn
         icon="mdi-pencil"
         size="small"

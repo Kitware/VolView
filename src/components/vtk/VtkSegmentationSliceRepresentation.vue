@@ -117,7 +117,7 @@ const applySegmentColoring = () => {
     const r = segment.color[0] || 0;
     const g = segment.color[1] || 0;
     const b = segment.color[2] || 0;
-    const a = segment.color[3] || 0;
+    const a = (segment.visible && segment.color[3]) || 0;
     cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
     ofun.addPoint(segment.value, a / 255);
 
