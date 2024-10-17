@@ -96,6 +96,22 @@ const toggleVisible = (value: number) => {
   });
 };
 
+// If all selected tools are already hidden, it should be "show".
+// If at least one selected tool is visible, it should be "hide".
+const allVisible = computed(() => {
+  return segments.value.every((seg) => seg.visible);
+});
+
+function toggleGlobalVisible() {
+  const visible = !allVisible.value;
+
+  segments.value.forEach((seg) => {
+    segmentGroupStore.updateSegment(groupId.value, seg.value, {
+      visible,
+    });
+  });
+}
+
 // --- editing state --- //
 
 const editingSegmentValue = ref<Maybe<number>>(null);
@@ -145,6 +161,17 @@ function deleteEditingSegment() {
 </script>
 
 <template>
+  <v-btn @click.stop="toggleGlobalVisible">
+    Toggle Segments
+    <slot name="append">
+      <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
+      <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
+      <v-tooltip location="top" activator="parent">{{
+        allVisible ? 'Hide' : 'Show'
+      }}</v-tooltip>
+    </slot>
+  </v-btn>
+
   <v-slider
     class="ma-4"
     label="Segment Opacity"
@@ -157,6 +184,7 @@ function deleteEditingSegment() {
     :model-value="segmentOpacity"
     @update:model-value="setSegmentOpacity($event)"
   />
+
   <editable-chip-list
     v-model="selectedSegment"
     :items="segments"
