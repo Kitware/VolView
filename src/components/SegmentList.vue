@@ -11,6 +11,7 @@ import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 import { reactive, ref, toRefs, computed, watch } from 'vue';
 import { SegmentMask } from '@/src/types/segment';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { RGBAColor } from '@kitware/vtk.js/types';
 
 const props = defineProps({
   groupId: {
@@ -56,6 +57,36 @@ watch(
   },
   { immediate: true }
 );
+
+// --- segment opacity --- //
+
+const selectedSegmentMask = computed(() => {
+  if (!selectedSegment.value) return null;
+  return segmentGroupStore.getSegment(groupId.value, selectedSegment.value);
+});
+
+const segmentOpacity = computed(() => {
+  if (!selectedSegmentMask.value) return 1;
+  return selectedSegmentMask.value.color[3] / 255;
+});
+
+const setSegmentOpacity = (opacity: number) => {
+  if (!selectedSegmentMask.value) {
+    return;
+  }
+
+  const color = selectedSegmentMask.value.color;
+  segmentGroupStore.updateSegment(
+    groupId.value,
+    selectedSegmentMask.value.value,
+    {
+      color: [
+        ...(color.slice(0, 3) as [number, number, number]),
+        Math.round(opacity * 255),
+      ],
+    }
+  );
+};
 
 // --- editing state --- //
 
@@ -106,6 +137,18 @@ function deleteEditingSegment() {
 </script>
 
 <template>
+  <v-slider
+    class="ma-4"
+    label="Segment Opacity"
+    min="0"
+    max="1"
+    step="0.01"
+    density="compact"
+    hide-details
+    thumb-label
+    :model-value="segmentOpacity"
+    @update:model-value="setSegmentOpacity($event)"
+  />
   <editable-chip-list
     v-model="selectedSegment"
     :items="segments"
@@ -119,7 +162,7 @@ function deleteEditingSegment() {
       <div class="dot-container mr-3">
         <div
           class="color-dot"
-          :style="{ background: rgbaToHexa(item.color) }"
+          :style="{ background: rgbaToHexa([...item.color.slice(0,3), 255] as RGBAColor) }"
         />
       </div>
     </template>
