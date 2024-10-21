@@ -26,7 +26,6 @@ import {
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
-import { vi } from 'vitest';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;

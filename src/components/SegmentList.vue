@@ -96,8 +96,6 @@ const toggleVisible = (value: number) => {
   });
 };
 
-// If all selected tools are already hidden, it should be "show".
-// If at least one selected tool is visible, it should be "hide".
 const allVisible = computed(() => {
   return segments.value.every((seg) => seg.visible);
 });
