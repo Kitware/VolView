@@ -48,7 +48,7 @@ const currentSegmentGroups = computed(() => {
 const paintStore = usePaintToolStore();
 const currentSegmentGroupID = computed({
   get: () => paintStore.activeSegmentGroupID,
-  set: (id) => paintStore.setActiveLabelmap(id),
+  set: (id) => paintStore.setActiveSegmentGroup(id),
 });
 
 // clear selection if we delete the active segment group
