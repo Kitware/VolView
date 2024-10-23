@@ -3,7 +3,6 @@ import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import { DataSourceWithFile } from '@/src/io/import/dataSource';
 import * as DICOM from '@/src/io/dicom';
-import { pullComponent0 } from '@/src/utils/images';
 import { identity, pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
@@ -55,16 +54,10 @@ const buildImage = async (seriesFiles: File[], modality: string) => {
   const messages: string[] = [];
   if (modality === 'SEG') {
     const segFile = seriesFiles[0];
-    const results = await DICOM.buildLabelMap(segFile);
-    if (results.outputImage.imageType.components !== 1) {
-      messages.push(
-        `${segFile.name} SEG file has overlapping segments. Using first set.`
-      );
-      results.outputImage = pullComponent0(results.segImage);
-    }
+    const results = await DICOM.buildSegmentGroups(segFile);
     if (seriesFiles.length > 1)
       messages.push(
-        'SEG image has multiple components. Using only the first component.'
+        'Tried to make one volume from 2 SEG modality files. Using only the first file!'
       );
     return {
       modality: 'SEG',
