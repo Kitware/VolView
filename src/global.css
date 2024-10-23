@@ -23,6 +23,10 @@ body {
   border: thin solid rgb(var(--v-theme-on-surface-variant)) !important;
 }
 
+.v-tooltip .v-overlay__content {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
 ul:not([class]),
 ol:not([class]) {
   padding-left: 20px;
