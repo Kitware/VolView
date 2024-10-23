@@ -25,7 +25,7 @@ const setOpacity = (opacity: number) => {
 
 <template>
   <v-slider
-    class="pa-4"
+    class="ma-4"
     label="Segment Group Opacity"
     min="0"
     max="1"

@@ -240,6 +240,7 @@ const SegmentMask = z.object({
   value: z.number(),
   name: z.string(),
   color: RGBAColor,
+  visible: z.boolean().default(true),
 });
 
 export const SegmentGroupMetadata = z.object({

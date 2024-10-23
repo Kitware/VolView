@@ -1,7 +1,7 @@
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { Maybe } from '@/src/types';
@@ -27,9 +27,10 @@ export const usePaintToolStore = defineStore('paint', () => {
     return this.$paint.factory;
   }
 
+  const segmentGroupStore = useSegmentGroupStore();
+
   const activeLabelmap = computed(() => {
     if (!activeSegmentGroupID.value) return null;
-    const segmentGroupStore = useSegmentGroupStore();
     return segmentGroupStore.dataIndex[activeSegmentGroupID.value] ?? null;
   });
 
@@ -47,8 +48,21 @@ export const usePaintToolStore = defineStore('paint', () => {
   /**
    * Sets the active labelmap.
    */
-  function setActiveLabelmap(segmentGroupID: Maybe<string>) {
+  function setActiveSegmentGroup(segmentGroupID: Maybe<string>) {
     activeSegmentGroupID.value = segmentGroupID;
+  }
+
+  /**
+   * Gets the first segment group ID for a given image.
+   * @param imageID
+   */
+  function getFirstSegmentGroupID(imageID: Maybe<string>): Maybe<string> {
+    if (!imageID) return null;
+    const segmentGroups = segmentGroupStore.orderByParent[imageID];
+    if (segmentGroups && segmentGroups.length > 0) {
+      return segmentGroups[0];
+    }
+    return null;
   }
 
   /**
@@ -56,16 +70,15 @@ export const usePaintToolStore = defineStore('paint', () => {
    *
    * If a labelmap exists, pick the first one. If no labelmap exists, create one.
    */
-  function setActiveLabelmapFromImage(imageID: Maybe<string>) {
+  function ensureActiveSegmentGroupForImage(imageID: Maybe<string>) {
     if (!imageID) {
-      setActiveLabelmap(null);
+      setActiveSegmentGroup(null);
       return;
     }
 
-    const segmentGroupStore = useSegmentGroupStore();
-    const labelmaps = segmentGroupStore.orderByParent[imageID];
-    if (labelmaps?.length) {
-      activeSegmentGroupID.value = labelmaps[0];
+    const segmentGroupID = getFirstSegmentGroupID(imageID);
+    if (segmentGroupID) {
+      setActiveSegmentGroup(segmentGroupID);
     } else {
       activeSegmentGroupID.value =
         segmentGroupStore.newLabelmapFromImage(imageID);
@@ -83,7 +96,6 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (!activeSegmentGroupID.value)
         throw new Error('Cannot set active segment without a labelmap');
 
-      const segmentGroupStore = useSegmentGroupStore();
       const { segments } =
         segmentGroupStore.metadataByID[activeSegmentGroupID.value];
 
@@ -158,7 +170,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (!imageID) {
       return false;
     }
-    setActiveLabelmapFromImage(imageID);
+    ensureActiveSegmentGroupForImage(imageID);
     this.$paint.setBrushSize(this.brushSize);
 
     isActive.value = true;
@@ -190,22 +202,26 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (paint.activeSegmentGroupID !== null) {
       activeSegmentGroupID.value =
         segmentGroupIDMap[paint.activeSegmentGroupID];
-      setActiveLabelmap(activeSegmentGroupID.value);
+      setActiveSegmentGroup(activeSegmentGroupID.value);
       setActiveSegment.call(this, paint.activeSegment);
     }
   }
 
-  // --- change labelmap if paint is active --- //
+  // Create segment group if paint is active and none exist.
+  // If paint is not active, but there is a segment group for the current image, set it as active.
+  watchEffect(() => {
+    const imageID = currentImageID.value;
+    if (!imageID) return;
 
-  watch(
-    currentImageID,
-    (imageID) => {
-      if (isActive.value) {
-        setActiveLabelmapFromImage(imageID);
+    if (isActive.value) {
+      ensureActiveSegmentGroupForImage(imageID);
+    } else {
+      const segmentGroupID = getFirstSegmentGroupID(imageID);
+      if (segmentGroupID) {
+        setActiveSegmentGroup(segmentGroupID);
       }
-    },
-    { immediate: true }
-  );
+    }
+  });
 
   return {
     // state
@@ -222,8 +238,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     deactivateTool,
 
     setMode,
-    setActiveLabelmap,
-    setActiveLabelmapFromImage,
+    setActiveSegmentGroup,
+    ensureActiveSegmentGroupForImage,
     setActiveSegment,
     setBrushSize,
     setSliceAxis,

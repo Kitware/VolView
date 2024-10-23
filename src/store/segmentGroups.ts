@@ -223,6 +223,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           value: segment.labelID,
           name: segment.SegmentLabel,
           color: [...segment.recommendedDisplayRGBValue, 255],
+          visible: true,
         }));
       }
     }
@@ -237,6 +238,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       value,
       name: makeDefaultSegmentName(value),
       color: getNextColor(),
+      visible: true,
     }));
   }
 
@@ -327,6 +329,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       name: makeDefaultSegmentName(value),
       value,
       color: DEFAULT_SEGMENT_COLOR,
+      visible: true,
     };
   }
 
