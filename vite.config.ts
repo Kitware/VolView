@@ -98,7 +98,7 @@ export default defineConfig({
   define: {
     __VERSIONS__: {
       volview: pkgInfo.versions.volview,
-      'vtk.js': pkgInfo.versions['@kitware/vtk.js'],
+      'vtk.js': pkgInfo.versions['vtk.js'],
       'itk-wasm': pkgInfo.versions['itk-wasm'],
     },
   },
