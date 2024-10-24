@@ -112,7 +112,11 @@ function filterMatchingNames(
   succeeded: Array<PipelineResultSuccess<ImportResult>>,
   extension: string
 ) {
-  const primaryName = getDataSourceName(primaryDataSource.dataSource);
+  const dicomStore = useDICOMStore();
+  const primaryName =
+    primaryDataSource.dataType === 'dicom'
+      ? dicomStore.volumeInfo[primaryDataSource.dataID].SeriesNumber
+      : getDataSourceName(primaryDataSource.dataSource);
   if (!primaryName) return [];
   const primaryNamePrefix = primaryName.split('.').slice(0, 1).join();
   return filterLoadableDataSources(succeeded)
