@@ -12,6 +12,7 @@ import {
 interface State {
   layout: Layout;
   viewSpecs: Record<string, ViewSpec>;
+  activeViewID: string;
 }
 
 export const useViewStore = defineStore('view', {
@@ -21,6 +22,7 @@ export const useViewStore = defineStore('view', {
       items: [],
     },
     viewSpecs: structuredClone(InitViewSpecs),
+    activeViewID: '',
   }),
   getters: {
     viewIDs(state) {
@@ -28,6 +30,9 @@ export const useViewStore = defineStore('view', {
     },
   },
   actions: {
+    setActiveViewID(id: string) {
+      this.activeViewID = id;
+    },
     addView(id: string) {
       if (!(id in this.viewSpecs)) {
         this.viewSpecs[id] = structuredClone(DefaultViewSpec);
