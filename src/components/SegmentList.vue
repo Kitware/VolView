@@ -159,7 +159,7 @@ function deleteEditingSegment() {
 </script>
 
 <template>
-  <v-btn @click.stop="toggleGlobalVisible">
+  <v-btn @click.stop="toggleGlobalVisible" class="my-1">
     Toggle Segments
     <slot name="append">
       <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
@@ -171,7 +171,7 @@ function deleteEditingSegment() {
   </v-btn>
 
   <v-slider
-    class="ma-4"
+    class="mx-4 my-1"
     label="Segment Opacity"
     min="0"
     max="1"
@@ -190,6 +190,7 @@ function deleteEditingSegment() {
     item-title="name"
     create-label-text="New segment"
     @create="addNewSegment"
+    class="my-4"
   >
     <template #item-prepend="{ item }">
       <!-- dot container keeps overflowing name from squishing dot width  -->

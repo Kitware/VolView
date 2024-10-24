@@ -163,7 +163,7 @@ function openSaveDialog(id: string) {
 </script>
 
 <template>
-  <div class="my-2" v-if="currentImageID">
+  <div class="mt-2" v-if="currentImageID">
     <div
       class="text-grey text-subtitle-2 d-flex align-center justify-space-evenly mb-2"
     >
@@ -203,11 +203,12 @@ function openSaveDialog(id: string) {
         </v-list>
       </v-menu>
     </div>
-    <v-divider />
+    <v-divider class="my-4" />
 
     <segment-group-opacity
       v-if="currentSegmentGroupID"
       :group-id="currentSegmentGroupID"
+      class="my-1"
     />
     <v-radio-group
       v-model="currentSegmentGroupID"
@@ -260,7 +261,7 @@ function openSaveDialog(id: string) {
         </template>
       </v-radio>
     </v-radio-group>
-    <v-divider />
+    <v-divider class="my-4" />
   </div>
   <div v-else class="text-center text-caption">No selected image</div>
   <segment-list

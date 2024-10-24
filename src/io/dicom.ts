@@ -190,7 +190,7 @@ type ReadOverlappingSegmentationResultWithRealMeta =
     metaInfo: ReadOverlappingSegmentationMeta;
   };
 
-export async function buildLabelMap(file: File) {
+export async function buildSegmentGroups(file: File) {
   const inputImage = sanitizeFile(file);
   const result = (await readOverlappingSegmentation(inputImage, {
     webWorker: getWorker(),
