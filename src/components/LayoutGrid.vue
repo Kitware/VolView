@@ -13,6 +13,7 @@
           :id="item.id"
           :type="item.viewType"
           v-bind="item.props"
+          @focus="onFocusView(item.id!, item.viewType!)"
         />
       </div>
     </div>
@@ -28,6 +29,13 @@ import { useViewStore } from '../store/views';
 
 export default defineComponent({
   name: 'LayoutGrid',
+  methods: {
+    onFocusView(id: string, type: string) {
+      if (type === '2D') {
+        useViewStore().setActiveViewID(id);
+      }
+    },
+  },
   props: {
     layout: {
       type: Object as PropType<Layout>,
