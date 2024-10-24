@@ -172,7 +172,7 @@ function deleteEditingSegment() {
 
   <v-slider
     class="mx-4 my-1"
-    label="Segment Opacity"
+    label="Segment Fill Opacity"
     min="0"
     max="1"
     step="0.01"
