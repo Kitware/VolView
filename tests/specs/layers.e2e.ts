@@ -30,7 +30,7 @@ describe('Add Layer button', () => {
     // Wait for a primary selection
     await volViewPage.waitForViews();
     // kludge for CI (dataset not seen as layerable yet without?)
-    await browser.pause(10000);
+    await browser.pause(15000);
 
     const menus = await volViewPage.datasetMenuButtons;
     await menus[1].click();
