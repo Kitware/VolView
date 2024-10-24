@@ -3,6 +3,7 @@ import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import {
   CameraConfig,
   LayersConfig,
+  SegmentGroupConfig,
   SliceConfig,
   VolumeColorConfig,
   WindowLevelConfig,
@@ -14,7 +15,8 @@ type SubViewConfig =
   | SliceConfig
   | VolumeColorConfig
   | WindowLevelConfig
-  | LayersConfig;
+  | LayersConfig
+  | SegmentGroupConfig;
 
 type ViewConfigGetter = (
   viewID: string,
