@@ -60,6 +60,13 @@ export const ACTIONS = {
     readable: 'Activate next Label',
   },
 
+  changeNextImage: {
+    readable: 'Next Image',
+  },
+  changePreviousImage: {
+    readable: 'Previous Image',
+  },
+  
   mergeNewPolygon: {
     readable: 'Hold down to merge new polygons with overlapping polygons',
   },

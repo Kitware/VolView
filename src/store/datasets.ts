@@ -57,6 +57,37 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
   }
 
+  function changeNextImage() {
+    if (!primaryImageID.value) return;
+
+    const currentImageID = primaryImageID.value;
+    const { idList } = imageStore;
+    const maxIdx = idList.length - 1;
+
+    let currentIdx = idList.indexOf(currentImageID);
+    if (currentIdx >= maxIdx) {
+      // Reset Idx to -1 as it will be increased later
+      currentIdx = -1;
+    }
+
+    setPrimarySelection(idList[currentIdx + 1]);
+  }
+
+  function changePreviousImage() {
+    if (!primaryImageID.value) return;
+
+    const currentImageID = primaryImageID.value;
+    const { idList } = imageStore;
+    const maxIdx = idList.length - 1;
+
+    let currentIdx = idList.indexOf(currentImageID);
+    if (currentIdx <= 0) {
+      currentIdx = maxIdx + 1;
+    }
+
+    setPrimarySelection(idList[currentIdx - 1]);
+  }
+
   async function serialize(stateFile: StateFile) {
     await dicomStore.serialize(stateFile);
     await imageStore.serialize(stateFile);
@@ -87,6 +118,8 @@ export const useDatasetStore = defineStore('dataset', () => {
     primaryDataset,
     idsAsSelections,
     setPrimarySelection,
+    changeNextImage,
+    changePreviousImage,
     serialize,
     remove,
   };
