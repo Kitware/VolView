@@ -18,6 +18,9 @@ function useLayerConfigInitializerForSegmentGroups(
     const viewIdVal = unref(viewId);
     const layerIdVal = unref(layerId);
     coloringStore.initConfig(viewIdVal, layerIdVal); // initConfig instead of resetColorPreset for layers
+    coloringStore.updateBlendConfig(viewIdVal, layerIdVal, {
+      opacity: 0.3,
+    });
   });
 }
 
