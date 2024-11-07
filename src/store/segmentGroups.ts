@@ -2,7 +2,7 @@ import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
@@ -64,19 +64,40 @@ export function createLabelmapFromImage(imageData: vtkImageData) {
   return labelmap;
 }
 
+function convertToUint8(array: number[] | TypedArray): Uint8Array {
+  const uint8Array = new Uint8Array(array.length);
+  for (let i = 0; i < array.length; i++) {
+    const value = array[i];
+    uint8Array[i] = value < 0 || value > 255 ? 0 : value;
+  }
+  return uint8Array;
+}
+
+function getLabelMapScalars(imageData: vtkImageData) {
+  const scalars = imageData.getPointData().getScalars();
+  let values = scalars.getData();
+
+  if (!(values instanceof LabelmapArrayType)) {
+    values = convertToUint8(values);
+  }
+
+  return vtkDataArray.newInstance({
+    numberOfComponents: scalars.getNumberOfComponents(),
+    values,
+  });
+}
+
 export function toLabelMap(imageData: vtkImageData) {
   const labelmap = vtkLabelMap.newInstance(
-    imageData.get(
-      'spacing',
-      'origin',
-      'direction',
-      'extent',
-      'dataDescription',
-      'pointData'
-    )
+    imageData.get('spacing', 'origin', 'direction', 'extent', 'dataDescription')
   );
+
   labelmap.setDimensions(imageData.getDimensions());
   labelmap.computeTransforms();
+
+  // outline rendering only supports UInt8Array image types
+  const scalars = getLabelMapScalars(imageData);
+  labelmap.getPointData().setScalars(scalars);
 
   return labelmap;
 }
