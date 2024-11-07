@@ -218,6 +218,7 @@ const LayersConfig = z.object({
 
 const SegmentGroupConfig = z.object({
   outlineOpacity: z.number(),
+  outlineThickness: z.number(),
 }) satisfies z.ZodType<SegmentGroupConfig>;
 
 const ViewConfig = z.object({

@@ -73,7 +73,9 @@ const applyLayerColoring = () => {
   if (!config) return;
 
   const cfun = sliceRep.property.getRGBTransferFunction(0);
-  const ofun = sliceRep.property.getScalarOpacity(0);
+  const ofun = sliceRep.property.getPiecewiseFunction(0);
+
+  if (!cfun || !ofun) throw new Error('Missing transfer functions');
 
   applyColoring({
     props: {

@@ -105,6 +105,8 @@ const applySegmentColoring = () => {
   const cfun = sliceRep.property.getRGBTransferFunction(0);
   const ofun = sliceRep.property.getPiecewiseFunction(0);
 
+  if (!cfun || !ofun) throw new Error('Missing transfer functions');
+
   cfun.removeAllPoints();
   ofun.removeAllPoints();
 
@@ -142,10 +144,12 @@ const config = computed(() =>
 );
 
 const outlineThickness = computed(() => config.value?.outlineThickness ?? 2);
+// @ts-expect-error vtk.js types are incomplete
 sliceRep.property.setUseLabelOutline(true);
 sliceRep.property.setUseLookupTableScalarRange(true);
 
 watchEffect(() => {
+  // @ts-expect-error vtk.js types are incomplete
   sliceRep.property.setLabelOutlineOpacity(config.value?.outlineOpacity ?? 1);
 });
 
