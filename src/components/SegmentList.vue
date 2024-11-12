@@ -11,7 +11,7 @@ import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 import { reactive, ref, toRefs, computed, watch } from 'vue';
 import { SegmentMask } from '@/src/types/segment';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 
 const props = defineProps({
   groupId: {

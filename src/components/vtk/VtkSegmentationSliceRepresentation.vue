@@ -144,12 +144,10 @@ const config = computed(() =>
 );
 
 const outlineThickness = computed(() => config.value?.outlineThickness ?? 2);
-// @ts-expect-error vtk.js types are incomplete
 sliceRep.property.setUseLabelOutline(true);
 sliceRep.property.setUseLookupTableScalarRange(true);
 
 watchEffect(() => {
-  // @ts-expect-error vtk.js types are incomplete
   sliceRep.property.setLabelOutlineOpacity(config.value?.outlineOpacity ?? 1);
 });
 
