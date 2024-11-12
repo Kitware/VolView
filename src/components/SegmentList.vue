@@ -58,36 +58,6 @@ watch(
   { immediate: true }
 );
 
-// --- segment opacity --- //
-
-const selectedSegmentMask = computed(() => {
-  if (!selectedSegment.value) return null;
-  return segmentGroupStore.getSegment(groupId.value, selectedSegment.value);
-});
-
-const segmentOpacity = computed(() => {
-  if (!selectedSegmentMask.value) return 1;
-  return selectedSegmentMask.value.color[3] / 255;
-});
-
-const setSegmentOpacity = (opacity: number) => {
-  if (!selectedSegmentMask.value) {
-    return;
-  }
-
-  const color = selectedSegmentMask.value.color;
-  segmentGroupStore.updateSegment(
-    groupId.value,
-    selectedSegmentMask.value.value,
-    {
-      color: [
-        ...(color.slice(0, 3) as [number, number, number]),
-        Math.round(opacity * 255),
-      ],
-    }
-  );
-};
-
 const toggleVisible = (value: number) => {
   const segment = segmentGroupStore.getSegment(groupId.value, value);
   if (!segment) return;
@@ -116,6 +86,7 @@ const editingSegmentValue = ref<Maybe<number>>(null);
 const editState = reactive({
   name: '',
   color: '',
+  opacity: 1,
 });
 const editDialog = ref(false);
 
@@ -136,14 +107,20 @@ function startEditing(value: number) {
   if (!editingSegment.value) return;
   editState.name = editingSegment.value.name;
   editState.color = rgbaToHexa(editingSegment.value.color);
+  editState.opacity = editingSegment.value.color[3] / 255;
 }
 
 function stopEditing(commit: boolean) {
-  if (editingSegmentValue.value && commit)
+  if (editingSegmentValue.value && commit) {
+    const color = [
+      ...(hexaToRGBA(editState.color).slice(0, 3) as [number, number, number]),
+      Math.round(editState.opacity * 255),
+    ] as RGBAColor;
     segmentGroupStore.updateSegment(groupId.value, editingSegmentValue.value, {
       name: editState.name ?? makeDefaultSegmentName(editingSegmentValue.value),
-      color: hexaToRGBA(editState.color),
+      color,
     });
+  }
   editingSegmentValue.value = null;
   editDialog.value = false;
 }
@@ -169,19 +146,6 @@ function deleteEditingSegment() {
       }}</v-tooltip>
     </slot>
   </v-btn>
-
-  <v-slider
-    class="mx-4 my-1"
-    label="Segment Fill Opacity"
-    min="0"
-    max="1"
-    step="0.01"
-    density="compact"
-    hide-details
-    thumb-label
-    :model-value="segmentOpacity"
-    @update:model-value="setSegmentOpacity($event)"
-  />
 
   <editable-chip-list
     v-model="selectedSegment"
@@ -242,6 +206,7 @@ function deleteEditingSegment() {
       v-if="!!editingSegment"
       v-model:name="editState.name"
       v-model:color="editState.color"
+      v-model:opacity="editState.opacity"
       @delete="deleteEditingSegment"
       @cancel="stopEditing(false)"
       @done="stopEditing(true)"
