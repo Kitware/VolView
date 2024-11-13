@@ -24,9 +24,15 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   },
 });
 
-const useWindowingStore = defineStore('windowing', () => {
+type WindowLevel = {
+  width: number;
+  level: number;
+};
+
+export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
   const syncAcrossViews = ref(true);
+  const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
 
   const setSyncAcrossViews = (yn: boolean) => {
     syncAcrossViews.value = yn;
@@ -69,6 +75,7 @@ const useWindowingStore = defineStore('windowing', () => {
     }
   };
 
+  // not really reset, actually translate config object into W/L
   const resetWindowLevel = (viewID: string, dataID: string) => {
     const config = configs[viewID]?.[dataID];
     if (config == null) return;
@@ -105,6 +112,7 @@ const useWindowingStore = defineStore('windowing', () => {
   };
 
   return {
+    runtimeConfigWindowLevel,
     configs,
     getConfig,
     setSyncAcrossViews,

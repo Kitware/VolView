@@ -124,6 +124,14 @@ export function useWindowingConfigInitializer(
         },
       });
     }
+    const forcedWL = store.runtimeConfigWindowLevel;
+    if (forcedWL) {
+      store.updateConfig(viewIdVal, imageIdVal, {
+        preset: {
+          ...forcedWL,
+        },
+      });
+    }
     store.resetWindowLevel(viewIdVal, imageIdVal);
   });
 

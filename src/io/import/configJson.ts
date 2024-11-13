@@ -9,6 +9,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useDataBrowserStore } from '@/src/store/data-browser';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
@@ -70,12 +71,23 @@ const io = z
   })
   .optional();
 
+// --------------------------------------------------------------------------
+// Window Level
+
+const windowing = z
+  .object({
+    level: z.number(),
+    width: z.number(),
+  })
+  .optional();
+
 export const config = z.object({
   layout,
   dataBrowser,
   labels,
   shortcuts,
   io,
+  windowing,
 });
 
 export type Config = z.infer<typeof config>;
@@ -140,10 +152,17 @@ const applyIo = (manifest: Config) => {
   useLoadDataStore().segmentGroupExtension = manifest.io.segmentGroupExtension;
 };
 
+const applyWindowing = (manifest: Config) => {
+  if (!manifest.windowing) return;
+
+  useWindowingStore().runtimeConfigWindowLevel = manifest.windowing;
+};
+
 export const applyConfig = (manifest: Config) => {
   applyLayout(manifest);
   applyLabels(manifest);
   applySampleData(manifest);
   applyShortcuts(manifest);
   applyIo(manifest);
+  applyWindowing(manifest);
 };
