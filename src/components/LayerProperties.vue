@@ -40,11 +40,12 @@ export default defineComponent({
 
     const blendConfig = computed(
       () =>
-        // assume one 2D view has mounted
-        layerConfigs.value.find(({ config }) => config)!.config!.blendConfig
+        // may be undefined if a 2D view has not been mounted
+        layerConfigs.value.find(({ config }) => config)?.config?.blendConfig
     );
 
     const setBlendConfig = (key: keyof BlendConfig, value: any) => {
+      if (layerConfigs.value.length === 0) return;
       layerConfigs.value.forEach(({ viewID }) =>
         layerColoringStore.updateBlendConfig(viewID, layerID.value, {
           [key]: value,
