@@ -21,6 +21,7 @@ import type {
   SliceConfig,
   WindowLevelConfig,
   LayersConfig,
+  SegmentGroupConfig,
   VolumeColorConfig,
 } from '../../store/view-configs/types';
 import type { LPSAxisDir, LPSAxis } from '../../types/lps';
@@ -215,10 +216,16 @@ const LayersConfig = z.object({
   blendConfig: BlendConfig,
 }) satisfies z.ZodType<LayersConfig>;
 
+const SegmentGroupConfig = z.object({
+  outlineOpacity: z.number(),
+  outlineThickness: z.number(),
+}) satisfies z.ZodType<SegmentGroupConfig>;
+
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
   layers: LayersConfig.optional(),
+  segmentGroup: SegmentGroupConfig.optional(),
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
 });

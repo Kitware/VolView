@@ -1,8 +1,9 @@
-import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { watchImmediate } from '@vueuse/core';
 import { MaybeRef, computed, unref } from 'vue';
+import useLayerColoringStore from '@/src/store/view-configs/layers';
+import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
 
-export function useSegmentGroupConfigInitializer(
+function useLayerConfigInitializerForSegmentGroups(
   viewId: MaybeRef<string>,
   layerId: MaybeRef<string>
 ) {
@@ -16,6 +17,28 @@ export function useSegmentGroupConfigInitializer(
 
     const viewIdVal = unref(viewId);
     const layerIdVal = unref(layerId);
-    coloringStore.initConfig(viewIdVal, layerIdVal);
+    coloringStore.initConfig(viewIdVal, layerIdVal); // initConfig instead of resetColorPreset for layers
+    coloringStore.updateBlendConfig(viewIdVal, layerIdVal, {
+      opacity: 0.3,
+    });
+  });
+}
+
+export function useSegmentGroupConfigInitializer(
+  viewId: MaybeRef<string>,
+  segmentGroupId: MaybeRef<string>
+) {
+  useLayerConfigInitializerForSegmentGroups(viewId, segmentGroupId);
+
+  const configStore = useSegmentGroupConfigStore();
+  const config = computed(() =>
+    configStore.getConfig(unref(viewId), unref(segmentGroupId))
+  );
+
+  watchImmediate(config, (config_) => {
+    if (config_) return;
+    const viewIdVal = unref(viewId);
+    const layerIdVal = unref(segmentGroupId);
+    configStore.initConfig(viewIdVal, layerIdVal);
   });
 }

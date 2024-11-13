@@ -208,7 +208,6 @@ function openSaveDialog(id: string) {
     <segment-group-opacity
       v-if="currentSegmentGroupID"
       :group-id="currentSegmentGroupID"
-      class="my-1"
     />
     <v-radio-group
       v-model="currentSegmentGroupID"

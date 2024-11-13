@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject, computed } from 'vue';
+import { toRefs, watchEffect, inject, computed, unref } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { LPSAxis } from '@/src/types/lps';
@@ -17,6 +17,7 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
+import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
 import { useSegmentGroupConfigInitializer } from '@/src/composables/useSegmentGroupConfigInitializer';
 
 interface Props {
@@ -104,6 +105,8 @@ const applySegmentColoring = () => {
   const cfun = sliceRep.property.getRGBTransferFunction(0);
   const ofun = sliceRep.property.getPiecewiseFunction(0);
 
+  if (!cfun || !ofun) throw new Error('Missing transfer functions');
+
   cfun.removeAllPoints();
   ofun.removeAllPoints();
 
@@ -134,6 +137,33 @@ const applySegmentColoring = () => {
 };
 
 watchEffect(applySegmentColoring);
+
+const configStore = useSegmentGroupConfigStore();
+const config = computed(() =>
+  configStore.getConfig(unref(viewId), unref(segmentationId))
+);
+
+const outlineThickness = computed(() => config.value?.outlineThickness ?? 2);
+sliceRep.property.setUseLabelOutline(true);
+sliceRep.property.setUseLookupTableScalarRange(true);
+
+watchEffect(() => {
+  sliceRep.property.setLabelOutlineOpacity(config.value?.outlineOpacity ?? 1);
+});
+
+watchEffect(() => {
+  if (!metadata.value) return; // segment group just deleted
+
+  const thickness = outlineThickness.value;
+  const { segments } = metadata.value;
+  const largestValue = Math.max(...segments.order);
+
+  const segThicknesses = Array.from({ length: largestValue }, (_, value) => {
+    const segment = segments.byValue[value + 1];
+    return ((!segment || segment.visible) && thickness) || 0;
+  });
+  sliceRep.property.setLabelOutlineThickness(segThicknesses);
+});
 
 defineExpose(sliceRep);
 </script>
