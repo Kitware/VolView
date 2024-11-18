@@ -39,8 +39,12 @@ export default defineComponent({
       }
       return '';
     });
-    const isCT = computed(() => {
-      const ctTags = ['ct', 'ctprotocol'];
+
+    const ctTags = ['ct', 'ctprotocol'];
+    const showCtPresets = computed(() => {
+      if (currentImageID.value && !isDicomImage(currentImageID.value)) {
+        return true;
+      }
       return modality.value && ctTags.includes(modality.value.toLowerCase());
     });
 
@@ -107,7 +111,7 @@ export default defineComponent({
       parseLabel,
       wlOptions,
       WLPresetsCT,
-      isCT,
+      showCtPresets,
       tags,
       panel,
       WLAutoRanges,
@@ -136,11 +140,11 @@ export default defineComponent({
             </v-radio-group>
           </v-expansion-panel-text>
         </v-expansion-panel>
-        <v-expansion-panel v-if="isCT" value="presets">
+        <v-expansion-panel v-if="showCtPresets" value="presets">
           <v-expansion-panel-title>Presets</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
-              <template v-if="isCT">
+              <template v-if="showCtPresets">
                 <p>CT Presets</p>
                 <hr />
                 <div v-for="(options, category) in WLPresetsCT" :key="category">
