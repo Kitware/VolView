@@ -3,8 +3,11 @@ import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
+import { useViewStore } from '../store/views';
 import { Action } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
+import { useCurrentImage } from './useCurrentImage';
+import { useSliceConfig } from './useSliceConfig';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -36,6 +39,22 @@ const showKeyboardShortcuts = () => {
   keyboardStore.settingsOpen = !keyboardStore.settingsOpen;
 };
 
+const nextSlice = () => () => {
+  const { currentImageID } = useCurrentImage();
+  const { activeViewID } = useViewStore();
+
+  const { slice: currentSlice } = useSliceConfig(activeViewID, currentImageID);
+  currentSlice.value += 1;
+};
+
+const previousSlice = () => () => {
+  const { currentImageID } = useCurrentImage();
+  const { activeViewID } = useViewStore();
+
+  const { slice: currentSlice } = useSliceConfig(activeViewID, currentImageID);
+  currentSlice.value -= 1;
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
@@ -47,6 +66,9 @@ export const ACTION_TO_FUNC = {
   crop: setTool(Tools.Crop),
   polygon: setTool(Tools.Polygon),
   select: setTool(Tools.Select),
+
+  nextSlice: nextSlice(),
+  previousSlice: previousSlice(),
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),

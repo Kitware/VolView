@@ -281,6 +281,9 @@ export const ACTION_TO_KEY = {
   mergeNewPolygon: 'Shift',
   select: 's',
 
+  nextSlice: 'arrowdown',
+  previousSlice: 'arrowup',
+
   decrementLabel: 'q',
   incrementLabel: 'w',
 
