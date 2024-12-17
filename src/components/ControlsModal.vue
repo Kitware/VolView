@@ -1,14 +1,26 @@
 <template>
   <closeable-dialog v-model="keyboardStore.settingsOpen">
-    <v-card>
-      <v-card-title class="d-flex flex-row align-center">
-        Keyboard Shortcuts
-      </v-card-title>
-      <v-table class="pa-4">
-        <thead>
-          <th class="text-left">Command</th>
-          <th class="text-left">Keybinding</th>
-        </thead>
+    <v-card class="pa-4">
+      <div class="text-h4 pb-2">View Controls</div>
+      <v-table>
+        <tbody>
+          <tr>
+            <td>Scroll Slices</td>
+            <td>Mouse wheel or 2 finger vertical scroll</td>
+          </tr>
+          <tr>
+            <td>Zoom</td>
+            <td>Right mouse button + move vertically</td>
+          </tr>
+          <tr>
+            <td>Pan</td>
+            <td>Shift + left mouse button + move</td>
+          </tr>
+        </tbody>
+      </v-table>
+
+      <div class="text-h4 pb-2">Keyboard Shortcuts</div>
+      <v-table>
         <tbody>
           <tr v-for="[action, key] in bindings" :key="action">
             <td>{{ action }}</td>
