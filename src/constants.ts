@@ -61,7 +61,7 @@ export const ACTIONS = {
   },
 
   mergeNewPolygon: {
-    readable: 'Hold down to merge new polygons with overlapping polygons',
+    readable: 'Hold to merge new polygons with overlapping polygons',
   },
 
   showKeyboardShortcuts: {

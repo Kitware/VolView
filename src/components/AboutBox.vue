@@ -7,6 +7,14 @@
       For investigational use only
     </v-alert>
     <v-card-text>
+      <v-btn
+        class="my-2"
+        @click="openKeyboardShortcuts"
+        prepend-icon="mdi-keyboard"
+        color="secondary"
+      >
+        Keyboard Shortcuts and View Controls
+      </v-btn>
       <h2 class="mt-2">About VolView</h2>
       <v-divider class="mb-2" />
       <p class="float-right">
@@ -198,6 +206,7 @@
 import { defineComponent } from 'vue';
 import { useDisplay } from 'vuetify';
 import VolViewFullLogo from './icons/VolViewFullLogo.vue';
+import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
 
 export default defineComponent({
   name: 'AboutBox',
@@ -207,7 +216,13 @@ export default defineComponent({
   setup() {
     const display = useDisplay();
 
+    const keyboardStore = useKeyboardShortcutsStore();
+    const openKeyboardShortcuts = () => {
+      keyboardStore.settingsOpen = true;
+    };
+
     return {
+      openKeyboardShortcuts,
       mobile: display.xs,
       versions: {
         volview: __VERSIONS__.volview,

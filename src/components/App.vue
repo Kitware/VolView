@@ -28,7 +28,7 @@
             </div>
           </div>
         </v-main>
-        <keyboard-shortcuts />
+        <controls-modal />
       </v-app>
       <persistent-overlay
         :disabled="!dragHover"
@@ -70,7 +70,7 @@ import LayoutGrid from '@/src/components/LayoutGrid.vue';
 import ModulePanel from '@/src/components/ModulePanel.vue';
 import DragAndDrop from '@/src/components/DragAndDrop.vue';
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
-import KeyboardShortcuts from '@/src/components/KeyboardShortcuts.vue';
+import ControlsModal from '@/src/components/ControlsModal.vue';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
@@ -85,7 +85,7 @@ export default defineComponent({
     DragAndDrop,
     ModulePanel,
     PersistentOverlay,
-    KeyboardShortcuts,
+    ControlsModal,
     WelcomePage,
     AppBar,
   },
