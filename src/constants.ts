@@ -53,6 +53,13 @@ export const ACTIONS = {
     readable: 'Activate Select tool',
   },
 
+  nextSlice: {
+    readable: 'Next Slice',
+  },
+  previousSlice: {
+    readable: 'Previous Slice',
+  },
+
   decrementLabel: {
     readable: 'Activate previous Label',
   },
