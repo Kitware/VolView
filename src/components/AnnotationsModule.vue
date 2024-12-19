@@ -33,7 +33,7 @@ const MeasurementToolTypes = new Set<string>(
   MeasurementTools.map(({ type }) => type)
 );
 
-const tab = ref(Tabs.Measurements);
+const tab = ref(Tabs.SegmentGroups);
 const { currentTool } = storeToRefs(useToolStore());
 
 function autoFocusTab() {
@@ -58,15 +58,15 @@ watch(
     <tool-controls />
     <v-divider thickness="4" />
     <v-tabs v-model="tab" align-tabs="center" density="compact" class="my-1">
-      <v-tab value="measurements" class="tab-header">Measurements</v-tab>
       <v-tab value="segmentGroups" class="tab-header">Segment Groups</v-tab>
+      <v-tab value="measurements" class="tab-header">Measurements</v-tab>
     </v-tabs>
     <v-window v-model="tab">
-      <v-window-item value="measurements">
-        <measurements-tool-list :tools="MeasurementTools" />
-      </v-window-item>
       <v-window-item value="segmentGroups">
         <segment-group-controls />
+      </v-window-item>
+      <v-window-item value="measurements">
+        <measurements-tool-list :tools="MeasurementTools" />
       </v-window-item>
     </v-window>
   </div>

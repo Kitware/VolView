@@ -15,7 +15,7 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
-    const panel = ref(['tags', 'presets']);
+    const panel = ref(['tags', 'presets', 'auto']);
     const windowingDefaults = defaultWindowLevelConfig();
 
     // Get the relevant view ids
@@ -126,7 +126,7 @@ export default defineComponent({
       <v-expansion-panels v-model="panel" multiple>
         <v-expansion-panel value="tags" v-if="tags.length">
           <v-expansion-panel-title>
-            Data-Specific Presets
+            File Specific Presets
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
@@ -141,24 +141,18 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
         <v-expansion-panel v-if="showCtPresets" value="presets">
-          <v-expansion-panel-title>Presets</v-expansion-panel-title>
+          <v-expansion-panel-title>CT Presets</v-expansion-panel-title>
           <v-expansion-panel-text>
             <v-radio-group v-model="wlOptions" hide-details>
-              <template v-if="showCtPresets">
-                <p>CT Presets</p>
-                <hr />
-                <div v-for="(options, category) in WLPresetsCT" :key="category">
-                  <p>{{ parseLabel(category) }}</p>
-                  <v-radio
-                    v-for="(value, key) in options"
-                    :key="key"
-                    :label="parseLabel(key)"
-                    :value="value"
-                    density="compact"
-                    class="ml-3"
-                  />
-                </div>
-              </template>
+              <div v-for="(wl, name) in WLPresetsCT" :key="name">
+                <v-radio
+                  :key="name"
+                  :label="parseLabel(name)"
+                  :value="wl"
+                  density="compact"
+                  class="ml-3"
+                />
+              </div>
             </v-radio-group>
           </v-expansion-panel-text>
         </v-expansion-panel>
