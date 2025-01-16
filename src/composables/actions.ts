@@ -39,20 +39,12 @@ const showKeyboardShortcuts = () => {
   keyboardStore.settingsOpen = !keyboardStore.settingsOpen;
 };
 
-const nextSlice = () => () => {
+const changeSlice = (offset: number) => () => {
   const { currentImageID } = useCurrentImage();
   const { activeViewID } = useViewStore();
 
   const { slice: currentSlice } = useSliceConfig(activeViewID, currentImageID);
-  currentSlice.value += 1;
-};
-
-const previousSlice = () => () => {
-  const { currentImageID } = useCurrentImage();
-  const { activeViewID } = useViewStore();
-
-  const { slice: currentSlice } = useSliceConfig(activeViewID, currentImageID);
-  currentSlice.value -= 1;
+  currentSlice.value += offset;
 };
 
 export const ACTION_TO_FUNC = {
@@ -67,8 +59,8 @@ export const ACTION_TO_FUNC = {
   polygon: setTool(Tools.Polygon),
   select: setTool(Tools.Select),
 
-  nextSlice: nextSlice(),
-  previousSlice: previousSlice(),
+  nextSlice: changeSlice(1),
+  previousSlice: changeSlice(-1),
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
