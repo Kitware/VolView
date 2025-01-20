@@ -11,7 +11,8 @@ import vtkMouseRangeManipulator, {
 } from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { syncRef } from '@vueuse/core';
-import { inject, toRefs, computed } from 'vue';
+import { inject, toRefs, unref, watch, computed } from 'vue';
+import { useViewStore } from '@/src/store/views';
 
 interface Props {
   viewId: string;
@@ -57,6 +58,13 @@ const scroll = useMouseRangeManipulatorListener(
   1,
   sliceConfig.slice.value
 );
+
+watch(scroll, () => {
+  const viewStore = useViewStore();
+  if (unref(viewId) !== viewStore.activeViewID) {
+    viewStore.setActiveViewID(unref(viewId));
+  }
+});
 
 syncRef(scroll, sliceConfig.slice, { immediate: true });
 </script>
