@@ -1,6 +1,42 @@
 import { parseUrl } from '@/src/utils/url';
 import { Awaitable } from '@vueuse/core';
 
+const globalHeaders = new Headers();
+
+export function setGlobalHeader(name: string, value: string) {
+  globalHeaders.set(name, value);
+}
+
+export function deleteGlobalHeader(name: string) {
+  globalHeaders.delete(name);
+}
+
+/**
+ * Merges two headers.
+ *
+ * If a header exists in both the base and supplement, the supplement header takes priority.
+ *
+ * Does not handle duplicate headers.
+ */
+function mergeHeaders(base: Headers, supplementInit?: HeadersInit) {
+  const merged = new Headers(globalHeaders);
+  const supplement = new Headers(supplementInit);
+  supplement.forEach((value, name) => {
+    merged.set(name, value);
+  });
+  return merged;
+}
+
+export const $fetch: typeof fetch = (
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> => {
+  return fetch(input, {
+    ...init,
+    headers: mergeHeaders(globalHeaders, init?.headers),
+  });
+};
+
 /**
  * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
  */
@@ -31,7 +67,7 @@ const HTTPHandler: URLHandler = {
   fetchURL: async (url, options = {}) => {
     const { progress } = options;
 
-    const response = await fetch(url);
+    const response = await $fetch(url);
     if (response.status !== 200) {
       throw new Error(
         `Fetching resource failed (HTTP code ${response.status})`
@@ -130,4 +166,42 @@ export async function fetchJSON<T>(url: string, options?: FetchOptions<T>) {
   const buffer = await blob.arrayBuffer();
   const decoder = new TextDecoder();
   return JSON.parse(decoder.decode(new Uint8Array(buffer))) as T;
+}
+
+export async function fetchFileWithProgress(
+  url: string,
+  name: string,
+  progress: ProgressCallback,
+  options: RequestInit | undefined
+): Promise<File | null> {
+  const response = await $fetch(url, options);
+  const contentLength = Number(response.headers.get('content-length')) || 0;
+
+  if (contentLength <= 0) {
+    progress(Infinity);
+
+    const blob = await response.blob();
+    return new File([blob], name);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return null;
+  }
+
+  const bytes = new Uint8Array(contentLength);
+  let recv = 0;
+  let done = false;
+  do {
+    // eslint-disable-next-line no-await-in-loop
+    const readData = await reader.read();
+    done = readData.done;
+    if (readData.value && !done) {
+      bytes.set(readData.value, recv);
+      recv += readData.value.length;
+      progress(recv / contentLength);
+    }
+  } while (!done);
+
+  return new File([bytes], name);
 }
