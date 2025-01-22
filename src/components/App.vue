@@ -75,6 +75,10 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import {
+  populateAuthorizationToken,
+  stripTokenFromUrl,
+} from '@/src/utils/token';
 
 export default defineComponent({
   name: 'App',
@@ -113,6 +117,9 @@ export default defineComponent({
     );
 
     // --- parse URL -- //
+
+    populateAuthorizationToken();
+    stripTokenFromUrl();
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
 
