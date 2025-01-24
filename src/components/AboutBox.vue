@@ -183,7 +183,7 @@
           <a
             rel="noopener noreferrer"
             target="_blank"
-            href="http://tomovision.comi"
+            href="http://tomovision.com"
             >tomovision.com</a
           >
         </li>
