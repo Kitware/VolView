@@ -1,5 +1,6 @@
 import { cleanUndefined } from '@/src/utils';
 import { api } from 'dicomweb-client-typed';
+import { globalHeaders } from '@/src/utils/fetch';
 
 export interface FetchStudyOptions {
   studyInstanceUID: string;
@@ -66,8 +67,10 @@ function toFile(instance: ArrayBuffer) {
 }
 
 function makeClient(dicomWebRoot: string) {
+  const headers = Object.fromEntries(globalHeaders.entries());
   return new api.DICOMwebClient({
     url: dicomWebRoot,
+    headers,
   });
 }
 
