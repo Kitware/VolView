@@ -75,6 +75,7 @@ function configureSentryPlugin() {
 }
 
 export default defineConfig({
+  base: './',
   build: {
     outDir: distDir,
     rollupOptions: {
