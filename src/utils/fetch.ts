@@ -1,7 +1,7 @@
 import { parseUrl } from '@/src/utils/url';
 import { Awaitable } from '@vueuse/core';
 
-const globalHeaders = new Headers();
+export const globalHeaders = new Headers();
 
 export function setGlobalHeader(name: string, value: string) {
   globalHeaders.set(name, value);
