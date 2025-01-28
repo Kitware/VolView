@@ -19,7 +19,7 @@ export function deleteGlobalHeader(name: string) {
  * Does not handle duplicate headers.
  */
 function mergeHeaders(base: Headers, supplementInit?: HeadersInit) {
-  const merged = new Headers(globalHeaders);
+  const merged = new Headers(base);
   const supplement = new Headers(supplementInit);
   supplement.forEach((value, name) => {
     merged.set(name, value);
