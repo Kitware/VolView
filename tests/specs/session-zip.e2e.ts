@@ -67,7 +67,7 @@ const saveGetManifest = async () => {
   return { session, manifest };
 };
 
-const getRectangleCount = async (view: WebdriverIO.Element) => {
+const getRectangleCount = async (view: ChainablePromiseElement) => {
   const rectangles = await view.$$(
     'svg[data-testid="rectangle-tool-container"] > g'
   );
@@ -75,7 +75,7 @@ const getRectangleCount = async (view: WebdriverIO.Element) => {
 };
 
 const waitForRectangleCount = async (
-  view: WebdriverIO.Element,
+  view: ChainablePromiseElement,
   countTarget: number
 ) => {
   await browser.waitUntil(
@@ -90,7 +90,7 @@ const waitForRectangleCount = async (
   );
 };
 
-const clickTwice = async (view: WebdriverIO.Element) => {
+const clickTwice = async (view: ChainablePromiseElement) => {
   await view.waitForClickable();
   const origin = view;
   await browser

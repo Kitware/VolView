@@ -65,7 +65,7 @@ export const config: Options.Testrunner = {
       },
     ],
     [
-      'image-comparison',
+      'visual',
       {
         baselineFolder: path.resolve(ROOT, 'tests/baseline/'),
         formatImageName:
