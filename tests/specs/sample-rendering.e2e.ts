@@ -10,7 +10,7 @@ describe('VolView', () => {
     await AppPage.waitForViews();
     await browser.pause(5000);
 
-    expect(
+    await expect(
       await browser.checkElement(
         await $('div[data-testid~="layout-grid"]'),
         'prostate_sample_views'

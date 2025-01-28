@@ -11,7 +11,7 @@ const getId = () => {
 };
 
 export const setValueVueInput = async (
-  input: WebdriverIO.Element,
+  input: ChainablePromiseElement,
   value: string
 ) => {
   // input.setValue does not clear existing input, so click and backspace
@@ -51,7 +51,7 @@ class VolViewPage extends Page {
     await browser.waitUntil(
       async function viewsExist() {
         const views = await this_.views;
-        if (views.length === 0) return false;
+        if ((await views.length) === 0) return false;
         const inView = await Promise.all(
           Array.from(views).map((v) => v.isDisplayedInViewport())
         );
