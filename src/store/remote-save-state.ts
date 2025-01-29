@@ -1,5 +1,6 @@
 import { serialize } from '@/src/io/state-file';
 import { useMessageStore } from '@/src/store/messages';
+import { $fetch } from '@/src/utils/fetch';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
@@ -19,7 +20,7 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
       isSaving.value = true;
 
       const blob = await serialize();
-      const saveResult = await fetch(saveUrl.value, {
+      const saveResult = await $fetch(saveUrl.value, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/zip',
