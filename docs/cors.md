@@ -18,7 +18,9 @@ Please see [the deployment docs](/deploying_volview) for more info on what an ex
 server {
     ...
 
-    add_header Access-Control-Allow-Origin "example.com"
+    # Replace "volview.kitware.app" with the domain on which
+    # VolView is being hosted.
+    add_header Access-Control-Allow-Origin "volview.kitware.app"
 }
 ```
 
