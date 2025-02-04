@@ -122,7 +122,7 @@ class ExampleApi:
 
     async def _show_image(self, img_id):
         store = get_current_client_store("dataset")
-        await store.setPrimarySelection({"type": "image", "dataID": img_id})
+        await store.setPrimarySelection(img_id)
 
 
 volview = VolViewApi()
