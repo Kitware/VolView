@@ -84,7 +84,7 @@ def get_base_image(state: ClientState, img_id: str) -> str:
 
 async def show_image(img_id: str):
     store = get_current_client_store("dataset")
-    await store.setPrimarySelection({"type": "image", "dataID": img_id})
+    await store.setPrimarySelection(img_id)
 
 
 @volview.expose("medianFilter")
