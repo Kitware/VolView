@@ -251,6 +251,7 @@ const selectionPoints = computed(() => {
     .filter(
       ({ tool }) =>
         tool.slice === currentSlice.value &&
+        !tool.hidden &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata)
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));

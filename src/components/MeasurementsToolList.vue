@@ -81,19 +81,13 @@ const { selectAll, deselectAll, selected, selectionState } =
   useMultipleToolSelection(tools);
 
 const toggleSelectAll = (shouldSelectAll: boolean) => {
+  console.log('toggleSelectAll', shouldSelectAll);
   if (shouldSelectAll) {
     selectAll();
   } else {
     deselectAll();
   }
 };
-
-const forEachSelectedTool = (
-  callback: (tool: (typeof tools.value)[number]) => void
-) =>
-  tools.value
-    .filter((tool) => selectionStore.isSelected(tool.id))
-    .forEach(callback);
 
 function removeAll() {
   selectionStore.selection.forEach((sel) => {
@@ -110,6 +104,13 @@ const allHidden = computed(() => {
     .filter(nonNullable)
     .every((tool) => tool.toolData.hidden);
 });
+
+const forEachSelectedTool = (
+  callback: (tool: (typeof tools.value)[number]) => void
+) =>
+  tools.value
+    .filter((tool) => selectionStore.isSelected(tool.id))
+    .forEach(callback);
 
 function toggleGlobalHidden() {
   const hidden = !allHidden.value;
