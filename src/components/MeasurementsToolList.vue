@@ -81,7 +81,6 @@ const { selectAll, deselectAll, selected, selectionState } =
   useMultipleToolSelection(tools);
 
 const toggleSelectAll = (shouldSelectAll: boolean) => {
-  console.log('toggleSelectAll', shouldSelectAll);
   if (shouldSelectAll) {
     selectAll();
   } else {
