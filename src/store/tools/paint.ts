@@ -52,12 +52,19 @@ export const usePaintToolStore = defineStore('paint', () => {
     activeSegmentGroupID.value = segmentGroupID;
   }
 
-  /**
-   * Gets the first segment group ID for a given image.
-   * @param imageID
-   */
-  function getFirstSegmentGroupID(imageID: Maybe<string>): Maybe<string> {
+  function getValidSegmentGroupID(imageID: Maybe<string>): Maybe<string> {
     if (!imageID) return null;
+
+    // If current segment group belongs to this image, keep using it
+    if (
+      activeSegmentGroupID.value &&
+      segmentGroupStore.metadataByID[activeSegmentGroupID.value]
+        ?.parentImage === imageID
+    ) {
+      return activeSegmentGroupID.value;
+    }
+
+    // Otherwise look for other segment groups for this image
     const segmentGroups = segmentGroupStore.orderByParent[imageID];
     if (segmentGroups && segmentGroups.length > 0) {
       return segmentGroups[0];
@@ -68,7 +75,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   /**
    * Sets the active labelmap from a given image.
    *
-   * If a labelmap exists, pick the first one. If no labelmap exists, create one.
+   * If a labelmap exists, pick one. If no labelmap exists, create one.
    */
   function ensureActiveSegmentGroupForImage(imageID: Maybe<string>) {
     if (!imageID) {
@@ -76,13 +83,10 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
-    const segmentGroupID = getFirstSegmentGroupID(imageID);
-    if (segmentGroupID) {
-      setActiveSegmentGroup(segmentGroupID);
-    } else {
-      activeSegmentGroupID.value =
-        segmentGroupStore.newLabelmapFromImage(imageID);
-    }
+    const segmentGroupID =
+      getValidSegmentGroupID(imageID) ??
+      segmentGroupStore.newLabelmapFromImage(imageID);
+    setActiveSegmentGroup(segmentGroupID);
   }
 
   /**
@@ -216,7 +220,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (isActive.value) {
       ensureActiveSegmentGroupForImage(imageID);
     } else {
-      const segmentGroupID = getFirstSegmentGroupID(imageID);
+      const segmentGroupID = getValidSegmentGroupID(imageID);
       if (segmentGroupID) {
         setActiveSegmentGroup(segmentGroupID);
       }
