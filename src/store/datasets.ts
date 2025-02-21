@@ -12,6 +12,7 @@ import { useFileStore } from './datasets-files';
 import { StateFile } from '../io/state-file/schema';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { useLayersStore } from './datasets-layers';
+import { useModelStore } from './datasets-models';
 
 export const DataType = {
   Image: 'Image',
@@ -23,6 +24,7 @@ export const useDatasetStore = defineStore('dataset', () => {
   const dicomStore = useDICOMStore();
   const fileStore = useFileStore();
   const layersStore = useLayersStore();
+  const modelStore = useModelStore();
 
   // --- state --- //
 
@@ -81,6 +83,19 @@ export const useDatasetStore = defineStore('dataset', () => {
     layersStore.remove(id);
   };
 
+  const removeAll = () => {
+    // Create a copy to avoid iteration issue while removing data
+    const imageIdCopy = [...imageStore.idList];
+    imageIdCopy.forEach((id) => {
+      remove(id);
+    });
+
+    const modelIdCopy = [...modelStore.idList];
+    modelIdCopy.forEach((id) => {
+      remove(id);
+    });
+  };
+
   return {
     primaryImageID,
     primarySelection,
@@ -89,5 +104,6 @@ export const useDatasetStore = defineStore('dataset', () => {
     setPrimarySelection,
     serialize,
     remove,
+    removeAll,
   };
 });

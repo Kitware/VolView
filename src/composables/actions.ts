@@ -8,6 +8,7 @@ import { Action } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
 import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
+import { useDatasetStore } from '../store/datasets';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -47,6 +48,19 @@ const changeSlice = (offset: number) => () => {
   currentSlice.value += offset;
 };
 
+const clearScene = () => () => {
+  const datasetStore = useDatasetStore();
+  datasetStore.removeAll();
+};
+
+const deleteCurrentImage = () => () => {
+  const datasetStore = useDatasetStore();
+  datasetStore.remove(datasetStore.primaryImageID!);
+
+  // Automatically select next image
+  datasetStore.setPrimarySelection(datasetStore.idsAsSelections[0]);
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
@@ -64,6 +78,9 @@ export const ACTION_TO_FUNC = {
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
+
+  deleteCurrentImage: deleteCurrentImage(),
+  clearScene: clearScene(),
 
   mergeNewPolygon: () => {}, // acts as a modifier key rather than immediate effect, so no-op
 
