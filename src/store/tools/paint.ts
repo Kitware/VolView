@@ -1,7 +1,7 @@
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { Maybe } from '@/src/types';
@@ -148,7 +148,33 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushScale(scale);
   }
 
+  // Create segment group if paint is active and none exist.
+  // If paint is not active, but there is a segment group for the current image, set it as active.
+  function ensureSegmentGroup() {
+    const imageID = currentImageID.value;
+    if (!imageID) return;
+
+    // Check if a valid segment group is already selected
+    if (
+      activeSegmentGroupID.value &&
+      segmentGroupStore.metadataByID[activeSegmentGroupID.value]
+        ?.parentImage === imageID
+    ) {
+      return;
+    }
+
+    if (isActive.value) {
+      ensureActiveSegmentGroupForImage(imageID);
+    } else {
+      const segmentGroupID = getValidSegmentGroupID(imageID);
+      if (segmentGroupID) {
+        setActiveSegmentGroup(segmentGroupID);
+      }
+    }
+  }
+
   function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+    ensureSegmentGroup();
     strokePoints.value = [vec3.clone(indexPoint)];
     doPaintStroke.call(this, axisIndex);
   }
@@ -210,22 +236,6 @@ export const usePaintToolStore = defineStore('paint', () => {
       setActiveSegment.call(this, paint.activeSegment);
     }
   }
-
-  // Create segment group if paint is active and none exist.
-  // If paint is not active, but there is a segment group for the current image, set it as active.
-  watchEffect(() => {
-    const imageID = currentImageID.value;
-    if (!imageID) return;
-
-    if (isActive.value) {
-      ensureActiveSegmentGroupForImage(imageID);
-    } else {
-      const segmentGroupID = getValidSegmentGroupID(imageID);
-      if (segmentGroupID) {
-        setActiveSegmentGroup(segmentGroupID);
-      }
-    }
-  });
 
   return {
     // state
