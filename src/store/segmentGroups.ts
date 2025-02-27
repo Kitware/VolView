@@ -2,7 +2,7 @@ import { computed, reactive, ref, toRaw, watch } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
+import type { TypedArray } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { useImageStore } from '@/src/store/datasets-images';
 import { join, normalize } from '@/src/utils/path';
@@ -32,7 +32,6 @@ const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
-export const DEFAULT_SEGMENT_COLOR: RGBAColor = [255, 0, 0, 255];
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
 export const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
   `Segment Group ${index} for ${baseName}`;
@@ -254,7 +253,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   function getNextColor() {
     const color = CATEGORICAL_COLORS[nextColorIndex];
     nextColorIndex = (nextColorIndex + 1) % CATEGORICAL_COLORS.length;
-    return [...color, 255];
+    return [...color, 255] as const;
   }
 
   async function decodeSegments(
@@ -290,7 +289,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     return values.map((value) => ({
       value,
       name: makeDefaultSegmentName(value),
-      color: getNextColor(),
+      color: [...getNextColor()],
       visible: true,
     }));
   }
@@ -398,7 +397,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     return {
       name: makeDefaultSegmentName(value),
       value,
-      color: DEFAULT_SEGMENT_COLOR,
+      color: [...getNextColor()],
       visible: true,
     };
   }

@@ -118,12 +118,6 @@ export const useAnnotationTool = <
     if (!(id in toolByID.value)) return;
 
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
-
-    // de-select whenever hiding a tool
-    if (patch.hidden) {
-      const selectionStore = useToolSelectionStore();
-      selectionStore.removeSelection(id);
-    }
   }
 
   // updates props controlled by labels

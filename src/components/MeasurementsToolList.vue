@@ -88,13 +88,6 @@ const toggleSelectAll = (shouldSelectAll: boolean) => {
   }
 };
 
-const forEachSelectedTool = (
-  callback: (tool: (typeof tools.value)[number]) => void
-) =>
-  tools.value
-    .filter((tool) => selectionStore.isSelected(tool.id))
-    .forEach(callback);
-
 function removeAll() {
   selectionStore.selection.forEach((sel) => {
     const store = useAnnotationToolStore(sel.type);
@@ -110,6 +103,13 @@ const allHidden = computed(() => {
     .filter(nonNullable)
     .every((tool) => tool.toolData.hidden);
 });
+
+const forEachSelectedTool = (
+  callback: (tool: (typeof tools.value)[number]) => void
+) =>
+  tools.value
+    .filter((tool) => selectionStore.isSelected(tool.id))
+    .forEach(callback);
 
 function toggleGlobalHidden() {
   const hidden = !allHidden.value;
