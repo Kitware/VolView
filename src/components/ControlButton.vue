@@ -24,7 +24,7 @@
 
 <script>
 export default {
-  name: 'ToolButton',
+  name: 'ControlButton',
   props: {
     icon: { type: String, required: true },
     name: { type: String, required: true },
