@@ -49,7 +49,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -75,6 +75,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   populateAuthorizationToken,
   stripTokenFromUrl,
@@ -115,6 +116,13 @@ export default defineComponent({
     const showLoading = computed(
       () => loadDataStore.isLoading || hasData.value
     );
+
+    const { currentImageMetadata } = useCurrentImage();
+    watch(currentImageMetadata, (newMetadata) => {
+      if (newMetadata && newMetadata.name) {
+        document.title = `${newMetadata.name} - VolView`;
+      }
+    });
 
     // --- parse URL -- //
 
