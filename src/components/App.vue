@@ -49,7 +49,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -71,10 +71,14 @@ import ModulePanel from '@/src/components/ModulePanel.vue';
 import DragAndDrop from '@/src/components/DragAndDrop.vue';
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import ControlsModal from '@/src/components/ControlsModal.vue';
-import { useImageStore } from '@/src/store/datasets-images';
+import {
+  defaultImageMetadata,
+  useImageStore,
+} from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   populateAuthorizationToken,
   stripTokenFromUrl,
@@ -116,6 +120,18 @@ export default defineComponent({
       () => loadDataStore.isLoading || hasData.value
     );
 
+    const { currentImageMetadata, isImageLoading } = useCurrentImage();
+    const defaultImageMetadataName = defaultImageMetadata().name;
+    watch(currentImageMetadata, (newMetadata) => {
+      if (
+        newMetadata?.name &&
+        // wait until we get a real name, but if we never do, show default name
+        (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
+      ) {
+        document.title = `${newMetadata.name} - VolView`;
+      }
+    });
+
     // --- parse URL -- //
 
     populateAuthorizationToken();
@@ -140,15 +156,11 @@ export default defineComponent({
     });
 
     // --- save state --- //
-
     if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
-      // Avoid dropping JSON or array query param arguments on the "save" query parameter
-      // by parsing query params without casting to native types in vtkURLExtract.
-      const queryParams = new URLSearchParams(window.location.search);
-      const saveUrl = queryParams.get('save');
-      if (saveUrl) {
-        useRemoteSaveStateStore().setSaveUrl(saveUrl);
-      }
+      const url = Array.isArray(urlParams.save)
+        ? urlParams.save[0]
+        : urlParams.save;
+      useRemoteSaveStateStore().setSaveUrl(url);
     }
 
     // --- layout --- //

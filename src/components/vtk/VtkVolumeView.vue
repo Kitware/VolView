@@ -71,6 +71,11 @@ useVtkInteractionManipulator(
 );
 useVtkInteractionManipulator(
   interactorStyle,
+  vtkMouseCameraTrackballPanManipulator,
+  { button: 2 }
+);
+useVtkInteractionManipulator(
+  interactorStyle,
   vtkMouseCameraTrackballZoomManipulator,
   { button: 3, scrollEnabled: true }
 );
