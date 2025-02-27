@@ -267,14 +267,13 @@ function deleteSelected() {
       :selected="selected"
     />
 
-    <div class="d-flex align-center">
+    <div class="d-flex align-center" v-if="currentSegmentGroups.length > 0">
       <v-checkbox
         class="ml-3"
         :indeterminate="selectedSome && !selectedAll"
         label="Select All"
         :model-value="selectedAll"
         @update:model-value="toggleSelectAll"
-        :disabled="currentSegmentGroups.length === 0"
         density="compact"
         hide-details
       />
