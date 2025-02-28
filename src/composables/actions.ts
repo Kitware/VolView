@@ -55,7 +55,7 @@ const clearScene = () => () => {
 
 const deleteCurrentImage = () => () => {
   const datasetStore = useDatasetStore();
-  datasetStore.remove(datasetStore.primaryImageID!);
+  datasetStore.remove(datasetStore.primaryImageID);
 
   // Automatically select next image
   datasetStore.setPrimarySelection(datasetStore.idsAsSelections[0]);

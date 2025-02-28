@@ -69,7 +69,9 @@ export const useDatasetStore = defineStore('dataset', () => {
     }
   }
 
-  const remove = (id: string) => {
+  const remove = (id: string | null) => {
+    if (!id) return;
+
     if (id === primarySelection.value) {
       primarySelection.value = null;
     }
