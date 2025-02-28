@@ -67,6 +67,14 @@ export const ACTIONS = {
     readable: 'Activate next Label',
   },
 
+  deleteCurrentImage: {
+    readable: 'Remove current active image',
+  },
+
+  clearScene: {
+    readable: 'Clear scene',
+  },
+
   mergeNewPolygon: {
     readable: 'Hold to merge new polygons with overlapping polygons',
   },
