@@ -70,6 +70,11 @@
             :image-id="currentImageID"
             :view-direction="viewDirection"
           ></vtk-slice-view-slicing-manipulator>
+          <vtk-slice-view-slicing-key-manipulator
+            :view-id="id"
+            :image-id="currentImageID"
+            :view-direction="viewDirection"
+          ></vtk-slice-view-slicing-key-manipulator>
           <vtk-slice-view-window-manipulator
             :view-id="id"
             :image-id="currentImageID"
@@ -179,6 +184,7 @@ import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
+import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceViewSlicingKeyManipulator.vue';
 import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';

@@ -4,7 +4,7 @@ import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
 import { useViewStore } from '../store/views';
-import { Action } from '../constants';
+import { Action, NOOP } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
 import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
@@ -75,6 +75,7 @@ export const ACTION_TO_FUNC = {
 
   nextSlice: changeSlice(1),
   previousSlice: changeSlice(-1),
+  grabSlice: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
@@ -82,7 +83,7 @@ export const ACTION_TO_FUNC = {
   deleteCurrentImage: deleteCurrentImage(),
   clearScene: clearScene(),
 
-  mergeNewPolygon: () => {}, // acts as a modifier key rather than immediate effect, so no-op
+  mergeNewPolygon: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
   showKeyboardShortcuts,
 } as const satisfies Record<Action, () => void>;
