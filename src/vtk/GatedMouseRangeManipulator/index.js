@@ -25,50 +25,27 @@ function vtkGatedMouseRangeManipulator(publicAPI, model) {
     publicAPI.modified();
   };
 
-  // Define the mouse move listener function outside initializeGlobalMouseMove
-  const createMouseMoveListener = (interactor, renderer) => {
-    return (event) => {
-      // Proceed if the mouse is inside the container.
-      if (!model.viewContainer.contains(event.target)) {
-        return;
-      }
-      // Map the event client coordinates to the container's coordinate system.
-      const rect = model.viewContainer.getBoundingClientRect();
-      const position = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      };
+  const cleanupListener = () => {
+    model.mouseMoveListenerSubscription?.unsubscribe();
+    model.mouseMoveListenerSubscription = null;
+  };
 
+  publicAPI.setupMouseMove = (interactor) => {
+    cleanupListener();
+    model.mouseMoveListenerSubscription = interactor.onMouseMove((event) => {
+      const invertY = {
+        ...event.position,
+        y: interactor.getView().getSize()[1] - event.position.y,
+      };
       if (model.newInteraction) {
         model.newInteraction = false;
-        publicAPI.onButtonDown(interactor, renderer, position);
+        publicAPI.onButtonDown(interactor, event.pokedRenderer, invertY);
       }
-      publicAPI.onMouseMove(interactor, renderer, position);
-    };
+      publicAPI.onMouseMove(interactor, event.pokedRenderer, invertY);
+    });
   };
 
-  // Initializes a global mousemove listener on the view container.
-  // Only events occurring over the container will trigger onMouseMove.
-  publicAPI.initializeGlobalMouseMove = (interactor, renderer, container) => {
-    model.viewContainer = container;
-    if (!model.mouseMoveListener) {
-      model.mouseMoveListener = createMouseMoveListener(interactor, renderer);
-      model.viewContainer.addEventListener(
-        'mousemove',
-        model.mouseMoveListener
-      );
-    }
-  };
-
-  publicAPI.delete = macro.chain(publicAPI.delete, () => {
-    if (model.mouseMoveListener && model.viewContainer) {
-      model.viewContainer.removeEventListener(
-        'mousemove',
-        model.mouseMoveListener
-      );
-      model.mouseMoveListener = null;
-    }
-  });
+  publicAPI.delete = macro.chain(publicAPI.delete, cleanupListener);
 }
 
 function extend(publicAPI, model, initialValues = {}) {
