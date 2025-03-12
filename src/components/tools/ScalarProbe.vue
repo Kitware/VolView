@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, ref, watch, computed, toRefs } from 'vue';
+import { inject, watch, computed, toRefs } from 'vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -8,6 +8,7 @@ import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useProbeStore } from '@/src/store/probe';
 
 type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
 
@@ -18,7 +19,6 @@ const props = defineProps<{
 }>();
 
 const { baseRep, layerReps, segmentGroupsReps } = toRefs(props);
-
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
@@ -28,57 +28,63 @@ const {
   currentImageMetadata,
   currentLayers,
 } = useCurrentImage();
-
 const imageStore = useImageStore();
 const layersStore = useLayersStore();
 const segmentGroupStore = useSegmentGroupStore();
-const sampleSet = computed(() => {
-  const baseImage = currentImageData.value;
-  if (!baseImage || !currentImageID.value) {
-    return [];
-  }
+const probeStore = useProbeStore();
 
-  const baseImageSlice = {
+// Helper functions to build a unified sample set
+const getBaseSlice = () => {
+  if (!currentImageData.value || !currentImageID.value) return null;
+  return {
     type: 'layer',
     id: currentImageID.value,
     name: currentImageMetadata.value.name,
     rep: baseRep.value,
-    image: baseImage,
-  } as const;
+    image: currentImageData.value,
+  };
+};
 
-  const layers = layerReps.value
-    // filter out just deleted layers
-    .filter((_, index) => currentLayers.value[index] !== undefined)
-    .map((layerRep, index) => {
+const getLayers = () =>
+  layerReps.value
+    .map((rep, index) => {
       const layer = currentLayers.value[index];
+      if (!layer) return null;
       return {
         type: 'layer',
         id: layer.id,
         name: imageStore.metadata[layer.selection].name,
-        rep: layerRep,
+        rep,
         image: layersStore.layerImages[layer.id],
-      } as const;
-    });
+      };
+    })
+    .filter(Boolean);
 
-  const segmentGroups = segmentGroupStore.orderByParent[currentImageID.value];
-  const segments = segmentGroupsReps.value
-    .map((group, index) => ({ group, index }))
-    // filter out just deleted segment groups or on switching current image
-    .filter(({ index }) => segmentGroups && segmentGroups[index])
-    .map(({ group, index }) => {
-      const id = segmentGroups![index];
-      const meta = segmentGroupStore.metadataByID[id];
+const getSegments = () => {
+  if (!currentImageID.value) return [];
+  const parentGroups = segmentGroupStore.orderByParent[currentImageID.value];
+  if (!parentGroups) return [];
+  return segmentGroupsReps.value
+    .map((rep, index) => {
+      const groupId = parentGroups[index];
+      if (!groupId) return null;
+      const meta = segmentGroupStore.metadataByID[groupId];
       return {
         type: 'segmentGroup',
-        id,
+        id: groupId,
         name: meta.name,
-        rep: group,
+        rep,
         segments: meta.segments,
-        image: segmentGroupStore.dataIndex[id],
-      } as const;
-    });
+        image: segmentGroupStore.dataIndex[groupId],
+      };
+    })
+    .filter(Boolean);
+};
 
-  return [...segments, ...layers, baseImageSlice];
+const sampleSet = computed(() => {
+  const base = getBaseSlice();
+  if (!base) return [];
+  return [...getSegments(), ...getLayers(), base];
 });
 
 const pointPicker = vtkPointPicker.newInstance();
@@ -86,82 +92,53 @@ pointPicker.setPickFromList(true);
 
 watch(
   sampleSet,
-  (toPick) => {
-    pointPicker.setPickList(toPick.map((item) => item.rep.actor));
+  (samples) => {
+    pointPicker.setPickList(
+      samples.length > 0 && samples[0] ? [samples[0].rep.actor] : []
+    );
   },
   { immediate: true }
 );
 
 const getImageSamples = (x: number, y: number) => {
   pointPicker.pick([x, y, 1.0], view.renderer);
-  if (pointPicker.getActors().length === 0) {
-    return undefined;
-  }
+  if (pointPicker.getActors().length === 0) return undefined;
+
   const ijk = pointPicker.getPointIJK();
-  const samples = sampleSet.value.map((toSample) => {
-    const size = toSample.image.getDimensions();
-    const scalarData = toSample.image.getPointData().getScalars();
-    const scalars = scalarData.getTuple(
-      size[0] * size[1] * ijk[2] + size[0] * ijk[1] + ijk[0]
-    ) as number[];
-    const idName = {
-      id: toSample.id,
-      name: toSample.name,
-    };
-    if (toSample.type === 'segmentGroup') {
+  const samples = sampleSet.value.map((item: any) => {
+    const dims = item.image.getDimensions();
+    const scalarData = item.image.getPointData().getScalars();
+    const index = dims[0] * dims[1] * ijk[2] + dims[0] * ijk[1] + ijk[0];
+    const scalars = scalarData.getTuple(index) as number[];
+    const baseInfo = { id: item.id, name: item.name };
+
+    if (item.type === 'segmentGroup') {
       return {
-        ...idName,
+        ...baseInfo,
         displayValue: scalars.map(
-          (v) => toSample.segments.byValue[v]?.name || 'Background'
+          (v) => item.segments.byValue[v]?.name || 'Background'
         ),
       };
     }
-    return {
-      ...idName,
-      displayValue: scalars,
-    };
+    return { ...baseInfo, displayValue: scalars };
   });
-  const pos = pointPicker.getPickPosition();
+
   return {
-    pos,
+    pos: pointPicker.getPickPosition(),
     samples,
   };
 };
 
-const samples = ref<ReturnType<typeof getImageSamples> | undefined>(undefined);
-
 onVTKEvent(view.interactor, 'onMouseMove', (event: any) => {
-  samples.value = getImageSamples(event.position.x, event.position.y);
+  const samples = getImageSamples(event.position.x, event.position.y);
+  probeStore.updateProbeData(samples);
 });
 
 onVTKEvent(view.interactor, 'onPointerLeave', () => {
-  samples.value = undefined;
+  probeStore.clearProbeData();
 });
 
 watch([currentImageID, sampleSet], () => {
-  samples.value = undefined;
+  probeStore.clearProbeData();
 });
 </script>
-
-<template>
-  <div v-if="samples !== undefined" class="probe-value-display">
-    <div v-for="sample in samples.samples" :key="sample.id">
-      <div>{{ sample.name }}: {{ sample.displayValue.join(', ') }}</div>
-    </div>
-    <div>Position: {{ `${samples.pos.map(Math.round).join(', ')}` }}</div>
-  </div>
-</template>
-
-<style scoped>
-.probe-value-display {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  pointer-events: none;
-}
-</style>
