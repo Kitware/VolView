@@ -35,6 +35,7 @@
         </v-window-item>
       </v-window>
     </div>
+    <ProbeView />
   </div>
 </template>
 
@@ -46,6 +47,7 @@ import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
 import ServerModule from './ServerModule.vue';
+import ProbeView from './ProbeView.vue';
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 
@@ -88,6 +90,7 @@ const autoSwitchToAnnotationsTools = [
 
 export default defineComponent({
   name: 'ModulePanel',
+  components: { ProbeView },
   setup() {
     const selectedModuleIndex = ref(0);
 
