@@ -251,7 +251,7 @@ function deleteSelected() {
           >
             {{ item.name }}
             <v-tooltip activator="parent" location="end" max-width="200px">
-              Convert to segment group
+              Add as segment group
             </v-tooltip>
           </v-list-item>
         </v-list>
