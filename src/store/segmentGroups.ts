@@ -570,7 +570,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentID) => {
-      orderByParent.value[parentID].forEach((segmentGroupID) => {
+      orderByParent.value[parentID]?.forEach((segmentGroupID) => {
         removeGroup(segmentGroupID);
       });
     });
