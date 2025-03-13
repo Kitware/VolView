@@ -5,7 +5,6 @@ import type { Bounds } from '@kitware/vtk.js/types';
 
 import { useIdStore } from '@/src/store/id';
 import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
-import { removeFromArray } from '../utils';
 import { StateFile, DatasetType } from '../io/state-file/schema';
 import { serializeData } from '../io/state-file/utils';
 import { useFileStore } from './datasets-files';
@@ -74,9 +73,13 @@ export const useImageStore = defineStore('images', {
 
     deleteData(id: string) {
       if (id in this.dataIndex) {
-        delete this.dataIndex[id];
-        delete this.metadata[id];
-        removeFromArray(this.idList, id);
+        this.dataIndex = Object.fromEntries(
+          Object.entries(this.dataIndex).filter(([key]) => key !== id)
+        );
+        this.metadata = Object.fromEntries(
+          Object.entries(this.metadata).filter(([key]) => key !== id)
+        );
+        this.idList = this.idList.filter((i) => i !== id);
       }
     },
 
