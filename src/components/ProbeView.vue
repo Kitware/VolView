@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useProbeStore } from '@/src/store/probe';
 import { storeToRefs } from 'pinia';
+import { useProbeStore } from '@/src/store/probe';
+import { shortenNumber } from '@/src/utils';
 
 const probeStore = useProbeStore();
 const { probeData } = storeToRefs(probeStore);
@@ -10,13 +11,15 @@ const formattedProbeItems = computed(() => {
   if (!probeData.value) return [];
   const sampleItems = probeData.value.samples.map((sample) => ({
     label: sample.name,
-    value: sample.displayValue.join(', '),
+    value: sample.displayValues
+      .map((item) => (typeof item === 'number' ? shortenNumber(item) : item))
+      .join(', '),
   }));
 
   // Add additional item for Position
   const positionItem = {
     label: 'Position',
-    value: probeData.value.pos.map(Math.round).join(', '),
+    value: Array.from(probeData.value.pos).map(Math.round).join(', '),
   };
 
   return [...sampleItems, positionItem];
@@ -30,11 +33,17 @@ const formattedProbeItems = computed(() => {
         v-for="(item, index) in formattedProbeItems"
         :key="index"
         class="d-flex"
+        style="max-width: 100%"
       >
-        <span class="text-left text-truncate mr-2">
+        <span
+          class="text-left text-truncate mr-2 flex-grow-0 flex-shrink-1"
+          style="min-width: 6rem; max-width: 50%"
+        >
           {{ item.label }}
         </span>
-        <span class="text-right ml-auto font-weight-bold">
+        <span
+          class="text-right font-weight-bold text-truncate flex-grow-1 flex-shrink-1"
+        >
           {{ item.value }}
         </span>
       </div>

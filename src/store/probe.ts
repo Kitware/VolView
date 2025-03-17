@@ -1,15 +1,16 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
+import { vec3 } from 'gl-matrix';
 
 export type ProbeSample = {
   id: string;
   name: string;
-  displayValue: (string | number)[];
+  displayValues: (string | number)[];
 };
 
 export type ProbeData =
   | {
-      pos: number[];
+      pos: vec3;
       samples: ProbeSample[];
     }
   | undefined;

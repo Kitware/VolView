@@ -283,3 +283,14 @@ export function normalizeForStore<T, K extends keyof T>(objects: T[], key: K) {
 
   return { order, byKey };
 }
+
+export function shortenNumber(value: number) {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+  const abs = Math.abs(value);
+  if (abs > 0 && abs < 1) {
+    return value.toExponential(2);
+  }
+  return value.toFixed(2);
+}

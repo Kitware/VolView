@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { inject, watch, computed, toRefs } from 'vue';
+import type { ReadonlyVec3 } from 'gl-matrix';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -101,10 +102,13 @@ watch(
 );
 
 const getImageSamples = (x: number, y: number) => {
+  const firstToSample = sampleSet.value[0];
+  if (!firstToSample) return undefined;
+
   pointPicker.pick([x, y, 1.0], view.renderer);
   if (pointPicker.getActors().length === 0) return undefined;
 
-  const ijk = pointPicker.getPointIJK();
+  const ijk = pointPicker.getPointIJK() as unknown as ReadonlyVec3;
   const samples = sampleSet.value.map((item: any) => {
     const dims = item.image.getDimensions();
     const scalarData = item.image.getPointData().getScalars();
@@ -115,16 +119,18 @@ const getImageSamples = (x: number, y: number) => {
     if (item.type === 'segmentGroup') {
       return {
         ...baseInfo,
-        displayValue: scalars.map(
+        displayValues: scalars.map(
           (v) => item.segments.byValue[v]?.name || 'Background'
         ),
       };
     }
-    return { ...baseInfo, displayValue: scalars };
+    return { ...baseInfo, displayValues: scalars };
   });
 
+  const position = firstToSample.image.indexToWorld(ijk);
+
   return {
-    pos: pointPicker.getPickPosition(),
+    pos: position,
     samples,
   };
 };
