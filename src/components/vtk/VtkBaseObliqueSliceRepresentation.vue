@@ -38,7 +38,7 @@ const sliceRep = useResliceRepresentation(view, imageData);
 
 // set slice ordering to be in the back
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(1, 1);
 
 // create slicing plane
 const slicePlane = vtkPlane.newInstance();

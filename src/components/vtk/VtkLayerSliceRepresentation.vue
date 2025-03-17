@@ -47,7 +47,7 @@ sliceRep.property.setUseLookupTableScalarRange(false);
 
 // set slice ordering to be in front of the segmentations
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(-4, -4);
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2);
 
 // set slicing mode
 const { metadata: parentMetadata } = useImage(parentId);
