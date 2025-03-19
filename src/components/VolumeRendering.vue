@@ -184,7 +184,8 @@ export default defineComponent({
       (image) => {
         if (image) {
           const scalars = image.getPointData().getScalars();
-          pwfWidget.setDataArray(scalars);
+          // TODO(fli): setDataArray() re-computes the data range unnecessarily
+          pwfWidget.setDataArray(scalars.getData());
           pwfWidget.render();
         }
       },

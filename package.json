@@ -32,7 +32,7 @@
     "@netlify/edge-functions": "^2.0.0",
     "@sentry/vue": "^7.54.0",
     "@velipso/polybool": "^2.0.11",
-    "@vueuse/core": "^10.7.0",
+    "@vueuse/core": "^13.0.0",
     "@wdio/globals": "^9.7.1",
     "comlink": "^4.4.1",
     "core-js": "3.22.5",
@@ -48,7 +48,7 @@
     "pinia": "^2.0.34",
     "socket.io-client": "^4.7.1",
     "socket.io-parser": "^4.2.4",
-    "vue": "^3.3.4",
+    "vue": "^3.5.13",
     "vue-toastification": "^2.0.0-rc.5",
     "vuetify": "^3.4.0",
     "zod": "^3.22.3"
