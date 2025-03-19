@@ -135,7 +135,7 @@ export default defineComponent({
       if (!animationRequested) {
         animationRequested = true;
         viewAnimationStore.requestAnimation(pwfWidget, {
-          byViewType: ['3D'],
+          byViewType: [TARGET_VIEW_ID],
         });
       }
     };
