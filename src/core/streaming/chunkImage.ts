@@ -43,5 +43,5 @@ export interface ChunkImage {
     callback: (info: ChunkImageEvents[T]) => void
   ): void;
   isLoading: Ref<boolean>;
-  chunkStatus: Ref<Array<ChunkStatus>>;
+  chunkStatus: Array<ChunkStatus>;
 }
