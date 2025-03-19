@@ -283,6 +283,7 @@ export const ACTION_TO_KEY = {
 
   nextSlice: 'arrowdown',
   previousSlice: 'arrowup',
+  grabSlice: 'Alt',
 
   decrementLabel: 'q',
   incrementLabel: 'w',
