@@ -59,7 +59,7 @@ sliceRep.property.setUseLookupTableScalarRange(true);
 
 // set slice ordering to be in front of the base image
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(-2, -2);
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-4, -4);
 
 useSegmentGroupConfigInitializer(viewId.value, segmentationId.value);
 const coloringStore = useLayerColoringStore();
