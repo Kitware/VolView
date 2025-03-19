@@ -237,21 +237,15 @@ export const TOOL_COLORS = [
 export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
 
 export const RULER_LABEL_DEFAULTS = {
-  red: { color: 'red' },
-  green: { color: '#00ff00' },
-  white: { color: '#ffffff' },
+  'Label 1': { color: 'red' },
 };
 
 export const RECTANGLE_LABEL_DEFAULTS = {
-  artifact: { color: '#888888' },
-  innocuous: { color: '#00ff00' },
-  lesion: { color: 'red' },
+  'Label 1': { color: 'red' },
 };
 
 export const POLYGON_LABEL_DEFAULTS = {
-  red: { color: 'red' },
-  green: { color: '#00ff00' },
-  white: { color: '#ffffff' },
+  'Label 1': { color: 'red' },
 };
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
@@ -297,20 +291,8 @@ export const ACTION_TO_KEY = {
 export const DEFAULT_SEGMENT_MASKS: SegmentMask[] = [
   {
     value: 1,
-    name: 'Tissue',
-    color: [255, 0, 0, 255],
-    visible: true,
-  },
-  {
-    value: 2,
-    name: 'Liver',
-    color: [0, 255, 0, 255],
-    visible: true,
-  },
-  {
-    value: 3,
-    name: 'Heart',
-    color: [0, 0, 255, 255],
+    name: 'Segment 1',
+    color: [255, 255, 0, 255],
     visible: true,
   },
 ];
