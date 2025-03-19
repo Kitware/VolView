@@ -1,4 +1,6 @@
-import { Maybe } from '@/src/types';
+import { Chunk } from '@/src/core/streaming/chunk';
+import { Fetcher } from '@/src/core/streaming/types';
+import { Maybe, PartialWithRequired } from '@/src/types';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -9,6 +11,8 @@ import { Maybe } from '@/src/types';
 export interface UriSource {
   uri: string;
   name: string;
+  mime?: string;
+  fetcher?: Fetcher;
 }
 
 /**
@@ -32,14 +36,22 @@ export interface ArchiveSource {
 }
 
 /**
- * Used to collect DICOM file data sources.
+ * Represents a collection of data sources.
  *
- * This is currently used for consolidating multiple DICOM files into one
- * DataSource for error stack trace purposes.
+ * This is used for data that is derived from a colleciton of data sources,
+ * e.g. reconstructed DICOM.
  */
-export interface DicomSource {
+export interface CollectionSource {
   // eslint-disable-next-line no-use-before-define
   sources: DataSource[];
+}
+
+/**
+ * Represents a data chunk for further processing and import.
+ */
+export interface ChunkSource {
+  chunk: Chunk;
+  mime: string;
 }
 
 /**
@@ -52,17 +64,32 @@ export interface DicomSource {
  * - { uriSrc }: a file that has yet to be downloaded.
  * - { fileSrc, parent: { uriSrc } }: a file with URI provenance info.
  * - { fileSrc, archiveSrc, parent }: a file originating from an archive.
- * - { dicomSrc }: a list of dicom data sources.
  */
 export interface DataSource {
   fileSrc?: FileSource;
   uriSrc?: UriSource;
   archiveSrc?: ArchiveSource;
-  dicomSrc?: DicomSource;
+  chunkSrc?: ChunkSource;
+  collectionSrc?: CollectionSource;
   parent?: DataSource;
 }
 
-export type DataSourceWithFile = DataSource & { fileSrc: FileSource };
+/**
+ * A data source that has a File.
+ */
+export type FileDataSource = PartialWithRequired<DataSource, 'fileSrc'>;
+
+/**
+ * An archive member data source.
+ */
+export type ArchiveDataSource = PartialWithRequired<
+  DataSource,
+  'archiveSrc' | 'fileSrc'
+> & {
+  parent: FileDataSource;
+};
+
+export type ChunkDataSource = PartialWithRequired<DataSource, 'chunkSrc'>;
 
 /**
  * Creates a DataSource from a single file.
@@ -81,10 +108,15 @@ export const fileToDataSource = (file: File): DataSource => ({
  * @param uri
  * @returns
  */
-export const uriToDataSource = (uri: string, name: string): DataSource => ({
+export const uriToDataSource = (
+  uri: string,
+  name: string,
+  mime?: string
+): DataSource => ({
   uriSrc: {
     uri,
     name,
+    mime,
   },
 });
 
@@ -142,8 +174,8 @@ export function getDataSourceName(ds: Maybe<DataSource>): Maybe<string> {
     return ds.uriSrc.name;
   }
 
-  if (ds?.dicomSrc?.sources.length) {
-    const { sources } = ds.dicomSrc;
+  if (ds?.collectionSrc?.sources.length) {
+    const { sources } = ds.collectionSrc;
     const [first] = sources;
     const more = sources.length > 1 ? ` (+${sources.length - 1} more)` : '';
     return `${getDataSourceName(first)}${more}`;
@@ -162,7 +194,13 @@ export function getDataSourceName(ds: Maybe<DataSource>): Maybe<string> {
  */
 export function serializeDataSource(ds: DataSource) {
   const output = { ...ds };
+
+  if (output.uriSrc) {
+    delete output.uriSrc.fetcher;
+  }
+
   delete output.fileSrc;
+
   if (output.parent) {
     output.parent = serializeDataSource(output.parent);
   }

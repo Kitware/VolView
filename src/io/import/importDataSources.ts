@@ -9,9 +9,8 @@ import {
   isLoadableResult,
   VolumeResult,
 } from '@/src/io/import/common';
-import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
+import { DataSource, ChunkDataSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
-import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTargetFromCache from '@/src/io/import/processors/extractArchiveTarget';
 import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
@@ -21,8 +20,13 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { applyConfig } from '@/src/io/import/configJson';
+import updateUriType from '@/src/io/import/processors/updateUriType';
+import openUriStream from '@/src/io/import/processors/openUriStream';
+import downloadStream from '@/src/io/import/processors/downloadStream';
+import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { importDicomChunks } from '@/src/actions/importDicomChunks';
 
 /**
  * Tries to turn a thrown object into a meaningful error string.
@@ -88,59 +92,52 @@ const importConfigs = async (
   }
 };
 
-const importDicomFiles = async (
-  dicomDataSources: Array<DataSourceWithFile>
-) => {
-  const resultSources: DataSource = {
-    dicomSrc: {
-      sources: dicomDataSources,
-    },
-  };
-  try {
-    if (!dicomDataSources.length) {
-      return {
-        ok: true as const,
-        data: [],
-      };
-    }
-    const volumeKeys = await useDICOMStore().importFiles(dicomDataSources);
-    return {
-      ok: true as const,
-      data: volumeKeys.map((key) => ({
-        dataID: key,
-        dataType: 'dicom' as const,
-        dataSource: resultSources,
-      })),
-    };
-  } catch (err) {
-    return {
-      ok: false as const,
-      errors: [
-        {
-          message: toMeaningfulErrorString(err),
-          cause: err,
-          inputDataStackTrace: [resultSources],
-        },
-      ],
-    };
-  }
-};
+async function importDicomChunkSources(sources: ChunkDataSource[]) {
+  if (sources.length === 0) return [];
 
-export async function importDataSources(dataSources: DataSource[]) {
+  const dataIds = await importDicomChunks(
+    sources.map((src) => src.chunkSrc.chunk)
+  );
+  return [
+    {
+      ok: true as const,
+      data: dataIds.map((id) => ({
+        dataID: id,
+        dataType: 'dicom' as const,
+        dataSource: {
+          collectionSrc: {
+            sources,
+          },
+        },
+      })),
+    },
+  ];
+}
+
+export async function importDataSources(
+  dataSources: DataSource[]
+): Promise<PipelineResult<DataSource, ImportResult>[]> {
   const importContext = {
     fetchFileCache: new Map<string, File>(),
-    dicomDataSources: [] as DataSourceWithFile[],
   };
 
   const middleware = [
-    // updating the file type should be first in the pipeline
+    openUriStream,
+
+    // updating the file/uri type should be first step in the pipeline
     updateFileMimeType,
+    updateUriType,
+
     // before extractArchive as .zip extension is part of state file check
     restoreStateFile,
     handleRemoteManifest,
     handleGoogleCloudStorage,
     handleAmazonS3,
-    downloadUrl,
+
+    // stream handling
+    handleDicomStream,
+    downloadStream,
+
     extractArchiveTargetFromCache,
     extractArchive,
     handleConfig, // collect config files to apply later
@@ -156,12 +153,25 @@ export async function importDataSources(dataSources: DataSource[]) {
     dataSources.map((r) => loader.execute(r, importContext))
   );
 
+  const successfulResults = results.filter(
+    (result): result is PipelineResultSuccess<ImportResult> => result.ok
+  );
+
+  const chunks = successfulResults
+    .flatMap((result) => result.data)
+    .map((data) => data.dataSource)
+    .filter((src): src is ChunkDataSource => !!src.chunkSrc);
+
+  const dicomChunks = chunks.filter(
+    (ch) => ch.chunkSrc.mime === FILE_EXT_TO_MIME.dcm
+  );
+
   const configResult = await importConfigs(results);
-  const dicomResult = await importDicomFiles(importContext.dicomDataSources);
+  const dicomChunkResult = await importDicomChunkSources(dicomChunks);
 
   return [
     ...results,
-    dicomResult,
+    ...dicomChunkResult,
     configResult,
     // Consuming code expects only errors and image import results.
     // Remove ok results that don't result in something to load (like config.JSON files)

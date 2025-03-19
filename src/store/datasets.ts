@@ -10,7 +10,6 @@ import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import { useFileStore } from './datasets-files';
 import { StateFile } from '../io/state-file/schema';
-import { useErrorMessage } from '../composables/useErrorMessage';
 import { useLayersStore } from './datasets-layers';
 import { useModelStore } from './datasets-models';
 
@@ -49,14 +48,6 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   function setPrimarySelection(sel: DataSelection | null) {
     primarySelection.value = sel;
-    if (!sel) return;
-
-    // if selection is dicom, call buildVolume
-    if (isDicomImage(sel)) {
-      useErrorMessage('Failed to build volume', () =>
-        dicomStore.buildVolume(sel)
-      );
-    }
   }
 
   async function serialize(stateFile: StateFile) {

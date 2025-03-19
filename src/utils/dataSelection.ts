@@ -1,6 +1,5 @@
 import { getDisplayName, useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageStore } from '@/src/store/datasets-images';
-import { useErrorMessage } from '@/src/composables/useErrorMessage';
 import { Maybe } from '@/src/types';
 
 export type DataSelection = string;
@@ -18,16 +17,8 @@ export const isRegularImage = (imageID: Maybe<string>) => {
   return !isDicomImage(imageID);
 };
 
-export const getImage = async (imageID: string) => {
-  const images = useImageStore();
-  const dicoms = useDICOMStore();
-  if (isDicomImage(imageID)) {
-    // ensure image data exists
-    await useErrorMessage('Failed to build volume', () =>
-      dicoms.buildVolume(imageID)
-    );
-  }
-  return images.dataIndex[imageID];
+export const getImage = (imageID: string) => {
+  return useImageStore().dataIndex[imageID];
 };
 
 const getImageName = (imageID: string) => {

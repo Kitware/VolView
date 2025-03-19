@@ -13,7 +13,7 @@ export const isFulfilled = <T>(
 ): input is PromiseFulfilledResult<T> => input.status === 'fulfilled';
 
 type PromiseResolveFunction<T> = (value: T) => void;
-type PromiseRejectFunction = (reason?: Error) => void;
+type PromiseRejectFunction = (reason?: any) => void;
 export interface Deferred<T> {
   promise: Promise<T>;
   resolve: PromiseResolveFunction<T>;
@@ -293,4 +293,54 @@ export function shortenNumber(value: number) {
     return value.toExponential(2);
   }
   return value.toFixed(2);
+}
+
+/**
+ * Listens for an event once.
+ * @param target
+ * @param event
+ * @param callback
+ */
+export function addEventListenerOnce<T extends EventTarget>(
+  target: T,
+  event: string,
+  callback: (...args: any[]) => any
+) {
+  const handler = () => {
+    target.removeEventListener(event, handler);
+    return callback();
+  };
+  target.addEventListener(event, handler);
+}
+
+/**
+ * Converts a byte sequence to ASCII.
+ * @param bytes
+ * @param param1
+ * @returns
+ */
+export function toAscii(
+  bytes: Uint8Array | Uint8ClampedArray,
+  { ignoreNulls = false } = {}
+) {
+  const chars = [];
+  for (let i = 0; i < bytes.length; i++) {
+    if (!(ignoreNulls && bytes[i] === 0)) {
+      chars.push(String.fromCharCode(bytes[i]));
+    }
+  }
+  return chars.join('');
+}
+
+/**
+ * Wraps a generator as a coroutine.
+ * @param generator
+ * @param args
+ * @returns
+ */
+export function asCoroutine<T, R, N>(gen: Generator<T, R, N>) {
+  // run initial code
+  const result = gen.next();
+  if (result.done) return () => result;
+  return (value: N): IteratorResult<T, R> => gen.next(value);
 }
