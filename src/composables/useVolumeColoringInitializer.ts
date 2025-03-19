@@ -15,7 +15,9 @@ export function useVolumeColoringInitializer(
 
   const { imageData } = useImage(imageId);
 
-  watchImmediate([coloringConfig, viewId, imageId], () => {
+  const viewIdRef = computed(() => unref(viewId));
+  const imageIdRef = computed(() => unref(imageId));
+  watchImmediate([coloringConfig, viewIdRef, imageIdRef], () => {
     if (coloringConfig.value) return;
 
     const viewIdVal = unref(viewId);
