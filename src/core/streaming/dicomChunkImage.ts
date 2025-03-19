@@ -22,7 +22,7 @@ import {
   ChunkStatus,
   ChunkImageEvents,
 } from '@/src/core/streaming/chunkImage';
-import { ComputedRef, Ref, computed, ref } from 'vue';
+import { ComputedRef, computed } from 'vue';
 import mitt, { Emitter } from 'mitt';
 
 const { fastComputeRange } = vtkDataArray;
@@ -74,16 +74,16 @@ export default class DicomChunkImage implements ChunkImage {
   private events: Emitter<ChunkImageEvents>;
   public imageData: Maybe<vtkImageData>;
   public dataId: Maybe<string>;
-  public chunkStatus: Ref<ChunkStatus[]>;
+  public chunkStatus: ChunkStatus[];
   public isLoading: ComputedRef<boolean>;
 
   constructor() {
     this.chunks = [];
     this.chunkListeners = [];
     this.dataId = null;
-    this.chunkStatus = ref([]);
+    this.chunkStatus = [];
     this.isLoading = computed(() =>
-      this.chunkStatus.value.some(
+      this.chunkStatus.some(
         (status) =>
           status !== ChunkStatus.Loaded && status !== ChunkStatus.Errored
       )
@@ -112,7 +112,7 @@ export default class DicomChunkImage implements ChunkImage {
     this.chunks.length = 0;
     this.imageData = null;
     this.dataId = null;
-    this.chunkStatus.value = [];
+    this.chunkStatus = [];
     this.thumbnailCache = new WeakMap();
   }
 
@@ -150,7 +150,7 @@ export default class DicomChunkImage implements ChunkImage {
     // save the newly sorted chunk order
     [this.dataId, this.chunks] = volumes[0];
 
-    this.chunkStatus.value = this.chunks.map((chunk) => {
+    this.chunkStatus = this.chunks.map((chunk) => {
       switch (chunk.state) {
         case ChunkState.Init:
         case ChunkState.MetaLoading:
@@ -255,7 +255,7 @@ export default class DicomChunkImage implements ChunkImage {
       dims[0] * dims[1] * scalars.getNumberOfComponents() * chunkIndex;
     pixelData.set(result.image.data as TypedArray, offset);
 
-    const rangeAlreadyInitialized = this.chunkStatus.value.some(
+    const rangeAlreadyInitialized = this.chunkStatus.some(
       (status) => status === ChunkStatus.Loaded
     );
 
@@ -275,22 +275,21 @@ export default class DicomChunkImage implements ChunkImage {
       scalars.setRange({ min: newMin, max: newMax }, comp);
     }
 
+    this.chunkStatus[chunkIndex] = ChunkStatus.Loaded;
     this.events.emit('chunkLoaded', {
       chunk,
       updatedExtent: [0, dims[0] - 1, 0, dims[1] - 1, chunkIndex, chunkIndex],
     });
 
-    this.chunkStatus.value[chunkIndex] = ChunkStatus.Loaded;
-
     this.imageData.modified();
   }
 
   private onChunkErrored(chunkIndex: number, err: unknown) {
+    this.chunkStatus[chunkIndex] = ChunkStatus.Errored;
     this.events.emit('chunkErrored', {
       chunk: this.chunks[chunkIndex],
       error: err,
     });
-    this.chunkStatus.value[chunkIndex] = ChunkStatus.Errored;
   }
 
   private updateDicomStore() {
