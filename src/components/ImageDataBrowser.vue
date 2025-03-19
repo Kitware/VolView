@@ -293,7 +293,7 @@ export default defineComponent({
                     <v-icon v-if="!image.layerable" class="mr-1">
                       mdi-alert
                     </v-icon>
-                    Convert to Segment Group
+                    Add as Segment Group
                     <v-tooltip
                       activator="parent"
                       location="end"

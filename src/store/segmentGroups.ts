@@ -324,14 +324,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       );
     }
 
-    // cache name before deleting
     const baseName = imageStore.metadata[imageID].name;
-
-    // Don't remove image if DICOM. User may have selected segment group image as primary selection by now
-    const deleteImage = isRegularImage(imageID);
-    if (deleteImage) {
-      imageStore.deleteData(imageID);
-    }
 
     const componentCount = childImage
       .getPointData()
@@ -577,7 +570,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentID) => {
-      orderByParent.value[parentID].forEach((segmentGroupID) => {
+      orderByParent.value[parentID]?.forEach((segmentGroupID) => {
         removeGroup(segmentGroupID);
       });
     });
