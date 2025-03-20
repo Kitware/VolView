@@ -36,7 +36,9 @@ const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
 const getBaseSlice = () => {
-  if (!currentImageData.value || !currentImageID.value) return null;
+  if (!currentImageData.value || !currentImageID.value || !baseRep.value) {
+    return null;
+  }
   return {
     type: 'layer',
     id: currentImageID.value,
