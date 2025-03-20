@@ -148,3 +148,5 @@ watch([currentImageID, sampleSet], () => {
   probeStore.clearProbeData();
 });
 </script>
+
+<template><slot></slot></template>
