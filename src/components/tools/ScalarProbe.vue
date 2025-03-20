@@ -95,7 +95,7 @@ watch(
   sampleSet,
   (samples) => {
     pointPicker.setPickList(
-      samples.length > 0 && samples[0] ? [samples[0].rep.actor] : []
+      samples.length > 0 && samples[0] && samples[0].rep ? [samples[0].rep.actor] : []
     );
   },
   { immediate: true }
