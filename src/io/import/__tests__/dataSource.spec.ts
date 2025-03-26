@@ -1,101 +1,88 @@
 import { describe, it } from 'vitest';
 import { expect } from 'chai';
-import { DataSource, serializeDataSource } from '@/src/io/import/dataSource';
+import {
+  getDataSourceName,
+  isRemoteDataSource,
+} from '@/src/io/import/dataSource';
+import { Chunk } from '@/src/core/streaming/chunk';
 
-describe('serializeDataSource', () => {
-  it('should remove FileSources', () => {
-    const input: DataSource = {
-      fileSrc: {
-        file: new File([], '1.dcm'),
-        fileType: 'application/dicom',
-      },
-    };
-    const output = serializeDataSource(input);
+describe('isRemoteDatasource', () => {
+  it('should work', () => {
+    expect(isRemoteDataSource(undefined)).to.be.false;
 
-    expect(output).to.deep.equal({});
-  });
+    expect(
+      isRemoteDataSource({
+        type: 'file',
+        file: new File([], 'name'),
+        fileType: 'type',
+      })
+    ).to.be.false;
 
-  it('should preserve archive status', () => {
-    const input: DataSource = {
-      fileSrc: {
-        file: new File([], '1.dcm'),
-        fileType: 'application/dicom',
-      },
-      archiveSrc: {
-        path: 'a/b/c',
-      },
-      parent: {
-        fileSrc: {
-          file: new File([], 'archive.zip'),
-          fileType: 'application/zip',
-        },
-      },
-    };
-    const output = serializeDataSource(input);
-
-    expect(output).to.deep.equal({
-      archiveSrc: {
-        path: 'a/b/c',
-      },
-      parent: {},
-    });
-  });
-
-  it('should preserve UriSource', () => {
-    const input: DataSource = {
-      uriSrc: {
-        uri: 'https://example.com/image.jpg',
-        name: 'image.jpg',
-      },
-      parent: {
-        uriSrc: {
-          uri: 's3://example/bucket',
-          name: '',
-        },
-      },
-    };
-    const output = serializeDataSource(input);
-
-    expect(output).to.deep.equal(input);
-  });
-
-  it('should serialize remote archive members', () => {
-    const input: DataSource = {
-      fileSrc: {
-        file: new File([], '1.dcm'),
-        fileType: 'application/dicom',
-      },
-      archiveSrc: {
-        path: 'a/b/c',
-      },
-      parent: {
-        fileSrc: {
-          file: new File([], 'archive.zip'),
-          fileType: 'application/zip',
-        },
+    expect(
+      isRemoteDataSource({
+        type: 'file',
+        file: new File([], 'name'),
+        fileType: 'type',
         parent: {
-          uriSrc: {
-            uri: 'https://example.com/archive.zip',
-            name: 'archive.zip',
-          },
+          type: 'uri',
+          uri: 'http://',
+          name: 'name',
         },
-      },
-    };
-    const output = serializeDataSource(input);
+      })
+    ).to.be.true;
+  });
+});
 
-    expect(output).to.deep.equal({
-      archiveSrc: {
-        path: 'a/b/c',
-      },
-      parent: {
-        // empty parent b/c archive FileSource cannot be serialized
-        parent: {
-          uriSrc: {
-            uri: 'https://example.com/archive.zip',
-            name: 'archive.zip',
+describe('getDataSourceName', () => {
+  it('should work', () => {
+    expect(
+      getDataSourceName({
+        type: 'file',
+        file: new File([], 'name'),
+        fileType: 'ft',
+      })
+    ).to.equal('name');
+
+    expect(
+      getDataSourceName({
+        type: 'uri',
+        uri: 'http://',
+        name: 'name',
+      })
+    ).to.equal('name');
+
+    expect(
+      getDataSourceName({
+        type: 'collection',
+        sources: [
+          {
+            type: 'file',
+            file: new File([], 'name'),
+            fileType: 'ft',
           },
+        ],
+      })
+    ).to.equal('name');
+
+    expect(
+      getDataSourceName({
+        type: 'chunk',
+        chunk: {} as Chunk,
+        mime: 'mime',
+      })
+    ).to.equal(null);
+
+    expect(
+      getDataSourceName({
+        type: 'chunk',
+        chunk: {} as Chunk,
+        mime: 'mime',
+        parent: {
+          type: 'file',
+          file: new File([], 'name'),
+          fileType: 'ft',
         },
-      },
-    });
+      })
+    ).to.equal('name');
   });
 });

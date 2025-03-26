@@ -7,6 +7,7 @@ import { Maybe } from '@/src/types';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
+import { untilLoaded } from '../composables/untilLoaded';
 
 export type Layer = {
   selection: DataSelection;
@@ -33,6 +34,9 @@ export const useLayersStore = defineStore('layer', () => {
       ...(this.parentToLayers[parent] ?? []),
       { selection: source, id } as Layer,
     ];
+
+    // ensureSameSpace need final image array to resample, so wait for all chunks
+    await untilLoaded(source);
 
     const [parentImage, sourceImage] = await Promise.all(
       [parent, source].map(getImage)

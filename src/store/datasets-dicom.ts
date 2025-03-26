@@ -1,7 +1,7 @@
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
-import { FileDataSource } from '@/src/io/import/dataSource';
+import { FileSource } from '@/src/io/import/dataSource';
 import * as DICOM from '@/src/io/dicom';
 import { identity, pick, removeFromArray } from '../utils';
 import { useImageStore } from './datasets-images';
@@ -190,12 +190,10 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importFiles(datasets: FileDataSource[]) {
+    async importFiles(datasets: FileSource[]) {
       if (!datasets.length) return [];
 
-      const fileToDataSource = new Map(
-        datasets.map((ds) => [ds.fileSrc.file, ds])
-      );
+      const fileToDataSource = new Map(datasets.map((ds) => [ds.file, ds]));
       const allFiles = [...fileToDataSource.keys()];
 
       const volumeToFiles = await DICOM.splitAndSort(allFiles, identity);
