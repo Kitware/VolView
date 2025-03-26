@@ -30,15 +30,25 @@ export class Chunk {
   private metaLoader: MetaLoader;
   private dataLoader: DataLoader;
   private events: Emitter<ChunkEvents>;
+  private userData: Map<string, unknown>;
 
   constructor(init: ChunkInit) {
     this.metaLoader = init.metaLoader;
     this.dataLoader = init.dataLoader;
+    this.userData = new Map();
 
     this.machine = new ChunkStateMachine();
     this.machine.subscribe(this.onStateUpdated);
 
     this.events = mitt();
+  }
+
+  getUserData(key: string) {
+    return this.userData.get(key);
+  }
+
+  setUserData(key: string, value: unknown) {
+    return this.userData.set(key, value);
   }
 
   addEventListener(event: keyof ChunkEvents, callback: (arg?: any) => void) {
@@ -61,6 +71,7 @@ export class Chunk {
   dispose() {
     this.machine.unsubscribe(this.onStateUpdated);
     this.events.all.clear();
+    this.userData.clear();
   }
 
   get state() {

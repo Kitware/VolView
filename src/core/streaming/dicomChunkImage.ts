@@ -27,6 +27,8 @@ import mitt, { Emitter } from 'mitt';
 
 const { fastComputeRange } = vtkDataArray;
 
+const DATA_RANGE_KEY = 'pixel-data-range';
+
 function getChunkId(chunk: Chunk) {
   const metadata = Object.fromEntries(chunk.metadata!);
   const SOPInstanceUID = metadata[Tags.SOPInstanceUID];
@@ -231,11 +233,36 @@ export default class DicomChunkImage implements ChunkImage {
   private reallocateImage() {
     this.imageData?.delete();
     this.imageData = allocateImageFromChunks(this.chunks);
+
+    // recalculate image data's data range, since allocateImageFromChunks doesn't know anything about it
+    const scalars = this.imageData.getPointData().getScalars();
+    this.dataRangeFromChunks().forEach(([min, max], compIdx) => {
+      scalars.setRange({ min, max }, compIdx);
+    });
+  }
+
+  private dataRangeFromChunks() {
+    const outputRanges: Array<[number, number]> = [];
+    this.chunks.forEach((chunk) => {
+      const ranges = chunk.getUserData(DATA_RANGE_KEY) as
+        | Array<[number, number]>
+        | undefined;
+      if (!ranges) return;
+      ranges.forEach((range, idx) => {
+        const curMin = outputRanges[idx]?.[0] ?? range[0];
+        const curMax = outputRanges[idx]?.[1] ?? range[1];
+        outputRanges[idx] = [
+          Math.min(curMin, range[0]),
+          Math.max(curMax, range[1]),
+        ];
+      });
+    });
+
+    return outputRanges;
   }
 
   private async onChunkHasData(chunkIndex: number) {
     if (!this.imageData) return;
-
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
     const result = await readImage(
@@ -260,13 +287,14 @@ export default class DicomChunkImage implements ChunkImage {
     );
 
     // update the data range
+    const chunkDataRange: Array<[number, number]> = [];
     for (let comp = 0; comp < scalars.getNumberOfComponents(); comp++) {
       const { min, max } = fastComputeRange(
-        // TODO(fli): fastComputeRange first param should be ArrayLike<number>
         result.image.data as unknown as number[],
         comp,
         scalars.getNumberOfComponents()
       );
+      chunkDataRange.push([min, max]);
 
       const curRange = scalars.getRange(comp);
 
@@ -274,6 +302,8 @@ export default class DicomChunkImage implements ChunkImage {
       const newMax = rangeAlreadyInitialized ? Math.max(max, curRange[1]) : max;
       scalars.setRange({ min: newMin, max: newMax }, comp);
     }
+
+    chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);
 
     this.chunkStatus[chunkIndex] = ChunkStatus.Loaded;
     this.events.emit('chunkLoaded', {
