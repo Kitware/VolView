@@ -28,6 +28,7 @@
     "@aws-sdk/client-s3": "^3.435.0",
     "@itk-wasm/dicom": "7.6.0",
     "@itk-wasm/image-io": "1.6.0",
+    "@itk-wasm/morphological-contour-interpolation": "2.0.0",
     "@kitware/vtk.js": "^32.12.1",
     "@netlify/edge-functions": "^2.0.0",
     "@sentry/vue": "^7.54.0",
