@@ -10,7 +10,7 @@ import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { arrayEqualsWithComparator } from '@/src/utils';
 import { Maybe } from '@/src/types';
-import { useImageStore } from '../datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
 import { StateFile, Manifest } from '../../io/state-file/schema';
@@ -84,7 +84,7 @@ export function croppingPlanesEqual(a1: vtkPlane[], a2: vtkPlane[]) {
 }
 
 export const useCropStore = defineStore('crop', () => {
-  const imageStore = useImageStore();
+  const imageCacheStore = useImageCacheStore();
 
   const state = reactive({
     croppingByImageID: {} as Record<string, LPSCroppingPlanes>,
@@ -93,9 +93,9 @@ export const useCropStore = defineStore('crop', () => {
   const getComputedVTKPlanes = (imageID: MaybeRef<Maybe<string>>) =>
     computed(() => {
       const id = unref(imageID);
-      if (id && id in state.croppingByImageID && id in imageStore.metadata) {
+      const metadata = imageCacheStore.getImageMetadata(id);
+      if (id && id in state.croppingByImageID && metadata) {
         const cropBounds = state.croppingByImageID[id];
-        const metadata = imageStore.metadata[id];
         const planes = [
           convertCropBoundaryToPlane(cropBounds, metadata, 'Sagittal', 0),
           convertCropBoundaryToPlane(cropBounds, metadata, 'Sagittal', 1),
@@ -145,10 +145,13 @@ export const useCropStore = defineStore('crop', () => {
   };
 
   const resetCropping = (imageID: string) => {
-    const image = imageStore.dataIndex[imageID];
+    const image = imageCacheStore.getVtkImageData(imageID);
     if (!image) return;
 
-    const { lpsOrientation } = imageStore.metadata[imageID];
+    const metadata = imageCacheStore.getImageMetadata(imageID);
+    if (!metadata) return;
+
+    const { lpsOrientation } = metadata;
     const extent = image.getSpatialExtent();
     setCropping(imageID, {
       Sagittal: getAxisBounds(extent, 'Sagittal', lpsOrientation),

@@ -1,6 +1,13 @@
 <template>
   <div class="vtk-container-wrapper volume-viewer-container" tabindex="0">
     <div class="vtk-container" data-testid="two-view-container">
+      <v-progress-linear
+        v-if="isImageLoading"
+        indeterminate
+        class="loading-indicator"
+        height="2"
+        color="grey"
+      />
       <div class="vtk-sub-container">
         <vtk-volume-view
           class="vtk-view"
@@ -91,7 +98,7 @@ useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID, currentImageData } = useCurrentImage();
+const { currentImageID, currentImageData, isImageLoading } = useCurrentImage();
 
 watchImmediate(currentImageID, () => resetCamera());
 

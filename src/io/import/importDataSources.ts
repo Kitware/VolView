@@ -27,12 +27,12 @@ import openUriStream from '@/src/io/import/processors/openUriStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
-import { importDicomChunks } from '@/src/actions/importDicomChunks';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import { ensureError, partition } from '@/src/utils';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -63,7 +63,9 @@ const importConfigs = (
 async function importDicomChunkSources(sources: ChunkSource[]) {
   if (sources.length === 0) return [];
 
-  const volumeChunks = await importDicomChunks(sources.map((src) => src.chunk));
+  const volumeChunks = await useDICOMStore().importChunks(
+    sources.map((src) => src.chunk)
+  );
 
   // this is used to reconstruct the ChunkSource list
   const chunkToDataSource = new Map<Chunk, ChunkSource>();

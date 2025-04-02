@@ -7,6 +7,7 @@ import {
   type DataSelection,
 } from '@/src/utils/dataSelection';
 import { DataSource } from '@/src/io/import/dataSource';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from './datasets-dicom';
 import { useImageStore } from './datasets-images';
 import * as Schema from '../io/state-file/schema';
@@ -108,6 +109,7 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
 
 export const useDatasetStore = defineStore('dataset', () => {
   const imageStore = useImageStore();
+  const imageCacheStore = useImageCacheStore();
   const dicomStore = useDICOMStore();
   const layersStore = useLayersStore();
   const modelStore = useModelStore();
@@ -122,8 +124,11 @@ export const useDatasetStore = defineStore('dataset', () => {
   const primaryImageID = primarySelection;
 
   const primaryDataset = computed<vtkImageData | null>(() => {
-    const { dataIndex } = imageStore;
-    return (primaryImageID.value && dataIndex[primaryImageID.value]) || null;
+    return (
+      (primaryImageID.value &&
+        imageCacheStore.imageById[primaryImageID.value].getVtkImageData()) ||
+      null
+    );
   });
 
   const idsAsSelections = computed(() => {

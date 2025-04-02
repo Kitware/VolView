@@ -1,5 +1,5 @@
 import { getDisplayName, useDICOMStore } from '@/src/store/datasets-dicom';
-import { useImageStore } from '@/src/store/datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { Maybe } from '@/src/types';
 
 export type DataSelection = string;
@@ -18,11 +18,11 @@ export const isRegularImage = (imageID: Maybe<string>) => {
 };
 
 export const getImage = (imageID: string) => {
-  return useImageStore().dataIndex[imageID];
+  return useImageCacheStore().getVtkImageData(imageID);
 };
 
 const getImageName = (imageID: string) => {
-  return useImageStore().metadata[imageID].name;
+  return useImageCacheStore().getImageMetadata(imageID)?.name ?? null;
 };
 
 export const getSelectionName = (selection: string) => {

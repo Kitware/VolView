@@ -71,10 +71,7 @@ import ModulePanel from '@/src/components/ModulePanel.vue';
 import DragAndDrop from '@/src/components/DragAndDrop.vue';
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import ControlsModal from '@/src/components/ControlsModal.vue';
-import {
-  defaultImageMetadata,
-  useImageStore,
-} from '@/src/store/datasets-images';
+import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
@@ -83,6 +80,7 @@ import {
   populateAuthorizationToken,
   stripTokenFromUrl,
 } from '@/src/utils/token';
+import { defaultImageMetadata } from '@/src/core/progressiveImage';
 
 export default defineComponent({
   name: 'App',

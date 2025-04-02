@@ -3,16 +3,7 @@ import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
 import { Image, readImage } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
-import { Maybe } from '@/src/types';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { TypedArray } from '@kitware/vtk.js/types';
-import { useImageStore } from '@/src/store/datasets-images';
-import {
-  PatientInfo,
-  StudyInfo,
-  VolumeInfo,
-  useDICOMStore,
-} from '@/src/store/datasets-dicom';
 import { Tags } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
@@ -22,8 +13,13 @@ import {
   ChunkStatus,
   ChunkImageEvents,
 } from '@/src/core/streaming/chunkImage';
-import { ComputedRef, computed } from 'vue';
 import mitt, { Emitter } from 'mitt';
+import {
+  BaseProgressiveImage,
+  ProgressiveImageStatus,
+} from '@/src/core/progressiveImage';
+import { ensureError } from '@/src/utils';
+import { computed } from 'vue';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -69,29 +65,52 @@ async function dicomSliceToImageUri(blob: Blob) {
   return itkImageToURI(itkImage);
 }
 
-export default class DicomChunkImage implements ChunkImage {
+export default class DicomChunkImage
+  extends BaseProgressiveImage
+  implements ChunkImage
+{
   protected chunks: Chunk[];
   private chunkListeners: Array<() => void>;
   private thumbnailCache: WeakMap<Chunk, Promise<unknown>>;
   private events: Emitter<ChunkImageEvents>;
-  public imageData: Maybe<vtkImageData>;
-  public dataId: Maybe<string>;
-  public chunkStatus: ChunkStatus[];
-  public isLoading: ComputedRef<boolean>;
+  private chunkStatus: ChunkStatus[];
 
   constructor() {
+    super();
+
+    this.status.value = 'incomplete';
+    this.loaded = computed(() => {
+      return !this.loading.value && this.status.value === 'complete';
+    });
+
     this.chunks = [];
     this.chunkListeners = [];
-    this.dataId = null;
     this.chunkStatus = [];
-    this.isLoading = computed(() =>
-      this.chunkStatus.some(
-        (status) =>
-          status !== ChunkStatus.Loaded && status !== ChunkStatus.Errored
-      )
-    );
     this.thumbnailCache = new WeakMap();
     this.events = mitt();
+
+    this.addEventListener('loading', (loading) => {
+      this.loading.value = loading;
+    });
+
+    this.addEventListener('status', (status) => {
+      this.status.value = status;
+    });
+  }
+
+  getChunkStatuses(): Array<ChunkStatus> {
+    return this.chunkStatus.slice();
+  }
+
+  getDicomMetadata(chunkNum = 0) {
+    if (chunkNum < 0 || chunkNum >= this.chunks.length) {
+      throw RangeError('chunkNum is out of bounds');
+    }
+    return this.chunks[chunkNum].metadata;
+  }
+
+  getChunks() {
+    return this.chunks.slice();
   }
 
   addEventListener<T extends keyof ChunkImageEvents>(
@@ -109,11 +128,11 @@ export default class DicomChunkImage implements ChunkImage {
   }
 
   dispose() {
+    super.dispose();
     this.unregisterChunkListeners();
     this.events.all.clear();
     this.chunks.length = 0;
-    this.imageData = null;
-    this.dataId = null;
+    this.vtkImageData.value.delete();
     this.chunkStatus = [];
     this.thumbnailCache = new WeakMap();
   }
@@ -122,35 +141,38 @@ export default class DicomChunkImage implements ChunkImage {
     this.chunks.forEach((chunk) => {
       chunk.loadData();
     });
+    this.events.emit('loading', true);
   }
 
   stopLoad() {
     this.chunks.forEach((chunk) => {
       chunk.stopLoad();
     });
+    this.events.emit('loading', false);
   }
 
   async addChunks(chunks: Chunk[]) {
-    await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
-    const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
-    chunks
-      .filter((chunk) => !existingIds.has(getChunkId(chunk)))
-      .forEach((chunk) => {
-        this.chunks.push(chunk);
-      });
+    this.unregisterChunkListeners();
 
+    const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
+    const newChunks = chunks.filter(
+      (chunk) => !existingIds.has(getChunkId(chunk))
+    );
+    newChunks.forEach((chunk) => {
+      this.chunks.push(chunk);
+    });
+
+    await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
     const chunksByVolume = await splitAndSort(
       this.chunks,
       (chunk) => chunk.metaBlob!
     );
-    const volumes = Object.entries(chunksByVolume);
+    const volumes = Object.values(chunksByVolume);
     if (volumes.length !== 1)
       throw new Error('Did not get just a single volume!');
 
-    this.unregisterChunkListeners();
-
     // save the newly sorted chunk order
-    [this.dataId, this.chunks] = volumes[0];
+    this.chunks = volumes[0];
 
     this.chunkStatus = this.chunks.map((chunk) => {
       switch (chunk.state) {
@@ -166,15 +188,11 @@ export default class DicomChunkImage implements ChunkImage {
           throw new Error('Chunk is in an invalid state');
       }
     });
+    this.onChunksUpdated();
 
     this.registerChunkListeners();
-    this.processChunks();
+    this.processNewChunks(newChunks);
     this.reallocateImage();
-
-    // TODO somehow link the volume key + dataset files in fileStore for files
-    this.updateImageStore();
-    // should be updated after the image store so that we get an imageId.
-    this.updateDicomStore();
   }
 
   getThumbnail(strategy: ThumbnailStrategy): Promise<any> {
@@ -185,7 +203,7 @@ export default class DicomChunkImage implements ChunkImage {
     const chunk = this.chunks[middle];
 
     if (!this.thumbnailCache.has(chunk)) {
-      // NOTE(fli): if chunk changes, the old promise is not cancelled
+      // FIXME(fli): if chunk changes, the old promise is not cancelled
       this.thumbnailCache.set(
         chunk,
         waitForChunkState(chunk, ChunkState.Loaded).then((ch) => {
@@ -197,9 +215,9 @@ export default class DicomChunkImage implements ChunkImage {
     return this.thumbnailCache.get(chunk)!;
   }
 
-  private processChunks() {
-    this.chunks
-      .filter((chunk): chunk is Chunk & { dataBlob: Blob } => !!chunk.dataBlob)
+  private processNewChunks(chunks: Chunk[]) {
+    chunks
+      .filter((chunk) => chunk.state === ChunkState.Loaded)
       .forEach((_, idx) => {
         this.onChunkHasData(idx);
       });
@@ -231,11 +249,11 @@ export default class DicomChunkImage implements ChunkImage {
   }
 
   private reallocateImage() {
-    this.imageData?.delete();
-    this.imageData = allocateImageFromChunks(this.chunks);
+    this.vtkImageData.value.delete();
+    this.vtkImageData.value = allocateImageFromChunks(this.chunks);
 
     // recalculate image data's data range, since allocateImageFromChunks doesn't know anything about it
-    const scalars = this.imageData.getPointData().getScalars();
+    const scalars = this.vtkImageData.value.getPointData().getScalars();
     this.dataRangeFromChunks().forEach(([min, max], compIdx) => {
       scalars.setRange({ min, max }, compIdx);
     });
@@ -262,7 +280,6 @@ export default class DicomChunkImage implements ChunkImage {
   }
 
   private async onChunkHasData(chunkIndex: number) {
-    if (!this.imageData) return;
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
     const result = await readImage(
@@ -274,10 +291,10 @@ export default class DicomChunkImage implements ChunkImage {
 
     if (!result.image.data) throw new Error('No data read from chunk');
 
-    const scalars = this.imageData.getPointData().getScalars();
+    const scalars = this.vtkImageData.value.getPointData().getScalars();
     const pixelData = scalars.getData() as TypedArray;
 
-    const dims = this.imageData.getDimensions();
+    const dims = this.vtkImageData.value.getDimensions();
     const offset =
       dims[0] * dims[1] * scalars.getNumberOfComponents() * chunkIndex;
     pixelData.set(result.image.data as TypedArray, offset);
@@ -306,69 +323,37 @@ export default class DicomChunkImage implements ChunkImage {
     chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);
 
     this.chunkStatus[chunkIndex] = ChunkStatus.Loaded;
-    this.events.emit('chunkLoaded', {
+    this.events.emit('chunkLoad', {
       chunk,
       updatedExtent: [0, dims[0] - 1, 0, dims[1] - 1, chunkIndex, chunkIndex],
     });
+    this.onChunksUpdated();
 
-    this.imageData.modified();
+    this.vtkImageData.value.modified();
   }
 
   private onChunkErrored(chunkIndex: number, err: unknown) {
     this.chunkStatus[chunkIndex] = ChunkStatus.Errored;
-    this.events.emit('chunkErrored', {
+    this.events.emit('chunkError', {
       chunk: this.chunks[chunkIndex],
       error: err,
     });
+    this.events.emit('error', ensureError(err));
+    this.onChunksUpdated();
   }
 
-  private updateDicomStore() {
-    if (this.chunks.length === 0) return;
-
-    const firstChunk = this.chunks[0];
-    if (!firstChunk.metadata)
-      throw new Error('Chunk does not have metadata loaded');
-    const metadata = Object.fromEntries(firstChunk.metadata);
-
-    const store = useDICOMStore();
-    const patientInfo: PatientInfo = {
-      PatientID: metadata[Tags.PatientID],
-      PatientName: metadata[Tags.PatientName],
-      PatientBirthDate: metadata[Tags.PatientBirthDate],
-      PatientSex: metadata[Tags.PatientSex],
-    };
-
-    const studyInfo: StudyInfo = {
-      StudyID: metadata[Tags.StudyID],
-      StudyInstanceUID: metadata[Tags.StudyInstanceUID],
-      StudyDate: metadata[Tags.StudyDate],
-      StudyTime: metadata[Tags.StudyTime],
-      AccessionNumber: metadata[Tags.AccessionNumber],
-      StudyDescription: metadata[Tags.StudyDescription],
-    };
-
-    const volumeInfo: VolumeInfo = {
-      NumberOfSlices: this.chunks.length,
-      VolumeID: this.dataId ?? '',
-      Modality: metadata[Tags.Modality],
-      SeriesInstanceUID: metadata[Tags.SeriesInstanceUID],
-      SeriesNumber: metadata[Tags.SeriesNumber],
-      SeriesDescription: metadata[Tags.SeriesDescription],
-      WindowLevel: metadata[Tags.WindowLevel],
-      WindowWidth: metadata[Tags.WindowWidth],
-    };
-
-    store._updateDatabase(patientInfo, studyInfo, volumeInfo);
+  private computeStatus(): ProgressiveImageStatus {
+    for (let i = 0; i < this.chunkStatus.length; i++) {
+      if (this.chunkStatus[i] !== ChunkStatus.Loaded) return 'incomplete';
+    }
+    return 'complete';
   }
 
-  private updateImageStore() {
-    if (!this.imageData || !this.dataId) return;
-
-    const store = useImageStore();
-    if (this.dataId in store.dataIndex) {
-      store.updateData(this.dataId, this.imageData);
-    } else {
-      store.addVTKImageData('DICOM image', this.imageData, this.dataId);
+  private onChunksUpdated() {
+    const status = this.computeStatus();
+    this.events.emit('status', status);
+    if (status === 'complete') {
+      this.events.emit('loading', false);
     }
   }
 }

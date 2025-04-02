@@ -4,7 +4,8 @@ import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
 import { ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
-import useChunkStore from '@/src/store/chunks';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
 import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
@@ -93,11 +94,12 @@ export default defineComponent({
             return;
           }
 
-          const chunkStore = useChunkStore();
+          const imageCacheStore = useImageCacheStore();
+          const image = imageCacheStore.imageById[key];
+          if (!image || !(image instanceof DicomChunkImage)) return;
 
           try {
-            const chunk = chunkStore.chunkImageById[key];
-            const thumb = await chunk.getThumbnail(
+            const thumb = await image.getThumbnail(
               ThumbnailStrategy.MiddleSlice
             );
             if (thumb !== null) {

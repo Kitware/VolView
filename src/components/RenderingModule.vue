@@ -9,11 +9,9 @@ import LayerList from './LayerList.vue';
 export default defineComponent({
   components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
   setup() {
-    const { currentImageData, currentChunkImage } = useCurrentImage();
+    const { currentImageData, currentImage } = useCurrentImage();
     const hasCurrentImage = computed(() => !!currentImageData.value);
-    const isImageLoading = computed(
-      () => !!unref(currentChunkImage.value?.isLoading)
-    );
+    const isImageLoading = computed(() => !!unref(currentImage.value?.loading));
 
     const { currentLayers } = useCurrentImage();
     const hasLayers = computed(() => !!currentLayers.value.length);

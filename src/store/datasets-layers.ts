@@ -45,6 +45,10 @@ export const useLayersStore = defineStore('layer', () => {
     if (!sourceImage) {
       throw new Error('Failed to load layer image');
     }
+    if (!parentImage) {
+      throw new Error('No parent image found');
+    }
+
     if (
       !vtkBoundingBox.intersects(
         parentImage.getBounds(),

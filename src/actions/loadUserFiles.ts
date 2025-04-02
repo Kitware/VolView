@@ -110,10 +110,9 @@ function filterMatchingNames(
   extension: string
 ) {
   const dicomStore = useDICOMStore();
-  const primaryName =
-    primaryDataSource.dataType === 'dicom'
-      ? dicomStore.volumeInfo[primaryDataSource.dataID].SeriesNumber
-      : getDataSourceName(primaryDataSource.dataSource);
+  const primaryName = isDicomImage(primaryDataSource.dataID)
+    ? dicomStore.volumeInfo[primaryDataSource.dataID].SeriesNumber
+    : getDataSourceName(primaryDataSource.dataSource);
   if (!primaryName) return [];
   const primaryNamePrefix = primaryName.split('.').slice(0, 1).join();
   return filterLoadableDataSources(succeeded)

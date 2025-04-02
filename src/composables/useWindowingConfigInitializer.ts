@@ -73,6 +73,11 @@ export function useWindowingConfigInitializer(
   const { imageData } = useImage(imageID);
   const dicomStore = useDICOMStore();
 
+  const scalarRange = vtkFieldRef(
+    computed(() => imageData.value?.getPointData()?.getScalars()),
+    'range'
+  );
+
   const store = useWindowingStore();
   const { config: windowConfig } = useWindowingConfig(viewID, imageID);
   const { autoRangeValues } = useAutoRangeValues(imageID);
@@ -100,6 +105,13 @@ export function useWindowingConfigInitializer(
     const [min, max] = image.getPointData().getScalars().getRange();
     store.updateConfig(viewIdVal, imageIdVal, { min, max });
     store.resetWindowLevel(viewIdVal, imageIdVal);
+  });
+
+  watchImmediate(scalarRange, (range) => {
+    const imageIdVal = unref(imageID);
+    const viewIdVal = unref(viewID);
+    if (!range || !imageIdVal || !viewIdVal) return;
+    store.updateConfig(viewIdVal, imageIdVal, { min: range[0], max: range[1] });
   });
 
   function updateConfigFromAutoRangeValues() {

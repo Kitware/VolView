@@ -28,6 +28,13 @@
       />
     </div>
     <div class="vtk-container" data-testid="two-view-container">
+      <v-progress-linear
+        v-if="isImageLoading"
+        indeterminate
+        class="loading-indicator"
+        height="2"
+        color="grey"
+      />
       <div class="vtk-sub-container">
         <vtk-slice-view
           class="vtk-view"
@@ -234,6 +241,7 @@ const {
   currentLayers,
   currentImageMetadata,
   currentImageData,
+  isImageLoading,
 } = useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,

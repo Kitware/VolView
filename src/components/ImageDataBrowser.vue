@@ -10,6 +10,8 @@ import {
   type DataSelection,
   selectionEquals,
 } from '@/src/utils/dataSelection';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import { useImageStore } from '../store/datasets-images';
 import { useDatasetStore } from '../store/datasets';
 
@@ -35,6 +37,7 @@ export default defineComponent({
     const segmentGroupStore = useSegmentGroupStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
+    const imageCacheStore = useImageCacheStore();
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
@@ -43,8 +46,6 @@ export default defineComponent({
     );
 
     const images = computed(() => {
-      const { metadata } = imageStore;
-
       const layerImages = layersStore
         .getLayers(primarySelection.value)
         .filter(({ selection }) => isRegularImage(selection));
@@ -63,14 +64,16 @@ export default defineComponent({
         const layerLoading = isLayer && !layerLoaded;
         const layerable =
           id !== selectedImageID && primarySelection.value != null;
+        const metadata =
+          imageCacheStore.getImageMetadata(id) ?? defaultImageMetadata();
         return {
           id,
           cacheKey: imageCacheKey(id),
           // for UI selection
           selectionKey,
-          name: metadata[id].name,
-          dimensions: metadata[id].dimensions,
-          spacing: [...metadata[id].spacing].map((s) => s.toFixed(2)),
+          name: metadata.name,
+          dimensions: metadata.dimensions,
+          spacing: [...metadata.spacing].map((s) => s.toFixed(2)),
           layerable,
           layerLoading,
           isLayer,
@@ -100,7 +103,8 @@ export default defineComponent({
         imageIDs.forEach(async (id) => {
           const cacheKey = imageCacheKey(id);
           if (!(cacheKey in thumbnails)) {
-            const imageData = imageStore.dataIndex[id];
+            const imageData = imageCacheStore.getVtkImageData(id);
+            if (!imageData) return;
             const canvasIM = thumbnailer.generate(imageData);
             const imageURI = thumbnailer.imageDataToDataURI(canvasIM, 100, 100);
             const dims = imageData.getDimensions();

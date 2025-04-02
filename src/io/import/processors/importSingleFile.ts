@@ -11,6 +11,8 @@ import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { InitViewSpecs } from '@/src/config';
 import { Skip } from '@/src/utils/evaluateChain';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { defaultImageMetadata } from '@/src/core/progressiveImage';
 
 /**
  * Reads and imports a file DataSource.
@@ -37,7 +39,8 @@ const importSingleFile: ImportHandler = async (dataSource) => {
 
     // Create a default view for each viewID
     useViewStore().viewIDs.forEach((viewID: string) => {
-      const { lpsOrientation, dimensions } = useImageStore().metadata[dataID];
+      const { lpsOrientation, dimensions } =
+        useImageCacheStore().getImageMetadata(dataID) ?? defaultImageMetadata();
       const axisDir = InitViewSpecs[viewID].props.viewDirection;
       const lpsFromDir = getLPSAxisFromDir(axisDir);
       const lpsOrient = lpsOrientation[lpsFromDir];

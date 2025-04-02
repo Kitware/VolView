@@ -1,6 +1,9 @@
+import {
+  ProgressiveImage,
+  ProgressiveImageEvents,
+} from '@/src/core/progressiveImage';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { Extent } from '@kitware/vtk.js/types';
-import { Ref } from 'vue';
 
 export enum ThumbnailStrategy {
   MiddleSlice,
@@ -24,15 +27,12 @@ export interface ChunkErrorInfo {
 }
 
 export type ChunkImageEvents = {
-  chunkLoaded: ChunkLoadedInfo;
-  chunkErrored: ChunkErrorInfo;
-};
+  chunkLoad: ChunkLoadedInfo;
+  chunkError: ChunkErrorInfo;
+} & ProgressiveImageEvents;
 
-export interface ChunkImage {
+export interface ChunkImage extends ProgressiveImage {
   addChunks(chunks: Chunk[]): void;
-  startLoad(): void;
-  stopLoad(): void;
-  dispose(): void;
   getThumbnail(strategy: ThumbnailStrategy): Promise<string>;
   addEventListener<T extends keyof ChunkImageEvents>(
     type: T,
@@ -42,6 +42,5 @@ export interface ChunkImage {
     type: T,
     callback: (info: ChunkImageEvents[T]) => void
   ): void;
-  isLoading: Ref<boolean>;
-  chunkStatus: Array<ChunkStatus>;
+  getChunkStatuses(): Array<ChunkStatus>;
 }
