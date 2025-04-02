@@ -17,7 +17,8 @@ export type ContentRange =
 export function parseContentRangeHeader(
   headerValue: string | null
 ): ContentRange {
-  if (!headerValue) return { type: 'empty-range' };
+  if (headerValue == null) return { type: 'empty-range' };
+  if (headerValue.length === 0) return { type: 'invalid-range' };
 
   const match = CONTENT_RANGE_REGEXP.exec(headerValue);
   const groups = match?.groups;
