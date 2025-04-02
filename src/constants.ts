@@ -2,6 +2,7 @@ import type { RGBColor } from '@kitware/vtk.js/types';
 
 export const EPSILON = 10e-6;
 export const NOOP = () => {};
+export const NO_NAME = '(no name)';
 
 // themes
 export const ThemeStorageKey = 'app-theme';

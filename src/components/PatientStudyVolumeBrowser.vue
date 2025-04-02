@@ -38,6 +38,7 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
     const datasetStore = useDatasetStore();
     const layersStore = useLayersStore();
+    const imageCacheStore = useImageCacheStore();
 
     const primarySelectionRef = computed(() => datasetStore.primarySelection);
     const volumes = computed(() => {
@@ -48,7 +49,7 @@ export default defineComponent({
         .filter(({ selection }) => isDicomImage(selection));
       const layerVolumeKeys = layerVolumes.map(({ selection }) => selection);
       const loadedLayerVolumeKeys = layerVolumes
-        .filter(({ id }) => id in layersStore.layerImages)
+        .filter(({ id }) => imageCacheStore.imageById[id]?.isLoaded())
         .map(({ selection }) => selection);
       const selectedVolumeKey =
         isDicomImage(primarySelection) && primarySelection;
@@ -94,7 +95,6 @@ export default defineComponent({
             return;
           }
 
-          const imageCacheStore = useImageCacheStore();
           const image = imageCacheStore.imageById[key];
           if (!image || !(image instanceof DicomChunkImage)) return;
 

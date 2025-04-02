@@ -6,10 +6,10 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
-import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useProbeStore } from '@/src/store/probe';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { NO_NAME } from '@/src/constants';
 
 type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
 
@@ -30,7 +30,6 @@ const {
   currentLayers,
 } = useCurrentImage();
 const imageCacheStore = useImageCacheStore();
-const layersStore = useLayersStore();
 const segmentGroupStore = useSegmentGroupStore();
 const probeStore = useProbeStore();
 
@@ -57,10 +56,9 @@ const getLayers = () =>
         type: 'layer',
         id: layer.id,
         name:
-          imageCacheStore.getImageMetadata(layer.selection)?.name ??
-          '(no name)',
+          imageCacheStore.getImageMetadata(layer.selection)?.name ?? NO_NAME,
         rep,
-        image: layersStore.layerImages[layer.id],
+        image: imageCacheStore.getVtkImageData(layer.id),
       };
     })
     .filter(Boolean);
@@ -107,7 +105,7 @@ watch(
 
 const getImageSamples = (x: number, y: number) => {
   const firstToSample = sampleSet.value[0];
-  if (!firstToSample) return undefined;
+  if (!firstToSample?.image) return undefined;
 
   pointPicker.pick([x, y, 1.0], view.renderer);
   if (pointPicker.getActors().length === 0) return undefined;

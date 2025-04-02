@@ -1,6 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, PropType, toRefs } from 'vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { NO_NAME } from '@/src/constants';
 import { InitViewSpecs } from '../config';
 import { BlendConfig } from '../types/views';
 import { Layer } from '../store/datasets-layers';
@@ -24,7 +25,7 @@ export default defineComponent({
 
     const imageName = computed(() => {
       const { selection } = props.layer;
-      return imageCacheStore.getImageMetadata(selection)?.name ?? '(no name)';
+      return imageCacheStore.getImageMetadata(selection)?.name ?? NO_NAME;
     });
 
     const layerColoringStore = useLayerColoringStore();

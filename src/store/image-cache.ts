@@ -10,6 +10,9 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
 import { markRaw, reactive, ref } from 'vue';
 
+/**
+ * An internal cache of progressively loadable images.
+ */
 export const useImageCacheStore = defineStore('image-cache', () => {
   const idStore = useIdStore();
 

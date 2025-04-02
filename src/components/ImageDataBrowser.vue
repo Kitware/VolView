@@ -41,9 +41,7 @@ export default defineComponent({
 
     const primarySelection = computed(() => dataStore.primarySelection);
 
-    const nonDICOMImages = computed(() =>
-      imageStore.idList.filter((id) => isRegularImage(id))
-    );
+    const nonDICOMImages = computed(() => imageStore.idList);
 
     const images = computed(() => {
       const layerImages = layersStore
@@ -51,7 +49,7 @@ export default defineComponent({
         .filter(({ selection }) => isRegularImage(selection));
       const layerImageIDs = layerImages.map(({ selection }) => selection);
       const loadedLayerImageIDs = layerImages
-        .filter(({ id }) => id in layersStore.layerImages)
+        .filter(({ id }) => imageCacheStore.imageById[id]?.isLoaded())
         .map(({ selection }) => selection);
 
       const selectedImageID =

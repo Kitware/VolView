@@ -7,6 +7,9 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { ImageMetadata } from '../types/image';
 import { compareImageSpaces } from '../utils/imageSpace';
 
+/**
+ * Stores regular non-dicom images (typically nrrd, mha, nii, etc.).
+ */
 export const useImageStore = defineStore('images', () => {
   const imageCacheStore = useImageCacheStore();
 

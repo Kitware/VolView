@@ -63,9 +63,10 @@ export function getIsImageLoading(imageID: Maybe<string>) {
 export function getImageLayers(imageID: Maybe<string>) {
   if (!imageID) return [];
   const layersStore = useLayersStore();
+  const imageCacheStore = useImageCacheStore();
   return layersStore
     .getLayers(imageID)
-    .filter(({ id }) => id in layersStore.layerImages);
+    .filter(({ id }) => imageCacheStore.imageById[id]?.isLoaded());
 }
 
 export function getImage(imageID: Maybe<string>) {

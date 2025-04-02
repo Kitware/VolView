@@ -243,6 +243,9 @@ export const useDICOMStore = defineStore('dicom', {
           };
 
           this._updateDatabase(patientInfo, studyInfo, volumeInfo);
+
+          // save the image name
+          image.setName(getDisplayName(volumeInfo));
         })
       );
 
