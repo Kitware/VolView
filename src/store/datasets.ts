@@ -42,9 +42,6 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
       return dataSourceToId.get(ds)!;
     }
 
-    const id = nextId();
-    dataSourceToId.set(ds, id);
-
     // don't need to serialize all parents, just the ones that are necessary.
     const { type } = ds;
     if (type === 'file') {
@@ -52,6 +49,9 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
       if (ds.parent) {
         return serializeDataSource(ds.parent);
       }
+
+      const id = nextId();
+      dataSourceToId.set(ds, id);
 
       const fileId = nextId();
       files[fileId] = ds.file;
@@ -61,14 +61,27 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
         fileId,
         fileType: ds.fileType,
       });
-    } else if (type === 'archive') {
+      return id;
+    }
+
+    if (type === 'archive') {
+      const parentId = serializeDataSource(ds.parent);
+      const id = nextId();
+      dataSourceToId.set(ds, id);
+
       serializedDependencies.push({
         id,
         type: 'archive',
         path: ds.path,
-        parent: serializeDataSource(ds.parent),
+        parent: parentId,
       });
-    } else if (type === 'uri') {
+      return id;
+    }
+
+    if (type === 'uri') {
+      const id = nextId();
+      dataSourceToId.set(ds, id);
+
       serializedDependencies.push({
         id,
         type: 'uri',
@@ -76,23 +89,30 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
         uri: ds.uri,
         mime: ds.mime,
       });
-    } else if (type === 'collection') {
+      return id;
+    }
+
+    if (type === 'collection') {
+      const id = nextId();
+      dataSourceToId.set(ds, id);
+
       serializedDependencies.push({
         id,
         type: 'collection',
         sources: ds.sources.map((src) => serializeDataSource(src)),
       });
-    } else if (type === 'chunk') {
+      return id;
+    }
+
+    if (type === 'chunk') {
       // chunk derives from the parent. Just return the serialized parent.
       if (ds.parent) {
         return serializeDataSource(ds.parent);
       }
       throw new Error('Chunk does not have a parent');
-    } else {
-      throw new Error(`Invalid data source type: ${type as string}`);
     }
 
-    return id;
+    throw new Error(`Invalid data source type: ${type as string}`);
   }
 
   loadedDataSources.forEach(({ dataID, dataSource }) => {
