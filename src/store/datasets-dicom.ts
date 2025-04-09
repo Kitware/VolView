@@ -190,26 +190,6 @@ export const useDICOMStore = defineStore('dicom', {
           await image.addChunks(sortedChunks);
           imageCacheStore.addProgressiveImage(image, { id });
 
-          // TODO save file store
-          // image.getChunks().map((chunk) => chunk.dataBlob);
-
-          //   const volumeToFiles = await DICOM.splitAndSort(allFiles, identity);
-          //   if (Object.keys(volumeToFiles).length === 0)
-          //     throw new Error('No volumes categorized from DICOM file(s)');
-
-          //   const fileStore = useFileStore();
-
-          //   // Link VolumeKey and DatasetFiles in fileStore
-          //   Object.entries(volumeToFiles).forEach(([volumeKey, files]) => {
-          //     const volumeDatasetFiles = files.map((file) => {
-          //       const source = fileToDataSource.get(file);
-          //       if (!source)
-          //         throw new Error('Did not match File with source DataSource');
-          //       return source;
-          //     });
-          //     fileStore.add(volumeKey, volumeDatasetFiles);
-          //   });
-
           // update database
           const metaPairs = image.getDicomMetadata();
           if (!metaPairs) throw new Error('Metdata not ready');

@@ -71,8 +71,8 @@ export function getImageLayers(imageID: Maybe<string>) {
 
 export function getImage(imageID: Maybe<string>) {
   if (!imageID) return null;
-  const chunkStore = useImageCacheStore();
-  return chunkStore.imageById[imageID];
+  const imageCacheStore = useImageCacheStore();
+  return imageCacheStore.imageById[imageID];
 }
 
 export function useImage(imageID: MaybeRef<Maybe<string>>) {
