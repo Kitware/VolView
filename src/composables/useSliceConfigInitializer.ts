@@ -33,7 +33,7 @@ export function useSliceConfigInitializer(
   });
 
   watchImmediate(
-    [toRef(sliceDomain), toRef(viewDirection), toRef(imageID)] as const,
+    [toRef(sliceDomain), toRef(viewDirection), toRef(imageID)],
     ([domain, axisDirection, id]) => {
       if (!id) return;
 
