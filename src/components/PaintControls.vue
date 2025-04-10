@@ -86,17 +86,10 @@
             </template>
             <ul>
               <li>
-                Segmentation will only expanded if a slice is segmented but none
-                of the direct neighbors are segmented.
+                Will only fill between segmented slices where none of their
+                direct neighbors are segmented.
               </li>
-              <li>
-                All visible segments will be interpolated, not just the selected
-                segment.
-              </li>
-              <li>
-                The complete segmentation will be created by interpolating
-                segmentations in empty slices.
-              </li>
+              <li>Only the selected segment will be filled between.</li>
               <li>
                 Uses
                 <a
@@ -113,17 +106,17 @@
         <v-row justify="space-between" no-gutters>
           <v-btn
             variant="tonal"
-            :prepend-icon="fillMode === 'computing' ? '' : 'mdi-cogs'"
+            :prepend-icon="fillStep === 'computing' ? '' : 'mdi-cogs'"
             @click="startCompute"
-            :disabled="fillMode !== 'start'"
-            :loading="fillMode === 'computing'"
+            :disabled="fillStep !== 'start'"
+            :loading="fillStep === 'computing'"
           >
             Preview
           </v-btn>
           <v-btn
             variant="tonal"
             prepend-icon="mdi-check"
-            :disabled="fillMode !== 'previewing'"
+            :disabled="fillStep !== 'previewing'"
             @click="confirmFill"
           >
             Confirm
@@ -131,7 +124,7 @@
           <v-btn
             variant="tonal"
             prepend-icon="mdi-cancel"
-            :disabled="fillMode !== 'previewing'"
+            :disabled="fillStep !== 'previewing'"
             @click="cancelFill"
           >
             Cancel
@@ -173,18 +166,12 @@ export default defineComponent({
     });
 
     const fillBetweenStore = useFillBetweenStore();
-    const { mode: fillMode } = storeToRefs(fillBetweenStore);
+    const fillStep = computed(() => fillBetweenStore.fillStep);
 
     const startCompute = () => {
-      fillBetweenStore.computeFillBetween();
-    };
-
-    const confirmFill = () => {
-      fillBetweenStore.confirmFill();
-    };
-
-    const cancelFill = () => {
-      fillBetweenStore.cancelFill();
+      const id = paintStore.activeSegmentGroupID;
+      if (!id) return;
+      fillBetweenStore.computeFillBetween(id);
     };
 
     return {
@@ -192,10 +179,10 @@ export default defineComponent({
       setBrushSize,
       mode,
       PaintMode,
-      fillMode,
+      fillStep,
       startCompute,
-      confirmFill,
-      cancelFill,
+      confirmFill: fillBetweenStore.confirmFill,
+      cancelFill: fillBetweenStore.cancelFill,
     };
   },
 });

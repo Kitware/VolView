@@ -178,6 +178,13 @@ export default defineConfig({
         },
         {
           src: resolvePath(
+            '/home/paul/src/volview-stuff/ITKContourInterpolation/wasm/typescript/',
+            'dist/pipelines/*{.wasm,.js,.zst}'
+          ),
+          dest: 'itk/pipelines',
+        },
+        {
+          src: resolvePath(
             rootDir,
             'src/io/itk-dicom/emscripten-build/**/dicom*'
           ),
@@ -208,6 +215,15 @@ export default defineConfig({
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
       '/tmp': config.baseUrl!,
+    },
+    fs: {
+      // Allow accessing files from the ITKContourInterpolation project
+      allow: [
+        // Default allowed locations
+        '.',
+        // Add the ITKContourInterpolation directory
+        '/home/paul/src/volview-stuff/ITKContourInterpolation',
+      ],
     },
   },
   optimizeDeps: {
