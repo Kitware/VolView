@@ -214,7 +214,7 @@ export default defineConfig({
     exclude: ['itk-wasm'],
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
     threads: false,
     deps: {
