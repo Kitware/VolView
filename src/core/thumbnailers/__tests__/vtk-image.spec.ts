@@ -1,7 +1,6 @@
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { expect } from 'chai';
 import { ThumbnailSlice } from '..';
 import { createVTKImageThumbnailer } from '../vtk-image';
 

@@ -15,9 +15,8 @@
     "baseUrl": ".",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "typeRoots": ["./src"],
     "types": [
-      "mocha",
-      "chai",
       "node",
       "@wdio/globals/types",
       "expect-webdriverio",

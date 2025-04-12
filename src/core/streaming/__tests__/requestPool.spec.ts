@@ -1,35 +1,22 @@
 import { RequestPool } from '@/src/core/streaming/requestPool';
-import { addEventListenerOnce } from '@/src/utils';
-import { describe, it } from 'vitest';
-import chaiAsPromised from 'chai-as-promised';
-import chai, { expect } from 'chai';
-
-chai.use(chaiAsPromised);
+import { describe, it, expect } from 'vitest';
 
 // @ts-ignore
-global.fetch = async (request: RequestInfo | URL, init?: RequestInit) => {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(resolve, 100);
-    if (init?.signal) {
-      addEventListenerOnce(init.signal, 'abort', (reason) => {
-        clearTimeout(timeout);
-        reject(reason ?? new Error('cancelled timeout'));
-      });
-    }
-  });
+const fetch = async () => {
+  return new Promise<Response>(() => {});
 };
 
 describe('requestPool', () => {
   it('should not have more active requests than the pool size', () => {
     const N = 4;
-    const pool = new RequestPool(N);
+    const pool = new RequestPool(N, fetch);
     for (let i = 0; i < 10; i++) {
-      pool.fetch('url');
+      pool.fetch('http://localhost/url');
     }
     expect(pool.activeConnections).to.equal(N);
   });
 
-  it('should support removal of requests via an AbortController', () => {
+  it('should support removal of requests via an AbortController', async () => {
     const N = 4;
     const pool = new RequestPool(N);
     const controllers: AbortController[] = [];
@@ -38,15 +25,19 @@ describe('requestPool', () => {
     for (let i = 0; i < 10; i++) {
       const controller = new AbortController();
       controllers.push(controller);
-      promises.push(pool.fetch('url', { signal: controller.signal }));
+      promises.push(
+        pool.fetch('http://localhost/url', { signal: controller.signal })
+      );
     }
 
     controllers.forEach((controller) => {
-      controller.abort();
+      controller.abort('cancelled');
     });
 
-    promises.forEach((promise) => {
-      expect(promise).to.be.rejected;
-    });
+    // eslint-disable-next-line no-restricted-syntax
+    for (const p of promises) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(p).rejects.toThrow('cancelled');
+    }
   });
 });

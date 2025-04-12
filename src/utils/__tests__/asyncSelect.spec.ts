@@ -1,9 +1,5 @@
 import { asyncSelect } from '@/src/utils/asyncSelect';
-import { it, describe } from 'vitest';
-import chaiAsPromised from 'chai-as-promised';
-import chai, { expect } from 'chai';
-
-chai.use(chaiAsPromised);
+import { it, describe, expect } from 'vitest';
 
 function sleep(ms: number) {
   return new Promise((resolve) => {
@@ -15,7 +11,7 @@ describe('asyncSelect', () => {
   it('should act similar to Promise.race()', async () => {
     const promises = [sleep(11), sleep(1), sleep(111)];
     const { promise, index } = await asyncSelect(promises);
-    expect(promise).to.equal(promises[1]);
+    await expect(promise).toEqual(promises[1]);
     expect(index).to.equal(1);
   });
 
@@ -35,7 +31,7 @@ describe('asyncSelect', () => {
       }),
     ];
     const { promise, index } = await asyncSelect(promises);
-    expect(promise).to.be.rejected;
+    await expect(promise).rejects.toBeInstanceOf(Error);
     expect(index).to.equal(3);
   });
 });

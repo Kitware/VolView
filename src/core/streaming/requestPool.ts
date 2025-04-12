@@ -1,4 +1,4 @@
-import { Deferred, addEventListenerOnce, defer } from '@/src/utils';
+import { Deferred, defer } from '@/src/utils';
 
 const DEFAULT_POOL_SIZE = 6;
 
@@ -24,11 +24,13 @@ export class RequestPool {
 
   private queue: FetchRequest[];
   private inflight: Set<number>;
+  private fetchFn: typeof fetch;
 
-  constructor(poolSize = DEFAULT_POOL_SIZE) {
+  constructor(poolSize = DEFAULT_POOL_SIZE, fetchFn: typeof fetch = fetch) {
     this.poolSize = poolSize;
     this.queue = [];
     this.inflight = new Set();
+    this.fetchFn = fetchFn;
   }
 
   get activeConnections() {
@@ -45,18 +47,11 @@ export class RequestPool {
    * @returns
    */
   fetch = (request: RequestInfo | URL, init?: RequestInit) => {
-    const id = this.pushToQueue({
+    this.pushToQueue({
       request,
       init,
     });
     const { deferred } = this.queue.at(-1)!;
-
-    if (init?.signal) {
-      addEventListenerOnce(init.signal, 'abort', () => {
-        const idx = this.queue.findIndex((req) => req.id === id);
-        if (idx > -1) this.queue.splice(idx, 1);
-      });
-    }
 
     this.processQueue();
     return deferred.promise;
@@ -90,10 +85,17 @@ export class RequestPool {
    */
   private async startRequest(req: FetchRequest) {
     const { id, deferred, request, init } = req;
+
+    if (init?.signal?.aborted) {
+      deferred.reject(init.signal.reason);
+      this.processQueue();
+      return;
+    }
+
     this.inflight.add(id);
 
     try {
-      const resp = await fetch(request, init);
+      const resp = await this.fetchFn(request, init);
       deferred.resolve(resp);
     } catch (err) {
       deferred.reject(err);

@@ -1,7 +1,6 @@
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { expect } from 'chai';
 import PaintTool from '../paint';
 import EllipsePaintBrush from '../paint/ellipse-brush';
 

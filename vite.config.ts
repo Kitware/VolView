@@ -221,5 +221,6 @@ export default defineConfig({
       // needed for unit tests on components utilizing vuetify
       inline: ['vuetify'],
     },
+    setupFiles: ['./tests/setupVitest.ts'],
   },
 });
