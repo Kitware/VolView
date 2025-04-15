@@ -15,7 +15,6 @@
     "baseUrl": ".",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "typeRoots": ["./src"],
     "types": [
       "node",
       "@wdio/globals/types",
