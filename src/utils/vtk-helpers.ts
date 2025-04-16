@@ -276,3 +276,7 @@ export function getDataArray(
   const array = field?.getArrayByName(arrayName);
   return array;
 }
+
+export function isZeroWidthRange(range: [number, number] | number[]) {
+  return range[0] === range[1];
+}

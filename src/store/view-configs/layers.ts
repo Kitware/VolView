@@ -16,6 +16,7 @@ import { Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
 import { LAYER_PRESET_BY_MODALITY, LAYER_PRESET_DEFAULT } from '@/src/config';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { LayersConfig } from './types';
@@ -59,6 +60,8 @@ export const defaultLayersConfig = (): LayersConfig => ({
 });
 
 export const useLayerColoringStore = defineStore('layerColoring', () => {
+  const imageCacheStore = useImageCacheStore();
+
   const configs = reactive<DoubleKeyRecord<LayersConfig>>({});
 
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
@@ -102,8 +105,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   const updateBlendConfig = createUpdateFunc('blendConfig');
 
   const setColorPreset = (viewID: string, layerID: string, preset: string) => {
-    const layersStore = useLayersStore();
-    const image = layersStore.layerImages[layerID];
+    const image = imageCacheStore.getVtkImageData(layerID);
     if (!image) return;
     const imageDataRange = image.getPointData().getScalars().getRange();
 

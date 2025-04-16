@@ -39,13 +39,6 @@ import type {
 } from '../../types/views';
 import { WLAutoRanges } from '../../constants';
 
-export enum DatasetType {
-  DICOM = 'dicom',
-  IMAGE = 'image',
-}
-
-const DatasetTypeNative = z.nativeEnum(DatasetType);
-
 const LPSAxisDir = z.union([
   z.literal('Left'),
   z.literal('Right'),
@@ -55,12 +48,50 @@ const LPSAxisDir = z.union([
   z.literal('Inferior'),
 ]);
 
+const FileSource = z.object({
+  id: z.number(),
+  type: z.literal('file'),
+  fileId: z.number(),
+  fileType: z.string(),
+  parent: z.number().optional(),
+});
+
+const UriSource = z.object({
+  id: z.number(),
+  type: z.literal('uri'),
+  uri: z.string(),
+  name: z.string(),
+  mime: z.string().optional(),
+  parent: z.number().optional(),
+});
+
+const ArchiveSource = z.object({
+  id: z.number(),
+  type: z.literal('archive'),
+  path: z.string(),
+  parent: z.number(),
+});
+
+const CollectionSource = z.object({
+  id: z.number(),
+  type: z.literal('collection'),
+  sources: z.number().array(),
+  parent: z.number().optional(),
+});
+
+const DataSource = z.union([
+  FileSource,
+  UriSource,
+  ArchiveSource,
+  CollectionSource,
+]);
+
+export type DataSourceType = z.infer<typeof DataSource>;
+
 const Dataset = z.object({
   id: z.string(),
-  path: z.string(),
-  type: DatasetTypeNative,
+  dataSourceId: z.number(),
 });
-export type Dataset = z.infer<typeof Dataset>;
 
 const baseRemoteFileSchema = z.object({
   archiveSrc: z.object({ path: z.string() }).optional(),
@@ -360,7 +391,8 @@ export type ParentToLayers = z.infer<typeof ParentToLayers>;
 export const ManifestSchema = z.object({
   version: z.string(),
   datasets: Dataset.array(),
-  remoteFiles: z.record(RemoteFile.array()),
+  dataSources: DataSource.array(),
+  datasetFilePath: z.record(z.string()),
   labelMaps: LabelMap.array(),
   tools: Tools,
   views: View.array(),

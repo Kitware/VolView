@@ -214,12 +214,13 @@ export default defineConfig({
     exclude: ['itk-wasm'],
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
     threads: false,
     deps: {
       // needed for unit tests on components utilizing vuetify
       inline: ['vuetify'],
     },
+    setupFiles: ['./tests/setupVitest.ts'],
   },
 });

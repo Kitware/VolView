@@ -4,8 +4,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
-import { useImageStore } from '@/src/store/datasets-images';
-import { join, normalize } from '@/src/utils/path';
+import { normalize } from '@/src/utils/path';
 import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
@@ -18,6 +17,7 @@ import {
   isRegularImage,
 } from '@/src/utils/dataSelection';
 import vtkImageExtractComponents from '@/src/utils/imageExtractComponentsFilter';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,
@@ -27,6 +27,7 @@ import {
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
 import { useDICOMStore } from './datasets-dicom';
+import { untilLoaded } from '../composables/untilLoaded';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -212,12 +213,13 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
    * Creates a new labelmap entry from a parent/source image.
    */
   function newLabelmapFromImage(this: _This, parentID: string) {
-    const imageStore = useImageStore();
-    const imageData = imageStore.dataIndex[parentID];
+    const imageCacheStore = useImageCacheStore();
+    const imageData = imageCacheStore.getVtkImageData(parentID);
     if (!imageData) {
       return null;
     }
-    const { name: baseName } = imageStore.metadata[parentID];
+    const baseName =
+      imageCacheStore.getImageMetadata(parentID)?.name ?? '(no name)';
 
     const labelmap = createLabelmapFromImage(imageData);
 
@@ -304,15 +306,16 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     if (imageID === parentID)
       throw new Error('Cannot convert an image to be a labelmap of itself');
 
-    // Build vtkImageData for DICOMs
+    await untilLoaded(imageID);
+
     const [childImage, parentImage] = await Promise.all(
       [imageID, parentID].map(getImage)
     );
 
-    if (!imageID || !parentID)
+    if (!childImage || !parentImage)
       throw new Error('Image and/or parent datasets do not exist');
 
-    const imageStore = useImageStore();
+    const imageCacheStore = useImageCacheStore();
 
     const intersects = vtkBoundingBox.intersects(
       parentImage.getBounds(),
@@ -324,7 +327,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       );
     }
 
-    const baseName = imageStore.metadata[imageID].name;
+    const baseName =
+      imageCacheStore.getImageMetadata(imageID)?.name ?? '(no name)';
 
     const componentCount = childImage
       .getPointData()
@@ -507,11 +511,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const newLabelmapIDs = await Promise.all(
       labelMaps.map(async (labelMap) => {
         const [file] = stateFiles
-          .filter(
-            (entry) =>
-              join(entry.archivePath, entry.file.name) ===
-              normalize(labelMap.path)
-          )
+          .filter((entry) => entry.archivePath === normalize(labelMap.path))
           .map((entry) => entry.file);
 
         const vtkImage = await readImage(file);

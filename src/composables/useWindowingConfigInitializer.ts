@@ -1,45 +1,46 @@
 import { MaybeRef, computed, unref, watch } from 'vue';
-import type { TypedArray } from '@kitware/vtk.js/types';
+import * as Comlink from 'comlink';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { watchImmediate } from '@vueuse/core';
+import { computedAsync, watchImmediate } from '@vueuse/core';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { WLAutoRanges, WL_AUTO_DEFAULT, WL_HIST_BINS } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import useWindowingStore from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { HistogramWorker } from '@/src/utils/histogram.worker';
 
 function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
-  const { imageData } = useImage(imageID);
+  const { imageData, isLoading: isImageLoading } = useImage(imageID);
 
-  const histogram = (
-    data: number[] | TypedArray,
-    dataRange: number[],
-    numberOfBins: number
-  ) => {
-    const [min, max] = dataRange;
-    const width = (max - min + 1) / numberOfBins;
-    const hist = new Array(numberOfBins).fill(0);
-    data.forEach((value) => hist[Math.floor((value - min) / width)]++);
-    return hist;
-  };
+  const worker = Comlink.wrap<HistogramWorker>(
+    new Worker(new URL('@/src/utils/histogram.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+  );
 
-  const autoRangeValues = computed(() => {
-    if (!imageData.value) {
+  const scalars = vtkFieldRef(
+    computed(() => imageData.value?.getPointData()),
+    'scalars'
+  );
+
+  const autoRangeValues = computedAsync(async () => {
+    if (isImageLoading.value || !scalars.value) {
       return {};
     }
 
     // Pre-compute the auto-range values
-    const scalarData = imageData.value.getPointData().getScalars();
+    const scalarData = scalars.value.getData();
     // Assumes all data is one component
     const { min, max } = vtkDataArray.fastComputeRange(
-      scalarData.getData() as number[],
+      scalarData as number[],
       0,
       1
     );
-    const hist = histogram(scalarData.getData(), [min, max], WL_HIST_BINS);
+    const hist = await worker.histogram(scalarData, [min, max], WL_HIST_BINS);
     const cumm = hist.reduce((acc, val, idx) => {
       const prev = idx !== 0 ? acc[idx - 1] : 0;
       acc.push(val + prev);
@@ -50,17 +51,17 @@ function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
     return Object.fromEntries(
       Object.entries(WLAutoRanges).map(([key, value]) => {
         const startIdx = cumm.findIndex(
-          (v: number) => v >= value * 0.01 * scalarData.getData().length
+          (v: number) => v >= value * 0.01 * scalarData.length
         );
         const endIdx = cumm.findIndex(
-          (v: number) => v >= (1 - value * 0.01) * scalarData.getData().length
+          (v: number) => v >= (1 - value * 0.01) * scalarData.length
         );
         const start = Math.max(min, min + width * startIdx);
         const end = Math.min(max, min + width * endIdx + width);
         return [key, [start, end]];
       })
     );
-  });
+  }, {});
 
   return { autoRangeValues };
 }
@@ -72,6 +73,11 @@ export function useWindowingConfigInitializer(
   const { imageData } = useImage(imageID);
   const dicomStore = useDICOMStore();
 
+  const scalarRange = vtkFieldRef(
+    computed(() => imageData.value?.getPointData()?.getScalars()),
+    'range'
+  );
+
   const store = useWindowingStore();
   const { config: windowConfig } = useWindowingConfig(viewID, imageID);
   const { autoRangeValues } = useAutoRangeValues(imageID);
@@ -82,8 +88,7 @@ export function useWindowingConfigInitializer(
   const firstTag = computed(() => {
     const id = unref(imageID);
     if (id && isDicomImage(id)) {
-      const volKey = id;
-      const windowLevels = getWindowLevels(dicomStore.volumeInfo[volKey]);
+      const windowLevels = getWindowLevels(dicomStore.volumeInfo[id]);
       if (windowLevels.length) {
         return windowLevels[0];
       }
@@ -102,19 +107,28 @@ export function useWindowingConfigInitializer(
     store.resetWindowLevel(viewIdVal, imageIdVal);
   });
 
-  watchImmediate(imageData, (image) => {
+  watchImmediate(scalarRange, (range) => {
     const imageIdVal = unref(imageID);
-    const config = unref(windowConfig);
     const viewIdVal = unref(viewID);
-    if (imageIdVal == null || config != null || !image) {
+    if (!range || !imageIdVal || !viewIdVal) return;
+    store.updateConfig(viewIdVal, imageIdVal, { min: range[0], max: range[1] });
+  });
+
+  function updateConfigFromAutoRangeValues() {
+    const imageIdVal = unref(imageID);
+    const viewIdVal = unref(viewID);
+    if (imageIdVal == null) {
       return;
     }
 
-    const [min, max] = autoRangeValues.value[autoRange.value];
-    store.updateConfig(viewIdVal, imageIdVal, {
-      min,
-      max,
-    });
+    if (autoRange.value in autoRangeValues.value) {
+      const [min, max] = autoRangeValues.value[autoRange.value];
+      store.updateConfig(viewIdVal, imageIdVal, {
+        min,
+        max,
+      });
+    }
+
     const firstTagVal = unref(firstTag);
     if (firstTagVal?.width) {
       store.updateConfig(viewIdVal, imageIdVal, {
@@ -124,6 +138,7 @@ export function useWindowingConfigInitializer(
         },
       });
     }
+
     const forcedWL = store.runtimeConfigWindowLevel;
     if (forcedWL) {
       store.updateConfig(viewIdVal, imageIdVal, {
@@ -132,8 +147,21 @@ export function useWindowingConfigInitializer(
         },
       });
     }
+
     store.resetWindowLevel(viewIdVal, imageIdVal);
-  });
+  }
+
+  watchImmediate(
+    [imageData, autoRangeValues],
+    () => {
+      if (!imageData.value) {
+        return;
+      }
+
+      updateConfigFromAutoRangeValues();
+    },
+    { deep: true }
+  );
 
   watch(autoRange, (percentile) => {
     const image = imageData.value;

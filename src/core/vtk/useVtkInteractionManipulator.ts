@@ -1,4 +1,4 @@
-import { MaybeRef, computed, ref, toRef, unref, watch, watchEffect } from 'vue';
+import { MaybeRef, computed, ref, toRef, unref, watchEffect } from 'vue';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import { VtkObjectConstructor } from '@/src/core/vtk/types';
 import { FirstParam } from '@/src/types';
@@ -38,10 +38,6 @@ export function useVtkInteractionManipulator<
 
   const enabled = ref(true);
 
-  watch(manipulator, (_, oldManipulator) => {
-    oldManipulator?.delete();
-  });
-
   watchEffect((onCleanup) => {
     if (!enabled.value) return;
 
@@ -49,6 +45,7 @@ export function useVtkInteractionManipulator<
     addManipulator(style, manip);
     onCleanup(() => {
       if (!style.isDeleted()) removeManipulator(style, manip);
+      manip.delete();
     });
   });
 

@@ -3,7 +3,7 @@ import {
   readImageDicomFileSeriesWorkerFunction,
 } from '@itk-wasm/dicom';
 import { readImage } from '@itk-wasm/image-io';
-import { WorkerPool, getDefaultWebWorker } from 'itk-wasm';
+import { WorkerPool, createWebWorker, setDefaultWebWorker } from 'itk-wasm';
 
 const DEFAULT_NUM_WORKERS = 4;
 
@@ -12,7 +12,8 @@ let webWorker: Worker | null = null;
 
 export async function ensureWorker() {
   if (webWorker) return;
-  webWorker = getDefaultWebWorker();
+  webWorker = await createWebWorker(null);
+  setDefaultWebWorker(webWorker);
 }
 
 export function ensureDicomSeriesWorkerPool() {

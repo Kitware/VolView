@@ -84,6 +84,14 @@
   white-space: nowrap;
 }
 
+.loading-indicator {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 100;
+  opacity: 0.7;
+}
+
 .loading {
   display: flex;
   flex-flow: column;

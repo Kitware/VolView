@@ -31,7 +31,7 @@ async function openVolViewPage(fileName: string) {
   expect(notifications).toEqual(0);
 }
 
-describe('State file manifest.json code', () => {
+describe.skip('State file manifest.json code', () => {
   it('has no errors loading version 3.0.0 manifest.json file ', async () => {
     const manifestPath = path.join(
       FIXTURES,

@@ -1,27 +1,28 @@
+import { Skip } from '@/src/utils/evaluateChain';
 import { getObjectsFromS3, isAmazonS3Uri } from '@/src/io/amazonS3';
-import { ImportHandler } from '@/src/io/import/common';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
+import { DataSource } from '@/src/io/import/dataSource';
 
-const handleAmazonS3: ImportHandler = async (dataSource, { execute, done }) => {
-  const { uriSrc } = dataSource;
-  if (uriSrc && isAmazonS3Uri(uriSrc.uri)) {
+const handleAmazonS3: ImportHandler = async (dataSource) => {
+  if (dataSource.type === 'uri' && isAmazonS3Uri(dataSource.uri)) {
     try {
-      await getObjectsFromS3(uriSrc.uri, (name, url) => {
-        execute({
-          uriSrc: {
-            uri: url,
-            name,
-          },
+      const newSources: DataSource[] = [];
+      await getObjectsFromS3(dataSource.uri, (name, url) => {
+        newSources.push({
+          type: 'uri',
+          uri: url,
+          name,
           parent: dataSource,
         });
       });
-      return done();
+      return asIntermediateResult(newSources);
     } catch (err) {
-      throw new Error(`Could not download S3 URI ${uriSrc.uri}`, {
+      throw new Error(`Could not download S3 URI ${dataSource.uri}`, {
         cause: err instanceof Error ? err : undefined,
       });
     }
   }
-  return dataSource;
+  return Skip;
 };
 
 export default handleAmazonS3;

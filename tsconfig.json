@@ -16,8 +16,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "types": [
-      "mocha",
-      "chai",
       "node",
       "@wdio/globals/types",
       "expect-webdriverio",

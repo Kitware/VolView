@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { toRefs, computed, inject, watchEffect } from 'vue';
+import {
+  toRefs,
+  computed,
+  inject,
+  watchEffect,
+  watch,
+  shallowRef,
+  Ref,
+} from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useVolumeRepresentation } from '@/src/core/vtk/useVolumeRepresentation';
 import { Maybe } from '@/src/types';
@@ -27,6 +35,11 @@ import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useCroppingEffect } from '@/src/composables/useCroppingEffect';
 import { useCropStore } from '@/src/store/tools/crop';
+import { useEventListener } from '@vueuse/core';
+import {
+  ChunkImage,
+  type ChunkLoadedInfo,
+} from '@/src/core/streaming/chunkImage';
 
 interface Props {
   viewId: string;
@@ -39,7 +52,12 @@ const { viewId: viewID, imageId: imageID } = toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
-const { imageData, metadata: imageMetadata } = useImage(imageID);
+const {
+  imageData,
+  metadata: imageMetadata,
+  isLoading: isImageStreaming,
+  image,
+} = useImage(imageID);
 const coloringConfig = computed(() =>
   useVolumeColoringStore().getConfig(viewID.value, imageID.value)
 );
@@ -61,6 +79,26 @@ rep.property.setSpecular(DEFAULT_SPECULAR);
   onVTKEvent(obj, 'onModified', view.requestRender);
 });
 
+// watch for updated extents
+const updatedExtents = shallowRef<Array<ChunkLoadedInfo['updatedExtent']>>([]);
+useEventListener(
+  // safely assume ChunkImage. If not, the event will never be triggered
+  image as Ref<ChunkImage | null>,
+  'chunkLoad',
+  (info: ChunkLoadedInfo) => {
+    updatedExtents.value = [...updatedExtents.value, info.updatedExtent];
+  }
+);
+
+watch(updatedExtents, (current, old) => {
+  const startOffset = old.length;
+  rep.mapper.setUpdatedExtents([
+    ...rep.mapper.getUpdatedExtents(),
+    ...current.slice(startOffset),
+  ]);
+  view.requestRender();
+});
+
 // cinematic volume rendering
 const cvrParams = computed(() => coloringConfig.value?.cvr);
 const center = computed(() =>
@@ -69,8 +107,8 @@ const center = computed(() =>
 const isAnimating = isViewAnimating(view);
 
 watchEffect(() => {
-  const image = imageData.value;
-  if (!cvrParams.value || !image) return;
+  const img = imageData.value;
+  if (!cvrParams.value || !img) return;
 
   const {
     enabled: cvrEnabled,
@@ -87,8 +125,8 @@ watchEffect(() => {
   } = cvrParams.value;
   const { property, mapper } = rep;
 
-  const enabled = cvrEnabled && !isAnimating.value;
-  const dataArray = image.getPointData().getScalars();
+  const enabled = cvrEnabled && !isAnimating.value && !isImageStreaming.value;
+  const dataArray = img.getPointData().getScalars();
 
   setCinematicLighting({
     enabled,
@@ -100,7 +138,7 @@ watchEffect(() => {
   for (let comp = 0; comp < dataArray.getNumberOfComponents(); comp++) {
     setCinematicVolumeShading({
       enabled,
-      image,
+      image: img,
       ambient,
       diffuse,
       specular,
@@ -117,10 +155,9 @@ watchEffect(() => {
 
   setCinematicVolumeSampling({
     enabled,
-    image,
+    image: img,
     mapper,
     quality: volumeQuality,
-    isAnimating: isAnimating.value,
   });
 
   setCinematicLocalAmbientOcclusion({
@@ -129,6 +166,12 @@ watchEffect(() => {
     kernelSize: laoKernelSize,
     mapper,
   });
+
+  if (isImageStreaming.value) {
+    // reduce the quality of the volume until the entire volume is loaded
+    const sampleDistance = mapper.getSampleDistance();
+    mapper.setSampleDistance(sampleDistance * 15);
+  }
 
   view.requestRender();
 });

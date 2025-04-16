@@ -10,6 +10,7 @@ import {
   applyNodesToPiecewiseFunction,
   applyPointsToPiecewiseFunction,
   getShiftedOpacityFromPreset,
+  isZeroWidthRange,
 } from '@/src/utils/vtk-helpers';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
@@ -43,10 +44,15 @@ export function applyColoring({
   if (preset) {
     cfun.applyColorMap(preset);
   }
-  cfun.setMappingRange(...colorFunction.mappingRange);
+
+  if (!isZeroWidthRange(colorFunction.mappingRange)) {
+    cfun.setMappingRange(...colorFunction.mappingRange);
+  }
 
   const { mappingRange } = opacityFunction;
-  ofun.setRange(...opacityFunction.mappingRange);
+  if (!isZeroWidthRange(opacityFunction.mappingRange)) {
+    ofun.setRange(...opacityFunction.mappingRange);
+  }
 
   switch (opacityFunction.mode) {
     case vtkPiecewiseFunctionProxy.Mode.Gaussians:

@@ -1,12 +1,6 @@
-import { describe, it, beforeEach } from 'vitest';
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
-
+import { describe, it, beforeEach, expect } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-
 import { MessageType, useMessageStore } from '@/src/store/messages';
-
-chai.use(chaiAsPromised);
 
 describe('Message store', () => {
   beforeEach(() => {

@@ -10,10 +10,10 @@ import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunc
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import { useLayersStore } from '@/src/store/datasets-layers';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { useLayerConfigInitializer } from '@/src/composables/useLayerConfigInitializer';
 import { applyColoring } from '@/src/composables/useColoringEffect';
+import { useImageCacheStore } from '@/src/store/image-cache';
 
 interface Props {
   viewId: string;
@@ -34,8 +34,10 @@ const coloringConfig = computed(() =>
 );
 
 // setup slice rep
-const layerStore = useLayersStore();
-const imageData = computed(() => layerStore.layerImages[layerId.value]);
+const imageCacheStore = useImageCacheStore();
+const imageData = computed(() =>
+  imageCacheStore.getVtkImageData(layerId.value)
+);
 const sliceRep = useSliceRepresentation(view, imageData);
 
 sliceRep.property.setRGBTransferFunction(

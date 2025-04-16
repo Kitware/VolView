@@ -1,26 +1,25 @@
+import { Skip } from '@/src/utils/evaluateChain';
 import { getFileMimeType } from '@/src/io';
-import { ImportHandler } from '@/src/io/import/common';
+import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 
 /**
  * Transforms a file data source to have a mime type
  * @param dataSource
  */
 const updateFileMimeType: ImportHandler = async (dataSource) => {
-  let src = dataSource;
-  const { fileSrc } = src;
-  if (fileSrc) {
-    const mime = await getFileMimeType(fileSrc.file);
-    if (mime) {
-      src = {
-        ...src,
-        fileSrc: {
-          ...fileSrc,
-          fileType: mime,
-        },
-      };
-    }
+  if (dataSource.type !== 'file' || dataSource.fileType !== '') return Skip;
+
+  const mime = await getFileMimeType(dataSource.file);
+  if (!mime) {
+    throw new Error('File is unsupported');
   }
-  return src;
+
+  return asIntermediateResult([
+    {
+      ...dataSource,
+      fileType: mime,
+    },
+  ]);
 };
 
 export default updateFileMimeType;

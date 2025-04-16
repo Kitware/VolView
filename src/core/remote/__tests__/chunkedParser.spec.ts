@@ -6,10 +6,9 @@
  *
  * @vitest-environment node
  */
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { PacketType, Packet } from 'socket.io-parser';
 import { CHUNK_SIZE, Decoder, Encoder } from '@/src/core/remote/chunkedParser';
-import { expect } from 'chai';
 
 function makeBinaryPacket(): Packet {
   const N = 3;

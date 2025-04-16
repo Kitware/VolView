@@ -13,10 +13,12 @@ export function useVolumeColoringInitializer(
     store.getConfig(unref(viewId), unref(imageId))
   );
 
-  const { imageData, isLoading } = useImage(imageId);
+  const { imageData } = useImage(imageId);
 
-  watchImmediate([coloringConfig, viewId, imageId, isLoading], () => {
-    if (coloringConfig.value || isLoading.value) return;
+  const viewIdRef = computed(() => unref(viewId));
+  const imageIdRef = computed(() => unref(imageId));
+  watchImmediate([coloringConfig, viewIdRef, imageIdRef], () => {
+    if (coloringConfig.value) return;
 
     const viewIdVal = unref(viewId);
     const imageIdVal = unref(imageId);

@@ -1,11 +1,7 @@
-import { describe, it } from 'vitest';
-import chai, { expect } from 'chai';
-import chaiAlmost from 'chai-almost';
+import { describe, it, expect } from 'vitest';
 import { vec3, mat3 } from 'gl-matrix';
 
 import { getLPSDirections } from '@/src/utils/lps';
-
-chai.use(chaiAlmost());
 
 describe('getLPSDirections', () => {
   it('correctly assigns LPS directions from an orientation', () => {
@@ -26,20 +22,20 @@ describe('getLPSDirections', () => {
       expect(actual.Sagittal, `${desc}: Coronal`).to.equal(expected.Sagittal);
       expect(actual.Axial, `${desc}: Coronal`).to.equal(expected.Axial);
 
-      expect(actual.Left, `${desc}: Left`).to.deep.almost(expected.Left);
-      expect(actual.Right, `${desc}: Right`).to.deep.almost(
+      expect(actual.Left, `${desc}: Left`).toAlmostEqual(expected.Left);
+      expect(actual.Right, `${desc}: Right`).toAlmostEqual(
         expected.Left.map((c) => c * -1)
       );
-      expect(actual.Posterior, `${desc}: Posterior`).to.deep.almost(
+      expect(actual.Posterior, `${desc}: Posterior`).to.toAlmostEqual(
         expected.Posterior
       );
-      expect(actual.Anterior, `${desc}: Anterior`).to.deep.almost(
+      expect(actual.Anterior, `${desc}: Anterior`).toAlmostEqual(
         expected.Posterior.map((c) => c * -1)
       );
-      expect(actual.Superior, `${desc}: Superior`).to.deep.almost(
+      expect(actual.Superior, `${desc}: Superior`).toAlmostEqual(
         expected.Superior
       );
-      expect(actual.Inferior, `${desc}: Inferior`).to.deep.almost(
+      expect(actual.Inferior, `${desc}: Inferior`).toAlmostEqual(
         expected.Superior.map((c) => c * -1)
       );
     }
