@@ -30,7 +30,8 @@ export class RequestPool {
     this.poolSize = poolSize;
     this.queue = [];
     this.inflight = new Set();
-    this.fetchFn = fetchFn;
+    this.fetchFn = (input: RequestInfo | URL, init?: RequestInit) =>
+      fetchFn(input, init);
   }
 
   get activeConnections() {
