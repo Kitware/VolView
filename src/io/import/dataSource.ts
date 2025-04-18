@@ -35,7 +35,7 @@ export interface ArchiveSource {
 /**
  * Represents a collection of data sources.
  *
- * This is used for data that is derived from a colleciton of data sources,
+ * This is used for data that is derived from a collection of data sources,
  * e.g. reconstructed DICOM.
  */
 export interface CollectionSource {
