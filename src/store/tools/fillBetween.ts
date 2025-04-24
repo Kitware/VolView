@@ -3,20 +3,14 @@ import { ref, computed, watch } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { TypedArray } from '@kitware/vtk.js/types';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import {
-  morphologicalContourInterpolation,
-  setPipelinesBaseUrl,
-} from '@itk-wasm/morphological-contour-interpolation';
+import { morphologicalContourInterpolation } from '@itk-wasm/morphological-contour-interpolation';
 import { whenever } from '@vueuse/core';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 
-import itkConfig from '@/src/io/itk/itkConfig';
 import { useSegmentGroupStore } from '../segmentGroups';
-
-setPipelinesBaseUrl(itkConfig.pipelinesUrl);
 
 type StartState = {
   step: 'start';
