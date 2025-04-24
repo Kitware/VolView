@@ -77,7 +77,7 @@ export default class PaintTool {
     startPoint: vec3,
     endPoint?: vec3
   ) {
-    if (this.brushValue == null) return;
+    if (this.brushValue == null || this.mode === PaintMode.FillBetween) return;
 
     const brushValue =
       this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
