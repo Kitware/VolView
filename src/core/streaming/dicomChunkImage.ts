@@ -1,6 +1,11 @@
-import { readVolumeSlice, splitAndSort } from '@/src/io/dicom';
+import {
+  buildSegmentGroups,
+  ReadOverlappingSegmentationMeta,
+  readVolumeSlice,
+  splitAndSort,
+} from '@/src/io/dicom';
 import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
-import { Image, readImage } from '@itk-wasm/image-io';
+import { Image, JsonCompatible, readImage } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
@@ -20,6 +25,7 @@ import {
 } from '@/src/core/progressiveImage';
 import { ensureError } from '@/src/utils';
 import { computed } from 'vue';
+import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -75,6 +81,10 @@ export default class DicomChunkImage
   private events: Emitter<ChunkImageEvents>;
   private chunkStatus: ChunkStatus[];
 
+  public segBuildInfo:
+    | (JsonCompatible & ReadOverlappingSegmentationMeta)
+    | null;
+
   constructor() {
     super();
 
@@ -88,6 +98,7 @@ export default class DicomChunkImage
     this.chunkStatus = [];
     this.thumbnailCache = new WeakMap();
     this.events = mitt();
+    this.segBuildInfo = null;
 
     this.addEventListener('loading', (loading) => {
       this.loading.value = loading;
@@ -96,6 +107,11 @@ export default class DicomChunkImage
     this.addEventListener('status', (status) => {
       this.status.value = status;
     });
+  }
+
+  getModality() {
+    const meta = Object.fromEntries(this.getDicomMetadata() ?? []);
+    return meta[Tags.Modality]?.trim() ?? null;
   }
 
   getChunkStatuses(): Array<ChunkStatus> {
@@ -192,7 +208,10 @@ export default class DicomChunkImage
 
     this.registerChunkListeners();
     this.processNewChunks(newChunks);
-    this.reallocateImage();
+
+    if (this.getModality() !== 'SEG') {
+      this.reallocateImage();
+    }
   }
 
   getThumbnail(strategy: ThumbnailStrategy): Promise<any> {
@@ -280,6 +299,32 @@ export default class DicomChunkImage
   }
 
   private async onChunkHasData(chunkIndex: number) {
+    if (this.getModality() === 'SEG') {
+      await this.onSegChunkHasData(chunkIndex);
+    } else {
+      await this.onRegularChunkHasData(chunkIndex);
+    }
+  }
+
+  private async onSegChunkHasData(chunkIndex: number) {
+    if (this.chunks.length !== 1 || chunkIndex !== 0)
+      throw new Error('cannot handle multiple seg files');
+
+    const [chunk] = this.chunks;
+    const results = await buildSegmentGroups(
+      new File([chunk.dataBlob!], 'seg.dcm')
+    );
+    const image = vtkITKHelper.convertItkToVtkImage(results.outputImage);
+    this.vtkImageData.value.delete();
+    this.vtkImageData.value = image;
+
+    this.segBuildInfo = results.metaInfo;
+
+    this.chunkStatus[0] = ChunkStatus.Loaded;
+    this.onChunksUpdated();
+  }
+
+  private async onRegularChunkHasData(chunkIndex: number) {
     const chunk = this.chunks[chunkIndex];
     if (!chunk.dataBlob) throw new Error('Chunk does not have data');
     const result = await readImage(
