@@ -18,6 +18,7 @@ import {
 } from '@/src/utils/dataSelection';
 import vtkImageExtractComponents from '@/src/utils/imageExtractComponentsFilter';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,
@@ -26,7 +27,6 @@ import {
 } from '../io/state-file/schema';
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
-import { useDICOMStore } from './datasets-dicom';
 import { untilLoaded } from '../composables/untilLoaded';
 
 const LabelmapArrayType = Uint8Array;
@@ -118,6 +118,7 @@ export function extractEachComponent(input: vtkImageData) {
 
 export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   type _This = ReturnType<typeof useSegmentGroupStore>;
+  const imageCacheStore = useImageCacheStore();
 
   const dataIndex = reactive<Record<string, vtkLabelMap>>(Object.create(null));
   const metadataByID = reactive<Record<string, SegmentGroupMetadata>>(
@@ -213,7 +214,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
    * Creates a new labelmap entry from a parent/source image.
    */
   function newLabelmapFromImage(this: _This, parentID: string) {
-    const imageCacheStore = useImageCacheStore();
     const imageData = imageCacheStore.getVtkImageData(parentID);
     if (!imageData) {
       return null;
@@ -264,15 +264,11 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     component = 0
   ) {
     if (!isRegularImage(imageId)) {
-      // dicom image
-      const dicomStore = useDICOMStore();
+      await untilLoaded(imageId);
 
-      const volumeBuildResults = await dicomStore.volumeBuildResults[imageId];
-      if (volumeBuildResults.modality === 'SEG') {
-        const segments =
-          volumeBuildResults.builtImageResults.metaInfo.segmentAttributes[
-            component
-          ];
+      const chunkImage = imageCacheStore.imageById[imageId] as DicomChunkImage;
+      if (chunkImage.getModality() === 'SEG' && chunkImage.segBuildInfo) {
+        const segments = chunkImage.segBuildInfo.segmentAttributes[component];
         return segments.map((segment) => ({
           value: segment.labelID,
           name: segment.SegmentLabel,
@@ -314,8 +310,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
     if (!childImage || !parentImage)
       throw new Error('Image and/or parent datasets do not exist');
-
-    const imageCacheStore = useImageCacheStore();
 
     const intersects = vtkBoundingBox.intersects(
       parentImage.getBounds(),
