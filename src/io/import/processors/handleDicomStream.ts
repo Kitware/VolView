@@ -24,8 +24,14 @@ const handleDicomStream: ImportHandler = async (dataSource) => {
     });
 
   const readTags: ReadDicomTagsFunction = async (file) => {
-    const result = await readDicomTags(file, { webWorker: getWorker() });
-    return result.tags;
+    try {
+      const result = await readDicomTags(file, { webWorker: getWorker() });
+      return result.tags;
+    } catch (error) {
+      throw new Error(
+        `Failed to read DICOM tags from ${dataSource.uri}: ${error}`
+      );
+    }
   };
 
   const metaLoader = new DicomMetaLoader(fetcher, readTags);
