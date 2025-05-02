@@ -12,6 +12,7 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from 'vue';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { PaintMode } from '@/src/core/tools/paint';
 import { LPSAxisDir } from '@/src/types/lps';
 import { Maybe } from '@/src/types';
 import PaintWidget2D from './PaintWidget2D.vue';
@@ -34,7 +35,10 @@ export default defineComponent({
   },
   setup() {
     const paintStore = usePaintToolStore();
-    const active = computed(() => paintStore.isActive);
+    const active = computed(
+      () =>
+        paintStore.isActive && paintStore.activeMode !== PaintMode.FillBetween
+    );
 
     return {
       active,

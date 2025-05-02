@@ -21,6 +21,7 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
+import { PaintMode } from '@/src/core/tools/paint';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -148,6 +149,10 @@ export default defineComponent({
 
     onVTKEvent(view.interactor, 'onMouseLeave', () => {
       widget.setVisibility(false);
+    });
+
+    watchEffect(() => {
+      widget.setEnabled(paintStore.activeMode !== PaintMode.FillBetween);
     });
 
     return () => null;

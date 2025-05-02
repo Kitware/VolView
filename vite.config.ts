@@ -178,6 +178,15 @@ export default defineConfig({
         },
         {
           src: resolvePath(
+            resolveNodeModulePath(
+              '@itk-wasm/morphological-contour-interpolation'
+            ),
+            'dist/pipelines/*{.wasm,.js,.zst}'
+          ),
+          dest: 'itk/pipelines',
+        },
+        {
+          src: resolvePath(
             rootDir,
             'src/io/itk-dicom/emscripten-build/**/dicom*'
           ),
