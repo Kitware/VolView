@@ -271,7 +271,7 @@ function loadDataSources(sources: DataSource[]) {
         const name = getDataSourceName(dataSource);
         // log error for debugging
         logError(error);
-        return `- ${name}: ${error.message}`;
+        return error.message ? `- ${name}: ${error.message}` : `- ${name}`;
       });
       const failedError = new Error(
         `These files failed to load:\n${errorMessages.join('\n')}`
