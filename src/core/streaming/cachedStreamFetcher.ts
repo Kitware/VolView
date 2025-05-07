@@ -235,6 +235,9 @@ export class CachedStreamFetcher implements Fetcher {
         .then((result) => {
           if (!result.done) {
             this.chunks.push(result.value);
+          } else if (this.contentLength === null) {
+            // Entire stream finished but had no Content-Length header; treat full cache as total length
+            this.contentLength = this.size;
           }
           return result;
         })
