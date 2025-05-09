@@ -47,9 +47,10 @@ export default class StreamingByteReader {
     length: number,
     { peek = false } = {}
   ): Generator<undefined, Uint8Array, Uint8Array> {
-    if (length <= 0) {
+    if (length < 0) {
       throw new Error('Length must be a positive number');
     }
+    if (length === 0) return new Uint8Array();
 
     while (this.leftover.size < length) {
       this.leftover.pushEnd(yield);

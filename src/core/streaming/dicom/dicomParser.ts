@@ -6,18 +6,32 @@ import { toAscii, asCoroutine } from '@/src/utils';
 // [Group, Element]
 type Tag = [number, number];
 
+export type DataElement = {
+  group: number;
+  element: number;
+  vr: string;
+  length: number;
+  data: Array<DataElement[]> | Uint8Array | undefined;
+};
+
+export type DataElementCallback = (el: DataElement) => void;
+export type ElementTagCallback = (
+  group: number,
+  element: number
+) => string | null;
+
 interface ParseOptions {
   peek?: boolean;
-  skipValue?: boolean;
   littleEndian?: boolean;
   explicitVr?: boolean;
+  onDataElement?: DataElementCallback;
 }
 
 // This is based on the DICOM standard as of 2023. All links may point to whatever is the current at the time of visiting.
 
 const UndefinedLength = 0xffffffff;
-const ImplicitTransferSyntaxUID = '1.2.840.10008.1.2';
-const ExplicitVRBigEndianUID = '1.2.840.10008.1.2.2';
+export const ImplicitTransferSyntaxUID = '1.2.840.10008.1.2';
+export const ExplicitVRBigEndianUID = '1.2.840.10008.1.2.2';
 
 const Tags = {
   TransferSyntaxUID: [0x0002, 0x0010] as Tag,
@@ -91,24 +105,19 @@ function* readElementValue(
   reader: StreamingByteReader,
   vr: string,
   length: number,
-  { explicitVr = false, littleEndian = false, skip = false } = {}
-): Generator<Uint8Array | undefined, Uint8Array | undefined, Uint8Array> {
-  if (length !== UndefinedLength) {
-    if (skip) {
-      yield* reader.seek(length);
-      return undefined;
-    }
-    return yield* reader.read(length);
+  { explicitVr = false, littleEndian = false } = {}
+): Generator<Uint8Array | undefined, DataElement['data'], Uint8Array> {
+  // See examples: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.2.html
+  if (vr === 'SQ') {
+    return yield* readSequenceValue(reader, length, {
+      explicitVr,
+      littleEndian,
+    });
   }
 
-  if (vr === 'SQ') {
-    yield* skipSequenceValue(reader, { explicitVr, littleEndian });
-  } else {
-    // "Otherwise, the Value Field has an Undefined Length and a Sequence Delimitation Item marks the end of the Value Field."
-    // https://dicom.nema.org/medical/dicom/current/output/chtml/part05/chapter_7.html#sect_7.1.2
-    yield* seekUntilSequenceDelimitationItem(reader, { littleEndian });
-  }
-  return undefined;
+  if (length === UndefinedLength)
+    throw new Error('cannot read a value of undefined length');
+  return yield* reader.read(length);
 }
 
 /**
@@ -122,15 +131,13 @@ function* readElementValue(
  * https://dicom.nema.org/medical/dicom/current/output/chtml/part05/chapter_7.html#sect_7.1.1
  * @param {*} reader
  */
-function* readDataElement(
-  reader: StreamingByteReader,
-  { littleEndian = false, explicitVr = false, skipValue = false } = {}
-) {
+function* readDataElement(reader: StreamingByteReader, opts?: ParseOptions) {
+  const { littleEndian = false, explicitVr = false } = opts ?? {};
   // read tag
   const [group, element] = yield* readElementTag(reader, { littleEndian });
   let length = 0;
   let vr: string = '';
-  let data: Uint8Array | undefined;
+  let data: DataElement['data'];
 
   if (explicitVr) {
     // read VR
@@ -160,7 +167,6 @@ function* readDataElement(
     data = yield* readElementValue(reader, vr, length, {
       littleEndian,
       explicitVr,
-      skip: skipValue,
     });
   } else {
     length = yield* reader.readUint32({ littleEndian });
@@ -174,7 +180,6 @@ function* readDataElement(
     data = yield* readElementValue(reader, vr, length, {
       littleEndian,
       explicitVr,
-      skip: skipValue,
     });
   }
 
@@ -188,7 +193,7 @@ function* readDataElement(
  *
  * untilFn is passed (group, element)
  */
-function* skipDataElementsUntil(
+function* readDataElementsUntil(
   reader: StreamingByteReader,
   untilFn: (group: number, element: number) => boolean,
   opts: ParseOptions
@@ -198,22 +203,25 @@ function* skipDataElementsUntil(
     if (untilFn(group, element)) {
       return;
     }
-    debug(
-      '-- found',
-      group.toString(16),
-      element.toString(16),
-      'at',
-      `${reader.position} (0x${reader.position.toString(16)})`
-    );
-    const el = yield* readDataElement(reader, { ...opts, skipValue: true });
-    debug(
-      '-- skipped',
-      group.toString(16),
-      element.toString(16),
-      el,
-      'at',
-      `${reader.position} (0x${reader.position.toString(16)})`
-    );
+    const el = yield* readDataElement(reader, opts);
+    opts.onDataElement?.(el);
+  }
+}
+
+/**
+ * Stops the reader when the byte length is exhausted from the reader position.
+ *
+ * Assumes the reader is pointing to the start of a Data Element.
+ */
+function* readFiniteDataElements(
+  reader: StreamingByteReader,
+  byteLength: number,
+  opts: ParseOptions
+) {
+  const endPosition = reader.position + byteLength;
+  while (reader.position < endPosition) {
+    const el = yield* readDataElement(reader, opts);
+    opts.onDataElement?.(el);
   }
 }
 
@@ -223,64 +231,67 @@ function* skipDataElementsUntil(
  * See: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.html
  * and: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.2.html
  */
-function* skipSequenceValue(
+function* readSequenceValue(
   reader: StreamingByteReader,
+  byteLength: number,
   { explicitVr = false, littleEndian = false } = {}
 ) {
+  const items = [] as Array<DataElement[]>;
+  const isUndefinedLength = byteLength === UndefinedLength;
+  const endPosition = isUndefinedLength ? 0 : reader.position + byteLength;
   while (true) {
+    if (!isUndefinedLength && reader.position >= endPosition) {
+      return items;
+    }
+
     const [group, element] = yield* readElementTag(reader, { littleEndian });
+
     // Item tag
     // https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.2.html#table_7.5-3
     if (equalsToTag(Tags.Item)(group, element)) {
-      const itemLength = yield* reader.readUint32({ littleEndian });
-      if (itemLength !== UndefinedLength) {
-        yield* reader.seek(itemLength);
-      } else {
-        // read until item delimitation tag
-        yield* skipDataElementsUntil(reader, equalsToTag(Tags.ItemDelimiter), {
+      const itemDataset: DataElement[] = [];
+      const itemByteLength = yield* reader.readUint32({ littleEndian });
+
+      // length rules: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.html, heading 7.5.1
+      if (itemByteLength !== UndefinedLength) {
+        yield* readFiniteDataElements(reader, itemByteLength, {
           explicitVr,
           littleEndian,
-          skipValue: true,
+          onDataElement(el) {
+            itemDataset.push(el);
+          },
+        });
+      } else {
+        // read until item delimitation tag
+        yield* readDataElementsUntil(reader, equalsToTag(Tags.ItemDelimiter), {
+          explicitVr,
+          littleEndian,
+          onDataElement(el) {
+            itemDataset.push(el);
+          },
         });
         // skip the item delimitation tag and the 4-byte zero length
         yield* reader.seek(4 + 4);
       }
+
+      items.push(itemDataset);
       continue;
     }
 
     // Sequence Delimitation Item tag
-    if (group === 0xfffe && element === 0xe0dd) {
+    // "Otherwise, the Value Field has an Undefined Length and a Sequence Delimitation Item marks the end of the Value Field."
+    // https://dicom.nema.org/medical/dicom/current/output/chtml/part05/chapter_7.html#sect_7.1.2
+    if (isUndefinedLength && group === 0xfffe && element === 0xe0dd) {
       // skip the 4-byte zero length
       yield* reader.seek(4);
-      return;
+      return items;
     }
 
     throw new Error(
-      `skipSequenceValue: encountered unknown element: (${group.toString(
+      `readSequenceValue: encountered unknown element: (${group.toString(
         16
       )},${element.toString(16)})`
     );
-  }
-}
-
-function* seekUntilSequenceDelimitationItem(
-  reader: StreamingByteReader,
-  { littleEndian = false } = {}
-) {
-  // The DICOM standard states that all data element values must have even length,
-  // so we can just read every uint16 until we hit a sequence delimitation item.
-  // Sequence Delimitation item VR is encoded as implicit VR and ignores the transfer syntax.
-  // Presumably this also means little endian.
-  // https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.html
-  while (true) {
-    // Sequence Delimitation Item is (fffe,e0dd)
-    const group = yield* reader.readUint16({ littleEndian });
-    if (group !== 0xfffe) continue;
-    const element = yield* reader.readUint16({ littleEndian });
-    if (element !== 0xe0dd) continue;
-    // ignore the 4-byte zero length bit.
-    yield* reader.seek(4);
-    break;
   }
 }
 
@@ -291,34 +302,42 @@ function* seekUntilSequenceDelimitationItem(
 // Resources:
 //   data element layout: https://www.leadtools.com/help/sdk/v20/dicom/api/overview-data-element-structure.html
 //   transfer syntax info: https://pacsbootcamp.com/transfer-syntax
-function* readFieldMetaInfo(reader: StreamingByteReader) {
-  // skip until we find Transfer Syntax UID
-  yield* skipDataElementsUntil(reader, equalsToTag(Tags.TransferSyntaxUID), {
+function* readFieldMetaInfo(
+  reader: StreamingByteReader,
+  opts?: { onDataElement?: DataElementCallback }
+) {
+  // read up until the Transfer Syntax UID
+  yield* readDataElementsUntil(reader, equalsToTag(Tags.TransferSyntaxUID), {
     explicitVr: true,
     littleEndian: true,
+    onDataElement: opts?.onDataElement,
   });
 
   const transferSyntaxUidElement = yield* readDataElement(reader, {
     explicitVr: true,
     littleEndian: true,
-    skipValue: false,
   });
+  opts?.onDataElement?.(transferSyntaxUidElement);
 
   if (transferSyntaxUidElement.vr !== 'UI')
     throw new Error('Transfer syntax UID element does not have a VR of UI');
   if (!transferSyntaxUidElement.data)
     throw new Error('Did not get data for the transfer syntax UID element');
 
-  const transferSyntaxUid = toAscii(transferSyntaxUidElement.data, {
-    ignoreNulls: true,
-  });
+  const transferSyntaxUid = toAscii(
+    transferSyntaxUidElement.data as Uint8Array,
+    {
+      ignoreNulls: true,
+    }
+  );
 
-  // skip until end of file meta info group block, which is the first non 0x0002 grouped element.
+  // read until end of file meta info group block, which is the first non 0x0002 grouped element.
   // "Values of all Tags (0002,xxxx) are reserved for use by this Standard and later versions of DICOM."
   // https://dicom.nema.org/medical/dicom/current/output/html/part10.html#table_7.1-1
-  yield* skipDataElementsUntil(reader, (group) => group !== 0x0002, {
+  yield* readDataElementsUntil(reader, (group) => group !== 0x0002, {
     explicitVr: true,
     littleEndian: true,
+    onDataElement: opts?.onDataElement,
   });
 
   return {
@@ -326,7 +345,12 @@ function* readFieldMetaInfo(reader: StreamingByteReader) {
   };
 }
 
-function* parseDicomUpToPixelData(readExtraSuffix = 0) {
+export type ReadDicomOptions = {
+  stopAtElement?(group: number, element: number): boolean;
+  onDataElement?: DataElementCallback;
+};
+
+export function* readDicomUntilPixelData(opts?: ReadDicomOptions) {
   const reader = new StreamingByteReader();
 
   // preamble
@@ -338,35 +362,24 @@ function* parseDicomUpToPixelData(readExtraSuffix = 0) {
     throw new Error('Not DICOM');
   }
 
-  const info = yield* readFieldMetaInfo(reader);
+  const info = yield* readFieldMetaInfo(reader, {
+    onDataElement: opts?.onDataElement,
+  });
   const explicitVr = info.transferSyntaxUid !== ImplicitTransferSyntaxUID;
   const littleEndian = info.transferSyntaxUid !== ExplicitVRBigEndianUID;
 
-  debug(
-    '-- parsed field meta info',
-    info,
-    'at',
-    reader.position,
-    'explicitVr',
-    explicitVr,
-    'littleEndian',
-    littleEndian
-  );
-
-  yield* skipDataElementsUntil(
+  yield* readDataElementsUntil(
     reader,
     // (7fe0,0010): Pixel Data
-    (group, element) => group === 0x7fe0 && element === 0x0010,
-    { explicitVr, littleEndian }
+    (group, element) => opts?.stopAtElement?.(group, element) ?? false,
+    { explicitVr, littleEndian, onDataElement: opts?.onDataElement }
   );
-
-  yield* reader.seek(readExtraSuffix);
 
   return {
     position: reader.position,
   };
 }
 
-export const createDicomParser = (readExtraSuffix = 0) => {
-  return asCoroutine(parseDicomUpToPixelData(readExtraSuffix));
+export const createDicomParser = (callbacks?: ReadDicomOptions) => {
+  return asCoroutine(readDicomUntilPixelData(callbacks));
 };

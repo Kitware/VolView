@@ -1,22 +1,37 @@
-import { createDicomParser } from '@/src/core/streaming/dicom/dicomParser';
+import {
+  createDicomParser,
+  ImplicitTransferSyntaxUID,
+} from '@/src/core/streaming/dicom/dicomParser';
 import { StopSignal } from '@/src/core/streaming/cachedStreamFetcher';
 import { Fetcher, MetaLoader } from '@/src/core/streaming/types';
-import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Maybe } from '@/src/types';
 import { Awaitable } from '@vueuse/core';
+import { toAscii } from '@/src/utils';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 export type ReadDicomTagsFunction = (
   file: File
 ) => Awaitable<Array<[string, string]>>;
 
+function generateEmptyPixelData(explicitVr: boolean) {
+  // prettier-ignore
+  return new Uint8Array([
+    0xe0, 0x7f, 0x10, 0x00, // PixelData (group, element)
+    ...(explicitVr ? [0x4f, 0x42, 0x00, 0x00] : []), // OB
+    0, 0, 0, 0 // zero length
+  ]);
+}
+
 export class DicomMetaLoader implements MetaLoader {
   private tags: Maybe<Array<[string, string]>>;
   private fetcher: Fetcher;
   private readDicomTags: ReadDicomTagsFunction;
+  private blob: Blob | null;
 
   constructor(fetcher: Fetcher, readDicomTags: ReadDicomTagsFunction) {
     this.fetcher = fetcher;
     this.readDicomTags = readDicomTags;
+    this.blob = null;
   }
 
   get meta() {
@@ -24,7 +39,7 @@ export class DicomMetaLoader implements MetaLoader {
   }
 
   get metaBlob() {
-    return new Blob(this.fetcher.cachedChunks, { type: FILE_EXT_TO_MIME.dcm });
+    return this.blob;
   }
 
   async load() {
@@ -32,13 +47,27 @@ export class DicomMetaLoader implements MetaLoader {
 
     await this.fetcher.connect();
     const stream = this.fetcher.getStream();
+    let explicitVr = true;
+    let dicomUpToPixelDataIdx = -1;
 
-    const parse = createDicomParser(12);
+    const parse = createDicomParser({
+      stopAtElement(group, element) {
+        // PixelData
+        return group === 0x7fe0 && element === 0x0010;
+      },
+      onDataElement: (el) => {
+        if (el.group === 0x0002 && el.element === 0x0010) {
+          const transferSyntaxUid = toAscii(el.data as Uint8Array);
+          explicitVr = transferSyntaxUid !== ImplicitTransferSyntaxUID;
+        }
+      },
+    });
 
     const sinkStream = new WritableStream({
       write: (chunk) => {
         const result = parse(chunk);
         if (result.done) {
+          dicomUpToPixelDataIdx = result.value.position;
           this.fetcher.close();
         }
       },
@@ -56,7 +85,23 @@ export class DicomMetaLoader implements MetaLoader {
       }
     }
 
-    const metadataFile = new File(this.fetcher.cachedChunks, 'file.dcm');
+    // itk.wasm/GDCM requires valid pixel data to be present, so we need to
+    // generate fake pixel data. Valid means valid length and VR.
+    // It turns out that encapsulated pixel data structures are parsed, even if
+    // the pixel data itself is not touched. This does not work well with
+    // metadata streaming.
+    const metaBlob = new Blob(this.fetcher.cachedChunks).slice(
+      0,
+      dicomUpToPixelDataIdx
+    );
+    const validPixelDataBlob = new Blob(
+      [metaBlob, generateEmptyPixelData(explicitVr)],
+      { type: FILE_EXT_TO_MIME.dcm }
+    );
+
+    this.blob = validPixelDataBlob;
+
+    const metadataFile = new File([validPixelDataBlob], 'file.dcm');
     this.tags = await this.readDicomTags(metadataFile);
   }
 
