@@ -41,19 +41,19 @@ function useAutoRangeValues(imageID: MaybeRef<Maybe<string>>) {
       1
     );
     const hist = await worker.histogram(scalarData, [min, max], WL_HIST_BINS);
-    const cumm = hist.reduce((acc, val, idx) => {
+    const cumulativeHist = hist.reduce((acc, val, idx) => {
       const prev = idx !== 0 ? acc[idx - 1] : 0;
       acc.push(val + prev);
       return acc;
-    }, []);
+    }, [] as number[]);
 
     const width = (max - min + 1) / WL_HIST_BINS;
     return Object.fromEntries(
       Object.entries(WLAutoRanges).map(([key, value]) => {
-        const startIdx = cumm.findIndex(
+        const startIdx = cumulativeHist.findIndex(
           (v: number) => v >= value * 0.01 * scalarData.length
         );
-        const endIdx = cumm.findIndex(
+        const endIdx = cumulativeHist.findIndex(
           (v: number) => v >= (1 - value * 0.01) * scalarData.length
         );
         const start = Math.max(min, min + width * startIdx);
@@ -81,9 +81,8 @@ export function useWindowingConfigInitializer(
   const store = useWindowingStore();
   const { config: windowConfig } = useWindowingConfig(viewID, imageID);
   const { autoRangeValues } = useAutoRangeValues(imageID);
-  const autoRange = computed<keyof typeof WLAutoRanges>(
-    () => windowConfig.value?.auto || WL_AUTO_DEFAULT
-  );
+  const useAuto = computed(() => windowConfig.value?.useAuto);
+  const autoRange = computed(() => windowConfig.value?.auto || WL_AUTO_DEFAULT);
 
   const firstTag = computed(() => {
     const id = unref(imageID);
@@ -94,17 +93,6 @@ export function useWindowingConfigInitializer(
       }
     }
     return undefined;
-  });
-
-  watchImmediate(windowConfig, (config) => {
-    const image = imageData.value;
-    const imageIdVal = unref(imageID);
-    const viewIdVal = unref(viewID);
-    if (config || !image || !imageIdVal) return;
-
-    const [min, max] = image.getPointData().getScalars().getRange();
-    store.updateConfig(viewIdVal, imageIdVal, { min, max });
-    store.resetWindowLevel(viewIdVal, imageIdVal);
   });
 
   watchImmediate(scalarRange, (range) => {
@@ -123,32 +111,28 @@ export function useWindowingConfigInitializer(
 
     if (autoRange.value in autoRangeValues.value) {
       const [min, max] = autoRangeValues.value[autoRange.value];
+      const width = max - min;
+      const level = (max + min) / 2;
       store.updateConfig(viewIdVal, imageIdVal, {
-        min,
-        max,
+        width,
+        level,
       });
     }
 
     const firstTagVal = unref(firstTag);
     if (firstTagVal?.width) {
       store.updateConfig(viewIdVal, imageIdVal, {
-        preset: {
-          width: firstTagVal.width,
-          level: firstTagVal.level,
-        },
+        width: firstTagVal.width,
+        level: firstTagVal.level,
       });
     }
 
-    const forcedWL = store.runtimeConfigWindowLevel;
-    if (forcedWL) {
+    const jsonWidthLevel = store.runtimeConfigWindowLevel;
+    if (jsonWidthLevel) {
       store.updateConfig(viewIdVal, imageIdVal, {
-        preset: {
-          ...forcedWL,
-        },
+        ...jsonWidthLevel,
       });
     }
-
-    store.resetWindowLevel(viewIdVal, imageIdVal);
   }
 
   watchImmediate(
@@ -158,12 +142,20 @@ export function useWindowingConfigInitializer(
         return;
       }
 
+      const config = store.getConfig(unref(viewID), unref(imageID));
+      if (config?.userTriggered) {
+        return;
+      }
+
       updateConfigFromAutoRangeValues();
     },
     { deep: true }
   );
 
-  watch(autoRange, (percentile) => {
+  watch([useAuto, autoRange], ([gate, percentile]) => {
+    if (!gate) {
+      return;
+    }
     const image = imageData.value;
     const imageIdVal = unref(imageID);
     const viewIdVal = unref(viewID);
@@ -171,19 +163,15 @@ export function useWindowingConfigInitializer(
       return;
     }
     const range = autoRangeValues.value[percentile];
+    const width = range[1] - range[0];
+    const level = (range[1] + range[0]) / 2;
     store.updateConfig(viewIdVal, imageIdVal, {
-      min: range[0],
-      max: range[1],
+      width,
+      level,
     });
-    store.resetWindowLevel(viewIdVal, imageIdVal);
   });
 
   useResetViewsEvents().onClick(() => {
-    const imageIdVal = unref(imageID);
-    const viewIdVal = unref(viewID);
-    if (imageIdVal == null || windowConfig.value == null) {
-      return;
-    }
-    store.resetWindowLevel(viewIdVal, imageIdVal);
+    updateConfigFromAutoRangeValues();
   });
 }

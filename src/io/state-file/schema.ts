@@ -137,7 +137,8 @@ const WindowLevelConfig = z.object({
   min: z.number(),
   max: z.number(),
   auto: z.string() as z.ZodType<AutoRangeKeys>,
-  preset: z.object({ width: z.number(), level: z.number() }),
+  useAuto: z.boolean().optional(),
+  userTriggered: z.boolean().optional(),
 }) satisfies z.ZodType<WindowLevelConfig>;
 
 const SliceConfig = z.object({

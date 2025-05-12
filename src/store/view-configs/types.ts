@@ -41,11 +41,8 @@ export interface WindowLevelConfig {
   min: number; // data range min
   max: number; // data range max
   auto: keyof typeof WLAutoRanges; // User-selected percentile range
-  preset: {
-    // User-selected preset value, if any
-    width: number;
-    level: number;
-  };
+  useAuto?: boolean; // Whether to use the percentage histogram range
+  userTriggered?: boolean; // Whether the user has changed the window/level
 }
 
 export interface LayersConfig {

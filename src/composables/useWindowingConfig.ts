@@ -16,7 +16,7 @@ export function useWindowingConfig(
       set: (val) => {
         const imageIdVal = unref(imageID);
         if (!imageIdVal || val == null) return;
-        store.updateConfig(unref(viewID), imageIdVal, { [prop]: val });
+        store.updateConfig(unref(viewID), imageIdVal, { [prop]: val }, true);
       },
     });
   };

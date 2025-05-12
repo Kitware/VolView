@@ -18,10 +18,8 @@ export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
   min: 0,
   max: 1,
   auto: WL_AUTO_DEFAULT,
-  preset: {
-    width: 1,
-    level: 0.5,
-  },
+  useAuto: false,
+  userTriggered: false,
 });
 
 type WindowLevel = {
@@ -62,31 +60,23 @@ export const useWindowingStore = defineStore('windowing', () => {
   const updateConfig = (
     viewID: string,
     dataID: string,
-    patch: Partial<WindowLevelConfig>
+    patch: Partial<WindowLevelConfig>,
+    userTriggered = false
   ) => {
+    const currentConfig = configs[viewID]?.[dataID];
+
+    // Ensure userTriggered only goes from false to true, never true to false
+    const effectiveUserTriggered =
+      currentConfig?.userTriggered || userTriggered;
+
     patchDoubleKeyRecord(configs, viewID, dataID, {
       ...defaultWindowLevelConfig(),
-      ...configs[viewID]?.[dataID],
+      ...currentConfig,
       ...patch,
+      userTriggered: effectiveUserTriggered,
     });
 
-    if (syncAcrossViews.value) {
-      syncWindowLevel(viewID, dataID);
-    }
-  };
-
-  // not really reset, actually translate config object into W/L
-  const resetWindowLevel = (viewID: string, dataID: string) => {
-    const config = configs[viewID]?.[dataID];
-    if (config == null) return;
-
-    let { width, level } = config.preset;
-    const defaults = defaultWindowLevelConfig();
-    if (width === defaults.width && level === defaults.level) {
-      width = config.max - config.min;
-      level = (config.max + config.min) / 2;
-    }
-    updateConfig(viewID, dataID, { width, level });
+    syncWindowLevel(viewID, dataID);
   };
 
   const removeView = (viewID: string) => {
@@ -117,7 +107,6 @@ export const useWindowingStore = defineStore('windowing', () => {
     getConfig,
     setSyncAcrossViews,
     updateConfig,
-    resetWindowLevel,
     removeView,
     removeData,
     serialize,

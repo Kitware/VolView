@@ -5,7 +5,7 @@ import useWindowingStore, {
   defaultWindowLevelConfig,
 } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
-import { WLAutoRanges, WLPresetsCT, WL_AUTO_DEFAULT } from '@/src/constants';
+import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { isDicomImage } from '@/src/utils/dataSelection';
 
@@ -16,7 +16,6 @@ export default defineComponent({
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
     const panel = ref(['tags', 'presets', 'auto']);
-    const windowingDefaults = defaultWindowLevelConfig();
 
     // Get the relevant view ids
     const viewIDs = computed(() =>
@@ -48,10 +47,6 @@ export default defineComponent({
       return modality.value && ctTags.includes(modality.value.toLowerCase());
     });
 
-    const wlDefaults = computed(() => {
-      return { width: windowingDefaults.width, level: windowingDefaults.level };
-    });
-
     // --- UI Selection Management --- //
 
     type AutoRangeKey = keyof typeof WLAutoRanges;
@@ -61,39 +56,53 @@ export default defineComponent({
       // All views will have the same settings, just grab the first
       const viewID = viewIDs.value[0];
       const imageID = currentImageID.value;
-      if (!imageID || !viewID) return windowingDefaults;
-      return windowingStore.getConfig(viewID, imageID);
+      if (!imageID || !viewID) return defaultWindowLevelConfig();
+      return (
+        windowingStore.getConfig(viewID, imageID) ?? defaultWindowLevelConfig()
+      );
     });
 
-    const wlWidth = computed(
-      () => wlConfig.value?.width ?? wlDefaults.value.width
-    );
-    const wlLevel = computed(
-      () => wlConfig.value?.level ?? wlDefaults.value.level
-    );
+    const wlWidth = computed(() => wlConfig.value.width);
+    const wlLevel = computed(() => wlConfig.value.level);
 
     const wlOptions = computed({
       get() {
         const config = wlConfig.value;
-        const { width, level } = config?.preset || wlDefaults.value;
-        const { width: defaultWidth, level: defaultLevel } = wlDefaults.value;
-        if (width !== defaultWidth && level !== defaultLevel) {
-          return { width: wlWidth.value, level: wlLevel.value };
+        if (config.useAuto) {
+          return config.auto;
         }
-        return config?.auto || WL_AUTO_DEFAULT;
+        // Otherwise, a specific W/L is active (from preset or manual adjustment).
+        return { width: wlWidth.value, level: wlLevel.value };
       },
       set(selection: AutoRangeKey | PresetValue) {
         const imageID = currentImageID.value;
         // All views will be synchronized, just set the first
         const viewID = viewIDs.value[0];
-        if (imageID && viewID) {
-          const useAuto = typeof selection !== 'object';
-          const newValue = {
-            preset: useAuto ? wlDefaults.value : selection,
-            auto: useAuto ? selection : WL_AUTO_DEFAULT,
-          };
-          windowingStore.updateConfig(viewID, imageID, newValue);
-          windowingStore.resetWindowLevel(viewID, imageID);
+        if (!imageID || !viewID) {
+          return;
+        }
+        if (typeof selection === 'object') {
+          // It's a preset with { width, level }
+          windowingStore.updateConfig(
+            viewID,
+            imageID,
+            {
+              width: selection.width,
+              level: selection.level,
+              useAuto: false,
+            },
+            true
+          );
+        } else {
+          windowingStore.updateConfig(
+            viewID,
+            imageID,
+            {
+              auto: selection,
+              useAuto: true,
+            },
+            true
+          );
         }
       },
     });

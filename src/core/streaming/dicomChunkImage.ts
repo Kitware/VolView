@@ -363,6 +363,7 @@ export default class DicomChunkImage
       const newMin = rangeAlreadyInitialized ? Math.min(min, curRange[0]) : min;
       const newMax = rangeAlreadyInitialized ? Math.max(max, curRange[1]) : max;
       scalars.setRange({ min: newMin, max: newMax }, comp);
+      scalars.modified(); // so window level watchers will trigger
     }
 
     chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);
