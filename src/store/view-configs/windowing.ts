@@ -140,7 +140,7 @@ export const useWindowingStore = defineStore('windowing', () => {
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.window) {
-        updateConfig(viewID, dataID, viewConfig.window as WindowLevelConfig);
+        updateConfig(viewID, dataID, viewConfig.window);
       }
     });
   };
