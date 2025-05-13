@@ -13,6 +13,11 @@ import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
 
+type WindowLevel = {
+  width: number;
+  level: number;
+};
+
 export const defaultWindowLevelConfig = () =>
   ({
     width: 1,
@@ -22,15 +27,10 @@ export const defaultWindowLevelConfig = () =>
     userTriggered: false,
   } as const);
 
-type WindowLevel = {
-  width: number;
-  level: number;
-};
-
 export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
-  const syncAcrossViews = ref(true);
   const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
+  const syncAcrossViews = ref(true);
   const imageStatsStore = useImageStatsStore();
 
   const setSyncAcrossViews = (yn: boolean) => {
@@ -45,33 +45,22 @@ export const useWindowingStore = defineStore('windowing', () => {
         return defaultWindowLevelConfig();
       }
 
-      let widthLevel = {
-        width: internalConfig.width,
-        level: internalConfig.level,
-      };
-      if (internalConfig.useAuto) {
-        const autoKey = internalConfig.auto;
-        const statsRef = imageStatsStore.getAutoRangeValues(dataID);
-        const autoValues = statsRef.value;
-
-        if (autoValues && autoValues[autoKey]) {
-          const [min, max] = autoValues[autoKey];
-          widthLevel = {
-            width: max - min,
-            level: (max + min) / 2,
-          };
-        } else {
-          widthLevel = {
-            width: internalConfig.width,
-            level: internalConfig.level,
-          };
-        }
+      if (!internalConfig.useAuto) {
+        return { ...internalConfig } as const;
       }
 
-      return {
-        ...internalConfig,
-        ...widthLevel,
-      } as const;
+      const autoKey = internalConfig.auto;
+      const statsRef = imageStatsStore.getAutoRangeValues(dataID);
+      const autoValues = statsRef.value;
+      if (autoValues && autoValues[autoKey]) {
+        const [min, max] = autoValues[autoKey];
+        return {
+          ...internalConfig,
+          width: max - min,
+          level: (max + min) / 2,
+        } as const;
+      }
+      return { ...internalConfig } as const;
     });
   };
 
@@ -106,19 +95,19 @@ export const useWindowingStore = defineStore('windowing', () => {
       effectiveUseAuto = patch.useAuto;
     } else if (patch.auto !== undefined) {
       effectiveUseAuto = true;
-    } else if (patch.width !== undefined || patch.level !== undefined) {
-      if (patch.useAuto === undefined) {
-        effectiveUseAuto = false;
-      }
+    }
+    if (
+      (patch.width !== undefined || patch.level !== undefined) &&
+      patch.useAuto === undefined
+    ) {
+      effectiveUseAuto = false;
       if (!effectiveUseAuto) {
         // patch may be only width or level so ensure we have both in the end
         const config = getConfig(viewID, dataID).value;
-        if (config) {
-          widthLevelPatchOnSwitchingFromAuto = {
-            width: config.width,
-            level: config.level,
-          };
-        }
+        widthLevelPatchOnSwitchingFromAuto = {
+          width: config.width,
+          level: config.level,
+        };
       }
     }
 
