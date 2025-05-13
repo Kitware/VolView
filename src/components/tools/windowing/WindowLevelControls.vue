@@ -1,7 +1,8 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import useWindowingStore, {
+import {
+  useWindowingStore,
   defaultWindowLevelConfig,
 } from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';

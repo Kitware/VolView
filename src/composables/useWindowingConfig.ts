@@ -1,4 +1,4 @@
-import useWindowingStore from '@/src/store/view-configs/windowing';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { MaybeRef, unref, computed } from 'vue';

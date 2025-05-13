@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { reactive, ref } from 'vue';
+import { reactive, ref, watch, WatchStopHandle } from 'vue'; // Added WatchStopHandle
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -8,6 +8,7 @@ import {
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
 import { WL_AUTO_DEFAULT } from '@/src/constants';
+import { useImageStatsStore } from '@/src/store/image-stats';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
@@ -29,6 +30,10 @@ export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
   const syncAcrossViews = ref(true);
   const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
+  const imageStatsStore = useImageStatsStore();
+
+  // Use DoubleKeyRecord for autoWindowUpdaters
+  const autoWindowUpdaters = reactive<DoubleKeyRecord<WatchStopHandle>>({});
 
   const setSyncAcrossViews = (yn: boolean) => {
     syncAcrossViews.value = yn;
@@ -53,6 +58,58 @@ export const useWindowingStore = defineStore('windowing', () => {
       .forEach((viewID) => {
         patchDoubleKeyRecord(configs, viewID, srcDataID, config);
       });
+  };
+
+  const teardownAutoWindowUpdater = (viewID: string, dataID: string) => {
+    const stop = getDoubleKeyRecord(autoWindowUpdaters, viewID, dataID);
+    if (stop) {
+      stop();
+      // Remove the specific dataID entry for the viewID
+      if (autoWindowUpdaters[viewID]) {
+        delete autoWindowUpdaters[viewID][dataID];
+        if (Object.keys(autoWindowUpdaters[viewID]).length === 0) {
+          delete autoWindowUpdaters[viewID];
+        }
+      }
+    }
+  };
+
+  const setupAutoWindowUpdater = (viewID: string, dataID: string) => {
+    teardownAutoWindowUpdater(viewID, dataID); // Stop existing watcher if any
+
+    const newStopHandle = watch(
+      [
+        () => imageStatsStore.getAutoRangeValues(dataID).value,
+        () => configs[viewID]?.[dataID],
+      ],
+      ([autoValues, config]) => {
+        if (!config?.useAuto) {
+          return;
+        }
+
+        const autoKey = config.auto || WL_AUTO_DEFAULT;
+        if (autoValues && autoValues[autoKey]) {
+          const [min, max] = autoValues[autoKey];
+          const newWidth = max - min;
+          const newLevel = (max + min) / 2;
+
+          if (config.width !== newWidth || config.level !== newLevel) {
+            patchDoubleKeyRecord(configs, viewID, dataID, {
+              width: newWidth,
+              level: newLevel,
+            });
+            syncWindowLevel(viewID, dataID);
+          }
+        }
+      },
+      { deep: true, immediate: true }
+    );
+
+    // Store the new stop handle
+    if (!autoWindowUpdaters[viewID]) {
+      autoWindowUpdaters[viewID] = {};
+    }
+    autoWindowUpdaters[viewID][dataID] = newStopHandle;
   };
 
   const updateConfig = (
@@ -90,17 +147,45 @@ export const useWindowingStore = defineStore('windowing', () => {
     });
 
     syncWindowLevel(viewID, dataID);
+    setupAutoWindowUpdater(viewID, dataID);
   };
 
   const removeView = (viewID: string) => {
+    const dataConfigs = configs[viewID];
+    if (dataConfigs) {
+      Object.keys(dataConfigs).forEach((dataID) => {
+        teardownAutoWindowUpdater(viewID, dataID);
+      });
+    }
     delete configs[viewID];
+    if (
+      autoWindowUpdaters[viewID] &&
+      Object.keys(autoWindowUpdaters[viewID]).length === 0
+    ) {
+      delete autoWindowUpdaters[viewID];
+    }
   };
 
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
+      teardownAutoWindowUpdater(viewID, dataID);
       delete configs[viewID]?.[dataID];
     } else {
+      Object.keys(configs).forEach((vID) => {
+        if (configs[vID]?.[dataID]) {
+          teardownAutoWindowUpdater(vID, dataID);
+        }
+      });
       deleteSecondKey(configs, dataID);
+      // Also remove from autoWindowUpdaters for all views
+      Object.keys(autoWindowUpdaters).forEach((vID) => {
+        if (autoWindowUpdaters[vID]?.[dataID]) {
+          delete autoWindowUpdaters[vID][dataID];
+          if (Object.keys(autoWindowUpdaters[vID]).length === 0) {
+            delete autoWindowUpdaters[vID];
+          }
+        }
+      });
     }
   };
 
@@ -126,5 +211,3 @@ export const useWindowingStore = defineStore('windowing', () => {
     deserialize,
   };
 });
-
-export default useWindowingStore;

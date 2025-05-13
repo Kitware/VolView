@@ -16,7 +16,6 @@ export type ImageStats = {
   autoRangeValues?: Record<string, [number, number]>;
 };
 
-// Helper function to compute auto range values, similar to the original useAutoRangeValues
 async function computeAutoRangeValues(
   imageData: ReturnType<typeof useImage>['imageData']['value'],
   isImageLoading: ReturnType<typeof useImage>['isLoading']['value']
@@ -83,7 +82,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     max: number
   ) => {
     stats[imageID] = {
-      ...stats[imageID], // preserve existing autoRangeValues
+      ...stats[imageID],
       scalarMin: min,
       scalarMax: max,
     };
@@ -206,10 +205,9 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     { immediate: true }
   );
 
-  // Getter for autoRangeValues, returning a computed ref
   const getAutoRangeValues = (imageID: MaybeRef<Maybe<string>>) => {
     return computed(() => {
-      const id = unref(imageID); // Use unref to get value from MaybeRef
+      const id = unref(imageID);
       if (id && stats[id]) {
         return stats[id].autoRangeValues ?? {};
       }
@@ -219,6 +217,6 @@ export const useImageStatsStore = defineStore('image-stats', () => {
 
   return {
     stats,
-    getAutoRangeValues, // Expose the getter
+    getAutoRangeValues,
   };
 });
