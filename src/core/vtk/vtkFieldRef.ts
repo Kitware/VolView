@@ -81,7 +81,7 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
 
     getter = () => {
       const value = _getter.value?.();
-      // If the value is an array, create a new reference to avoid mutation issues
+      // create a new reference to trigger update
       if (Array.isArray(value)) {
         lastValue = [...value];
         lastValueIsArray = true;
@@ -108,7 +108,7 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
     const originalGetter = fieldNameOrFactory.get;
     getter = () => {
       const value = originalGetter();
-      // If the value is an array, create a new reference to avoid mutation issues
+      // create a new reference to trigger update
       if (Array.isArray(value)) {
         lastValue = [...value];
         lastValueIsArray = true;

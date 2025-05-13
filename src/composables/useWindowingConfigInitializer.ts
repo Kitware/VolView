@@ -57,11 +57,12 @@ export function useWindowingConfigInitializer(
   watchImmediate(
     [imageData],
     () => {
-      if (!imageData.value) {
+      const imageIdValue = unref(imageID);
+      if (!imageData.value || !imageIdValue) {
         return;
       }
 
-      const config = store.getConfig(unref(viewID), unref(imageID));
+      const config = store.getConfig(unref(viewID), imageIdValue).value;
       if (config?.userTriggered) {
         return;
       }

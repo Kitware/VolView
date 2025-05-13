@@ -21,7 +21,9 @@ export default defineComponent({
     // Get the relevant view ids
     const viewIDs = computed(() =>
       viewStore.viewIDs.filter(
-        (viewID) => !!windowingStore.getConfig(viewID, currentImageID.value)
+        (viewID) =>
+          currentImageID.value &&
+          !!windowingStore.getConfig(viewID, currentImageID.value)
       )
     );
 
@@ -59,7 +61,8 @@ export default defineComponent({
       const imageID = currentImageID.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();
       return (
-        windowingStore.getConfig(viewID, imageID) ?? defaultWindowLevelConfig()
+        windowingStore.getConfig(viewID, imageID)?.value ??
+        defaultWindowLevelConfig()
       );
     });
 
@@ -84,7 +87,6 @@ export default defineComponent({
         }
 
         if (typeof selection === 'object') {
-          // It's a preset with { width, level }
           windowingStore.updateConfig(
             viewID,
             imageID,

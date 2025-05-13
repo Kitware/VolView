@@ -10,11 +10,19 @@ export function useWindowingConfig(
 ) {
   const store = useWindowingStore();
   const imageStatsStore = useImageStatsStore();
-  const config = computed(() => store.getConfig(unref(viewID), unref(imageID)));
+  const config = computed(() => {
+    const imageIdVal = unref(imageID);
+    if (!imageIdVal) return undefined;
+    const viewIdVal = unref(viewID);
+    if (!viewIdVal) return undefined;
+    return store.getConfig(viewIdVal, imageIdVal);
+  });
 
   const generateComputed = (prop: 'width' | 'level') => {
     return computed({
-      get: () => config.value?.[prop] ?? 0,
+      get: () => {
+        return config.value?.value?.[prop] ?? 0;
+      },
       set: (val) => {
         const imageIdVal = unref(imageID);
         if (!imageIdVal || val == null) return;
