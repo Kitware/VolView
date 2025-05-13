@@ -152,8 +152,8 @@ export function useWindowingConfigInitializer(
     { deep: true }
   );
 
-  watch([useAuto, autoRange], ([gate, percentile]) => {
-    if (!gate) {
+  watch([useAuto, autoRange, autoRangeValues], () => {
+    if (!useAuto.value) {
       return;
     }
     const image = imageData.value;
@@ -162,7 +162,7 @@ export function useWindowingConfigInitializer(
     if (imageIdVal == null || windowConfig.value == null || !image) {
       return;
     }
-    const range = autoRangeValues.value[percentile];
+    const range = autoRangeValues.value[autoRange.value];
     const width = range[1] - range[0];
     const level = (range[1] + range[0]) / 2;
     store.updateConfig(viewIdVal, imageIdVal, {
