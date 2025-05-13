@@ -71,7 +71,7 @@ export const useWindowingStore = defineStore('windowing', () => {
       return {
         ...internalConfig,
         ...widthLevel,
-      };
+      } as const;
     });
   };
 
@@ -100,6 +100,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     const defaults = defaultWindowLevelConfig();
 
     let effectiveUseAuto = currentInternalConfig?.useAuto ?? defaults.useAuto;
+    let widthLevelPatchOnSwitchingFromAuto;
 
     if (patch.useAuto !== undefined) {
       effectiveUseAuto = patch.useAuto;
@@ -109,14 +110,23 @@ export const useWindowingStore = defineStore('windowing', () => {
       if (patch.useAuto === undefined) {
         effectiveUseAuto = false;
       }
+      if (!effectiveUseAuto) {
+        // patch may be only width or level so ensure we have both in the end
+        const config = getConfig(viewID, dataID).value;
+        if (config) {
+          widthLevelPatchOnSwitchingFromAuto = {
+            width: config.width,
+            level: config.level,
+          };
+        }
+      }
     }
 
-    const newInternalConfig: WindowLevelConfig = {
-      ...defaults,
-      ...(currentInternalConfig ?? {}),
+    const newInternalConfig = {
+      ...widthLevelPatchOnSwitchingFromAuto,
       ...patch,
       useAuto: effectiveUseAuto,
-      userTriggered: currentInternalConfig?.userTriggered || userTriggered,
+      userTriggered: currentInternalConfig?.userTriggered || userTriggered, // one way from false to true
     };
 
     patchDoubleKeyRecord(configs, viewID, dataID, newInternalConfig);

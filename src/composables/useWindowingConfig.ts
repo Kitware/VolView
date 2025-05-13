@@ -15,13 +15,13 @@ export function useWindowingConfig(
     if (!imageIdVal) return undefined;
     const viewIdVal = unref(viewID);
     if (!viewIdVal) return undefined;
-    return store.getConfig(viewIdVal, imageIdVal);
+    return store.getConfig(viewIdVal, imageIdVal).value;
   });
 
   const generateComputed = (prop: 'width' | 'level') => {
     return computed({
       get: () => {
-        return config.value?.value?.[prop] ?? 0;
+        return config.value?.[prop] ?? 0;
       },
       set: (val) => {
         const imageIdVal = unref(imageID);
