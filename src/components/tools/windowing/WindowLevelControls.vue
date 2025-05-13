@@ -81,6 +81,7 @@ export default defineComponent({
         if (!imageID || !viewID) {
           return;
         }
+
         if (typeof selection === 'object') {
           // It's a preset with { width, level }
           windowingStore.updateConfig(
@@ -89,21 +90,20 @@ export default defineComponent({
             {
               width: selection.width,
               level: selection.level,
-              useAuto: false,
             },
             true
           );
-        } else {
-          windowingStore.updateConfig(
-            viewID,
-            imageID,
-            {
-              auto: selection,
-              useAuto: true,
-            },
-            true
-          );
+          return;
         }
+
+        windowingStore.updateConfig(
+          viewID,
+          imageID,
+          {
+            auto: selection,
+          },
+          true
+        );
       },
     });
 

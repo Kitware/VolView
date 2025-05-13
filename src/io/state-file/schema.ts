@@ -134,8 +134,6 @@ type AutoRangeKeys = keyof typeof WLAutoRanges;
 const WindowLevelConfig = z.object({
   width: z.number(),
   level: z.number(),
-  min: z.number(),
-  max: z.number(),
   auto: z.string() as z.ZodType<AutoRangeKeys>,
   useAuto: z.boolean().optional(),
   userTriggered: z.boolean().optional(),

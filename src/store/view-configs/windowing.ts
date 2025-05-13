@@ -12,11 +12,9 @@ import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
 
-export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
+export const defaultWindowLevelConfig = () => ({
   width: 1,
   level: 0.5,
-  min: 0,
-  max: 1,
   auto: WL_AUTO_DEFAULT,
   useAuto: false,
   userTriggered: false,
@@ -69,10 +67,25 @@ export const useWindowingStore = defineStore('windowing', () => {
     const effectiveUserTriggered =
       currentConfig?.userTriggered || userTriggered;
 
+    let effectiveUseAuto =
+      patch.useAuto ??
+      currentConfig?.useAuto ??
+      defaultWindowLevelConfig().useAuto;
+
+    if (patch.auto !== undefined) {
+      effectiveUseAuto = true;
+    } else if (
+      (patch.width !== undefined || patch.level !== undefined) &&
+      patch.useAuto === undefined
+    ) {
+      effectiveUseAuto = false;
+    }
+
     patchDoubleKeyRecord(configs, viewID, dataID, {
       ...defaultWindowLevelConfig(),
       ...currentConfig,
       ...patch,
+      useAuto: effectiveUseAuto,
       userTriggered: effectiveUserTriggered,
     });
 
