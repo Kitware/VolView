@@ -115,7 +115,11 @@ export const useWindowingStore = defineStore('windowing', () => {
       ...widthLevelPatchOnSwitchingFromAuto,
       ...patch,
       useAuto: effectiveUseAuto,
-      userTriggered: currentInternalConfig?.userTriggered || userTriggered, // one way from false to true
+      // one way from false to true
+      userTriggered:
+        currentInternalConfig?.userTriggered ||
+        userTriggered ||
+        patch.userTriggered,
     };
 
     patchDoubleKeyRecord(configs, viewID, dataID, newInternalConfig);
