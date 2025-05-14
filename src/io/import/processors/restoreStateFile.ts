@@ -359,9 +359,9 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
     let manifest: Manifest;
     try {
       manifest = ManifestSchema.parse(migrated);
-    } catch (_) {
+    } catch (e) {
       return asErrorResult(
-        new Error('Unsupported state file schema or version'),
+        new Error(`Unsupported state file schema or version: ${e}`),
         dataSource
       );
     }

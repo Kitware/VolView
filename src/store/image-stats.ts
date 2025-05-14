@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { reactive, watch, computed, MaybeRef, unref } from 'vue';
 import * as Comlink from 'comlink';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
 import { HistogramWorker } from '@/src/utils/histogram.worker';
@@ -17,8 +18,8 @@ export type ImageStats = {
 };
 
 async function computeAutoRangeValues(
-  imageData: ReturnType<typeof useImage>['imageData']['value'],
-  isImageLoading: ReturnType<typeof useImage>['isLoading']['value']
+  imageData: vtkImageData,
+  isImageLoading: boolean
 ): Promise<Record<string, [number, number]>> {
   if (isImageLoading || !imageData) {
     return {};
