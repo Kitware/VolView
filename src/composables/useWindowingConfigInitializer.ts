@@ -46,10 +46,10 @@ export function useWindowingConfigInitializer(
       });
     }
 
-    const jsonWidthLevel = store.runtimeConfigWindowLevel;
-    if (jsonWidthLevel) {
+    const widthLevel = store.runtimeConfigWindowLevel;
+    if (widthLevel) {
       store.updateConfig(viewIdVal, imageIdVal, {
-        ...jsonWidthLevel,
+        ...widthLevel,
       });
     }
   }

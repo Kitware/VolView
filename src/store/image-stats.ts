@@ -1,5 +1,13 @@
 import { defineStore } from 'pinia';
-import { reactive, watch, computed, MaybeRef, unref } from 'vue';
+import {
+  reactive,
+  watch,
+  computed,
+  MaybeRef,
+  unref,
+  effectScope,
+  type EffectScope,
+} from 'vue';
 import * as Comlink from 'comlink';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -8,6 +16,7 @@ import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
 import { HistogramWorker } from '@/src/utils/histogram.worker';
 import { Maybe } from '@/src/types';
 import { useImage } from '@/src/composables/useCurrentImage';
+import { ensureError } from '@/src/utils';
 import { useImageCacheStore } from './image-cache';
 import { useMessageStore } from './messages';
 
@@ -18,13 +27,8 @@ export type ImageStats = {
 };
 
 async function computeAutoRangeValues(
-  imageData: vtkImageData,
-  isImageLoading: boolean
+  imageData: vtkImageData
 ): Promise<Record<string, [number, number]>> {
-  if (isImageLoading || !imageData) {
-    return {};
-  }
-
   const scalars = imageData.getPointData()?.getScalars();
   if (!scalars) {
     return {};
@@ -71,7 +75,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
   const imageCacheStore = useImageCacheStore();
   const messageStore = useMessageStore();
 
-  const scalarRangeWatchers: Record<string, () => void> = {};
+  const statsEffectScope: Record<string, EffectScope> = {};
   const autoRangeComputations: Record<
     string,
     Promise<Record<string, [number, number]>>
@@ -94,7 +98,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     autoValues: Record<string, [number, number]>
   ) => {
     stats[imageID] = {
-      ...(stats[imageID] ?? { scalarMin: 0, scalarMax: 0 }),
+      ...stats[imageID],
       autoRangeValues: autoValues,
     };
   };
@@ -103,11 +107,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     delete stats[imageID];
   };
 
-  const setupImageWatcher = (id: string) => {
-    if (scalarRangeWatchers[id]) {
-      scalarRangeWatchers[id]();
-    }
-
+  const setupImageWatchers = (id: string) => {
     const { imageData, isLoading: isImageLoading } = useImage(
       computed(() => id)
     );
@@ -117,77 +117,68 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     );
     const scalarRange = vtkFieldRef(activeScalars, 'range');
 
-    scalarRangeWatchers[id] = watch(
+    watch(
       scalarRange,
       (range) => {
-        if (imageData.value && range) {
+        if (range) {
           internalSetScalarRange(id, range[0], range[1]);
-        } else {
-          internalRemoveStats(id);
         }
       },
       { immediate: true }
     );
 
-    const updateAutoRangeValuesIfNeeded = () => {
-      const currentImageData = imageData.value;
-      const currentIsLoading = isImageLoading.value;
+    const triggerAutoRangeComputation = (image: vtkImageData) => {
+      autoRangeComputations[id] = computeAutoRangeValues(image);
 
-      if (!currentIsLoading && currentImageData) {
-        if (id in autoRangeComputations) {
-          return;
-        }
-        autoRangeComputations[id] = computeAutoRangeValues(
-          currentImageData,
-          currentIsLoading
-        );
-
-        autoRangeComputations[id]
-          .then((autoValues) => {
-            if (imageCacheStore.imageIds.includes(id)) {
-              internalSetAutoRangeValues(id, autoValues);
-            }
-          })
-          .catch((error) => {
-            console.error(
-              `[ImageStatsStore] Auto range computation for image ${id} FAILED:`,
-              error
-            );
-            messageStore.addError(
-              `Auto range computation failed for image ${id}`,
-              error instanceof Error ? error : String(error)
-            );
-            if (imageCacheStore.imageIds.includes(id)) {
-              internalSetAutoRangeValues(id, {});
-            }
-          })
-          .finally(() => {
-            delete autoRangeComputations[id];
-          });
-      } else if (!currentImageData) {
-        internalSetAutoRangeValues(id, {});
-        if (id in autoRangeComputations) {
+      autoRangeComputations[id]
+        .then((autoValues) => {
+          if (imageCacheStore.imageIds.includes(id)) {
+            // not deleted yet, save values
+            internalSetAutoRangeValues(id, autoValues);
+          }
+        })
+        .catch((error) => {
+          console.error(
+            `[ImageStatsStore] Auto range computation for image ${id} FAILED:`,
+            error
+          );
+          messageStore.addError(
+            `Auto range computation failed for image ${id}`,
+            ensureError(error)
+          );
+        })
+        .finally(() => {
           delete autoRangeComputations[id];
-        }
-      }
+        });
     };
 
     watch(
       [imageData, isImageLoading],
       () => {
-        updateAutoRangeValuesIfNeeded();
+        if (
+          isImageLoading.value ||
+          !imageData.value ||
+          id in autoRangeComputations ||
+          (stats[id] && stats[id].autoRangeValues)
+        )
+          return;
+        triggerAutoRangeComputation(imageData.value);
       },
-      { immediate: true, deep: false }
+      { immediate: true }
     );
   };
 
-  const cleanupImageWatcher = (id: string) => {
+  const cleanupImage = (id: string) => {
     internalRemoveStats(id);
-    if (scalarRangeWatchers[id]) {
-      scalarRangeWatchers[id]();
-      delete scalarRangeWatchers[id];
+
+    if (statsEffectScope[id]) {
+      statsEffectScope[id].stop();
+      delete statsEffectScope[id];
     }
-    delete autoRangeComputations[id];
+
+    if (id in autoRangeComputations) {
+      delete autoRangeComputations[id];
+    }
   };
 
   watch(
@@ -200,8 +191,17 @@ export const useImageStatsStore = defineStore('image-stats', () => {
         (id) => !currentImageIds.includes(id)
       );
 
-      removedIds.forEach(cleanupImageWatcher);
-      addedIds.forEach(setupImageWatcher);
+      removedIds.forEach(cleanupImage);
+      addedIds.forEach((id) => {
+        if (statsEffectScope[id]) {
+          cleanupImage(id);
+          console.error(`Setting up stats for ${id} twice!`);
+        }
+        statsEffectScope[id] = effectScope();
+        statsEffectScope[id].run(() => {
+          setupImageWatchers(id);
+        });
+      });
     },
     { immediate: true }
   );
