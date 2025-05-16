@@ -146,6 +146,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   });
   image.getPointData().setScalars(dataArray);
 
+  // Needed for volume rendering to work at start
   // TODO(fli) sane defaults?
   dataArray.setRange({ min: 0, max: 255 }, 0);
 

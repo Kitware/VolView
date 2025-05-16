@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 
 import useViewSliceStore from './view-configs/slicing';
-import useWindowingStore from './view-configs/windowing';
+import { useWindowingStore } from './view-configs/windowing';
 import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';

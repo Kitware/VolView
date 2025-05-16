@@ -131,14 +131,29 @@ const Vector3 = z.tuple([
 ]) satisfies z.ZodType<Vector3>;
 
 type AutoRangeKeys = keyof typeof WLAutoRanges;
-const WindowLevelConfig = z.object({
-  width: z.number(),
-  level: z.number(),
-  min: z.number(),
-  max: z.number(),
-  auto: z.string() as z.ZodType<AutoRangeKeys>,
-  preset: z.object({ width: z.number(), level: z.number() }),
-}) satisfies z.ZodType<WindowLevelConfig>;
+const WindowLevelConfig = z
+  .object({
+    width: z.number().optional(),
+    level: z.number().optional(),
+    auto: z.string() as z.ZodType<AutoRangeKeys>,
+    useAuto: z.boolean().optional(),
+    userTriggered: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      // If useAuto is false, width and level must be present
+      if (
+        data.useAuto === false &&
+        (data.width === undefined || data.level === undefined)
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'width and level are required when useAuto is false',
+    }
+  ) satisfies z.ZodType<WindowLevelConfig>;
 
 const SliceConfig = z.object({
   slice: z.number(),
