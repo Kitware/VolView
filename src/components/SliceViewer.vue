@@ -197,7 +197,6 @@ import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInterac
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import { watchImmediate } from '@vueuse/core';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 interface Props extends LayoutViewProps {
@@ -220,8 +219,7 @@ const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 const hover = ref(false);
 
 function resetCamera() {
-  if (!vtkView.value) return;
-  vtkView.value.resetCamera();
+  vtkView.value?.resetCamera();
 }
 
 useResetViewsEvents().onClick(resetCamera);
@@ -247,8 +245,6 @@ const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
-
-watchImmediate(currentImageID, () => resetCamera());
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();

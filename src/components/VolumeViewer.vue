@@ -72,7 +72,6 @@ import VtkOrientationMarker from '@/src/components/vtk/VtkOrientationMarker.vue'
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import { watchImmediate } from '@vueuse/core';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 interface Props extends LayoutViewProps {
@@ -99,8 +98,6 @@ useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
 const { currentImageID, currentImageData, isImageLoading } = useCurrentImage();
-
-watchImmediate(currentImageID, () => resetCamera());
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();

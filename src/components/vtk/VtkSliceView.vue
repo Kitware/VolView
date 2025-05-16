@@ -32,8 +32,8 @@ const {
 } = toRefs(props);
 
 const vtkContainerRef = ref<HTMLElement>();
-
-const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
+const viewCameraStore = useViewCameraStore();
+const { disableCameraAutoReset } = storeToRefs(viewCameraStore);
 
 const { metadata: imageMetadata } = useImage(imageID);
 
@@ -90,9 +90,14 @@ function resetCamera() {
   });
 }
 
-watchImmediate([disableCameraAutoReset, viewID, imageID], ([noAutoReset]) => {
-  if (noAutoReset) return;
+watchImmediate([imageMetadata, disableCameraAutoReset], () => {
+  if (!imageMetadata.value || disableCameraAutoReset.value) return;
+  if (viewCameraStore.isCameraInitialized(viewID.value, imageID.value)) {
+    view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
+    return;
+  }
   resetCamera();
+  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
 });
 
 // persistent camera config
