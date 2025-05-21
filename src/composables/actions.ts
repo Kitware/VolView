@@ -69,6 +69,7 @@ export const ACTION_TO_FUNC = {
   paint: setTool(Tools.Paint),
   rectangle: setTool(Tools.Rectangle),
   crosshairs: setTool(Tools.Crosshairs),
+  temporaryCrosshairs: NOOP, // behavior implemented elsewhere
   crop: setTool(Tools.Crop),
   polygon: setTool(Tools.Polygon),
   select: setTool(Tools.Select),
