@@ -40,7 +40,6 @@
           class="vtk-view"
           ref="vtkView"
           data-testid="vtk-view vtk-two-view"
-          :disable-auto-reset-camera="disableCameraAutoReset"
           :view-id="id"
           :image-id="currentImageID"
           :view-direction="viewDirection"
@@ -186,7 +185,6 @@ import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
-import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
@@ -210,8 +208,6 @@ const layerSliceReps = ref([]);
 const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
-
-const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
 
 const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
 const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));

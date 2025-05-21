@@ -101,7 +101,6 @@ function resetCamera() {
   );
 }
 
-// after modifying this code, test changing images and view layouts
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
   if (!imageMetadata.value) return;
   if (

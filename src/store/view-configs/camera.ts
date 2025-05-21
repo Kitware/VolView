@@ -36,6 +36,7 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
 
+  // For disabling calls to resetCamera but not resetCameraClippingRange
   const disableCameraAutoReset = ref(false);
 
   const toggleCameraAutoReset = () => {
