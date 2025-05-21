@@ -44,6 +44,9 @@ export const ACTIONS = {
   crosshairs: {
     readable: 'Activate Crosshairs tool',
   },
+  temporaryCrosshairs: {
+    readable: 'Temporarily activate crosshairs tool',
+  },
   crop: {
     readable: 'Activate Crop tool',
   },
