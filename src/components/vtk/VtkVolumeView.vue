@@ -101,9 +101,13 @@ function resetCamera() {
   );
 }
 
+// after modifying this code, test changing images and view layouts
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
-  if (!imageMetadata.value || disableCameraAutoReset.value) return;
-  if (viewCameraStore.isCameraInitialized(viewID.value, imageID.value)) {
+  if (!imageMetadata.value) return;
+  if (
+    viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
+    disableCameraAutoReset.value
+  ) {
     view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
     return;
   }
