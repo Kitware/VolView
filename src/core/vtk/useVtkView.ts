@@ -119,6 +119,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     const scaledWidth = Math.max(1, width * globalThis.devicePixelRatio);
     const scaledHeight = Math.max(1, height * globalThis.devicePixelRatio);
     renderWindowView.setSize(scaledWidth, scaledHeight);
+    renderer.resetCameraClippingRange();
     requestRender({ immediate: true });
   };
 
