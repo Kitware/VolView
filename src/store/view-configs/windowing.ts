@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { reactive, ref } from 'vue';
+import { reactive, ref, computed } from 'vue';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -8,85 +8,122 @@ import {
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
 import { WL_AUTO_DEFAULT } from '@/src/constants';
+import { useImageStatsStore } from '@/src/store/image-stats';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { WindowLevelConfig } from './types';
-
-export const defaultWindowLevelConfig = (): WindowLevelConfig => ({
-  width: 1,
-  level: 0.5,
-  min: 0,
-  max: 1,
-  auto: WL_AUTO_DEFAULT,
-  preset: {
-    width: 1,
-    level: 0.5,
-  },
-});
 
 type WindowLevel = {
   width: number;
   level: number;
 };
 
+export const defaultWindowLevelConfig = () =>
+  ({
+    width: 1,
+    level: 0.5,
+    auto: WL_AUTO_DEFAULT,
+    useAuto: false,
+    userTriggered: false,
+  } as const);
+
 export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
-  const syncAcrossViews = ref(true);
   const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
+  const syncAcrossViews = ref(true);
+  const imageStatsStore = useImageStatsStore();
 
   const setSyncAcrossViews = (yn: boolean) => {
     syncAcrossViews.value = yn;
   };
 
-  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
+  const getConfig = (viewID: string, dataID: string) => {
+    return computed(() => {
+      const internalConfig = getDoubleKeyRecord(configs, viewID, dataID);
+
+      if (!internalConfig) {
+        return defaultWindowLevelConfig();
+      }
+
+      if (!internalConfig.useAuto) {
+        return { ...internalConfig } as const;
+      }
+
+      const autoKey = internalConfig.auto;
+      const statsRef = imageStatsStore.getAutoRangeValues(dataID);
+      const autoValues = statsRef.value;
+      if (autoValues && autoValues[autoKey]) {
+        const [min, max] = autoValues[autoKey];
+        return {
+          ...internalConfig,
+          width: max - min,
+          level: (max + min) / 2,
+        } as const;
+      }
+      return { ...internalConfig } as const;
+    });
+  };
+
+  const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
 
-  /**
-   * Syncs the window/level/min/max params of (srcViewID, srcDataID) across all views sharing the dataset.
-   * @param srcViewID
-   * @param srcDataID
-   */
   const syncWindowLevel = (srcViewID: string, srcDataID: string) => {
     if (!syncAcrossViews.value) return;
-
-    const config = configs[srcViewID]?.[srcDataID];
+    const config = getInternalConfig(srcViewID, srcDataID);
     if (!config) return;
 
     Object.keys(configs)
       .filter((viewID) => viewID !== srcViewID)
       .forEach((viewID) => {
-        patchDoubleKeyRecord(configs, viewID, srcDataID, config);
+        patchDoubleKeyRecord(configs, viewID, srcDataID, { ...config });
       });
   };
 
   const updateConfig = (
     viewID: string,
     dataID: string,
-    patch: Partial<WindowLevelConfig>
+    patch: Partial<WindowLevelConfig>,
+    userTriggered = false
   ) => {
-    patchDoubleKeyRecord(configs, viewID, dataID, {
-      ...defaultWindowLevelConfig(),
-      ...configs[viewID]?.[dataID],
-      ...patch,
-    });
-
-    if (syncAcrossViews.value) {
-      syncWindowLevel(viewID, dataID);
-    }
-  };
-
-  // not really reset, actually translate config object into W/L
-  const resetWindowLevel = (viewID: string, dataID: string) => {
-    const config = configs[viewID]?.[dataID];
-    if (config == null) return;
-
-    let { width, level } = config.preset;
+    const currentInternalConfig = getInternalConfig(viewID, dataID);
     const defaults = defaultWindowLevelConfig();
-    if (width === defaults.width && level === defaults.level) {
-      width = config.max - config.min;
-      level = (config.max + config.min) / 2;
+
+    let effectiveUseAuto = currentInternalConfig?.useAuto ?? defaults.useAuto;
+    let widthLevelPatchOnSwitchingFromAuto;
+
+    if (patch.useAuto !== undefined) {
+      effectiveUseAuto = patch.useAuto;
+    } else if (patch.auto !== undefined) {
+      effectiveUseAuto = true;
     }
-    updateConfig(viewID, dataID, { width, level });
+    if (
+      (patch.width !== undefined || patch.level !== undefined) &&
+      patch.useAuto === undefined
+    ) {
+      effectiveUseAuto = false;
+      if (!effectiveUseAuto) {
+        // patch may be only width or level so ensure we have both in the end
+        const config = getConfig(viewID, dataID).value;
+        widthLevelPatchOnSwitchingFromAuto = {
+          width: config.width,
+          level: config.level,
+        };
+      }
+    }
+
+    const newInternalConfig = {
+      ...widthLevelPatchOnSwitchingFromAuto,
+      ...patch,
+      useAuto: effectiveUseAuto,
+      // one way from false to true
+      userTriggered:
+        currentInternalConfig?.userTriggered ||
+        userTriggered ||
+        patch.userTriggered,
+    };
+
+    patchDoubleKeyRecord(configs, viewID, dataID, newInternalConfig);
+    syncWindowLevel(viewID, dataID);
   };
 
   const removeView = (viewID: string) => {
@@ -113,16 +150,12 @@ export const useWindowingStore = defineStore('windowing', () => {
 
   return {
     runtimeConfigWindowLevel,
-    configs,
     getConfig,
     setSyncAcrossViews,
     updateConfig,
-    resetWindowLevel,
     removeView,
     removeData,
     serialize,
     deserialize,
   };
 });
-
-export default useWindowingStore;
