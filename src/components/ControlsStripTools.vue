@@ -126,9 +126,9 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import { computed, defineComponent, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { onKeyDown } from '@vueuse/core';
+import { onKeyDown, useMagicKeys } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -178,6 +178,15 @@ export default defineComponent({
       paintMenu.value = false;
       cropMenu.value = false;
       windowingMenu.value = false;
+    });
+
+    const keys = useMagicKeys();
+    const enableTempCrosshairs = computed(
+      () => keys[actionToKey.value.temporaryCrosshairs].value
+    );
+    watch(enableTempCrosshairs, (enable) => {
+      if (enable) toolStore.activateTemporaryCrosshairs();
+      else toolStore.deactivateTemporaryCrosshairs();
     });
 
     // Rename the computed property to map tool names to their keyboard shortcuts

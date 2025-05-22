@@ -99,13 +99,16 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   });
 
   function activateTool() {
-    widgetState.setPlaced(false);
     active.value = true;
     return true;
   }
 
   function deactivateTool() {
     active.value = false;
+  }
+
+  function startDragging() {
+    widgetState.setDragging(true);
   }
 
   function serialize(state: StateFile) {
@@ -125,6 +128,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     imagePosition,
     activateTool,
     deactivateTool,
+    startDragging,
     serialize,
     deserialize,
   };
