@@ -5,7 +5,6 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { mat3, vec3 } from 'gl-matrix';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { vtkWarningMacro } from '@kitware/vtk.js/macros';
 
 const ImagePositionPatientTag = NAME_TO_TAG.get('ImagePositionPatient')!;
 const ImageOrientationPatientTag = NAME_TO_TAG.get('ImageOrientationPatient')!;
@@ -90,10 +89,13 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
     ? Number(meta.get(NumberOfFrames))
     : null;
 
-  // If we have NumberOfFrames, chances are it's a multi-frame DICOM.
-  if (numberOfFrames !== null && sortedChunks.length > 1) {
-    vtkWarningMacro(
-      'Found a multi-frame chunk in a group of chunks of size > 1'
+  if (
+    numberOfFrames !== null &&
+    numberOfFrames > 1 &&
+    sortedChunks.length > 1
+  ) {
+    throw new Error(
+      'First chunk in a group of chunks (size > 1) is a multi-frame chunk'
     );
   }
 
