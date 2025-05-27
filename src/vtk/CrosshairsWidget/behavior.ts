@@ -10,7 +10,6 @@ function clampPointToBounds(bounds: Bounds, point: vec3) {
 
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkCrosshairsWidgetProp');
-  let isDragging = false;
 
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
@@ -19,21 +18,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Interactor events
   // --------------------------------------------------------------------------
 
-  function ignoreKey(e: any) {
-    return e.altKey || e.controlKey || e.shiftKey;
-  }
-
   // --------------------------------------------------------------------------
   // Left press: Select handle to drag
   // --------------------------------------------------------------------------
 
   publicAPI.handleLeftButtonPress = (e: any) => {
-    if (!model.pickable || ignoreKey(e)) {
+    if (!model.pickable) {
       return macro.VOID;
     }
 
-    model.widgetState.setPlaced(true);
-    isDragging = true;
+    model.widgetState.setDragging(true);
     model._interactor.requestAnimation(publicAPI);
     model._apiSpecificRenderWindow.setCursor('crosshairs');
     publicAPI.invokeStartInteractionEvent();
@@ -52,10 +46,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // is actually being rendered.
 
     if (
-      (!model.widgetState.getPlaced() || isDragging) &&
+      model.widgetState.getDragging() &&
       model.pickable &&
-      model.manipulator &&
-      !ignoreKey(callData)
+      model.manipulator
     ) {
       const { worldCoords: worldCoordsOfPointer } =
         model.manipulator.handleEvent(callData, model._apiSpecificRenderWindow);
@@ -90,12 +83,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // --------------------------------------------------------------------------
 
   publicAPI.handleLeftButtonRelease = () => {
-    if (isDragging && model.pickable) {
+    if (model.widgetState.getDragging() && model.pickable) {
       model._interactor.cancelAnimation(publicAPI);
       model._apiSpecificRenderWindow.setCursor('default');
       publicAPI.invokeEndInteractionEvent();
     }
-    isDragging = false;
+    model.widgetState.setDragging(false);
   };
 
   // --------------------------------------------------------------------------

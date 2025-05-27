@@ -270,6 +270,7 @@ export const ACTION_TO_KEY = {
   paint: 'p',
   rectangle: 'r',
   crosshairs: 'c',
+  temporaryCrosshairs: 'shift-c',
   crop: 'b',
   polygon: 'g',
   mergeNewPolygon: 'Shift',
