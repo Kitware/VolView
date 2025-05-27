@@ -208,7 +208,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function deactivateTool() {
-    activeSegmentGroupID.value = null;
     isActive.value = false;
   }
 

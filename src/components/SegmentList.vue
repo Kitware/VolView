@@ -12,6 +12,7 @@ import { reactive, ref, toRefs, computed, watch } from 'vue';
 import { SegmentMask } from '@/src/types/segment';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import type { RGBAColor } from '@kitware/vtk.js/types';
+import ColorDot from '@/src/components/ColorDot.vue';
 
 const props = defineProps({
   groupId: {
@@ -159,10 +160,7 @@ function deleteEditingSegment() {
     <template #item-prepend="{ item }">
       <!-- dot container keeps overflowing name from squishing dot width  -->
       <div class="dot-container mr-3">
-        <div
-          class="color-dot"
-          :style="{ background: rgbaToHexa([...item.color.slice(0,3), 255] as RGBAColor) }"
-        />
+        <ColorDot :color="item.color" />
       </div>
     </template>
     <template #item-append="{ key, item }">
@@ -216,12 +214,6 @@ function deleteEditingSegment() {
 </template>
 
 <style scoped>
-.color-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 16px;
-  border: 1px solid #111;
-}
 .dot-container {
   width: 18px;
 }
