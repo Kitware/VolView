@@ -26,6 +26,22 @@ export type ImageStats = {
   autoRangeValues?: Record<string, [number, number]>;
 };
 
+function getAllComponentRange(scalars: vtkDataArray) {
+  const numberOfComponents = scalars.getNumberOfComponents();
+
+  // slice off magnitude range if present.
+  const ranges = scalars.getRanges(false).slice(0, numberOfComponents);
+
+  const min = ranges
+    .map((range) => range.min)
+    .reduce((acc, val) => Math.min(acc, val), Infinity);
+  const max = ranges
+    .map((range) => range.max)
+    .reduce((acc, val) => Math.max(acc, val), -Infinity);
+
+  return { min, max };
+}
+
 async function computeAutoRangeValues(imageData: vtkImageData) {
   const scalars = imageData.getPointData()?.getScalars();
   if (!scalars) {
@@ -38,8 +54,8 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
     })
   );
 
+  const { min, max } = getAllComponentRange(scalars);
   const scalarData = scalars.getData() as number[];
-  const { min, max } = vtkDataArray.fastComputeRange(scalarData, 0, 1);
   const hist = await worker.histogram(scalarData, [min, max], WL_HIST_BINS);
   worker[Comlink.releaseProxy]();
 
