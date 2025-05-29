@@ -276,6 +276,7 @@ export default class DicomChunkImage
     this.dataRangeFromChunks().forEach(([min, max], compIdx) => {
       scalars.setRange({ min, max }, compIdx);
     });
+    scalars.modified(); // so image-stats will trigger update of range
   }
 
   private dataRangeFromChunks() {
@@ -363,8 +364,8 @@ export default class DicomChunkImage
       const newMin = rangeAlreadyInitialized ? Math.min(min, curRange[0]) : min;
       const newMax = rangeAlreadyInitialized ? Math.max(max, curRange[1]) : max;
       scalars.setRange({ min: newMin, max: newMax }, comp);
-      scalars.modified(); // so image-stats will trigger update of range
     }
+    scalars.modified(); // so image-stats will trigger update of range
 
     chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);
 

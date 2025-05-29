@@ -4,6 +4,7 @@ import { capitalize } from '@kitware/vtk.js/macros';
 import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import { Maybe } from '@/src/types';
+import { arrayEquals } from '@/src/utils';
 
 type NonEmptyString<T extends string> = T extends '' ? never : T;
 
@@ -157,14 +158,7 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
       const currentValue = getter();
       if (Array.isArray(currentValue)) {
         const previousValue = lastValue;
-        // Check if array contents changed
-        if (
-          previousValue.length !== currentValue.length ||
-          previousValue.some(
-            (val: any, idx: number) => val !== currentValue[idx]
-          )
-        ) {
-          // Values changed, trigger the ref
+        if (!arrayEquals(previousValue as any[], currentValue as any[])) {
           triggerRef(ref);
           return;
         }
