@@ -50,7 +50,8 @@ const wlConfig = useWindowingConfig(viewId, imageId);
 useWindowingConfigInitializer(viewId, imageId);
 
 const computeStep = (range: Vector2) => {
-  return Math.min(range[1] - range[0], 1) / 256;
+  const diff = range[1] - range[0] || 1;
+  return Math.min(diff, 1) / 256;
 };
 const wlStep = computed(() => computeStep(wlConfig.range.value));
 

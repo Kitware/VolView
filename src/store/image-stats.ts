@@ -11,7 +11,7 @@ import {
 import * as Comlink from 'comlink';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
+import { useVtkComputed } from '@/src/core/vtk/useVtkComputed';
 import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
 import { HistogramWorker } from '@/src/utils/histogram.worker';
 import { Maybe } from '@/src/types';
@@ -26,9 +26,23 @@ export type ImageStats = {
   autoRangeValues?: Record<string, [number, number]>;
 };
 
-async function computeAutoRangeValues(
-  imageData: vtkImageData
-): Promise<Record<string, [number, number]>> {
+function getAllComponentRange(scalars: vtkDataArray) {
+  const numberOfComponents = scalars.getNumberOfComponents();
+
+  // slice off magnitude range if present.
+  const ranges = scalars.getRanges(false).slice(0, numberOfComponents);
+
+  const min = ranges
+    .map((range) => range.min)
+    .reduce((acc, val) => Math.min(acc, val), Infinity);
+  const max = ranges
+    .map((range) => range.max)
+    .reduce((acc, val) => Math.max(acc, val), -Infinity);
+
+  return { min, max };
+}
+
+async function computeAutoRangeValues(imageData: vtkImageData) {
   const scalars = imageData.getPointData()?.getScalars();
   if (!scalars) {
     return {};
@@ -40,8 +54,8 @@ async function computeAutoRangeValues(
     })
   );
 
+  const { min, max } = getAllComponentRange(scalars);
   const scalarData = scalars.getData() as number[];
-  const { min, max } = vtkDataArray.fastComputeRange(scalarData, 0, 1);
   const hist = await worker.histogram(scalarData, [min, max], WL_HIST_BINS);
   worker[Comlink.releaseProxy]();
 
@@ -115,7 +129,9 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     const activeScalars = computed(() =>
       imageData.value?.getPointData()?.getScalars()
     );
-    const scalarRange = vtkFieldRef(activeScalars, 'range');
+    const scalarRange = useVtkComputed(activeScalars, () =>
+      activeScalars.value?.getRange(0)
+    );
 
     watch(
       scalarRange,
