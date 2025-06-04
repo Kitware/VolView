@@ -26,11 +26,16 @@ export type ImageStats = {
   autoRangeValues?: Record<string, [number, number]>;
 };
 
-function getAllComponentRange(scalars: vtkDataArray) {
+function getRangesWithCache(scalars: vtkDataArray) {
   const numberOfComponents = scalars.getNumberOfComponents();
+  return Array.from({ length: numberOfComponents - 1 }, (_, i) => {
+    const [min, max] = scalars.getRange(i);
+    return { min, max };
+  });
+}
 
-  // slice off magnitude range if present.
-  const ranges = scalars.getRanges(false).slice(0, numberOfComponents);
+function getAllComponentRange(scalars: vtkDataArray) {
+  const ranges = getRangesWithCache(scalars);
 
   const min = ranges
     .map((range) => range.min)
