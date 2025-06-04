@@ -19,9 +19,11 @@ export function useWindowingConfig(
   });
 
   const generateComputed = (prop: 'width' | 'level') => {
+    // show all-black image with W/L of (1, 2^32-1) until slices load in and we get a valid window/level
+    const defaultValue = prop === 'width' ? 1 : 2 ** 32 - 1;
     return computed({
       get: () => {
-        return config.value?.[prop] ?? 0;
+        return config.value?.[prop] ?? defaultValue;
       },
       set: (val) => {
         const imageIdVal = unref(imageID);
