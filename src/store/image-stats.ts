@@ -28,7 +28,7 @@ export type ImageStats = {
 
 function getRangesWithCache(scalars: vtkDataArray) {
   const numberOfComponents = scalars.getNumberOfComponents();
-  return Array.from({ length: numberOfComponents - 1 }, (_, i) => {
+  return Array.from({ length: numberOfComponents }, (_, i) => {
     const [min, max] = scalars.getRange(i);
     return { min, max };
   });
