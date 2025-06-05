@@ -6,7 +6,7 @@
   >
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
       <layout-grid v-if="item.type === 'layout'" :layout="(item as Layout)" />
-      <div v-else class="layout-item">
+      <div v-else class="layout-item" @dblclick="maximize(item.id)">
         <component
           :is="item.component"
           :key="item.id"
@@ -34,6 +34,9 @@ export default defineComponent({
       if (type === '2D') {
         useViewStore().setActiveViewID(id);
       }
+    },
+    maximize(viewId: string) {
+      useViewStore().toggleMaximizeView(viewId);
     },
   },
   props: {
