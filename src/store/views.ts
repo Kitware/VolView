@@ -9,10 +9,22 @@ import {
   View,
 } from '../io/state-file/schema';
 
+function cloneLayout(layout: Layout): Layout {
+  return {
+    direction: layout.direction,
+    items: layout.items.map((item) =>
+      typeof item === 'string' ? item : cloneLayout(item)
+    ),
+    ...(layout.name && { name: layout.name }),
+  };
+}
+
 interface State {
   layout: Layout;
   viewSpecs: Record<string, ViewSpec>;
   activeViewID: string;
+  maximizedViewID: string | null;
+  originalLayout: Layout | null;
 }
 
 export const useViewStore = defineStore('view', {
@@ -23,6 +35,8 @@ export const useViewStore = defineStore('view', {
     },
     viewSpecs: structuredClone(InitViewSpecs),
     activeViewID: '',
+    maximizedViewID: null,
+    originalLayout: null,
   }),
   getters: {
     viewIDs(state) {
@@ -44,6 +58,7 @@ export const useViewStore = defineStore('view', {
       }
     },
     setLayout(layout: Layout) {
+      this.restoreLayout();
       this.layout = layout;
 
       const layoutsToProcess = [layout];
@@ -57,6 +72,33 @@ export const useViewStore = defineStore('view', {
             layoutsToProcess.push(item);
           }
         });
+      }
+    },
+    maximizeView(viewID: string) {
+      if (this.maximizedViewID) {
+        this.restoreLayout();
+      }
+
+      this.originalLayout = cloneLayout(this.layout);
+      this.maximizedViewID = viewID;
+
+      this.layout = {
+        direction: LayoutDirection.H,
+        items: [viewID],
+      };
+    },
+    restoreLayout() {
+      if (this.originalLayout) {
+        this.layout = this.originalLayout;
+        this.originalLayout = null;
+        this.maximizedViewID = null;
+      }
+    },
+    toggleMaximizeView(viewID: string) {
+      if (this.maximizedViewID === viewID) {
+        this.restoreLayout();
+      } else {
+        this.maximizeView(viewID);
       }
     },
     serialize(stateFile: StateFile) {

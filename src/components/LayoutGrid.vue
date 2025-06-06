@@ -6,7 +6,7 @@
   >
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
       <layout-grid v-if="item.type === 'layout'" :layout="(item as Layout)" />
-      <div v-else class="layout-item">
+      <div v-else class="layout-item" @dblclick="maximize(item.id!)">
         <component
           :is="item.component"
           :key="item.id"
@@ -26,6 +26,8 @@ import { storeToRefs } from 'pinia';
 import { ViewTypeToComponent } from '@/src/core/viewTypes';
 import { Layout, LayoutDirection } from '../types/layout';
 import { useViewStore } from '../store/views';
+import { useToolStore } from '../store/tools';
+import { ALLOW_MAXIMIZE_TOOLS } from '../config';
 
 export default defineComponent({
   name: 'LayoutGrid',
@@ -33,6 +35,12 @@ export default defineComponent({
     onFocusView(id: string, type: string) {
       if (type === '2D') {
         useViewStore().setActiveViewID(id);
+      }
+    },
+    maximize(viewId: string) {
+      const currentTool = useToolStore().currentTool;
+      if (ALLOW_MAXIMIZE_TOOLS.includes(currentTool)) {
+        useViewStore().toggleMaximizeView(viewId);
       }
     },
   },
