@@ -51,73 +51,128 @@
         </v-item>
       </v-item-group>
     </v-row>
-    <v-row no-gutters align="center">
-      <v-slider
-        v-if="mode === PaintMode.CirclePaint || mode === PaintMode.Erase"
-        :model-value="brushSize"
-        @update:model-value="setBrushSize"
-        density="compact"
-        hide-details
-        label="Size"
-        min="1"
-        max="50"
-      >
-        <template v-slot:append>
-          <v-text-field
-            :model-value="brushSize"
-            @input="setBrushSize"
-            variant="plain"
-            class="mt-n3 pt-0 pl-2"
-            style="width: 60px"
-            density="compact"
-            hide-details
-            type="number"
-            min="1"
-            max="50"
-          />
-        </template>
-      </v-slider>
-
-      <FillBetweenControls v-if="mode === PaintMode.FillBetween" />
-    </v-row>
+    <template v-if="mode === PaintMode.CirclePaint || mode === PaintMode.Erase">
+      <v-row no-gutters>Size (pixels)</v-row>
+      <v-row no-gutters align="center">
+        <v-slider
+          :model-value="brushSize"
+          @update:model-value="setBrushSize"
+          density="compact"
+          hide-details
+          min="1"
+          max="50"
+        >
+          <template v-slot:append>
+            <v-text-field
+              :model-value="brushSize"
+              @input="setBrushSize"
+              variant="underlined"
+              class="mt-n3 pt-0 pl-2 opacity-70"
+              style="width: 60px"
+              density="compact"
+              hide-details
+              type="number"
+              min="1"
+              max="50"
+            />
+          </template>
+        </v-slider>
+      </v-row>
+      <v-row no-gutters class="mb-1">Threshold </v-row>
+      <v-row v-if="currentImageStats" no-gutters align="center">
+        <v-range-slider
+          v-model="threshold"
+          :min="currentImageStats.scalarMin"
+          :max="currentImageStats.scalarMax"
+          :step="thresholdStepGranularity"
+        >
+          <template #prepend>
+            <v-text-field
+              :model-value="thresholdRange[0].toFixed(2)"
+              @input="setMinThreshold($event.target.value)"
+              variant="underlined"
+              class="mt-n3 pt-0 pl-2 opacity-70"
+              style="max-width: 80px"
+              density="compact"
+              hide-details
+              type="number"
+              precision="2"
+              :min="currentImageStats.scalarMin"
+              :max="thresholdRange[1]"
+            />
+          </template>
+          <template #append>
+            <v-text-field
+              :model-value="thresholdRange[1].toFixed(2)"
+              @input="setMaxThreshold($event.target.value)"
+              variant="underlined"
+              class="mt-n3 pt-0 pl-2 opacity-70"
+              style="max-width: 80px"
+              density="compact"
+              hide-details
+              type="number"
+              precision="2"
+              :min="thresholdRange[0]"
+              :max="currentImageStats.scalarMax"
+            />
+          </template>
+        </v-range-slider>
+      </v-row>
+    </template>
+    <template v-if="mode === PaintMode.FillBetween">
+      <v-row no-gutters align="center">
+        <FillBetweenControls />
+      </v-row>
+    </template>
   </v-container>
 </template>
 
-<script lang="ts">
-import { defineComponent, computed } from 'vue';
+<script setup lang="ts">
+import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
-import { usePaintToolStore } from '../store/tools/paint';
-import FillBetweenControls from './FillBetweenControls.vue';
+import { usePaintToolStore } from '@/src/store/tools/paint';
+import FillBetweenControls from '@/src/components/FillBetweenControls.vue';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useImageStatsStore } from '@/src/store/image-stats';
 
-export default defineComponent({
-  name: 'PaintControls',
+const paintStore = usePaintToolStore();
+const imageStatsStore = useImageStatsStore();
+const { brushSize, activeMode, thresholdRange } = storeToRefs(paintStore);
+const { currentImageID } = useCurrentImage();
 
-  components: {
-    FillBetweenControls,
+const currentImageStats = computed(() => {
+  if (!currentImageID.value) return null;
+  return imageStatsStore.stats[currentImageID.value] ?? null;
+});
+const thresholdStepGranularity = computed(() => {
+  if (!currentImageStats.value) return 1;
+  const { scalarMin, scalarMax } = currentImageStats.value;
+  return Math.min(1, (scalarMax - scalarMin) / 256);
+});
+const threshold = computed({
+  get: () => thresholdRange.value,
+  set: (range) => {
+    paintStore.setThresholdRange(range);
   },
+});
 
-  setup() {
-    const paintStore = usePaintToolStore();
-    const { brushSize, activeMode } = storeToRefs(paintStore);
+const setMinThreshold = (n: string) => {
+  threshold.value = [+n, threshold.value[1]];
+};
 
-    const setBrushSize = (size: number) => {
-      paintStore.setBrushSize(Number(size));
-    };
+const setMaxThreshold = (n: string) => {
+  threshold.value = [threshold.value[0], +n];
+};
 
-    const mode = computed({
-      get: () => activeMode.value,
-      set: (m) => {
-        paintStore.setMode(m);
-      },
-    });
+const setBrushSize = (size: number) => {
+  paintStore.setBrushSize(Number(size));
+};
 
-    return {
-      brushSize,
-      setBrushSize,
-      mode,
-      PaintMode,
-    };
+const mode = computed({
+  get: () => activeMode.value,
+  set: (m) => {
+    paintStore.setMode(m);
   },
 });
 </script>

@@ -75,7 +75,8 @@ export default class PaintTool {
     labelmap: vtkLabelMap,
     sliceAxis: 0 | 1 | 2,
     startPoint: vec3,
-    endPoint?: vec3
+    endPoint?: vec3,
+    shouldPaint: (offset: number, point: number[]) => boolean = () => true
   ) {
     const inBrushingMode =
       this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
@@ -147,9 +148,9 @@ export default class PaintTool {
             rounded[1] = Math.round(curPoint[1]);
             rounded[2] = Math.round(curPoint[2]);
 
-            if (isInBounds(rounded)) {
-              const offset =
-                rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
+            const offset =
+              rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
+            if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
               labelmapPixels[offset] = brushValue;
             }
 
