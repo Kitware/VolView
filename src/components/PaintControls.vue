@@ -92,7 +92,7 @@
               @input="setMinThreshold($event.target.value)"
               variant="underlined"
               class="mt-n3 pt-0 pl-2 opacity-70"
-              style="max-width: 80px"
+              style="width: 80px"
               density="compact"
               hide-details
               type="number"
@@ -107,7 +107,7 @@
               @input="setMaxThreshold($event.target.value)"
               variant="underlined"
               class="mt-n3 pt-0 pl-2 opacity-70"
-              style="max-width: 80px"
+              style="width: 80px"
               density="compact"
               hide-details
               type="number"
