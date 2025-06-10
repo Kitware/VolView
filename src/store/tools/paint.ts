@@ -4,6 +4,7 @@ import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { computed, ref } from 'vue';
+import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
@@ -212,6 +213,26 @@ export const usePaintToolStore = defineStore('paint', () => {
     doPaintStroke.call(this, axisIndex);
   }
 
+  const currentImageStats = computed(() => {
+    if (!currentImageID.value) return null;
+    return imageStatsStore.stats[currentImageID.value];
+  });
+
+  function resetThresholdRange(imageID: Maybe<string>) {
+    if (imageID) {
+      const stats = imageStatsStore.stats[imageID];
+      if (stats) {
+        thresholdRange.value = [stats.scalarMin, stats.scalarMax];
+      } else {
+        thresholdRange.value = [...DEFAULT_THRESHOLD_RANGE];
+      }
+    }
+  }
+
+  watchImmediate([currentImageID, currentImageStats], ([id]) => {
+    resetThresholdRange(id);
+  });
+
   // --- setup and teardown --- //
 
   function activateTool(this: _This) {
@@ -221,13 +242,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
     ensureActiveSegmentGroupForImage(imageID);
     this.$paint.setBrushSize(this.brushSize);
-
-    const stats = imageStatsStore.stats[imageID];
-    if (stats) {
-      thresholdRange.value = [stats.scalarMin, stats.scalarMax];
-    } else {
-      thresholdRange.value = [...DEFAULT_THRESHOLD_RANGE];
-    }
 
     isActive.value = true;
     return true;
