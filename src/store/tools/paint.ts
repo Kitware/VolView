@@ -1,15 +1,21 @@
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { Maybe } from '@/src/types';
+import { useImageStatsStore } from '@/src/store/image-stats';
 import { computed, ref } from 'vue';
+import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
 
 const DEFAULT_BRUSH_SIZE = 4;
+const DEFAULT_THRESHOLD_RANGE: Vector2 = [
+  Number.NEGATIVE_INFINITY,
+  Number.POSITIVE_INFINITY,
+];
 
 export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
@@ -20,8 +26,10 @@ export const usePaintToolStore = defineStore('paint', () => {
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
   const strokePoints = ref<vec3[]>([]);
   const isActive = ref(false);
+  const thresholdRange = ref<Vector2>([...DEFAULT_THRESHOLD_RANGE]);
 
-  const { currentImageID } = useCurrentImage();
+  const { currentImageID, currentImageData } = useCurrentImage();
+  const imageStatsStore = useImageStatsStore();
 
   function getWidgetFactory(this: _This) {
     return this.$paint.factory;
@@ -126,6 +134,17 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
+    const underlyingImagePixels = currentImageData.value
+      ?.getPointData()
+      .getScalars()
+      .getData();
+    const [minThreshold, maxThreshold] = thresholdRange.value;
+    const shouldPaint = (idx: number) => {
+      if (!underlyingImagePixels) return false;
+      const pixValue = underlyingImagePixels[idx];
+      return minThreshold <= pixValue && pixValue <= maxThreshold;
+    };
+
     const lastIndex = strokePoints.value.length - 1;
     if (lastIndex >= 0) {
       const lastPoint = strokePoints.value[lastIndex];
@@ -135,7 +154,8 @@ export const usePaintToolStore = defineStore('paint', () => {
         activeLabelmap.value,
         axisIndex,
         lastPoint,
-        prevPoint
+        prevPoint,
+        shouldPaint
       );
     }
   }
@@ -193,6 +213,26 @@ export const usePaintToolStore = defineStore('paint', () => {
     doPaintStroke.call(this, axisIndex);
   }
 
+  const currentImageStats = computed(() => {
+    if (!currentImageID.value) return null;
+    return imageStatsStore.stats[currentImageID.value];
+  });
+
+  function resetThresholdRange(imageID: Maybe<string>) {
+    if (imageID) {
+      const stats = imageStatsStore.stats[imageID];
+      if (stats) {
+        thresholdRange.value = [stats.scalarMin, stats.scalarMax];
+      } else {
+        thresholdRange.value = [...DEFAULT_THRESHOLD_RANGE];
+      }
+    }
+  }
+
+  watchImmediate([currentImageID, currentImageStats], ([id]) => {
+    resetThresholdRange(id);
+  });
+
   // --- setup and teardown --- //
 
   function activateTool(this: _This) {
@@ -209,6 +249,10 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function deactivateTool() {
     isActive.value = false;
+  }
+
+  function setThresholdRange(this: _This, range: Vector2) {
+    thresholdRange.value = range;
   }
 
   function serialize(state: StateFile) {
@@ -243,6 +287,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     brushSize,
     strokePoints,
     isActive,
+    thresholdRange,
 
     getWidgetFactory,
 
@@ -254,6 +299,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     setActiveSegment,
     setBrushSize,
     setSliceAxis,
+    setThresholdRange,
     startStroke,
     placeStrokePoint,
     endStroke,
