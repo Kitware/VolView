@@ -58,6 +58,10 @@ export const useProcessStore = defineStore('process', () => {
     processState.value = { step: 'start' };
   }
 
+  function confirmProcess() {
+    resetState();
+  }
+
   const segmentGroupStore = useSegmentGroupStore();
   const paintStore = usePaintToolStore();
   const { activeSegmentGroupID } = storeToRefs(paintStore);
@@ -72,15 +76,33 @@ export const useProcessStore = defineStore('process', () => {
     image.modified();
   }
 
-  function setActiveProcessType(processType: ProcessType) {
-    activeProcessType.value = processType;
-    // Reset state when switching process types
+  function cancelProcess() {
+    const state = processState.value;
+
+    if (state.step === 'previewing') {
+      rollbackPreview(state.segImage, state.originalScalars);
+    }
     resetState();
+  }
+
+  function setActiveProcessType(processType: ProcessType) {
+    // Cancel any active process before switching
+    cancelProcess();
+    activeProcessType.value = processType;
   }
 
   async function computeProcess(groupId: string, algorithm: ProcessAlgorithm) {
     const segImage = segmentGroupStore.dataIndex[groupId];
-    const originalScalars = segImage.getPointData().getScalars().getData();
+    const state = processState.value;
+
+    const originalScalars =
+      state.step === 'previewing'
+        ? state.originalScalars
+        : segImage.getPointData().getScalars().getData().slice();
+
+    if (state.step === 'previewing') {
+      rollbackPreview(segImage, state.originalScalars);
+    }
 
     processState.value = {
       step: 'computing',
@@ -129,19 +151,6 @@ export const useProcessStore = defineStore('process', () => {
         resetState();
       }
     }
-  }
-
-  function confirmProcess() {
-    resetState();
-  }
-
-  function cancelProcess() {
-    const state = processState.value;
-
-    if (state.step === 'previewing') {
-      rollbackPreview(state.segImage, state.originalScalars);
-    }
-    resetState();
   }
 
   function togglePreview() {

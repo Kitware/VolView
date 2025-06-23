@@ -1,15 +1,17 @@
 <template>
-  <ProcessTypeSelector />
+  <div class="d-flex flex-column align-center w-100">
+    <ProcessTypeSelector />
 
-  <template v-if="activeProcessType === ProcessType.FillBetween">
-    <FillBetweenParameterControls />
-    <ProcessWorkflow :algorithm="fillBetweenAlgorithm" />
-  </template>
+    <template v-if="activeProcessType === ProcessType.FillBetween">
+      <FillBetweenParameterControls />
+      <ProcessWorkflow :algorithm="fillBetweenAlgorithm" />
+    </template>
 
-  <template v-if="activeProcessType === ProcessType.GaussianSmooth">
-    <GaussianSmoothParameterControls />
-    <ProcessWorkflow :algorithm="gaussianSmoothAlgorithm" />
-  </template>
+    <template v-if="activeProcessType === ProcessType.GaussianSmooth">
+      <GaussianSmoothParameterControls />
+      <ProcessWorkflow :algorithm="gaussianSmoothAlgorithm" />
+    </template>
+  </div>
 </template>
 
 <script setup lang="ts">

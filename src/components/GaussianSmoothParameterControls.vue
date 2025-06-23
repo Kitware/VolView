@@ -19,18 +19,20 @@
     </mini-expansion-panel>
   </div>
 
-  <v-slider
-    class="mb-4"
-    label="Smoothing Strength (σ)"
-    :min="MIN_SIGMA"
-    :max="MAX_SIGMA"
-    :step="0.1"
-    density="compact"
-    hide-details
-    thumb-label
-    :model-value="sigma"
-    @update:model-value="setSigma"
-  />
+  <div class="w-100 mb-4">
+    <v-slider
+      class="mx-4"
+      label="Smoothing Strength (σ)"
+      :min="MIN_SIGMA"
+      :max="MAX_SIGMA"
+      :step="0.1"
+      density="compact"
+      hide-details
+      thumb-label
+      :model-value="sigma"
+      @update:model-value="setSigma"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">

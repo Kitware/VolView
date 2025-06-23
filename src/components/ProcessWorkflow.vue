@@ -1,31 +1,48 @@
 <template>
-  <v-row justify="space-between" no-gutters>
-    <v-btn
-      variant="tonal"
-      :prepend-icon="getPreviewButtonIcon()"
-      @click="handlePreviewClick"
-      :disabled="processStep === 'computing'"
-      :loading="processStep === 'computing'"
-    >
-      {{ getPreviewButtonText() }}
-    </v-btn>
-    <v-btn
-      variant="tonal"
-      prepend-icon="mdi-check"
-      :disabled="processStep !== 'previewing'"
-      @click="confirmProcess"
-    >
-      Confirm
-    </v-btn>
-    <v-btn
-      variant="tonal"
-      prepend-icon="mdi-cancel"
-      :disabled="processStep !== 'previewing'"
-      @click="cancelProcess"
-    >
-      Cancel
-    </v-btn>
-  </v-row>
+  <div class="d-flex flex-column align-center">
+    <v-row justify="center" no-gutters class="align-center ga-2">
+      <v-btn
+        v-if="processStep === 'start' || processStep === 'computing'"
+        variant="tonal"
+        prepend-icon="mdi-cogs"
+        @click="startCompute"
+        :loading="processStep === 'computing'"
+        :disabled="processStep === 'computing'"
+        size="small"
+      >
+        Preview
+      </v-btn>
+
+      <v-btn-toggle
+        v-if="processStep === 'previewing'"
+        :model-value="showingOriginal ? 0 : 1"
+        @update:model-value="handleToggleChange"
+        mandatory
+        variant="outlined"
+        divided
+        density="compact"
+      >
+        <v-btn :value="0" size="small">
+          <v-icon start size="small">mdi-eye-outline</v-icon>
+          Original
+        </v-btn>
+        <v-btn :value="1" size="small">
+          <v-icon start size="small">mdi-eye-settings</v-icon>
+          Processed
+        </v-btn>
+      </v-btn-toggle>
+
+      <v-btn
+        variant="tonal"
+        prepend-icon="mdi-check"
+        @click="handleConfirm"
+        :disabled="processStep !== 'previewing'"
+        size="small"
+      >
+        Choose
+      </v-btn>
+    </v-row>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -51,34 +68,21 @@ function startCompute() {
   processStore.computeProcess(id, props.algorithm);
 }
 
-function handlePreviewClick() {
-  if (processStep.value === 'start') {
-    startCompute();
-  } else if (processStep.value === 'previewing') {
+function handleToggleChange(value: number | string) {
+  const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
+  const shouldShowOriginal = numValue === 0;
+  if (shouldShowOriginal !== showingOriginal.value) {
     processStore.togglePreview();
   }
 }
 
-function getPreviewButtonText() {
-  if (processStep.value === 'start') {
-    return 'Preview';
+function handleConfirm() {
+  if (showingOriginal.value) {
+    // User is viewing original - cancel the process
+    processStore.cancelProcess();
+  } else {
+    // User is viewing processed - confirm the process
+    processStore.confirmProcess();
   }
-  if (processStep.value === 'previewing') {
-    return showingOriginal.value ? 'Original' : 'Processed';
-  }
-  return 'Preview';
 }
-
-function getPreviewButtonIcon() {
-  if (processStep.value === 'computing') {
-    return '';
-  }
-  if (processStep.value === 'previewing') {
-    return showingOriginal.value ? 'mdi-eye-settings' : 'mdi-eye-outline';
-  }
-  return 'mdi-cogs';
-}
-
-const confirmProcess = () => processStore.confirmProcess();
-const cancelProcess = () => processStore.cancelProcess();
 </script>
