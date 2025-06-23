@@ -11,7 +11,7 @@
     "test": "vitest",
     "test:e2e:chrome": "npm run build && wdio run ./wdio.chrome.conf.ts",
     "test:e2e:dev": "concurrently -P \"npm run dev\"  \"wdio run ./wdio.dev.conf.ts --watch {@}\"",
-    "lint": "eslint",
+    "lint": "eslint \"src/**/*.{js,ts,vue}\" \"tests/**/*.{js,ts}\"",
     "build:all": "npm run build:dicom && npm run build:resample && npm run build",
     "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",
     "build:dicom:debug": "itk-wasm -s src/io/itk-dicom/ build -- -DCMAKE_BUILD_TYPE=Debug",
