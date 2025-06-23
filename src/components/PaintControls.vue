@@ -49,6 +49,21 @@
             <span class="text-caption">Fill Between</span>
           </v-btn>
         </v-item>
+        <v-item
+          :value="PaintMode.GaussianSmooth"
+          v-slot="{ selectedClass, toggle }"
+        >
+          <v-btn
+            variant="tonal"
+            rounded="8"
+            stacked
+            :class="['mode-button', selectedClass]"
+            @click.stop="toggle"
+          >
+            <v-icon>mdi-blur</v-icon>
+            <span class="text-caption">Smooth</span>
+          </v-btn>
+        </v-item>
       </v-item-group>
     </v-row>
     <template v-if="mode === PaintMode.CirclePaint || mode === PaintMode.Erase">
@@ -124,6 +139,11 @@
         <FillBetweenControls />
       </v-row>
     </template>
+    <template v-if="mode === PaintMode.GaussianSmooth">
+      <v-row no-gutters align="center">
+        <GaussianSmoothControls />
+      </v-row>
+    </template>
   </v-container>
 </template>
 
@@ -133,6 +153,7 @@ import { storeToRefs } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import FillBetweenControls from '@/src/components/FillBetweenControls.vue';
+import GaussianSmoothControls from '@/src/components/GaussianSmoothControls.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageStatsStore } from '@/src/store/image-stats';
 

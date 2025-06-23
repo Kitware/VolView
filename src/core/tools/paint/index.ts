@@ -12,6 +12,7 @@ export enum PaintMode {
   CirclePaint,
   Erase,
   FillBetween,
+  GaussianSmooth,
 }
 
 export default class PaintTool {
