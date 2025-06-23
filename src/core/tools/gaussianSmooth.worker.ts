@@ -46,43 +46,74 @@ function convolve1D(
   const kernelCenter = Math.floor(kernelSize / 2);
   const strideY = dimX;
   const strideZ = dimX * dimY;
-  const axisDim = dimensions[axis];
-  const totalSize = dimX * dimY * dimZ;
 
-  for (let idx = 0; idx < totalSize; idx++) {
-    const z = Math.floor(idx / strideZ);
-    const y = Math.floor((idx % strideZ) / strideY);
-    const x = idx % strideY;
-    const coords = [x, y, z];
-
-    const axisCoord = coords[axis];
-    let sum = 0;
-    let weightSum = 0;
-
-    for (let k = 0; k < kernelSize; k++) {
-      const sampleCoord = axisCoord + k - kernelCenter;
-
-      let finalCoord = sampleCoord;
-      if (sampleCoord < 0) {
-        finalCoord = -sampleCoord;
-      } else if (sampleCoord >= axisDim) {
-        finalCoord = 2 * axisDim - sampleCoord - 2;
-      }
-
-      finalCoord = Math.max(0, Math.min(axisDim - 1, finalCoord));
-
-      const sampleCoords = [...coords];
-      sampleCoords[axis] = finalCoord;
-      const sampleIdx =
-        sampleCoords[0] + sampleCoords[1] * strideY + sampleCoords[2] * strideZ;
-
-      const weight = kernel[k];
-      sum += inputData[sampleIdx] * weight;
-      weightSum += weight;
+  // Helper for robust boundary handling (mirroring)
+  const getFinalCoord = (sampleCoord: number, axisDim: number) => {
+    let finalCoord = sampleCoord;
+    if (sampleCoord < 0) {
+      finalCoord = -sampleCoord; // Reflect
+    } else if (sampleCoord >= axisDim) {
+      finalCoord = 2 * axisDim - sampleCoord - 2; // Reflect
     }
+    // Clamp to ensure it's within bounds, useful if kernel is very large
+    return Math.max(0, Math.min(axisDim - 1, finalCoord));
+  };
 
-    // eslint-disable-next-line no-param-reassign
-    outputData[idx] = weightSum > 0 ? sum / weightSum : inputData[idx];
+  if (axis === 0) {
+    // Convolve along X: optimal loop order is z, y, x for cache efficiency
+    for (let z = 0; z < dimZ; z++) {
+      const zOffset = z * strideZ;
+      for (let y = 0; y < dimY; y++) {
+        const yOffset = y * strideY;
+        const baseOffset = yOffset + zOffset;
+        for (let x = 0; x < dimX; x++) {
+          let sum = 0;
+          for (let k = 0; k < kernelSize; k++) {
+            const sampleX = getFinalCoord(x + k - kernelCenter, dimX);
+            const sampleIdx = sampleX + baseOffset;
+            sum += inputData[sampleIdx] * kernel[k];
+          }
+          // eslint-disable-next-line no-param-reassign
+          outputData[x + baseOffset] = sum;
+        }
+      }
+    }
+  } else if (axis === 1) {
+    // Convolve along Y: optimal loop order is z, x, y
+    for (let z = 0; z < dimZ; z++) {
+      const zOffset = z * strideZ;
+      for (let x = 0; x < dimX; x++) {
+        const baseOffset = x + zOffset;
+        for (let y = 0; y < dimY; y++) {
+          let sum = 0;
+          for (let k = 0; k < kernelSize; k++) {
+            const sampleY = getFinalCoord(y + k - kernelCenter, dimY);
+            const sampleIdx = baseOffset + sampleY * strideY;
+            sum += inputData[sampleIdx] * kernel[k];
+          }
+          // eslint-disable-next-line no-param-reassign
+          outputData[x + y * strideY + zOffset] = sum;
+        }
+      }
+    }
+  } else {
+    // axis === 2, convolve along Z: optimal loop order is y, x, z
+    for (let y = 0; y < dimY; y++) {
+      const yOffset = y * strideY;
+      for (let x = 0; x < dimX; x++) {
+        const baseOffset = x + yOffset;
+        for (let z = 0; z < dimZ; z++) {
+          let sum = 0;
+          for (let k = 0; k < kernelSize; k++) {
+            const sampleZ = getFinalCoord(z + k - kernelCenter, dimZ);
+            const sampleIdx = baseOffset + sampleZ * strideZ;
+            sum += inputData[sampleIdx] * kernel[k];
+          }
+          // eslint-disable-next-line no-param-reassign
+          outputData[baseOffset + z * strideZ] = sum;
+        }
+      }
+    }
   }
 }
 

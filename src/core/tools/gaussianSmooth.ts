@@ -1,6 +1,5 @@
 import * as Comlink from 'comlink';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import { TypedArray } from '@kitware/vtk.js/types';
 import type { GaussianSmoothWorkerApi } from './gaussianSmooth.worker';
 
 export interface GaussianSmoothParams {
@@ -11,7 +10,7 @@ export interface GaussianSmoothParams {
 // Create worker instance
 let workerInstance: Comlink.Remote<GaussianSmoothWorkerApi> | null = null;
 
-async function getWorker(): Promise<Comlink.Remote<GaussianSmoothWorkerApi>> {
+async function getWorker() {
   if (!workerInstance) {
     const worker = new Worker(
       new URL('./gaussianSmooth.worker.ts', import.meta.url),
@@ -25,7 +24,7 @@ async function getWorker(): Promise<Comlink.Remote<GaussianSmoothWorkerApi>> {
 export async function gaussianSmoothLabelMap(
   labelMap: vtkLabelMap,
   params: GaussianSmoothParams
-): Promise<TypedArray> {
+) {
   const scalars = labelMap.getPointData().getScalars();
   const originalData = scalars.getData();
   const dimensions = labelMap.getDimensions();
