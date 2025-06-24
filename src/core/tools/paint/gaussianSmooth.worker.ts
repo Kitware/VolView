@@ -143,6 +143,111 @@ function gaussianFilter3D(
   return output;
 }
 
+function calculateBoundingBox(
+  data: TypedArray | number[],
+  dimensions: number[],
+  label: number
+): number[] | null {
+  const [dimX, dimY, dimZ] = dimensions;
+  const bounds = [dimX, -1, dimY, -1, dimZ, -1];
+
+  for (let z = 0; z < dimZ; z++) {
+    for (let y = 0; y < dimY; y++) {
+      for (let x = 0; x < dimX; x++) {
+        const index = x + y * dimX + z * dimX * dimY;
+        if (data[index] === label) {
+          bounds[0] = Math.min(bounds[0], x);
+          bounds[1] = Math.max(bounds[1], x);
+          bounds[2] = Math.min(bounds[2], y);
+          bounds[3] = Math.max(bounds[3], y);
+          bounds[4] = Math.min(bounds[4], z);
+          bounds[5] = Math.max(bounds[5], z);
+        }
+      }
+    }
+  }
+
+  if (bounds[1] === -1) return null;
+
+  return bounds;
+}
+
+function expandBoundingBox(
+  bounds: number[],
+  dimensions: number[],
+  sigmaPixels: [number, number, number],
+  radiusFactor = 1.5
+): number[] {
+  const [dimX, dimY, dimZ] = dimensions;
+  const paddingX = Math.ceil(sigmaPixels[0] * radiusFactor);
+  const paddingY = Math.ceil(sigmaPixels[1] * radiusFactor);
+  const paddingZ = Math.ceil(sigmaPixels[2] * radiusFactor);
+
+  return [
+    Math.max(0, bounds[0] - paddingX),
+    Math.min(dimX - 1, bounds[1] + paddingX),
+    Math.max(0, bounds[2] - paddingY),
+    Math.min(dimY - 1, bounds[3] + paddingY),
+    Math.max(0, bounds[4] - paddingZ),
+    Math.min(dimZ - 1, bounds[5] + paddingZ),
+  ];
+}
+
+function extractSubVolume(
+  data: TypedArray | number[],
+  dimensions: number[],
+  bounds: number[]
+): { subData: Float32Array; subDims: number[] } {
+  const [dimX, dimY] = dimensions;
+  const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
+  const subDimX = maxX - minX + 1;
+  const subDimY = maxY - minY + 1;
+  const subDimZ = maxZ - minZ + 1;
+  const subDims = [subDimX, subDimY, subDimZ];
+  const subData = new Float32Array(subDimX * subDimY * subDimZ);
+
+  let subIndex = 0;
+  for (let z = minZ; z <= maxZ; z++) {
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const origIndex = x + y * dimX + z * dimX * dimY;
+        subData[subIndex] = data[origIndex] as number;
+        subIndex++;
+      }
+    }
+  }
+
+  return { subData, subDims };
+}
+
+function copySubVolumeBack(
+  subData: Float32Array,
+  originalData: TypedArray | number[],
+  dimensions: number[],
+  bounds: number[],
+  label: number
+): void {
+  const [dimX, dimY] = dimensions;
+  const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
+
+  let subIndex = 0;
+  for (let z = minZ; z <= maxZ; z++) {
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const origIndex = x + y * dimX + z * dimX * dimY;
+        const origLabel = originalData[origIndex];
+        const subValue = subData[subIndex];
+
+        if (origLabel === label || origLabel === 0) {
+          // eslint-disable-next-line no-param-reassign
+          (originalData as any)[origIndex] = subValue > 127.5 ? label : 0;
+        }
+        subIndex++;
+      }
+    }
+  }
+}
+
 function createBinaryMask(
   data: TypedArray | number[],
   label: number
@@ -190,27 +295,49 @@ export function gaussianSmoothLabelMapWorker(input: {
     sigma / spacing[2],
   ];
 
-  const binaryMask = createBinaryMask(originalData, label);
-  const smoothedMask = gaussianFilter3D(
-    binaryMask,
+  const bounds = calculateBoundingBox(originalData, dimensions, label);
+  if (!bounds) {
+    const outputData = new (originalData.constructor as any)(
+      originalData.length
+    );
+    for (let i = 0; i < originalData.length; i++) {
+      outputData[i] = originalData[i];
+    }
+    return outputData;
+  }
+
+  const expandedBounds = expandBoundingBox(
+    bounds,
     dimensions,
     sigmaPixels,
     1.5
   );
+  const { subData, subDims } = extractSubVolume(
+    originalData,
+    dimensions,
+    expandedBounds
+  );
 
-  const threshold = 255.0 / 2.0;
+  const subBinaryMask = createBinaryMask(subData, label);
+  const smoothedSubMask = gaussianFilter3D(
+    subBinaryMask,
+    subDims,
+    sigmaPixels,
+    1.5
+  );
+
   const outputData = new (originalData.constructor as any)(originalData.length);
-
   for (let i = 0; i < originalData.length; i++) {
-    const originalLabel = originalData[i];
-    const smoothedValue = smoothedMask[i];
-
-    if (originalLabel === label || originalLabel === 0) {
-      outputData[i] = smoothedValue > threshold ? label : 0;
-    } else {
-      outputData[i] = originalLabel;
-    }
+    outputData[i] = originalData[i];
   }
+
+  copySubVolumeBack(
+    smoothedSubMask,
+    outputData,
+    dimensions,
+    expandedBounds,
+    label
+  );
 
   return outputData;
 }
