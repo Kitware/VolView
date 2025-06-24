@@ -4,13 +4,9 @@
       <template #title>Gaussian smooth selected segment.</template>
       <ul>
         <li>
-          Applies label-preserving Gaussian smoothing to reduce noise and smooth
-          boundaries.
+          Applies Gaussian smoothing to reduce noise and smooth boundaries.
         </li>
-        <li>
-          Each label is processed separately to prevent mixing between different
-          segments.
-        </li>
+        <li>Only the selected segment will be smoothed.</li>
         <li>
           Higher sigma values create more smoothing effect but may reduce fine
           details.
@@ -30,6 +26,7 @@
       hide-details
       thumb-label
       :model-value="sigma"
+      :disabled="isDisabled"
       @update:model-value="setSigma"
     />
   </div>
@@ -39,9 +36,12 @@
 import { computed } from 'vue';
 import MiniExpansionPanel from './MiniExpansionPanel.vue';
 import { useGaussianSmoothStore } from '../store/tools/gaussianSmooth';
+import { useProcessStore } from '../store/tools/process';
 
 const gaussianSmoothStore = useGaussianSmoothStore();
+const processStore = useProcessStore();
 
 const sigma = computed(() => gaussianSmoothStore.sigma);
+const isDisabled = computed(() => processStore.processStep === 'previewing');
 const { MIN_SIGMA, MAX_SIGMA, setSigma } = gaussianSmoothStore;
 </script>
