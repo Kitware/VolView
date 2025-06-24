@@ -9,24 +9,29 @@ export interface GaussianSmoothParams {
 export interface GaussianSmoothInput {
   data: TypedArray | number[];
   dimensions: number[];
+  spacing: [number, number, number];
   params: GaussianSmoothParams;
 }
 
-function generateGaussianKernel(sigma: number): Float32Array {
-  let size = Math.max(3, Math.ceil(6 * sigma));
-  if (size % 2 === 0) size += 1;
+function generateGaussianKernel(
+  sigma: number,
+  radiusFactor = 1.5
+): Float32Array {
+  const radius = Math.ceil(sigma * radiusFactor);
+  const size = 2 * radius + 1;
   const kernel = new Float32Array(size);
-  const center = Math.floor(size / 2);
-  const variance = sigma * sigma;
+  const center = radius;
   let sum = 0;
 
   for (let i = 0; i < size; i++) {
     const x = i - center;
-    const value = Math.exp(-(x * x) / (2 * variance));
+    // VTK formula: exp(-(x * x) / (std * std * 2.0))
+    const value = Math.exp(-(x * x) / (sigma * sigma * 2.0));
     kernel[i] = value;
     sum += value;
   }
 
+  // Normalize kernel
   for (let i = 0; i < size; i++) {
     kernel[i] /= sum;
   }
@@ -120,17 +125,20 @@ function convolve1D(
 function gaussianFilter3D(
   inputData: TypedArray | number[],
   dimensions: number[],
-  sigma: number
+  sigmaPixels: [number, number, number],
+  radiusFactor = 1.5
 ): Float32Array {
   const totalSize = dimensions[0] * dimensions[1] * dimensions[2];
-  const kernel = generateGaussianKernel(sigma);
+  const kernelX = generateGaussianKernel(sigmaPixels[0], radiusFactor);
+  const kernelY = generateGaussianKernel(sigmaPixels[1], radiusFactor);
+  const kernelZ = generateGaussianKernel(sigmaPixels[2], radiusFactor);
   const temp1 = new Float32Array(totalSize);
   const temp2 = new Float32Array(totalSize);
   const output = new Float32Array(totalSize);
 
-  convolve1D(inputData, temp1, dimensions, kernel, 0);
-  convolve1D(temp1, temp2, dimensions, kernel, 1);
-  convolve1D(temp2, output, dimensions, kernel, 2);
+  convolve1D(inputData, temp1, dimensions, kernelX, 0);
+  convolve1D(temp1, temp2, dimensions, kernelY, 1);
+  convolve1D(temp2, output, dimensions, kernelZ, 2);
 
   return output;
 }
@@ -141,20 +149,18 @@ function createBinaryMask(
 ): Float32Array {
   const mask = new Float32Array(data.length);
   for (let i = 0; i < data.length; i++) {
-    mask[i] = data[i] === label ? 1.0 : 0.0;
+    mask[i] = data[i] === label ? 255.0 : 0.0;
   }
   return mask;
 }
 
-// Confidence threshold for label reconstruction after smoothing
-const CONFIDENCE_THRESHOLD = 0.1;
-
 export function gaussianSmoothLabelMapWorker(input: {
   data: TypedArray | number[];
   dimensions: number[];
+  spacing: [number, number, number];
   params: { sigma: number; label: number };
 }): TypedArray {
-  const { data: originalData, dimensions, params } = input;
+  const { data: originalData, dimensions, spacing, params } = input;
   const { sigma, label } = params;
 
   if (sigma <= 0) {
@@ -178,26 +184,36 @@ export function gaussianSmoothLabelMapWorker(input: {
     return outputData;
   }
 
+  const sigmaPixels: [number, number, number] = [
+    sigma / spacing[0],
+    sigma / spacing[1],
+    sigma / spacing[2],
+  ];
+
   const binaryMask = createBinaryMask(originalData, label);
-  const smoothedMask = gaussianFilter3D(binaryMask, dimensions, sigma);
+  const smoothedMask = gaussianFilter3D(
+    binaryMask,
+    dimensions,
+    sigmaPixels,
+    1.5
+  );
+
+  const threshold = 255.0 / 2.0;
   const outputData = new (originalData.constructor as any)(originalData.length);
 
   for (let i = 0; i < originalData.length; i++) {
     const originalLabel = originalData[i];
-    const smoothedConfidence = smoothedMask[i];
+    const smoothedValue = smoothedMask[i];
 
     if (originalLabel === label || originalLabel === 0) {
-      outputData[i] = smoothedConfidence > CONFIDENCE_THRESHOLD ? label : 0;
+      outputData[i] = smoothedValue > threshold ? label : 0;
     } else {
-      // Keep all other labels unchanged (preserve other segments)
       outputData[i] = originalLabel;
     }
   }
 
   return outputData;
 }
-
-// Expose the worker API via Comlink
 
 const workerApi = {
   gaussianSmoothLabelMapWorker,

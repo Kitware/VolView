@@ -38,13 +38,14 @@ async function gaussianSmoothLabelMap(
   const scalars = labelMap.getPointData().getScalars();
   const originalData = scalars.getData();
   const dimensions = labelMap.getDimensions();
+  const spacing = labelMap.getSpacing() as [number, number, number];
 
   const worker = await getWorker();
 
-  // Transfer data to worker
   const workerInput = {
     data: originalData,
     dimensions,
+    spacing,
     params,
   };
 
