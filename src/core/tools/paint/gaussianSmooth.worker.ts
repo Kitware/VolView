@@ -13,10 +13,7 @@ export interface GaussianSmoothInput {
   params: GaussianSmoothParams;
 }
 
-function generateGaussianKernel(
-  sigma: number,
-  radiusFactor = 1.5
-): Float32Array {
+function generateGaussianKernel(sigma: number, radiusFactor = 1.5) {
   const radius = Math.ceil(sigma * radiusFactor);
   const size = 2 * radius + 1;
   const kernel = new Float32Array(size);
@@ -45,7 +42,7 @@ function convolve1D(
   dimensions: number[],
   kernel: Float32Array,
   axis: 0 | 1 | 2
-): void {
+) {
   const [dimX, dimY, dimZ] = dimensions;
   const kernelSize = kernel.length;
   const kernelCenter = Math.floor(kernelSize / 2);
@@ -127,7 +124,7 @@ function gaussianFilter3D(
   dimensions: number[],
   sigmaPixels: [number, number, number],
   radiusFactor = 1.5
-): Float32Array {
+) {
   const totalSize = dimensions[0] * dimensions[1] * dimensions[2];
   const kernelX = generateGaussianKernel(sigmaPixels[0], radiusFactor);
   const kernelY = generateGaussianKernel(sigmaPixels[1], radiusFactor);
@@ -147,7 +144,7 @@ function calculateBoundingBox(
   data: TypedArray | number[],
   dimensions: number[],
   label: number
-): number[] | null {
+) {
   const [dimX, dimY, dimZ] = dimensions;
   const bounds = [dimX, -1, dimY, -1, dimZ, -1];
 
@@ -177,7 +174,7 @@ function expandBoundingBox(
   dimensions: number[],
   sigmaPixels: [number, number, number],
   radiusFactor = 1.5
-): number[] {
+) {
   const [dimX, dimY, dimZ] = dimensions;
   const paddingX = Math.ceil(sigmaPixels[0] * radiusFactor);
   const paddingY = Math.ceil(sigmaPixels[1] * radiusFactor);
@@ -197,7 +194,7 @@ function extractSubVolume(
   data: TypedArray | number[],
   dimensions: number[],
   bounds: number[]
-): { subData: Float32Array; subDims: number[] } {
+) {
   const [dimX, dimY] = dimensions;
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
   const subDimX = maxX - minX + 1;
@@ -226,7 +223,7 @@ function copySubVolumeBack(
   dimensions: number[],
   bounds: number[],
   label: number
-): void {
+) {
   const [dimX, dimY] = dimensions;
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
 
@@ -248,10 +245,7 @@ function copySubVolumeBack(
   }
 }
 
-function createBinaryMask(
-  data: TypedArray | number[],
-  label: number
-): Float32Array {
+function createBinaryMask(data: TypedArray | number[], label: number) {
   const mask = new Float32Array(data.length);
   for (let i = 0; i < data.length; i++) {
     mask[i] = data[i] === label ? 255.0 : 0.0;
@@ -264,7 +258,7 @@ export function gaussianSmoothLabelMapWorker(input: {
   dimensions: number[];
   spacing: [number, number, number];
   params: { sigma: number; label: number };
-}): TypedArray {
+}) {
   const { data: originalData, dimensions, spacing, params } = input;
   const { sigma, label } = params;
 
