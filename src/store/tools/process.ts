@@ -36,12 +36,10 @@ type PreviewingState = {
 
 type ProcessState = StartState | ComputingState | PreviewingState;
 
-export interface ProcessAlgorithm {
-  compute: (
-    segImage: vtkLabelMap,
-    activeSegment: number
-  ) => Promise<TypedArray>;
-}
+export type ProcessAlgorithm = (
+  segImage: vtkLabelMap,
+  activeSegment: number
+) => Promise<TypedArray | number[]>;
 
 export const useProcessStore = defineStore('process', () => {
   const processState = ref<ProcessState>({ step: 'start' });
@@ -117,10 +115,7 @@ export const useProcessStore = defineStore('process', () => {
     }
 
     try {
-      const outputScalars = await algorithm.compute(
-        segImage,
-        paintStore.activeSegment
-      );
+      const outputScalars = await algorithm(segImage, paintStore.activeSegment);
 
       // If the state changed during the async operation, stop processing
       if (processState.value.step !== 'computing') {

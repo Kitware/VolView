@@ -1,5 +1,6 @@
 import * as Comlink from 'comlink';
 import { TypedArray } from '@kitware/vtk.js/types';
+import { createTypedArrayLike } from '@/src/utils';
 
 export interface GaussianSmoothParams {
   sigma: number;
@@ -129,13 +130,12 @@ function gaussianFilter3D(
   const kernelX = generateGaussianKernel(sigmaPixels[0], radiusFactor);
   const kernelY = generateGaussianKernel(sigmaPixels[1], radiusFactor);
   const kernelZ = generateGaussianKernel(sigmaPixels[2], radiusFactor);
-  const temp1 = new Float32Array(totalSize);
-  const temp2 = new Float32Array(totalSize);
+  const temp = new Float32Array(totalSize);
   const output = new Float32Array(totalSize);
 
-  convolve1D(inputData, temp1, dimensions, kernelX, 0);
-  convolve1D(temp1, temp2, dimensions, kernelY, 1);
-  convolve1D(temp2, output, dimensions, kernelZ, 2);
+  convolve1D(inputData, output, dimensions, kernelX, 0);
+  convolve1D(output, temp, dimensions, kernelY, 1);
+  convolve1D(temp, output, dimensions, kernelZ, 2);
 
   return output;
 }
@@ -237,7 +237,7 @@ function copySubVolumeBack(
 
         if (origLabel === label || origLabel === 0) {
           // eslint-disable-next-line no-param-reassign
-          (originalData as any)[origIndex] = subValue > 127.5 ? label : 0;
+          originalData[origIndex] = subValue > 127.5 ? label : 0;
         }
         subIndex++;
       }
@@ -274,9 +274,7 @@ export function gaussianSmoothLabelMapWorker(input: {
   }
 
   if (originalLabelCount === 0) {
-    const outputData = new (originalData.constructor as any)(
-      originalData.length
-    );
+    const outputData = createTypedArrayLike(originalData, originalData.length);
     for (let i = 0; i < originalData.length; i++) {
       outputData[i] = originalData[i];
     }
@@ -291,9 +289,7 @@ export function gaussianSmoothLabelMapWorker(input: {
 
   const bounds = calculateBoundingBox(originalData, dimensions, label);
   if (!bounds) {
-    const outputData = new (originalData.constructor as any)(
-      originalData.length
-    );
+    const outputData = createTypedArrayLike(originalData, originalData.length);
     for (let i = 0; i < originalData.length; i++) {
       outputData[i] = originalData[i];
     }
@@ -320,7 +316,7 @@ export function gaussianSmoothLabelMapWorker(input: {
     1.5
   );
 
-  const outputData = new (originalData.constructor as any)(originalData.length);
+  const outputData = createTypedArrayLike(originalData, originalData.length);
   for (let i = 0; i < originalData.length; i++) {
     outputData[i] = originalData[i];
   }

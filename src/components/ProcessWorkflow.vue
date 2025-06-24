@@ -78,10 +78,8 @@ function handleToggleChange(value: number | string) {
 
 function handleConfirm() {
   if (showingOriginal.value) {
-    // User is viewing original - cancel the process
     processStore.cancelProcess();
   } else {
-    // User is viewing processed - confirm the process
     processStore.confirmProcess();
   }
 }

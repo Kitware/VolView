@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { TypedArray } from '@kitware/vtk.js/types';
 import * as Comlink from 'comlink';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { gaussianSmoothLabelMapWorker } from '@/src/core/tools/paint/gaussianSmooth.worker';
@@ -62,7 +61,7 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
   async function computeAlgorithm(
     segImage: vtkLabelMap,
     activeSegment: number
-  ): Promise<TypedArray> {
+  ) {
     const params = {
       sigma: sigma.value,
       label: activeSegment,

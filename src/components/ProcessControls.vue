@@ -16,11 +16,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import {
-  ProcessType,
-  useProcessStore,
-  type ProcessAlgorithm,
-} from '../store/tools/process';
+import { ProcessType, useProcessStore } from '../store/tools/process';
 import ProcessTypeSelector from './ProcessTypeSelector.vue';
 import ProcessWorkflow from './ProcessWorkflow.vue';
 import FillBetweenParameterControls from './FillBetweenParameterControls.vue';
@@ -34,16 +30,6 @@ const gaussianSmoothStore = useGaussianSmoothStore();
 
 const activeProcessType = computed(() => processStore.activeProcessType);
 
-// Create algorithm adapters for the ProcessWorkflow component
-const fillBetweenAlgorithm: ProcessAlgorithm = {
-  compute: async (segImage, activeSegment) => {
-    return fillBetweenStore.computeAlgorithm(segImage, activeSegment);
-  },
-};
-
-const gaussianSmoothAlgorithm: ProcessAlgorithm = {
-  compute: async (segImage, activeSegment) => {
-    return gaussianSmoothStore.computeAlgorithm(segImage, activeSegment);
-  },
-};
+const fillBetweenAlgorithm = fillBetweenStore.computeAlgorithm;
+const gaussianSmoothAlgorithm = gaussianSmoothStore.computeAlgorithm;
 </script>
