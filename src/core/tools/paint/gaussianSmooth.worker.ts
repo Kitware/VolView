@@ -149,9 +149,11 @@ function createBinaryMask(
 // Confidence threshold for label reconstruction after smoothing
 const CONFIDENCE_THRESHOLD = 0.1;
 
-export function gaussianSmoothLabelMapWorker(
-  input: GaussianSmoothInput
-): TypedArray {
+export function gaussianSmoothLabelMapWorker(input: {
+  data: TypedArray | number[];
+  dimensions: number[];
+  params: { sigma: number; label: number };
+}): TypedArray {
   const { data: originalData, dimensions, params } = input;
   const { sigma, label } = params;
 
@@ -196,10 +198,9 @@ export function gaussianSmoothLabelMapWorker(
 }
 
 // Expose the worker API via Comlink
+
 const workerApi = {
   gaussianSmoothLabelMapWorker,
 };
 
 Comlink.expose(workerApi);
-
-export type GaussianSmoothWorkerApi = typeof workerApi;
