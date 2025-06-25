@@ -42,9 +42,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ProcessType, useProcessStore } from '../store/tools/process';
+import {
+  ProcessType,
+  usePaintProcessStore,
+} from '@/src/store/tools/paintProcess';
 
-const processStore = useProcessStore();
+const processStore = usePaintProcessStore();
 
 const activeProcessType = computed({
   get: () => processStore.activeProcessType,

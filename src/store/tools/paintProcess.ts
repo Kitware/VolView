@@ -41,7 +41,7 @@ export type ProcessAlgorithm = (
   activeSegment: number
 ) => Promise<TypedArray | number[]>;
 
-export const useProcessStore = defineStore('process', () => {
+export const usePaintProcessStore = defineStore('paintProcess', () => {
   const processState = ref<ProcessState>({ step: 'start' });
   const activeProcessType = ref<ProcessType>(ProcessType.FillBetween);
 
@@ -89,30 +89,25 @@ export const useProcessStore = defineStore('process', () => {
     activeProcessType.value = processType;
   }
 
-  async function computeProcess(groupId: string, algorithm: ProcessAlgorithm) {
-    const segImage = segmentGroupStore.dataIndex[groupId];
-    const state = processState.value;
-
-    const originalScalars =
-      state.step === 'previewing'
-        ? state.originalScalars
-        : segImage.getPointData().getScalars().getData().slice();
-
-    if (state.step === 'previewing') {
-      rollbackPreview(segImage, state.originalScalars);
+  async function startProcess(groupId: string, algorithm: ProcessAlgorithm) {
+    if (!paintStore.activeSegment) {
+      messageStore.addError('No active segment selected');
+      return;
     }
+
+    const segImage = segmentGroupStore.dataIndex[groupId];
+
+    const originalScalars = segImage
+      .getPointData()
+      .getScalars()
+      .getData()
+      .slice();
 
     processState.value = {
       step: 'computing',
       activeParentImageID: segmentGroupStore.metadataByID[groupId].parentImage,
       processType: activeProcessType.value,
     };
-
-    if (!paintStore.activeSegment) {
-      messageStore.addError('No active segment selected');
-      resetState();
-      return;
-    }
 
     try {
       const outputScalars = await algorithm(segImage, paintStore.activeSegment);
@@ -158,11 +153,9 @@ export const useProcessStore = defineStore('process', () => {
         ? state.originalScalars
         : state.processedScalars;
 
-      // Update the image display
       state.segImage.getPointData().getScalars().setData(scalarsToShow);
       state.segImage.modified();
 
-      // Update the state
       processState.value = {
         ...state,
         showingOriginal: newShowingOriginal,
@@ -200,7 +193,7 @@ export const useProcessStore = defineStore('process', () => {
     activeProcessType,
     showingOriginal,
     setActiveProcessType,
-    computeProcess,
+    startProcess,
     confirmProcess,
     cancelProcess,
     togglePreview,

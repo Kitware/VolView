@@ -47,8 +47,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useProcessStore, type ProcessAlgorithm } from '../store/tools/process';
-import { usePaintToolStore } from '../store/tools/paint';
+import {
+  usePaintProcessStore,
+  type ProcessAlgorithm,
+} from '@/src/store/tools/paintProcess';
+import { usePaintToolStore } from '@/src/store/tools/paint';
 
 interface Props {
   algorithm: ProcessAlgorithm;
@@ -56,7 +59,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const processStore = useProcessStore();
+const processStore = usePaintProcessStore();
 const paintStore = usePaintToolStore();
 
 const processStep = computed(() => processStore.processStep);
@@ -65,7 +68,7 @@ const showingOriginal = computed(() => processStore.showingOriginal);
 function startCompute() {
   const id = paintStore.activeSegmentGroupID;
   if (!id) return;
-  processStore.computeProcess(id, props.algorithm);
+  processStore.startProcess(id, props.algorithm);
 }
 
 function handleToggleChange(value: number | string) {

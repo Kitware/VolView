@@ -4,9 +4,9 @@ import * as Comlink from 'comlink';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { gaussianSmoothLabelMapWorker } from '@/src/core/tools/paint/gaussianSmooth.worker';
 
-const DEFAULT_SIGMA = 1.0;
-const MIN_SIGMA = 0.1;
-const MAX_SIGMA = 5.0;
+export const DEFAULT_SIGMA = 1.0;
+export const MIN_SIGMA = 0.1;
+export const MAX_SIGMA = 5.0;
 
 // Worker management
 type WorkerApi = {
@@ -74,9 +74,5 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
     sigma,
     setSigma,
     computeAlgorithm,
-    // Expose constants for UI
-    MIN_SIGMA,
-    MAX_SIGMA,
-    DEFAULT_SIGMA,
   };
 });

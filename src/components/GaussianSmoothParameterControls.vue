@@ -34,14 +34,18 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import {
+  useGaussianSmoothStore,
+  MIN_SIGMA,
+  MAX_SIGMA,
+} from '@/src/store/tools/gaussianSmooth';
+import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
 import MiniExpansionPanel from './MiniExpansionPanel.vue';
-import { useGaussianSmoothStore } from '../store/tools/gaussianSmooth';
-import { useProcessStore } from '../store/tools/process';
 
 const gaussianSmoothStore = useGaussianSmoothStore();
-const processStore = useProcessStore();
+const processStore = usePaintProcessStore();
 
 const sigma = computed(() => gaussianSmoothStore.sigma);
 const isDisabled = computed(() => processStore.processStep === 'previewing');
-const { MIN_SIGMA, MAX_SIGMA, setSigma } = gaussianSmoothStore;
+const { setSigma } = gaussianSmoothStore;
 </script>
