@@ -76,9 +76,8 @@ function startCompute() {
   processStore.startProcess(id, props.algorithm);
 }
 
-function handleToggleChange(value: number | string) {
-  const numValue = typeof value === 'string' ? parseInt(value, 10) : value;
-  const shouldShowOriginal = numValue === 0;
+function handleToggleChange(value: number) {
+  const shouldShowOriginal = value === 0;
   if (shouldShowOriginal !== showingOriginal.value) {
     processStore.togglePreview();
   }
