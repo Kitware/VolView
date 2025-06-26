@@ -31,15 +31,20 @@
           Processed
         </v-btn>
       </v-btn-toggle>
+    </v-row>
 
-      <v-btn
-        variant="tonal"
-        prepend-icon="mdi-check"
-        @click="handleConfirm"
-        :disabled="processStep !== 'previewing'"
-        size="small"
-      >
-        Choose
+    <v-row
+      v-if="processStep === 'previewing'"
+      justify="center"
+      no-gutters
+      class="align-center ga-2 mt-2"
+    >
+      <v-btn prepend-icon="mdi-close" variant="tonal" @click="handleCancel">
+        Cancel
+      </v-btn>
+
+      <v-btn prepend-icon="mdi-check" variant="tonal" @click="handleApply">
+        Apply
       </v-btn>
     </v-row>
   </div>
@@ -47,11 +52,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   usePaintProcessStore,
   type ProcessAlgorithm,
 } from '@/src/store/tools/paintProcess';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 
 interface Props {
   algorithm: ProcessAlgorithm;
@@ -79,11 +84,11 @@ function handleToggleChange(value: number | string) {
   }
 }
 
-function handleConfirm() {
-  if (showingOriginal.value) {
-    processStore.cancelProcess();
-  } else {
-    processStore.confirmProcess();
-  }
+function handleCancel() {
+  processStore.cancelProcess();
+}
+
+function handleApply() {
+  processStore.confirmProcess();
 }
 </script>
