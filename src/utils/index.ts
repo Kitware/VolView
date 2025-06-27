@@ -258,6 +258,23 @@ export const TypedArrayConstructorNames = [
   'Float64Array',
 ];
 
+/**
+ * Creates a new typed array of the same type as the source array.
+ * This utility handles the TypeScript typing issues when using array.constructor.
+ *
+ * @param sourceArray The source array to match the type of
+ * @param arrayLength The length of the new array
+ * @returns A new array of the same type as sourceArray
+ */
+export function createTypedArrayLike<T extends TypedArray | number[]>(
+  sourceArray: T,
+  arrayLength: number
+): T {
+  return new (sourceArray.constructor as new (length: number) => T)(
+    arrayLength
+  );
+}
+
 // https://stackoverflow.com/a/74823834
 type Entries<T> = {
   [K in keyof T]-?: [K, T[K]];

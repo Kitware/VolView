@@ -11,7 +11,7 @@ export const ERASE_BRUSH_VALUE = 0;
 export enum PaintMode {
   CirclePaint,
   Erase,
-  FillBetween,
+  Process,
 }
 
 export default class PaintTool {

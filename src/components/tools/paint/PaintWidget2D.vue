@@ -152,7 +152,7 @@ export default defineComponent({
     });
 
     watchEffect(() => {
-      widget.setEnabled(paintStore.activeMode !== PaintMode.FillBetween);
+      widget.setEnabled(paintStore.activeMode !== PaintMode.Process);
     });
 
     return () => null;
