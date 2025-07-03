@@ -142,7 +142,22 @@ export const usePaintToolStore = defineStore('paint', () => {
     const shouldPaint = (idx: number) => {
       if (!underlyingImagePixels) return false;
       const pixValue = underlyingImagePixels[idx];
-      return minThreshold <= pixValue && pixValue <= maxThreshold;
+      const inThreshold = minThreshold <= pixValue && pixValue <= maxThreshold;
+      
+      // Prevent painting over locked segments
+      if (activeSegmentGroupID.value && activeLabelmap.value) {
+        const metadata = segmentGroupStore.metadataByID[activeSegmentGroupID.value];
+        if (metadata) {
+          const currentData = activeLabelmap.value.getPointData().getScalars().getData() as Uint8Array;
+          const currentValue = currentData[idx];
+          const segment = metadata.segments.byValue[currentValue];
+          if (segment?.locked) {
+            return false;
+          }
+        }
+      }
+      
+      return inThreshold;
     };
 
     const lastIndex = strokePoints.value.length - 1;

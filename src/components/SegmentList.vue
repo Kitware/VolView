@@ -134,6 +134,21 @@ function deleteEditingSegment() {
   if (editingSegmentValue.value) deleteSegment(editingSegmentValue.value);
   stopEditing(false);
 }
+
+/**
+ * Toggles the lock state of a segment.
+ * Locked segments cannot be edited or painted over.
+ * 
+ * @param value - The segment value to toggle lock state for
+ */
+const toggleLock = (value: number) => {
+  const seg = segmentGroupStore.getSegment(groupId.value, value);
+  if (seg?.locked) {
+    segmentGroupStore.unlockSegment(groupId.value, value);
+  } else {
+    segmentGroupStore.lockSegment(groupId.value, value);
+  }
+}
 </script>
 
 <template>
@@ -164,6 +179,18 @@ function deleteEditingSegment() {
       </div>
     </template>
     <template #item-append="{ key, item }">
+      <!-- Lock/unlock segment button -->
+      <v-btn
+        icon
+        size="small"
+        density="compact"
+        class="mr-1"
+        variant="plain"
+        @click.stop="toggleLock(key as number)"
+        :color="item.locked ? 'error' : undefined"
+      >
+        <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+      </v-btn>
       <v-btn
         icon
         size="small"
@@ -180,14 +207,17 @@ function deleteEditingSegment() {
           item.visible ? 'Hide' : 'Show'
         }}</v-tooltip>
       </v-btn>
+      <!-- Edit segment button (disabled when locked) -->
       <v-btn
         icon="mdi-pencil"
         size="small"
         density="compact"
-        class="ml-auto mr-1"
+        class="mr-1"
         variant="plain"
         @click.stop="startEditing(key as number)"
+        :disabled="item.locked"
       />
+      <!-- Delete segment button (disabled when locked) -->
       <v-btn
         icon="mdi-delete"
         size="small"
@@ -195,6 +225,7 @@ function deleteEditingSegment() {
         class="ml-auto"
         variant="plain"
         @click.stop="deleteSegment(key as number)"
+        :disabled="item.locked"
       />
     </template>
   </editable-chip-list>

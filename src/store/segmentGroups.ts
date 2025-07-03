@@ -390,6 +390,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       value,
       color: [...getNextColor()],
       visible: true,
+      locked: false, // default to unlocked
     };
   }
 
@@ -429,6 +430,24 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       ...segment,
       ...segmentUpdate,
     };
+  }
+
+  /**
+   * Locks a segment, preventing it from being modified during paint operations.
+   * @param segmentGroupID
+   * @param segmentValue
+   */
+  function lockSegment(segmentGroupID: string, segmentValue: number) {
+    updateSegment(segmentGroupID, segmentValue, { locked: true });
+  }
+  
+  /**
+   * Unlocks a segment, allowing it to be modified during paint operations.
+   * @param segmentGroupID
+   * @param segmentValue
+   */
+  function unlockSegment(segmentGroupID: string, segmentValue: number) {
+    updateSegment(segmentGroupID, segmentValue, { locked: false });
   }
 
   /**
@@ -587,6 +606,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     getSegment,
     updateSegment,
     deleteSegment,
+    lockSegment,
+    unlockSegment,
     serialize,
     deserialize,
   };
