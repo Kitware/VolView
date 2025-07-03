@@ -215,6 +215,9 @@ const toggleLock = (value: number) => {
         :color="item.locked ? 'error' : undefined"
       >
         <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+        <v-tooltip location="left" activator="parent">{{
+          item.locked ? 'Unlock' : 'Lock'
+        }}</v-tooltip>
       </v-btn>
       <v-btn
         icon
