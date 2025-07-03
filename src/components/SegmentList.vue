@@ -71,12 +71,26 @@ const allVisible = computed(() => {
   return segments.value.every((seg) => seg.visible);
 });
 
+const allLocked = computed(() => {
+  return segments.value.every((seg) => seg.locked);
+});
+
 function toggleGlobalVisible() {
   const visible = !allVisible.value;
 
   segments.value.forEach((seg) => {
     segmentGroupStore.updateSegment(groupId.value, seg.value, {
       visible,
+    });
+  });
+}
+
+function toggleGlobalLocked() {
+  const locked = !allLocked.value;
+
+  segments.value.forEach((seg) => {
+    segmentGroupStore.updateSegment(groupId.value, seg.value, {
+      locked,
     });
   });
 }
@@ -159,6 +173,17 @@ const toggleLock = (value: number) => {
       <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
       <v-tooltip location="top" activator="parent">{{
         allVisible ? 'Hide' : 'Show'
+      }}</v-tooltip>
+    </slot>
+  </v-btn>
+
+  <v-btn @click.stop="toggleGlobalLocked" class="my-1">
+    Toggle Locks
+    <slot name="append">
+      <v-icon v-if="allLocked" class="pl-2">mdi-lock</v-icon>
+      <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
+      <v-tooltip location="top" activator="parent">{{
+        allLocked ? 'Unlock All' : 'Lock All'
       }}</v-tooltip>
     </slot>
   </v-btn>
