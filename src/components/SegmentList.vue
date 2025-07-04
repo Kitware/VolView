@@ -180,7 +180,7 @@ const toggleLock = (value: number) => {
   <v-btn @click.stop="toggleGlobalLocked" class="my-1">
     Toggle Locks
     <slot name="append">
-      <v-icon v-if="allLocked" class="pl-2">mdi-lock</v-icon>
+      <v-icon v-if="allLocked" class="pl-2" color="red">mdi-lock</v-icon>
       <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
       <v-tooltip location="top" activator="parent">{{
         allLocked ? 'Unlock All' : 'Lock All'
