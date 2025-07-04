@@ -134,6 +134,14 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
+    // Prevent painting if active segment is locked
+    if (activeSegmentGroupID.value && activeSegment.value) {
+      const segment = segmentGroupStore.getSegment(activeSegmentGroupID.value, activeSegment.value);
+      if (segment?.locked) {
+        return;
+      }
+    }
+
     const underlyingImagePixels = currentImageData.value
       ?.getPointData()
       .getScalars()
