@@ -141,8 +141,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     const [minThreshold, maxThreshold] = thresholdRange.value;
     const shouldPaint = (idx: number) => {
       if (!underlyingImagePixels) return false;
-      const pixValue = underlyingImagePixels[idx];
-      const inThreshold = minThreshold <= pixValue && pixValue <= maxThreshold;
       
       // Prevent painting over locked segments
       if (activeSegmentGroupID.value && activeLabelmap.value) {
@@ -157,7 +155,8 @@ export const usePaintToolStore = defineStore('paint', () => {
         }
       }
       
-      return inThreshold;
+      const pixValue = underlyingImagePixels[idx];
+      return minThreshold <= pixValue && pixValue <= maxThreshold;
     };
 
     const lastIndex = strokePoints.value.length - 1;
