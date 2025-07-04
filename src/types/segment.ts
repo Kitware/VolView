@@ -5,4 +5,5 @@ export interface SegmentMask {
   name: string;
   color: RGBAColor;
   visible: boolean;
+  locked?: boolean;
 }

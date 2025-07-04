@@ -390,6 +390,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       value,
       color: [...getNextColor()],
       visible: true,
+      locked: false, // default to unlocked
     };
   }
 
@@ -430,6 +431,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       ...segmentUpdate,
     };
   }
+
 
   /**
    * Deletes a segment from a labelmap.
