@@ -157,10 +157,10 @@ function deleteEditingSegment() {
  */
 const toggleLock = (value: number) => {
   const seg = segmentGroupStore.getSegment(groupId.value, value);
-  if (seg?.locked) {
-    segmentGroupStore.unlockSegment(groupId.value, value);
-  } else {
-    segmentGroupStore.lockSegment(groupId.value, value);
+  if (seg) {
+    segmentGroupStore.updateSegment(groupId.value, value, {
+      locked: !seg.locked,
+    });
   }
 }
 </script>
