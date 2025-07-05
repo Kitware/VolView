@@ -35,6 +35,14 @@
         hide-details
       ></v-switch>
 
+      <v-switch
+        :label="`Paint Cross-Plane Sync (${crossPlaneSync ? 'On' : 'Off'})`"
+        v-model="crossPlaneSync"
+        color="secondary"
+        density="compact"
+        hide-details
+      ></v-switch>
+
       <v-divider class="mt-2 mb-6"></v-divider>
       <dicom-web-settings />
 
@@ -52,6 +60,7 @@ import { useLocalStorage } from '@vueuse/core';
 
 import { useKeyboardShortcutsStore } from '@/src/store/keyboard-shortcuts';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
+import { usePaintToolStore } from '@/src/store/tools/paint';
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 import ServerSettings from './ServerSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
@@ -78,6 +87,7 @@ export default defineComponent({
     });
 
     const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
+    const { crossPlaneSync } = storeToRefs(usePaintToolStore());
 
     const keyboardStore = useKeyboardShortcutsStore();
     const openKeyboardShortcuts = () => {
@@ -90,6 +100,7 @@ export default defineComponent({
       errorReportingConfigured,
       openKeyboardShortcuts,
       disableCameraAutoReset,
+      crossPlaneSync,
     };
   },
   components: {

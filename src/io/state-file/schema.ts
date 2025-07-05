@@ -371,6 +371,7 @@ const Paint = z.object({
   activeSegmentGroupID: z.string().nullable(),
   activeSegment: z.number().nullish(),
   brushSize: z.number(),
+  crossPlaneSync: z.boolean().default(false),
   labelmapOpacity: z.number().optional(), // labelmapOpacity now ignored.  Opacity per segment group via layerColoring store.
 });
 
