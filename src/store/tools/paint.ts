@@ -1,15 +1,18 @@
-import type { Vector2 } from '@kitware/vtk.js/types';
+import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { computed, ref } from 'vue';
+import { computed, ref, unref } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
+import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
+import useViewSliceStore from '../view-configs/slicing';
+import { useViewStore } from '../views';
 
 const DEFAULT_BRUSH_SIZE = 4;
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [
@@ -27,9 +30,12 @@ export const usePaintToolStore = defineStore('paint', () => {
   const strokePoints = ref<vec3[]>([]);
   const isActive = ref(false);
   const thresholdRange = ref<Vector2>([...DEFAULT_THRESHOLD_RANGE]);
+  const crossPlaneSync = ref(false);
 
-  const { currentImageID, currentImageData } = useCurrentImage();
+  const { currentImageID, currentImageData, currentImageMetadata } = useCurrentImage();
   const imageStatsStore = useImageStatsStore();
+  const viewSliceStore = useViewSliceStore();
+  const viewStore = useViewStore();
 
   function getWidgetFactory(this: _This) {
     return this.$paint.factory;
@@ -40,6 +46,16 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activeLabelmap = computed(() => {
     if (!activeSegmentGroupID.value) return null;
     return segmentGroupStore.dataIndex[activeSegmentGroupID.value] ?? null;
+  });
+
+  const currentViewIDs = computed(() => {
+    const imageID = unref(currentImageID);
+    if (imageID) {
+      return viewStore.viewIDs.filter(
+        (viewID) => !!viewSliceStore.getConfig(viewID, imageID)
+      );
+    }
+    return [];
   });
 
   // --- actions --- //
@@ -284,12 +300,37 @@ export const usePaintToolStore = defineStore('paint', () => {
     thresholdRange.value = range;
   }
 
+  function setCrossPlaneSync(enabled: boolean) {
+    crossPlaneSync.value = enabled;
+  }
+
+  function updateCrossPlaneSlicing(worldPosition: Vector3) {
+    if (!crossPlaneSync.value) return;
+    const imageID = unref(currentImageID);
+    const metadata = unref(currentImageMetadata);
+    if (!imageID || !metadata?.lpsOrientation || !metadata?.worldToIndex) return;
+    const { lpsOrientation, worldToIndex } = metadata;
+    const indexPos = vec3.create();
+    vec3.transformMat4(indexPos, worldPosition, worldToIndex);
+    currentViewIDs.value.forEach((viewID) => {
+      const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
+      if (!sliceConfig) return;
+      const axis = getLPSAxisFromDir(sliceConfig.axisDirection);
+      const index = lpsOrientation[axis];
+      const slice = Math.round(indexPos[index]);
+      if (slice !== sliceConfig.slice) {
+        viewSliceStore.updateConfig(viewID, imageID, { slice });
+      }
+    });
+  }
+
   function serialize(state: StateFile) {
     const { paint } = state.manifest.tools;
 
     paint.activeSegmentGroupID = activeSegmentGroupID.value ?? null;
     paint.brushSize = brushSize.value;
     paint.activeSegment = activeSegment.value;
+    paint.crossPlaneSync = crossPlaneSync.value;
   }
 
   function deserialize(
@@ -307,6 +348,7 @@ export const usePaintToolStore = defineStore('paint', () => {
       setActiveSegmentGroup(activeSegmentGroupID.value);
       setActiveSegment.call(this, paint.activeSegment);
     }
+    setCrossPlaneSync(paint.crossPlaneSync ?? false);
   }
 
   return {
@@ -317,6 +359,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     strokePoints,
     isActive,
     thresholdRange,
+    crossPlaneSync,
 
     getWidgetFactory,
 
@@ -329,6 +372,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     setBrushSize,
     setSliceAxis,
     setThresholdRange,
+    setCrossPlaneSync,
+    updateCrossPlaneSlicing,
     startStroke,
     placeStrokePoint,
     endStroke,
