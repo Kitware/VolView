@@ -13,6 +13,7 @@ import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
 import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
+import { useViewCameraStore } from '../view-configs/camera';
 
 const DEFAULT_BRUSH_SIZE = 4;
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [
@@ -36,6 +37,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const imageStatsStore = useImageStatsStore();
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
+  const viewCameraStore = useViewCameraStore();
 
   function getWidgetFactory(this: _This) {
     return this.$paint.factory;
@@ -304,23 +306,35 @@ export const usePaintToolStore = defineStore('paint', () => {
     crossPlaneSync.value = enabled;
   }
 
-  function updateCrossPlaneSlicing(worldPosition: Vector3) {
+  function updateCrossPlaneSlicing(worldPosition: Vector3, activeViewID?: string) {
     if (!crossPlaneSync.value) return;
     const imageID = unref(currentImageID);
     const metadata = unref(currentImageMetadata);
     if (!imageID || !metadata?.lpsOrientation || !metadata?.worldToIndex) return;
+    
     const { lpsOrientation, worldToIndex } = metadata;
     const indexPos = vec3.create();
     vec3.transformMat4(indexPos, worldPosition, worldToIndex);
+    
     currentViewIDs.value.forEach((viewID) => {
       const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
       if (!sliceConfig) return;
+      
+      // Update slice position
       const axis = getLPSAxisFromDir(sliceConfig.axisDirection);
       const index = lpsOrientation[axis];
       const slice = Math.round(indexPos[index]);
       if (slice !== sliceConfig.slice) {
         viewSliceStore.updateConfig(viewID, imageID, { slice });
       }
+      
+      // Center camera on paint position (skip active view)
+      if (activeViewID && viewID === activeViewID) {
+        return;
+      }
+      viewCameraStore.updateConfig(viewID, imageID, {
+        focalPoint: worldPosition,
+      });
     });
   }
 

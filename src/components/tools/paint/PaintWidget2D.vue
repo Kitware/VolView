@@ -96,14 +96,14 @@ export default defineComponent({
       const origin = widgetState.getBrush().getOrigin()!;
       const indexPoint = worldPointToIndex(origin);
       paintStore.startStroke(indexPoint, viewAxisIndex.value);
-      paintStore.updateCrossPlaneSlicing(origin);
+      paintStore.updateCrossPlaneSlicing(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onInteractionEvent', () => {
       const origin = widgetState.getBrush().getOrigin()!;
       const indexPoint = worldPointToIndex(origin);
       paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value);
-      paintStore.updateCrossPlaneSlicing(origin);
+      paintStore.updateCrossPlaneSlicing(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onEndInteractionEvent', () => {
