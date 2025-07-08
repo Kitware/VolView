@@ -152,7 +152,7 @@ function deleteEditingSegment() {
 /**
  * Toggles the lock state of a segment.
  * Locked segments cannot be edited or painted over.
- * 
+ *
  * @param value - The segment value to toggle lock state for
  */
 const toggleLock = (value: number) => {
@@ -162,31 +162,33 @@ const toggleLock = (value: number) => {
       locked: !seg.locked,
     });
   }
-}
+};
 </script>
 
 <template>
-  <v-btn @click.stop="toggleGlobalVisible" class="my-1">
-    Toggle Segments
-    <slot name="append">
-      <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
-      <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
-      <v-tooltip location="top" activator="parent">{{
-        allVisible ? 'Hide' : 'Show'
-      }}</v-tooltip>
-    </slot>
-  </v-btn>
+  <div class="d-flex justify-space-evenly">
+    <v-btn @click.stop="toggleGlobalVisible" class="my-1">
+      Toggle Segments
+      <slot name="append">
+        <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
+        <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          allVisible ? 'Hide' : 'Show'
+        }}</v-tooltip>
+      </slot>
+    </v-btn>
 
-  <v-btn @click.stop="toggleGlobalLocked" class="my-1">
-    Toggle Locks
-    <slot name="append">
-      <v-icon v-if="allLocked" class="pl-2" color="red">mdi-lock</v-icon>
-      <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
-      <v-tooltip location="top" activator="parent">{{
-        allLocked ? 'Unlock All' : 'Lock All'
-      }}</v-tooltip>
-    </slot>
-  </v-btn>
+    <v-btn @click.stop="toggleGlobalLocked" class="my-1">
+      Toggle Locks
+      <slot name="append">
+        <v-icon v-if="allLocked" class="pl-2" color="red">mdi-lock</v-icon>
+        <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          allLocked ? 'Unlock All' : 'Lock All'
+        }}</v-tooltip>
+      </slot>
+    </v-btn>
+  </div>
 
   <editable-chip-list
     v-model="selectedSegment"

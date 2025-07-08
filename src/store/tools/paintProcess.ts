@@ -96,7 +96,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
 
     // Check if the active segment is locked
-    const segment = segmentGroupStore.getSegment(groupId, paintStore.activeSegment);
+    const segment = segmentGroupStore.getSegment(
+      groupId,
+      paintStore.activeSegment
+    );
     if (segment?.locked) {
       messageStore.addError('Cannot process locked segment');
       return;

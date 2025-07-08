@@ -136,7 +136,10 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     // Prevent painting if active segment is locked
     if (activeSegmentGroupID.value && activeSegment.value) {
-      const segment = segmentGroupStore.getSegment(activeSegmentGroupID.value, activeSegment.value);
+      const segment = segmentGroupStore.getSegment(
+        activeSegmentGroupID.value,
+        activeSegment.value
+      );
       if (segment?.locked) {
         return;
       }
@@ -149,12 +152,16 @@ export const usePaintToolStore = defineStore('paint', () => {
     const [minThreshold, maxThreshold] = thresholdRange.value;
     const shouldPaint = (idx: number) => {
       if (!underlyingImagePixels) return false;
-      
+
       // Prevent painting over locked segments
       if (activeSegmentGroupID.value && activeLabelmap.value) {
-        const metadata = segmentGroupStore.metadataByID[activeSegmentGroupID.value];
+        const metadata =
+          segmentGroupStore.metadataByID[activeSegmentGroupID.value];
         if (metadata) {
-          const currentData = activeLabelmap.value.getPointData().getScalars().getData() as Uint8Array;
+          const currentData = activeLabelmap.value
+            .getPointData()
+            .getScalars()
+            .getData() as Uint8Array;
           const currentValue = currentData[idx];
           const segment = metadata.segments.byValue[currentValue];
           if (segment?.locked) {
@@ -162,7 +169,7 @@ export const usePaintToolStore = defineStore('paint', () => {
           }
         }
       }
-      
+
       const pixValue = underlyingImagePixels[idx];
       return minThreshold <= pixValue && pixValue <= maxThreshold;
     };

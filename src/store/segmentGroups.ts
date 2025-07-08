@@ -432,7 +432,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     };
   }
 
-
   /**
    * Deletes a segment from a labelmap.
    * @param segmentGroupID
