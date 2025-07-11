@@ -115,6 +115,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     const oldImageData = progressiveImage.vtkImageData.value;
 
     progressiveImage.vtkImageData.value = newImageData;
+    // trigger texture update
     newImageData.modified();
 
     if (oldImageData && oldImageData !== newImageData) {
