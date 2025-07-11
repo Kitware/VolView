@@ -7,6 +7,7 @@ import {
 import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
 import { Image, JsonCompatible, readImage } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
+// eslint-disable-next-line import/no-cycle
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
 import { Tags } from '@/src/core/dicomTags';
@@ -210,7 +211,7 @@ export default class DicomChunkImage
     this.processNewChunks(newChunks);
 
     if (this.getModality() !== 'SEG') {
-      this.reallocateImage();
+      await this.reallocateImage();
     }
   }
 
@@ -267,9 +268,9 @@ export default class DicomChunkImage
     }
   }
 
-  private reallocateImage() {
+  private async reallocateImage() {
     this.vtkImageData.value.delete();
-    this.vtkImageData.value = allocateImageFromChunks(this.chunks);
+    this.vtkImageData.value = await allocateImageFromChunks(this.chunks, { legacy: true });
 
     // recalculate image data's data range, since allocateImageFromChunks doesn't know anything about it
     const scalars = this.vtkImageData.value.getPointData().getScalars();

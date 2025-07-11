@@ -4,6 +4,7 @@ import { Image } from 'itk-wasm';
 import * as DICOM from '@/src/io/dicom';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useImageCacheStore } from '@/src/store/image-cache';
+// eslint-disable-next-line import/no-cycle
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
@@ -49,7 +50,7 @@ export interface VolumeInfo {
   WindowWidth: string;
 }
 
-const buildImage = async (seriesFiles: File[], modality: string) => {
+export const buildImage = async (seriesFiles: File[], modality: string) => {
   const messages: string[] = [];
   if (modality === 'SEG') {
     const segFile = seriesFiles[0];
@@ -70,7 +71,7 @@ const buildImage = async (seriesFiles: File[], modality: string) => {
   };
 };
 
-const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
+export const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
   const fileStore = useFileStore();
   const files = fileStore.getFiles(volumeKey);
   if (!files) throw new Error('No files for volume key');

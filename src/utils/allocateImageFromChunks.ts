@@ -2,10 +2,14 @@ import { Chunk } from '@/src/core/streaming/chunk';
 import { Maybe } from '@/src/types';
 import { NAME_TO_TAG } from '@/src/core/dicomTags';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { mat3, vec3 } from 'gl-matrix';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+// eslint-disable-next-line import/no-cycle
+import { buildImage } from '@/src/store/datasets-dicom';
 
+const ModalityTag = NAME_TO_TAG.get('Modality')!;
 const ImagePositionPatientTag = NAME_TO_TAG.get('ImagePositionPatient')!;
 const ImageOrientationPatientTag = NAME_TO_TAG.get('ImageOrientationPatient')!;
 const PixelSpacingTag = NAME_TO_TAG.get('PixelSpacing')!;
@@ -68,13 +72,25 @@ function getTypedArrayConstructor(
   return getTypedArrayForDataRange(outputMin, outputMax);
 }
 
-export function allocateImageFromChunks(sortedChunks: Chunk[]) {
+export async function allocateImageFromChunks(sortedChunks: Chunk[], options = { legacy: false }) {
   if (sortedChunks.length === 0) {
     throw new Error('Cannot allocate an image from zero chunks');
   }
 
   // use the first chunk as the source of metadata
   const meta = new Map(sortedChunks[0].metadata!);
+
+  // we can fallback to legacy buildImage when the modality tag is present
+  const modality = meta.get(ModalityTag)?.trim() ?? null;
+  if (modality && options.legacy) {
+    const seriesFiles = sortedChunks.map((chunk) => chunk.dataBlob) as File[];
+    const results = await buildImage(seriesFiles, modality);
+    if (results.builtImageResults.outputImage) {
+      const image = vtkITKHelper.convertItkToVtkImage(results.builtImageResults.outputImage);
+      return image;
+    }
+  }
+
   const imagePositionPatient = toVec(meta.get(ImagePositionPatientTag));
   const imageOrientationPatient = toVec(meta.get(ImageOrientationPatientTag));
   const pixelSpacing = toVec(meta.get(PixelSpacingTag));
