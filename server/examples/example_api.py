@@ -116,11 +116,7 @@ async def median_filter(img_id, radius):
         # Associate the blurred image ID with the base image ID.
         associate_images(state, base_image_id, blurred_id)
     else:
-        # Update existing blurred image by removing and re-adding
-        await images_store.deleteData(blurred_id)
-        blurred_id = await images_store.addVTKImageData("Blurred image", output)
-        # Update the mapping with the new ID
-        state.image_id_map[base_image_id] = blurred_id
-        state.image_id_map[blurred_id] = base_image_id
+        # Update existing blurred image using the new updateVTKImageData method
+        await cache_store.updateVTKImageData(blurred_id, output)
 
     await show_image(blurred_id)
