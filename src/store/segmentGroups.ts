@@ -390,6 +390,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       value,
       color: [...getNextColor()],
       visible: true,
+      locked: false, // default to unlocked
     };
   }
 
