@@ -162,15 +162,19 @@ export default defineComponent({
       const delta = event.deltaY < 0 ? 1 : -1;
       const newSize = Math.max(1, Math.min(50, paintStore.brushSize + delta));
       paintStore.setBrushSize(newSize);
-    }
+    };
 
     onMounted(() => {
-      view.renderWindowView.getContainer()?.addEventListener('wheel', handleWheelEvent, { passive: false });
+      view.renderWindowView
+        .getContainer()
+        ?.addEventListener('wheel', handleWheelEvent, { passive: false });
     });
 
     onUnmounted(() => {
-      view.renderWindowView.getContainer()?.removeEventListener('wheel', handleWheelEvent);
-    })
+      view.renderWindowView
+        .getContainer()
+        ?.removeEventListener('wheel', handleWheelEvent);
+    });
 
     return () => null;
   },
