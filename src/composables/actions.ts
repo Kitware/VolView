@@ -67,6 +67,7 @@ export const ACTION_TO_FUNC = {
   zoom: setTool(Tools.Zoom),
   ruler: setTool(Tools.Ruler),
   paint: setTool(Tools.Paint),
+  brushSize: NOOP, // act as modifier key rather than immediate effect, so no-op
   rectangle: setTool(Tools.Rectangle),
   crosshairs: setTool(Tools.Crosshairs),
   temporaryCrosshairs: NOOP, // behavior implemented elsewhere

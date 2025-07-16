@@ -269,6 +269,7 @@ export const ACTION_TO_KEY = {
   zoom: 'z',
   ruler: 'm',
   paint: 'p',
+  brushSize: 'ctrl',
   rectangle: 'r',
   crosshairs: 'c',
   temporaryCrosshairs: 'shift-c',

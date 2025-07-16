@@ -16,10 +16,6 @@
             <td>Pan</td>
             <td>Shift + left mouse button + move</td>
           </tr>
-          <tr>
-            <td>Adjust Brush Size</td>
-            <td>Ctrl + mouse wheel or two finger vertical scroll</td>
-          </tr>
         </tbody>
       </v-table>
 
