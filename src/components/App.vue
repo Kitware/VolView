@@ -17,7 +17,9 @@
           <div class="fill-height d-flex flex-row flex-grow-1">
             <controls-strip :has-data="hasData"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
-              <layout-grid v-show="hasData" :layout="layout" />
+              <VtkRenderWindowParent>
+                <layout-grid v-show="hasData" :layout="layout" />
+              </VtkRenderWindowParent>
               <welcome-page
                 v-if="!hasData"
                 :loading="showLoading"
@@ -81,6 +83,7 @@ import {
   stripTokenFromUrl,
 } from '@/src/utils/token';
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
+import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
 
 export default defineComponent({
   name: 'App',
@@ -94,6 +97,7 @@ export default defineComponent({
     ControlsModal,
     WelcomePage,
     AppBar,
+    VtkRenderWindowParent,
   },
 
   setup() {
