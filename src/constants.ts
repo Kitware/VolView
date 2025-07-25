@@ -38,6 +38,9 @@ export const ACTIONS = {
   paint: {
     readable: 'Activate Paint tool',
   },
+  brushSize: {
+    readable: 'Change brush size by holding key and scrolling',
+  },
   rectangle: {
     readable: 'Activate Rectangle tool',
   },

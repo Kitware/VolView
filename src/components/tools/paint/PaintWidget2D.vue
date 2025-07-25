@@ -9,6 +9,7 @@ import {
   watchEffect,
   inject,
 } from 'vue';
+import { useMagicKeys } from '@vueuse/core';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -22,6 +23,7 @@ import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
+import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -153,6 +155,32 @@ export default defineComponent({
 
     watchEffect(() => {
       widget.setEnabled(paintStore.activeMode !== PaintMode.Process);
+    });
+
+    // Brush size scroll wheel control with customizable modifier key
+    const keys = useMagicKeys();
+    const enableBrushSizeAdjustment = computed(
+      () => keys[actionToKey.value.brushSize].value
+    );
+
+    const handleWheelEvent = (event: WheelEvent) => {
+      if (!enableBrushSizeAdjustment.value) return;
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? 1 : -1;
+      const newSize = Math.max(1, Math.min(50, paintStore.brushSize + delta));
+      paintStore.setBrushSize(newSize);
+    };
+
+    onMounted(() => {
+      view.renderWindowView
+        .getContainer()
+        ?.addEventListener('wheel', handleWheelEvent, { passive: false });
+    });
+
+    onUnmounted(() => {
+      view.renderWindowView
+        .getContainer()
+        ?.removeEventListener('wheel', handleWheelEvent);
     });
 
     return () => null;
