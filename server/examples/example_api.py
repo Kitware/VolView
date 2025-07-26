@@ -89,25 +89,34 @@ async def show_image(img_id: str):
 
 @volview.expose("medianFilter")
 async def median_filter(img_id, radius):
-    store = get_current_client_store("images")
+    # Use image-cache store directly (recommended approach)
+    cache_store = get_current_client_store("image-cache")
     state = get_current_session(default_factory=ClientState)
 
     # Behavior: when a median filter request occurs on a
     # blurred image, we instead assume we are re-running
     # the blur operation on the original image.
     base_image_id = get_base_image(state, img_id)
-    img = await store.dataIndex[base_image_id]
+    
+    img = await cache_store.getVtkImageData(base_image_id)
+    
+    if img is None:
+        raise ValueError(f"No image found for ID: {base_image_id}")
 
     # we need to run the median filter in a subprocess,
     # since itk blocks the GIL.
     output = await run_median_filter_process(img, radius)
 
     blurred_id = state.image_id_map.get(base_image_id)
+    images_store = get_current_client_store("images")
+    
     if not blurred_id:
-        blurred_id = await store.addVTKImageData("Blurred image", output)
+        # Add new blurred image
+        blurred_id = await images_store.addVTKImageData("Blurred image", output)
         # Associate the blurred image ID with the base image ID.
         associate_images(state, base_image_id, blurred_id)
     else:
-        await store.updateData(blurred_id, output)
+        # Update existing blurred image using the new updateVTKImageData method
+        await cache_store.updateVTKImageData(blurred_id, output)
 
     await show_image(blurred_id)
