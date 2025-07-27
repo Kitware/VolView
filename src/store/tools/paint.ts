@@ -3,7 +3,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { computed, ref, unref } from 'vue';
+import { computed, ref, unref, watch } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
@@ -32,8 +32,11 @@ export const usePaintToolStore = defineStore('paint', () => {
   const isActive = ref(false);
   const thresholdRange = ref<Vector2>([...DEFAULT_THRESHOLD_RANGE]);
   const crossPlaneSync = ref(false);
+  const paintPosition = ref<Vector3>([0, 0, 0]);
+  const activePaintViewID = ref<Maybe<string>>(null);
 
-  const { currentImageID, currentImageData, currentImageMetadata } = useCurrentImage();
+  const { currentImageID, currentImageData, currentImageMetadata } =
+    useCurrentImage();
   const imageStatsStore = useImageStatsStore();
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
@@ -306,20 +309,22 @@ export const usePaintToolStore = defineStore('paint', () => {
     crossPlaneSync.value = enabled;
   }
 
-  function updateCrossPlaneSlicing(worldPosition: Vector3, activeViewID?: string) {
-    if (!crossPlaneSync.value) return;
+  watch([paintPosition, crossPlaneSync], ([worldPosition]) => {
+    if (!crossPlaneSync.value || !isActive.value) return;
+
     const imageID = unref(currentImageID);
     const metadata = unref(currentImageMetadata);
-    if (!imageID || !metadata?.lpsOrientation || !metadata?.worldToIndex) return;
-    
+    if (!imageID || !metadata?.lpsOrientation || !metadata?.worldToIndex)
+      return;
+
     const { lpsOrientation, worldToIndex } = metadata;
     const indexPos = vec3.create();
     vec3.transformMat4(indexPos, worldPosition, worldToIndex);
-    
+
     currentViewIDs.value.forEach((viewID) => {
       const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
       if (!sliceConfig) return;
-      
+
       // Update slice position
       const axis = getLPSAxisFromDir(sliceConfig.axisDirection);
       const index = lpsOrientation[axis];
@@ -327,15 +332,20 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (slice !== sliceConfig.slice) {
         viewSliceStore.updateConfig(viewID, imageID, { slice });
       }
-      
+
       // Center camera on paint position (skip active view)
-      if (activeViewID && viewID === activeViewID) {
+      if (activePaintViewID.value && viewID === activePaintViewID.value) {
         return;
       }
       viewCameraStore.updateConfig(viewID, imageID, {
         focalPoint: worldPosition,
       });
     });
+  });
+
+  function updatePaintPosition(worldPosition: Vector3, activeViewID?: string) {
+    paintPosition.value = worldPosition;
+    activePaintViewID.value = activeViewID;
   }
 
   function serialize(state: StateFile) {
@@ -387,7 +397,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     setSliceAxis,
     setThresholdRange,
     setCrossPlaneSync,
-    updateCrossPlaneSlicing,
+    updatePaintPosition,
     startStroke,
     placeStrokePoint,
     endStroke,
