@@ -5,9 +5,16 @@ import { MaybeRef, ref } from 'vue';
 export function useAutoFitState(camera: MaybeRef<vtkCamera>) {
   const autoFit = ref(true);
 
-  const { withPaused } = onPausableVTKEvent(camera, 'onModified', () => {
-    autoFit.value = false;
-  });
+  const { withPaused, pause, resume } = onPausableVTKEvent(
+    camera,
+    'onModified',
+    () => {
+      autoFit.value = false;
+    }
+  );
 
-  return { autoFit, withoutAutoFitEffect: withPaused };
+  // auto-fit state starts off paused
+  pause();
+
+  return { autoFit, pause, resume, withPaused };
 }
