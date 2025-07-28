@@ -55,13 +55,11 @@ const { interactorStyle } = useVtkInteractorStyle(
 
 // bind slice and window configs
 // resizeToFit camera controls
-const { autoFit, withoutAutoFitEffect } = useAutoFitState(
-  view.renderer.getActiveCamera()
-);
+const autoFit = useAutoFitState(view.renderer.getActiveCamera());
 
 function autoFitImage() {
-  if (!autoFit.value) return;
-  withoutAutoFitEffect(() => {
+  if (!autoFit.autoFit.value) return;
+  autoFit.withPaused(() => {
     resizeToFitImage(
       view,
       imageMetadata.value,
@@ -77,8 +75,8 @@ useResizeObserver(vtkContainerRef, () => {
 });
 
 function resetCamera() {
-  autoFit.value = true;
-  withoutAutoFitEffect(() => {
+  autoFit.autoFit.value = true;
+  autoFit.withPaused(() => {
     resetCameraToImage(
       view,
       imageMetadata.value,
@@ -114,8 +112,22 @@ const api: VtkViewApi = markRaw({
 
 defineExpose(api);
 provide(VtkViewContext, api);
+
+function onPointerDown() {
+  autoFit.resume();
+}
+
+function onPointerUp() {
+  autoFit.pause();
+}
 </script>
 
 <template>
-  <div ref="vtkContainerRef"><slot></slot></div>
+  <div
+    ref="vtkContainerRef"
+    @pointerdown.capture="onPointerDown"
+    @pointerup.capture="onPointerUp"
+  >
+    <slot></slot>
+  </div>
 </template>
