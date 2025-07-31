@@ -39,13 +39,6 @@ import type {
 } from '../../types/views';
 import { WLAutoRanges } from '../../constants';
 
-export enum DatasetType {
-  DICOM = 'dicom',
-  IMAGE = 'image',
-}
-
-const DatasetTypeNative = z.nativeEnum(DatasetType);
-
 const LPSAxisDir = z.union([
   z.literal('Left'),
   z.literal('Right'),
@@ -55,12 +48,50 @@ const LPSAxisDir = z.union([
   z.literal('Inferior'),
 ]);
 
+const FileSource = z.object({
+  id: z.number(),
+  type: z.literal('file'),
+  fileId: z.number(),
+  fileType: z.string(),
+  parent: z.number().optional(),
+});
+
+const UriSource = z.object({
+  id: z.number(),
+  type: z.literal('uri'),
+  uri: z.string(),
+  name: z.string(),
+  mime: z.string().optional(),
+  parent: z.number().optional(),
+});
+
+const ArchiveSource = z.object({
+  id: z.number(),
+  type: z.literal('archive'),
+  path: z.string(),
+  parent: z.number(),
+});
+
+const CollectionSource = z.object({
+  id: z.number(),
+  type: z.literal('collection'),
+  sources: z.number().array(),
+  parent: z.number().optional(),
+});
+
+const DataSource = z.union([
+  FileSource,
+  UriSource,
+  ArchiveSource,
+  CollectionSource,
+]);
+
+export type DataSourceType = z.infer<typeof DataSource>;
+
 const Dataset = z.object({
   id: z.string(),
-  path: z.string(),
-  type: DatasetTypeNative,
+  dataSourceId: z.number(),
 });
-export type Dataset = z.infer<typeof Dataset>;
 
 const baseRemoteFileSchema = z.object({
   archiveSrc: z.object({ path: z.string() }).optional(),
@@ -100,14 +131,29 @@ const Vector3 = z.tuple([
 ]) satisfies z.ZodType<Vector3>;
 
 type AutoRangeKeys = keyof typeof WLAutoRanges;
-const WindowLevelConfig = z.object({
-  width: z.number(),
-  level: z.number(),
-  min: z.number(),
-  max: z.number(),
-  auto: z.string() as z.ZodType<AutoRangeKeys>,
-  preset: z.object({ width: z.number(), level: z.number() }),
-}) satisfies z.ZodType<WindowLevelConfig>;
+const WindowLevelConfig = z
+  .object({
+    width: z.number().optional(),
+    level: z.number().optional(),
+    auto: z.string() as z.ZodType<AutoRangeKeys>,
+    useAuto: z.boolean().optional(),
+    userTriggered: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      // If useAuto is false, width and level must be present
+      if (
+        data.useAuto === false &&
+        (data.width === undefined || data.level === undefined)
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: 'width and level are required when useAuto is false',
+    }
+  ) satisfies z.ZodType<WindowLevelConfig>;
 
 const SliceConfig = z.object({
   slice: z.number(),
@@ -360,7 +406,8 @@ export type ParentToLayers = z.infer<typeof ParentToLayers>;
 export const ManifestSchema = z.object({
   version: z.string(),
   datasets: Dataset.array(),
-  remoteFiles: z.record(RemoteFile.array()),
+  dataSources: DataSource.array(),
+  datasetFilePath: z.record(z.string()),
   labelMaps: LabelMap.array(),
   tools: Tools,
   views: View.array(),

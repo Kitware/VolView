@@ -16,13 +16,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "types": [
-      "mocha",
-      "chai",
       "node",
       "@wdio/globals/types",
       "expect-webdriverio",
       "@wdio/mocha-framework",
-      "wdio-image-comparison-service"
+      "@wdio/visual-service"
     ],
     "paths": {
       "@/*": [

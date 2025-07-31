@@ -75,6 +75,7 @@ function configureSentryPlugin() {
 }
 
 export default defineConfig({
+  base: './',
   build: {
     outDir: distDir,
     rollupOptions: {
@@ -177,6 +178,15 @@ export default defineConfig({
         },
         {
           src: resolvePath(
+            resolveNodeModulePath(
+              '@itk-wasm/morphological-contour-interpolation'
+            ),
+            'dist/pipelines/*{.wasm,.js,.zst}'
+          ),
+          dest: 'itk/pipelines',
+        },
+        {
+          src: resolvePath(
             rootDir,
             'src/io/itk-dicom/emscripten-build/**/dicom*'
           ),
@@ -213,12 +223,13 @@ export default defineConfig({
     exclude: ['itk-wasm'],
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
     threads: false,
     deps: {
       // needed for unit tests on components utilizing vuetify
       inline: ['vuetify'],
     },
+    setupFiles: ['./tests/setupVitest.ts'],
   },
 });

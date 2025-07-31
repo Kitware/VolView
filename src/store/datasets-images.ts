@@ -1,103 +1,72 @@
+import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { vec3, mat3, mat4 } from 'gl-matrix';
 import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { Bounds } from '@kitware/vtk.js/types';
 
 import { useIdStore } from '@/src/store/id';
-import { defaultLPSDirections, getLPSDirections } from '../utils/lps';
-import { removeFromArray } from '../utils';
-import { StateFile, DatasetType } from '../io/state-file/schema';
-import { serializeData } from '../io/state-file/utils';
-import { useFileStore } from './datasets-files';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { ImageMetadata } from '../types/image';
 import { compareImageSpaces } from '../utils/imageSpace';
 
-export const defaultImageMetadata = () => ({
-  name: '(none)',
-  orientation: mat3.create(),
-  lpsOrientation: defaultLPSDirections(),
-  spacing: vec3.fromValues(1, 1, 1),
-  origin: vec3.create(),
-  dimensions: vec3.fromValues(1, 1, 1),
-  worldBounds: [0, 1, 0, 1, 0, 1] as Bounds,
-  worldToIndex: mat4.create(),
-  indexToWorld: mat4.create(),
-});
+/**
+ * Stores regular non-dicom images (typically nrrd, mha, nii, etc.).
+ */
+export const useImageStore = defineStore('images', () => {
+  const imageCacheStore = useImageCacheStore();
 
-interface State {
-  idList: string[]; // list of IDs
-  dataIndex: Record<string, vtkImageData>; // ID -> VTK object
-  metadata: Record<string, ImageMetadata>; // ID -> metadata
-}
+  const idList = ref<string[]>([]);
 
-export const useImageStore = defineStore('images', {
-  state: (): State => ({
-    idList: [],
-    dataIndex: Object.create(null),
-    metadata: Object.create(null),
-  }),
-  actions: {
-    addVTKImageData(name: string, imageData: vtkImageData, useId?: string) {
-      if (useId && useId in this.dataIndex) {
-        throw new Error('ID already exists');
-      }
+  const dataIndex = computed(() => {
+    return Object.fromEntries<vtkImageData>(
+      idList.value.map((id) => {
+        return [id, imageCacheStore.getVtkImageData(id)!];
+      })
+    );
+  });
 
-      const id = useId || useIdStore().nextId();
+  const metadata = computed(() => {
+    return Object.fromEntries<ImageMetadata>(
+      idList.value.map((id) => {
+        return [id, imageCacheStore.getImageMetadata(id)!];
+      })
+    );
+  });
 
-      this.idList.push(id);
-      this.dataIndex[id] = imageData;
+  function addVTKImageData(
+    name: string,
+    imageData: vtkImageData,
+    options: { id?: string } = {}
+  ) {
+    if (options.id && idList.value.includes(options.id)) {
+      throw new Error('ID already exists');
+    }
 
-      this.metadata[id] = { ...defaultImageMetadata(), name };
-      this.updateData(id, imageData);
-      return id;
-    },
+    const id = options.id ?? useIdStore().nextId();
+    idList.value.push(id);
 
-    updateData(id: string, imageData: vtkImageData) {
-      if (id in this.metadata) {
-        const metadata: ImageMetadata = {
-          name: this.metadata[id].name,
-          dimensions: imageData.getDimensions() as vec3,
-          spacing: imageData.getSpacing() as vec3,
-          origin: imageData.getOrigin() as vec3,
-          orientation: imageData.getDirection(),
-          lpsOrientation: getLPSDirections(imageData.getDirection()),
-          worldBounds: imageData.getBounds(),
-          worldToIndex: imageData.getWorldToIndex(),
-          indexToWorld: imageData.getIndexToWorld(),
-        };
+    return useImageCacheStore().addVTKImageData(imageData, name, { id });
+  }
 
-        this.metadata[id] = metadata;
-        this.dataIndex[id] = imageData;
-      }
-      this.dataIndex[id] = imageData;
-    },
+  function deleteData(id: string) {
+    useImageCacheStore().removeImage(id);
+  }
 
-    deleteData(id: string) {
-      if (id in this.dataIndex) {
-        delete this.dataIndex[id];
-        delete this.metadata[id];
-        removeFromArray(this.idList, id);
-      }
-    },
+  function checkAllImagesSameSpace() {
+    if (idList.value.length < 2) return false;
 
-    checkAllImagesSameSpace() {
-      if (this.idList.length < 2) return false;
+    const dataFirst = dataIndex.value[idList.value[0]];
+    const allEqual = idList.value.slice(1).every((id) => {
+      return compareImageSpaces(dataIndex.value[id], dataFirst);
+    });
 
-      const dataFirst = this.dataIndex[this.idList[0]];
-      const allEqual = this.idList.slice(1).every((id) => {
-        return compareImageSpaces(this.dataIndex[id], dataFirst);
-      });
+    return allEqual;
+  }
 
-      return allEqual;
-    },
-
-    async serialize(stateFile: StateFile) {
-      const fileStore = useFileStore();
-      // We want to filter out volume images (which are generated and don't have
-      // input files in fileStore with matching imageID.)
-      const dataIDs = this.idList.filter((id) => id in fileStore.byDataID);
-
-      await serializeData(stateFile, dataIDs, DatasetType.IMAGE);
-    },
-  },
+  return {
+    idList,
+    dataIndex,
+    metadata,
+    addVTKImageData,
+    deleteData,
+    checkAllImagesSameSpace,
+  };
 });

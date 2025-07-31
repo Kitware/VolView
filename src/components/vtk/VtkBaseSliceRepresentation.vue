@@ -34,7 +34,7 @@ const sliceRep = useSliceRepresentation(view, imageData);
 
 // set slice ordering to be in the back
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-sliceRep.mapper.setResolveCoincidentTopologyPolygonOffsetParameters(1, 1);
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(1, 1);
 
 // set slicing mode
 watchEffect(() => {

@@ -53,6 +53,16 @@ export default defineConfig({
           { text: 'Configuration File', link: '/configuration_file' },
         ],
       },
+      {
+        text: 'Deployment',
+        items: [
+          { text: 'Overview', link: '/deployment_overview' },
+          { text: 'Building for Production', link: '/building_for_production' },
+          { text: 'Deploying VolView', link: '/deploying_volview' },
+          { text: 'Authentication & Authorization', link: '/authentication' },
+          { text: 'Cross Origin Resource Sharing (CORS)', link: '/cors' },
+        ],
+      },
     ],
 
     socialLinks: [

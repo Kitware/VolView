@@ -2,6 +2,7 @@ import type { RGBColor } from '@kitware/vtk.js/types';
 
 export const EPSILON = 10e-6;
 export const NOOP = () => {};
+export const NO_NAME = '(no name)';
 
 // themes
 export const ThemeStorageKey = 'app-theme';
@@ -37,11 +38,17 @@ export const ACTIONS = {
   paint: {
     readable: 'Activate Paint tool',
   },
+  brushSize: {
+    readable: 'Change brush size by holding key and scrolling',
+  },
   rectangle: {
     readable: 'Activate Rectangle tool',
   },
   crosshairs: {
     readable: 'Activate Crosshairs tool',
+  },
+  temporaryCrosshairs: {
+    readable: 'Temporarily activate crosshairs tool',
   },
   crop: {
     readable: 'Activate Crop tool',
@@ -53,15 +60,34 @@ export const ACTIONS = {
     readable: 'Activate Select tool',
   },
 
+  nextSlice: {
+    readable: 'Next slice',
+  },
+  previousSlice: {
+    readable: 'Previous slice',
+  },
+  grabSlice: {
+    readable: 'Change slice by holding key and moving mouse up or down',
+  },
+
   decrementLabel: {
-    readable: 'Activate previous Label',
+    readable: 'Activate previous label',
   },
   incrementLabel: {
-    readable: 'Activate next Label',
+    readable: 'Activate next label',
+  },
+
+  deleteCurrentImage: {
+    readable: 'Remove current active image',
+  },
+
+  clearScene: {
+    readable: 'Clear scene',
   },
 
   mergeNewPolygon: {
-    readable: 'Hold to merge new polygons with overlapping polygons',
+    readable:
+      'Merge new polygons by holding key and finishing an overlapping polygon',
   },
 
   showKeyboardShortcuts: {

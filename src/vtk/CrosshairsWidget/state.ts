@@ -15,8 +15,8 @@ export interface CrosshairsHandleWidgetState extends vtkWidgetState {
 }
 
 export interface CrosshairsWidgetState extends vtkWidgetState {
-  setPlaced(placed: boolean): boolean;
-  getPlaced(): boolean;
+  setDragging(dragging: boolean): boolean;
+  getDragging(): boolean;
   setIndexToWorld(indexToWorld: mat4): boolean;
   getIndexToWorld(): mat4;
   setWorldToIndex(worldToIndex: mat4): boolean;
@@ -28,7 +28,7 @@ export default function generateState() {
   return vtkStateBuilder
     .createBuilder()
     .addField({
-      name: 'placed',
+      name: 'dragging',
       initialValue: false,
     })
     .addField({

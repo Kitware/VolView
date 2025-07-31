@@ -1,6 +1,13 @@
 <template>
   <div class="vtk-container-wrapper volume-viewer-container" tabindex="0">
     <div class="vtk-container" data-testid="two-view-container">
+      <v-progress-linear
+        v-if="isImageLoading"
+        indeterminate
+        class="loading-indicator"
+        height="2"
+        color="grey"
+      />
       <div class="vtk-sub-container">
         <vtk-volume-view
           class="vtk-view"
@@ -46,15 +53,6 @@
           </div>
         </template>
       </view-overlay-grid>
-
-      <transition name="loading">
-        <div v-if="isImageLoading" class="overlay-no-events loading">
-          <div>Loading the image</div>
-          <div>
-            <v-progress-circular indeterminate color="blue" />
-          </div>
-        </div>
-      </transition>
     </div>
   </div>
 </template>
@@ -74,7 +72,7 @@ import VtkOrientationMarker from '@/src/components/vtk/VtkOrientationMarker.vue'
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
-import { whenever } from '@vueuse/core';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 interface Props extends LayoutViewProps {
   viewDirection: LPSAxisDir;
@@ -99,14 +97,11 @@ useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID, isImageLoading } = useCurrentImage();
+const { currentImageID, currentImageData, isImageLoading } = useCurrentImage();
 
-whenever(
-  computed(() => !isImageLoading.value),
-  () => {
-    resetCamera();
-  }
-);
+onVTKEvent(currentImageData, 'onModified', () => {
+  vtkView.value?.requestRender();
+});
 
 // color preset
 const coloringStore = useVolumeColoringStore();

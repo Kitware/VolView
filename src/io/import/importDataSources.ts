@@ -1,19 +1,19 @@
-import Pipeline, {
-  PipelineResult,
-  PipelineResultSuccess,
-} from '@/src/core/pipeline';
 import {
-  isConfigResult,
   ImportHandler,
   ImportResult,
-  isLoadableResult,
-  VolumeResult,
+  asErrorResult,
+  asLoadableResult,
+  ConfigResult,
+  LoadableVolumeResult,
+  LoadableResult,
+  ErrorResult,
+  ImportDataSourcesResult,
+  asIntermediateResult,
 } from '@/src/io/import/common';
-import { DataSource, DataSourceWithFile } from '@/src/io/import/dataSource';
+import { DataSource, ChunkSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
-import downloadUrl from '@/src/io/import/processors/downloadUrl';
 import extractArchive from '@/src/io/import/processors/extractArchive';
-import extractArchiveTargetFromCache from '@/src/io/import/processors/extractArchiveTarget';
+import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
 import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
 import handleGoogleCloudStorage from '@/src/io/import/processors/handleGoogleCloudStorage';
 import importSingleFile from '@/src/io/import/processors/importSingleFile';
@@ -21,128 +21,108 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { applyConfig } from '@/src/io/import/configJson';
+import updateUriType from '@/src/io/import/processors/updateUriType';
+import openUriStream from '@/src/io/import/processors/openUriStream';
+import downloadStream from '@/src/io/import/processors/downloadStream';
+import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { asyncSelect } from '@/src/utils/asyncSelect';
+import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
+import { ensureError, partition } from '@/src/utils';
+import { Chunk } from '@/src/core/streaming/chunk';
+import { useDatasetStore } from '@/src/store/datasets';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 
-/**
- * Tries to turn a thrown object into a meaningful error string.
- * @param error
- * @returns
- */
-function toMeaningfulErrorString(thrown: unknown) {
-  const strThrown = String(thrown);
-  if (!strThrown || strThrown === '[object Object]') {
-    return 'Unknown error. More details in the dev console.';
-  }
-  return strThrown;
-}
-
-const unhandledResource: ImportHandler = () => {
-  throw new Error('Failed to handle resource');
+const unhandledResource: ImportHandler = (dataSource) => {
+  return asErrorResult(new Error('Failed to handle resource'), dataSource);
 };
 
-function isSelectable(
-  result: PipelineResult<DataSource, ImportResult>
-): result is PipelineResultSuccess<VolumeResult> {
-  if (!result.ok) return false;
-  if (result.data.length === 0) {
-    return false;
-  }
-  const importResult = result.data[0];
-  if (!isLoadableResult(importResult)) {
-    return false;
-  }
-  if (importResult.dataType === 'model') {
-    return false;
-  }
-
-  return true;
-}
-
-const importConfigs = async (
-  results: Array<PipelineResult<DataSource, ImportResult>>
-) => {
-  try {
-    results
-      .flatMap((pipelineResult) =>
-        pipelineResult.ok ? pipelineResult.data : []
-      )
-      .filter(isConfigResult)
-      .map(({ config }) => config)
-      .forEach(applyConfig);
-    return {
-      ok: true as const,
-      data: [],
-    };
-  } catch (err) {
-    return {
-      ok: false as const,
-      errors: [
-        {
-          message: toMeaningfulErrorString(err),
-          cause: err,
-          inputDataStackTrace: [],
-        },
-      ],
-    };
-  }
+const handleCollections: ImportHandler = (dataSource) => {
+  if (dataSource.type !== 'collection') return Skip;
+  return asIntermediateResult(dataSource.sources);
 };
 
-const importDicomFiles = async (
-  dicomDataSources: Array<DataSourceWithFile>
-) => {
-  const resultSources: DataSource = {
-    dicomSrc: {
-      sources: dicomDataSources,
-    },
-  };
-  try {
-    if (!dicomDataSources.length) {
-      return {
-        ok: true as const,
-        data: [],
-      };
+function isSelectable(result: ImportResult): result is LoadableVolumeResult {
+  return result.type === 'data' && result.dataType === 'image';
+}
+
+const importConfigs = (
+  results: Array<ConfigResult>
+): (ConfigResult | ErrorResult)[] => {
+  return results.map((result) => {
+    try {
+      applyConfig(result.config);
+      return result;
+    } catch (err) {
+      return asErrorResult(ensureError(err), result.dataSource);
     }
-    const volumeKeys = await useDICOMStore().importFiles(dicomDataSources);
-    return {
-      ok: true as const,
-      data: volumeKeys.map((key) => ({
-        dataID: key,
-        dataType: 'dicom' as const,
-        dataSource: resultSources,
-      })),
-    };
-  } catch (err) {
-    return {
-      ok: false as const,
-      errors: [
-        {
-          message: toMeaningfulErrorString(err),
-          cause: err,
-          inputDataStackTrace: [resultSources],
-        },
-      ],
-    };
-  }
+  });
 };
 
-export async function importDataSources(dataSources: DataSource[]) {
+async function importDicomChunkSources(sources: ChunkSource[]) {
+  if (sources.length === 0) return [];
+
+  const volumeChunks = await useDICOMStore().importChunks(
+    sources.map((src) => src.chunk)
+  );
+
+  // this is used to reconstruct the ChunkSource list
+  const chunkToDataSource = new Map<Chunk, ChunkSource>();
+  sources.forEach((src) => {
+    chunkToDataSource.set(src.chunk, src);
+  });
+
+  return Object.entries(volumeChunks).map(([id, chunks]) =>
+    asLoadableResult(
+      id,
+      {
+        type: 'collection',
+        sources: chunks.map((chunk) => chunkToDataSource.get(chunk)!),
+      },
+      'image'
+    )
+  );
+}
+
+export async function importDataSources(
+  dataSources: DataSource[]
+): Promise<ImportDataSourcesResult[]> {
+  const cleanupHandlers: Array<() => void> = [];
+  const onCleanup = (fn: () => void) => {
+    cleanupHandlers.push(fn);
+  };
+  const cleanup = () => {
+    while (cleanupHandlers.length) cleanupHandlers.pop()!();
+  };
+
   const importContext = {
     fetchFileCache: new Map<string, File>(),
-    dicomDataSources: [] as DataSourceWithFile[],
+    onCleanup,
+    importDataSources,
   };
 
-  const middleware = [
-    // updating the file type should be first in the pipeline
+  const handlers = [
+    handleCollections,
+
+    openUriStream,
+
+    // updating the file/uri type should be first step in the pipeline
     updateFileMimeType,
+    updateUriType,
+
     // before extractArchive as .zip extension is part of state file check
     restoreStateFile,
     handleRemoteManifest,
     handleGoogleCloudStorage,
     handleAmazonS3,
-    downloadUrl,
-    extractArchiveTargetFromCache,
+
+    // stream handling
+    handleDicomStream,
+    downloadStream,
+
     extractArchive,
+    extractArchiveTarget,
     handleConfig, // collect config files to apply later
     // should be before importSingleFile, since DICOM is more specific
     handleDicomFile, // collect DICOM files to import later
@@ -150,37 +130,80 @@ export async function importDataSources(dataSources: DataSource[]) {
     // catch any unhandled resource
     unhandledResource,
   ];
-  const loader = new Pipeline(middleware);
 
-  const results = await Promise.all(
-    dataSources.map((r) => loader.execute(r, importContext))
+  const chunkSources: DataSource[] = [];
+  const configResults: ConfigResult[] = [];
+  const results: ImportDataSourcesResult[] = [];
+
+  let queue = [
+    ...dataSources.map((src) => evaluateChain(src, handlers, importContext)),
+  ];
+
+  /* eslint-disable no-await-in-loop */
+  while (queue.length) {
+    const { promise, index, rest } = await asyncSelect<ImportResult>(queue);
+    const result = await promise.catch((err) =>
+      asErrorResult(err, dataSources[index])
+    );
+    queue = rest;
+
+    switch (result.type) {
+      case 'intermediate': {
+        const [chunks, otherSources] = partition(
+          (ds) => ds.type === 'chunk',
+          result.dataSources
+        );
+        chunkSources.push(...chunks);
+
+        // try loading intermediate results
+        queue.push(
+          ...otherSources.map((src) =>
+            evaluateChain(src, handlers, importContext)
+          )
+        );
+        break;
+      }
+      case 'config':
+        configResults.push(result);
+        break;
+      case 'ok':
+      case 'data':
+      case 'error':
+        results.push(result);
+        break;
+      default:
+        throw new Error(`Invalid result: ${result}`);
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+
+  cleanup();
+
+  results.push(...importConfigs(configResults));
+
+  results.push(
+    ...(await importDicomChunkSources(
+      chunkSources.filter(
+        (src): src is ChunkSource =>
+          src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
+      )
+    ))
   );
 
-  const configResult = await importConfigs(results);
-  const dicomResult = await importDicomFiles(importContext.dicomDataSources);
+  // save data sources
+  useDatasetStore().addDataSources(
+    results.filter((result): result is LoadableResult => result.type === 'data')
+  );
 
-  return [
-    ...results,
-    dicomResult,
-    configResult,
-    // Consuming code expects only errors and image import results.
-    // Remove ok results that don't result in something to load (like config.JSON files)
-  ].filter((result) => !result.ok || isSelectable(result));
+  return results;
 }
 
-export type ImportDataSourcesResult = Awaited<
-  ReturnType<typeof importDataSources>
->[number];
-
-export function toDataSelection(loadable: VolumeResult) {
+export function toDataSelection(loadable: LoadableVolumeResult) {
   const { dataID } = loadable;
   return dataID;
 }
 
-export function convertSuccessResultToDataSelection(
-  result: ImportDataSourcesResult
-) {
+export function convertSuccessResultToDataSelection(result: ImportResult) {
   if (!isSelectable(result)) return null;
-  const importResult = result.data[0];
-  return toDataSelection(importResult);
+  return toDataSelection(result);
 }

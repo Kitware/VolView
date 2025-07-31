@@ -8,55 +8,12 @@ export function identity<T>(arg: T) {
   return arg;
 }
 
-/**
- * Percent is in [0, 1]. If it's Infinity, then the progress is indeterminate.
- */
-export type ProgressCallback = (percent: number) => void;
-
-export async function fetchFileWithProgress(
-  url: string,
-  name: string,
-  progress: ProgressCallback,
-  options: RequestInit | undefined
-): Promise<File | null> {
-  const response = await fetch(url, options);
-  const contentLength = Number(response.headers.get('content-length')) || 0;
-
-  if (contentLength <= 0) {
-    progress(Infinity);
-
-    const blob = await response.blob();
-    return new File([blob], name);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    return null;
-  }
-
-  const bytes = new Uint8Array(contentLength);
-  let recv = 0;
-  let done = false;
-  do {
-    // eslint-disable-next-line no-await-in-loop
-    const readData = await reader.read();
-    done = readData.done;
-    if (readData.value && !done) {
-      bytes.set(readData.value, recv);
-      recv += readData.value.length;
-      progress(recv / contentLength);
-    }
-  } while (!done);
-
-  return new File([bytes], name);
-}
-
 export const isFulfilled = <T>(
   input: PromiseSettledResult<T>
 ): input is PromiseFulfilledResult<T> => input.status === 'fulfilled';
 
 type PromiseResolveFunction<T> = (value: T) => void;
-type PromiseRejectFunction = (reason?: Error) => void;
+type PromiseRejectFunction = (reason?: any) => void;
 export interface Deferred<T> {
   promise: Promise<T>;
   resolve: PromiseResolveFunction<T>;
@@ -301,6 +258,23 @@ export const TypedArrayConstructorNames = [
   'Float64Array',
 ];
 
+/**
+ * Creates a new typed array of the same type as the source array.
+ * This utility handles the TypeScript typing issues when using array.constructor.
+ *
+ * @param sourceArray The source array to match the type of
+ * @param arrayLength The length of the new array
+ * @returns A new array of the same type as sourceArray
+ */
+export function createTypedArrayLike<T extends TypedArray | number[]>(
+  sourceArray: T,
+  arrayLength: number
+): T {
+  return new (sourceArray.constructor as new (length: number) => T)(
+    arrayLength
+  );
+}
+
 // https://stackoverflow.com/a/74823834
 type Entries<T> = {
   [K in keyof T]-?: [K, T[K]];
@@ -325,4 +299,65 @@ export function normalizeForStore<T, K extends keyof T>(objects: T[], key: K) {
   );
 
   return { order, byKey };
+}
+
+export function shortenNumber(value: number) {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+  const abs = Math.abs(value);
+  if (abs > 0 && abs < 1) {
+    return value.toExponential(2);
+  }
+  return value.toFixed(2);
+}
+
+/**
+ * Listens for an event once.
+ * @param target
+ * @param event
+ * @param callback
+ */
+export function addEventListenerOnce<T extends EventTarget>(
+  target: T,
+  event: string,
+  callback: (...args: any[]) => any
+) {
+  const handler = () => {
+    target.removeEventListener(event, handler);
+    return callback();
+  };
+  target.addEventListener(event, handler);
+}
+
+/**
+ * Converts a byte sequence to ASCII.
+ * @param bytes
+ * @param param1
+ * @returns
+ */
+export function toAscii(
+  bytes: Uint8Array | Uint8ClampedArray,
+  { ignoreNulls = false } = {}
+) {
+  const chars = [];
+  for (let i = 0; i < bytes.length; i++) {
+    if (!(ignoreNulls && bytes[i] === 0)) {
+      chars.push(String.fromCharCode(bytes[i]));
+    }
+  }
+  return chars.join('');
+}
+
+/**
+ * Wraps a generator as a coroutine.
+ * @param generator
+ * @param args
+ * @returns
+ */
+export function asCoroutine<T, R, N>(gen: Generator<T, R, N>) {
+  // run initial code
+  const result = gen.next();
+  if (result.done) return () => result;
+  return (value: N): IteratorResult<T, R> => gen.next(value);
 }

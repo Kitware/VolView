@@ -46,7 +46,38 @@ export default defineComponent({
       () => imageStore.idList.filter((id) => isRegularImage(id)).length > 0
     );
 
-    const panels = ref<string[]>([SAMPLE_DATA_KEY, DICOM_WEB_KEY]);
+    const panels = ref<string[]>([SAMPLE_DATA_KEY]);
+
+    watch(patients, (newPatients, oldPatients) => {
+      // Remove from panels to avoid error in vuetify group.ts
+      oldPatients.forEach((oldPatient) => {
+        if (!newPatients.find((p) => p.key === oldPatient.key)) {
+          removeFromArray(panels.value, oldPatient.key);
+        }
+      });
+    });
+
+    const hideSampleData = computed(() => dataBrowserStore.hideSampleData);
+    watch(hideSampleData, (hide) => {
+      if (hide) {
+        // Remove from panels to avoid error in vuetify group.ts
+        removeFromArray(panels.value, SAMPLE_DATA_KEY);
+      }
+    });
+
+    const openDicomWeb = computed(() => dicomWeb.isConfigured);
+    watch(
+      openDicomWeb,
+      (configured) => {
+        if (configured) {
+          panels.value.push(DICOM_WEB_KEY);
+        } else {
+          // Remove from panels to avoid error in vuetify group.ts
+          removeFromArray(panels.value, DICOM_WEB_KEY);
+        }
+      },
+      { immediate: true }
+    );
 
     watch(
       [hasAnonymousImages, patients] as const,
@@ -63,8 +94,6 @@ export default defineComponent({
         }
       }
     );
-
-    const hideSampleData = computed(() => dataBrowserStore.hideSampleData);
 
     const deletePatient = (key: string) => {
       dicomStore.patientStudies[key]

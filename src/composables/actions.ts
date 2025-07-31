@@ -3,8 +3,12 @@ import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
 import { usePolygonStore } from '../store/tools/polygons';
-import { Action } from '../constants';
+import { useViewStore } from '../store/views';
+import { Action, NOOP } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
+import { useCurrentImage } from './useCurrentImage';
+import { useSliceConfig } from './useSliceConfig';
+import { useDatasetStore } from '../store/datasets';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -36,22 +40,52 @@ const showKeyboardShortcuts = () => {
   keyboardStore.settingsOpen = !keyboardStore.settingsOpen;
 };
 
+const changeSlice = (offset: number) => () => {
+  const { currentImageID } = useCurrentImage();
+  const { activeViewID } = useViewStore();
+
+  const { slice: currentSlice } = useSliceConfig(activeViewID, currentImageID);
+  currentSlice.value += offset;
+};
+
+const clearScene = () => () => {
+  const datasetStore = useDatasetStore();
+  datasetStore.removeAll();
+};
+
+const deleteCurrentImage = () => () => {
+  const datasetStore = useDatasetStore();
+  datasetStore.remove(datasetStore.primaryImageID);
+
+  // Automatically select next image
+  datasetStore.setPrimarySelection(datasetStore.idsAsSelections[0]);
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
   zoom: setTool(Tools.Zoom),
   ruler: setTool(Tools.Ruler),
   paint: setTool(Tools.Paint),
+  brushSize: NOOP, // act as modifier key rather than immediate effect, so no-op
   rectangle: setTool(Tools.Rectangle),
   crosshairs: setTool(Tools.Crosshairs),
+  temporaryCrosshairs: NOOP, // behavior implemented elsewhere
   crop: setTool(Tools.Crop),
   polygon: setTool(Tools.Polygon),
   select: setTool(Tools.Select),
 
+  nextSlice: changeSlice(1),
+  previousSlice: changeSlice(-1),
+  grabSlice: NOOP, // acts as a modifier key rather than immediate effect, so no-op
+
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
 
-  mergeNewPolygon: () => {}, // acts as a modifier key rather than immediate effect, so no-op
+  deleteCurrentImage: deleteCurrentImage(),
+  clearScene: clearScene(),
+
+  mergeNewPolygon: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
   showKeyboardShortcuts,
 } as const satisfies Record<Action, () => void>;

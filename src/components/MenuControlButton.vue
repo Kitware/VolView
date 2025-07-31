@@ -4,7 +4,7 @@ import { useDisplay } from 'vuetify';
 import ControlButton from './ControlButton.vue';
 
 export default defineComponent({
-  name: 'MenuToolButton',
+  name: 'MenuControlButton',
   props: {
     icon: { type: String, required: true },
     name: { type: String, required: true },

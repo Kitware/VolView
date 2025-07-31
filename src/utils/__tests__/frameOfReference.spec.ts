@@ -1,6 +1,4 @@
-import { describe, it } from 'vitest';
-import chai, { expect } from 'chai';
-import chaiAlmost from 'chai-almost';
+import { describe, it, expect } from 'vitest';
 import { vec3, mat3, mat4 } from 'gl-matrix';
 import { ImageMetadata } from '@/src/types/image';
 import {
@@ -8,8 +6,6 @@ import {
   frameOfReferenceToImageSliceAndAxis,
 } from '@/src/utils/frameOfReference';
 import { getLPSDirections } from '../lps';
-
-chai.use(chaiAlmost());
 
 const TrivialMetadata: ImageMetadata = {
   name: '',

@@ -1,25 +1,29 @@
-import { useImageStore } from '@/src/store/datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { Maybe } from '@/src/types';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { whenever } from '@vueuse/core';
-import { computed, Ref, WatchCallback } from 'vue';
+import { computed, MaybeRef, unref, WatchCallback, watch } from 'vue';
 
 export function wheneverImageLoaded(
-  imageId: Ref<Maybe<string>>,
+  imageId: MaybeRef<Maybe<string>>,
   cb: WatchCallback<{ id: string; imageData: vtkImageData }>
 ) {
-  const imageStore = useImageStore();
-  const hasImageData = computed(() => {
-    const id = imageId.value;
-    if (!id) return false;
-    return !!imageStore.dataIndex[id];
+  const imageCacheStore = useImageCacheStore();
+  const image = computed(() => {
+    const id = unref(imageId);
+    if (!id) return null;
+    return imageCacheStore.imageById[id];
   });
-
-  return whenever(hasImageData, (newVal, oldVal, onCleanup) => {
-    cb(
-      { id: imageId.value!, imageData: imageStore.dataIndex[imageId.value!] },
-      undefined,
-      onCleanup
-    );
-  });
+  const imageIsLoaded = computed(() => image.value?.loaded.value ?? false);
+  return watch(
+    [() => unref(imageId), imageIsLoaded],
+    ([id, loaded], _, onCleanup) => {
+      if (loaded && id) {
+        cb(
+          { id, imageData: image.value!.getVtkImageData() },
+          undefined,
+          onCleanup
+        );
+      }
+    }
+  );
 }

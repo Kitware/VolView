@@ -49,7 +49,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref } from 'vue';
+import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { UrlParams } from '@vueuse/core';
 import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
@@ -75,6 +75,12 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useServerStore } from '@/src/store/server';
 import { useGlobalErrorHook } from '@/src/composables/useGlobalErrorHook';
 import { useKeyboardShortcuts } from '@/src/composables/useKeyboardShortcuts';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import {
+  populateAuthorizationToken,
+  stripTokenFromUrl,
+} from '@/src/utils/token';
+import { defaultImageMetadata } from '@/src/core/progressiveImage';
 
 export default defineComponent({
   name: 'App',
@@ -112,7 +118,24 @@ export default defineComponent({
       () => loadDataStore.isLoading || hasData.value
     );
 
+    const { currentImageMetadata, isImageLoading } = useCurrentImage();
+    const defaultImageMetadataName = defaultImageMetadata().name;
+    watch(currentImageMetadata, (newMetadata) => {
+      let prefix = '';
+      if (
+        newMetadata?.name &&
+        // wait until we get a real name, but if we never do, show default name
+        (newMetadata.name !== defaultImageMetadataName || !isImageLoading)
+      ) {
+        prefix = `${newMetadata.name} -`;
+      }
+      document.title = `${prefix}VolView`;
+    });
+
     // --- parse URL -- //
+
+    populateAuthorizationToken();
+    stripTokenFromUrl();
 
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
 
@@ -133,15 +156,11 @@ export default defineComponent({
     });
 
     // --- save state --- //
-
     if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
-      // Avoid dropping JSON or array query param arguments on the "save" query parameter
-      // by parsing query params without casting to native types in vtkURLExtract.
-      const queryParams = new URLSearchParams(window.location.search);
-      const saveUrl = queryParams.get('save');
-      if (saveUrl) {
-        useRemoteSaveStateStore().setSaveUrl(saveUrl);
-      }
+      const url = Array.isArray(urlParams.save)
+        ? urlParams.save[0]
+        : urlParams.save;
+      useRemoteSaveStateStore().setSaveUrl(url);
     }
 
     // --- layout --- //

@@ -8,9 +8,10 @@
         show-arrows
       >
         <v-tab
-          v-for="item in Modules"
+          v-for="item in modules"
           :key="item.name"
           :data-testid="`module-tab-${item.name}`"
+          :disabled="item.disabled"
         >
           <div class="tab-content">
             <span class="mb-0 mt-1 module-text">{{ item.name }}</span>
@@ -22,27 +23,31 @@
     <div id="module-container">
       <v-window v-model="selectedModuleIndex" touchless class="fill-height">
         <v-window-item
-          v-for="mod in Modules"
+          v-for="mod in modules"
           :key="mod.name"
           class="fill-height"
         >
           <component
             :key="mod.name"
-            v-show="Modules[selectedModuleIndex] === mod"
+            v-show="modules[selectedModuleIndex] === mod"
             :is="mod.component"
           />
         </v-window-item>
       </v-window>
     </div>
+    <ProbeView />
   </div>
 </template>
 
 <script lang="ts">
-import { Component, defineComponent, ref, watch } from 'vue';
+import { Component, computed, defineComponent, ref, watch } from 'vue';
 
+import { ConnectionState, useServerStore } from '@/src/store/server';
 import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
+import ServerModule from './ServerModule.vue';
+import ProbeView from './ProbeView.vue';
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 
@@ -50,6 +55,7 @@ interface Module {
   name: string;
   icon: string;
   component: Component;
+  disabled?: boolean;
 }
 
 const Modules: Module[] = [
@@ -68,11 +74,11 @@ const Modules: Module[] = [
     icon: 'cube',
     component: RenderingModule,
   },
-  // {
-  //   name: 'Remote',
-  //   icon: 'server-network',
-  //   component: ServerModule,
-  // },
+  {
+    name: 'Remote',
+    icon: 'server-network',
+    component: ServerModule,
+  },
 ];
 
 const autoSwitchToAnnotationsTools = [
@@ -84,6 +90,7 @@ const autoSwitchToAnnotationsTools = [
 
 export default defineComponent({
   name: 'ModulePanel',
+  components: { ProbeView },
   setup() {
     const selectedModuleIndex = ref(0);
 
@@ -96,9 +103,27 @@ export default defineComponent({
       }
     );
 
+    const serverStore = useServerStore();
+    const modules = computed(() => {
+      if (!serverStore.url) {
+        return Modules.filter((m) => m.name !== 'Remote');
+      }
+
+      if (serverStore.connState === ConnectionState.Connected) {
+        return Modules;
+      }
+
+      return Modules.map((m) => {
+        if (m.name === 'Remote') {
+          return { ...m, disabled: true };
+        }
+        return m;
+      });
+    });
+
     return {
       selectedModuleIndex,
-      Modules,
+      modules,
     };
   },
 });

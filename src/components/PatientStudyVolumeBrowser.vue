@@ -1,17 +1,17 @@
 <script lang="ts">
 import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
-import { Image } from 'itk-wasm';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
+import { ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
 import { useDatasetStore } from '../store/datasets';
 import { useMultiSelection } from '../composables/useMultiSelection';
 import { useMessageStore } from '../store/messages';
 import { useLayersStore } from '../store/datasets-layers';
 import PersistentOverlay from './PersistentOverlay.vue';
-
-const canvas = document.createElement('canvas');
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -20,43 +20,6 @@ function dicomCacheKey(volKey: string) {
 type Thumbnail =
   | { kind: 'image'; value: string }
   | { kind: 'text'; value: string };
-
-// Assume itkImage type is Uint8Array
-function itkImageToURI(itkImage: Image) {
-  const [width, height] = itkImage.size;
-  const im = new ImageData(width, height);
-  const arr32 = new Uint32Array(im.data.buffer);
-  const itkBuf = itkImage.data;
-  if (!itkBuf) {
-    return '';
-  }
-
-  for (let i = 0; i < itkBuf.length; i += 1) {
-    const byte = itkBuf[i] as number;
-    // ABGR order
-    // eslint-disable-next-line no-bitwise
-    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
-  }
-
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.putImageData(im, 0, 0);
-    return canvas.toDataURL('image/png');
-  }
-  return '';
-}
-
-async function generateDICOMThumbnail(
-  dicomStore: ReturnType<typeof useDICOMStore>,
-  volumeKey: string
-) {
-  if (volumeKey in dicomStore.volumeInfo) {
-    return (await dicomStore.getVolumeThumbnail(volumeKey)) as Image;
-  }
-  throw new Error('No matching volume key in dicomStore');
-}
 
 export default defineComponent({
   name: 'PatientStudyVolumeBrowser',
@@ -75,6 +38,7 @@ export default defineComponent({
     const dicomStore = useDICOMStore();
     const datasetStore = useDatasetStore();
     const layersStore = useLayersStore();
+    const imageCacheStore = useImageCacheStore();
 
     const primarySelectionRef = computed(() => datasetStore.primarySelection);
     const volumes = computed(() => {
@@ -85,7 +49,7 @@ export default defineComponent({
         .filter(({ selection }) => isDicomImage(selection));
       const layerVolumeKeys = layerVolumes.map(({ selection }) => selection);
       const loadedLayerVolumeKeys = layerVolumes
-        .filter(({ id }) => id in layersStore.layerImages)
+        .filter(({ id }) => imageCacheStore.imageById[id]?.isLoaded())
         .map(({ selection }) => selection);
       const selectedVolumeKey =
         isDicomImage(primarySelection) && primarySelection;
@@ -131,11 +95,15 @@ export default defineComponent({
             return;
           }
 
+          const image = imageCacheStore.imageById[key];
+          if (!image || !(image instanceof DicomChunkImage)) return;
+
           try {
-            const thumb = await generateDICOMThumbnail(dicomStore, key);
+            const thumb = await image.getThumbnail(
+              ThumbnailStrategy.MiddleSlice
+            );
             if (thumb !== null) {
-              const encodedImage = itkImageToURI(thumb);
-              thumbnailCache[cacheKey] = { kind: 'image', value: encodedImage };
+              thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
             } else {
               thumbnailCache[cacheKey] = {
                 kind: 'text',

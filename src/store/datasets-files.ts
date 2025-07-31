@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
-import { DataSourceWithFile } from '@/src/io/import/dataSource';
+import { FileSource } from '@/src/io/import/dataSource';
 
 interface State {
-  byDataID: Record<string, DataSourceWithFile[]>;
+  byDataID: Record<string, FileSource[]>;
 }
 
 /**
@@ -19,7 +19,7 @@ export const useFileStore = defineStore('files', {
 
     // Returns [File] used to build a dataID
     getFiles: (state) => (dataID: string) =>
-      (state.byDataID[dataID] ?? []).map((ds) => ds.fileSrc.file),
+      (state.byDataID[dataID] ?? []).map((ds) => ds.file),
   },
 
   actions: {
@@ -29,7 +29,7 @@ export const useFileStore = defineStore('files', {
       }
     },
 
-    add(dataID: string, files: DataSourceWithFile[]) {
+    add(dataID: string, files: FileSource[]) {
       this.byDataID[dataID] = files;
     },
   },

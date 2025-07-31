@@ -5,32 +5,48 @@ import { useGlobalSegmentGroupConfig } from '@/src/store/view-configs/segmentGro
 
 const props = defineProps<{
   groupId: string;
+  selected: string[];
 }>();
 
-const { groupId } = toRefs(props);
+const { groupId, selected } = toRefs(props);
 
-const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(groupId);
+const { sampledConfig } = useGlobalLayerColorConfig(groupId);
 
 const blendConfig = computed(() => sampledConfig.value!.config!.blendConfig);
 
+const layerUpdateFunctions = computed(() =>
+  selected.value.map((id) => {
+    return useGlobalLayerColorConfig(id).updateConfig;
+  })
+);
+
 const setOpacity = (opacity: number) => {
-  updateConfig({
-    blendConfig: {
-      ...blendConfig.value,
-      // 1.0 puts us in Opaque render pass which changes stack order.
-      opacity: Math.min(opacity, 0.9999),
-    },
+  layerUpdateFunctions.value.forEach((updateFn) => {
+    updateFn({
+      blendConfig: {
+        ...blendConfig.value,
+        // 1.0 puts us in Opaque render pass which changes stack order.
+        opacity: Math.min(opacity, 0.9999),
+      },
+    });
   });
 };
 
-const { config, updateConfig: updateSegmentGroupConfig } =
-  useGlobalSegmentGroupConfig(groupId);
+const { config } = useGlobalSegmentGroupConfig(groupId);
+
+const groupUpdateFunctions = computed(() =>
+  selected.value.map((id) => {
+    return useGlobalSegmentGroupConfig(id).updateConfig;
+  })
+);
 
 const outlineOpacity = computed({
   get: () => config.value!.config!.outlineOpacity,
   set: (opacity: number) => {
-    updateSegmentGroupConfig({
-      outlineOpacity: opacity,
+    groupUpdateFunctions.value.forEach((updateFn) => {
+      updateFn({
+        outlineOpacity: opacity,
+      });
     });
   },
 });
@@ -38,8 +54,10 @@ const outlineOpacity = computed({
 const outlineThickness = computed({
   get: () => config.value!.config!.outlineThickness,
   set: (thickness: number) => {
-    updateSegmentGroupConfig({
-      outlineThickness: thickness,
+    groupUpdateFunctions.value.forEach((updateFn) => {
+      updateFn({
+        outlineThickness: thickness,
+      });
     });
   },
 });
@@ -48,7 +66,7 @@ const outlineThickness = computed({
 <template>
   <v-slider
     class="mx-4"
-    label="Segment Group Fill Opacity"
+    label="Fill Opacity"
     min="0"
     max="1"
     step="0.01"
@@ -60,7 +78,7 @@ const outlineThickness = computed({
   />
   <v-slider
     class="mx-4"
-    label="Segment Group Outline Opacity"
+    label="Outline Opacity"
     min="0"
     max="1"
     step="0.01"
@@ -71,7 +89,7 @@ const outlineThickness = computed({
   />
   <v-slider
     class="mx-4"
-    label="Segment Group Outline Thickness"
+    label="Outline Thickness"
     min="0"
     max="10"
     step="1"

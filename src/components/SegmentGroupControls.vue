@@ -15,6 +15,7 @@ import { useGlobalLayerColorConfig } from '@/src/composables/useGlobalLayerColor
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
+import { useMultiSelection } from '@/src/composables/useMultiSelection';
 
 const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
 
@@ -160,6 +161,62 @@ function openSaveDialog(id: string) {
   saveId.value = id;
   saveDialog.value = true;
 }
+
+const segGroupIds = computed(() =>
+  currentSegmentGroups.value.map((group) => group.id)
+);
+
+const { selected, selectedAll, selectedSome } = useMultiSelection(segGroupIds);
+
+// ensure currentSegmentGroupID is always in selected
+watch(
+  // includes currentImageID to reselect when switching images because currentSegmentGroupID is not updated on image change
+  [currentSegmentGroupID, currentImageID],
+  () => {
+    const groupId = currentSegmentGroupID.value;
+    if (!groupId) return;
+    selected.value = [groupId];
+  },
+  { immediate: true }
+);
+
+function toggleSelectAll() {
+  if (selectedAll.value && currentSegmentGroupID.value) {
+    selected.value = [currentSegmentGroupID.value];
+  } else if (selectedAll.value) {
+    selected.value = [];
+  } else {
+    selected.value = segGroupIds.value;
+  }
+}
+
+const allHidden = computed(() => {
+  return selected.value
+    .map((id) => currentSegmentGroups.value.find((group) => id === group.id))
+    .filter((group): group is NonNullable<typeof group> => group != null)
+    .every((group) => !group.visibility);
+});
+
+function toggleGlobalVisibility() {
+  const shouldShow = allHidden.value;
+  selected.value.forEach((id) => {
+    const group = currentSegmentGroups.value.find((g) => g.id === id);
+    if (group) {
+      const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(id);
+      const currentBlend = sampledConfig.value!.config!.blendConfig;
+      updateConfig({
+        blendConfig: {
+          ...currentBlend,
+          visibility: shouldShow,
+        },
+      });
+    }
+  });
+}
+
+function deleteSelected() {
+  selected.value.forEach((id) => deleteGroup(id));
+}
 </script>
 
 <template>
@@ -194,7 +251,7 @@ function openSaveDialog(id: string) {
           >
             {{ item.name }}
             <v-tooltip activator="parent" location="end" max-width="200px">
-              Convert to segment group
+              Add as segment group
             </v-tooltip>
           </v-list-item>
         </v-list>
@@ -203,63 +260,107 @@ function openSaveDialog(id: string) {
         </v-list>
       </v-menu>
     </div>
-    <v-divider class="my-4" />
 
     <segment-group-opacity
       v-if="currentSegmentGroupID"
       :group-id="currentSegmentGroupID"
+      :selected="selected"
     />
-    <v-radio-group
-      v-model="currentSegmentGroupID"
-      hide-details
-      density="comfortable"
-      class="my-1 segment-group-list"
-    >
-      <v-radio
+
+    <div class="d-flex align-center" v-if="currentSegmentGroups.length > 0">
+      <v-checkbox
+        class="ml-3"
+        :indeterminate="selectedSome && !selectedAll"
+        label="Select All"
+        :model-value="selectedAll"
+        @update:model-value="toggleSelectAll"
+        density="compact"
+        hide-details
+      />
+      <v-btn
+        icon
+        variant="text"
+        :disabled="selected.length === 0"
+        @click.stop="toggleGlobalVisibility"
+      >
+        <v-icon v-if="allHidden">mdi-eye-off</v-icon>
+        <v-icon v-else>mdi-eye</v-icon>
+        <v-tooltip location="top" activator="parent">
+          {{ allHidden ? 'Show' : 'Hide' }} selected
+        </v-tooltip>
+      </v-btn>
+      <v-btn
+        icon
+        variant="text"
+        :disabled="selected.length === 0"
+        @click.stop="deleteSelected"
+      >
+        <v-icon>mdi-delete</v-icon>
+        <v-tooltip location="top" activator="parent">
+          Delete selected
+        </v-tooltip>
+      </v-btn>
+    </div>
+    <v-list density="comfortable" class="my-1 segment-group-list">
+      <v-list-item
         v-for="group in currentSegmentGroups"
         :key="group.id"
-        :value="group.id"
+        :active="currentSegmentGroupID === group.id"
+        @click="currentSegmentGroupID = group.id"
       >
-        <template #label>
-          <div class="d-flex flex-row align-center w-100" :title="group.name">
-            <span class="group-name">{{ group.name }}</span>
-            <v-spacer />
-            <v-btn
-              icon
-              variant="flat"
-              size="small"
-              @click.stop="group.toggleVisibility"
+        <div class="d-flex flex-row align-center w-100" :title="group.name">
+          <v-checkbox
+            class="no-grow mr-4"
+            density="compact"
+            hide-details
+            @click.stop
+            :value="group.id"
+            v-model="selected"
+            :disabled="group.id === currentSegmentGroupID"
+          />
+          <span class="group-name">{{ group.name }}</span>
+          <v-spacer />
+          <v-btn
+            icon
+            variant="text"
+            size="small"
+            @click.stop="group.toggleVisibility"
+          >
+            <v-icon v-if="group.visibility" style="pointer-events: none"
+              >mdi-eye</v-icon
             >
-              <v-icon v-if="group.visibility" style="pointer-events: none"
-                >mdi-eye</v-icon
-              >
-              <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
-              <v-tooltip location="left" activator="parent">{{
-                group.visibility ? 'Hide' : 'Show'
-              }}</v-tooltip>
-            </v-btn>
-            <v-btn
-              icon="mdi-content-save"
-              size="small"
-              variant="flat"
-              @click.stop="openSaveDialog(group.id)"
-            ></v-btn>
-            <v-btn
-              icon="mdi-pencil"
-              size="small"
-              variant="flat"
-              @click.stop="startEditing(group.id)"
-            ></v-btn>
-            <v-btn
-              icon="mdi-delete"
-              size="small"
-              variant="flat"
-              @click.stop="deleteGroup(group.id)"
-            ></v-btn>
-          </div>
-        </template>
-      </v-radio>
-    </v-radio-group>
+            <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
+            <v-tooltip location="left" activator="parent">
+              {{ group.visibility ? 'Hide' : 'Show' }}
+            </v-tooltip>
+          </v-btn>
+          <v-btn
+            icon="mdi-content-save"
+            size="small"
+            variant="text"
+            @click.stop="openSaveDialog(group.id)"
+          />
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            @click.stop="startEditing(group.id)"
+          />
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            @click.stop="deleteGroup(group.id)"
+          />
+        </div>
+      </v-list-item>
+      <v-list-item v-if="currentSegmentGroups.length === 0">
+        <div class="text-center text-grey-darken-1 py-4 w-100">
+          Create a segment group with the above buttons or click the paint tool
+        </div>
+      </v-list-item>
+    </v-list>
+
     <v-divider class="my-4" />
   </div>
   <div v-else class="text-center text-caption">No selected image</div>
@@ -306,5 +407,11 @@ function openSaveDialog(id: string) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-right: 10px;
+  text-align: left;
+}
+
+.no-grow {
+  flex: 0 0 auto;
 }
 </style>

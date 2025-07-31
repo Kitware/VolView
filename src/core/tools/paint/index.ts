@@ -11,6 +11,7 @@ export const ERASE_BRUSH_VALUE = 0;
 export enum PaintMode {
   CirclePaint,
   Erase,
+  Process,
 }
 
 export default class PaintTool {
@@ -74,9 +75,12 @@ export default class PaintTool {
     labelmap: vtkLabelMap,
     sliceAxis: 0 | 1 | 2,
     startPoint: vec3,
-    endPoint?: vec3
+    endPoint?: vec3,
+    shouldPaint: (offset: number, point: number[]) => boolean = () => true
   ) {
-    if (this.brushValue == null) return;
+    const inBrushingMode =
+      this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
+    if (this.brushValue == null || !inBrushingMode) return;
 
     const brushValue =
       this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
@@ -144,9 +148,9 @@ export default class PaintTool {
             rounded[1] = Math.round(curPoint[1]);
             rounded[2] = Math.round(curPoint[2]);
 
-            if (isInBounds(rounded)) {
-              const offset =
-                rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
+            const offset =
+              rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
+            if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
               labelmapPixels[offset] = brushValue;
             }
 

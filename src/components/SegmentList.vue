@@ -12,6 +12,7 @@ import { reactive, ref, toRefs, computed, watch } from 'vue';
 import { SegmentMask } from '@/src/types/segment';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import type { RGBAColor } from '@kitware/vtk.js/types';
+import ColorDot from '@/src/components/ColorDot.vue';
 
 const props = defineProps({
   groupId: {
@@ -70,12 +71,26 @@ const allVisible = computed(() => {
   return segments.value.every((seg) => seg.visible);
 });
 
+const allLocked = computed(() => {
+  return segments.value.every((seg) => seg.locked);
+});
+
 function toggleGlobalVisible() {
   const visible = !allVisible.value;
 
   segments.value.forEach((seg) => {
     segmentGroupStore.updateSegment(groupId.value, seg.value, {
       visible,
+    });
+  });
+}
+
+function toggleGlobalLocked() {
+  const locked = !allLocked.value;
+
+  segments.value.forEach((seg) => {
+    segmentGroupStore.updateSegment(groupId.value, seg.value, {
+      locked,
     });
   });
 }
@@ -133,19 +148,47 @@ function deleteEditingSegment() {
   if (editingSegmentValue.value) deleteSegment(editingSegmentValue.value);
   stopEditing(false);
 }
+
+/**
+ * Toggles the lock state of a segment.
+ * Locked segments cannot be edited or painted over.
+ *
+ * @param value - The segment value to toggle lock state for
+ */
+const toggleLock = (value: number) => {
+  const seg = segmentGroupStore.getSegment(groupId.value, value);
+  if (seg) {
+    segmentGroupStore.updateSegment(groupId.value, value, {
+      locked: !seg.locked,
+    });
+  }
+};
 </script>
 
 <template>
-  <v-btn @click.stop="toggleGlobalVisible" class="my-1">
-    Toggle Segments
-    <slot name="append">
-      <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
-      <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
-      <v-tooltip location="top" activator="parent">{{
-        allVisible ? 'Hide' : 'Show'
-      }}</v-tooltip>
-    </slot>
-  </v-btn>
+  <div class="d-flex justify-space-evenly">
+    <v-btn @click.stop="toggleGlobalVisible" class="my-1">
+      Toggle Segments
+      <slot name="append">
+        <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
+        <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          allVisible ? 'Hide' : 'Show'
+        }}</v-tooltip>
+      </slot>
+    </v-btn>
+
+    <v-btn @click.stop="toggleGlobalLocked" class="my-1">
+      Toggle Locks
+      <slot name="append">
+        <v-icon v-if="allLocked" class="pl-2" color="red">mdi-lock</v-icon>
+        <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          allLocked ? 'Unlock All' : 'Lock All'
+        }}</v-tooltip>
+      </slot>
+    </v-btn>
+  </div>
 
   <editable-chip-list
     v-model="selectedSegment"
@@ -159,13 +202,25 @@ function deleteEditingSegment() {
     <template #item-prepend="{ item }">
       <!-- dot container keeps overflowing name from squishing dot width  -->
       <div class="dot-container mr-3">
-        <div
-          class="color-dot"
-          :style="{ background: rgbaToHexa([...item.color.slice(0,3), 255] as RGBAColor) }"
-        />
+        <ColorDot :color="item.color" />
       </div>
     </template>
     <template #item-append="{ key, item }">
+      <!-- Lock/unlock segment button -->
+      <v-btn
+        icon
+        size="small"
+        density="compact"
+        class="mr-1"
+        variant="plain"
+        @click.stop="toggleLock(key as number)"
+        :color="item.locked ? 'error' : undefined"
+      >
+        <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+        <v-tooltip location="left" activator="parent">{{
+          item.locked ? 'Unlock' : 'Lock'
+        }}</v-tooltip>
+      </v-btn>
       <v-btn
         icon
         size="small"
@@ -182,14 +237,17 @@ function deleteEditingSegment() {
           item.visible ? 'Hide' : 'Show'
         }}</v-tooltip>
       </v-btn>
+      <!-- Edit segment button (disabled when locked) -->
       <v-btn
         icon="mdi-pencil"
         size="small"
         density="compact"
-        class="ml-auto mr-1"
+        class="mr-1"
         variant="plain"
         @click.stop="startEditing(key as number)"
+        :disabled="item.locked"
       />
+      <!-- Delete segment button (disabled when locked) -->
       <v-btn
         icon="mdi-delete"
         size="small"
@@ -197,6 +255,7 @@ function deleteEditingSegment() {
         class="ml-auto"
         variant="plain"
         @click.stop="deleteSegment(key as number)"
+        :disabled="item.locked"
       />
     </template>
   </editable-chip-list>
@@ -216,12 +275,6 @@ function deleteEditingSegment() {
 </template>
 
 <style scoped>
-.color-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 16px;
-  border: 1px solid #111;
-}
 .dot-container {
   width: 18px;
 }

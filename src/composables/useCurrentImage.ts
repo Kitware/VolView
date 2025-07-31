@@ -8,14 +8,12 @@ import {
   unref,
 } from 'vue';
 import { Maybe } from '@/src/types';
-import {
-  defaultImageMetadata,
-  useImageStore,
-} from '@/src/store/datasets-images';
+import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '@/src/utils/lps';
 import { useDatasetStore } from '@/src/store/datasets';
 import { storeToRefs } from 'pinia';
+import { useImageCacheStore } from '@/src/store/image-cache';
 
 export interface CurrentImageContext {
   imageID: Ref<Maybe<string>>;
@@ -27,11 +25,12 @@ export const CurrentImageInjectionKey = Symbol(
 
 // Returns a spatially inflated image extent
 export function getImageSpatialExtent(imageID: Maybe<string>) {
-  const imageStore = useImageStore();
+  const imageCacheStore = useImageCacheStore();
+  const metadata = imageCacheStore.getImageMetadata(imageID);
 
-  if (imageID && imageID in imageStore.metadata) {
-    const { lpsOrientation } = imageStore.metadata[imageID];
-    const image = imageStore.dataIndex[imageID];
+  if (imageID && metadata) {
+    const { lpsOrientation } = metadata;
+    const image = imageCacheStore.getVtkImageData(imageID);
     if (image) {
       const extent = image.getSpatialExtent();
       return {
@@ -45,28 +44,35 @@ export function getImageSpatialExtent(imageID: Maybe<string>) {
 }
 
 export function getImageMetadata(imageID: Maybe<string>) {
-  const { metadata } = useImageStore();
-  if (!imageID) return defaultImageMetadata();
-  return metadata[imageID] ?? defaultImageMetadata();
+  return (
+    useImageCacheStore().getImageMetadata(imageID) ?? defaultImageMetadata()
+  );
 }
 
 export function getImageData(imageID: Maybe<string>) {
-  const { dataIndex } = useImageStore();
-  return imageID ? dataIndex[imageID] ?? null : null;
+  return useImageCacheStore().getVtkImageData(imageID);
 }
 
 export function getIsImageLoading(imageID: Maybe<string>) {
   if (!imageID) return false;
-  const imageStore = useImageStore();
-  return !imageStore.dataIndex[imageID];
+  const image = useImageCacheStore().imageById[imageID];
+  if (!image) return false;
+  return image.loading.value;
 }
 
 export function getImageLayers(imageID: Maybe<string>) {
   if (!imageID) return [];
   const layersStore = useLayersStore();
+  const imageCacheStore = useImageCacheStore();
   return layersStore
     .getLayers(imageID)
-    .filter(({ id }) => id in layersStore.layerImages);
+    .filter(({ id }) => imageCacheStore.imageById[id]?.isLoaded());
+}
+
+export function getImage(imageID: Maybe<string>) {
+  if (!imageID) return null;
+  const imageCacheStore = useImageCacheStore();
+  return imageCacheStore.imageById[imageID];
 }
 
 export function useImage(imageID: MaybeRef<Maybe<string>>) {
@@ -77,6 +83,7 @@ export function useImage(imageID: MaybeRef<Maybe<string>>) {
     extent: computed(() => getImageSpatialExtent(unref(imageID))),
     isLoading: computed(() => getIsImageLoading(unref(imageID))),
     layers: computed(() => getImageLayers(unref(imageID))),
+    image: computed(() => getImage(unref(imageID))),
   };
 }
 
@@ -87,7 +94,7 @@ export function useCurrentImage() {
     ? inject(CurrentImageInjectionKey, defaultContext)
     : defaultContext;
 
-  const { id, imageData, metadata, extent, isLoading, layers } =
+  const { id, imageData, metadata, extent, isLoading, layers, image } =
     useImage(imageID);
   return {
     currentImageID: id,
@@ -96,5 +103,6 @@ export function useCurrentImage() {
     currentImageExtent: extent,
     isImageLoading: isLoading,
     currentLayers: layers,
+    currentImage: image,
   };
 }

@@ -10,6 +10,7 @@ import {
   MultipleSelectionState,
 } from '@/src/composables/useMultipleToolSelection';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import type { Maybe } from '@/src/types';
 import MeasurementToolDetails from './MeasurementToolDetails.vue';
 import { AnnotationTool } from '../types/annotation-tool';
 
@@ -80,20 +81,13 @@ const selectionStore = useToolSelectionStore();
 const { selectAll, deselectAll, selected, selectionState } =
   useMultipleToolSelection(tools);
 
-const toggleSelectAll = (shouldSelectAll: boolean) => {
+const toggleSelectAll = (shouldSelectAll: Maybe<boolean>) => {
   if (shouldSelectAll) {
     selectAll();
   } else {
     deselectAll();
   }
 };
-
-const forEachSelectedTool = (
-  callback: (tool: (typeof tools.value)[number]) => void
-) =>
-  tools.value
-    .filter((tool) => selectionStore.isSelected(tool.id))
-    .forEach(callback);
 
 function removeAll() {
   selectionStore.selection.forEach((sel) => {
@@ -110,6 +104,13 @@ const allHidden = computed(() => {
     .filter(nonNullable)
     .every((tool) => tool.toolData.hidden);
 });
+
+const forEachSelectedTool = (
+  callback: (tool: (typeof tools.value)[number]) => void
+) =>
+  tools.value
+    .filter((tool) => selectionStore.isSelected(tool.id))
+    .forEach(callback);
 
 function toggleGlobalHidden() {
   const hidden = !allHidden.value;

@@ -57,22 +57,22 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
 
   // update the slicing
   watch(imagePosition, (indexPos) => {
-    if (active.value) {
-      const imageID = unref(currentImageID);
-      const { lpsOrientation } = unref(currentImageMetadata);
-
-      if (!imageID) {
-        return;
-      }
-
-      currentViewIDs.value.forEach((viewID) => {
-        const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
-        const axis = getLPSAxisFromDir(sliceConfig!.axisDirection);
-        const index = lpsOrientation[axis];
-        const slice = Math.round(indexPos[index]);
-        viewSliceStore.updateConfig(viewID, imageID, { slice });
-      });
+    if (!active.value) {
+      return;
     }
+    const imageID = unref(currentImageID);
+    if (!imageID) {
+      return;
+    }
+    const { lpsOrientation } = unref(currentImageMetadata);
+
+    currentViewIDs.value.forEach((viewID) => {
+      const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
+      const axis = getLPSAxisFromDir(sliceConfig!.axisDirection);
+      const index = lpsOrientation[axis];
+      const slice = Math.round(indexPos[index]);
+      viewSliceStore.updateConfig(viewID, imageID, { slice });
+    });
   });
 
   // update widget state based on current image
@@ -99,13 +99,17 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   });
 
   function activateTool() {
-    widgetState.setPlaced(false);
     active.value = true;
     return true;
   }
 
   function deactivateTool() {
     active.value = false;
+    widgetState.setDragging(false);
+  }
+
+  function setDragging(dragging: boolean) {
+    widgetState.setDragging(dragging);
   }
 
   function serialize(state: StateFile) {
@@ -125,6 +129,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     imagePosition,
     activateTool,
     deactivateTool,
+    setDragging,
     serialize,
     deserialize,
   };

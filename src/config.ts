@@ -8,6 +8,7 @@ import { Layout, LayoutDirection } from './types/layout';
 import { ViewSpec } from './types/views';
 import { SampleDataset } from './types';
 import { Action } from './constants';
+import { Tools } from './store/tools/types';
 
 /**
  * These are the initial view IDs.
@@ -237,21 +238,15 @@ export const TOOL_COLORS = [
 export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
 
 export const RULER_LABEL_DEFAULTS = {
-  red: { color: 'red' },
-  green: { color: '#00ff00' },
-  white: { color: '#ffffff' },
+  'Label 1': { color: 'red' },
 };
 
 export const RECTANGLE_LABEL_DEFAULTS = {
-  artifact: { color: '#888888' },
-  innocuous: { color: '#00ff00' },
-  lesion: { color: 'red' },
+  'Label 1': { color: 'red' },
 };
 
 export const POLYGON_LABEL_DEFAULTS = {
-  red: { color: 'red' },
-  green: { color: '#00ff00' },
-  white: { color: '#ffffff' },
+  'Label 1': { color: 'red' },
 };
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
@@ -265,7 +260,7 @@ export const LAYER_PRESET_BY_MODALITY: Record<string, string> = {
   ...DEFAULT_PRESET_BY_MODALITY,
   PT: '2hot-opaque',
 };
-export const LAYER_PRESET_DEFAULT = 'Blue to Red Rainbow';
+export const LAYER_PRESET_DEFAULT = '2hot-opaque';
 
 // Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {
@@ -274,36 +269,41 @@ export const ACTION_TO_KEY = {
   zoom: 'z',
   ruler: 'm',
   paint: 'p',
+  brushSize: 'ctrl',
   rectangle: 'r',
   crosshairs: 'c',
+  temporaryCrosshairs: 'shift-c',
   crop: 'b',
   polygon: 'g',
   mergeNewPolygon: 'Shift',
   select: 's',
 
+  nextSlice: 'arrowdown',
+  previousSlice: 'arrowup',
+  grabSlice: 'Alt',
+
   decrementLabel: 'q',
   incrementLabel: 'w',
+
+  deleteCurrentImage: 'ctrl+.',
+  clearScene: 'ctrl+/',
 
   showKeyboardShortcuts: '?',
 } satisfies Record<Action, string>;
 
+export const ALLOW_MAXIMIZE_TOOLS = [
+  Tools.WindowLevel,
+  Tools.Pan,
+  Tools.Zoom,
+  Tools.Select,
+  Tools.Crosshairs,
+];
+
 export const DEFAULT_SEGMENT_MASKS: SegmentMask[] = [
   {
     value: 1,
-    name: 'Tissue',
-    color: [255, 0, 0, 255],
-    visible: true,
-  },
-  {
-    value: 2,
-    name: 'Liver',
-    color: [0, 255, 0, 255],
-    visible: true,
-  },
-  {
-    value: 3,
-    name: 'Heart',
-    color: [0, 0, 255, 255],
+    name: 'Segment 1',
+    color: [255, 255, 0, 255],
     visible: true,
   },
 ];
@@ -502,4 +502,4 @@ export const CATEGORICAL_COLORS = [
   [228, 114, 126],
   [89, 38, 119],
   [105, 47, 61],
-];
+] as const;

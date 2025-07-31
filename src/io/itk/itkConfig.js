@@ -1,9 +1,13 @@
-import { join } from '@/src/utils/path';
+const fullUrl = (relative) => {
+  // ex: /itk/image-io
+  const u = new URL(document.location); // ex: http://localhost:8043/orthanc/volview/index.html
+  const origin = u.origin; // ex: http://localhost:8043
+  const pathParts = u.pathname.split('/'); // ex: ['', 'orthanc', 'volview', 'index.html']
+  pathParts.pop(); // ex: ['', 'orthanc', 'volview']
 
-const base = import.meta.env.BASE_URL;
-
-const fullUrl = (relative) =>
-  new URL(join(base, relative), document.location.origin).href;
+  const url = origin + pathParts.join('/') + relative; // ex http://localhost:8043/orthanc/volview/itk/image-io
+  return url;
+};
 
 const itkConfig = {
   pipelineWorkerUrl: fullUrl('/itk/itk-wasm-pipeline.min.worker.js'),

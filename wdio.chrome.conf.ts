@@ -14,6 +14,4 @@ config.capabilities = [
   },
 ];
 
-config.services?.push('chromedriver');
-
 export { config };

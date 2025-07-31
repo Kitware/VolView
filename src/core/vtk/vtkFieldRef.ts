@@ -4,6 +4,7 @@ import { capitalize } from '@kitware/vtk.js/macros';
 import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import { Maybe } from '@/src/types';
+import { arrayEquals } from '@/src/utils';
 
 type NonEmptyString<T extends string> = T extends '' ? never : T;
 
@@ -58,6 +59,8 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
 ): any {
   let getter: () => any;
   let setter: (v: any) => boolean | undefined;
+  let lastValue: any;
+  let lastValueIsArray = false;
 
   if (typeof fieldNameOrFactory === 'string') {
     const getterName = `get${capitalize(fieldNameOrFactory)}` as keyof T;
@@ -77,7 +80,19 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
       return val ? setterName in val : false;
     });
 
-    getter = () => _getter.value?.();
+    getter = () => {
+      const value = _getter.value?.();
+      // create a new reference to trigger update
+      if (Array.isArray(value)) {
+        lastValue = [...value];
+        lastValueIsArray = true;
+        return lastValue;
+      }
+      lastValue = value;
+      lastValueIsArray = false;
+      return value;
+    };
+
     setter = (v: any) => {
       const set = _setter.value;
       if (!notNull.value) return false;
@@ -91,7 +106,19 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
       return set(v);
     };
   } else {
-    getter = fieldNameOrFactory.get;
+    const originalGetter = fieldNameOrFactory.get;
+    getter = () => {
+      const value = originalGetter();
+      // create a new reference to trigger update
+      if (Array.isArray(value)) {
+        lastValue = [...value];
+        lastValueIsArray = true;
+        return lastValue;
+      }
+      lastValue = value;
+      lastValueIsArray = false;
+      return value;
+    };
     setter = fieldNameOrFactory.set;
   }
 
@@ -125,6 +152,20 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
 
   const onModified = batchForNextTask(() => {
     if (unref(obj)?.isDeleted()) return;
+
+    // Special handling for array values that might have been mutated
+    if (lastValueIsArray) {
+      const currentValue = getter();
+      if (Array.isArray(currentValue)) {
+        const previousValue = lastValue;
+        if (!arrayEquals(previousValue as any[], currentValue as any[])) {
+          triggerRef(ref);
+          return;
+        }
+      }
+    }
+
+    // Always trigger for non-array values
     triggerRef(ref);
   });
 

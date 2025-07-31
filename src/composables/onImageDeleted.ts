@@ -1,11 +1,11 @@
-import { useImageStore } from '@/src/store/datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { storeToRefs } from 'pinia';
 import { watch } from 'vue';
 
 export function onImageDeleted(callback: (deletedIDs: string[]) => void) {
-  const { dataIndex } = storeToRefs(useImageStore());
+  const { imageById } = storeToRefs(useImageCacheStore());
 
-  return watch(dataIndex, (newIndex, oldIndex) => {
+  return watch(imageById, (newIndex, oldIndex) => {
     const deleted = Object.keys(oldIndex).filter((id) => !(id in newIndex));
     if (deleted.length) callback(deleted);
   });

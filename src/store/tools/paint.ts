@@ -1,15 +1,21 @@
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { computed, ref, watchEffect } from 'vue';
+import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { Maybe } from '@/src/types';
+import { useImageStatsStore } from '@/src/store/image-stats';
+import { computed, ref } from 'vue';
+import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
 
 const DEFAULT_BRUSH_SIZE = 4;
+const DEFAULT_THRESHOLD_RANGE: Vector2 = [
+  Number.NEGATIVE_INFINITY,
+  Number.POSITIVE_INFINITY,
+];
 
 export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
@@ -20,8 +26,10 @@ export const usePaintToolStore = defineStore('paint', () => {
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
   const strokePoints = ref<vec3[]>([]);
   const isActive = ref(false);
+  const thresholdRange = ref<Vector2>([...DEFAULT_THRESHOLD_RANGE]);
 
-  const { currentImageID } = useCurrentImage();
+  const { currentImageID, currentImageData } = useCurrentImage();
+  const imageStatsStore = useImageStatsStore();
 
   function getWidgetFactory(this: _This) {
     return this.$paint.factory;
@@ -52,12 +60,19 @@ export const usePaintToolStore = defineStore('paint', () => {
     activeSegmentGroupID.value = segmentGroupID;
   }
 
-  /**
-   * Gets the first segment group ID for a given image.
-   * @param imageID
-   */
-  function getFirstSegmentGroupID(imageID: Maybe<string>): Maybe<string> {
+  function getValidSegmentGroupID(imageID: Maybe<string>): Maybe<string> {
     if (!imageID) return null;
+
+    // If current segment group belongs to this image, keep using it
+    if (
+      activeSegmentGroupID.value &&
+      segmentGroupStore.metadataByID[activeSegmentGroupID.value]
+        ?.parentImage === imageID
+    ) {
+      return activeSegmentGroupID.value;
+    }
+
+    // Otherwise look for other segment groups for this image
     const segmentGroups = segmentGroupStore.orderByParent[imageID];
     if (segmentGroups && segmentGroups.length > 0) {
       return segmentGroups[0];
@@ -68,7 +83,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   /**
    * Sets the active labelmap from a given image.
    *
-   * If a labelmap exists, pick the first one. If no labelmap exists, create one.
+   * If a labelmap exists, pick one. If no labelmap exists, create one.
    */
   function ensureActiveSegmentGroupForImage(imageID: Maybe<string>) {
     if (!imageID) {
@@ -76,13 +91,10 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
-    const segmentGroupID = getFirstSegmentGroupID(imageID);
-    if (segmentGroupID) {
-      setActiveSegmentGroup(segmentGroupID);
-    } else {
-      activeSegmentGroupID.value =
-        segmentGroupStore.newLabelmapFromImage(imageID);
-    }
+    const segmentGroupID =
+      getValidSegmentGroupID(imageID) ??
+      segmentGroupStore.newLabelmapFromImage(imageID);
+    setActiveSegmentGroup(segmentGroupID);
   }
 
   /**
@@ -122,6 +134,46 @@ export const usePaintToolStore = defineStore('paint', () => {
       return;
     }
 
+    // Prevent painting if active segment is locked
+    if (activeSegmentGroupID.value && activeSegment.value) {
+      const segment = segmentGroupStore.getSegment(
+        activeSegmentGroupID.value,
+        activeSegment.value
+      );
+      if (segment?.locked) {
+        return;
+      }
+    }
+
+    const underlyingImagePixels = currentImageData.value
+      ?.getPointData()
+      .getScalars()
+      .getData();
+    const [minThreshold, maxThreshold] = thresholdRange.value;
+    const shouldPaint = (idx: number) => {
+      if (!underlyingImagePixels) return false;
+
+      // Prevent painting over locked segments
+      if (activeSegmentGroupID.value && activeLabelmap.value) {
+        const metadata =
+          segmentGroupStore.metadataByID[activeSegmentGroupID.value];
+        if (metadata) {
+          const currentData = activeLabelmap.value
+            .getPointData()
+            .getScalars()
+            .getData() as Uint8Array;
+          const currentValue = currentData[idx];
+          const segment = metadata.segments.byValue[currentValue];
+          if (segment?.locked) {
+            return false;
+          }
+        }
+      }
+
+      const pixValue = underlyingImagePixels[idx];
+      return minThreshold <= pixValue && pixValue <= maxThreshold;
+    };
+
     const lastIndex = strokePoints.value.length - 1;
     if (lastIndex >= 0) {
       const lastPoint = strokePoints.value[lastIndex];
@@ -131,7 +183,8 @@ export const usePaintToolStore = defineStore('paint', () => {
         activeLabelmap.value,
         axisIndex,
         lastPoint,
-        prevPoint
+        prevPoint,
+        shouldPaint
       );
     }
   }
@@ -144,7 +197,33 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushScale(scale);
   }
 
+  // Create segment group if paint is active and none exist.
+  // If paint is not active, but there is a segment group for the current image, set it as active.
+  function ensureSegmentGroup() {
+    const imageID = currentImageID.value;
+    if (!imageID) return;
+
+    // Check if a valid segment group is already selected
+    if (
+      activeSegmentGroupID.value &&
+      segmentGroupStore.metadataByID[activeSegmentGroupID.value]
+        ?.parentImage === imageID
+    ) {
+      return;
+    }
+
+    if (isActive.value) {
+      ensureActiveSegmentGroupForImage(imageID);
+    } else {
+      const segmentGroupID = getValidSegmentGroupID(imageID);
+      if (segmentGroupID) {
+        setActiveSegmentGroup(segmentGroupID);
+      }
+    }
+  }
+
   function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+    ensureSegmentGroup();
     strokePoints.value = [vec3.clone(indexPoint)];
     doPaintStroke.call(this, axisIndex);
   }
@@ -163,6 +242,26 @@ export const usePaintToolStore = defineStore('paint', () => {
     doPaintStroke.call(this, axisIndex);
   }
 
+  const currentImageStats = computed(() => {
+    if (!currentImageID.value) return null;
+    return imageStatsStore.stats[currentImageID.value];
+  });
+
+  function resetThresholdRange(imageID: Maybe<string>) {
+    if (imageID) {
+      const stats = imageStatsStore.stats[imageID];
+      if (stats) {
+        thresholdRange.value = [stats.scalarMin, stats.scalarMax];
+      } else {
+        thresholdRange.value = [...DEFAULT_THRESHOLD_RANGE];
+      }
+    }
+  }
+
+  watchImmediate([currentImageID, currentImageStats], ([id]) => {
+    resetThresholdRange(id);
+  });
+
   // --- setup and teardown --- //
 
   function activateTool(this: _This) {
@@ -178,8 +277,11 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function deactivateTool() {
-    activeSegmentGroupID.value = null;
     isActive.value = false;
+  }
+
+  function setThresholdRange(this: _This, range: Vector2) {
+    thresholdRange.value = range;
   }
 
   function serialize(state: StateFile) {
@@ -207,30 +309,14 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
   }
 
-  // Create segment group if paint is active and none exist.
-  // If paint is not active, but there is a segment group for the current image, set it as active.
-  watchEffect(() => {
-    const imageID = currentImageID.value;
-    if (!imageID) return;
-
-    if (isActive.value) {
-      ensureActiveSegmentGroupForImage(imageID);
-    } else {
-      const segmentGroupID = getFirstSegmentGroupID(imageID);
-      if (segmentGroupID) {
-        setActiveSegmentGroup(segmentGroupID);
-      }
-    }
-  });
-
   return {
-    // state
     activeMode,
     activeSegmentGroupID,
     activeSegment,
     brushSize,
     strokePoints,
     isActive,
+    thresholdRange,
 
     getWidgetFactory,
 
@@ -239,10 +325,10 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     setMode,
     setActiveSegmentGroup,
-    ensureActiveSegmentGroupForImage,
     setActiveSegment,
     setBrushSize,
     setSliceAxis,
+    setThresholdRange,
     startStroke,
     placeStrokePoint,
     endStroke,

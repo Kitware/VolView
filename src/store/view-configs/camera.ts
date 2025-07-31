@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import {
   DoubleKeyRecord,
+  deleteEntry,
+  deleteFirstKey,
   deleteSecondKey,
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
@@ -16,6 +18,7 @@ import { useImageStore } from '../datasets-images';
 export const useViewCameraStore = defineStore('viewCamera', () => {
   const imageStore = useImageStore();
   const configs = reactive<DoubleKeyRecord<CameraConfig>>({});
+  const initializedCameras = reactive<DoubleKeyRecord<boolean>>({});
 
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
@@ -33,21 +36,41 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     patchDoubleKeyRecord(configs, viewID, dataID, config);
   };
 
+  // For disabling calls to resetCamera but not resetCameraClippingRange
   const disableCameraAutoReset = ref(false);
 
   const toggleCameraAutoReset = () => {
     disableCameraAutoReset.value = !disableCameraAutoReset.value;
   };
 
+  const markCameraAsInitialized = (
+    viewID: Maybe<string>,
+    dataID: Maybe<string>
+  ) => {
+    if (viewID && dataID) {
+      patchDoubleKeyRecord(initializedCameras, viewID, dataID, true);
+    }
+  };
+
+  const isCameraInitialized = (
+    viewID: Maybe<string>,
+    dataID: Maybe<string>
+  ) => {
+    return !!getDoubleKeyRecord(initializedCameras, viewID, dataID);
+  };
+
   const removeView = (viewID: string) => {
-    delete configs[viewID];
+    deleteFirstKey(configs, viewID);
+    deleteFirstKey(initializedCameras, viewID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
-      delete configs[viewID]?.[dataID];
+      deleteEntry(configs, viewID, dataID);
+      deleteEntry(initializedCameras, viewID, dataID);
     } else {
       deleteSecondKey(configs, dataID);
+      deleteSecondKey(initializedCameras, dataID);
     }
   };
 
@@ -97,6 +120,7 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.camera) {
         updateConfig(viewID, dataID, viewConfig.camera);
+        markCameraAsInitialized(viewID, dataID);
       }
     });
   };
@@ -114,6 +138,8 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     isSync,
     serialize,
     deserialize,
+    markCameraAsInitialized,
+    isCameraInitialized,
   };
 });
 

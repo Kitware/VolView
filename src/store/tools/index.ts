@@ -2,6 +2,7 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { Maybe } from '@/src/types';
 import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
+import { ref } from 'vue';
 import { useCropStore } from './crop';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
@@ -9,10 +10,6 @@ import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
-
-interface State {
-  currentTool: Tools;
-}
 
 // TODO move these types out
 export const AnnotationToolStoreMap: Record<
@@ -64,49 +61,72 @@ function teardownTool(tool: Tools) {
   }
 }
 
-export const useToolStore = defineStore('tool', {
-  state: (): State => ({
-    currentTool: Tools.WindowLevel,
-  }),
-  actions: {
-    setCurrentTool(tool: Tools) {
-      if (!setupTool(tool)) {
-        return;
-      }
-      teardownTool(this.currentTool);
-      this.currentTool = tool;
-    },
-    serialize(state: StateFile) {
-      const { tools } = state.manifest;
+export const useToolStore = defineStore('tool', () => {
+  const currentTool = ref(Tools.WindowLevel);
+  const toolBeforeTemporaryCrosshairs = ref<Tools>(currentTool.value);
 
-      Object.values(ToolStoreMap)
-        .map((useStore) => useStore?.())
-        .filter((store): store is IToolStore => !!store)
-        .forEach((store) => {
-          store.serialize?.(state);
-        });
+  function setCurrentTool(tool: Tools) {
+    if (currentTool.value === tool) {
+      return;
+    }
+    if (!setupTool(tool)) {
+      return;
+    }
+    teardownTool(currentTool.value);
+    currentTool.value = tool;
+  }
 
-      tools.current = this.currentTool;
-    },
-    deserialize(
-      manifest: Manifest,
-      segmentGroupIDMap: Record<string, string>,
-      dataIDMap: Record<string, string>
-    ) {
-      const { tools } = manifest;
+  function activateTemporaryCrosshairs() {
+    toolBeforeTemporaryCrosshairs.value = currentTool.value;
+    setCurrentTool(Tools.Crosshairs);
+    useCrosshairsToolStore().setDragging(true);
+  }
 
-      usePaintToolStore().deserialize(manifest, segmentGroupIDMap);
+  function deactivateTemporaryCrosshairs() {
+    useCrosshairsToolStore().setDragging(false);
+    setCurrentTool(toolBeforeTemporaryCrosshairs.value);
+  }
 
-      Object.values(ToolStoreMap)
-        // paint store uses segmentGroupIDMap
-        .filter((useStore) => useStore !== usePaintToolStore)
-        .map((useStore) => useStore?.())
-        .filter((store): store is IToolStore => !!store)
-        .forEach((store) => {
-          store.deserialize?.(manifest, dataIDMap);
-        });
+  function serialize(state: StateFile) {
+    const { tools } = state.manifest;
 
-      this.currentTool = tools.current;
-    },
-  },
+    Object.values(ToolStoreMap)
+      .map((useStore) => useStore?.())
+      .filter((store): store is IToolStore => !!store)
+      .forEach((store) => {
+        store.serialize?.(state);
+      });
+
+    tools.current = currentTool.value;
+  }
+
+  function deserialize(
+    manifest: Manifest,
+    segmentGroupIDMap: Record<string, string>,
+    dataIDMap: Record<string, string>
+  ) {
+    const { tools } = manifest;
+
+    usePaintToolStore().deserialize(manifest, segmentGroupIDMap);
+
+    Object.values(ToolStoreMap)
+      // paint store uses segmentGroupIDMap
+      .filter((useStore) => useStore !== usePaintToolStore)
+      .map((useStore) => useStore?.())
+      .filter((store): store is IToolStore => !!store)
+      .forEach((store) => {
+        store.deserialize?.(manifest, dataIDMap);
+      });
+
+    currentTool.value = tools.current;
+  }
+
+  return {
+    currentTool,
+    setCurrentTool,
+    serialize,
+    deserialize,
+    activateTemporaryCrosshairs,
+    deactivateTemporaryCrosshairs,
+  };
 });
