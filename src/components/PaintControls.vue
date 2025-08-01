@@ -49,6 +49,16 @@
       </v-item-group>
     </v-row>
     <template v-if="mode === PaintMode.CirclePaint || mode === PaintMode.Erase">
+      <v-row no-gutters align="center" class="mb-2">
+        <span class="mr-2">Sync Views</span>
+        <v-switch
+          v-model="crossPlaneSync"
+          color="primary"
+          density="compact"
+          hide-details
+          class="ml-3"
+        ></v-switch>
+      </v-row>
       <v-row no-gutters>Size (pixels)</v-row>
       <v-row no-gutters align="center">
         <v-slider
@@ -135,7 +145,7 @@ import { useImageStatsStore } from '@/src/store/image-stats';
 
 const paintStore = usePaintToolStore();
 const imageStatsStore = useImageStatsStore();
-const { brushSize, activeMode, thresholdRange } = storeToRefs(paintStore);
+const { brushSize, activeMode, thresholdRange, crossPlaneSync } = storeToRefs(paintStore);
 const { currentImageID } = useCurrentImage();
 
 const currentImageStats = computed(() => {
