@@ -22,13 +22,6 @@ export const config: Options.Testrunner = {
   // Runner Configuration
   // ====================
   runner: 'local',
-  autoCompileOpts: {
-    autoCompile: true,
-    tsNodeOpts: {
-      project: './tsconfig.json',
-      transpileOnly: true,
-    },
-  },
   //
   // ==================
   // Specify Test Files
@@ -40,7 +33,6 @@ export const config: Options.Testrunner = {
   // Capabilities
   // ============
   maxInstances: 3,
-  capabilities: [],
   //
   // ===================
   // Test Configurations

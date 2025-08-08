@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
+import type { ChainablePromiseElement } from 'webdriverio';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';

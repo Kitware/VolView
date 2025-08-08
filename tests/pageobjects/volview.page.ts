@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { Key } from 'webdriverio';
+import { Key, type ChainablePromiseElement } from 'webdriverio';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 import Page from './page';
@@ -53,7 +53,7 @@ class VolViewPage extends Page {
         const views = await this_.views;
         if ((await views.length) === 0) return false;
         const inView = await Promise.all(
-          Array.from(views).map((v) => v.isDisplayedInViewport())
+          Array.from(views).map((v) => v.isDisplayed({ withinViewport: true }))
         );
         return inView.every(Boolean);
       },
