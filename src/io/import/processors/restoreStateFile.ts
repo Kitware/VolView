@@ -14,8 +14,6 @@ import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
 import { partition } from '@/src/utils';
 import { pipe } from '@/src/utils/functional';
-import { useViewStore } from '@/src/store/views';
-import { useDatasetStore } from '@/src/store/datasets';
 import {
   makeDefaultSegmentGroupName,
   useSegmentGroupStore,
@@ -366,9 +364,9 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       );
     }
 
-    // We restore the view first, so that the appropriate watchers are triggered
-    // in the views as the data is loaded
-    useViewStore().setLayout(manifest.layout);
+    // // We restore the view first, so that the appropriate watchers are triggered
+    // // in the views as the data is loaded
+    // useViewStore().setLayout(manifest.layout);
 
     const stateIDToStoreID = await restoreDatasets(
       manifest,
@@ -377,14 +375,14 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
     );
 
     // Restore the primary selection
-    if (manifest.primarySelection !== undefined) {
-      const selectedID = stateIDToStoreID[manifest.primarySelection];
+    // if (manifest.primarySelection !== undefined) {
+    //   const selectedID = stateIDToStoreID[manifest.primarySelection];
 
-      useDatasetStore().setPrimarySelection(selectedID);
-    }
+    //   useDatasetStore().setPrimarySelection(selectedID);
+    // }
 
     // Restore the views
-    useViewStore().deserialize(manifest.views, stateIDToStoreID);
+    // useViewStore().deserialize(manifest.views, stateIDToStoreID);
 
     // Restore the labelmaps
     const segmentGroupIDMap = await useSegmentGroupStore().deserialize(
