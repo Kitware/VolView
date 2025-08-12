@@ -1,14 +1,14 @@
 import { z } from 'zod';
 import { zodEnumFromObjKeys } from '@/src/utils';
 import { ACTIONS } from '@/src/constants';
-import { Layouts } from '@/src/config';
+// import { Layouts } from '@/src/config';
 
 // for applyConfig
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useDataBrowserStore } from '@/src/store/data-browser';
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import { useViewStore } from '@/src/store/views';
+// import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -20,7 +20,7 @@ import useLoadDataStore from '@/src/store/load-data';
 
 const layout = z
   .object({
-    activeLayout: zodEnumFromObjKeys(Layouts).optional(),
+    // activeLayout: zodEnumFromObjKeys(Layouts).optional(),
   })
   .optional();
 
@@ -128,12 +128,12 @@ const applySampleData = (manifest: Config) => {
   useDataBrowserStore().hideSampleData = !!manifest.dataBrowser?.hideSampleData;
 };
 
-const applyLayout = (manifest: Config) => {
-  if (manifest.layout?.activeLayout) {
-    const startingLayout = Layouts[manifest.layout.activeLayout];
-    useViewStore().setLayout(startingLayout);
-  }
-};
+// const applyLayout = (manifest: Config) => {
+//   if (manifest.layout?.activeLayout) {
+//     const startingLayout = Layouts[manifest.layout.activeLayout];
+//     useViewStore().setLayout(startingLayout);
+//   }
+// };
 
 const applyShortcuts = (manifest: Config) => {
   if (!manifest.shortcuts) return;
@@ -159,7 +159,7 @@ const applyWindowing = (manifest: Config) => {
 };
 
 export const applyConfig = (manifest: Config) => {
-  applyLayout(manifest);
+  // applyLayout(manifest);
   applyLabels(manifest);
   applySampleData(manifest);
   applyShortcuts(manifest);
