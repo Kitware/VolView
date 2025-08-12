@@ -3,6 +3,36 @@ import {
   PiecewiseGaussian,
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
+import { Maybe } from '@/src/types';
+import { LPSAxis, LPSAxisDir } from '@/src/types/lps';
+
+export type ViewType = '2D' | '3D' | 'Oblique2D' | 'Oblique3D';
+
+interface GenericViewInfo {
+  id: string;
+  type: ViewType;
+  dataID: Maybe<string>;
+  name: string;
+  options?: Record<string, any>;
+}
+
+export interface ViewInfo2D extends GenericViewInfo {
+  type: '2D';
+  options: {
+    orientation: LPSAxis;
+  };
+}
+
+export interface ViewInfo3D extends GenericViewInfo {
+  type: '3D';
+  options: {
+    viewDirection: LPSAxisDir;
+    viewUp: LPSAxisDir;
+  };
+}
+
+export type ViewInfo = ViewInfo2D | ViewInfo3D;
+export type ViewInfoInit = Omit<ViewInfo2D, 'id'> | Omit<ViewInfo3D, 'id'>;
 
 export interface ViewSpec {
   viewType: string;

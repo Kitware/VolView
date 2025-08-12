@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
-import { useWindowingConfigInitializer } from '@/src/composables/useWindowingConfigInitializer';
 import { useMouseRangeManipulatorListener } from '@/src/core/vtk/useMouseRangeManipulatorListener';
 import { useVtkInteractionManipulator } from '@/src/core/vtk/useVtkInteractionManipulator';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import vtkMouseRangeManipulator, {
   IMouseRangeManipulatorInitialValues,
@@ -47,7 +48,9 @@ const { instance: rangeManipulator } = useVtkInteractionManipulator(
 );
 
 const wlConfig = useWindowingConfig(viewId, imageId);
-useWindowingConfigInitializer(viewId, imageId);
+useResetViewsEvents().onClick(() => {
+  useWindowingStore().resetConfig(imageId.value, viewId.value);
+});
 
 const computeStep = (range: Vector2) => {
   const diff = range[1] - range[0] || 1;

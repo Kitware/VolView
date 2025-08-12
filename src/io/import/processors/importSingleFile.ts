@@ -4,7 +4,6 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
 import { FILE_READERS } from '@/src/io';
 import { ImportHandler, asLoadableResult } from '@/src/io/import/common';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useMessageStore } from '@/src/store/messages';
 import { Skip } from '@/src/utils/evaluateChain';
 
@@ -35,11 +34,7 @@ const importSingleFile: ImportHandler = async (dataSource) => {
   }
 
   if (dataObject.isA('vtkPolyData')) {
-    if (!useDatasetStore().primarySelection) {
-      useMessageStore().addWarning(
-        'Load an image to see the mesh. Initializing viewports from mesh files is not implemented.'
-      );
-    }
+    useMessageStore().addWarning('Meshes are currently not viewable');
     const dataID = useModelStore().addVTKPolyData(
       dataSource.file.name,
       dataObject as vtkPolyData

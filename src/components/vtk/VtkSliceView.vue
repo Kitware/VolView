@@ -87,6 +87,20 @@ function resetCamera() {
   });
 }
 
+watchImmediate(
+  [viewID, imageID, disableCameraAutoReset],
+  ([viewID_, imageID_, noAutoReset]) => {
+    if (
+      imageID_ &&
+      !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
+      !noAutoReset
+    ) {
+      resetCamera();
+      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
+    }
+  }
+);
+
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
   if (!imageMetadata.value) return;
   if (
@@ -94,10 +108,7 @@ watchImmediate([imageMetadata, disableCameraAutoReset], () => {
     disableCameraAutoReset.value
   ) {
     view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
-    return;
   }
-  resetCamera();
-  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
 });
 
 // persistent camera config
@@ -123,11 +134,20 @@ function onPointerUp() {
 </script>
 
 <template>
-  <div
-    ref="vtkContainerRef"
-    @pointerdown.capture="onPointerDown"
-    @pointerup.capture="onPointerUp"
-  >
+  <div>
+    <div
+      ref="vtkContainerRef"
+      class="view"
+      @pointerdown.capture="onPointerDown"
+      @pointerup.capture="onPointerUp"
+    />
     <slot></slot>
   </div>
 </template>
+
+<style scoped>
+.view {
+  width: 100%;
+  height: 100%;
+}
+</style>

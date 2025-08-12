@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { loadUserPromptedFiles } from '@/src/actions/loadUserFiles';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
@@ -13,7 +13,7 @@ import MessageCenter from '@/src/components/MessageCenter.vue';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import { ConnectionState, useServerStore } from '@/src/store/server';
 import { useViewStore } from '@/src/store/views';
-import { Layouts, DefaultLayoutName } from '@/src/config';
+import LayoutGridEditor from '@/src/components/LayoutGridEditor.vue';
 
 interface Props {
   hasData: boolean;
@@ -21,33 +21,7 @@ interface Props {
 
 defineProps<Props>();
 
-function useViewLayout() {
-  const viewStore = useViewStore();
-  const layoutName = ref(DefaultLayoutName);
-  const { layout: currentLayout } = storeToRefs(viewStore);
-
-  watch(
-    layoutName,
-    () => {
-      const layout = Layouts[layoutName.value] || [];
-      viewStore.setLayout(layout);
-    },
-    {
-      immediate: true,
-    }
-  );
-
-  watch(currentLayout, () => {
-    if (
-      currentLayout.value?.name &&
-      currentLayout.value.name !== layoutName.value
-    ) {
-      layoutName.value = currentLayout.value.name;
-    }
-  });
-
-  return layoutName;
-}
+const viewStore = useViewStore();
 
 function useSaveControls() {
   const remoteSaveStateStore = useRemoteSaveStateStore();
@@ -114,9 +88,15 @@ function useServerConnection() {
 const settingsDialog = ref(false);
 const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
-const layoutName = useViewLayout();
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
+
+const layoutGridSize = computed({
+  get: () => [0, 0] as [number, number],
+  set: (size) => {
+    viewStore.setLayoutFromGrid(size);
+  },
+});
 </script>
 
 <template>
@@ -151,14 +131,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       </template>
       <v-card>
         <v-card-text>
-          <v-radio-group v-model="layoutName" class="mt-0" hide-details>
-            <v-radio
-              v-for="(value, key) in Layouts"
-              :key="key"
-              :label="value.name"
-              :value="key"
-            />
-          </v-radio-group>
+          <LayoutGridEditor v-model="layoutGridSize" />
         </v-card-text>
       </v-card>
     </v-menu>

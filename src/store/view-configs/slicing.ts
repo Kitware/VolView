@@ -8,26 +8,51 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { createViewConfigSerializer } from './common';
-import { ViewConfig } from '../../io/state-file/schema';
-import { SliceConfig } from './types';
-import { useImageStore } from '../datasets-images';
+import { useCurrentImage, useImage } from '@/src/composables/useCurrentImage';
+import { createViewConfigSerializer } from '@/src/store/view-configs/common';
+import { ViewConfig } from '@/src/io/state-file/schema';
+import { SliceConfig } from '@/src/store/view-configs/types';
+import { useImageStore } from '@/src/store/datasets-images';
+import { useViewStore } from '@/src/store/views';
 
 export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
   min: 0,
   max: 1,
-  axisDirection: 'Inferior',
   syncState: false,
 });
 
 export const useViewSliceStore = defineStore('viewSlice', () => {
   const imageStore = useImageStore();
+  const viewStore = useViewStore();
   const configs = reactive<DoubleKeyRecord<SliceConfig>>({});
 
+  const computeDefaultSliceConfig = (
+    viewID: Maybe<string>,
+    imageID: Maybe<string>
+  ): SliceConfig => {
+    if (!viewID || !imageID) return defaultSliceConfig();
+
+    const view = viewStore.getView(viewID);
+    if (view?.type !== '2D') return defaultSliceConfig();
+
+    const { orientation } = view.options;
+    const { metadata } = useImage(imageID);
+    const { lpsOrientation, dimensions } = metadata.value;
+    const ijkIndex = lpsOrientation[orientation];
+    const dimMax = dimensions[ijkIndex];
+
+    return {
+      min: 0,
+      slice: Math.ceil((dimMax - 1) / 2),
+      max: dimMax - 1,
+      syncState: false,
+    };
+  };
+
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
-    getDoubleKeyRecord(configs, viewID, dataID);
+    getDoubleKeyRecord(configs, viewID, dataID) ??
+    computeDefaultSliceConfig(viewID, dataID);
 
   const updateConfig = (
     viewID: string,

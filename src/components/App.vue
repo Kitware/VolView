@@ -84,6 +84,7 @@ import {
 } from '@/src/utils/token';
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
+import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
 
 export default defineComponent({
   name: 'App',
@@ -106,6 +107,10 @@ export default defineComponent({
 
     useGlobalErrorHook();
     useKeyboardShortcuts();
+
+    // --- sync handling --- //
+
+    useSyncWindowing();
 
     // --- file handling --- //
 
@@ -169,7 +174,7 @@ export default defineComponent({
 
     // --- layout --- //
 
-    const { layout } = storeToRefs(useViewStore());
+    const { visibleLayout } = storeToRefs(useViewStore());
 
     // --- //
 
@@ -181,7 +186,7 @@ export default defineComponent({
       loadFiles,
       hasData,
       showLoading,
-      layout,
+      layout: visibleLayout,
     };
   },
 });

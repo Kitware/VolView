@@ -10,8 +10,6 @@ import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { useViewStore } from '@/src/store/views';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
-import { LPSAxisDir } from '@/src/types/lps';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
@@ -145,15 +143,15 @@ export const useAnnotationTool = <
     if (!toolImageFrame) return;
 
     const viewStore = useViewStore();
-    const relevantViewIDs = viewStore.viewIDs.filter((viewID) => {
-      const viewSpec = viewStore.viewSpecs[viewID];
-      const viewDir = viewSpec.props.viewDirection as LPSAxisDir | undefined;
-      return viewDir && getLPSAxisFromDir(viewDir) === toolImageFrame.axis;
+    const relevantViews = viewStore.getAllViews().filter((view) => {
+      if (view.type !== '2D') return false;
+      const axis = view.options.orientation;
+      return axis === toolImageFrame.axis;
     });
 
     const viewSliceStore = useViewSliceStore();
-    relevantViewIDs.forEach((viewID) => {
-      viewSliceStore.updateConfig(viewID, imageID, {
+    relevantViews.forEach((view) => {
+      viewSliceStore.updateConfig(view.id, imageID, {
         slice: tool.slice!,
       });
     });

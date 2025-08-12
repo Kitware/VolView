@@ -53,7 +53,8 @@ export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
 
 export const useCurrentTools = <S extends AnnotationToolStore>(
   toolStore: S,
-  viewAxis: Ref<LPSAxis>
+  viewAxis: Ref<LPSAxis>,
+  placingToolWhitelist: Ref<Array<ToolID>>
 ) => {
   const { currentImageID, currentImageMetadata } = useCurrentImage();
   return computed(() => {
@@ -61,6 +62,10 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
 
     type ToolType = S['tools'][number];
     return (toolStore.tools as Array<ToolType>).filter((tool) => {
+      // ensure that we don't show placing tools from other views
+      if (tool.placing && !placingToolWhitelist.value.includes(tool.id))
+        return false;
+
       // only show tools for the current image,
       // current view axis and not hidden
       return (

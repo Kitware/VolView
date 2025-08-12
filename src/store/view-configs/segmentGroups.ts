@@ -9,9 +9,10 @@ import {
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
 
-import { createViewConfigSerializer } from './common';
-import { ViewConfig } from '../../io/state-file/schema';
-import { SegmentGroupConfig } from './types';
+import { createViewConfigSerializer } from '@/src/store/view-configs/common';
+import { ViewConfig } from '@/src/io/state-file/schema';
+import { SegmentGroupConfig } from '@/src/store/view-configs/types';
+import { useViewStore } from '@/src/store/views';
 
 type Config = SegmentGroupConfig;
 const CONFIG_NAME = 'segmentGroup';
@@ -27,7 +28,7 @@ export const useSegmentGroupConfigStore = defineStore(
     const configs = reactive<DoubleKeyRecord<Config>>({});
 
     const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
-      getDoubleKeyRecord(configs, viewID, dataID);
+      getDoubleKeyRecord(configs, viewID, dataID) ?? defaultConfig();
 
     const updateConfig = (
       viewID: string,
@@ -42,9 +43,6 @@ export const useSegmentGroupConfigStore = defineStore(
 
       patchDoubleKeyRecord(configs, viewID, dataID, config);
     };
-
-    const initConfig = (viewID: string, dataID: string) =>
-      updateConfig(viewID, dataID, defaultConfig());
 
     const removeView = (viewID: string) => {
       delete configs[viewID];
@@ -92,7 +90,6 @@ export const useSegmentGroupConfigStore = defineStore(
     return {
       configs,
       getConfig,
-      initConfig,
       updateConfig,
       removeView,
       removeData,
@@ -106,13 +103,16 @@ export const useSegmentGroupConfigStore = defineStore(
 
 export const useGlobalSegmentGroupConfig = (dataId: MaybeRef<string>) => {
   const store = useSegmentGroupConfigStore();
+  const viewStore = useViewStore();
 
-  const views = computed(() => Object.keys(store.configs));
+  const views = computed(() =>
+    viewStore.getAllViews().filter((view) => view.type === '2D')
+  );
 
   const configs = computed(() =>
-    views.value.map((viewID) => ({
-      config: store.getConfig(viewID, unref(dataId)),
-      viewID,
+    views.value.map((view) => ({
+      config: store.getConfig(view.id, unref(dataId)),
+      viewID: view.id,
     }))
   );
 

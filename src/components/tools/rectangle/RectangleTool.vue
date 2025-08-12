@@ -123,7 +123,15 @@ export default defineComponent({
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
-    const currentTools = useCurrentTools(activeToolStore, viewAxis);
+    const currentTools = useCurrentTools(
+      activeToolStore,
+      viewAxis,
+      // only show this view's placing tool
+      computed(() => {
+        if (placingTool.id.value) return [placingTool.id.value];
+        return [];
+      })
+    );
 
     const { onHover, overlayInfo } = useHover(currentTools, slice);
 

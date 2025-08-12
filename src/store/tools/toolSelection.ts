@@ -1,8 +1,8 @@
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { ToolID } from '@/src/types/annotation-tool';
-import { defineStore, storeToRefs } from 'pinia';
+import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
-import { useDatasetStore } from '@/src/store/datasets';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 
 export interface ToolSelection {
   id: ToolID;
@@ -45,9 +45,9 @@ export const useToolSelectionStore = defineStore('tool-selection', () => {
     }));
   });
 
-  const { primarySelection } = storeToRefs(useDatasetStore());
+  const { currentImageID } = useCurrentImage();
 
-  watch(primarySelection, () => {
+  watch(currentImageID, () => {
     clearSelection();
   });
 

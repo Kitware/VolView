@@ -6,7 +6,6 @@ import {
   getDataSourceName,
 } from '@/src/io/import/dataSource';
 import useLoadDataStore from '@/src/store/load-data';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -28,6 +27,7 @@ import {
   ImportDataSourcesResult,
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { useViewStore } from '@/src/store/views';
 
 // higher value priority is preferred for picking a primary selection
 const BASE_MODALITY_TYPES = {
@@ -227,10 +227,10 @@ function loadSegmentations(
 }
 
 function loadDataSources(sources: DataSource[]) {
-  const load = async () => {
-    const loadDataStore = useLoadDataStore();
-    const dataStore = useDatasetStore();
+  const loadDataStore = useLoadDataStore();
+  const viewStore = useViewStore();
 
+  const load = async () => {
     let results: ImportDataSourcesResult[];
     try {
       results = (await importDataSources(sources)).filter((result) =>
@@ -247,7 +247,11 @@ function loadDataSources(sources: DataSource[]) {
       results
     );
 
-    if (!dataStore.primarySelection && succeeded.length) {
+    const shouldShowData = viewStore
+      .getAllViews()
+      .every((view) => !view.dataID);
+
+    if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
         loadDataStore.segmentGroupExtension
@@ -255,7 +259,7 @@ function loadDataSources(sources: DataSource[]) {
 
       if (isVolumeResult(primaryDataSource)) {
         const selection = toDataSelection(primaryDataSource);
-        dataStore.setPrimarySelection(selection);
+        viewStore.setDataForAllViews(selection);
         loadLayers(primaryDataSource, succeeded);
         loadSegmentations(
           primaryDataSource,
