@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { reactive, ref, computed } from 'vue';
+import { markRaw, reactive, ref } from 'vue';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -9,9 +9,12 @@ import {
 import { Maybe } from '@/src/types';
 import { WL_AUTO_DEFAULT } from '@/src/constants';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { createViewConfigSerializer } from './common';
-import { ViewConfig } from '../../io/state-file/schema';
-import { WindowLevelConfig } from './types';
+import { createViewConfigSerializer } from '@/src/store/view-configs/common';
+import { ViewConfig } from '@/src/io/state-file/schema';
+import { WindowLevelConfig } from '@/src/store/view-configs/types';
+import { isDicomImage } from '@/src/utils/dataSelection';
+import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import { createEventHook } from '@vueuse/core';
 
 type WindowLevel = {
   width: number;
@@ -25,59 +28,76 @@ export const defaultWindowLevelConfig = () =>
     auto: WL_AUTO_DEFAULT,
     useAuto: false,
     userTriggered: false,
-  } as const);
+  } as WindowLevelConfig);
 
 export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
   const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
-  const syncAcrossViews = ref(true);
-  const imageStatsStore = useImageStatsStore();
 
-  const setSyncAcrossViews = (yn: boolean) => {
-    syncAcrossViews.value = yn;
+  const imageStatsStore = useImageStatsStore();
+  const dicomStore = useDICOMStore();
+
+  const WindowingUpdateEvent = markRaw(createEventHook<[string, string]>());
+
+  const computeDefaultConfig = (dataID: string): WindowLevelConfig => {
+    const defaults = defaultWindowLevelConfig();
+    let { width, level } = defaults;
+    let useAuto = false;
+
+    if (isDicomImage(dataID)) {
+      const wls = getWindowLevels(dicomStore.volumeInfo[dataID]);
+      const wl = wls[0];
+      if (wl) {
+        ({ width, level } = wl);
+      }
+    } else {
+      // use FullRange auto values
+      useAuto = true;
+
+      // rely on the scalarMin+Max for now to prevent a flash of white
+      const stats = imageStatsStore.stats[dataID];
+      const min = stats?.scalarMin ?? 0;
+      const max = stats?.scalarMax ?? 1;
+      width = max - min;
+      level = (max + min) / 2;
+    }
+
+    if (runtimeConfigWindowLevel.value) {
+      ({ width, level } = runtimeConfigWindowLevel.value);
+    }
+
+    return {
+      useAuto,
+      auto: WL_AUTO_DEFAULT,
+      width,
+      level,
+    };
   };
 
-  const getConfig = (viewID: string, dataID: string) => {
-    return computed(() => {
-      const internalConfig = getDoubleKeyRecord(configs, viewID, dataID);
+  const getConfig = (viewID: string, dataID: string): WindowLevelConfig => {
+    const internalConfig =
+      getDoubleKeyRecord(configs, viewID, dataID) ??
+      computeDefaultConfig(dataID);
 
-      if (!internalConfig) {
-        return defaultWindowLevelConfig();
-      }
+    if (!internalConfig.useAuto) {
+      return { ...internalConfig };
+    }
 
-      if (!internalConfig.useAuto) {
-        return { ...internalConfig } as const;
-      }
-
-      const autoKey = internalConfig.auto;
-      const statsRef = imageStatsStore.getAutoRangeValues(dataID);
-      const autoValues = statsRef.value;
-      if (autoValues && autoValues[autoKey]) {
-        const [min, max] = autoValues[autoKey];
-        return {
-          ...internalConfig,
-          width: max - min,
-          level: (max + min) / 2,
-        } as const;
-      }
-      return { ...internalConfig } as const;
-    });
+    const autoKey = internalConfig.auto;
+    const autoValues = imageStatsStore.getAutoRangeValues(dataID);
+    if (autoValues?.[autoKey]) {
+      const [min, max] = autoValues[autoKey];
+      return {
+        ...internalConfig,
+        width: max - min,
+        level: (max + min) / 2,
+      };
+    }
+    return { ...internalConfig };
   };
 
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
-
-  const syncWindowLevel = (srcViewID: string, srcDataID: string) => {
-    if (!syncAcrossViews.value) return;
-    const config = getInternalConfig(srcViewID, srcDataID);
-    if (!config) return;
-
-    Object.keys(configs)
-      .filter((viewID) => viewID !== srcViewID)
-      .forEach((viewID) => {
-        patchDoubleKeyRecord(configs, viewID, srcDataID, { ...config });
-      });
-  };
 
   const updateConfig = (
     viewID: string,
@@ -103,7 +123,7 @@ export const useWindowingStore = defineStore('windowing', () => {
       effectiveUseAuto = false;
       if (!effectiveUseAuto) {
         // patch may be only width or level so ensure we have both in the end
-        const config = getConfig(viewID, dataID).value;
+        const config = getConfig(viewID, dataID);
         widthLevelPatchOnSwitchingFromAuto = {
           width: config.width,
           level: config.level,
@@ -123,11 +143,18 @@ export const useWindowingStore = defineStore('windowing', () => {
     };
 
     patchDoubleKeyRecord(configs, viewID, dataID, newInternalConfig);
-    syncWindowLevel(viewID, dataID);
+
+    WindowingUpdateEvent.trigger(viewID, dataID);
   };
 
   const removeView = (viewID: string) => {
     delete configs[viewID];
+  };
+
+  const resetConfig = (viewID: Maybe<string>, dataID: Maybe<string>) => {
+    if (!viewID || !dataID) return;
+    delete configs[viewID]?.[dataID];
+    WindowingUpdateEvent.trigger(viewID, dataID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
@@ -151,11 +178,12 @@ export const useWindowingStore = defineStore('windowing', () => {
   return {
     runtimeConfigWindowLevel,
     getConfig,
-    setSyncAcrossViews,
     updateConfig,
+    resetConfig,
     removeView,
     removeData,
     serialize,
     deserialize,
+    WindowingUpdateEvent,
   };
 });

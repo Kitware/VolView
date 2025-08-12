@@ -40,7 +40,7 @@
           class="vtk-view"
           ref="vtkView"
           data-testid="vtk-view vtk-two-view"
-          :view-id="id"
+          :view-id="viewId"
           :image-id="currentImageID"
           :view-direction="viewDirection"
           :view-up="viewUp"
@@ -72,34 +72,34 @@
             :manipulator-props="{ button: 3 }"
           ></vtk-mouse-interaction-manipulator>
           <vtk-slice-view-slicing-manipulator
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :view-direction="viewDirection"
           ></vtk-slice-view-slicing-manipulator>
           <vtk-slice-view-slicing-key-manipulator
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :view-direction="viewDirection"
           ></vtk-slice-view-slicing-key-manipulator>
           <vtk-slice-view-window-manipulator
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :manipulator-config="windowingManipulatorProps"
           ></vtk-slice-view-window-manipulator>
           <slice-viewer-overlay
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
           ></slice-viewer-overlay>
           <vtk-base-slice-representation
             ref="baseSliceRep"
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :axis="viewAxis"
           ></vtk-base-slice-representation>
           <vtk-segmentation-slice-representation
             v-for="segId in segmentations"
             :key="`seg-${segId}`"
-            :view-id="id"
+            :view-id="viewId"
             :segmentation-id="segId"
             :axis="viewAxis"
             ref="segSliceReps"
@@ -109,7 +109,7 @@
               v-for="layer in currentLayers"
               :key="`layer-${layer.id}`"
               ref="layerSliceReps"
-              :view-id="id"
+              :view-id="viewId"
               :layer-id="layer.id"
               :parent-id="currentImageID"
               :axis="viewAxis"
@@ -161,11 +161,9 @@
 import { ref, toRefs, computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
-import type { LayoutViewProps } from '@/src/types';
 import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
 import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
@@ -196,10 +194,16 @@ import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/M
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { useViewStore } from '@/src/store/views';
+import { LPSAxis } from '@/src/types/lps';
+import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
-interface Props extends LayoutViewProps {
-  viewDirection: LPSAxisDir;
-  viewUp: LPSAxisDir;
+interface Props {
+  viewId: string;
+}
+
+interface SliceViewerOptions {
+  orientation: LPSAxis;
 }
 
 const vtkView = ref<VtkViewApi>();
@@ -208,8 +212,19 @@ const layerSliceReps = ref([]);
 const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
+const { viewId } = toRefs(props);
 
-const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
+const viewStore = useViewStore();
+const viewInfo = computed(() => viewStore.getView(viewId.value)!);
+const viewOptions = computed(
+  () => viewInfo.value.options as SliceViewerOptions
+);
+
+const viewingVectors = computed(() =>
+  get2DViewingVectors(viewOptions.value.orientation)
+);
+const viewDirection = computed(() => viewingVectors.value.viewDirection);
+const viewUp = computed(() => viewingVectors.value.viewUp);
 const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 const hover = ref(false);
@@ -221,7 +236,7 @@ function resetCamera() {
 useResetViewsEvents().onClick(resetCamera);
 
 useWebGLWatchdog(vtkView);
-useViewAnimationListener(vtkView, viewId, viewType);
+useViewAnimationListener(vtkView, viewId, '2D');
 
 // active tool
 const { currentTool } = storeToRefs(useToolStore());

@@ -24,8 +24,7 @@ import type {
   SegmentGroupConfig,
   VolumeColorConfig,
 } from '../../store/view-configs/types';
-import type { LPSAxisDir, LPSAxis } from '../../types/lps';
-import { LayoutDirection } from '../../types/layout';
+import type { LPSAxis } from '../../types/lps';
 import type {
   ColorBy,
   ColorTransferFunction,
@@ -38,15 +37,6 @@ import type {
   BlendConfig,
 } from '../../types/views';
 import { WLAutoRanges } from '../../constants';
-
-const LPSAxisDir = z.union([
-  z.literal('Left'),
-  z.literal('Right'),
-  z.literal('Posterior'),
-  z.literal('Anterior'),
-  z.literal('Superior'),
-  z.literal('Inferior'),
-]);
 
 const FileSource = z.object({
   id: z.number(),
@@ -108,11 +98,11 @@ const RemoteFile: z.ZodType<RemoteFileType> = baseRemoteFileSchema.extend({
 });
 export type RemoteFile = z.infer<typeof RemoteFile>;
 
-const LayoutDirectionNative = z.nativeEnum(LayoutDirection);
+const LayoutDirectionNative = z.enum(['H', 'V']);
 
 export interface Layout {
   name?: string;
-  direction: LayoutDirection;
+  direction: 'H' | 'V';
   items: Array<Layout | string>;
 }
 
@@ -159,7 +149,6 @@ const SliceConfig = z.object({
   slice: z.number(),
   min: z.number(),
   max: z.number(),
-  axisDirection: LPSAxisDir,
   syncState: z.boolean(),
 }) satisfies z.ZodType<SliceConfig>;
 

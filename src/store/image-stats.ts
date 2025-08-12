@@ -228,17 +228,20 @@ export const useImageStatsStore = defineStore('image-stats', () => {
   );
 
   const getAutoRangeValues = (imageID: MaybeRef<Maybe<string>>) => {
-    return computed(() => {
-      const id = unref(imageID);
-      if (id && stats[id]) {
-        return stats[id].autoRangeValues ?? {};
-      }
-      return {};
-    });
+    const id = unref(imageID);
+    if (id && stats[id]) {
+      return stats[id].autoRangeValues ?? {};
+    }
+    return {};
+  };
+
+  const removeData = (id: string) => {
+    delete stats[id];
   };
 
   return {
     stats,
     getAutoRangeValues,
+    removeData,
   };
 });

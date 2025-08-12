@@ -1,19 +1,19 @@
 <script lang="ts">
 import { defineComponent, reactive, computed } from 'vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
-import { useDatasetStore } from '@/src/store/datasets';
 import {
   convertSuccessResultToDataSelection,
   importDataSources,
 } from '@/src/io/import/importDataSources';
 import { remoteFileToDataSource } from '@/src/io/import/dataSource';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import { SAMPLE_DATA } from '../config';
-import { useMessageStore } from '../store/messages';
-import { SampleDataset } from '../types';
-import { useImageStore } from '../store/datasets-images';
-import { useDICOMStore } from '../store/datasets-dicom';
-import { fetchFile } from '../utils/fetch';
+import { SAMPLE_DATA } from '@/src/config';
+import { useMessageStore } from '@/src/store/messages';
+import { SampleDataset } from '@/src/types';
+import { useImageStore } from '@/src/store/datasets-images';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { fetchFile } from '@/src/utils/fetch';
+import { useViewStore } from '@/src/store/views';
 
 enum ProgressState {
   Pending,
@@ -33,7 +33,7 @@ export default defineComponent({
     ImageListCard,
   },
   setup() {
-    const datasetStore = useDatasetStore();
+    const viewStore = useViewStore();
     const status = reactive<{ progress: Progress }>({
       progress: {},
     });
@@ -111,7 +111,7 @@ export default defineComponent({
             },
           });
         }
-        datasetStore.setPrimarySelection(selection);
+        viewStore.setDataForAllViews(selection);
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();

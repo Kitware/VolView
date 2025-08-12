@@ -6,12 +6,14 @@ import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
 import { ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { getDisplayName, useDICOMStore } from '../store/datasets-dicom';
-import { useDatasetStore } from '../store/datasets';
-import { useMultiSelection } from '../composables/useMultiSelection';
-import { useMessageStore } from '../store/messages';
-import { useLayersStore } from '../store/datasets-layers';
-import PersistentOverlay from './PersistentOverlay.vue';
+import { getDisplayName, useDICOMStore } from '@/src/store/datasets-dicom';
+import { useDatasetStore } from '@/src/store/datasets';
+import { useMultiSelection } from '@/src/composables/useMultiSelection';
+import { useMessageStore } from '@/src/store/messages';
+import { useLayersStore } from '@/src/store/datasets-layers';
+import PersistentOverlay from '@/src/components//PersistentOverlay.vue';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -40,10 +42,10 @@ export default defineComponent({
     const layersStore = useLayersStore();
     const imageCacheStore = useImageCacheStore();
 
-    const primarySelectionRef = computed(() => datasetStore.primarySelection);
+    const { currentImageID } = useCurrentImage();
     const volumes = computed(() => {
       const volumeInfo = dicomStore.volumeInfo;
-      const primarySelection = primarySelectionRef.value;
+      const primarySelection = currentImageID.value;
       const layerVolumes = layersStore
         .getLayers(primarySelection)
         .filter(({ selection }) => isDicomImage(selection));
@@ -151,6 +153,12 @@ export default defineComponent({
       selected.value = [];
     };
 
+    // dragging
+
+    function onDragStart(imageID: string, event: DragEvent) {
+      event.dataTransfer?.setData(IMAGE_DRAG_MEDIA_TYPE, imageID);
+    }
+
     return {
       selected,
       selectedAll,
@@ -160,6 +168,7 @@ export default defineComponent({
       volumes,
       removeData,
       removeSelectedDICOMVolumes,
+      onDragStart,
     };
   },
 });
@@ -213,7 +222,9 @@ export default defineComponent({
               min-height="180px"
               min-width="180px"
               :html-title="volume.info.SeriesDescription"
+              draggable="true"
               @click="select"
+              @dragstart="onDragStart(volume.info.VolumeID, $event)"
             >
               <v-row no-gutters class="pa-0" justify="center">
                 <div class="thumbnail-container">

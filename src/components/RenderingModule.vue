@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, ref, unref } from 'vue';
+import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '../composables/useCurrentImage';
 import VolumeProperties from './VolumeProperties.vue';
 import VolumeRendering from './VolumeRendering.vue';
@@ -10,8 +11,16 @@ export default defineComponent({
   components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
   setup() {
     const { currentImageData, currentImage } = useCurrentImage();
+    const viewStore = useViewStore();
+    const isActiveView3D = computed(() => {
+      const view = viewStore.getView(viewStore.activeView);
+      return view?.type === '3D';
+    });
     const hasCurrentImage = computed(() => !!currentImageData.value);
     const isImageLoading = computed(() => !!unref(currentImage.value?.loading));
+    const canShowPanel = computed(() => {
+      return isActiveView3D.value && hasCurrentImage.value;
+    });
 
     const { currentLayers } = useCurrentImage();
     const hasLayers = computed(() => !!currentLayers.value.length);
@@ -20,7 +29,7 @@ export default defineComponent({
 
     return {
       panels,
-      hasCurrentImage,
+      canShowPanel,
       hasLayers,
       isImageLoading,
     };
@@ -30,7 +39,7 @@ export default defineComponent({
 
 <template>
   <div class="overflow-y-auto mx-2 mt-1 fill-height">
-    <template v-if="hasCurrentImage">
+    <template v-if="canShowPanel">
       <v-skeleton-loader v-if="isImageLoading" type="image">
       </v-skeleton-loader>
       <volume-rendering v-else />
@@ -67,7 +76,11 @@ export default defineComponent({
       </v-expansion-panels>
     </template>
     <template v-else>
-      <div class="text-center pt-12 text-subtitle-1">No image selected</div>
+      <div class="pt-12 text-subtitle-1 d-flex flex-row justify-center">
+        <div class="text-center" style="max-width: 75%">
+          Select a 3D view containing an image to view 3D controls
+        </div>
+      </div>
     </template>
   </div>
 </template>

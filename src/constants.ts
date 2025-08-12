@@ -22,6 +22,8 @@ export const ANNOTATION_TOOL_HANDLE_RADIUS = 6; // CSS pixels
 export const PICKABLE_ANNOTATION_TOOL_HANDLE_RADIUS =
   ANNOTATION_TOOL_HANDLE_RADIUS * 2;
 
+export const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
+
 export const ACTIONS = {
   windowLevel: {
     readable: 'Activate Window/Level tool',

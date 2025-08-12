@@ -4,8 +4,8 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import { SegmentMask } from '@/src/types/segment';
-import { Layout, LayoutDirection } from './types/layout';
-import { ViewSpec } from './types/views';
+import type { Layout } from './types/layout';
+import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
 import { Action } from './constants';
 import { Tools } from './store/tools/types';
@@ -26,159 +26,93 @@ export const InitViewIDs: Record<string, string> = {
   ObliqueThree: 'Oblique3D',
 };
 
-/**
- * View spec for the initial view IDs.
- */
-export const InitViewSpecs: Record<string, ViewSpec> = {
-  [InitViewIDs.Coronal]: {
-    viewType: '2D',
-    props: {
-      viewDirection: 'Posterior',
-      viewUp: 'Superior',
+export const getAvailableViews = () => {
+  const list: ViewInfoInit[] = [
+    {
+      name: 'Coronal',
+      type: '2D',
+      dataID: null,
+      options: {
+        orientation: 'Coronal',
+      },
     },
-  },
-  [InitViewIDs.Sagittal]: {
-    viewType: '2D',
-    props: {
-      viewDirection: 'Right',
-      viewUp: 'Superior',
+    {
+      name: 'Sagittal',
+      type: '2D',
+      dataID: null,
+      options: {
+        orientation: 'Sagittal',
+      },
     },
-  },
-  [InitViewIDs.Axial]: {
-    viewType: '2D',
-    props: {
-      viewDirection: 'Superior',
-      viewUp: 'Anterior',
+    {
+      name: 'Axial',
+      type: '2D',
+      dataID: null,
+      options: {
+        orientation: 'Axial',
+      },
     },
-  },
-  [InitViewIDs.ObliqueCoronal]: {
-    viewType: 'Oblique',
-    props: {
-      viewDirection: 'Posterior',
-      viewUp: 'Superior',
+    {
+      name: 'Volume',
+      type: '3D',
+      dataID: null,
+      options: {
+        viewDirection: 'Posterior',
+        viewUp: 'Superior',
+      },
     },
-  },
-  [InitViewIDs.ObliqueSagittal]: {
-    viewType: 'Oblique',
-    props: {
-      viewDirection: 'Right',
-      viewUp: 'Superior',
-    },
-  },
-  [InitViewIDs.ObliqueAxial]: {
-    viewType: 'Oblique',
-    props: {
-      viewDirection: 'Superior',
-      viewUp: 'Anterior',
-    },
-  },
-  [InitViewIDs.Three]: {
-    viewType: '3D',
-    props: {
-      viewDirection: 'Posterior',
-      viewUp: 'Superior',
-    },
-  },
-  [InitViewIDs.ObliqueThree]: {
-    viewType: 'Oblique3D',
-    props: {
-      viewDirection: 'Posterior',
-      viewUp: 'Superior',
-      slices: [
+  ];
+
+  const byName = list.reduce(
+    (acc, view) => ({ ...acc, [view.name]: view }),
+    {} as Record<string, ViewInfoInit>
+  );
+
+  return { list, byName };
+};
+
+const availableViews = getAvailableViews();
+
+export const DefaultLayoutSlots: ViewInfoInit[] = [
+  availableViews.byName.Coronal,
+  availableViews.byName.Sagittal,
+  availableViews.byName.Axial,
+  availableViews.byName.Volume,
+];
+
+export const DefaultLayout: Layout = {
+  direction: 'H',
+  items: [
+    {
+      type: 'layout',
+      direction: 'V',
+      items: [
         {
-          viewID: InitViewIDs.ObliqueSagittal,
-          axis: 'Sagittal',
+          type: 'slot',
+          slotIndex: 0,
         },
         {
-          viewID: InitViewIDs.ObliqueCoronal,
-          axis: 'Coronal',
-        },
-        {
-          viewID: InitViewIDs.ObliqueAxial,
-          axis: 'Axial',
+          type: 'slot',
+          slotIndex: 3,
         },
       ],
     },
-  },
+    {
+      type: 'layout',
+      direction: 'V',
+      items: [
+        {
+          type: 'slot',
+          slotIndex: 1,
+        },
+        {
+          type: 'slot',
+          slotIndex: 2,
+        },
+      ],
+    },
+  ],
 };
-
-/**
- * The default view spec.
- */
-export const DefaultViewSpec = InitViewSpecs[InitViewIDs.Axial];
-
-/**
- * The default layout.
- */
-export const DefaultLayoutName = 'Quad View';
-
-/**
- * Defines the default layouts.
- */
-export const Layouts: Record<string, Layout> = [
-  {
-    name: 'Axial Only',
-    direction: LayoutDirection.H,
-    items: [InitViewIDs.Axial],
-  },
-  {
-    name: 'Axial Primary',
-    direction: LayoutDirection.V,
-    items: [
-      InitViewIDs.Axial,
-      {
-        direction: LayoutDirection.H,
-        items: [InitViewIDs.Three, InitViewIDs.Coronal, InitViewIDs.Sagittal],
-      },
-    ],
-  },
-  {
-    name: '3D Primary',
-    direction: LayoutDirection.V,
-    items: [
-      InitViewIDs.Three,
-      {
-        direction: LayoutDirection.H,
-        items: [InitViewIDs.Coronal, InitViewIDs.Sagittal, InitViewIDs.Axial],
-      },
-    ],
-  },
-  {
-    name: 'Quad View',
-    direction: LayoutDirection.H,
-    items: [
-      {
-        direction: LayoutDirection.V,
-        items: [InitViewIDs.Coronal, InitViewIDs.Three],
-      },
-      {
-        direction: LayoutDirection.V,
-        items: [InitViewIDs.Sagittal, InitViewIDs.Axial],
-      },
-    ],
-  },
-  {
-    name: 'Oblique View',
-    direction: LayoutDirection.H,
-    items: [
-      {
-        direction: LayoutDirection.V,
-        items: [InitViewIDs.ObliqueCoronal, InitViewIDs.ObliqueThree],
-      },
-      {
-        direction: LayoutDirection.V,
-        items: [InitViewIDs.ObliqueSagittal, InitViewIDs.ObliqueAxial],
-      },
-    ],
-  },
-  {
-    name: '3D Only',
-    direction: LayoutDirection.H,
-    items: [InitViewIDs.Three],
-  },
-].reduce((layouts, layout) => {
-  return { ...layouts, [layout.name]: layout };
-}, {});
 
 export const SAMPLE_DATA: SampleDataset[] = [
   {

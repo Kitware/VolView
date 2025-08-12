@@ -5,7 +5,6 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useViewStore } from '@/src/store/views';
-import { LayoutDirection } from '@/src/types/layout';
 import { Manifest } from './schema';
 
 import { retypeFile } from '../io';
@@ -42,7 +41,7 @@ export async function serialize() {
       current: Tools.WindowLevel,
     },
     layout: {
-      direction: LayoutDirection.H,
+      direction: 'H',
       items: [],
     },
     views: [],

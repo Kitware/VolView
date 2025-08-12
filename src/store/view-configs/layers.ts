@@ -56,7 +56,7 @@ export const defaultLayersConfig = (): LayersConfig => ({
     gaussians: [],
     mappingRange: [0, 1],
   },
-  blendConfig: { opacity: 0.6, visibility: true },
+  blendConfig: { opacity: 0.3, visibility: true },
 });
 
 export const useLayerColoringStore = defineStore('layerColoring', () => {
@@ -65,7 +65,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   const configs = reactive<DoubleKeyRecord<LayersConfig>>({});
 
   const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
-    getDoubleKeyRecord(configs, viewID, dataID);
+    getDoubleKeyRecord(configs, viewID, dataID) ?? defaultLayersConfig();
 
   const updateConfig = (
     viewID: string,
@@ -121,9 +121,6 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     updateOpacityFunction(viewID, layerID, opFunc);
   };
 
-  const initConfig = (viewID: string, dataID: string) =>
-    updateConfig(viewID, dataID, defaultLayersConfig());
-
   const resetColorPreset = (viewID: string, layerID: string) => {
     setColorPreset(viewID, layerID, getPreset(layerID));
   };
@@ -153,7 +150,6 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
   return {
     configs,
     getConfig,
-    initConfig,
     updateConfig,
     updateColorBy,
     updateColorTransferFunction,

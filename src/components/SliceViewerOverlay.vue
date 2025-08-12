@@ -7,6 +7,7 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useOrientationLabels } from '@/src/composables/useOrientationLabels';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 
 interface Props {
   viewId: string;
@@ -58,6 +59,11 @@ const {
     <template v-slot:top-right>
       <div class="annotation-cell">
         <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
+      </div>
+    </template>
+    <template #bottom-right>
+      <div class="annotation-cell" @click.stop>
+        <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
       </div>
     </template>
   </view-overlay-grid>

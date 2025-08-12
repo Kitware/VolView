@@ -6,7 +6,6 @@ import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
-import { useImageStore } from './datasets-images';
 
 /**
  * This store saves view configuration that is associated with a specific
@@ -61,15 +60,6 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
   };
-
-  // delete hook
-  const imageStore = useImageStore();
-  imageStore.$onAction(({ name, args }) => {
-    if (name === 'deleteData') {
-      const [id] = args;
-      removeData(id);
-    }
-  });
 
   return {
     removeView,
