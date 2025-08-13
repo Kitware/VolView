@@ -75,9 +75,9 @@ const availableViews = getAvailableViews();
 
 export const DefaultLayoutSlots: ViewInfoInit[] = [
   availableViews.byName.Coronal,
+  availableViews.byName.Volume,
   availableViews.byName.Sagittal,
   availableViews.byName.Axial,
-  availableViews.byName.Volume,
 ];
 
 export const DefaultLayout: Layout = {
@@ -93,7 +93,7 @@ export const DefaultLayout: Layout = {
         },
         {
           type: 'slot',
-          slotIndex: 3,
+          slotIndex: 1,
         },
       ],
     },
@@ -103,11 +103,11 @@ export const DefaultLayout: Layout = {
       items: [
         {
           type: 'slot',
-          slotIndex: 1,
+          slotIndex: 2,
         },
         {
           type: 'slot',
-          slotIndex: 2,
+          slotIndex: 3,
         },
       ],
     },
