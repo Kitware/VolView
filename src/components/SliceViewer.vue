@@ -7,7 +7,7 @@
     @focusin="hover = true"
     @focusout="hover = false"
   >
-    <div class="vtk-gutter">
+    <div class="vtk-gutter mt-1">
       <v-btn dark icon size="medium" variant="text" @click="resetCamera">
         <v-icon size="medium" class="py-1">mdi-camera-flip-outline</v-icon>
         <v-tooltip

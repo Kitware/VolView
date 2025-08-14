@@ -49,7 +49,12 @@
                 Reset Camera
               </v-tooltip>
             </v-btn>
-            <span class="ml-3">{{ presetName }}</span>
+            <span class="ml-3">{{ currentImageMetadata.name }}</span>
+          </div>
+        </template>
+        <template #top-right>
+          <div class="annotation-cell">
+            <span>{{ presetName }}</span>
           </div>
         </template>
         <template #bottom-right>
@@ -116,7 +121,12 @@ useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, viewType);
 
 // base image
-const { currentImageID, currentImageData, isImageLoading } = useCurrentImage();
+const {
+  currentImageID,
+  currentImageData,
+  currentImageMetadata,
+  isImageLoading,
+} = useCurrentImage();
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
