@@ -29,6 +29,21 @@ export const InitViewIDs: Record<string, string> = {
 export const getAvailableViews = () => {
   const list: ViewInfoInit[] = [
     {
+      name: 'Oblique',
+      type: 'Oblique',
+      dataID: null,
+      options: {},
+    },
+    {
+      name: 'Volume',
+      type: '3D',
+      dataID: null,
+      options: {
+        viewDirection: 'Posterior',
+        viewUp: 'Superior',
+      },
+    },
+    {
       name: 'Coronal',
       type: '2D',
       dataID: null,
@@ -50,15 +65,6 @@ export const getAvailableViews = () => {
       dataID: null,
       options: {
         orientation: 'Axial',
-      },
-    },
-    {
-      name: 'Volume',
-      type: '3D',
-      dataID: null,
-      options: {
-        viewDirection: 'Posterior',
-        viewUp: 'Superior',
       },
     },
   ];

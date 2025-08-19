@@ -7,7 +7,7 @@
           class="vtk-view"
           ref="vtkView"
           data-testid="vtk-view"
-          :view-id="id"
+          :view-id="viewId"
           :image-id="currentImageID"
           :view-direction="viewDirection"
           :view-up="viewUp"
@@ -36,22 +36,22 @@
             :manipulator-props="{ button: 3 }"
           ></vtk-mouse-interaction-manipulator>
           <vtk-slice-view-window-manipulator
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :manipulator-config="windowingManipulatorProps"
           ></vtk-slice-view-window-manipulator>
           <slice-viewer-overlay
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
           ></slice-viewer-overlay>
           <vtk-base-oblique-slice-representation
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :plane-normal="planeNormal"
             :plane-origin="planeOrigin"
           ></vtk-base-oblique-slice-representation>
           <vtk-image-outline-representation
-            :view-id="id"
+            :view-id="viewId"
             :image-id="currentImageID"
             :plane-normal="planeNormal"
             :plane-origin="planeOrigin"
@@ -59,7 +59,7 @@
             :color="outlineColor"
           ></vtk-image-outline-representation>
           <reslice-cursor-tool
-            :view-id="id"
+            :view-id="viewId"
             :view-direction="viewDirection"
           ></reslice-cursor-tool>
           <slot></slot>
@@ -84,7 +84,6 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import useResliceCursorStore, {
   mapAxisToViewType,
 } from '@/src/store/reslice-cursor';
-import { LayoutViewProps } from '@/src/types';
 import { LPSAxisDir } from '@/src/types/lps';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
@@ -104,7 +103,9 @@ import { storeToRefs } from 'pinia';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 
-interface Props extends LayoutViewProps {
+interface Props {
+  viewId: string;
+  outlineType: string;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
 }
@@ -113,11 +114,11 @@ const vtkView = ref<VtkViewApi>();
 
 const props = defineProps<Props>();
 
-const { id: viewId, type: viewType, viewDirection, viewUp } = toRefs(props);
+const { viewId, outlineType, viewDirection, viewUp } = toRefs(props);
 const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 useWebGLWatchdog(vtkView);
-useViewAnimationListener(vtkView, viewId, viewType);
+useViewAnimationListener(vtkView, viewId, 'Oblique');
 
 // active tool
 const { currentTool } = storeToRefs(useToolStore());
@@ -261,7 +262,7 @@ const outlineColor = computed(
   () =>
     vec3.scale(
       [0, 0, 0],
-      OBLIQUE_OUTLINE_COLORS[viewId.value],
+      OBLIQUE_OUTLINE_COLORS[outlineType.value],
       1 / 255
     ) as RGBColor
 );

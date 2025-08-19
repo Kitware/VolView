@@ -6,7 +6,7 @@ import {
 import { Maybe } from '@/src/types';
 import { LPSAxis, LPSAxisDir } from '@/src/types/lps';
 
-export type ViewType = '2D' | '3D' | 'Oblique2D' | 'Oblique3D';
+export type ViewType = '2D' | '3D' | 'Oblique';
 
 interface GenericViewInfo {
   id: string;
@@ -31,8 +31,16 @@ export interface ViewInfo3D extends GenericViewInfo {
   };
 }
 
-export type ViewInfo = ViewInfo2D | ViewInfo3D;
-export type ViewInfoInit = Omit<ViewInfo2D, 'id'> | Omit<ViewInfo3D, 'id'>;
+export interface ViewInfoOblique extends GenericViewInfo {
+  type: 'Oblique';
+  options: {};
+}
+
+export type ViewInfo = ViewInfo2D | ViewInfo3D | ViewInfoOblique;
+export type ViewInfoInit = Omit<
+  ViewInfo2D | ViewInfo3D | ViewInfoOblique,
+  'id'
+>;
 
 export interface ViewSpec {
   viewType: string;

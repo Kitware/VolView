@@ -5,6 +5,7 @@ import SliceViewer from '@/src/components/SliceViewer.vue';
 import VolumeViewer from '@/src/components/VolumeViewer.vue';
 import { ViewInfo } from '@/src/types/views';
 import { Maybe } from '@/src/types';
+import ObliqueViewer from '@/src/components/ObliqueViewer.vue';
 
 export function getComponentFromViewInfo(info: ViewInfo): Maybe<Component> {
   switch (info.type) {
@@ -12,8 +13,8 @@ export function getComponentFromViewInfo(info: ViewInfo): Maybe<Component> {
       return SliceViewer;
     case '3D':
       return VolumeViewer;
-    // case 'Oblique':
-    //
+    case 'Oblique':
+      return ObliqueViewer;
     default:
       return null;
   }

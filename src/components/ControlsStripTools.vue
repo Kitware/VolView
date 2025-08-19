@@ -142,6 +142,7 @@ import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
   components: {
@@ -158,11 +159,16 @@ export default defineComponent({
   },
   setup() {
     const toolStore = useToolStore();
+    const viewStore = useViewStore();
 
     const { currentImageID } = useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
-    const isObliqueLayout = computed(() => false);
+    const isObliqueLayout = computed(() => {
+      if (!viewStore.activeView) return false;
+      const view = viewStore.viewByID[viewStore.activeView];
+      return view.type === 'Oblique';
+    });
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
