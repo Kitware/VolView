@@ -20,7 +20,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   const handle = widgetState.getHandle();
 
   const active = ref(false);
-  const { currentImageID, currentImageMetadata } = useCurrentImage();
+  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
 
   // world-space
   const position = ref<Vector3>([0, 0, 0]);

@@ -45,7 +45,7 @@ export const useToolSelectionStore = defineStore('tool-selection', () => {
     }));
   });
 
-  const { currentImageID } = useCurrentImage();
+  const { currentImageID } = useCurrentImage('global');
 
   watch(currentImageID, () => {
     clearSelection();
