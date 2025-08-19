@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
 import type { Maybe } from '@/src/types';
-import type { Layout } from '@/src/types/layout';
+import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
 import type { ViewInfo, ViewInfoInit } from '@/src/types/views';
 import { DefaultLayout, DefaultLayoutSlots } from '@/src/config';
@@ -20,6 +20,16 @@ const DEFAULT_VIEW_INIT: ViewInfoInit = {
     orientation: 'Axial',
   },
 };
+
+function iterLayout(
+  layout: Layout,
+  cb: (item: LayoutItem & { type: 'slot' }) => void
+) {
+  layout.items.forEach((item) => {
+    if (item.type === 'slot') cb(item);
+    else iterLayout(item, cb);
+  });
+}
 
 function calcLayoutViewCount(layout: Layout): number {
   return layout.items.reduce((sum, item) => {
@@ -72,6 +82,16 @@ export const useViewStore = defineStore('view', () => {
     return undefined;
   });
 
+  const visibleViews = computed(() => {
+    if (maximizedView.value) return [maximizedView.value];
+    const views: ViewInfo[] = [];
+    iterLayout(layout.value, (item) => {
+      const viewId = layoutSlots.value[item.slotIndex];
+      views.push(viewByID[viewId]);
+    });
+    return views;
+  });
+
   function getView(id: Maybe<string>) {
     if (!id) return null;
     return viewByID[id] ?? null;
@@ -88,7 +108,7 @@ export const useViewStore = defineStore('view', () => {
     });
   }
 
-  function setActiveView(id: string) {
+  function setActiveView(id: Maybe<string>) {
     activeView.value = id;
   }
 
@@ -119,6 +139,10 @@ export const useViewStore = defineStore('view', () => {
     const newViewId = addView(viewInfo);
     layoutSlots.value[slotIndex] = newViewId;
     LayoutViewReplacedEvent.trigger(id, newViewId);
+
+    if (activeView.value === id) {
+      setActiveView(newViewId);
+    }
   }
 
   function setLayout(newLayout: Layout) {
@@ -129,6 +153,14 @@ export const useViewStore = defineStore('view', () => {
     }
 
     layout.value = newLayout;
+
+    if (!visibleViews.value.length) {
+      setActiveView(null);
+    } else if (
+      !visibleViews.value.find((view) => view.id === activeView.value)
+    ) {
+      setActiveView(visibleViews.value[0].id);
+    }
   }
 
   function setLayoutFromGrid(gridSize: [number, number]) {
@@ -183,10 +215,7 @@ export const useViewStore = defineStore('view', () => {
         } satisfies Layout;
       return layout.value;
     }),
-    visibleViews: computed(() => {
-      if (maximizedView.value) return [maximizedView.value];
-      return layoutSlots.value.map((id) => viewByID[id]);
-    }),
+    visibleViews,
     activeView,
     viewByID,
     getView,
