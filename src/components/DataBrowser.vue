@@ -6,7 +6,7 @@ import { useDicomWebStore } from '../store/dicom-web/dicom-web-store';
 import ImageDataBrowser from './ImageDataBrowser.vue';
 import PatientBrowser from './PatientBrowser.vue';
 import PatientList from './dicom-web/PatientList.vue';
-import { useDICOMStore } from '../store/datasets-dicom';
+import { useDICOMStore, ANONYMOUS_PATIENT } from '../store/datasets-dicom';
 import { useImageStore } from '../store/datasets-images';
 import { useDataBrowserStore } from '../store/data-browser';
 import { useDatasetStore } from '../store/datasets';
@@ -36,7 +36,7 @@ export default defineComponent({
       Object.entries(dicomStore.patientInfo)
         .map(([key, info]) => ({
           key,
-          name: info.PatientName,
+          name: info.PatientName || ANONYMOUS_PATIENT,
           info,
         }))
         .sort((a, b) => (a.name < b.name ? -1 : 1))
