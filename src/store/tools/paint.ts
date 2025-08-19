@@ -9,6 +9,7 @@ import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
 import useViewSliceStore from '../view-configs/slicing';
@@ -36,7 +37,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activePaintViewID = ref<Maybe<string>>(null);
 
   const { currentImageID, currentImageData, currentImageMetadata } =
-    useCurrentImage();
+    useCurrentImage('global');
   const imageStatsStore = useImageStatsStore();
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
@@ -56,7 +57,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
     if (imageID) {
-      return viewStore.viewIDs.filter(
+      return Object.keys(viewStore.viewByID).filter(
         (viewID) => !!viewSliceStore.getConfig(viewID, imageID)
       );
     }
@@ -325,8 +326,13 @@ export const usePaintToolStore = defineStore('paint', () => {
       const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
       if (!sliceConfig) return;
 
+      // Get view to determine axis direction
+      const view = viewStore.getView(viewID);
+      if (!view || view.type !== '2D') return;
+
       // Update slice position
-      const axis = getLPSAxisFromDir(sliceConfig.axisDirection);
+      const { viewDirection } = get2DViewingVectors(view.options.orientation);
+      const axis = getLPSAxisFromDir(viewDirection);
       const index = lpsOrientation[axis];
       const slice = Math.round(indexPos[index]);
       if (slice !== sliceConfig.slice) {

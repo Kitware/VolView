@@ -87,15 +87,16 @@ export function useImage(imageID: MaybeRef<Maybe<string>>) {
   };
 }
 
-export function useCurrentImage() {
+export function useCurrentImage(type: 'local' | 'global' = 'local') {
   const { activeView, viewByID } = storeToRefs(useViewStore());
   const viewInfo = computed(() =>
     activeView.value ? viewByID.value[activeView.value] : null
   );
   const defaultContext = { imageID: computed(() => viewInfo.value?.dataID) };
-  const { imageID } = hasInjectionContext()
-    ? inject(CurrentImageInjectionKey, defaultContext)
-    : defaultContext;
+  const { imageID } =
+    hasInjectionContext() && type === 'local'
+      ? inject(CurrentImageInjectionKey, defaultContext)
+      : defaultContext;
 
   const { id, imageData, metadata, extent, isLoading, layers, image } =
     useImage(imageID);
