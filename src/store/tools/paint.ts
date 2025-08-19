@@ -28,7 +28,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const isActive = ref(false);
   const thresholdRange = ref<Vector2>([...DEFAULT_THRESHOLD_RANGE]);
 
-  const { currentImageID, currentImageData } = useCurrentImage();
+  const { currentImageID, currentImageData } = useCurrentImage('global');
   const imageStatsStore = useImageStatsStore();
 
   function getWidgetFactory(this: _This) {
