@@ -64,7 +64,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   const paintStore = usePaintToolStore();
   const { activeSegmentGroupID } = storeToRefs(paintStore);
   const messageStore = useMessageStore();
-  const { currentImageID } = useCurrentImage();
+  const { currentImageID } = useCurrentImage('global');
 
   function rollbackPreview(
     image: vtkLabelMap,

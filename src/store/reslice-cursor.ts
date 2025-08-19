@@ -51,7 +51,7 @@ function useResliceInit(
   resliceCursor: vtkResliceCursorWidget,
   resliceCursorState: ResliceCursorWidgetState
 ) {
-  const { currentImageData, currentImageMetadata } = useCurrentImage();
+  const { currentImageData, currentImageMetadata } = useCurrentImage('global');
 
   watchEffect(() => {
     const image = currentImageData.value;
