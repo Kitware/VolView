@@ -17,7 +17,6 @@ const emits = defineEmits<{
 const MAX_WIDTH = 3;
 const MAX_HEIGHT = 3;
 
-console.log(props);
 const internalSelection = shallowRef<[number, number]>([
   props.modelValue[0],
   props.modelValue[1],
