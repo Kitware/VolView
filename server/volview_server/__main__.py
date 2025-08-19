@@ -18,7 +18,7 @@ def parse_args():
         "-H", "--host", default="localhost", help="Hostname for server to listen on"
     )
     parser.add_argument(
-        "-P", "--port", default=4014, help="Port for server to listen on"
+        "-P", "--port", type=int, default=4014, help="Port for server to listen on"
     )
     parser.add_argument(
         "--verbose", default=False, action="store_true", help="Enable verbose logging."

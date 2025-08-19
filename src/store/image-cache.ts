@@ -107,6 +107,22 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     delete imageLoading[id];
   }
 
+  /**
+   * Updates an existing image's VTK data while maintaining the same ID.
+   */
+  function updateVTKImageData(id: string, newImageData: vtkImageData): void {
+    const progressiveImage = imageById[id];
+    const oldImageData = progressiveImage.vtkImageData.value;
+
+    progressiveImage.vtkImageData.value = newImageData;
+    // trigger texture update
+    newImageData.modified();
+
+    if (oldImageData && oldImageData !== newImageData) {
+      oldImageData.delete();
+    }
+  }
+
   return {
     imageIds,
     imageById,
@@ -117,6 +133,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     getImageMetadata,
     addProgressiveImage,
     addVTKImageData,
+    updateVTKImageData,
     removeImage,
   };
 });
