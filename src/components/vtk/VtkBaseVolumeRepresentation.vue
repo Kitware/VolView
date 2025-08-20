@@ -167,12 +167,6 @@ watchEffect(() => {
     mapper,
   });
 
-  if (isImageStreaming.value) {
-    // reduce the quality of the volume until the entire volume is loaded
-    const sampleDistance = mapper.getSampleDistance();
-    mapper.setSampleDistance(sampleDistance * 15);
-  }
-
   view.requestRender();
 });
 
