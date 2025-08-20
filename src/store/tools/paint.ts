@@ -309,7 +309,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     crossPlaneSync.value = enabled;
   }
 
-  watch([paintPosition, crossPlaneSync], ([worldPosition]) => {
+  watch(paintPosition, (worldPosition) => {
     if (!crossPlaneSync.value || !isActive.value) return;
 
     const imageID = unref(currentImageID);
