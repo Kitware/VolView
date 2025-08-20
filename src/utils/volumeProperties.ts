@@ -13,28 +13,6 @@ import { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 
 /**
- * Sets the volume sampling distance.
- * @param mapper
- * @param distance A value betweeen 0 and 1.
- * @param imageData
- */
-export function setSamplingDistance(
-  mapper: vtkVolumeMapper,
-  distance: number,
-  imageData: vtkImageData
-) {
-  const sampleDistance =
-    0.7 *
-    Math.sqrt(
-      imageData
-        .getSpacing()
-        .map((v) => v * v)
-        .reduce((a, b) => a + b, 0)
-    );
-  mapper.setSampleDistance(sampleDistance * 2 ** (distance * 3.0 - 1.5));
-}
-
-/**
  * Sets the edge gradient.
  * @param property
  * @param edgeGradient A value between 0 and 1.
