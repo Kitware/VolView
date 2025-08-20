@@ -93,13 +93,17 @@ export default defineComponent({
 
     onVTKEvent(widget, 'onStartInteractionEvent', () => {
       // StartInteraction cannot occur if origin is null.
-      const indexPoint = worldPointToIndex(widgetState.getBrush().getOrigin()!);
+      const origin = widgetState.getBrush().getOrigin()!;
+      const indexPoint = worldPointToIndex(origin);
       paintStore.startStroke(indexPoint, viewAxisIndex.value);
+      paintStore.updatePaintPosition(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onInteractionEvent', () => {
-      const indexPoint = worldPointToIndex(widgetState.getBrush().getOrigin()!);
+      const origin = widgetState.getBrush().getOrigin()!;
+      const indexPoint = worldPointToIndex(origin);
       paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value);
+      paintStore.updatePaintPosition(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onEndInteractionEvent', () => {
