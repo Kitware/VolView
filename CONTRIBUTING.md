@@ -22,32 +22,10 @@ For reproducible installs, use:
 npm ci
 ```
 
-If you encounter errors about `package-lock.json` schema, regenerate it:
-
-```bash
-rm package-lock.json
-npm install
-```
 
 ---
 
 ## Dependencies
-
-The project relies on the following key libraries and tools (from `package.json`):
-
-| Package                | Version     |
-|------------------------|-------------|
-| Vite                   | ^4.5.2      |
-| Vue                    | ^3.5.13     |
-| TypeScript             | ~5.1.3      |
-| Vitest                 | ^0.32.1     |
-| Vuetify                | 3.7.0       |
-| Pinia                  | ^2.0.34     |
-| @kitware/vtk.js        | ^32.12.1    |
-| itk-wasm               | 1.0.0-b.188 |
-| @itk-wasm/dicom        | 7.6.0       |
-| @sentry/vue            | ^7.54.0     |
-| @vueuse/core           | ^13.0.0     |
 
 Refer to `package.json` for the full list of dependencies and devDependencies.
 
