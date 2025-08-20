@@ -145,7 +145,8 @@ import { useImageStatsStore } from '@/src/store/image-stats';
 
 const paintStore = usePaintToolStore();
 const imageStatsStore = useImageStatsStore();
-const { brushSize, activeMode, thresholdRange, crossPlaneSync } = storeToRefs(paintStore);
+const { brushSize, activeMode, thresholdRange, crossPlaneSync } =
+  storeToRefs(paintStore);
 const { currentImageID } = useCurrentImage();
 
 const currentImageStats = computed(() => {
