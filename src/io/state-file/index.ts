@@ -4,18 +4,19 @@ import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
-// import { useViewStore } from '@/src/store/views';
-import { Manifest } from './schema';
+import { useViewStore } from '@/src/store/views';
+import { Manifest } from '@/src/io/state-file/schema';
 
-import { retypeFile } from '../io';
-import { ARCHIVE_FILE_TYPES } from '../mimeTypes';
+import { retypeFile } from '@/src/io';
+import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
+import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
 export const MANIFEST_VERSION = '5.0.1';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
-  // const viewStore = useViewStore();
+  const viewStore = useViewStore();
   const labelStore = useSegmentGroupStore();
   const toolStore = useToolStore();
   const layersStore = useLayersStore();
@@ -44,7 +45,9 @@ export async function serialize() {
       direction: 'H',
       items: [],
     },
-    views: [],
+    layoutSlots: [],
+    viewByID: {},
+    isActiveViewMaximized: false,
     parentToLayers: [],
   };
 
@@ -54,7 +57,8 @@ export async function serialize() {
   };
 
   await datasetStore.serialize(stateFile);
-  // viewStore.serialize(stateFile);
+  viewStore.serialize(stateFile);
+  await useViewConfigStore().serialize(stateFile);
   await labelStore.serialize(stateFile);
   toolStore.serialize(stateFile);
   await layersStore.serialize(stateFile);

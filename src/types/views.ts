@@ -37,10 +37,10 @@ export interface ViewInfoOblique extends GenericViewInfo {
 }
 
 export type ViewInfo = ViewInfo2D | ViewInfo3D | ViewInfoOblique;
-export type ViewInfoInit = Omit<
-  ViewInfo2D | ViewInfo3D | ViewInfoOblique,
-  'id'
->;
+export type ViewInfoInit =
+  | Omit<ViewInfo2D, 'id'>
+  | Omit<ViewInfo3D, 'id'>
+  | Omit<ViewInfoOblique, 'id'>;
 
 export interface ViewSpec {
   viewType: string;

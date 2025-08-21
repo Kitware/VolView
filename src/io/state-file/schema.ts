@@ -23,8 +23,8 @@ import type {
   LayersConfig,
   SegmentGroupConfig,
   VolumeColorConfig,
-} from '../../store/view-configs/types';
-import type { LPSAxis } from '../../types/lps';
+} from '@/src/store/view-configs/types';
+import type { LPSAxis } from '@/src/types/lps';
 import type {
   ColorBy,
   ColorTransferFunction,
@@ -35,8 +35,9 @@ import type {
   ColoringConfig,
   CVRConfig,
   BlendConfig,
-} from '../../types/views';
-import { WLAutoRanges } from '../../constants';
+} from '@/src/types/views';
+import { WLAutoRanges } from '@/src/constants';
+import { type Layout, type LayoutItem } from '@/src/types/layout';
 
 const FileSource = z.object({
   id: z.number(),
@@ -100,17 +101,24 @@ export type RemoteFile = z.infer<typeof RemoteFile>;
 
 const LayoutDirectionNative = z.enum(['H', 'V']);
 
-export interface Layout {
-  name?: string;
-  direction: 'H' | 'V';
-  items: Array<Layout | string>;
-}
+const LayoutItem: z.ZodType<LayoutItem> = z.lazy(() =>
+  z.union([
+    z.object({
+      type: z.literal('slot'),
+      slotIndex: z.number(),
+    }),
+    z.object({
+      type: z.literal('layout'),
+      direction: LayoutDirectionNative,
+      items: z.array(LayoutItem),
+    }),
+  ])
+);
 
 const Layout: z.ZodType<Layout> = z.lazy(() =>
   z.object({
-    name: z.string().optional(),
     direction: LayoutDirectionNative,
-    items: z.array(z.union([Layout, z.string()])),
+    items: z.array(LayoutItem),
   })
 );
 
@@ -269,9 +277,10 @@ export type ViewConfig = z.infer<typeof ViewConfig>;
 
 const View = z.object({
   id: z.string(),
-  type: z.string(),
-  props: z.record(z.any()),
-  config: z.record(ViewConfig),
+  name: z.string(),
+  type: z.union([z.literal('2D'), z.literal('3D'), z.literal('Oblique')]),
+  dataID: z.string().optional().nullable(),
+  options: z.record(z.string()).optional(),
 });
 
 export type View = z.infer<typeof View>;
@@ -400,9 +409,12 @@ export const ManifestSchema = z.object({
   datasetFilePath: z.record(z.string()),
   labelMaps: LabelMap.array(),
   tools: Tools,
-  views: View.array(),
+  activeView: z.string().optional().nullable(),
+  isActiveViewMaximized: z.boolean(),
+  viewByID: z.record(z.string(), View),
   primarySelection: z.string().optional(),
   layout: Layout,
+  layoutSlots: z.array(z.string()),
   parentToLayers: ParentToLayers,
 });
 

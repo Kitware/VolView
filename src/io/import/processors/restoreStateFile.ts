@@ -29,6 +29,7 @@ import updateUriType from '@/src/io/import/processors/updateUriType';
 import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
+import { useViewStore } from '@/src/store/views';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -364,9 +365,9 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       );
     }
 
-    // // We restore the view first, so that the appropriate watchers are triggered
-    // // in the views as the data is loaded
-    // useViewStore().setLayout(manifest.layout);
+    // We restore the view first, so that the appropriate watchers are triggered
+    // in the views as the data is loaded
+    useViewStore().setLayout(manifest.layout);
 
     const stateIDToStoreID = await restoreDatasets(
       manifest,
@@ -374,15 +375,8 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       context
     );
 
-    // Restore the primary selection
-    // if (manifest.primarySelection !== undefined) {
-    //   const selectedID = stateIDToStoreID[manifest.primarySelection];
-
-    //   useDatasetStore().setPrimarySelection(selectedID);
-    // }
-
     // Restore the views
-    // useViewStore().deserialize(manifest.views, stateIDToStoreID);
+    useViewStore().deserialize(manifest, stateIDToStoreID);
 
     // Restore the labelmaps
     const segmentGroupIDMap = await useSegmentGroupStore().deserialize(

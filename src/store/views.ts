@@ -6,11 +6,7 @@ import { useIdStore } from '@/src/store/id';
 import type { ViewInfo, ViewInfoInit } from '@/src/types/views';
 import { DefaultLayout, DefaultLayoutSlots } from '@/src/config';
 import { createEventHook } from '@vueuse/core';
-// import type {
-//   StateFile,
-//   Layout as StateFileLayout,
-//   View,
-// } from '../io/state-file/schema';
+import type { StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
   type: '2D',
@@ -192,13 +188,54 @@ export const useViewStore = defineStore('view', () => {
     });
   }
 
-  function serialize() {
-    throw new Error('implement me');
+  function serialize(stateFile: StateFile) {
+    const { manifest } = stateFile;
+    manifest.layout = layout.value;
+    manifest.activeView = activeView.value;
+    manifest.isActiveViewMaximized = isActiveViewMaximized.value;
+    manifest.layoutSlots = layoutSlots.value;
+    manifest.viewByID = viewByID;
   }
 
-  function deserialize() {
-    throw new Error('implement me');
+  function deserialize(
+    manifest: StateFile['manifest'],
+    dataIDMap: Record<string, string>
+  ) {
+    setLayout(manifest.layout);
+    setActiveView(manifest.activeView);
+    isActiveViewMaximized.value = manifest.isActiveViewMaximized;
+    layoutSlots.value = manifest.layoutSlots;
+
+    Object.keys(viewByID).forEach((key) => {
+      delete viewByID[key];
+    });
+
+    Object.entries(manifest.viewByID).forEach(([id, view]) => {
+      viewByID[id] = {
+        ...view,
+        dataID: view.id ? dataIDMap[view.id] : null,
+      } as unknown as ViewInfo;
+    });
   }
+
+  //     deserialize(views: View[], dataIDMap: Record<string, string>) {
+  //       const viewConfigStore = useViewConfigStore();
+
+  //       views.forEach((view) => {
+  //         const viewID = view.id;
+
+  //         const viewSpec = {
+  //           viewType: view.type,
+  //           props: view.props,
+  //         };
+
+  //         this.viewSpecs[viewID] = viewSpec;
+
+  //         // Now delegate the deserialization of the view config
+  //         const { config } = view;
+  //         viewConfigStore.deserialize(viewID, config, dataIDMap);
+  //       });
+  //     },
 
   // initialization
 
