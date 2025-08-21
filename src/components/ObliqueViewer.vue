@@ -49,6 +49,13 @@
         />
       </div>
     </div>
+    <view-overlay-grid class="overlay-no-events view-annotations">
+      <template #bottom-right>
+        <div class="annotation-cell" @click.stop>
+          <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
+        </div>
+      </template>
+    </view-overlay-grid>
   </div>
 </template>
 
@@ -56,6 +63,9 @@
 import MultiObliqueSliceViewer from '@/src/components/MultiObliqueSliceViewer.vue';
 import ObliqueSliceViewer from '@/src/components/ObliqueSliceViewer.vue';
 import useResliceCursorStore from '@/src/store/reslice-cursor';
+import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 
 interface Props {
   viewId: string;
@@ -63,6 +73,11 @@ interface Props {
 
 defineProps<Props>();
 
+const { currentImageID } = useCurrentImage();
+
 // initialize the reslice cursor store
 useResliceCursorStore();
 </script>
+
+<style scoped src="@/src/components/styles/vtk-view.css"></style>
+<style scoped src="@/src/components/styles/utils.css"></style>
