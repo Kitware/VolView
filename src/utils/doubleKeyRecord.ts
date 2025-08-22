@@ -51,3 +51,14 @@ export function getDoubleKeyRecord<V>(
   if (k1 == null || k2 == null) return null;
   return record[k1]?.[k2];
 }
+
+export function forEachEntry<V>(
+  record: DoubleKeyRecord<V>,
+  cb: (k1: string, k2: string, value: V) => void
+) {
+  Object.entries(record).forEach(([k1, inner]) => {
+    Object.entries(inner).forEach(([k2, value]) => {
+      cb(k1, k2, value);
+    });
+  });
+}

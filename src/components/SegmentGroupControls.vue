@@ -137,7 +137,7 @@ function createSegmentGroup() {
 // Collect images that can be converted into
 // a SegmentGroup for the current background image.
 const segmentGroupConvertibles = computed(() => {
-  const primarySelection = dataStore.primarySelection;
+  const primarySelection = currentImageID.value;
   if (!primarySelection) return [];
   return dataStore.idsAsSelections
     .filter((selection) => !selectionEquals(selection, primarySelection))
@@ -148,7 +148,7 @@ const segmentGroupConvertibles = computed(() => {
 });
 
 function createSegmentGroupFromImage(selection: DataSelection) {
-  const primarySelection = dataStore.primarySelection;
+  const primarySelection = currentImageID.value;
   if (!primarySelection) {
     throw new Error('No primary selection');
   }

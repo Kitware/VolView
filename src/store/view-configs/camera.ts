@@ -96,7 +96,7 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
 
   const updateSyncConfigs = () => {
     Object.keys(configs).forEach((viewID) => {
-      const { currentImageID } = useCurrentImage();
+      const { currentImageID } = useCurrentImage('global');
       const config = getConfig(viewID, currentImageID.value);
       imageStore.idList.forEach((imageID) => {
         const { syncState } = {

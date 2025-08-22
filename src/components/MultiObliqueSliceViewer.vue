@@ -7,7 +7,7 @@
           class="vtk-view"
           ref="vtkView"
           data-testid="vtk-view"
-          :view-id="id"
+          :view-id="viewId"
           :image-id="currentImageID"
           :view-direction="viewDirection"
           :view-up="viewUp"
@@ -41,7 +41,6 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { LPSAxis, LPSAxisDir } from '@/src/types/lps';
 import VtkVolumeView from '@/src/components/vtk/VtkVolumeView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
-import { LayoutViewProps } from '@/src/types';
 import VtkBaseObliqueSliceRepresentation from '@/src/components/vtk/VtkBaseObliqueSliceRepresentation.vue';
 import VtkImageOutlineRepresentation from '@/src/components/vtk/VtkImageOutlineRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
@@ -59,7 +58,8 @@ interface SliceSpec {
   axis: LPSAxis;
 }
 
-interface Props extends LayoutViewProps {
+interface Props {
+  viewId: string;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
   slices: SliceSpec[];
@@ -69,15 +69,9 @@ const vtkView = ref<VtkViewApi>();
 
 const props = defineProps<Props>();
 
-const {
-  id: viewId,
-  type: viewType,
-  viewDirection,
-  viewUp,
-  slices,
-} = toRefs(props);
+const { viewId, viewDirection, viewUp, slices } = toRefs(props);
 
-useViewAnimationListener(vtkView, viewId, viewType);
+useViewAnimationListener(vtkView, viewId, 'Oblique');
 
 // base image
 const { currentImageID } = useCurrentImage();
@@ -96,7 +90,7 @@ const obliqueSliceProps = computed(() => {
     );
     const outlineColor = vec3.scale(
       [0, 0, 0],
-      OBLIQUE_OUTLINE_COLORS[sliceSpec.viewID],
+      OBLIQUE_OUTLINE_COLORS[`Oblique${sliceSpec.axis}`],
       1 / 255
     ) as RGBColor;
     return {

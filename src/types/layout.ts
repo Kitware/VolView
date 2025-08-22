@@ -1,10 +1,14 @@
-export enum LayoutDirection {
-  V = 'V',
-  H = 'H',
-}
+export type LayoutItem =
+  | {
+      type: 'slot';
+      slotIndex: number;
+    }
+  | ({
+      type: 'layout';
+      // eslint-disable-next-line no-use-before-define
+    } & Layout);
 
 export type Layout = {
-  direction: LayoutDirection;
-  items: ReadonlyArray<Layout | string>;
-  name?: string;
+  direction: 'V' | 'H';
+  items: ReadonlyArray<LayoutItem>;
 };

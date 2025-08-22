@@ -14,8 +14,6 @@ import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
 import { partition } from '@/src/utils';
 import { pipe } from '@/src/utils/functional';
-import { useViewStore } from '@/src/store/views';
-import { useDatasetStore } from '@/src/store/datasets';
 import {
   makeDefaultSegmentGroupName,
   useSegmentGroupStore,
@@ -31,6 +29,7 @@ import updateUriType from '@/src/io/import/processors/updateUriType';
 import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
+import { useViewStore } from '@/src/store/views';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -376,15 +375,8 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       context
     );
 
-    // Restore the primary selection
-    if (manifest.primarySelection !== undefined) {
-      const selectedID = stateIDToStoreID[manifest.primarySelection];
-
-      useDatasetStore().setPrimarySelection(selectedID);
-    }
-
     // Restore the views
-    useViewStore().deserialize(manifest.views, stateIDToStoreID);
+    useViewStore().deserialize(manifest, stateIDToStoreID);
 
     // Restore the labelmaps
     const segmentGroupIDMap = await useSegmentGroupStore().deserialize(

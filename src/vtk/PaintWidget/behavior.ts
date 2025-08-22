@@ -24,7 +24,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
 
     const worldCoords = getWorldCoords(eventData);
-    if (!worldCoords) {
+    if (!worldCoords.length) {
       return macro.VOID;
     }
 
@@ -46,7 +46,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     const worldCoords = getWorldCoords(eventData);
 
-    if (!worldCoords) {
+    if (!worldCoords.length) {
       return macro.VOID;
     }
 

@@ -14,6 +14,7 @@ import {
   watchEffect,
   inject,
   onUnmounted,
+  onMounted,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -149,7 +150,10 @@ export default defineComponent({
     onVTKEvent(widgetFactory.getWidgetState(), 'onModified', () =>
       updateVisibleState(widgetState)
     );
-    updateVisibleState(widgetState);
+
+    onMounted(() => {
+      updateVisibleState(widgetState);
+    });
 
     return {
       ruler,

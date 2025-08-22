@@ -15,7 +15,7 @@ export function useWindowingConfig(
     if (!imageIdVal) return undefined;
     const viewIdVal = unref(viewID);
     if (!viewIdVal) return undefined;
-    return store.getConfig(viewIdVal, imageIdVal).value;
+    return store.getConfig(viewIdVal, imageIdVal);
   });
 
   const generateComputed = (prop: 'width' | 'level') => {

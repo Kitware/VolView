@@ -36,7 +36,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activePaintViewID = ref<Maybe<string>>(null);
 
   const { currentImageID, currentImageData, currentImageMetadata } =
-    useCurrentImage();
+    useCurrentImage('global');
+
   const imageStatsStore = useImageStatsStore();
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();

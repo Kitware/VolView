@@ -11,9 +11,9 @@ import { Maybe } from '@/src/types';
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { createLPSBounds, getAxisBounds } from '@/src/utils/lps';
-import { useDatasetStore } from '@/src/store/datasets';
 import { storeToRefs } from 'pinia';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useViewStore } from '@/src/store/views';
 
 export interface CurrentImageContext {
   imageID: Ref<Maybe<string>>;
@@ -87,12 +87,16 @@ export function useImage(imageID: MaybeRef<Maybe<string>>) {
   };
 }
 
-export function useCurrentImage() {
-  const { primaryImageID } = storeToRefs(useDatasetStore());
-  const defaultContext = { imageID: primaryImageID };
-  const { imageID } = hasInjectionContext()
-    ? inject(CurrentImageInjectionKey, defaultContext)
-    : defaultContext;
+export function useCurrentImage(type: 'local' | 'global' = 'local') {
+  const { activeView, viewByID } = storeToRefs(useViewStore());
+  const viewInfo = computed(() =>
+    activeView.value ? viewByID.value[activeView.value] : null
+  );
+  const defaultContext = { imageID: computed(() => viewInfo.value?.dataID) };
+  const { imageID } =
+    hasInjectionContext() && type === 'local'
+      ? inject(CurrentImageInjectionKey, defaultContext)
+      : defaultContext;
 
   const { id, imageData, metadata, extent, isLoading, layers, image } =
     useImage(imageID);

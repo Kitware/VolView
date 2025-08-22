@@ -7,8 +7,10 @@ import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { useViewStore } from '../views';
-import useViewSliceStore from '../view-configs/slicing';
+import { useViewStore } from '@/src/store/views';
+import useViewSliceStore from '@/src/store/view-configs/slicing';
+import { ViewInfo2D } from '@/src/types/views';
+import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
@@ -18,7 +20,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   const handle = widgetState.getHandle();
 
   const active = ref(false);
-  const { currentImageID, currentImageMetadata } = useCurrentImage();
+  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
 
   // world-space
   const position = ref<Vector3>([0, 0, 0]);
@@ -36,15 +38,10 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
 
-  // only gets views that have a slicing config
-  const currentViewIDs = computed(() => {
-    const imageID = unref(currentImageID);
-    if (imageID) {
-      return viewStore.viewIDs.filter(
-        (viewID) => !!viewSliceStore.getConfig(viewID, imageID)
-      );
-    }
-    return [];
+  const otherViews = computed(() => {
+    return viewStore
+      .getViewsForData(unref(currentImageID))
+      .filter((view): view is ViewInfo2D => view.type === '2D');
   });
 
   function getWidgetFactory(this: _This) {
@@ -66,12 +63,13 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     }
     const { lpsOrientation } = unref(currentImageMetadata);
 
-    currentViewIDs.value.forEach((viewID) => {
-      const sliceConfig = viewSliceStore.getConfig(viewID, imageID);
-      const axis = getLPSAxisFromDir(sliceConfig!.axisDirection);
+    otherViews.value.forEach((view) => {
+      const { orientation } = view.options;
+      const { viewDirection } = get2DViewingVectors(orientation);
+      const axis = getLPSAxisFromDir(viewDirection);
       const index = lpsOrientation[axis];
       const slice = Math.round(indexPos[index]);
-      viewSliceStore.updateConfig(viewID, imageID, { slice });
+      viewSliceStore.updateConfig(view.id, imageID, { slice });
     });
   });
 

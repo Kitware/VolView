@@ -18,7 +18,6 @@ import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
-import { useSegmentGroupConfigInitializer } from '@/src/composables/useSegmentGroupConfigInitializer';
 
 interface Props {
   viewId: string;
@@ -61,7 +60,6 @@ sliceRep.property.setUseLookupTableScalarRange(true);
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
 sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-4, -4);
 
-useSegmentGroupConfigInitializer(viewId.value, segmentationId.value);
 const coloringStore = useLayerColoringStore();
 
 // visibility

@@ -1,18 +1,14 @@
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
-import { computed, ref, shallowRef } from 'vue';
-import {
-  isDicomImage,
-  isRegularImage,
-  type DataSelection,
-} from '@/src/utils/dataSelection';
+import { computed, shallowRef } from 'vue';
+import { isRegularImage } from '@/src/utils/dataSelection';
 import { DataSource } from '@/src/io/import/dataSource';
-import { useImageCacheStore } from '@/src/store/image-cache';
-import { useDICOMStore } from './datasets-dicom';
-import { useImageStore } from './datasets-images';
-import * as Schema from '../io/state-file/schema';
-import { useLayersStore } from './datasets-layers';
-import { useModelStore } from './datasets-models';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useImageStore } from '@/src/store/datasets-images';
+import * as Schema from '@/src/io/state-file/schema';
+import { useLayersStore } from '@/src/store/datasets-layers';
+import { useModelStore } from '@/src/store/datasets-models';
+import { useViewConfigStore } from '@/src/store/view-configs';
+import { useImageStatsStore } from '@/src/store/image-stats';
 
 export const DataType = {
   Image: 'Image',
@@ -129,27 +125,15 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
 
 export const useDatasetStore = defineStore('dataset', () => {
   const imageStore = useImageStore();
-  const imageCacheStore = useImageCacheStore();
   const dicomStore = useDICOMStore();
   const layersStore = useLayersStore();
   const modelStore = useModelStore();
 
   // --- state --- //
 
-  const primarySelection = ref<DataSelection | null>(null);
   const loadedData = shallowRef<Array<LoadedData>>([]);
 
   // --- getters --- //
-
-  const primaryImageID = primarySelection;
-
-  const primaryDataset = computed<vtkImageData | null>(() => {
-    return (
-      (primaryImageID.value &&
-        imageCacheStore.imageById[primaryImageID.value].getVtkImageData()) ||
-      null
-    );
-  });
 
   const idsAsSelections = computed(() => {
     const volumeKeys = Object.keys(dicomStore.volumeInfo);
@@ -158,10 +142,6 @@ export const useDatasetStore = defineStore('dataset', () => {
   });
 
   // --- actions --- //
-
-  function setPrimarySelection(sel: DataSelection | null) {
-    primarySelection.value = sel;
-  }
 
   async function serialize(stateFile: Schema.StateFile) {
     const { manifest, zip } = stateFile;
@@ -183,25 +163,15 @@ export const useDatasetStore = defineStore('dataset', () => {
       zip.file(filePath, file);
       manifest.datasetFilePath[fileId] = filePath;
     });
-
-    if (primarySelection.value) {
-      manifest.primarySelection = primarySelection.value;
-    }
   }
 
   const remove = (id: string | null) => {
     if (!id) return;
-
-    if (id === primarySelection.value) {
-      primarySelection.value = null;
-    }
-
-    if (isDicomImage(id)) {
-      dicomStore.deleteVolume(id);
-    }
+    dicomStore.deleteVolume(id);
     imageStore.deleteData(id);
-
     layersStore.remove(id);
+    useViewConfigStore().removeData(id);
+    useImageStatsStore().removeData(id);
   };
 
   const removeAll = () => {
@@ -222,12 +192,8 @@ export const useDatasetStore = defineStore('dataset', () => {
   }
 
   return {
-    primaryImageID,
-    primarySelection,
-    primaryDataset,
     idsAsSelections,
     addDataSources,
-    setPrimarySelection,
     serialize,
     remove,
     removeAll,

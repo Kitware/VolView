@@ -4,8 +4,9 @@ import { vtkImageData } from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { ImageMetadata } from '../types/image';
-import { compareImageSpaces } from '../utils/imageSpace';
+import { ImageMetadata } from '@/src/types/image';
+import { compareImageSpaces } from '@/src/utils/imageSpace';
+import { removeFromArray } from '@/src/utils';
 
 /**
  * Stores regular non-dicom images (typically nrrd, mha, nii, etc.).
@@ -48,6 +49,7 @@ export const useImageStore = defineStore('images', () => {
 
   function deleteData(id: string) {
     useImageCacheStore().removeImage(id);
+    removeFromArray(idList.value, id);
   }
 
   function checkAllImagesSameSpace() {
