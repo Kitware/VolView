@@ -213,7 +213,7 @@ export const useViewStore = defineStore('view', () => {
     Object.entries(manifest.viewByID).forEach(([id, view]) => {
       viewByID[id] = {
         ...view,
-        dataID: view.id ? dataIDMap[view.id] : null,
+        dataID: view.dataID ? dataIDMap[view.dataID] : null,
       } as unknown as ViewInfo;
     });
   }

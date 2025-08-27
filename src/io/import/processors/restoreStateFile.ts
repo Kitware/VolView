@@ -30,6 +30,7 @@ import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
 import { useViewStore } from '@/src/store/views';
+import { useViewConfigStore } from '@/src/store/view-configs';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -377,6 +378,9 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
 
     // Restore the views
     useViewStore().deserialize(manifest, stateIDToStoreID);
+
+    // Restore view configs
+    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
 
     // Restore the labelmaps
     const segmentGroupIDMap = await useSegmentGroupStore().deserialize(

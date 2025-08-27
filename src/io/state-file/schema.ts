@@ -281,6 +281,7 @@ const View = z.object({
   type: z.union([z.literal('2D'), z.literal('3D'), z.literal('Oblique')]),
   dataID: z.string().optional().nullable(),
   options: z.record(z.string()).optional(),
+  config: z.record(ViewConfig).optional(),
 });
 
 export type View = z.infer<typeof View>;

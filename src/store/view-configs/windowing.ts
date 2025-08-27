@@ -131,9 +131,14 @@ export const useWindowingStore = defineStore('windowing', () => {
       }
     }
 
+    // Ensure we always have required fields from defaults
+    const baseConfig = currentInternalConfig || defaults;
+    
     const newInternalConfig = {
+      ...baseConfig,
       ...widthLevelPatchOnSwitchingFromAuto,
       ...patch,
+      auto: patch.auto ?? currentInternalConfig?.auto ?? defaults.auto,
       useAuto: effectiveUseAuto,
       // one way from false to true
       userTriggered:

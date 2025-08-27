@@ -61,10 +61,22 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     volumeColoringStore.deserialize(viewID, updatedConfig);
   };
 
+  const deserializeAll = (
+    manifest: StateFile['manifest'],
+    dataIDMap: Record<string, string>
+  ) => {
+    Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
+      if (view.config) {
+        deserialize(viewID, view.config, dataIDMap);
+      }
+    });
+  };
+
   return {
     removeView,
     removeData,
     serialize,
     deserialize,
+    deserializeAll,
   };
 });

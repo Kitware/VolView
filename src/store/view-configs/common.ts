@@ -13,16 +13,18 @@ const serializeViewConfig = <
   viewConfigStateKey: K
 ) => {
   const dataIDs = stateFile.manifest.datasets.map((dataset) => dataset.id);
-  const { views } = stateFile.manifest;
+  const views = Object.values(stateFile.manifest.viewByID);
 
   views.forEach((view) => {
     dataIDs.forEach((dataID) => {
-      const { config } = view;
-
       const viewConfig = viewConfigs[view.id]?.[dataID];
       if (viewConfig !== undefined) {
-        const configForData = ensureDefault(dataID, config, {} as ViewConfig);
-
+        // Initialize config if it doesn't exist
+        if (!view.config) {
+          // eslint-disable-next-line no-param-reassign
+          view.config = {};
+        }
+        const configForData = ensureDefault(dataID, view.config, {} as ViewConfig);
         configForData[viewConfigStateKey] = viewConfig as ViewConfig[K];
       }
     });
