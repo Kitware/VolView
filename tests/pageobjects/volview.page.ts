@@ -69,7 +69,7 @@ class VolViewPage extends Page {
   }
 
   async getNotificationsCount() {
-    const badge = await this.notifications.$('span[aria-label="Badge"]');
+    const badge = this.notifications.$('span[aria-label="Badge"]');
     const innerText = await badge.getText();
     if (innerText === '') return 0;
     return parseInt(innerText, 10);
@@ -94,7 +94,7 @@ class VolViewPage extends Page {
   }
 
   async activateRectangle() {
-    const button = await this.rectangleButton;
+    const button = this.rectangleButton;
     await button.click();
   }
 
@@ -119,16 +119,16 @@ class VolViewPage extends Page {
   }
 
   async saveSession() {
-    const save = await this.saveButton;
+    const save = this.saveButton;
     await save.click();
 
-    const input = await this.saveSessionFilenameInput;
+    const input = this.saveSessionFilenameInput;
     const id = getId();
     const fileName = `${id}-session.volview.zip`;
 
     await setValueVueInput(input, fileName);
 
-    const confirm = await this.saveSessionConfirmButton;
+    const confirm = this.saveSessionConfirmButton;
     await confirm.click();
 
     cleanuptotal.addCleanup(async () => {

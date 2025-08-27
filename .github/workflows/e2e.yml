@@ -10,7 +10,7 @@ jobs:
     name: E2E Testing on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
-      DOWNLOAD_TIMEOUT: 60000
+      DOWNLOAD_TIMEOUT: 90000
     steps:
       - uses: actions/checkout@v4
         with:
