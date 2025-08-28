@@ -13,7 +13,7 @@ export function useSyncWindowing() {
     isUpdating = true;
     try {
       const config = windowingStore.getConfig(viewID, dataID);
-      Object.keys(viewStore.viewByID)
+      viewStore.viewIDs
         .filter((id) => id !== viewID)
         .forEach((vid) => {
           windowingStore.updateConfig(vid, dataID, config);

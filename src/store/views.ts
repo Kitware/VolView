@@ -88,6 +88,8 @@ export const useViewStore = defineStore('view', () => {
     return views;
   });
 
+  const viewIDs = computed(() => Object.keys(viewByID));
+
   function getView(id: Maybe<string>) {
     if (!id) return null;
     return viewByID[id] ?? null;
@@ -175,7 +177,7 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setDataForAllViews(dataID: Maybe<string>) {
-    Object.keys(viewByID).forEach((viewID) => {
+    viewIDs.value.forEach((viewID) => {
       setDataForView(viewID, dataID);
     });
   }
@@ -206,7 +208,7 @@ export const useViewStore = defineStore('view', () => {
     isActiveViewMaximized.value = manifest.isActiveViewMaximized;
     layoutSlots.value = manifest.layoutSlots;
 
-    Object.keys(viewByID).forEach((key) => {
+    viewIDs.value.forEach((key) => {
       delete viewByID[key];
     });
 
@@ -217,25 +219,6 @@ export const useViewStore = defineStore('view', () => {
       } as unknown as ViewInfo;
     });
   }
-
-  //     deserialize(views: View[], dataIDMap: Record<string, string>) {
-  //       const viewConfigStore = useViewConfigStore();
-
-  //       views.forEach((view) => {
-  //         const viewID = view.id;
-
-  //         const viewSpec = {
-  //           viewType: view.type,
-  //           props: view.props,
-  //         };
-
-  //         this.viewSpecs[viewID] = viewSpec;
-
-  //         // Now delegate the deserialization of the view config
-  //         const { config } = view;
-  //         viewConfigStore.deserialize(viewID, config, dataIDMap);
-  //       });
-  //     },
 
   // initialization
 
@@ -253,6 +236,7 @@ export const useViewStore = defineStore('view', () => {
       return layout.value;
     }),
     visibleViews,
+    viewIDs,
     activeView,
     viewByID,
     getView,

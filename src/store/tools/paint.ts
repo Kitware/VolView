@@ -57,7 +57,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
     if (imageID) {
-      return Object.keys(viewStore.viewByID).filter(
+      return viewStore.viewIDs.filter(
         (viewID) => !!viewSliceStore.getConfig(viewID, imageID)
       );
     }

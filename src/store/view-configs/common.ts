@@ -24,7 +24,11 @@ const serializeViewConfig = <
           // eslint-disable-next-line no-param-reassign
           view.config = {};
         }
-        const configForData = ensureDefault(dataID, view.config, {} as ViewConfig);
+        const configForData = ensureDefault(
+          dataID,
+          view.config,
+          {} as ViewConfig
+        );
         configForData[viewConfigStateKey] = viewConfig as ViewConfig[K];
       }
     });
