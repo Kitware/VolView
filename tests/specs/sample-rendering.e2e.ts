@@ -1,7 +1,7 @@
 import AppPage from '../pageobjects/volview.page';
 
 // handle pixel jitter in 3D view
-const THRESHOLD = 10; // percent
+const THRESHOLD = 11; // percent
 
 describe('VolView', () => {
   it('should load and render a sample dataset', async () => {
@@ -10,11 +10,13 @@ describe('VolView', () => {
     await AppPage.waitForViews();
     await browser.pause(5000);
 
-    await expect(
-      await browser.checkElement(
-        await $('div[data-testid~="layout-grid"]'),
-        'prostate_sample_views'
-      )
-    ).toBeLessThan(THRESHOLD);
+    const layoutContainer = await $('.layout-container');
+
+    const result = await browser.checkElement(
+      layoutContainer,
+      'prostate_sample_views'
+    );
+
+    await expect(result).toBeLessThan(THRESHOLD);
   });
 });

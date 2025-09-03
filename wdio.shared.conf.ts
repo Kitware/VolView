@@ -1,13 +1,13 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Options } from '@wdio/types';
+import type { Options, Capabilities } from '@wdio/types';
 import { projectRoot } from './tests/e2eTestUtils';
 
 export const WINDOW_SIZE = [1200, 800] as const;
 export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 npm run test:e2e:dev
-export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 5000);
+export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 8000);
 
 const ROOT = projectRoot();
 const TMP = '.tmp/';
@@ -83,7 +83,13 @@ export const config: Options.Testrunner = {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
   },
 
-  async before(caps, spec, browser) {
+  async before(
+    _capabilities:
+      | Capabilities.RequestedStandaloneCapabilities
+      | Capabilities.RequestedMultiremoteCapabilities,
+    _specs: string[],
+    browser: any
+  ) {
     await browser.setWindowSize(...WINDOW_SIZE);
   },
 };
