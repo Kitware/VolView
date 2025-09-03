@@ -10,7 +10,6 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { getColorFunctionRangeFromPreset } from '@/src/utils/vtk-helpers';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
-import { useViewStore } from '@/src/store/views';
 
 const THUMBNAIL_SIZE = 80;
 
@@ -21,14 +20,15 @@ export default defineComponent({
     GroupableItem,
     PersistentOverlay,
   },
-  setup() {
+  props: {
+    viewId: {
+      type: String,
+      default: null,
+    },
+  },
+  setup(props) {
     const volumeColoringStore = useVolumeColoringStore();
-    const viewStore = useViewStore();
-    const viewId = computed(() => {
-      const view = viewStore.getView(viewStore.activeView);
-      if (view?.type === '3D') return view.id;
-      return null;
-    });
+    const viewId = computed(() => props.viewId);
 
     const { currentImageID, currentImageData } = useCurrentImage();
 

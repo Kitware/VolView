@@ -133,7 +133,7 @@ export const useWindowingStore = defineStore('windowing', () => {
 
     // Ensure we always have required fields from defaults
     const baseConfig = currentInternalConfig || defaults;
-    
+
     const newInternalConfig = {
       ...baseConfig,
       ...widthLevelPatchOnSwitchingFromAuto,

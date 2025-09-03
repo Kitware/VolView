@@ -5,6 +5,7 @@ import { useWindowingStore } from './view-configs/windowing';
 import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
+import { useViewStore } from './views';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 
 /**
@@ -17,6 +18,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const layerColoringStore = useLayerColoringStore();
   const viewCameraStore = useViewCameraStore();
   const volumeColoringStore = useVolumeColoringStore();
+  const viewStore = useViewStore();
 
   const removeView = (viewID: string) => {
     viewSliceStore.removeView(viewID);
@@ -71,6 +73,10 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
       }
     });
   };
+
+  viewStore.LayoutViewReplacedEvent.on((oldViewID) => {
+    removeView(oldViewID);
+  });
 
   return {
     removeView,

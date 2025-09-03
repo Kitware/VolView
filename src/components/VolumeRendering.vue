@@ -26,7 +26,6 @@ import {
   getShiftedOpacityFromPreset,
 } from '@/src/utils/vtk-helpers';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
-import { useViewStore } from '@/src/store/views';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -34,16 +33,17 @@ const THUMBNAIL_SIZE = 80;
 
 export default defineComponent({
   name: 'VolumeRendering',
-  setup() {
+  props: {
+    viewId: {
+      type: String,
+      default: null,
+    },
+  },
+  setup(props) {
     const volumeColoringStore = useVolumeColoringStore();
     const editorContainerRef = ref<HTMLElement | null>(null);
     const pwfEditorRef = ref<HTMLElement | null>(null);
-    const viewStore = useViewStore();
-    const viewId = computed(() => {
-      const view = viewStore.getView(viewStore.activeView);
-      if (view?.type === '3D') return view.id;
-      return null;
-    });
+    const viewId = computed(() => props.viewId);
 
     let recurseGuard = false;
 
@@ -280,36 +280,56 @@ export default defineComponent({
 
     // --- mapping range editing --- //
 
-    const rangeShift = ref(0);
-    const rangeWidth = ref(0);
-
     onKeyDown('Control', () => pwfWidget.setShiftOpacityValues(true));
     onKeyUp('Control', () => pwfWidget.setShiftOpacityValues(false));
+
+    const rangeShift = ref(0);
+    const rangeWidth = ref(0);
 
     const reset = () => {
       rangeShift.value = 0;
       rangeWidth.value = fullMappingRangeWidth.value;
     };
-    // reset case
+
+    // Reset when preset or image changes
     watch([selectedPreset, currentImageID], reset, { immediate: true });
 
     useResetViewsEvents().onClick(reset);
 
+    // Sync slider values from mappingRange when it changes (e.g., when switching views)
+    watch(
+      () => colorTransferFunctionRef.value?.mappingRange,
+      (mappingRange) => {
+        if (!mappingRange) return;
+
+        const fullRange = fullMappingRange.value;
+        const fullCenter = (fullRange[0] + fullRange[1]) / 2;
+        const currentCenter = (mappingRange[0] + mappingRange[1]) / 2;
+
+        rangeWidth.value = mappingRange[1] - mappingRange[0];
+        rangeShift.value = currentCenter - fullCenter;
+      }
+    );
+
+    // Update store when sliders change (using center-based math to avoid drift)
     watch([rangeShift, rangeWidth], ([shift, width]) => {
-      if (!viewId.value) return;
-      const imageID = currentImageID.value;
-      const config = volumeColoringStore.getConfig(viewId.value, imageID);
-      // wait for config to be initialized with preset "all view default" for particular image
-      if (!imageID || !config) return;
+      if (!viewId.value || !currentImageID.value) return;
 
       const fullRange = fullMappingRange.value;
-      const fullWidth = fullMappingRangeWidth.value;
-      const min = fullRange[0] + Math.floor((fullWidth - width) / 2) + shift;
-      const max = fullRange[1] - Math.ceil((fullWidth - width) / 2) + shift;
+      const fullCenter = (fullRange[0] + fullRange[1]) / 2;
+      const newCenter = fullCenter + shift;
+      const halfWidth = width / 2;
 
-      volumeColoringStore.updateColorTransferFunction(viewId.value, imageID, {
-        mappingRange: [min, max],
-      });
+      const min = newCenter - halfWidth;
+      const max = newCenter + halfWidth;
+
+      volumeColoringStore.updateColorTransferFunction(
+        viewId.value,
+        currentImageID.value,
+        {
+          mappingRange: [min, max],
+        }
+      );
     });
 
     return {

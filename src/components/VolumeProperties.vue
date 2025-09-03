@@ -4,7 +4,6 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { CVRConfig } from '@/src/types/views';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import { useViewStore } from '@/src/store/views';
 
 const LIGHTING_MODELS = {
   standard: 'Standard',
@@ -12,15 +11,16 @@ const LIGHTING_MODELS = {
 };
 
 export default defineComponent({
-  name: 'VolumeRendering',
-  setup() {
+  name: 'VolumeProperties',
+  props: {
+    viewId: {
+      type: String,
+      default: null,
+    },
+  },
+  setup(props) {
     const volumeColoringStore = useVolumeColoringStore();
-    const viewStore = useViewStore();
-    const viewId = computed(() => {
-      const view = viewStore.getView(viewStore.activeView);
-      if (view?.type === '3D') return view.id;
-      return null;
-    });
+    const viewId = computed(() => props.viewId);
 
     const { currentImageID } = useCurrentImage();
 

@@ -141,6 +141,8 @@ export const useViewStore = defineStore('view', () => {
     if (activeView.value === id) {
       setActiveView(newViewId);
     }
+
+    delete viewByID[id];
   }
 
   function setLayout(newLayout: Layout) {
