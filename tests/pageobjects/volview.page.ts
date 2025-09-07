@@ -51,15 +51,37 @@ class VolViewPage extends Page {
     await browser.waitUntil(
       async function viewsExist() {
         const views = await this_.views;
-        if ((await views.length) === 0) return false;
-        const inView = await Promise.all(
-          Array.from(views).map((v) => v.isDisplayed({ withinViewport: true }))
+        const viewCount = await views.length;
+
+        if (viewCount === 0) return false;
+
+        // Check if at least one view has real dimensions
+        const viewsArray = await Promise.all(
+          Array.from({ length: viewCount }).map(async (_, i) => {
+            const view = views[i];
+            const [width, height, exists] = await Promise.all([
+              view.getAttribute('width').catch(() => null),
+              view.getAttribute('height').catch(() => null),
+              view.isExisting().catch(() => false),
+            ]);
+
+            // Canvas should have real dimensions, not be a 1x1 placeholder
+            // Accept any size > 10 as a real view
+            if (width && height && exists) {
+              const w = parseInt(width, 10);
+              const h = parseInt(height, 10);
+              return w > 10 && h > 10;
+            }
+            return false;
+          })
         );
-        return inView.every(Boolean);
+
+        return viewsArray.some(Boolean);
       },
       {
         timeout,
-        timeoutMsg: `expected at least 1 view to be displayed in viewport`,
+        interval: 1000,
+        timeoutMsg: `expected at least 1 view to be rendered with real dimensions`,
       }
     );
   }
@@ -161,6 +183,28 @@ class VolViewPage extends Page {
 
   get layerOpacitySliders() {
     return $$('div[data-testid="layer-opacity-slider"] input');
+  }
+
+  async getVolumeRenderingSection() {
+    const pwfEditor = await $('div.pwf-editor');
+    const exists = await pwfEditor.isExisting();
+    return exists ? pwfEditor : null;
+  }
+
+  get create3DViewMessage() {
+    return $('div.text-body-2.text-center.text-medium-emphasis');
+  }
+
+  async getView3D() {
+    const view3D = $('div[data-testid="vtk-view vtk-volume-view"]');
+    const exists = await view3D.isExisting();
+    return exists ? view3D : null;
+  }
+
+  async getView2D() {
+    const view2D = $('div[data-testid="vtk-view vtk-two-view"]');
+    const exists = await view2D.isExisting();
+    return exists ? view2D : null;
   }
 }
 

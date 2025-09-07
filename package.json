@@ -10,6 +10,7 @@
     "build:analyze": "cross-env ANALYZE_BUNDLE=1 npm run build",
     "test": "vitest",
     "test:e2e:chrome": "npm run build && wdio run ./wdio.chrome.conf.ts",
+    "test:e2e:chrome:skip-build": "wdio run ./wdio.chrome.conf.ts",
     "test:e2e:dev": "concurrently -P \"npm run dev\"  \"wdio run ./wdio.dev.conf.ts --watch {@}\"",
     "lint": "vue-tsc --noEmit && eslint \"src/**/*.{js,ts,vue}\" \"tests/**/*.{js,ts}\"",
     "build:all": "npm run build:dicom && npm run build:resample && npm run build",

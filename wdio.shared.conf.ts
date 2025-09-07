@@ -91,5 +91,12 @@ export const config: Options.Testrunner = {
     browser: any
   ) {
     await browser.setWindowSize(...WINDOW_SIZE);
+
+    // Subscribe to browser console logs and output them directly
+    await browser.sessionSubscribe({ events: ['log.entryAdded'] });
+
+    browser.on('log.entryAdded', (logEntry: any) => {
+      console.log(`[Browser Console] [${logEntry.level}] ${logEntry.text}`);
+    });
   },
 };

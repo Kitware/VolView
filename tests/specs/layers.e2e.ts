@@ -1,4 +1,4 @@
-import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
+import { DOWNLOAD_TIMEOUT } from '@/wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
 
@@ -15,25 +15,26 @@ describe('Add Layer button', () => {
       },
     ]);
 
-    // Wait for both volumes to appear in list
     await browser.waitUntil(
       async () => {
-        const menus = volViewPage.datasetMenuButtons;
+        const menus = await volViewPage.datasetMenuButtons;
         return (await menus.length) >= 2;
       },
       {
         timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: `Expected 2 volumes to appear in list`,
+        timeoutMsg: 'Expected at least 2 dataset menu buttons to be available',
       }
     );
 
-    // Wait for a primary selection
-    await volViewPage.waitForViews();
-    // kludge for CI (dataset not seen as layerable yet without?)
-    await browser.pause(15000);
-
     const menus = await volViewPage.datasetMenuButtons;
+    const menuCount = await menus.length;
+    if (menuCount < 2) {
+      throw new Error(
+        `Expected at least 2 dataset menu buttons, but found ${menuCount}`
+      );
+    }
     await menus[1].click();
+
     await browser.waitUntil(
       async () => {
         const addLayerButton = await $(

@@ -12,7 +12,7 @@
         <vtk-volume-view
           class="vtk-view"
           ref="vtkView"
-          data-testid="vtk-view vtk-two-view"
+          data-testid="vtk-view vtk-volume-view"
           :view-id="viewId"
           :image-id="currentImageID"
           :view-direction="viewDirection"
