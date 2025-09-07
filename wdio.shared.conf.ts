@@ -6,8 +6,8 @@ import { projectRoot } from './tests/e2eTestUtils';
 export const WINDOW_SIZE = [1200, 800] as const;
 export const TEST_PORT = 4567;
 // for slow connections try:
-// DOWNLOAD_TIMEOUT=60000 npm run test:e2e:dev
-export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 8000);
+// DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
+export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 16000);
 
 const ROOT = projectRoot();
 const TMP = '.tmp/';
@@ -72,7 +72,7 @@ export const config: Options.Testrunner = {
   reporters: ['spec', 'html-nice'],
   mochaOpts: {
     ui: 'bdd',
-    timeout: 120 * 1000,
+    timeout: 160 * 1000,
   },
 
   //

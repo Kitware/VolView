@@ -182,7 +182,7 @@ class VolViewPage extends Page {
   }
 
   get layerOpacitySliders() {
-    return $$('div[data-testid="layer-opacity-slider"] input');
+    return $$('div[data-testid="layer-opacity-slider"]');
   }
 
   async getVolumeRenderingSection() {
@@ -205,6 +205,11 @@ class VolViewPage extends Page {
     const view2D = $('div[data-testid="vtk-view vtk-two-view"]');
     const exists = await view2D.isExisting();
     return exists ? view2D : null;
+  }
+
+  async getViews2D() {
+    const views2D = $$('div[data-testid="vtk-view vtk-two-view"]');
+    return views2D;
   }
 }
 

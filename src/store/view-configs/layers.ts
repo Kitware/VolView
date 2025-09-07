@@ -64,8 +64,43 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
 
   const configs = reactive<DoubleKeyRecord<LayersConfig>>({});
 
-  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
-    getDoubleKeyRecord(configs, viewID, dataID) ?? defaultLayersConfig();
+  const computeDefaultConfig = (dataID: string): LayersConfig => {
+    const defaults = defaultLayersConfig();
+    const preset = getPreset(dataID);
+
+    const image = imageCacheStore.getVtkImageData(dataID);
+    if (!image) return defaults;
+
+    const imageDataRange = image.getPointData().getScalars().getRange();
+
+    const ctRange = getColorFunctionRangeFromPreset(preset);
+    const ctFunc: Partial<ColorTransferFunction> = {
+      preset,
+      mappingRange: ctRange || imageDataRange,
+    };
+
+    const opacityFunction = {
+      ...getOpacityFunctionFromPreset(preset),
+      mappingRange: imageDataRange,
+    };
+
+    return {
+      ...defaults,
+      transferFunction: { ...defaults.transferFunction, ...ctFunc },
+      opacityFunction,
+    };
+  };
+
+  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) => {
+    if (!viewID || !dataID) return defaultLayersConfig();
+    const config = getDoubleKeyRecord(configs, viewID, dataID);
+    if (config) return config;
+
+    // If no config exists, compute and store the default with proper preset
+    const defaultConfig = computeDefaultConfig(dataID);
+    patchDoubleKeyRecord(configs, viewID, dataID, defaultConfig);
+    return defaultConfig;
+  };
 
   const updateConfig = (
     viewID: string,
@@ -116,8 +151,10 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     };
     updateColorTransferFunction(viewID, layerID, ctFunc);
 
-    const opFunc = getOpacityFunctionFromPreset(preset);
-    opFunc.mappingRange = imageDataRange;
+    const opFunc = {
+      ...getOpacityFunctionFromPreset(preset),
+      mappingRange: imageDataRange,
+    };
     updateOpacityFunction(viewID, layerID, opFunc);
   };
 

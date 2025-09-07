@@ -63,5 +63,39 @@ describe('Add Layer button', () => {
         timeoutMsg: `Expected at least one layer opacity slider`,
       }
     );
+
+    const layerOpacitySliders = await volViewPage.layerOpacitySliders;
+    const firstSlider = layerOpacitySliders[0];
+
+    await firstSlider.click();
+
+    // Use keyboard to set to maximum (End key goes to max)
+    await browser.keys('End');
+
+    await browser.waitUntil(
+      async () => {
+        const inputElement = await firstSlider.$('input');
+        const value = await inputElement.getValue();
+        return value === '1';
+      },
+      {
+        timeoutMsg: 'Expected slider value to be 1 (max opacity)',
+        timeout: 5000,
+      }
+    );
+
+    const views2D = await volViewPage.getViews2D();
+    const viewCount = await views2D.length;
+    if (!views2D || viewCount === 0) {
+      throw new Error('Could not find 2D views for screenshot');
+    }
+    const lastView2D = views2D[viewCount - 1];
+    const result = await browser.checkElement(
+      lastView2D,
+      'layers_max_opacity_2d_view'
+    );
+
+    const THRESHOLD = 5; // percent
+    await expect(result).toBeLessThan(THRESHOLD);
   });
 });
