@@ -96,7 +96,26 @@ export const config: Options.Testrunner = {
     await browser.sessionSubscribe({ events: ['log.entryAdded'] });
 
     browser.on('log.entryAdded', (logEntry: any) => {
-      console.log(`[Browser Console] [${logEntry.level}] ${logEntry.text}`);
+      const message = logEntry.text || '';
+      console.log(`[Browser Console] [${logEntry.level}] ${message}`);
     });
+  },
+  
+  async afterCommand(commandName: string) {
+    // After navigation, inject console interceptor to stringify errors
+    if (commandName === 'navigateTo' || commandName === 'url') {
+      await browser.execute(() => {
+        if (!(console.error as any).__patched) {
+          const originalError = console.error;
+          console.error = function(...args: any[]) {
+            const stringArgs = args.map(arg => 
+              arg instanceof Error ? `${arg.name}: ${arg.message}` : arg
+            );
+            originalError.apply(console, stringArgs);
+          };
+          (console.error as any).__patched = true;
+        }
+      });
+    }
   },
 };
