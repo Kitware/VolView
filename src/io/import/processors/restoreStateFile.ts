@@ -148,18 +148,18 @@ const migrate210To300 = (inputManifest: any) => {
 
 const migrate501To600 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
-  
+
   // Convert views array to viewByID object
   if (manifest.views && Array.isArray(manifest.views)) {
     manifest.viewByID = {};
     manifest.views.forEach((view: any) => {
       const migratedView = { ...view };
-      
+
       // Add required 'name' field if missing
       if (!migratedView.name) {
         migratedView.name = migratedView.id;
       }
-      
+
       // Convert 'props' to 'options' if present
       if (migratedView.props) {
         // Convert any non-string values in props to strings for options
@@ -174,7 +174,7 @@ const migrate501To600 = (inputManifest: any) => {
         });
         delete migratedView.props;
       }
-      
+
       // Add orientation for 2D views based on the view ID
       if (migratedView.type === '2D' && !migratedView.options) {
         migratedView.options = {};
@@ -185,12 +185,12 @@ const migrate501To600 = (inputManifest: any) => {
           migratedView.options.orientation = migratedView.id;
         }
       }
-      
+
       // Handle type conversion for Oblique views
       if (migratedView.type === 'Oblique3D') {
         migratedView.type = 'Oblique';
       }
-      
+
       // Set dataID based on whether the view has config with data
       // In 5.0.1, if a view has config entries, it means it's associated with that data
       if (migratedView.config && Object.keys(migratedView.config).length > 0) {
@@ -199,25 +199,25 @@ const migrate501To600 = (inputManifest: any) => {
       } else {
         migratedView.dataID = null;
       }
-      
+
       manifest.viewByID[migratedView.id] = migratedView;
     });
     delete manifest.views;
   }
-  
+
   // Add missing fields with proper defaults
   if (manifest.isActiveViewMaximized === undefined) {
     manifest.isActiveViewMaximized = false;
   }
-  
+
   if (manifest.activeView === undefined) {
     manifest.activeView = null;
   }
-  
+
   // Convert layout to layoutSlots and update layout structure
   if (manifest.layout && !manifest.layoutSlots) {
     const slots: string[] = [];
-    
+
     // Extract all slot names and convert layout to new format
     const convertLayoutItem = (item: any): any => {
       if (typeof item === 'string') {
@@ -226,7 +226,7 @@ const migrate501To600 = (inputManifest: any) => {
         slots.push(item);
         return {
           type: 'slot',
-          slotIndex
+          slotIndex,
         };
       }
       if (item.direction && item.items) {
@@ -234,28 +234,28 @@ const migrate501To600 = (inputManifest: any) => {
         return {
           type: 'layout',
           direction: item.direction,
-          items: item.items.map(convertLayoutItem)
+          items: item.items.map(convertLayoutItem),
         };
       }
       return item;
     };
-    
+
     // Convert the root layout
     if (manifest.layout.direction && manifest.layout.items) {
       manifest.layout = {
         direction: manifest.layout.direction,
-        items: manifest.layout.items.map(convertLayoutItem)
+        items: manifest.layout.items.map(convertLayoutItem),
       };
     }
-    
+
     manifest.layoutSlots = slots;
   }
-  
+
   // Ensure parentToLayers exists as an array
   if (!manifest.parentToLayers) {
     manifest.parentToLayers = [];
   }
-  
+
   manifest.version = '6.0.0';
   return manifest;
 };

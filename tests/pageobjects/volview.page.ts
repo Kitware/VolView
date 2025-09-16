@@ -43,45 +43,64 @@ class VolViewPage extends Page {
   }
 
   get views() {
-    return $$('div[data-testid~="vtk-view"] > canvas');
+    return $$('div[data-testid~="vtk-view"] canvas');
   }
 
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
-    const this_ = this;
     await browser.waitUntil(
-      async function viewsExist() {
-        const views = await this_.views;
-        const viewCount = await views.length;
+      async () => {
+        try {
+          // Query views fresh each time to avoid stale references
+          const views = await this.views;
+          const viewCount = await views.length;
 
-        if (viewCount === 0) return false;
-
-        // Check if at least one view has real dimensions
-        const viewsArray = await Promise.all(
-          Array.from({ length: viewCount }).map(async (_, i) => {
-            const view = views[i];
-            const [width, height, exists] = await Promise.all([
-              view.getAttribute('width').catch(() => null),
-              view.getAttribute('height').catch(() => null),
-              view.isExisting().catch(() => false),
-            ]);
-
-            // Canvas should have real dimensions, not be a 1x1 placeholder
-            // Accept any size > 10 as a real view
-            if (width && height && exists) {
-              const w = parseInt(width, 10);
-              const h = parseInt(height, 10);
-              return w > 10 && h > 10;
-            }
+          if (viewCount === 0) {
             return false;
-          })
-        );
+          }
 
-        return viewsArray.some(Boolean);
+          // Check if at least one view has real dimensions
+          const freshViews = await this.views;
+          const freshCount = await freshViews.length;
+
+          const viewChecks = Array.from({ length: viewCount }, (_, i) => i);
+
+          const results = await Promise.all(
+            viewChecks.map(async (i) => {
+              if (i >= freshCount) {
+                return false;
+              }
+
+              try {
+                const view = freshViews[i];
+                const [width, height] = await Promise.all([
+                  view.getAttribute('width').catch(() => null),
+                  view.getAttribute('height').catch(() => null),
+                ]);
+
+                if (width && height) {
+                  const w = parseInt(width, 10);
+                  const h = parseInt(height, 10);
+                  // Canvas should have real dimensions, not be a 1x1 placeholder
+                  // Accept any size > 10 as a real view
+                  return w > 10 && h > 10;
+                }
+                return false;
+              } catch (err) {
+                // Handle stale element errors
+                return false;
+              }
+            })
+          );
+
+          return results.some((result) => result);
+        } catch (error) {
+          // Log but don't throw - let it retry
+          return false;
+        }
       },
       {
         timeout,
-        interval: 1000,
-        timeoutMsg: `expected at least 1 view to be rendered with real dimensions`,
+        timeoutMsg: `expected at least 1 view to be rendered with real dimensions (timeout: ${timeout}ms)`,
       }
     );
   }

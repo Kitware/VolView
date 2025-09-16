@@ -53,4 +53,11 @@ describe('State file manifest.json code', () => {
     await writeManifestToZip(manifestPath, fileName);
     await openVolViewPage(fileName);
   });
+
+  it('has no errors loading manifest with axial layer layout', async () => {
+    const manifestPath = path.join(FIXTURES, 'layer-axial.5-0-1.volview.json');
+    const fileName = 'temp-layer-axial.volview.zip';
+    await writeManifestToZip(manifestPath, fileName);
+    await openVolViewPage(fileName);
+  });
 });
