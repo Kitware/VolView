@@ -191,13 +191,15 @@ const migrate501To600 = (inputManifest: any) => {
         migratedView.type = 'Oblique';
       }
 
-      // Set dataID based on whether the view has config with data
-      // In 5.0.1, if a view has config entries, it means it's associated with that data
-      if (migratedView.config && Object.keys(migratedView.config).length > 0) {
-        // Use the first (and typically only) key from config as the dataID
-        migratedView.dataID = Object.keys(migratedView.config)[0];
-      } else {
-        migratedView.dataID = null;
+      const configKeys = Object.keys(migratedView.config || {});
+      const primarySelection = manifest.primarySelection;
+
+      migratedView.dataID = null;
+      if (configKeys.length > 0) {
+        migratedView.dataID =
+          primarySelection && configKeys.includes(primarySelection)
+            ? primarySelection
+            : configKeys[0];
       }
 
       manifest.viewByID[migratedView.id] = migratedView;

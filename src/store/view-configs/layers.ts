@@ -27,7 +27,8 @@ function getPreset(id: string) {
   const layersStore = useLayersStore();
   const layer = layersStore.getLayer(id);
   if (!layer) {
-    throw new Error(`Layer ${id} not found`);
+    // Return default preset if layer not found (e.g., for segment groups)
+    return LAYER_PRESET_DEFAULT;
   }
 
   if (isDicomImage(layer.selection)) {

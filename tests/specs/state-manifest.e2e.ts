@@ -30,17 +30,23 @@ async function openVolViewPage(fileName: string) {
 
   // Check that no placeholder overlays are visible (mdi-image-off icons)
   // The overlays are in divs that are shown/hidden based on imageID
-  const visibleOverlayCount = await browser.execute(() => {
-    const imageOffIcons = document.querySelectorAll('i.mdi-image-off');
-    return Array.from(imageOffIcons).filter((icon) => {
-      const parent = icon.closest('div.overlay');
-      if (!parent) return false;
-      const style = window.getComputedStyle(parent);
-      return style.display !== 'none' && style.visibility !== 'hidden';
-    }).length;
-  });
-
-  expect(visibleOverlayCount).toEqual(0);
+  await browser.waitUntil(
+    async () => {
+      const visibleOverlayCount = await browser.execute(() => {
+        const imageOffIcons = document.querySelectorAll('i.mdi-image-off');
+        return Array.from(imageOffIcons).filter((icon) => {
+          const parent = icon.closest('div.overlay');
+          if (!parent) return false;
+          const style = window.getComputedStyle(parent);
+          return style.display !== 'none' && style.visibility !== 'hidden';
+        }).length;
+      });
+      return visibleOverlayCount === 0;
+    },
+    {
+      timeoutMsg: 'Image placeholder overlays are still visible',
+    }
+  );
 }
 
 describe('State file manifest.json code', () => {
@@ -54,10 +60,25 @@ describe('State file manifest.json code', () => {
     await openVolViewPage(fileName);
   });
 
-  it('has no errors loading manifest with axial layer layout', async () => {
+  it('loads 5.0.1 manifest with axial layer layout', async () => {
     const manifestPath = path.join(FIXTURES, 'layer-axial.5-0-1.volview.json');
     const fileName = 'temp-layer-axial.volview.zip';
     await writeManifestToZip(manifestPath, fileName);
     await openVolViewPage(fileName);
+
+    // Switch to the Rendering tab
+    const renderingTab = await $('button[data-testid="module-tab-Rendering"]');
+    await renderingTab.click();
+
+    // Wait for and verify that the layer opacity slider is visible
+    await browser.waitUntil(
+      async () => {
+        const layerSlider = await $('[data-testid="layer-opacity-slider"]');
+        return layerSlider.isDisplayed();
+      },
+      {
+        timeoutMsg: 'Layer opacity slider is not visible in the Rendering tab',
+      }
+    );
   });
 });
