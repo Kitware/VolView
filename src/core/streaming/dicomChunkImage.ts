@@ -206,12 +206,12 @@ export default class DicomChunkImage
     });
     this.onChunksUpdated();
 
-    this.registerChunkListeners();
-    this.processNewChunks(newChunks);
-
     if (this.getModality() !== 'SEG') {
       this.reallocateImage();
     }
+
+    this.registerChunkListeners();
+    this.processNewChunks(newChunks);
   }
 
   getThumbnail(strategy: ThumbnailStrategy): Promise<any> {
@@ -237,8 +237,11 @@ export default class DicomChunkImage
   private processNewChunks(chunks: Chunk[]) {
     chunks
       .filter((chunk) => chunk.state === ChunkState.Loaded)
-      .forEach((_, idx) => {
-        this.onChunkHasData(idx);
+      .forEach((chunk) => {
+        const idx = this.chunks.indexOf(chunk);
+        if (idx !== -1) {
+          this.onChunkHasData(idx);
+        }
       });
   }
 
