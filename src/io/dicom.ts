@@ -211,7 +211,7 @@ export async function buildSegmentGroups(file: File) {
 export async function buildImage(seriesFiles: File[]) {
   const inputImages = seriesFiles.map((file) => sanitizeFile(file));
   const result = await readImageDicomFileSeries({
-    webWorkerPool: getDicomSeriesWorkerPool(),
+    webWorkerPool: getDicomSeriesWorkerPool() as any,
     inputImages,
     singleSortedSeries: false,
   });

@@ -1,5 +1,6 @@
 import { parseUrl } from '@/src/utils/url';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+// AWS SDK temporarily disabled for monorepo integration
+// import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 /**
  * Detects `s3://` uri.
@@ -20,45 +21,9 @@ async function fetchObjectsWithPagination(
   prefix: string,
   onObjectAvailable: ObjectAvailableCallback = () => {}
 ) {
-  const client = new S3Client({
-    region: 'us-east-1',
-    // workaround for sdk's inability to specify anonymous credentials
-    signer: { sign: async (request) => request },
-  });
-
-  const paginate = async (continuationToken?: string) => {
-    const listObjectsCmd = new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: prefix,
-      ContinuationToken: continuationToken,
-      MaxKeys: 1000,
-    });
-
-    let result;
-    try {
-      result = await client.send(listObjectsCmd);
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
-
-    if (!result.Contents) {
-      throw new Error('S3 returned no objects');
-    }
-
-    result.Contents.forEach((obj) => {
-      if (!obj.Key) return;
-      const name = obj.Key;
-      const url = getObjectPublicUrl(bucket, obj.Key);
-      onObjectAvailable(name, url);
-    });
-
-    if (result.IsTruncated && result.NextContinuationToken) {
-      await paginate(result.NextContinuationToken);
-    }
-  };
-
-  await paginate();
+  // AWS S3 functionality temporarily disabled for monorepo integration
+  console.warn('AWS S3 functionality is temporarily disabled');
+  throw new Error('AWS S3 functionality is temporarily disabled for monorepo integration');
 }
 
 /**
@@ -84,6 +49,7 @@ export const getObjectsFromS3 = async (
   s3Uri: string,
   onObjectAvailable: ObjectAvailableCallback = () => {}
 ) => {
-  const [bucket, objPrefix] = extractBucketAndPrefixFromS3Uri(s3Uri);
-  await fetchObjectsWithPagination(bucket, objPrefix, onObjectAvailable);
+  // AWS S3 functionality temporarily disabled for monorepo integration
+  console.warn('AWS S3 functionality is temporarily disabled');
+  throw new Error('AWS S3 functionality is temporarily disabled for monorepo integration');
 };

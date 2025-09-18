@@ -1,11 +1,16 @@
 const fullUrl = (relative) => {
-  // ex: /itk/image-io
-  const u = new URL(document.location); // ex: http://localhost:8043/orthanc/volview/index.html
-  const origin = u.origin; // ex: http://localhost:8043
-  const pathParts = u.pathname.split('/'); // ex: ['', 'orthanc', 'volview', 'index.html']
-  pathParts.pop(); // ex: ['', 'orthanc', 'volview']
+  // In development, use the dev server port directly
+  if (import.meta.env.DEV) {
+    return `http://localhost:5173${relative}`;
+  }
 
-  const url = origin + pathParts.join('/') + relative; // ex http://localhost:8043/orthanc/volview/itk/image-io
+  // Production: use document location
+  const u = new URL(document.location);
+  const origin = u.origin;
+  const pathParts = u.pathname.split('/');
+  pathParts.pop();
+
+  const url = origin + pathParts.join('/') + relative;
   return url;
 };
 

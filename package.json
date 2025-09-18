@@ -2,6 +2,7 @@
   "name": "volview",
   "version": "4.4.0",
   "type": "module",
+  "private": true,
   "scripts": {
     "dev": "vite",
     "preview": "vite preview",
@@ -120,5 +121,9 @@
     "*.{js,jsx,ts,tsx,vue}": [
       "eslint"
     ]
+  },
+  "volta": {
+    "node": "22.11.0",
+    "yarn": "4.9.4"
   }
 }
