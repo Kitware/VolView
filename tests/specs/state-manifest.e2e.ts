@@ -43,7 +43,7 @@ describe.skip('State file manifest.json code', () => {
   });
 
   // Dev test
-  // http://localhost:8080/?&urls=[http://localhost:9999/session.volview-2-1-0-labelmap-tools.zip]
+  // http://localhost:5173/?&urls=[http://localhost:9999/session.volview-2-1-0-labelmap-tools.zip]
   it('has no errors loading version 2.1.0 manifest.json file ', async () => {
     const FILE_NAME = 'session.volview-2-1-0-labelmap-tools.zip';
 
