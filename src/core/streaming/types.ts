@@ -44,5 +44,6 @@ export interface Fetcher {
   cachedChunks: Uint8Array[];
   connected: boolean;
   size: number;
+  contentType?: string;
   abortSignal?: AbortSignal;
 }
