@@ -340,6 +340,14 @@ export default class DicomChunkImage
 
     if (!result.image.data) throw new Error('No data read from chunk');
 
+    if (result.image.size[2] > 1 && this.chunks.length > 1) {
+      // we're trying to load multiple chunks where individual chunks have multiple frames
+      throw new Error(
+        `Loading a single volume from multiple DICOM files where individual files contain multiple frames is not supported. ` +
+          `File ${chunkIndex} contains ${result.image.size[2]} frames.`
+      );
+    }
+
     const scalars = this.vtkImageData.value.getPointData().getScalars();
     const pixelData = scalars.getData() as TypedArray;
 
