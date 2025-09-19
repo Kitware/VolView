@@ -99,7 +99,8 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
     );
   }
 
-  // Some CT modality series still have NumberOfFrames === 1, so use the number of chunks if more than 1
+  // We don't support volumes with multiple chunks/files with multi-frame data at the moment.
+  // Some CT modality series have NumberOfFrames === 1, so use the number of chunks if more than 1 chunk.
   const slices =
     sortedChunks.length > 1 ? sortedChunks.length : numberOfFrames ?? 1;
   const TypedArrayCtor = getTypedArrayConstructor(

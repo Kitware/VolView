@@ -50,6 +50,8 @@ export const useMessageStore = defineStore('message', {
      * @param opts an Error, a string containing details, or a MessageOptions
      */
     addError(title: string, opts?: Error | string | MessageOptions) {
+      console.error(title, opts);
+
       if (opts instanceof Error) {
         return this._addMessage(
           {
