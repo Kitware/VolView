@@ -142,7 +142,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         showingOriginal: false,
       };
     } catch (error) {
-      console.error(`${activeProcessType.value} Operation Failed:`, error);
       messageStore.addError(
         `${activeProcessType.value} Operation Failed`,
         error as Error

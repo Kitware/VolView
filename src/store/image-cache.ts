@@ -4,6 +4,7 @@ import {
   ProgressiveImageStatus,
 } from '@/src/core/progressiveImage';
 import { useIdStore } from '@/src/store/id';
+import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
 import { ImageMetadata } from '@/src/types/image';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -44,6 +45,9 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     const onError = (error: Error) => {
       imageErrors[id] ??= [];
       imageErrors[id].push(error);
+
+      const messageStore = useMessageStore();
+      messageStore.addError('Error loading DICOM data', error);
     };
 
     imageListenerCleanup[id] = () => {

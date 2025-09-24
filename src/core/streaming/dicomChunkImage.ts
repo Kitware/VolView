@@ -206,11 +206,16 @@ export default class DicomChunkImage
     });
     this.onChunksUpdated();
 
+    if (this.getModality() !== 'SEG') {
+      this.reallocateImage();
+    }
+
     this.registerChunkListeners();
     this.processNewChunks(newChunks);
 
+    // Update data range with already loaded chunks after reallocating image
     if (this.getModality() !== 'SEG') {
-      this.reallocateImage();
+      this.updateDataRangeFromChunks();
     }
   }
 
@@ -235,18 +240,22 @@ export default class DicomChunkImage
   }
 
   private processNewChunks(chunks: Chunk[]) {
-    chunks
-      .filter((chunk) => chunk.state === ChunkState.Loaded)
-      .forEach((_, idx) => {
-        this.onChunkHasData(idx);
+    chunks.forEach((chunk, idx) => {
+      if (chunk.state !== ChunkState.Loaded) return;
+
+      this.onChunkHasData(idx).catch((err) => {
+        this.onChunkErrored(idx, err);
       });
+    });
   }
 
   private registerChunkListeners() {
     this.chunkListeners = [
       ...this.chunks.map((chunk, index) => {
         const stopDoneData = chunk.addEventListener('doneData', () => {
-          this.onChunkHasData(index);
+          this.onChunkHasData(index).catch((err) => {
+            this.onChunkErrored(index, err);
+          });
         });
 
         const stopError = chunk.addEventListener('error', (err) => {
@@ -270,13 +279,17 @@ export default class DicomChunkImage
   private reallocateImage() {
     this.vtkImageData.value.delete();
     this.vtkImageData.value = allocateImageFromChunks(this.chunks);
+  }
 
-    // recalculate image data's data range, since allocateImageFromChunks doesn't know anything about it
+  private updateDataRangeFromChunks() {
     const scalars = this.vtkImageData.value.getPointData().getScalars();
-    this.dataRangeFromChunks().forEach(([min, max], compIdx) => {
-      scalars.setRange({ min, max }, compIdx);
-    });
-    scalars.modified(); // so image-stats will trigger update of range
+    const ranges = this.dataRangeFromChunks();
+    if (ranges.length > 0) {
+      ranges.forEach(([min, max], compIdx) => {
+        scalars.setRange({ min, max }, compIdx);
+      });
+      scalars.modified(); // so image-stats will trigger update of range
+    }
   }
 
   private dataRangeFromChunks() {
@@ -309,7 +322,9 @@ export default class DicomChunkImage
 
   private async onSegChunkHasData(chunkIndex: number) {
     if (this.chunks.length !== 1 || chunkIndex !== 0)
-      throw new Error('cannot handle multiple seg files');
+      throw new Error(
+        `Cannot handle multiple SEG files. Expected 1 chunk at index 0, got ${this.chunks.length} chunks with current index ${chunkIndex}`
+      );
 
     const [chunk] = this.chunks;
     const results = await buildSegmentGroups(
@@ -327,7 +342,10 @@ export default class DicomChunkImage
 
   private async onRegularChunkHasData(chunkIndex: number) {
     const chunk = this.chunks[chunkIndex];
-    if (!chunk.dataBlob) throw new Error('Chunk does not have data');
+    if (!chunk.dataBlob)
+      throw new Error(`Chunk ${chunkIndex} does not have data`);
+
+    const chunkId = chunk.metadata ? getChunkId(chunk) : `index-${chunkIndex}`;
     const result = await readImage(
       new File([chunk.dataBlob], `file-${chunkIndex}.dcm`),
       {
@@ -335,7 +353,16 @@ export default class DicomChunkImage
       }
     );
 
-    if (!result.image.data) throw new Error('No data read from chunk');
+    if (!result.image.data)
+      throw new Error(`No data read from chunk ${chunkId}`);
+
+    if (result.image.size[2] > 1 && this.chunks.length > 1) {
+      // we're trying to load multiple chunks where individual chunks have multiple frames
+      throw new Error(
+        `Loading a single volume from multiple DICOM files where individual files contain multiple frames is not supported. ` +
+          `File ${chunkId} (chunk ${chunkIndex}) contains ${result.image.size[2]} frames.`
+      );
+    }
 
     const scalars = this.vtkImageData.value.getPointData().getScalars();
     const pixelData = scalars.getData() as TypedArray;
