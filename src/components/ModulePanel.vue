@@ -60,25 +60,15 @@ interface Module {
 
 const Modules: Module[] = [
   {
-    name: 'Data',
-    icon: 'database',
-    component: DataBrowser,
-  },
-  {
-    name: 'Annotations',
-    icon: 'pencil',
-    component: AnnotationsModule,
-  },
-  {
     name: 'Rendering',
     icon: 'cube',
     component: RenderingModule,
   },
   {
-    name: 'Remote',
-    icon: 'server-network',
-    component: ServerModule,
-  },
+    name: 'Annotations',
+    icon: 'pencil',
+    component: AnnotationsModule,
+  }
 ];
 
 const autoSwitchToAnnotationsTools = [

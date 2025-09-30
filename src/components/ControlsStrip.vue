@@ -125,19 +125,21 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
     class="bg-grey-darken-4 d-flex flex-column align-center"
   >
     <control-button
+      v-if="false"
       size="40"
       icon="mdi-folder-open"
       name="Open files"
       @click="loadUserPromptedFiles"
     />
     <control-button
+      v-if="false"
       size="40"
       icon="mdi-content-save-all"
       name="Save session"
       :loading="isSaving"
       @click="handleSave"
     />
-    <div class="my-1 tool-separator" />
+    <div v-if="false" class="my-1 tool-separator" />
     <v-menu location="right" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
@@ -187,6 +189,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
       />
     </v-badge>
     <control-button
+      v-if="false"
       size="40"
       icon="mdi-cog"
       name="Settings"

@@ -18,6 +18,7 @@
     <v-card-actions>
       <v-spacer />
       <v-btn
+        v-if="false"
         :loading="saving"
         color="secondary"
         @click="saveSession"
