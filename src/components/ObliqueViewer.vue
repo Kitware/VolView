@@ -1,53 +1,49 @@
 <template>
-  <div class="d-flex flex-row flex-grow-1">
-    <div class="d-flex flex-column flex-grow-1">
-      <div class="d-flex flex-grow-1" style="border-bottom: 1px solid gray">
-        <ObliqueSliceViewer
-          :view-id="`${viewId}-coronal`"
-          outline-type="ObliqueCoronal"
-          view-direction="Posterior"
-          view-up="Superior"
-        />
-      </div>
-      <div class="d-flex flex-grow-1" style="border-right: 1px solid gray">
-        <ObliqueSliceViewer
-          :view-id="`${viewId}-sagittal`"
-          outline-type="ObliqueSagittal"
-          view-direction="Right"
-          view-up="Superior"
-        />
-      </div>
+  <div class="oblique-grid">
+    <div class="d-flex">
+      <ObliqueSliceViewer
+        :view-id="`${viewId}-coronal`"
+        outline-type="ObliqueCoronal"
+        view-direction="Posterior"
+        view-up="Superior"
+      />
     </div>
-    <div class="d-flex flex-column flex-grow-1">
-      <div class="d-flex flex-grow-1" style="border-left: 1px solid gray">
-        <MultiObliqueSliceViewer
-          :view-id="`${viewId}-multi-oblique`"
-          view-direction="Posterior"
-          view-up="Superior"
-          :slices="[
-            {
-              viewID: `${viewId}-coronal`,
-              axis: 'Coronal',
-            },
-            {
-              viewID: `${viewId}-sagittal`,
-              axis: 'Sagittal',
-            },
-            {
-              viewID: `${viewId}-axial`,
-              axis: 'Axial',
-            },
-          ]"
-        />
-      </div>
-      <div class="d-flex flex-grow-1" style="border-top: 1px solid gray">
-        <ObliqueSliceViewer
-          :view-id="`${viewId}-axial`"
-          outline-type="ObliqueAxial"
-          view-direction="Superior"
-          view-up="Anterior"
-        />
-      </div>
+    <div class="d-flex">
+      <MultiObliqueSliceViewer
+        :view-id="`${viewId}-multi-oblique`"
+        view-direction="Posterior"
+        view-up="Superior"
+        :slices="[
+          {
+            viewID: `${viewId}-coronal`,
+            axis: 'Coronal',
+          },
+          {
+            viewID: `${viewId}-sagittal`,
+            axis: 'Sagittal',
+          },
+          {
+            viewID: `${viewId}-axial`,
+            axis: 'Axial',
+          },
+        ]"
+      />
+    </div>
+    <div class="d-flex">
+      <ObliqueSliceViewer
+        :view-id="`${viewId}-sagittal`"
+        outline-type="ObliqueSagittal"
+        view-direction="Right"
+        view-up="Superior"
+      />
+    </div>
+    <div class="d-flex">
+      <ObliqueSliceViewer
+        :view-id="`${viewId}-axial`"
+        outline-type="ObliqueAxial"
+        view-direction="Superior"
+        view-up="Anterior"
+      />
     </div>
     <view-overlay-grid class="overlay-no-events view-annotations">
       <template #bottom-right>
@@ -81,3 +77,19 @@ useResliceCursorStore();
 
 <style scoped src="@/src/components/styles/vtk-view.css"></style>
 <style scoped src="@/src/components/styles/utils.css"></style>
+<style scoped>
+.oblique-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+  background-color: gray;
+  flex: 1;
+}
+
+.oblique-grid > div {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+</style>
