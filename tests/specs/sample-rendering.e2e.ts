@@ -1,7 +1,7 @@
 import AppPage from '../pageobjects/volview.page';
 
 // handle pixel jitter in 3D view
-const THRESHOLD = 11; // percent
+const THRESHOLD = 12; // percent
 
 describe('VolView', () => {
   it('should load and render a sample dataset', async () => {

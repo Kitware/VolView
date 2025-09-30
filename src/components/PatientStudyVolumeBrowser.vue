@@ -14,6 +14,7 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import PersistentOverlay from '@/src/components//PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
+import { useViewStore } from '@/src/store/views';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -41,6 +42,7 @@ export default defineComponent({
     const datasetStore = useDatasetStore();
     const layersStore = useLayersStore();
     const imageCacheStore = useImageCacheStore();
+    const viewStore = useViewStore();
 
     const { currentImageID } = useCurrentImage();
     const volumes = computed(() => {
@@ -159,6 +161,10 @@ export default defineComponent({
       event.dataTransfer?.setData(IMAGE_DRAG_MEDIA_TYPE, imageID);
     }
 
+    function showInAllViews(volumeKey: string) {
+      viewStore.setDataForAllViews(volumeKey);
+    }
+
     return {
       selected,
       selectedAll,
@@ -169,6 +175,7 @@ export default defineComponent({
       removeData,
       removeSelectedDICOMVolumes,
       onDragStart,
+      showInAllViews,
     };
   },
 });
@@ -307,6 +314,9 @@ export default defineComponent({
                           <span v-if="volume.isLayer">Remove as layer</span>
                           <span v-else>Add as layer</span>
                         </template>
+                      </v-list-item>
+                      <v-list-item @click="showInAllViews(volume.key)">
+                        Show in all views
                       </v-list-item>
                       <v-list-item @click="removeData(volume.key)">
                         Delete

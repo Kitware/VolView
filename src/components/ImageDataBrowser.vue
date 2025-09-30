@@ -167,6 +167,10 @@ export default defineComponent({
       viewStore.setDataForActiveView(imageID);
     }
 
+    function showInAllViews(imageID: string) {
+      viewStore.setDataForAllViews(imageID);
+    }
+
     function onDragStart(imageID: string, event: DragEvent) {
       event.dataTransfer?.setData(IMAGE_DRAG_MEDIA_TYPE, imageID);
     }
@@ -187,6 +191,7 @@ export default defineComponent({
       toggleSyncImages,
       isSync,
       setViewImage,
+      showInAllViews,
       onDragStart,
     };
   },
@@ -317,6 +322,9 @@ export default defineComponent({
                     >
                       Must load a background image before converting
                     </v-tooltip>
+                  </v-list-item>
+                  <v-list-item @click="showInAllViews(image.id)">
+                    Show in all views
                   </v-list-item>
                   <v-list-item @click="removeData(image.id)">
                     Delete
