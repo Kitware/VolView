@@ -50,51 +50,41 @@ class VolViewPage extends Page {
     await browser.waitUntil(
       async () => {
         try {
-          // Query views fresh each time to avoid stale references
-          const views = await this.views;
-          const viewCount = await views.length;
+          // Query views once per iteration to avoid multiple queries that could become stale
+          const currentViews = await this.views;
+          const viewCount = await currentViews.length;
 
           if (viewCount === 0) {
             return false;
           }
 
-          // Check if at least one view has real dimensions
-          const freshViews = await this.views;
-          const freshCount = await freshViews.length;
+          // Check each view's dimensions in a single pass
+          const viewPromises = currentViews.map(async (view) => {
+            try {
+              // Get attributes directly from the element reference
+              const width = await view.getAttribute('width');
+              const height = await view.getAttribute('height');
 
-          const viewChecks = Array.from({ length: viewCount }, (_, i) => i);
-
-          const results = await Promise.all(
-            viewChecks.map(async (i) => {
-              if (i >= freshCount) {
-                return false;
+              if (width && height) {
+                const w = parseInt(width, 10);
+                const h = parseInt(height, 10);
+                // Canvas should have real dimensions, not be a 1x1 placeholder
+                // Accept any size > 10 as a real view
+                return w > 10 && h > 10;
               }
+              return false;
+            } catch (err) {
+              // Element may have been removed/recreated - that's ok, we'll retry
+              return false;
+            }
+          });
 
-              try {
-                const view = freshViews[i];
-                const [width, height] = await Promise.all([
-                  view.getAttribute('width').catch(() => null),
-                  view.getAttribute('height').catch(() => null),
-                ]);
+          const results = await Promise.all(await viewPromises);
 
-                if (width && height) {
-                  const w = parseInt(width, 10);
-                  const h = parseInt(height, 10);
-                  // Canvas should have real dimensions, not be a 1x1 placeholder
-                  // Accept any size > 10 as a real view
-                  return w > 10 && h > 10;
-                }
-                return false;
-              } catch (err) {
-                // Handle stale element errors
-                return false;
-              }
-            })
-          );
-
+          // At least one view must have real dimensions
           return results.some((result) => result);
         } catch (error) {
-          // Log but don't throw - let it retry
+          // DOM may be updating, retry on next iteration
           return false;
         }
       },
