@@ -220,7 +220,6 @@ const updateResliceCamera = (resetFocalPoint: boolean) => {
     vtkView.value.renderer,
     widgetViewType.value,
     resetFocalPoint,
-    false,
     true
   );
 };
