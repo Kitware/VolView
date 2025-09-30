@@ -2,7 +2,7 @@
 
 ## Layout
 
-Use the layout button to choose between window arrangements. As in all things, if you have a particular layout that you would like to see added, please make a feature request on our [issue tracker](https://github.com/Kitware/VolView/issues).
+Use the layout button to choose between window arrangements. Each view can display a different dataset. Use the view type switcher dropdown in each view to change between 2D slice, 3D volume, or oblique views. Double-click a view to maximize it.
 
 ![Layout](./assets/07-volview-layout-notes.jpg)
 
@@ -18,7 +18,7 @@ The "Annotations" tab lists the drawn, vector based, annotation tools. Each tool
 
 ### Paint
 
-When the paint tool is selected, you can paint in any 2D window. Click on the paint tool a second time to bring up a menu of colors and adjust the brush size.
+When the paint tool is selected, you can paint in any 2D window. Click on the paint tool a second time to bring up a menu of colors and adjust the brush size. Painting automatically switches to the appropriate segment group for the volume being painted.
 
 ### Rectangle
 
