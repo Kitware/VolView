@@ -15,6 +15,7 @@ import { useSegmentGroupStore } from '../segmentGroups';
 import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
 import { useViewCameraStore } from '../view-configs/camera';
+import { useImageCacheStore } from '../image-cache';
 
 const DEFAULT_BRUSH_SIZE = 4;
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [
@@ -35,9 +36,9 @@ export const usePaintToolStore = defineStore('paint', () => {
   const crossPlaneSync = ref(false);
   const paintPosition = ref<Vector3>([0, 0, 0]);
   const activePaintViewID = ref<Maybe<string>>(null);
+  const lastSegmentByGroup = ref<Record<string, number>>({});
 
-  const { currentImageID, currentImageData, currentImageMetadata } =
-    useCurrentImage('global');
+  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
   const imageStatsStore = useImageStatsStore();
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
@@ -48,11 +49,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   const segmentGroupStore = useSegmentGroupStore();
-
-  const activeLabelmap = computed(() => {
-    if (!activeSegmentGroupID.value) return null;
-    return segmentGroupStore.dataIndex[activeSegmentGroupID.value] ?? null;
-  });
 
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
@@ -135,6 +131,8 @@ export const usePaintToolStore = defineStore('paint', () => {
 
       if (!(segValue in segments.byValue))
         throw new Error('Segment is not available for the active labelmap');
+
+      lastSegmentByGroup.value[activeSegmentGroupID.value] = segValue;
     }
 
     activeSegment.value = segValue;
@@ -151,23 +149,26 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushSize(size);
   }
 
-  function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2) {
-    if (!activeLabelmap.value) {
-      return;
-    }
+  function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
+    const segmentGroupID = getValidSegmentGroupID(imageID);
+    if (!segmentGroupID) return;
 
-    // Prevent painting if active segment is locked
-    if (activeSegmentGroupID.value && activeSegment.value) {
-      const segment = segmentGroupStore.getSegment(
-        activeSegmentGroupID.value,
-        activeSegment.value
-      );
-      if (segment?.locked) {
+    const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
+    if (!labelmap) return;
+
+    // Prevent painting if active segment is locked or doesn't exist
+    if (activeSegment.value) {
+      const metadata = segmentGroupStore.metadataByID[segmentGroupID];
+      if (!metadata) return;
+
+      const segment = metadata.segments.byValue[activeSegment.value];
+      if (!segment || segment.locked) {
         return;
       }
     }
 
-    const underlyingImagePixels = currentImageData.value
+    const imageData = useImageCacheStore().getVtkImageData(imageID);
+    const underlyingImagePixels = imageData
       ?.getPointData()
       .getScalars()
       .getData();
@@ -176,19 +177,16 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (!underlyingImagePixels) return false;
 
       // Prevent painting over locked segments
-      if (activeSegmentGroupID.value && activeLabelmap.value) {
-        const metadata =
-          segmentGroupStore.metadataByID[activeSegmentGroupID.value];
-        if (metadata) {
-          const currentData = activeLabelmap.value
-            .getPointData()
-            .getScalars()
-            .getData() as Uint8Array;
-          const currentValue = currentData[idx];
-          const segment = metadata.segments.byValue[currentValue];
-          if (segment?.locked) {
-            return false;
-          }
+      const metadata = segmentGroupStore.metadataByID[segmentGroupID];
+      if (metadata) {
+        const currentData = labelmap
+          .getPointData()
+          .getScalars()
+          .getData() as Uint8Array;
+        const currentValue = currentData[idx];
+        const segment = metadata.segments.byValue[currentValue];
+        if (segment?.locked) {
+          return false;
         }
       }
 
@@ -202,7 +200,7 @@ export const usePaintToolStore = defineStore('paint', () => {
       const prevPoint =
         lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
       this.$paint.paintLabelmap(
-        activeLabelmap.value,
+        labelmap,
         axisIndex,
         lastPoint,
         prevPoint,
@@ -211,57 +209,63 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
   }
 
-  function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2) {
-    if (!activeLabelmap.value) return;
-    const spacing = activeLabelmap.value.getSpacing();
+  function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
+    const imageData = useImageCacheStore().getVtkImageData(imageID);
+    if (!imageData) return;
+
+    const spacing = [...imageData.getSpacing()];
     spacing.splice(axisIndex, 1);
     const scale: Vector2 = [1 / spacing[0], 1 / spacing[1]];
     this.$paint.setBrushScale(scale);
   }
 
-  // Create segment group if paint is active and none exist.
-  // If paint is not active, but there is a segment group for the current image, set it as active.
-  function ensureSegmentGroup() {
-    const imageID = currentImageID.value;
-    if (!imageID) return;
 
-    // Check if a valid segment group is already selected
-    if (
-      activeSegmentGroupID.value &&
-      segmentGroupStore.metadataByID[activeSegmentGroupID.value]
-        ?.parentImage === imageID
-    ) {
+  function switchToSegmentGroupForImage(this: _This, imageID: string) {
+    const segmentGroupID =
+      getValidSegmentGroupID(imageID) ??
+      segmentGroupStore.newLabelmapFromImage(imageID);
+
+    if (!segmentGroupID) {
+      throw new Error(`Failed to create or find segment group for image ${imageID}`);
+    }
+
+    if (activeSegmentGroupID.value === segmentGroupID) return;
+
+    setActiveSegmentGroup(segmentGroupID);
+
+    const metadata = segmentGroupStore.metadataByID[segmentGroupID];
+    if (!metadata) return;
+
+    const lastSegment = lastSegmentByGroup.value[segmentGroupID];
+    if (lastSegment !== undefined && lastSegment in metadata.segments.byValue) {
+      setActiveSegment.call(this, lastSegment);
       return;
     }
 
-    if (isActive.value) {
-      ensureActiveSegmentGroupForImage(imageID);
-    } else {
-      const segmentGroupID = getValidSegmentGroupID(imageID);
-      if (segmentGroupID) {
-        setActiveSegmentGroup(segmentGroupID);
-      }
+    if (metadata.segments.order.length > 0) {
+      setActiveSegment.call(this, metadata.segments.order[0]);
     }
   }
 
-  function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
-    ensureSegmentGroup();
+  function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2, imageID: string) {
+    switchToSegmentGroupForImage.call(this, imageID);
     strokePoints.value = [vec3.clone(indexPoint)];
-    doPaintStroke.call(this, axisIndex);
+    doPaintStroke.call(this, axisIndex, imageID);
   }
 
   function placeStrokePoint(
     this: _This,
     indexPoint: vec3,
-    axisIndex: 0 | 1 | 2
+    axisIndex: 0 | 1 | 2,
+    imageID: string
   ) {
     strokePoints.value.push(indexPoint);
-    doPaintStroke.call(this, axisIndex);
+    doPaintStroke.call(this, axisIndex, imageID);
   }
 
-  function endStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2) {
+  function endStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2, imageID: string) {
     strokePoints.value.push(indexPoint);
-    doPaintStroke.call(this, axisIndex);
+    doPaintStroke.call(this, axisIndex, imageID);
   }
 
   const currentImageStats = computed(() => {

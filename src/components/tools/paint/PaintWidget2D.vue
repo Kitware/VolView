@@ -11,12 +11,12 @@ import {
 } from 'vue';
 import { useMagicKeys } from '@vueuse/core';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
+import { vec3 } from 'gl-matrix';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
-import { vec3 } from 'gl-matrix';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
@@ -92,24 +92,26 @@ export default defineComponent({
     // --- interaction --- //
 
     onVTKEvent(widget, 'onStartInteractionEvent', () => {
-      // StartInteraction cannot occur if origin is null.
+      if (!imageId.value) return;
+      paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       const origin = widgetState.getBrush().getOrigin()!;
       const indexPoint = worldPointToIndex(origin);
-      paintStore.startStroke(indexPoint, viewAxisIndex.value);
+      paintStore.startStroke(indexPoint, viewAxisIndex.value, imageId.value);
       paintStore.updatePaintPosition(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onInteractionEvent', () => {
+      if (!imageId.value) return;
       const origin = widgetState.getBrush().getOrigin()!;
       const indexPoint = worldPointToIndex(origin);
-      paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value);
+      paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value, imageId.value);
       paintStore.updatePaintPosition(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onEndInteractionEvent', () => {
-      // end stroke
+      if (!imageId.value) return;
       const indexPoint = worldPointToIndex(widgetState.getBrush().getOrigin()!);
-      paintStore.endStroke(indexPoint, viewAxisIndex.value);
+      paintStore.endStroke(indexPoint, viewAxisIndex.value, imageId.value);
     });
 
     // --- manipulator --- //
@@ -145,11 +147,15 @@ export default defineComponent({
       checkIfPointerInView = false;
 
       widget.setVisibility(true);
-      paintStore.setSliceAxis(viewAxisIndex.value);
+      if (imageId.value) {
+        paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
+      }
     });
 
     onVTKEvent(view.interactor, 'onMouseEnter', () => {
-      paintStore.setSliceAxis(viewAxisIndex.value);
+      if (imageId.value) {
+        paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
+      }
       widget.setVisibility(true);
     });
 
