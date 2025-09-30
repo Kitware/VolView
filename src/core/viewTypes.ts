@@ -1,6 +1,4 @@
 import { Component } from 'vue';
-// import MultiObliqueSliceViewer from '@/src/components/MultiObliqueSliceViewer.vue';
-// import ObliqueSliceViewer from '@/src/components/ObliqueSliceViewer.vue';
 import SliceViewer from '@/src/components/SliceViewer.vue';
 import VolumeViewer from '@/src/components/VolumeViewer.vue';
 import { ViewInfo } from '@/src/types/views';

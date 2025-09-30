@@ -69,7 +69,16 @@ const { metadata } = useImage(imageId);
       </div>
     </template>
     <template #bottom-right>
-      <div class="annotation-cell" @click.stop>
+      <div
+        v-if="
+          !viewId.includes('-coronal') &&
+          !viewId.includes('-sagittal') &&
+          !viewId.includes('-axial') &&
+          !viewId.includes('-multi-oblique')
+        "
+        class="annotation-cell"
+        @click.stop
+      >
         <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
       </div>
     </template>

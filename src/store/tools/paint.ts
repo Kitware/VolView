@@ -219,14 +219,15 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushScale(scale);
   }
 
-
   function switchToSegmentGroupForImage(this: _This, imageID: string) {
     const segmentGroupID =
       getValidSegmentGroupID(imageID) ??
       segmentGroupStore.newLabelmapFromImage(imageID);
 
     if (!segmentGroupID) {
-      throw new Error(`Failed to create or find segment group for image ${imageID}`);
+      throw new Error(
+        `Failed to create or find segment group for image ${imageID}`
+      );
     }
 
     if (activeSegmentGroupID.value === segmentGroupID) return;
@@ -247,7 +248,12 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
   }
 
-  function startStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2, imageID: string) {
+  function startStroke(
+    this: _This,
+    indexPoint: vec3,
+    axisIndex: 0 | 1 | 2,
+    imageID: string
+  ) {
     switchToSegmentGroupForImage.call(this, imageID);
     strokePoints.value = [vec3.clone(indexPoint)];
     doPaintStroke.call(this, axisIndex, imageID);
@@ -263,7 +269,12 @@ export const usePaintToolStore = defineStore('paint', () => {
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
-  function endStroke(this: _This, indexPoint: vec3, axisIndex: 0 | 1 | 2, imageID: string) {
+  function endStroke(
+    this: _This,
+    indexPoint: vec3,
+    axisIndex: 0 | 1 | 2,
+    imageID: string
+  ) {
     strokePoints.value.push(indexPoint);
     doPaintStroke.call(this, axisIndex, imageID);
   }

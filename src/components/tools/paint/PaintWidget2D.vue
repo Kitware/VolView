@@ -104,7 +104,11 @@ export default defineComponent({
       if (!imageId.value) return;
       const origin = widgetState.getBrush().getOrigin()!;
       const indexPoint = worldPointToIndex(origin);
-      paintStore.placeStrokePoint(indexPoint, viewAxisIndex.value, imageId.value);
+      paintStore.placeStrokePoint(
+        indexPoint,
+        viewAxisIndex.value,
+        imageId.value
+      );
       paintStore.updatePaintPosition(origin, viewId.value);
     });
 

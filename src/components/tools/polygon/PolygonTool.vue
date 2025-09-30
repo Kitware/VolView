@@ -281,7 +281,9 @@ export default defineComponent({
 
       const image = segmentGroupStore.dataIndex[segmentGroupID];
       if (!image) {
-        throw new Error(`Failed to get labelmap for segment group ${segmentGroupID}`);
+        throw new Error(
+          `Failed to get labelmap for segment group ${segmentGroupID}`
+        );
       }
 
       const points = activeToolStore.getPoints(toolId);

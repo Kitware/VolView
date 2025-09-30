@@ -31,20 +31,49 @@ function updateView(newViewName: string) {
 </script>
 
 <template>
-  <v-menu location="top right" :close-on-content-click="false" offset="10">
-    <template #activator="{ props }">
-      <v-btn size="xs" v-bind="props" class="pointer-events-all">
-        {{ viewName }}
-      </v-btn>
-    </template>
-    <v-card min-width="150">
-      <v-select
-        :model-value="viewName"
-        @update:model-value="updateView($event)"
-        :items="availableViewNames"
-        density="compact"
-        hide-details
-      ></v-select>
-    </v-card>
-  </v-menu>
+  <v-select
+    :model-value="viewName"
+    @update:model-value="updateView($event)"
+    :items="availableViewNames"
+    density="compact"
+    hide-details
+    variant="solo"
+    class="pointer-events-all view-type-select"
+  ></v-select>
 </template>
+
+<style scoped>
+.view-type-select {
+  max-width: 90px;
+  font-size: 0.8125rem;
+  margin-left: auto;
+}
+
+.view-type-select :deep(.v-field__input) {
+  padding: 0 4px;
+  min-height: 20px;
+  text-align: right;
+  font-size: 0.8125rem;
+}
+
+.view-type-select :deep(.v-field) {
+  min-height: 20px;
+}
+
+.view-type-select :deep(.v-field__append-inner) {
+  padding-top: 0;
+  padding-right: 2px;
+}
+
+.view-type-select :deep(.v-input__control) {
+  min-height: 20px;
+}
+
+.view-type-select :deep(.v-field__overlay) {
+  background-color: transparent;
+}
+
+.view-type-select :deep(.v-icon) {
+  font-size: 0.875rem;
+}
+</style>
