@@ -50,11 +50,9 @@ const hideToolFromContextMenu = () => {
   <v-menu
     v-if="tool"
     v-model="contextMenu.show"
-    class="position-absolute"
-    :style="{
-      top: `${contextMenu.y}px`,
-      left: `${contextMenu.x}px`,
-    }"
+    :target="[contextMenu.x, contextMenu.y]"
+    location="bottom start"
+    origin="auto"
     close-on-click
     close-on-content-click
   >
