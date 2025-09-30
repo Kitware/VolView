@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, ref } from 'vue';
+import { createEventHook } from '@vueuse/core';
 import type { Maybe } from '@/src/types';
 import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
 import type { ViewInfo, ViewInfoInit } from '@/src/types/views';
 import { DefaultLayout, DefaultLayoutSlots } from '@/src/config';
-import { createEventHook } from '@vueuse/core';
 import type { StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
@@ -146,6 +146,7 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setLayout(newLayout: Layout) {
+    isActiveViewMaximized.value = false;
     // we don't remove non-visible views so we can preserve their state for later
     const newLayoutViewCount = calcLayoutViewCount(newLayout);
     while (layoutSlots.value.length < newLayoutViewCount) {

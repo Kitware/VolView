@@ -156,6 +156,8 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
 
   // cleanup
   onScopeDispose(() => {
+    deferredRender.cancel();
+
     renderWindow.removeRenderer(renderer);
     parent?.renderWindow.removeRenderWindow(renderWindow);
 

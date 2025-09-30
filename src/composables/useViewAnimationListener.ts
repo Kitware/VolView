@@ -24,11 +24,14 @@ export function useViewAnimationListener(
     if (!viewVal) return;
 
     if (!animating.value) {
+      if (!requested) return;
       viewVal.interactor.cancelAnimation(store);
       requested = false;
-    } else if (!requested && canAnimate.value) {
-      viewVal.interactor.requestAnimation(store);
-      requested = true;
+      return;
     }
+
+    if (requested || !canAnimate.value) return;
+    viewVal.interactor.requestAnimation(store);
+    requested = true;
   });
 }

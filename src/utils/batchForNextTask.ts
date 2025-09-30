@@ -13,6 +13,14 @@ export function batchForNextTask<T extends (...args: any[]) => void>(fn: T) {
       timeout = null;
       fn(...args);
     }, 0);
-  }) as T;
+  }) as T & { cancel: () => void };
+
+  wrapper.cancel = () => {
+    if (timeout != null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
   return wrapper;
 }
