@@ -92,4 +92,3 @@ const dicomInfo = computed(() => {
 </template>
 
 <style scoped src="@/src/components/styles/utils.css"></style>
-<style scoped></style>

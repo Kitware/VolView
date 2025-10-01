@@ -18,7 +18,7 @@ import { computed, defineComponent, PropType, toRefs } from 'vue';
 import { Layout } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
 import { useToolStore } from '@/src/store/tools';
-import { ALLOW_MAXIMIZE_TOOLS } from '@/src/config';
+import { Tools } from '@/src/store/tools/types';
 import LayoutGridItem from '@/src/components/LayoutGridItem.vue';
 
 export default defineComponent({
@@ -32,7 +32,7 @@ export default defineComponent({
     },
     maximize(id: string) {
       const currentTool = useToolStore().currentTool;
-      if (ALLOW_MAXIMIZE_TOOLS.includes(currentTool)) {
+      if (currentTool !== Tools.Polygon) {
         useViewStore().setActiveView(id);
         useViewStore().toggleActiveViewMaximized();
       }

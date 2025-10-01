@@ -8,7 +8,6 @@ import type { Layout } from './types/layout';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
 import { Action } from './constants';
-import { Tools } from './store/tools/types';
 
 /**
  * These are the initial view IDs.
@@ -230,14 +229,6 @@ export const ACTION_TO_KEY = {
 
   showKeyboardShortcuts: '?',
 } satisfies Record<Action, string>;
-
-export const ALLOW_MAXIMIZE_TOOLS = [
-  Tools.WindowLevel,
-  Tools.Pan,
-  Tools.Zoom,
-  Tools.Select,
-  Tools.Crosshairs,
-];
 
 export const DEFAULT_SEGMENT_MASKS: SegmentMask[] = [
   {
