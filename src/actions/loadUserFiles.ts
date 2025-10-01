@@ -273,7 +273,6 @@ function loadDataSources(sources: DataSource[]) {
       const errorMessages = (errored as ErrorResult[]).map((errResult) => {
         const { dataSource, error } = errResult;
         const name = getDataSourceName(dataSource);
-        // log error for debugging
         logError(error);
         return error.message ? `- ${name}: ${error.message}` : `- ${name}`;
       });

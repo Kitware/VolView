@@ -135,17 +135,17 @@ export async function importDataSources(
   const configResults: ConfigResult[] = [];
   const results: ImportDataSourcesResult[] = [];
 
-  let queue = [
-    ...dataSources.map((src) => evaluateChain(src, handlers, importContext)),
-  ];
+  let queue = dataSources.map((src) => ({
+    promise: evaluateChain(src, handlers, importContext),
+    source: src,
+  }));
 
   /* eslint-disable no-await-in-loop */
   while (queue.length) {
-    const { promise, index, rest } = await asyncSelect<ImportResult>(queue);
-    const result = await promise.catch((err) =>
-      asErrorResult(err, dataSources[index])
-    );
-    queue = rest;
+    const { index } = await asyncSelect(queue.map((item) => item.promise));
+    const { promise, source } = queue[index];
+    const result = await promise.catch((err) => asErrorResult(err, source));
+    queue = queue.filter((_, i) => i !== index);
 
     switch (result.type) {
       case 'intermediate': {
@@ -157,9 +157,10 @@ export async function importDataSources(
 
         // try loading intermediate results
         queue.push(
-          ...otherSources.map((src) =>
-            evaluateChain(src, handlers, importContext)
-          )
+          ...otherSources.map((src) => ({
+            promise: evaluateChain(src, handlers, importContext),
+            source: src,
+          }))
         );
         break;
       }
@@ -175,20 +176,25 @@ export async function importDataSources(
         throw new Error(`Invalid result: ${result}`);
     }
   }
-  /* eslint-enable no-await-in-loop */
 
   cleanup();
 
   results.push(...importConfigs(configResults));
 
-  results.push(
-    ...(await importDicomChunkSources(
-      chunkSources.filter(
-        (src): src is ChunkSource =>
-          src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
-      )
-    ))
+  const dicomChunkSources = chunkSources.filter(
+    (src): src is ChunkSource =>
+      src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
   );
+
+  try {
+    results.push(...(await importDicomChunkSources(dicomChunkSources)));
+  } catch (err) {
+    const errorSource =
+      dicomChunkSources.length === 1
+        ? dicomChunkSources[0]
+        : ({ type: 'collection', sources: dicomChunkSources } as DataSource);
+    results.push(asErrorResult(ensureError(err), errorSource));
+  }
 
   // save data sources
   useDatasetStore().addDataSources(
