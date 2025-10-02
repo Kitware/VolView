@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { zodEnumFromObjKeys } from '@/src/utils';
 import { ACTIONS } from '@/src/constants';
 
-// for applyConfig
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useDataBrowserStore } from '@/src/store/data-browser';
@@ -156,11 +155,14 @@ const applyWindowing = (manifest: Config) => {
   useWindowingStore().runtimeConfigWindowLevel = manifest.windowing;
 };
 
-export const applyConfig = (manifest: Config) => {
+export const applyPreStateConfig = (manifest: Config) => {
   applyLayout(manifest);
-  applyLabels(manifest);
   applySampleData(manifest);
   applyShortcuts(manifest);
   applyIo(manifest);
   applyWindowing(manifest);
+};
+
+export const applyPostStateConfig = (manifest: Config) => {
+  applyLabels(manifest);
 };
