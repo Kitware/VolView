@@ -4,7 +4,6 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import JSZip from 'jszip';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
-import { downloadFile } from './utils';
 
 async function writeManifestToZip(manifestPath: string, fileName: string) {
   const filePath = path.join(TEMP_DIR, fileName);
@@ -26,32 +25,60 @@ async function openVolViewPage(fileName: string) {
   const urlParams = `?urls=[tmp/${fileName}]`;
   await volViewPage.open(urlParams);
   await volViewPage.waitForViews();
-
   const notifications = await volViewPage.getNotificationsCount();
   expect(notifications).toEqual(0);
+
+  // Check that no placeholder overlays are visible (mdi-image-off icons)
+  // The overlays are in divs that are shown/hidden based on imageID
+  await browser.waitUntil(
+    async () => {
+      const visibleOverlayCount = await browser.execute(() => {
+        const imageOffIcons = document.querySelectorAll('i.mdi-image-off');
+        return Array.from(imageOffIcons).filter((icon) => {
+          const parent = icon.closest('div.overlay');
+          if (!parent) return false;
+          const style = window.getComputedStyle(parent);
+          return style.display !== 'none' && style.visibility !== 'hidden';
+        }).length;
+      });
+      return visibleOverlayCount === 0;
+    },
+    {
+      timeoutMsg: 'Image placeholder overlays are still visible',
+    }
+  );
 }
 
-describe.skip('State file manifest.json code', () => {
-  it('has no errors loading version 3.0.0 manifest.json file ', async () => {
+describe('State file manifest.json code', () => {
+  it('has no errors loading version 5.0.1 manifest.json file ', async () => {
     const manifestPath = path.join(
       FIXTURES,
-      'tools-prostate.3-0-0.volview.json'
+      'pre-multi-4up.5-0-1.volview.json'
     );
     const fileName = 'temp-session.volview.zip';
     await writeManifestToZip(manifestPath, fileName);
     await openVolViewPage(fileName);
   });
 
-  // Dev test
-  // http://localhost:5173/?&urls=[http://localhost:9999/session.volview-2-1-0-labelmap-tools.zip]
-  it('has no errors loading version 2.1.0 manifest.json file ', async () => {
-    const FILE_NAME = 'session.volview-2-1-0-labelmap-tools.zip';
+  it('loads 5.0.1 manifest with axial layer layout', async () => {
+    const manifestPath = path.join(FIXTURES, 'layer-axial.5-0-1.volview.json');
+    const fileName = 'temp-layer-axial.volview.zip';
+    await writeManifestToZip(manifestPath, fileName);
+    await openVolViewPage(fileName);
 
-    await downloadFile(
-      'https://data.kitware.com/api/v1/file/6566acb6c5a2b36857ad1786/download',
-      FILE_NAME
+    // Switch to the Rendering tab
+    const renderingTab = await $('button[data-testid="module-tab-Rendering"]');
+    await renderingTab.click();
+
+    // Wait for and verify that the layer opacity slider is visible
+    await browser.waitUntil(
+      async () => {
+        const layerSlider = await $('[data-testid="layer-opacity-slider"]');
+        return layerSlider.isDisplayed();
+      },
+      {
+        timeoutMsg: 'Layer opacity slider is not visible in the Rendering tab',
+      }
     );
-
-    await openVolViewPage(FILE_NAME);
   });
 });

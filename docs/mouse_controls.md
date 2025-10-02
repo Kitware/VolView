@@ -2,10 +2,10 @@
 
 ## Data management
 
-| Shortcut | Action                |
-| -------- | --------------------- |
-| Ctrl + . | Delete Current Image  |
-| Ctrl + / | Clear all data        |
+| Shortcut | Action               |
+| -------- | -------------------- |
+| Ctrl + . | Delete Current Image |
+| Ctrl + / | Clear all data       |
 
 ## Slice
 

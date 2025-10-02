@@ -30,10 +30,6 @@ const segments = computed<SegmentMask[]>(() => {
   return segmentGroupStore.segmentByGroupID[groupId.value] ?? [];
 });
 
-function addNewSegment() {
-  segmentGroupStore.addSegment(groupId.value);
-}
-
 // --- selection --- //
 
 const selectedSegment = computed({
@@ -42,6 +38,11 @@ const selectedSegment = computed({
     paintStore.setActiveSegment(value);
   },
 });
+
+function addNewSegment() {
+  const newSegment = segmentGroupStore.addSegment(groupId.value);
+  selectedSegment.value = newSegment.value;
+}
 
 // reset selection when necessary
 watch(

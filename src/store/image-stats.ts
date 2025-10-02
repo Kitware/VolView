@@ -134,6 +134,8 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     const activeScalars = computed(() =>
       imageData.value?.getPointData()?.getScalars()
     );
+
+    // useVtkComputed listens to VTK onModified events for progressive range updates
     const scalarRange = useVtkComputed(activeScalars, () =>
       activeScalars.value?.getRange(0)
     );
@@ -147,6 +149,17 @@ export const useImageStatsStore = defineStore('image-stats', () => {
       },
       { immediate: true }
     );
+
+    // Watch activeScalars directly to handle when entire scalars object is replaced
+    // (e.g., SEG DICOM images that replace vtkImageData after loading)
+    watch(activeScalars, (scalars) => {
+      if (!scalars) return;
+
+      const range = scalars.getRange(0);
+      if (range) {
+        internalSetScalarRange(id, range[0], range[1]);
+      }
+    });
 
     const triggerAutoRangeComputation = (image: vtkImageData) => {
       autoRangeComputations[id] = computeAutoRangeValues(image);
@@ -228,17 +241,20 @@ export const useImageStatsStore = defineStore('image-stats', () => {
   );
 
   const getAutoRangeValues = (imageID: MaybeRef<Maybe<string>>) => {
-    return computed(() => {
-      const id = unref(imageID);
-      if (id && stats[id]) {
-        return stats[id].autoRangeValues ?? {};
-      }
-      return {};
-    });
+    const id = unref(imageID);
+    if (id && stats[id]) {
+      return stats[id].autoRangeValues ?? {};
+    }
+    return {};
+  };
+
+  const removeData = (id: string) => {
+    delete stats[id];
   };
 
   return {
     stats,
     getAutoRangeValues,
+    removeData,
   };
 });

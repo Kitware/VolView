@@ -2,19 +2,19 @@
 
 By loading a JSON file, you can set VolView's configuration:
 
-- Starting view layout (Axial Only, 3D Primary, etc).
+- Starting view layout grid size
 - Labels for tools
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
 ## Starting view layout
 
-The `activeLayout` key has options (Axial Only, 3D Primary, etc.) defined in `config.ts`
+The `gridSize` key sets the initial layout grid as `[width, height]`. For example, `[2, 2]` creates a 2x2 grid of views.
 
 ```json
 {
   "layout": {
-    "activeLayout": "Axial Only"
+    "gridSize": [2, 2]
   }
 }
 ```
@@ -110,7 +110,7 @@ Simplify the data browser by hiding the Sample Data expandable section.
     }
   },
   "layout": {
-    "activeLayout": "Axial Only"
+    "gridSize": [1, 1]
   }
 }
 ```
@@ -143,7 +143,7 @@ Simplify the data browser by hiding the Sample Data expandable section.
     }
   },
   "layout": {
-    "activeLayout": "Axial Only"
+    "gridSize": [2, 2]
   },
   "dataBrowser": {
     "hideSampleData": false

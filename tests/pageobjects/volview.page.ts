@@ -43,23 +43,54 @@ class VolViewPage extends Page {
   }
 
   get views() {
-    return $$('div[data-testid~="vtk-view"] > canvas');
+    return $$('div[data-testid~="vtk-view"] canvas');
   }
 
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
-    const this_ = this;
     await browser.waitUntil(
-      async function viewsExist() {
-        const views = await this_.views;
-        if ((await views.length) === 0) return false;
-        const inView = await Promise.all(
-          Array.from(views).map((v) => v.isDisplayed({ withinViewport: true }))
-        );
-        return inView.every(Boolean);
+      async () => {
+        try {
+          // Query views once per iteration to avoid multiple queries that could become stale
+          const currentViews = await this.views;
+          const viewCount = await currentViews.length;
+
+          if (viewCount === 0) {
+            return false;
+          }
+
+          // Check each view's dimensions in a single pass
+          const viewPromises = currentViews.map(async (view) => {
+            try {
+              // Get attributes directly from the element reference
+              const width = await view.getAttribute('width');
+              const height = await view.getAttribute('height');
+
+              if (width && height) {
+                const w = parseInt(width, 10);
+                const h = parseInt(height, 10);
+                // Canvas should have real dimensions, not be a 1x1 placeholder
+                // Accept any size > 10 as a real view
+                return w > 10 && h > 10;
+              }
+              return false;
+            } catch (err) {
+              // Element may have been removed/recreated - that's ok, we'll retry
+              return false;
+            }
+          });
+
+          const results = await Promise.all(await viewPromises);
+
+          // At least one view must have real dimensions
+          return results.some((result) => result);
+        } catch (error) {
+          // DOM may be updating, retry on next iteration
+          return false;
+        }
       },
       {
         timeout,
-        timeoutMsg: `expected at least 1 view to be displayed in viewport`,
+        timeoutMsg: `expected at least 1 view to be rendered with real dimensions (timeout: ${timeout}ms)`,
       }
     );
   }
@@ -160,7 +191,34 @@ class VolViewPage extends Page {
   }
 
   get layerOpacitySliders() {
-    return $$('div[data-testid="layer-opacity-slider"] input');
+    return $$('div[data-testid="layer-opacity-slider"]');
+  }
+
+  async getVolumeRenderingSection() {
+    const pwfEditor = await $('div.pwf-editor');
+    const exists = await pwfEditor.isExisting();
+    return exists ? pwfEditor : null;
+  }
+
+  get create3DViewMessage() {
+    return $('div.text-body-2.text-center.text-medium-emphasis');
+  }
+
+  async getView3D() {
+    const view3D = $('div[data-testid="vtk-view vtk-volume-view"]');
+    const exists = await view3D.isExisting();
+    return exists ? view3D : null;
+  }
+
+  async getView2D() {
+    const view2D = $('div[data-testid="vtk-view vtk-two-view"]');
+    const exists = await view2D.isExisting();
+    return exists ? view2D : null;
+  }
+
+  async getViews2D() {
+    const views2D = $$('div[data-testid="vtk-view vtk-two-view"]');
+    return views2D;
   }
 }
 

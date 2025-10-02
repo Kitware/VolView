@@ -5,14 +5,14 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useViewStore } from '@/src/store/views';
-import { LayoutDirection } from '@/src/types/layout';
-import { Manifest } from './schema';
+import { Manifest } from '@/src/io/state-file/schema';
 
-import { retypeFile } from '../io';
-import { ARCHIVE_FILE_TYPES } from '../mimeTypes';
+import { retypeFile } from '@/src/io';
+import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
+import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '5.0.1';
+export const MANIFEST_VERSION = '6.0.0';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
@@ -42,10 +42,12 @@ export async function serialize() {
       current: Tools.WindowLevel,
     },
     layout: {
-      direction: LayoutDirection.H,
+      direction: 'H',
       items: [],
     },
-    views: [],
+    layoutSlots: [],
+    viewByID: {},
+    isActiveViewMaximized: false,
     parentToLayers: [],
   };
 
@@ -56,6 +58,7 @@ export async function serialize() {
 
   await datasetStore.serialize(stateFile);
   viewStore.serialize(stateFile);
+  await useViewConfigStore().serialize(stateFile);
   await labelStore.serialize(stateFile);
   toolStore.serialize(stateFile);
   await layersStore.serialize(stateFile);

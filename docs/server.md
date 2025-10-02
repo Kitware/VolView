@@ -22,6 +22,7 @@ poetry install
 
 The VolView codebase comes with a several sample APIs in `server/examples/` that
 work with the remote functions sample in the VolView viewer.
+
 - `server/examples/example_api.py`: basic set of example endpoints
 - `server/examples/example_class_api.py`: example endpoints using a class
 
@@ -112,7 +113,6 @@ add custom serializers and deserializers to properly handle those objects.
 
 The serializer/deserializer functions should either return a transformed result,
 or pass through the input if no transformation was applied.
-
 
 ```python
 from datetime import datetime
@@ -219,7 +219,7 @@ Use `result = await client.call(endpoint, [arg1, arg2, ...])` to invoke a
 server-side RPC endpoint.
 
 ```js
-const result = await client.call('add', [1, 2])
+const result = await client.call('add', [1, 2]);
 ```
 
 Use `await client.stream(endpoint, onStreamData)` to invoke a server-side RPC
@@ -227,13 +227,13 @@ stream.
 
 ```typescript
 const onStreamData = (data: StreamData) => {
-  const { progress } = data
-  console.log('current progress: ', progress)
-}
+  const { progress } = data;
+  console.log('current progress: ', progress);
+};
 
-let done = false
-await client.stream('progress', onStreamData)
-let done = true
+let done = false;
+await client.stream('progress', onStreamData);
+let done = true;
 ```
 
 ### Deployment
@@ -281,6 +281,7 @@ app = VolViewApi(app)
 
 The VolView API's path can be customized, as well as a host of other properties.
 These are exposed as keyword arguments to `VolViewApi(app, server_kwargs={}, asgi_kwargs={})`.
+
 - `server_kwargs`: see <https://python-socketio.readthedocs.io/en/latest/api.html#asyncserver-class>
 - `asgi_kwargs`: see <https://python-socketio.readthedocs.io/en/latest/api.html#asgiapp-class>
 

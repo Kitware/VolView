@@ -1,11 +1,13 @@
 <script lang="ts">
 import { computed, defineComponent, ref, toRefs, watch } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
-import { type DataSelection, selectionEquals } from '@/src/utils/dataSelection';
-import { useDICOMStore } from '../store/datasets-dicom';
-import { useDatasetStore } from '../store/datasets';
-import { useMultiSelection } from '../composables/useMultiSelection';
-import PatientStudyVolumeBrowser from './PatientStudyVolumeBrowser.vue';
+import { selectionEquals } from '@/src/utils/dataSelection';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useDatasetStore } from '@/src/store/datasets';
+import { useMultiSelection } from '@/src/composables/useMultiSelection';
+import PatientStudyVolumeBrowser from '@/src/components//PatientStudyVolumeBrowser.vue';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
   name: 'PatientBrowser',
@@ -24,8 +26,9 @@ export default defineComponent({
 
     const dicomStore = useDICOMStore();
     const dataStore = useDatasetStore();
+    const viewStore = useViewStore();
 
-    const primarySelection = computed(() => dataStore.primarySelection);
+    const { currentImageID } = useCurrentImage();
 
     const studies = computed(() => {
       const selPatient = patientKey.value;
@@ -65,19 +68,21 @@ export default defineComponent({
       selected.value = [];
     };
 
+    function setViewImage(imageID: string) {
+      viewStore.setDataForActiveView(imageID);
+    }
+
     return {
       selected,
       selectedAll,
       selectedSome,
       toggleSelectAll,
-      primarySelection,
+      currentImageID,
       removeSelectedStudies,
       studies,
       selectionEquals,
-      setPrimarySelection: (sel: DataSelection) => {
-        dataStore.setPrimarySelection(sel);
-      },
       panels,
+      setViewImage,
     };
   },
 });
@@ -85,9 +90,9 @@ export default defineComponent({
 
 <template>
   <item-group
-    :model-value="primarySelection"
+    :model-value="currentImageID"
     :equals-test="selectionEquals"
-    @update:model-value="setPrimarySelection"
+    @update:model-value="setViewImage"
   >
     <v-container class="pa-0">
       <v-row no-gutters justify="space-between" class="mb-2">

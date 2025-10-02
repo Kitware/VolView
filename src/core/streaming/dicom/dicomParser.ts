@@ -177,6 +177,12 @@ function* readDataElement(reader: StreamingByteReader, opts?: ParseOptions) {
       'length',
       length
     );
+
+    // For implicit VR with undefined length, assume it's a sequence
+    if (length === UndefinedLength) {
+      vr = 'SQ';
+    }
+
     data = yield* readElementValue(reader, vr, length, {
       littleEndian,
       explicitVr,

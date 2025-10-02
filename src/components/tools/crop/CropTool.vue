@@ -37,7 +37,7 @@ export default defineComponent({
 
     const viewType = computed(() => {
       const viewStore = useViewStore();
-      return viewStore.viewSpecs[viewID.value].viewType;
+      return viewStore.viewByID[viewID.value].type;
     });
 
     return {

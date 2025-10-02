@@ -42,9 +42,9 @@ const showKeyboardShortcuts = () => {
 
 const changeSlice = (offset: number) => () => {
   const { currentImageID } = useCurrentImage();
-  const { activeViewID } = useViewStore();
+  const { activeView } = useViewStore();
 
-  const { slice: currentSlice } = useSliceConfig(activeViewID, currentImageID);
+  const { slice: currentSlice } = useSliceConfig(activeView, currentImageID);
   currentSlice.value += offset;
 };
 
@@ -54,11 +54,11 @@ const clearScene = () => () => {
 };
 
 const deleteCurrentImage = () => () => {
-  const datasetStore = useDatasetStore();
-  datasetStore.remove(datasetStore.primaryImageID);
-
-  // Automatically select next image
-  datasetStore.setPrimarySelection(datasetStore.idsAsSelections[0]);
+  const { currentImageID } = useCurrentImage();
+  if (currentImageID.value) {
+    const datasetStore = useDatasetStore();
+    datasetStore.remove(currentImageID.value);
+  }
 };
 
 export const ACTION_TO_FUNC = {

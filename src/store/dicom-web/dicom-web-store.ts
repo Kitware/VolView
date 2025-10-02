@@ -9,10 +9,9 @@ import {
   convertSuccessResultToDataSelection,
   importDataSources,
 } from '@/src/io/import/importDataSources';
-import { useDatasetStore } from '../datasets';
-import { useDICOMStore } from '../datasets-dicom';
-import { useMessageStore } from '../messages';
-import { useDicomMetaStore } from './dicom-meta-store';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useMessageStore } from '@/src/store/messages';
+import { useDicomMetaStore } from '@/src/store/dicom-web/dicom-meta-store';
 import {
   searchForStudies,
   fetchSeries,
@@ -20,7 +19,8 @@ import {
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
   parseUrl,
-} from '../../core/dicom-web-api';
+} from '@/src/core/dicom-web-api';
+import { useViewStore } from '@/src/store/views';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 
@@ -150,7 +150,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   const volumes = ref({} as Progress);
 
   const downloadVolume = async (volumeKey: string) => {
-    const datasets = useDatasetStore();
     const dicoms = useDicomMetaStore();
 
     if (!isDownloadable(volumes.value[volumeKey])) return;
@@ -196,7 +195,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       }
 
       const selection = convertSuccessResultToDataSelection(loadResult);
-      datasets.setPrimarySelection(selection);
+      useViewStore().setDataForAllViews(selection);
       volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
         state: 'Done',

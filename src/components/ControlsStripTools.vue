@@ -127,15 +127,12 @@
 
 <script lang="ts">
 import { computed, defineComponent, ref, watch } from 'vue';
-import { storeToRefs } from 'pinia';
 import { onKeyDown, useMagicKeys } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useToolStore } from '@/src/store/tools';
-import { useViewStore } from '@/src/store/views';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
 import CropControls from '@/src/components/tools/crop/CropControls.vue';
 import ResetViews from '@/src/components/tools/ResetViews.vue';
@@ -144,6 +141,8 @@ import RectangleControls from '@/src/components/RectangleControls.vue';
 import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useViewStore } from '@/src/store/views';
 
 export default defineComponent({
   components: {
@@ -159,16 +158,17 @@ export default defineComponent({
     WindowLevelControls,
   },
   setup() {
-    const dataStore = useDatasetStore();
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 
-    const noCurrentImage = computed(() => !dataStore.primaryDataset);
+    const { currentImageID } = useCurrentImage();
+    const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
-    const { layout: currentLayout } = storeToRefs(viewStore);
-    const isObliqueLayout = computed(
-      () => currentLayout.value?.name === 'Oblique View'
-    );
+    const isObliqueLayout = computed(() => {
+      if (!viewStore.activeView) return false;
+      const view = viewStore.viewByID[viewStore.activeView];
+      return view.type === 'Oblique';
+    });
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
