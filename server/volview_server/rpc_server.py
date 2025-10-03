@@ -127,12 +127,12 @@ class RpcServer:
         self._cleanup_task = None
 
         @self.sio.event
-        def connect(sid: str, environ: dict):
-            self._on_connect(sid, environ)
+        async def connect(sid: str, environ: dict):
+            await self._on_connect(sid, environ)
 
         @self.sio.event
-        def disconnect(sid: str):
-            self._on_disconnect(sid)
+        async def disconnect(sid: str):
+            await self._on_disconnect(sid)
 
         @self.sio.on(RPC_CALL_EVENT)
         async def on_rpc_call(sid: str, data: Any):
@@ -222,19 +222,20 @@ class RpcServer:
             else:
                 future.set_exception(Exception(error))
 
-    def _on_connect(self, sid: str, environ: dict):
+    async def _on_connect(self, sid: str, environ: dict):
         qs = parse_qs(environ.get("QUERY_STRING", ""))
         (client_id,) = qs.get(CLIENT_ID_QS, [None])
         if not client_id:
             raise ConnectionRefusedError("No clientId provided")
 
         self.clients[sid] = client_id
-        # add to room based on client_id
-        self.sio.enter_room(sid, client_id)
 
-    def _on_disconnect(self, sid: str):
+        await self.sio.enter_room(sid, client_id)
+
+    async def _on_disconnect(self, sid: str):
         client_id = self.clients[sid]
-        self.sio.leave_room(sid, client_id)
+        await self.sio.leave_room(sid, client_id)
+        await self.sio.close_room(client_id)
 
     async def _on_rpc_call(self, client_id: str, data: Any):
         try:
