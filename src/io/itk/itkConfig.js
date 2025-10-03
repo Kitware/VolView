@@ -1,7 +1,8 @@
 const fullUrl = (relative) => {
-  // In development, use the dev server port directly
+  // In development, detect the current port automatically
   if (import.meta.env.DEV) {
-    return `http://localhost:5173${relative}`;
+    const currentPort = window.location.port || '3000';
+    return `http://localhost:${currentPort}${relative}`;
   }
 
   // Production: use document location
