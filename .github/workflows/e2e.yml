@@ -11,6 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       DOWNLOAD_TIMEOUT: 220000
+      VITE_SHOW_SAMPLE_DATA: true
     steps:
       - uses: actions/checkout@v4
         with:

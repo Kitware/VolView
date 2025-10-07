@@ -57,7 +57,7 @@ hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 
 When loading files, VolView can automatically convert images to segment groups
 if they follow a naming convention. For example, an image with name like `foo.segmentation.bar`
-will be converted to a segment group for a base image named like `foo.baz`.  
+will be converted to a segment group for a base image named like `foo.baz`.
 The `segmentation` extension is defined by the `io.segmentGroupExtension` key, which takes a
 string. Files `foo.[segmentGroupExtension].bar` will be automatilly converted to segment groups for a base image named `foo.baz`. The default is `''` and will disable the feature.
 
@@ -83,18 +83,6 @@ To configure a key for an action, add its action name and the key(s) under the `
   "shortcuts": {
     "polygon": "Ctrl+p",
     "showKeyboardShortcuts": "t"
-  }
-}
-```
-
-## Visibility of Sample Data section
-
-Simplify the data browser by hiding the Sample Data expandable section.
-
-```json
-{
-  "dataBrowser": {
-    "hideSampleData": false
   }
 }
 ```

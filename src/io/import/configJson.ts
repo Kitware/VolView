@@ -4,7 +4,6 @@ import { ACTIONS } from '@/src/constants';
 
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { useDataBrowserStore } from '@/src/store/data-browser';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
@@ -19,12 +18,6 @@ import useLoadDataStore from '@/src/store/load-data';
 const layout = z
   .object({
     gridSize: z.tuple([z.number(), z.number()]).optional(),
-  })
-  .optional();
-
-const dataBrowser = z
-  .object({
-    hideSampleData: z.boolean().optional(),
   })
   .optional();
 
@@ -81,7 +74,6 @@ const windowing = z
 
 export const config = z.object({
   layout,
-  dataBrowser,
   labels,
   shortcuts,
   io,
@@ -122,10 +114,6 @@ const applyLabels = (manifest: Config) => {
   applyLabelsToStore(usePolygonStore(), polygonLabels);
 };
 
-const applySampleData = (manifest: Config) => {
-  useDataBrowserStore().hideSampleData = !!manifest.dataBrowser?.hideSampleData;
-};
-
 const applyLayout = (manifest: Config) => {
   if (manifest.layout?.gridSize) {
     useViewStore().setLayoutFromGrid(manifest.layout.gridSize);
@@ -157,7 +145,6 @@ const applyWindowing = (manifest: Config) => {
 
 export const applyPreStateConfig = (manifest: Config) => {
   applyLayout(manifest);
-  applySampleData(manifest);
   applyShortcuts(manifest);
   applyIo(manifest);
   applyWindowing(manifest);
