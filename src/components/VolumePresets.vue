@@ -5,15 +5,13 @@ import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/C
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
-import PersistentOverlay from './PersistentOverlay.vue';
-import { useCurrentImage } from '../composables/useCurrentImage';
-import useVolumeColoringStore from '../store/view-configs/volume-coloring';
-import { getColorFunctionRangeFromPreset } from '../utils/vtk-helpers';
-import { useVolumeThumbnailing } from '../composables/useVolumeThumbnailing';
-import { InitViewIDs } from '../config';
+import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
+import { getColorFunctionRangeFromPreset } from '@/src/utils/vtk-helpers';
+import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
 
 const THUMBNAIL_SIZE = 80;
-const TARGET_VIEW_ID = InitViewIDs.Three;
 
 export default defineComponent({
   name: 'VolumePresets',
@@ -22,15 +20,22 @@ export default defineComponent({
     GroupableItem,
     PersistentOverlay,
   },
-  setup() {
+  props: {
+    viewId: {
+      type: String,
+      default: null,
+    },
+  },
+  setup(props) {
     const volumeColoringStore = useVolumeColoringStore();
+    const viewId = computed(() => props.viewId);
 
     const { currentImageID, currentImageData } = useCurrentImage();
 
-    useVolumeColoringInitializer(TARGET_VIEW_ID, currentImageID);
+    useVolumeColoringInitializer(viewId, currentImageID);
 
     const volumeColorConfig = computed(() =>
-      volumeColoringStore.getConfig(TARGET_VIEW_ID, currentImageID.value)
+      volumeColoringStore.getConfig(viewId.value, currentImageID.value)
     );
 
     const colorTransferFunctionRef = computed(
@@ -61,9 +66,9 @@ export default defineComponent({
     );
 
     const selectPreset = (name: string) => {
-      if (!currentImageID.value) return;
+      if (!viewId.value || !currentImageID.value) return;
       volumeColoringStore.setColorPreset(
-        TARGET_VIEW_ID,
+        viewId.value,
         currentImageID.value,
         name
       );
@@ -79,13 +84,14 @@ export default defineComponent({
       const { mappingRange } = colorTransferFunctionRef.value ?? {};
       // guard against infinite loops
       if (
+        viewId.value &&
         currentImageID.value &&
         mappingRange &&
         (Math.abs(range[0] - mappingRange[0]) > 1e-6 ||
           Math.abs(range[1] - mappingRange[1]) > 1e-6)
       ) {
         volumeColoringStore.updateColorTransferFunction(
-          TARGET_VIEW_ID,
+          viewId.value,
           currentImageID.value,
           {
             mappingRange: range,

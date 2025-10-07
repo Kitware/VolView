@@ -1,5 +1,4 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
-import { LPSAxisDir } from '@/src/types/lps';
 import {
   ColorTransferFunction,
   CVRConfig,
@@ -21,7 +20,6 @@ export interface SliceConfig {
   slice: number;
   min: number;
   max: number;
-  axisDirection: LPSAxisDir;
   syncState: boolean;
 }
 

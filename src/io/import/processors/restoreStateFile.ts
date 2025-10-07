@@ -14,8 +14,6 @@ import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
 import { partition } from '@/src/utils';
 import { pipe } from '@/src/utils/functional';
-import { useViewStore } from '@/src/store/views';
-import { useDatasetStore } from '@/src/store/datasets';
 import {
   makeDefaultSegmentGroupName,
   useSegmentGroupStore,
@@ -31,6 +29,8 @@ import updateUriType from '@/src/io/import/processors/updateUriType';
 import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
+import { useViewStore } from '@/src/store/views';
+import { useViewConfigStore } from '@/src/store/view-configs';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -146,12 +146,129 @@ const migrate210To300 = (inputManifest: any) => {
   return manifest;
 };
 
+const migrate501To600 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+
+  // Convert views array to viewByID object
+  if (manifest.views && Array.isArray(manifest.views)) {
+    manifest.viewByID = {};
+    manifest.views.forEach((view: any) => {
+      const migratedView = { ...view };
+
+      // Add required 'name' field if missing
+      if (!migratedView.name) {
+        migratedView.name = migratedView.id;
+      }
+
+      // Convert 'props' to 'options' if present
+      if (migratedView.props) {
+        // Convert any non-string values in props to strings for options
+        migratedView.options = {};
+        Object.entries(migratedView.props).forEach(([key, value]) => {
+          if (typeof value === 'string') {
+            migratedView.options[key] = value;
+          } else {
+            // Convert arrays and objects to JSON strings
+            migratedView.options[key] = JSON.stringify(value);
+          }
+        });
+        delete migratedView.props;
+      }
+
+      // Add orientation for 2D views based on the view ID
+      if (migratedView.type === '2D' && !migratedView.options) {
+        migratedView.options = {};
+      }
+      if (migratedView.type === '2D') {
+        // Set orientation based on view ID (Coronal, Sagittal, Axial)
+        if (['Coronal', 'Sagittal', 'Axial'].includes(migratedView.id)) {
+          migratedView.options.orientation = migratedView.id;
+        }
+      }
+
+      // Handle type conversion for Oblique views
+      if (migratedView.type === 'Oblique3D') {
+        migratedView.type = 'Oblique';
+      }
+
+      const configKeys = Object.keys(migratedView.config || {});
+      const primarySelection = manifest.primarySelection;
+
+      migratedView.dataID = null;
+      if (configKeys.length > 0) {
+        migratedView.dataID =
+          primarySelection && configKeys.includes(primarySelection)
+            ? primarySelection
+            : configKeys[0];
+      }
+
+      manifest.viewByID[migratedView.id] = migratedView;
+    });
+    delete manifest.views;
+  }
+
+  // Add missing fields with proper defaults
+  if (manifest.isActiveViewMaximized === undefined) {
+    manifest.isActiveViewMaximized = false;
+  }
+
+  if (manifest.activeView === undefined) {
+    manifest.activeView = null;
+  }
+
+  // Convert layout to layoutSlots and update layout structure
+  if (manifest.layout && !manifest.layoutSlots) {
+    const slots: string[] = [];
+
+    // Extract all slot names and convert layout to new format
+    const convertLayoutItem = (item: any): any => {
+      if (typeof item === 'string') {
+        // This is a view name like "Coronal", "3D", etc.
+        const slotIndex = slots.length;
+        slots.push(item);
+        return {
+          type: 'slot',
+          slotIndex,
+        };
+      }
+      if (item.direction && item.items) {
+        // This is a nested layout
+        return {
+          type: 'layout',
+          direction: item.direction,
+          items: item.items.map(convertLayoutItem),
+        };
+      }
+      return item;
+    };
+
+    // Convert the root layout
+    if (manifest.layout.direction && manifest.layout.items) {
+      manifest.layout = {
+        direction: manifest.layout.direction,
+        items: manifest.layout.items.map(convertLayoutItem),
+      };
+    }
+
+    manifest.layoutSlots = slots;
+  }
+
+  // Ensure parentToLayers exists as an array
+  if (!manifest.parentToLayers) {
+    manifest.parentToLayers = [];
+  }
+
+  manifest.version = '6.0.0';
+  return manifest;
+};
+
 const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
     inputManifest,
     migrateOrPass(['1.1.0', '1.0.0', '0.5.0'], migrateBefore210),
-    migrateOrPass(['2.1.0'], migrate210To300)
+    migrateOrPass(['2.1.0'], migrate210To300),
+    migrateOrPass(['5.0.1'], migrate501To600)
   );
 };
 
@@ -376,15 +493,11 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       context
     );
 
-    // Restore the primary selection
-    if (manifest.primarySelection !== undefined) {
-      const selectedID = stateIDToStoreID[manifest.primarySelection];
-
-      useDatasetStore().setPrimarySelection(selectedID);
-    }
-
     // Restore the views
-    useViewStore().deserialize(manifest.views, stateIDToStoreID);
+    useViewStore().deserialize(manifest, stateIDToStoreID);
+
+    // Restore view configs
+    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
 
     // Restore the labelmaps
     const segmentGroupIDMap = await useSegmentGroupStore().deserialize(

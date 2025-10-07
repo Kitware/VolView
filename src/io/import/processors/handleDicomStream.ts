@@ -7,10 +7,16 @@ import {
   ReadDicomTagsFunction,
 } from '@/src/core/streaming/dicom/dicomMetaLoader';
 import { getRequestPool } from '@/src/core/streaming/requestPool';
-import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
+import {
+  ImportHandler,
+  asIntermediateResult,
+  asOkayResult,
+} from '@/src/io/import/common';
 import { getWorker } from '@/src/io/itk/worker';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { readDicomTags } from '@itk-wasm/dicom';
+import { Tags } from '@/src/core/dicomTags';
+import { useMessageStore } from '@/src/store/messages';
 
 const handleDicomStream: ImportHandler = async (dataSource) => {
   if (dataSource.type !== 'uri' || dataSource?.mime !== FILE_EXT_TO_MIME.dcm) {
@@ -42,6 +48,19 @@ const handleDicomStream: ImportHandler = async (dataSource) => {
   });
 
   await chunk.loadMeta();
+
+  const metadata = chunk.metadata;
+  if (metadata) {
+    const modalityEntry = metadata.find(([tag]) => tag === Tags.Modality);
+    const modality = modalityEntry?.[1]?.trim();
+    if (modality?.startsWith('RT')) {
+      const messageStore = useMessageStore();
+      messageStore.addWarning(
+        `DICOM ${modality} modality is not supported. File ${dataSource.name} will be skipped.`
+      );
+      return asOkayResult(dataSource);
+    }
+  }
 
   return asIntermediateResult([
     {

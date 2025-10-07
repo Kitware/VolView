@@ -93,8 +93,10 @@ export default {
             })
             .filter(Boolean);
           const files = await readAllFiles(entries);
-          this.$emit('drop-files', files);
-        } else {
+          if (files.length) {
+            this.$emit('drop-files', files);
+          }
+        } else if (ev.dataTransfer.files.length) {
           this.$emit('drop-files', Array.from(ev.dataTransfer.files));
         }
       }

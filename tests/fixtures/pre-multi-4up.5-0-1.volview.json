@@ -1,0 +1,511 @@
+{
+    "version": "5.0.1",
+    "datasets": [
+        {
+            "id": "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922",
+            "dataSourceId": 1
+        }
+    ],
+    "dataSources": [
+        {
+            "id": 2,
+            "type": "uri",
+            "name": "MRI-PROSTATEx-0004.zip",
+            "uri": "https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download"
+        },
+        {
+            "id": 3,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-19.dcm",
+            "parent": 2
+        },
+        {
+            "id": 4,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-18.dcm",
+            "parent": 2
+        },
+        {
+            "id": 5,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-17.dcm",
+            "parent": 2
+        },
+        {
+            "id": 6,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-16.dcm",
+            "parent": 2
+        },
+        {
+            "id": 7,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-15.dcm",
+            "parent": 2
+        },
+        {
+            "id": 8,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-14.dcm",
+            "parent": 2
+        },
+        {
+            "id": 9,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-13.dcm",
+            "parent": 2
+        },
+        {
+            "id": 10,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-12.dcm",
+            "parent": 2
+        },
+        {
+            "id": 11,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-11.dcm",
+            "parent": 2
+        },
+        {
+            "id": 12,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-10.dcm",
+            "parent": 2
+        },
+        {
+            "id": 13,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-09.dcm",
+            "parent": 2
+        },
+        {
+            "id": 14,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-08.dcm",
+            "parent": 2
+        },
+        {
+            "id": 15,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-07.dcm",
+            "parent": 2
+        },
+        {
+            "id": 16,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-06.dcm",
+            "parent": 2
+        },
+        {
+            "id": 17,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-05.dcm",
+            "parent": 2
+        },
+        {
+            "id": 18,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-04.dcm",
+            "parent": 2
+        },
+        {
+            "id": 19,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-03.dcm",
+            "parent": 2
+        },
+        {
+            "id": 20,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-02.dcm",
+            "parent": 2
+        },
+        {
+            "id": 21,
+            "type": "archive",
+            "path": "MRI-PROSTATEx-0004/1-01.dcm",
+            "parent": 2
+        },
+        {
+            "id": 1,
+            "type": "collection",
+            "sources": [
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21
+            ]
+        }
+    ],
+    "datasetFilePath": {},
+    "labelMaps": [],
+    "tools": {
+        "crosshairs": {
+            "position": [
+                0,
+                0,
+                0
+            ]
+        },
+        "paint": {
+            "activeSegmentGroupID": null,
+            "activeSegment": null,
+            "brushSize": 4,
+            "crossPlaneSync": false
+        },
+        "crop": {
+            "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922": {
+                "Sagittal": [
+                    -0.5,
+                    383.5
+                ],
+                "Coronal": [
+                    -0.5,
+                    383.5
+                ],
+                "Axial": [
+                    -0.5,
+                    18.5
+                ]
+            }
+        },
+        "current": "WindowLevel",
+        "polygons": {
+            "tools": [],
+            "labels": {
+                "1": {
+                    "labelName": "Label 1",
+                    "color": "red",
+                    "strokeWidth": 1
+                }
+            }
+        },
+        "rectangles": {
+            "tools": [],
+            "labels": {
+                "3": {
+                    "labelName": "Label 1",
+                    "color": "red",
+                    "strokeWidth": 1,
+                    "fillColor": "transparent"
+                }
+            }
+        },
+        "rulers": {
+            "tools": [],
+            "labels": {
+                "2": {
+                    "labelName": "Label 1",
+                    "color": "red",
+                    "strokeWidth": 1
+                }
+            }
+        }
+    },
+    "layout": {
+        "name": "Quad View",
+        "direction": "H",
+        "items": [
+            {
+                "direction": "V",
+                "items": [
+                    "Coronal",
+                    "3D"
+                ]
+            },
+            {
+                "direction": "V",
+                "items": [
+                    "Sagittal",
+                    "Axial"
+                ]
+            }
+        ]
+    },
+    "views": [
+        {
+            "id": "Coronal",
+            "type": "2D",
+            "props": {
+                "viewDirection": "Posterior",
+                "viewUp": "Superior"
+            },
+            "config": {
+                "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922": {
+                    "slice": {
+                        "slice": 192,
+                        "min": 0,
+                        "max": 383,
+                        "axisDirection": "Posterior",
+                        "syncState": false
+                    },
+                    "window": {
+                        "auto": "FullRange",
+                        "useAuto": false,
+                        "width": 1120,
+                        "level": 549
+                    },
+                    "camera": {
+                        "position": [
+                            -22.163253907287167,
+                            -564.594223248674,
+                            174.1187338921456
+                        ],
+                        "focalPoint": [
+                            -22.163253784231358,
+                            17.55373397057385,
+                            28.972948296001235
+                        ],
+                        "viewUp": [
+                            1.4080733262381892e-17,
+                            0.24192188680171967,
+                            0.9702957272529602
+                        ],
+                        "parallelScale": 256.5194912625375,
+                        "directionOfProjection": [
+                            2.0510340073149801e-10,
+                            0.9702957270336714,
+                            -0.2419218925608004
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": "Sagittal",
+            "type": "2D",
+            "props": {
+                "viewDirection": "Right",
+                "viewUp": "Superior"
+            },
+            "config": {
+                "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922": {
+                    "slice": {
+                        "slice": 192,
+                        "min": 0,
+                        "max": 383,
+                        "axisDirection": "Right",
+                        "syncState": false
+                    },
+                    "window": {
+                        "auto": "FullRange",
+                        "useAuto": false,
+                        "width": 1120,
+                        "level": 549
+                    },
+                    "camera": {
+                        "position": [
+                            577.8063647556294,
+                            17.5537338511733,
+                            28.972948325771128
+                        ],
+                        "focalPoint": [
+                            -22.163253784231358,
+                            17.55373397057385,
+                            28.972948296001235
+                        ],
+                        "viewUp": [
+                            1.4080733262381892e-17,
+                            0.24192188680171967,
+                            0.9702957272529602
+                        ],
+                        "parallelScale": 256.5194912625375,
+                        "directionOfProjection": [
+                            -1,
+                            1.99010999481902e-10,
+                            -4.961900119157013e-11
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": "Axial",
+            "type": "2D",
+            "props": {
+                "viewDirection": "Superior",
+                "viewUp": "Anterior"
+            },
+            "config": {
+                "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922": {
+                    "slice": {
+                        "slice": 9,
+                        "min": 0,
+                        "max": 18,
+                        "axisDirection": "Superior",
+                        "syncState": false
+                    },
+                    "window": {
+                        "auto": "FullRange",
+                        "useAuto": false,
+                        "width": 1120,
+                        "level": 549
+                    },
+                    "camera": {
+                        "position": [
+                            -22.163253784231365,
+                            -127.59204817029726,
+                            -553.175009054814
+                        ],
+                        "focalPoint": [
+                            -22.163253784231358,
+                            17.55373397057385,
+                            28.972948296001235
+                        ],
+                        "viewUp": [
+                            -2.051034e-10,
+                            -0.97029572703367,
+                            0.2419218925608
+                        ],
+                        "parallelScale": 256.5194912625375,
+                        "directionOfProjection": [
+                            1.1842978621619476e-17,
+                            0.24192188708730178,
+                            0.9702957283983675
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "id": "ObliqueCoronal",
+            "type": "Oblique",
+            "props": {
+                "viewDirection": "Posterior",
+                "viewUp": "Superior"
+            },
+            "config": {}
+        },
+        {
+            "id": "ObliqueSagittal",
+            "type": "Oblique",
+            "props": {
+                "viewDirection": "Right",
+                "viewUp": "Superior"
+            },
+            "config": {}
+        },
+        {
+            "id": "ObliqueAxial",
+            "type": "Oblique",
+            "props": {
+                "viewDirection": "Superior",
+                "viewUp": "Anterior"
+            },
+            "config": {}
+        },
+        {
+            "id": "3D",
+            "type": "3D",
+            "props": {
+                "viewDirection": "Posterior",
+                "viewUp": "Superior"
+            },
+            "config": {
+                "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922": {
+                    "camera": {
+                        "position": [
+                            -22.163253907287167,
+                            -564.594223248674,
+                            174.1187338921456
+                        ],
+                        "focalPoint": [
+                            -22.163253784231358,
+                            17.55373397057385,
+                            28.972948296001235
+                        ],
+                        "viewUp": [
+                            1.4080733262381892e-17,
+                            0.24192188680171967,
+                            0.9702957272529602
+                        ],
+                        "parallelScale": 155.28356376101038,
+                        "directionOfProjection": [
+                            2.0510340073149801e-10,
+                            0.9702957270336714,
+                            -0.2419218925608004
+                        ]
+                    },
+                    "volumeColorConfig": {
+                        "colorBy": {
+                            "arrayName": "vtkDataArray838",
+                            "location": "pointData"
+                        },
+                        "transferFunction": {
+                            "preset": "CT-Coronary-Arteries-2",
+                            "mappingRange": [
+                                -2048,
+                                3661
+                            ]
+                        },
+                        "opacityFunction": {
+                            "mode": 1,
+                            "gaussians": [],
+                            "mappingRange": [
+                                0,
+                                1432
+                            ],
+                            "preset": "CT-Coronary-Arteries-2",
+                            "shift": 0,
+                            "shiftAlpha": 0
+                        },
+                        "cvr": {
+                            "enabled": true,
+                            "lightFollowsCamera": true,
+                            "volumeQuality": 2,
+                            "useVolumetricScatteringBlending": false,
+                            "volumetricScatteringBlending": 0.5,
+                            "useLocalAmbientOcclusion": true,
+                            "laoKernelRadius": 5,
+                            "laoKernelSize": 15,
+                            "ambient": 0.2,
+                            "diffuse": 0.7,
+                            "specular": 0.3
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": "Oblique3D",
+            "type": "Oblique3D",
+            "props": {
+                "viewDirection": "Posterior",
+                "viewUp": "Superior",
+                "slices": [
+                    {
+                        "viewID": "ObliqueSagittal",
+                        "axis": "Sagittal"
+                    },
+                    {
+                        "viewID": "ObliqueCoronal",
+                        "axis": "Coronal"
+                    },
+                    {
+                        "viewID": "ObliqueAxial",
+                        "axis": "Axial"
+                    }
+                ]
+            },
+            "config": {}
+        }
+    ],
+    "parentToLayers": [],
+    "primarySelection": "1.3.6.1.4.1.14519.5.2.1.7311.5101.206828891270520544417996275680.5tse2d1254.538438420111018.1D000000SN0D000000S0D000000S0D000000S0D970296SN0D241922"
+}

@@ -236,7 +236,15 @@ export default defineComponent({
 
     const { contextMenu, openContextMenu } = useContextMenu();
 
-    const currentTools = useCurrentTools(activeToolStore, viewAxis);
+    const currentTools = useCurrentTools(
+      activeToolStore,
+      viewAxis,
+      // only show this view's placing tool
+      computed(() => {
+        if (placingTool.id.value) return [placingTool.id.value];
+        return [];
+      })
+    );
 
     const { onHover, overlayInfo } = useHover(currentTools, slice);
 
@@ -247,16 +255,36 @@ export default defineComponent({
     const segmentGroupStore = useSegmentGroupStore();
     const paintStore = usePaintToolStore();
     const currentSegmentGroup = computed(() => {
-      const id = paintStore.activeSegmentGroupID;
-      if (!id) return null;
-      return segmentGroupStore.metadataByID[id] ?? null;
+      if (!imageId.value) return null;
+      const groups = segmentGroupStore.orderByParent[imageId.value];
+      if (!groups?.length) return null;
+      return segmentGroupStore.metadataByID[groups[0]] ?? null;
     });
 
     function rasterize(toolId: ToolID, segment: SegmentMask) {
-      if (!paintStore.activeSegmentGroupID) return;
-      const image =
-        segmentGroupStore.dataIndex[paintStore.activeSegmentGroupID];
-      if (!image) return;
+      if (!imageId.value) {
+        throw new Error('No image ID available for rasterization');
+      }
+
+      const groups = segmentGroupStore.orderByParent[imageId.value];
+      if (!groups?.length) {
+        throw new Error(`No segment group exists for image ${imageId.value}`);
+      }
+
+      const segmentGroupID = groups[0];
+
+      // Switch to the correct segment group if needed
+      if (paintStore.activeSegmentGroupID !== segmentGroupID) {
+        paintStore.setActiveSegmentGroup(segmentGroupID);
+        paintStore.setActiveSegment(segment.value);
+      }
+
+      const image = segmentGroupStore.dataIndex[segmentGroupID];
+      if (!image) {
+        throw new Error(
+          `Failed to get labelmap for segment group ${segmentGroupID}`
+        );
+      }
 
       const points = activeToolStore.getPoints(toolId);
       const axis = sliceAxis.value;

@@ -7,7 +7,6 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';
-import { InitViewIDs, InitViewSpecs } from '../config';
 import { useCurrentImage } from './useCurrentImage';
 import {
   getColorFunctionRangeFromPreset,
@@ -53,8 +52,8 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
 
   // same as 3D view
   const { cameraDirVec, cameraUpVec } = useCameraOrientation(
-    InitViewSpecs[InitViewIDs.Three].props.viewDirection,
-    InitViewSpecs[InitViewIDs.Three].props.viewUp,
+    'Posterior',
+    'Superior',
     currentImageMetadata
   );
 

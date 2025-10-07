@@ -4,6 +4,7 @@ import {
   ProgressiveImageStatus,
 } from '@/src/core/progressiveImage';
 import { useIdStore } from '@/src/store/id';
+import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
 import { ImageMetadata } from '@/src/types/image';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -44,6 +45,9 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     const onError = (error: Error) => {
       imageErrors[id] ??= [];
       imageErrors[id].push(error);
+
+      const messageStore = useMessageStore();
+      messageStore.addError('Error loading DICOM data', error);
     };
 
     imageListenerCleanup[id] = () => {
@@ -107,6 +111,22 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     delete imageLoading[id];
   }
 
+  /**
+   * Updates an existing image's VTK data while maintaining the same ID.
+   */
+  function updateVTKImageData(id: string, newImageData: vtkImageData): void {
+    const progressiveImage = imageById[id];
+    const oldImageData = progressiveImage.vtkImageData.value;
+
+    progressiveImage.vtkImageData.value = newImageData;
+    // trigger texture update
+    newImageData.modified();
+
+    if (oldImageData && oldImageData !== newImageData) {
+      oldImageData.delete();
+    }
+  }
+
   return {
     imageIds,
     imageById,
@@ -117,6 +137,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     getImageMetadata,
     addProgressiveImage,
     addVTKImageData,
+    updateVTKImageData,
     removeImage,
   };
 });

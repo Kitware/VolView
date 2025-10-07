@@ -1,6 +1,8 @@
+import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { View } from '@/src/core/vtk/types';
 import { Maybe } from '@/src/types';
+import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
@@ -9,6 +11,7 @@ import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { useElementSize } from '@vueuse/core';
 import {
+  inject,
   MaybeRef,
   onScopeDispose,
   unref,
@@ -16,8 +19,15 @@ import {
   watchPostEffect,
 } from 'vue';
 
-export function useWebGLRenderWindow(container: MaybeRef<Maybe<HTMLElement>>) {
-  const renderWindowView = vtkOpenGLRenderWindow.newInstance();
+export function useWebGLRenderWindow(
+  renderWindow: vtkRenderWindow,
+  container: MaybeRef<Maybe<HTMLElement>>,
+  parent: Maybe<VtkRenderWindowParentApi>
+) {
+  const renderWindowView =
+    (parent?.renderWindowView.addMissingNode(renderWindow) as
+      | vtkOpenGLRenderWindow
+      | undefined) ?? vtkOpenGLRenderWindow.newInstance();
 
   watchPostEffect((onCleanup) => {
     const el = unref(container);
@@ -30,7 +40,17 @@ export function useWebGLRenderWindow(container: MaybeRef<Maybe<HTMLElement>>) {
   });
 
   onScopeDispose(() => {
-    renderWindowView.delete();
+    if (parent?.renderWindowView) {
+      parent.renderWindowView.removeNode(renderWindowView);
+    } else {
+      renderWindowView.delete();
+    }
+  });
+
+  renderWindow.addView(renderWindowView);
+
+  onScopeDispose(() => {
+    renderWindow.removeView(renderWindowView);
   });
 
   return renderWindowView;
@@ -57,17 +77,19 @@ export function useWidgetManager(renderer: vtkRenderer) {
 }
 
 export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
+  const parent = inject(VtkRenderWindowParentContext, null);
   const renderer = vtkRenderer.newInstance();
   const renderWindow = vtkRenderWindow.newInstance();
   renderWindow.addRenderer(renderer);
 
-  // the render window view
-  const renderWindowView = useWebGLRenderWindow(container);
-  renderWindow.addView(renderWindowView);
+  parent?.renderWindow.addRenderWindow(renderWindow);
 
-  onScopeDispose(() => {
-    renderWindow.removeView(renderWindowView);
-  });
+  // the render window view
+  const renderWindowView = useWebGLRenderWindow(
+    renderWindow,
+    container,
+    parent
+  );
 
   // interactor
   const interactor = vtkRenderWindowInteractor.newInstance();
@@ -79,7 +101,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     if (!el) return;
 
     interactor.initialize();
-    interactor.bindEvents(el);
+    interactor.setContainer(el);
     onCleanup(() => {
       if (interactor.getContainer()) interactor.unbindEvents();
     });
@@ -98,6 +120,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
 
   const immediateRender = () => {
     if (interactor.isAnimating()) return;
+    parent?.renderWindow.render();
     renderWindow.render();
   };
 
@@ -120,6 +143,9 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     const scaledHeight = Math.max(1, height * globalThis.devicePixelRatio);
     renderWindowView.setSize(scaledWidth, scaledHeight);
     renderer.resetCameraClippingRange();
+
+    parent?.renderWindowView.resizeFromChildRenderWindows();
+    parent?.renderWindow.render();
     requestRender({ immediate: true });
   };
 
@@ -130,7 +156,10 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
 
   // cleanup
   onScopeDispose(() => {
+    deferredRender.cancel();
+
     renderWindow.removeRenderer(renderer);
+    parent?.renderWindow.removeRenderWindow(renderWindow);
 
     renderer.delete();
     renderWindow.delete();

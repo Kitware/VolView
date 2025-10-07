@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { zodEnumFromObjKeys } from '@/src/utils';
 import { ACTIONS } from '@/src/constants';
-import { Layouts } from '@/src/config';
 
-// for applyConfig
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { usePolygonStore } from '@/src/store/tools/polygons';
@@ -19,7 +17,7 @@ import useLoadDataStore from '@/src/store/load-data';
 
 const layout = z
   .object({
-    activeLayout: zodEnumFromObjKeys(Layouts).optional(),
+    gridSize: z.tuple([z.number(), z.number()]).optional(),
   })
   .optional();
 
@@ -117,9 +115,8 @@ const applyLabels = (manifest: Config) => {
 };
 
 const applyLayout = (manifest: Config) => {
-  if (manifest.layout?.activeLayout) {
-    const startingLayout = Layouts[manifest.layout.activeLayout];
-    useViewStore().setLayout(startingLayout);
+  if (manifest.layout?.gridSize) {
+    useViewStore().setLayoutFromGrid(manifest.layout.gridSize);
   }
 };
 
@@ -146,10 +143,13 @@ const applyWindowing = (manifest: Config) => {
   useWindowingStore().runtimeConfigWindowLevel = manifest.windowing;
 };
 
-export const applyConfig = (manifest: Config) => {
+export const applyPreStateConfig = (manifest: Config) => {
   applyLayout(manifest);
-  applyLabels(manifest);
   applyShortcuts(manifest);
   applyIo(manifest);
   applyWindowing(manifest);
+};
+
+export const applyPostStateConfig = (manifest: Config) => {
+  applyLabels(manifest);
 };

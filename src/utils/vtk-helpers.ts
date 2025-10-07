@@ -6,7 +6,11 @@ import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { intersectDisplayWithPlane } from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { OpacityFunction } from '@/src/types/views';
+import {
+  OpacityGaussians,
+  OpacityPoints,
+  OpacityNodes,
+} from '@/src/types/views';
 import vtkFieldData from '@kitware/vtk.js/Common/DataModel/DataSetAttributes/FieldData';
 import { Maybe } from '@/src/types';
 
@@ -125,10 +129,10 @@ export function getShiftedOpacityFromPreset(
 ) {
   const preset = vtkColorMaps.getPresetByName(presetName);
   if (preset.OpacityPoints) {
-    const OpacityPoints = preset.OpacityPoints as number[];
+    const opacityPoints = preset.OpacityPoints as number[];
     const points = [];
-    for (let i = 0; i < OpacityPoints.length; i += 2) {
-      points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
+    for (let i = 0; i < opacityPoints.length; i += 2) {
+      points.push([opacityPoints[i], opacityPoints[i + 1]]);
     }
 
     const [xmin, xmax] = effectiveRange;
@@ -144,12 +148,18 @@ export function getShiftedOpacityFromPreset(
   return null;
 }
 
+type OpacityFunctionWithoutRange =
+  | Omit<OpacityGaussians, 'mappingRange'>
+  | Omit<OpacityPoints, 'mappingRange'>
+  | Omit<OpacityNodes, 'mappingRange'>;
+
 /**
- * Retrieves an OpacityFunction from a preset.
+ * Retrieves an OpacityFunction from a preset, without mappingRange.
+ * Caller must provide mappingRange to complete the OpacityFunction.
  */
 export function getOpacityFunctionFromPreset(
   presetName: string
-): Partial<OpacityFunction> {
+): OpacityFunctionWithoutRange {
   const preset = vtkColorMaps.getPresetByName(presetName);
 
   if (preset.OpacityPoints) {

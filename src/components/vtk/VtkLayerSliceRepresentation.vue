@@ -11,7 +11,6 @@ import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { syncRef } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
-import { useLayerConfigInitializer } from '@/src/composables/useLayerConfigInitializer';
 import { applyColoring } from '@/src/composables/useColoringEffect';
 import { useImageCacheStore } from '@/src/store/image-cache';
 
@@ -66,9 +65,6 @@ const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 const { slice: storedSlice } = useSliceConfig(viewId, parentId);
 syncRef(storedSlice, slice, { immediate: true });
 
-// initialize layer coloring
-useLayerConfigInitializer(viewId, layerId);
-
 // apply layer coloring
 const applyLayerColoring = () => {
   const config = coloringConfig.value;
@@ -97,6 +93,7 @@ const applyLayerColoring = () => {
   sliceRep.property.setColorWindow(width);
   sliceRep.property.setColorLevel(center);
   sliceRep.property.setOpacity(config.blendConfig.opacity);
+  sliceRep.actor.setVisibility(config.blendConfig.visibility);
 };
 
 watchEffect(applyLayerColoring);

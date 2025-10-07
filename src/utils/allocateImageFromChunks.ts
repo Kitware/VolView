@@ -99,7 +99,10 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
     );
   }
 
-  const slices = numberOfFrames === null ? sortedChunks.length : numberOfFrames;
+  // We don't support volumes with multiple chunks/files with multi-frame data at the moment.
+  // Some CT modality series have NumberOfFrames === 1, so use the number of chunks if more than 1 chunk.
+  const slices =
+    sortedChunks.length > 1 ? sortedChunks.length : numberOfFrames ?? 1;
   const TypedArrayCtor = getTypedArrayConstructor(
     bitsStored,
     pixelRepresentation,
@@ -126,7 +129,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
       const zVec = vec3.create();
       const firstIPP = imagePositionPatient;
       vec3.sub(zVec, lastIPP as vec3, firstIPP as vec3);
-      const zSpacing = vec3.len(zVec) / (sortedChunks.length - 1) || 1;
+      const zSpacing = vec3.len(zVec) / (slices - 1) || 1;
       const spacing = [...pixelSpacing, zSpacing];
       image.setSpacing(spacing);
     }

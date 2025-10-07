@@ -4,7 +4,7 @@ VolView itself does not specify any given authentication mechanism to use. How y
 
 ## VolView behind Login Portal
 
-The easiest approach to securing a VolView instance is to host VolView behind an authentication portal. This will secure access to VolView, and allow VolView to automatically use existing user credentials to request protected data.  Often the credentials are stored in a cookie.
+The easiest approach to securing a VolView instance is to host VolView behind an authentication portal. This will secure access to VolView, and allow VolView to automatically use existing user credentials to request protected data. Often the credentials are stored in a cookie.
 
 ## OAuth Tokens via URL
 

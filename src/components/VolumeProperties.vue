@@ -1,12 +1,9 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
-import { useCurrentImage } from '../composables/useCurrentImage';
-import { CVRConfig } from '../types/views';
-import useVolumeColoringStore from '../store/view-configs/volume-coloring';
-import { InitViewIDs } from '../config';
-
-const TARGET_VIEW_ID = InitViewIDs.Three;
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { CVRConfig } from '@/src/types/views';
+import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 
 const LIGHTING_MODELS = {
   standard: 'Standard',
@@ -14,16 +11,23 @@ const LIGHTING_MODELS = {
 };
 
 export default defineComponent({
-  name: 'VolumeRendering',
-  setup() {
+  name: 'VolumeProperties',
+  props: {
+    viewId: {
+      type: String,
+      default: null,
+    },
+  },
+  setup(props) {
     const volumeColoringStore = useVolumeColoringStore();
+    const viewId = computed(() => props.viewId);
 
     const { currentImageID } = useCurrentImage();
 
-    useVolumeColoringInitializer(TARGET_VIEW_ID, currentImageID);
+    useVolumeColoringInitializer(viewId, currentImageID);
 
     const volumeColorConfig = computed(() =>
-      volumeColoringStore.getConfig(TARGET_VIEW_ID, currentImageID.value)
+      volumeColoringStore.getConfig(viewId.value, currentImageID.value)
     );
 
     // --- CVR --- //
@@ -31,9 +35,9 @@ export default defineComponent({
     const cvrParams = computed(() => volumeColorConfig.value?.cvr);
 
     const setCVRParam = (key: keyof CVRConfig, value: any) => {
-      if (!currentImageID.value) return;
+      if (!viewId.value || !currentImageID.value) return;
       volumeColoringStore.updateCVRParameters(
-        TARGET_VIEW_ID,
+        viewId.value,
         currentImageID.value,
         {
           [key]: value,

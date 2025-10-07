@@ -1,6 +1,6 @@
 # Cinematic Volume Rendering
 
-VolView reads the DICOM tags of your data to determine appropriate preset parameter values for cinematic volume rendering for your data, but often you will want to tweak those presets to emphasize specific details. We recommend the following sequence of tweaks to improve your visualizations.
+VolView reads the DICOM tags of your data to determine appropriate preset parameter values for cinematic volume rendering for your data, but often you will want to tweak those presets to emphasize specific details. Rendering controls apply to the currently selected/active view. We recommend the following sequence of tweaks to improve your visualizations.
 
 1. Cinematic volume rendering involves two "transfer functions": one maps the recorded intensity values (e.g., CT hounsfield units) to opacity and the other maps recorded intensity values to color. Both can be adjusted using the controls at the top of the Rendering tab. The graph at the top shows a histogram of the recorded intensity values in light gray and the current opacity transfer function as an overlaid curve in black. In that graph, beneath the black curve, is a depiction of the color transfer function. ![Cinematic](./assets/16-volview-rendering.jpg)
 

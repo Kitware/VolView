@@ -119,7 +119,15 @@ export default defineComponent({
 
     // --- ruler data --- //
 
-    const currentTools = useCurrentTools(rulerStore, viewAxis);
+    const currentTools = useCurrentTools(
+      rulerStore,
+      viewAxis,
+      // only show this view's placing tool
+      computed(() => {
+        if (placingTool.id.value) return [placingTool.id.value];
+        return [];
+      })
+    );
 
     const currentRulers = computed(() => {
       const { lengthByID } = rulerStore;

@@ -1,46 +1,87 @@
 # Development
 
-Below lists a few commands for building and running a local copy of VolView.
+## Prerequisites
+
+Before you begin, make sure your environment matches the following versions:
+
+- **Node.js**: >= 18.20.0 (20.x LTS recommended)  
+- **npm**: >= 9.x (npm 10+ works with Node 20)
+
+Check your versions:
+
+```bash
+node --version
+npm --version
+```
+
+> **Tip:** Use `nvm` or `volta` to manage and switch Node.js versions.
+
+For reproducible installs, use:
+
+```bash
+npm ci
+```
+
+
+---
+
+## Dependencies
+
+Refer to `package.json` for the full list of dependencies and devDependencies.
+
+---
+
+## Setup
 
 To prepare your environment after cloning the repo, run:
 
-```
+```bash
 npm install
 ```
 
+---
+
 ## Compiles and hot-reloads for development
 
-```
+```bash
 npm run dev
 ```
 
+---
+
 ## Compiles and minifies for production
 
-```
+```bash
 npm run build
 ```
 
+---
+
 ## Analyzing the production bundle
 
-You can generate a production bundle and produce a bundle size breakdown report:
+Generate a production bundle and produce a bundle size breakdown report:
 
-```
+```bash
 npm run build:analyze
 ```
 
+---
+
 ## Lints and fixes files
 
-```
+```bash
 npm run lint
 ```
 
+---
+
 ## Testing
 
-```
+```bash
 # unit tests
-npm run test:unit
+npm run test
 
-# e2e tests
+# e2e tests (Chrome)
 npm run test:e2e:chrome
 ```
 
@@ -50,9 +91,11 @@ When adding a new baseline image and test, the image should be pulled from GitHu
 
 #### Run one e2e spec file
 
-```
+```bash
 npm run test:e2e:dev -- -- --spec ./tests/specs/remote-manifest.e2e.ts
 ```
+
+---
 
 ## Developing with VTK.js
 
@@ -60,26 +103,26 @@ Follow these steps to develop against a custom development branch of VTK.js:
 
 1. Build and package VTK.js:
 
-```sh
+```bash
 path/to/vtk-js > npm run build:esm
 ```
 
 2. Create a symbolic link to the VTK.js distribution folder on your local system:
 
-```sh
-> cd path/to/vtk-js/dist/esm
-path/to/vtk-js/dist/esm > npm link
+```bash
+cd path/to/vtk-js/dist/esm
+npm link
 ```
 
 3. Reference the symbolic link in your local VolView build:
 
-```sh
-> cd path/to/VolView
-path/to/VolView > npm link --no-save @kitware/vtk.js
+```bash
+cd path/to/VolView
+npm link --no-save @kitware/vtk.js
 ```
 
 4. Build and run VolView:
 
-```sh
-path/to/VolView > npm run dev
+```bash
+npm run dev
 ```

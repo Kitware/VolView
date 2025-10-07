@@ -3,6 +3,22 @@ import { Maybe } from '../types';
 import { getFileMimeFromMagic } from './magic';
 
 /**
+ * Determines MIME type from a filename based on its extension.
+ *
+ * @param filename The filename to check
+ * @returns The MIME type if a known extension is found, null otherwise
+ */
+export function getMimeTypeFromFilename(filename: string): Maybe<string> {
+  const supportedExt = [...FILE_EXTENSIONS].find((ext) =>
+    filename.toLowerCase().endsWith(`.${ext}`)
+  );
+  if (supportedExt) {
+    return FILE_EXT_TO_MIME[supportedExt];
+  }
+  return null;
+}
+
+/**
  * Determines the file's mime type.
  *
  * Returns the file's mime type for supported mime types.
@@ -17,11 +33,9 @@ export async function getFileMimeType(file: File): Promise<Maybe<string>> {
     return FILE_EXT_TO_MIME[fileType];
   }
 
-  const supportedExt = [...FILE_EXTENSIONS].find((ext) =>
-    file.name.toLowerCase().endsWith(`.${ext}`)
-  );
-  if (supportedExt) {
-    return FILE_EXT_TO_MIME[supportedExt];
+  const mimeFromFilename = getMimeTypeFromFilename(file.name);
+  if (mimeFromFilename) {
+    return mimeFromFilename;
   }
 
   const mimeFromMagic = await getFileMimeFromMagic(file);

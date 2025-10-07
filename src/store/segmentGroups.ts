@@ -409,6 +409,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       throw new Error('Invalid segment');
     metadata.segments.byValue[seg.value] = seg;
     metadata.segments.order.push(seg.value);
+    return seg;
   }
 
   /**

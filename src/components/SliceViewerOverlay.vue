@@ -7,6 +7,8 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useOrientationLabels } from '@/src/composables/useOrientationLabels';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
+import { useImage } from '@/src/composables/useCurrentImage';
 
 interface Props {
   viewId: string;
@@ -31,10 +33,16 @@ const {
   width: windowWidth,
   level: windowLevel,
 } = useWindowingConfig(viewId, imageId);
+const { metadata } = useImage(imageId);
 </script>
 
 <template>
   <view-overlay-grid class="overlay-no-events view-annotations">
+    <template v-slot:top-left>
+      <div class="annotation-cell">
+        <span>{{ metadata.name }}</span>
+      </div>
+    </template>
     <template v-slot:top-center>
       <div class="annotation-cell">
         <span>{{ topLabel }}</span>
@@ -58,6 +66,20 @@ const {
     <template v-slot:top-right>
       <div class="annotation-cell">
         <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
+      </div>
+    </template>
+    <template #bottom-right>
+      <div
+        v-if="
+          !viewId.includes('-coronal') &&
+          !viewId.includes('-sagittal') &&
+          !viewId.includes('-axial') &&
+          !viewId.includes('-multi-oblique')
+        "
+        class="annotation-cell"
+        @click.stop
+      >
+        <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
       </div>
     </template>
   </view-overlay-grid>

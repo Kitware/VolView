@@ -5,8 +5,8 @@ import { useWindowingStore } from './view-configs/windowing';
 import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
+import { useViewStore } from './views';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
-import { useImageStore } from './datasets-images';
 
 /**
  * This store saves view configuration that is associated with a specific
@@ -18,6 +18,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const layerColoringStore = useLayerColoringStore();
   const viewCameraStore = useViewCameraStore();
   const volumeColoringStore = useVolumeColoringStore();
+  const viewStore = useViewStore();
 
   const removeView = (viewID: string) => {
     viewSliceStore.removeView(viewID);
@@ -62,13 +63,19 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     volumeColoringStore.deserialize(viewID, updatedConfig);
   };
 
-  // delete hook
-  const imageStore = useImageStore();
-  imageStore.$onAction(({ name, args }) => {
-    if (name === 'deleteData') {
-      const [id] = args;
-      removeData(id);
-    }
+  const deserializeAll = (
+    manifest: StateFile['manifest'],
+    dataIDMap: Record<string, string>
+  ) => {
+    Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
+      if (view.config) {
+        deserialize(viewID, view.config, dataIDMap);
+      }
+    });
+  };
+
+  viewStore.LayoutViewReplacedEvent.on((oldViewID) => {
+    removeView(oldViewID);
   });
 
   return {
@@ -76,5 +83,6 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     removeData,
     serialize,
     deserialize,
+    deserializeAll,
   };
 });

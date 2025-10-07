@@ -64,7 +64,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   const paintStore = usePaintToolStore();
   const { activeSegmentGroupID } = storeToRefs(paintStore);
   const messageStore = useMessageStore();
-  const { currentImageID } = useCurrentImage();
+  const { currentImageID } = useCurrentImage('global');
 
   function rollbackPreview(
     image: vtkLabelMap,
@@ -142,7 +142,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         showingOriginal: false,
       };
     } catch (error) {
-      console.error(`${activeProcessType.value} Operation Failed:`, error);
       messageStore.addError(
         `${activeProcessType.value} Operation Failed`,
         error as Error
