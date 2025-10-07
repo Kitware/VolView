@@ -42,5 +42,5 @@ jobs:
         continue-on-error: true
         with:
           name: image_comparison_results_${{ matrix.os }}
-          path: .tmp
+          path: ${{ github.workspace }}/.tmp/
           retention-days: 5

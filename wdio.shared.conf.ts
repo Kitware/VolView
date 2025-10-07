@@ -101,6 +101,30 @@ export const config: Options.Testrunner = {
     });
   },
 
+  async afterTest(
+    test: any,
+    _context: any,
+    result: { passed: boolean }
+  ) {
+    if (!result.passed) {
+      // Save a screenshot of the browser window if the test failed.
+      const slug = String(test.fullTitle || test.title || 'unknown')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      const filename = `${slug}-${Date.now()}.png`;
+      const failureScreenshotDir = path.join(TEMP_DIR, 'failure-screenshots');
+      fs.mkdirSync(failureScreenshotDir, { recursive: true });
+      const filepath = path.resolve(failureScreenshotDir, filename);
+      try {
+        await browser.saveScreenshot(filepath);
+        console.log(`Saved failure screenshot: ${filepath}`);
+      } catch (e) {
+        console.warn('Failed to save failure screenshot', e);
+      }
+    }
+  },
+
   async afterCommand(commandName: string) {
     // After navigation, inject console interceptor to stringify errors
     if (commandName === 'navigateTo' || commandName === 'url') {
