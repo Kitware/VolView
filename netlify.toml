@@ -4,6 +4,9 @@
   status = 200
   force = true
   headers = {apikey = "DICOM_WEB_API_KEY"}
+  
+[build.environment]
+  VITE_SHOW_SAMPLE_DATA= "true"
 
 [build]
 command = "sed -i \"s|DICOM_WEB_API_KEY|${DICOM_WEB_API_KEY}|g; s|DICOM_WEB_ADDRESS|${DICOM_WEB_ADDRESS}|g\" netlify.toml && npm run build"
