@@ -5,11 +5,13 @@ import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import AboutBox from '@/src/components/AboutBox.vue';
 import VolViewFullLogo from '@/src/components/icons/VolViewFullLogo.vue';
 import VolViewLogo from '@/src/components/icons/VolViewLogo.vue';
+import { useKeyboardShortcutsStore } from '@/src/store/keyboard-shortcuts';
 
 const emit = defineEmits(['click:left-menu']);
 
 const { mobile } = useDisplay();
 const aboutBoxDialog = ref(false);
+const keyboardStore = useKeyboardShortcutsStore();
 </script>
 
 <template>
@@ -24,12 +26,11 @@ const aboutBoxDialog = ref(false);
       icon
       :rounded="0"
       class="toolbar-button"
-      href="https://volview.kitware.com/feedback/"
-      target="_blank"
+      @click="keyboardStore.settingsOpen = !keyboardStore.settingsOpen"
     >
-      <v-icon icon="mdi-comment-question-outline"></v-icon>
+      <v-icon icon="mdi-keyboard"></v-icon>
       <v-tooltip activator="parent" location="bottom">
-        Ask Question/Submit Feedback
+        Keyboard Shortcuts
       </v-tooltip>
     </v-btn>
     <v-btn
