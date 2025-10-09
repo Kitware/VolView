@@ -174,7 +174,7 @@ export default defineComponent({
     // Brush size scroll wheel control with customizable modifier key
     const keys = useMagicKeys();
     const enableBrushSizeAdjustment = computed(
-      () => keys[actionToKey.value.brushSize].value
+      () => keys[actionToKey.value.brushSizeModifier].value
     );
 
     const handleWheelEvent = (event: WheelEvent) => {

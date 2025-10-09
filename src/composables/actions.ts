@@ -68,6 +68,12 @@ const deleteCurrentImage = () => () => {
   }
 };
 
+const changeBrushSize = (delta: number) => () => {
+  const paintStore = usePaintToolStore();
+  const newSize = Math.max(1, paintStore.brushSize + delta);
+  paintStore.setBrushSize(newSize);
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
@@ -75,7 +81,9 @@ export const ACTION_TO_FUNC = {
   ruler: setTool(Tools.Ruler),
   paint: startPaintInMode(PaintMode.CirclePaint),
   paintEraser: startPaintInMode(PaintMode.Erase),
-  brushSize: NOOP, // act as modifier key rather than immediate effect, so no-op
+  brushSizeModifier: NOOP, // act as modifier key rather than immediate effect, so no-op
+  decreaseBrushSize: changeBrushSize(-1),
+  increaseBrushSize: changeBrushSize(1),
   rectangle: setTool(Tools.Rectangle),
   crosshairs: setTool(Tools.Crosshairs),
   temporaryCrosshairs: NOOP, // behavior implemented elsewhere
