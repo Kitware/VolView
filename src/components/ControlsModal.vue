@@ -1,5 +1,5 @@
 <template>
-  <closeable-dialog v-model="keyboardStore.settingsOpen">
+  <closeable-dialog v-model="keyboardStore.settingsOpen" :close-offset-x="24">
     <v-card class="pa-4">
       <div class="text-h4 pb-2">View Controls</div>
       <v-table>

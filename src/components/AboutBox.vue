@@ -127,6 +127,16 @@
             https://github.com/Kitware/VolView/issues
           </a>
         </li>
+        <li>
+          <span>Submit feedback: </span>
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://volview.kitware.com/feedback/"
+          >
+            https://volview.kitware.com/feedback/
+          </a>
+        </li>
       </ul>
       <h2>Version Info</h2>
       <v-divider class="mb-2" />

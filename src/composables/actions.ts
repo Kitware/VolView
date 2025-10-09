@@ -9,6 +9,8 @@ import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
 import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
 import { useDatasetStore } from '../store/datasets';
+import { usePaintToolStore } from '../store/tools/paint';
+import { PaintMode } from '../core/tools/paint';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -33,6 +35,11 @@ const applyLabelOffset = (offset: number) => () => {
 
 const setTool = (tool: Tools) => () => {
   useToolStore().setCurrentTool(tool);
+};
+
+const startPaintInMode = (mode: PaintMode) => () => {
+  useToolStore().setCurrentTool(Tools.Paint);
+  usePaintToolStore().setMode(mode);
 };
 
 const showKeyboardShortcuts = () => {
@@ -61,13 +68,22 @@ const deleteCurrentImage = () => () => {
   }
 };
 
+const changeBrushSize = (delta: number) => () => {
+  const paintStore = usePaintToolStore();
+  const newSize = Math.max(1, paintStore.brushSize + delta);
+  paintStore.setBrushSize(newSize);
+};
+
 export const ACTION_TO_FUNC = {
   windowLevel: setTool(Tools.WindowLevel),
   pan: setTool(Tools.Pan),
   zoom: setTool(Tools.Zoom),
   ruler: setTool(Tools.Ruler),
-  paint: setTool(Tools.Paint),
-  brushSize: NOOP, // act as modifier key rather than immediate effect, so no-op
+  paint: startPaintInMode(PaintMode.CirclePaint),
+  paintEraser: startPaintInMode(PaintMode.Erase),
+  brushSizeModifier: NOOP, // act as modifier key rather than immediate effect, so no-op
+  decreaseBrushSize: changeBrushSize(-1),
+  increaseBrushSize: changeBrushSize(1),
   rectangle: setTool(Tools.Rectangle),
   crosshairs: setTool(Tools.Crosshairs),
   temporaryCrosshairs: NOOP, // behavior implemented elsewhere
