@@ -40,6 +40,9 @@ export const ACTIONS = {
   paint: {
     readable: 'Activate Paint tool',
   },
+  paintEraser: {
+    readable: 'Activate Paint tool with eraser',
+  },
   brushSize: {
     readable: 'Change brush size by holding key and scrolling',
   },
