@@ -1,0 +1,16 @@
+diff --git a/node_modules/itk-wasm/dist/pipeline/internal/run-pipeline-emscripten.js b/node_modules/itk-wasm/dist/pipeline/internal/run-pipeline-emscripten.js
+index fc264e0..9decb5d 100644
+--- a/node_modules/itk-wasm/dist/pipeline/internal/run-pipeline-emscripten.js
++++ b/node_modules/itk-wasm/dist/pipeline/internal/run-pipeline-emscripten.js
+@@ -58,7 +58,10 @@ function getPipelineModuleOutputArray(emscriptenModule, outputIndex, subIndex, c
+ }
+ function getPipelineModuleOutputJSON(emscriptenModule, outputIndex) {
+     const jsonPtr = emscriptenModule.ccall('itk_wasm_output_json_address', 'number', ['number', 'number'], [0, outputIndex]);
+-    const dataJSON = emscriptenModule.UTF8ToString(jsonPtr);
++    let dataJSON = emscriptenModule.UTF8ToString(jsonPtr);
++    dataJSON = dataJSON.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, (char) => {
++        return '\\u' + ('0000' + char.charCodeAt(0).toString(16)).slice(-4);
++    });
+     const dataObject = JSON.parse(dataJSON);
+     return dataObject;
+ }
