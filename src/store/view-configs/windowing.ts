@@ -65,6 +65,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     }
 
     if (runtimeConfigWindowLevel.value) {
+      useAuto = false;
       ({ width, level } = runtimeConfigWindowLevel.value);
     }
 
