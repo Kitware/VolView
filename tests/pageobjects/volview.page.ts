@@ -221,7 +221,10 @@ class VolViewPage extends Page {
     return views2D;
   }
 
-  async waitForLoadingIndicator(view: ChainablePromiseElement, timeout = DOWNLOAD_TIMEOUT) {
+  async waitForLoadingIndicator(
+    view: ChainablePromiseElement,
+    timeout = DOWNLOAD_TIMEOUT
+  ) {
     await browser.waitUntil(
       async () => {
         const loadingIndicator = await view.$('.loading-indicator');
