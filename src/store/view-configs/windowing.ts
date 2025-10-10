@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { markRaw, reactive, ref } from 'vue';
+import { createEventHook } from '@vueuse/core';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -14,12 +15,16 @@ import { ViewConfig } from '@/src/io/state-file/schema';
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
-import { createEventHook } from '@vueuse/core';
 
 type WindowLevel = {
   width: number;
   level: number;
 };
+
+const minMaxToWidthLevel = (min: number, max: number) => ({
+  width: max - min,
+  level: (max + min) / 2,
+});
 
 export const defaultWindowLevelConfig = () =>
   ({
@@ -39,39 +44,34 @@ export const useWindowingStore = defineStore('windowing', () => {
 
   const WindowingUpdateEvent = markRaw(createEventHook<[string, string]>());
 
-  const computeDefaultConfig = (dataID: string): WindowLevelConfig => {
+  const getDicomWindowLevel = (dataID: string) => {
+    if (!isDicomImage(dataID)) return undefined;
+    const wls = getWindowLevels(dicomStore.volumeInfo[dataID]);
+    return wls[0];
+  };
+
+  const getStatsWindowLevel = (dataID: string) => {
+    const stats = imageStatsStore.stats[dataID];
+    const min = stats?.scalarMin ?? 0;
+    const max = stats?.scalarMax ?? 1;
+    return minMaxToWidthLevel(min, max);
+  };
+
+  const computeDefaultConfig = (dataID: string) => {
     const defaults = defaultWindowLevelConfig();
-    let { width, level } = defaults;
-    let useAuto = false;
 
-    if (isDicomImage(dataID)) {
-      const wls = getWindowLevels(dicomStore.volumeInfo[dataID]);
-      const wl = wls[0];
-      if (wl) {
-        ({ width, level } = wl);
-      }
-    } else {
-      // use FullRange auto values
-      useAuto = true;
-
-      // rely on the scalarMin+Max for now to prevent a flash of white
-      const stats = imageStatsStore.stats[dataID];
-      const min = stats?.scalarMin ?? 0;
-      const max = stats?.scalarMax ?? 1;
-      width = max - min;
-      level = (max + min) / 2;
+    const runtimeWL = runtimeConfigWindowLevel.value;
+    if (runtimeWL) {
+      return { ...defaults, ...runtimeWL, useAuto: false };
     }
 
-    if (runtimeConfigWindowLevel.value) {
-      ({ width, level } = runtimeConfigWindowLevel.value);
+    const dicomWL = getDicomWindowLevel(dataID);
+    if (dicomWL) {
+      return { ...defaults, ...dicomWL, useAuto: false };
     }
 
-    return {
-      useAuto,
-      auto: WL_AUTO_DEFAULT,
-      width,
-      level,
-    };
+    const statsWL = getStatsWindowLevel(dataID);
+    return { ...defaults, ...statsWL, useAuto: true };
   };
 
   const getConfig = (viewID: string, dataID: string): WindowLevelConfig => {
@@ -89,8 +89,7 @@ export const useWindowingStore = defineStore('windowing', () => {
       const [min, max] = autoValues[autoKey];
       return {
         ...internalConfig,
-        width: max - min,
-        level: (max + min) / 2,
+        ...minMaxToWidthLevel(min, max),
       };
     }
     return { ...internalConfig };
