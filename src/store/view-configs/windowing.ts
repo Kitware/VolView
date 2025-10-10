@@ -43,18 +43,20 @@ export const useWindowingStore = defineStore('windowing', () => {
     const defaults = defaultWindowLevelConfig();
     let { width, level } = defaults;
     let useAuto = false;
+    let hasDicomWindowLevel = false;
 
     if (isDicomImage(dataID)) {
       const wls = getWindowLevels(dicomStore.volumeInfo[dataID]);
       const wl = wls[0];
       if (wl) {
         ({ width, level } = wl);
+        hasDicomWindowLevel = true;
       }
-    } else {
-      // use FullRange auto values
+    }
+
+    if (!hasDicomWindowLevel) {
       useAuto = true;
 
-      // rely on the scalarMin+Max for now to prevent a flash of white
       const stats = imageStatsStore.stats[dataID];
       const min = stats?.scalarMin ?? 0;
       const max = stats?.scalarMax ?? 1;
