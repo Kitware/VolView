@@ -220,6 +220,22 @@ class VolViewPage extends Page {
     const views2D = $$('div[data-testid="vtk-view vtk-two-view"]');
     return views2D;
   }
+
+  async waitForLoadingIndicator(
+    view: ChainablePromiseElement,
+    timeout = DOWNLOAD_TIMEOUT
+  ) {
+    await browser.waitUntil(
+      async () => {
+        const loadingIndicator = await view.$('.loading-indicator');
+        return !(await loadingIndicator.isDisplayed());
+      },
+      {
+        timeout,
+        timeoutMsg: 'Expected loading indicator to disappear',
+      }
+    );
+  }
 }
 
 export const volViewPage = new VolViewPage();
