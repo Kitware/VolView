@@ -189,6 +189,8 @@ export default defineComponent({
 <style scoped>
 .v-card {
   max-width: 300px;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 .v-expansion-panel-title {
   min-height: auto;
