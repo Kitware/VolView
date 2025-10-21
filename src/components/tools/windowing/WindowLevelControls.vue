@@ -18,7 +18,7 @@ export default defineComponent({
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
     const { activeView } = storeToRefs(viewStore);
-    const panel = ref(['tags', 'presets', 'auto']);
+    const panel = ref(['tags', 'presets', 'auto', 'manual']);
 
     function parseLabel(text: string) {
       return text.replace(/([A-Z])/g, ' $1').trim();
@@ -58,8 +58,44 @@ export default defineComponent({
       );
     });
 
-    const wlWidth = computed(() => wlConfig.value.width);
-    const wlLevel = computed(() => wlConfig.value.level);
+    const wlWidth = computed(() => wlConfig.value.width ?? 1);
+    const wlLevel = computed(() => wlConfig.value.level ?? 0.5);
+
+    const formatForDisplay = (value: number) => {
+      const MIN_VALUE = 0.01;
+      if (Math.abs(value) < MIN_VALUE) return 0;
+      return Math.round(value * 100) / 100;
+    };
+
+    const displayWidth = computed({
+      get: () => formatForDisplay(wlWidth.value),
+      set: (value: number) => {
+        const imageID = currentImageID.value;
+        const viewID = activeView.value;
+        if (!imageID || !viewID || !Number.isFinite(value)) return;
+        windowingStore.updateConfig(
+          viewID,
+          imageID,
+          { width: value, level: wlLevel.value },
+          true
+        );
+      },
+    });
+
+    const displayLevel = computed({
+      get: () => formatForDisplay(wlLevel.value),
+      set: (value: number) => {
+        const imageID = currentImageID.value;
+        const viewID = activeView.value;
+        if (!imageID || !viewID || !Number.isFinite(value)) return;
+        windowingStore.updateConfig(
+          viewID,
+          imageID,
+          { width: wlWidth.value, level: value },
+          true
+        );
+      },
+    });
 
     const wlOptions = computed({
       get() {
@@ -118,6 +154,8 @@ export default defineComponent({
       tags,
       panel,
       WLAutoRanges,
+      displayWidth,
+      displayLevel,
     };
   },
 });
@@ -179,6 +217,29 @@ export default defineComponent({
                 </v-tooltip>
               </v-radio>
             </v-radio-group>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+        <v-expansion-panel value="manual">
+          <v-expansion-panel-title>Manual</v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <v-text-field
+                v-model.number="displayWidth"
+                label="Window"
+                type="number"
+                step="0.01"
+                density="compact"
+                hide-details
+              />
+              <v-text-field
+                v-model.number="displayLevel"
+                label="Level"
+                type="number"
+                step="0.01"
+                density="compact"
+                hide-details
+              />
+            </div>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
