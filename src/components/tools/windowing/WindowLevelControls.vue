@@ -18,7 +18,7 @@ export default defineComponent({
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
     const { activeView } = storeToRefs(viewStore);
-    const panel = ref(['tags', 'presets', 'auto']);
+    const panel = ref(['tags', 'presets', 'auto', 'manual']);
 
     function parseLabel(text: string) {
       return text.replace(/([A-Z])/g, ' $1').trim();
@@ -60,6 +60,36 @@ export default defineComponent({
 
     const wlWidth = computed(() => wlConfig.value.width);
     const wlLevel = computed(() => wlConfig.value.level);
+
+    const manualWidth = computed({
+      get: () => wlWidth.value,
+      set: (value: number) => {
+        const imageID = currentImageID.value;
+        const viewID = activeView.value;
+        if (!imageID || !viewID || !Number.isFinite(value)) return;
+        windowingStore.updateConfig(
+          viewID,
+          imageID,
+          { width: value, level: wlLevel.value },
+          true
+        );
+      },
+    });
+
+    const manualLevel = computed({
+      get: () => wlLevel.value,
+      set: (value: number) => {
+        const imageID = currentImageID.value;
+        const viewID = activeView.value;
+        if (!imageID || !viewID || !Number.isFinite(value)) return;
+        windowingStore.updateConfig(
+          viewID,
+          imageID,
+          { width: wlWidth.value, level: value },
+          true
+        );
+      },
+    });
 
     const wlOptions = computed({
       get() {
@@ -118,6 +148,8 @@ export default defineComponent({
       tags,
       panel,
       WLAutoRanges,
+      manualWidth,
+      manualLevel,
     };
   },
 });
@@ -179,6 +211,27 @@ export default defineComponent({
                 </v-tooltip>
               </v-radio>
             </v-radio-group>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+        <v-expansion-panel value="manual">
+          <v-expansion-panel-title>Manual</v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <v-text-field
+                v-model.number="manualWidth"
+                label="Window"
+                type="number"
+                density="compact"
+                hide-details
+              />
+              <v-text-field
+                v-model.number="manualLevel"
+                label="Level"
+                type="number"
+                density="compact"
+                hide-details
+              />
+            </div>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
