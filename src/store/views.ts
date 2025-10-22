@@ -5,7 +5,11 @@ import type { Maybe } from '@/src/types';
 import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
 import type { ViewInfo, ViewInfoInit, ViewType } from '@/src/types/views';
-import { DefaultLayout, DefaultLayoutSlots, getAvailableViews } from '@/src/config';
+import {
+  DefaultLayout,
+  DefaultLayoutSlots,
+  getAvailableViews,
+} from '@/src/config';
 import type { StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
