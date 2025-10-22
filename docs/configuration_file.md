@@ -2,12 +2,17 @@
 
 By loading a JSON file, you can set VolView's configuration:
 
-- Starting view layout grid size
+- Starting view layout (grid size, view types, or hierarchical layouts)
+- Disabled view types
 - Labels for tools
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
 ## Starting view layout
+
+VolView supports three ways to configure the initial view layout:
+
+### 1. Simple Grid (gridSize)
 
 The `gridSize` key sets the initial layout grid as `[width, height]`. For example, `[2, 2]` creates a 2x2 grid of views.
 
@@ -18,6 +23,86 @@ The `gridSize` key sets the initial layout grid as `[width, height]`. For exampl
   }
 }
 ```
+
+### 2. Grid with View Types (2D String Array)
+
+Use a 2D array of view type strings to specify both the grid layout and which views appear in each position:
+
+```json
+{
+  "layout": [
+    ["axial", "sagittal"],
+    ["coronal", "volume"]
+  ]
+}
+```
+
+Available view type strings: `"axial"`, `"coronal"`, `"sagittal"`, `"volume"`, `"oblique"`
+
+### 3. Nested Hierarchical Layout
+
+For complex layouts, use a nested structure with full control over view placement and properties:
+
+```json
+{
+  "layout": {
+    "direction": "row",
+    "items": [
+      "volume",
+      {
+        "direction": "column",
+        "items": ["axial", "coronal", "sagittal"]
+      }
+    ]
+  }
+}
+```
+
+Direction values:
+- `"row"` - items arranged horizontally
+- `"column"` - items stacked vertically
+
+You can also specify full view objects with custom options:
+
+```json
+{
+  "layout": {
+    "direction": "column",
+    "items": [
+      {
+        "type": "3D",
+        "name": "Top View",
+        "viewDirection": "Superior",
+        "viewUp": "Anterior"
+      },
+      {
+        "direction": "row",
+        "items": [
+          { "type": "2D", "orientation": "Axial" },
+          { "type": "2D", "orientation": "Coronal" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+View object properties:
+- 2D views: `type: "2D"`, `orientation: "Axial" | "Coronal" | "Sagittal"`, `name` (optional)
+- 3D views: `type: "3D"`, `viewDirection` (optional), `viewUp` (optional), `name` (optional)
+- Oblique views: `type: "Oblique"`, `name` (optional)
+
+## Disabled View Types
+
+Use `disabledViewTypes` to prevent certain view types from being available in the view type switcher:
+
+```json
+{
+  "disabledViewTypes": ["3D", "Oblique"]
+}
+```
+
+This removes the specified view types from the dropdown menu and replaces them in the default layout with allowed types. Valid values: `"2D"`, `"3D"`, `"Oblique"`
 
 ## Labels for tools
 
@@ -131,8 +216,16 @@ To configure a key for an action, add its action name and the key(s) under the `
     }
   },
   "layout": {
-    "gridSize": [2, 2]
+    "direction": "row",
+    "items": [
+      "volume",
+      {
+        "direction": "column",
+        "items": ["axial", "coronal", "sagittal"]
+      }
+    ]
   },
+  "disabledViewTypes": ["Oblique"],
   "dataBrowser": {
     "hideSampleData": false
   },

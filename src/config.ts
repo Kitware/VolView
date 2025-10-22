@@ -79,18 +79,18 @@ export const getAvailableViews = () => {
 const availableViews = getAvailableViews();
 
 export const DefaultLayoutSlots: ViewInfoInit[] = [
-  availableViews.byName.Coronal,
-  availableViews.byName.Volume,
-  availableViews.byName.Sagittal,
   availableViews.byName.Axial,
+  availableViews.byName.Coronal,
+  availableViews.byName.Sagittal,
+  availableViews.byName.Volume,
 ];
 
 export const DefaultLayout: Layout = {
-  direction: 'H',
+  direction: 'column',
   items: [
     {
       type: 'layout',
-      direction: 'V',
+      direction: 'row',
       items: [
         {
           type: 'slot',
@@ -104,7 +104,7 @@ export const DefaultLayout: Layout = {
     },
     {
       type: 'layout',
-      direction: 'V',
+      direction: 'row',
       items: [
         {
           type: 'slot',
