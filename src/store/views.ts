@@ -37,11 +37,11 @@ function calcLayoutViewCount(layout: Layout): number {
 function generateLayoutFromGrid(size: [number, number]): Layout {
   const [width, height] = size;
   return {
-    direction: 'H',
+    direction: 'column',
     items: Array.from({ length: height }).map((_, rowIndex) => {
       return {
         type: 'layout',
-        direction: 'V',
+        direction: 'row',
         items: Array.from({ length: width }).map((__, colIndex) => {
           return {
             type: 'slot',
@@ -251,7 +251,7 @@ export const useViewStore = defineStore('view', () => {
     visibleLayout: computed<Layout>(() => {
       if (maximizedView.value)
         return {
-          direction: 'H',
+          direction: 'column',
           items: [{ type: 'slot', slotIndex: 0 }],
         } satisfies Layout;
       return layout.value;

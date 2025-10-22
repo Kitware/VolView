@@ -1,3 +1,5 @@
+export type LayoutDirection = 'row' | 'column';
+
 export type LayoutItem =
   | {
       type: 'slot';
@@ -9,6 +11,6 @@ export type LayoutItem =
     } & Layout);
 
 export type Layout = {
-  direction: 'V' | 'H';
+  direction: LayoutDirection;
   items: ReadonlyArray<LayoutItem>;
 };

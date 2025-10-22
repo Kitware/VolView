@@ -86,11 +86,11 @@ export const DefaultLayoutSlots: ViewInfoInit[] = [
 ];
 
 export const DefaultLayout: Layout = {
-  direction: 'H',
+  direction: 'column',
   items: [
     {
       type: 'layout',
-      direction: 'V',
+      direction: 'row',
       items: [
         {
           type: 'slot',
@@ -104,7 +104,7 @@ export const DefaultLayout: Layout = {
     },
     {
       type: 'layout',
-      direction: 'V',
+      direction: 'row',
       items: [
         {
           type: 'slot',
