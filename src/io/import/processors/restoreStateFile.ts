@@ -262,13 +262,50 @@ const migrate501To600 = (inputManifest: any) => {
   return manifest;
 };
 
+const migrate600To610 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+
+  const migrateDirection = (dir: 'H' | 'V'): 'row' | 'column' => {
+    return dir === 'H' ? 'column' : 'row';
+  };
+
+  const migrateLayout = (layout: any): any => {
+    if (!layout || typeof layout !== 'object') return layout;
+
+    const migratedLayout = { ...layout };
+
+    if (layout.direction) {
+      migratedLayout.direction = migrateDirection(layout.direction);
+    }
+
+    if (layout.items && Array.isArray(layout.items)) {
+      migratedLayout.items = layout.items.map((item: any) => {
+        if (item.type === 'layout') {
+          return migrateLayout(item);
+        }
+        return item;
+      });
+    }
+
+    return migratedLayout;
+  };
+
+  if (manifest.layout) {
+    manifest.layout = migrateLayout(manifest.layout);
+  }
+
+  manifest.version = '6.1.0';
+  return manifest;
+};
+
 const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
     inputManifest,
     migrateOrPass(['1.1.0', '1.0.0', '0.5.0'], migrateBefore210),
     migrateOrPass(['2.1.0'], migrate210To300),
-    migrateOrPass(['5.0.1'], migrate501To600)
+    migrateOrPass(['5.0.1'], migrate501To600),
+    migrateOrPass(['6.0.0'], migrate600To610)
   );
 };
 

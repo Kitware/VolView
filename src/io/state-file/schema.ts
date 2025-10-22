@@ -37,7 +37,11 @@ import type {
   BlendConfig,
 } from '@/src/types/views';
 import { WLAutoRanges } from '@/src/constants';
-import { type Layout, type LayoutItem } from '@/src/types/layout';
+import {
+  type Layout,
+  type LayoutDirection,
+  type LayoutItem,
+} from '@/src/types/layout';
 
 const FileSource = z.object({
   id: z.number(),
@@ -99,7 +103,10 @@ const RemoteFile: z.ZodType<RemoteFileType> = baseRemoteFileSchema.extend({
 });
 export type RemoteFile = z.infer<typeof RemoteFile>;
 
-const LayoutDirectionNative = z.enum(['H', 'V']);
+const LayoutDirectionNative = z.enum([
+  'row',
+  'column',
+] as const satisfies readonly LayoutDirection[]);
 
 const LayoutItem: z.ZodType<LayoutItem> = z.lazy(() =>
   z.union([

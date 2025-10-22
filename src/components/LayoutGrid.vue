@@ -49,7 +49,7 @@ export default defineComponent({
     const viewStore = useViewStore();
 
     const flexFlow = computed(() => {
-      return layout.value.direction === 'H' ? 'flex-column' : 'flex-row';
+      return layout.value.direction === 'column' ? 'flex-column' : 'flex-row';
     });
 
     const items = computed(() => {

@@ -32,8 +32,7 @@ export const config: Options.Testrunner = {
   // ============
   // Capabilities
   // ============
-  // Limit the number of browser instances to 1 in CI to avoid memory limits
-  maxInstances: process.env.CI ? 1 : 3,
+  maxInstances: 1,
   //
   // ===================
   // Test Configurations

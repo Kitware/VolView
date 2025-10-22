@@ -11,7 +11,7 @@ import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
-import type { Layout, LayoutItem } from '@/src/types/layout';
+import type { LayoutItem, LayoutDirection } from '@/src/types/layout';
 import type { ViewInfoInit } from '@/src/types/views';
 
 // --------------------------------------------------------------------------
@@ -34,8 +34,12 @@ const view2D = z.object({
 const view3D = z.object({
   type: z.literal('3D'),
   name: z.string().optional(),
-  viewDirection: z.enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior']).optional(),
-  viewUp: z.enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior']).optional(),
+  viewDirection: z
+    .enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior'])
+    .optional(),
+  viewUp: z
+    .enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior'])
+    .optional(),
 });
 
 const viewOblique = z.object({
@@ -48,16 +52,18 @@ const viewSpec = z.union([viewString, view2D, view3D, viewOblique]);
 // --------------------------------------------------------------------------
 // Layout Specifications
 
-type LayoutConfigItem = z.infer<typeof viewSpec> | {
-  direction: 'H' | 'V';
-  items: LayoutConfigItem[];
-};
+type LayoutConfigItem =
+  | z.infer<typeof viewSpec>
+  | {
+      direction: LayoutDirection;
+      items: LayoutConfigItem[];
+    };
 
 const layoutConfigItem: z.ZodType<LayoutConfigItem> = z.lazy(() =>
   z.union([
     viewSpec,
     z.object({
-      direction: z.enum(['H', 'V']),
+      direction: z.enum(['row', 'column']),
       items: z.array(layoutConfigItem),
     }),
   ])
@@ -66,7 +72,7 @@ const layoutConfigItem: z.ZodType<LayoutConfigItem> = z.lazy(() =>
 const layoutConfig = z.union([
   z.array(z.array(viewString)),
   z.object({
-    direction: z.enum(['H', 'V']),
+    direction: z.enum(['row', 'column']),
     items: z.array(layoutConfigItem),
   }),
   z.object({
@@ -147,16 +153,38 @@ export const readConfigFile = async (configFile: File) => {
 // --------------------------------------------------------------------------
 // Layout Parsing
 
-const stringToViewInfoInit = (str: z.infer<typeof viewString>): ViewInfoInit => {
+const stringToViewInfoInit = (
+  str: z.infer<typeof viewString>
+): ViewInfoInit => {
   switch (str) {
     case 'axial':
-      return { name: 'Axial', type: '2D', dataID: null, options: { orientation: 'Axial' } };
+      return {
+        name: 'Axial',
+        type: '2D',
+        dataID: null,
+        options: { orientation: 'Axial' },
+      };
     case 'coronal':
-      return { name: 'Coronal', type: '2D', dataID: null, options: { orientation: 'Coronal' } };
+      return {
+        name: 'Coronal',
+        type: '2D',
+        dataID: null,
+        options: { orientation: 'Coronal' },
+      };
     case 'sagittal':
-      return { name: 'Sagittal', type: '2D', dataID: null, options: { orientation: 'Sagittal' } };
+      return {
+        name: 'Sagittal',
+        type: '2D',
+        dataID: null,
+        options: { orientation: 'Sagittal' },
+      };
     case 'volume':
-      return { name: 'Volume', type: '3D', dataID: null, options: { viewDirection: 'Posterior', viewUp: 'Superior' } };
+      return {
+        name: 'Volume',
+        type: '3D',
+        dataID: null,
+        options: { viewDirection: 'Posterior', viewUp: 'Superior' },
+      };
     case 'oblique':
       return { name: 'Oblique', type: 'Oblique', dataID: null, options: {} };
     default:
@@ -164,7 +192,9 @@ const stringToViewInfoInit = (str: z.infer<typeof viewString>): ViewInfoInit => 
   }
 };
 
-const viewSpecToViewInfoInit = (spec: z.infer<typeof viewSpec>): ViewInfoInit => {
+const viewSpecToViewInfoInit = (
+  spec: z.infer<typeof viewSpec>
+): ViewInfoInit => {
   if (typeof spec === 'string') {
     return stringToViewInfoInit(spec);
   }
@@ -202,12 +232,12 @@ const viewSpecToViewInfoInit = (spec: z.infer<typeof viewSpec>): ViewInfoInit =>
   throw new Error(`Unknown view spec type`);
 };
 
-const parseGridLayout = (grid: z.infer<typeof viewString>[][]): { layout: Layout; views: ViewInfoInit[] } => {
+const parseGridLayout = (grid: z.infer<typeof viewString>[][]) => {
   const views: ViewInfoInit[] = [];
   let slotIndex = 0;
 
-  const items: LayoutItem[] = grid.map((row) => {
-    const rowItems: LayoutItem[] = row.map(() => {
+  const items = grid.map((row) => {
+    const rowItems = row.map(() => {
       const currentSlot = slotIndex;
       slotIndex += 1;
       return { type: 'slot' as const, slotIndex: currentSlot };
@@ -215,7 +245,7 @@ const parseGridLayout = (grid: z.infer<typeof viewString>[][]): { layout: Layout
 
     return {
       type: 'layout' as const,
-      direction: 'V' as const,
+      direction: 'row' as const,
       items: rowItems,
     };
   });
@@ -226,51 +256,46 @@ const parseGridLayout = (grid: z.infer<typeof viewString>[][]): { layout: Layout
 
   return {
     layout: {
-      direction: 'H',
+      direction: 'column' as const,
       items,
     },
     views,
   };
 };
 
-const parseNestedLayout = (
-  layoutItem: LayoutConfigItem
-): { layout: Layout; views: ViewInfoInit[] } => {
+const parseNestedLayout = (layoutItem: LayoutConfigItem) => {
   const views: ViewInfoInit[] = [];
   let slotIndex = 0;
 
+  const isViewSpec = (
+    item: LayoutConfigItem
+  ): item is z.infer<typeof viewSpec> =>
+    typeof item === 'string' || 'type' in item;
+
   const processItem = (item: LayoutConfigItem): LayoutItem => {
-    if (typeof item === 'string' || 'type' in item) {
-      const viewInfo = viewSpecToViewInfoInit(item as z.infer<typeof viewSpec>);
+    if (isViewSpec(item)) {
+      const viewInfo = viewSpecToViewInfoInit(item);
       views.push(viewInfo);
       const currentSlot = slotIndex;
       slotIndex += 1;
-      return { type: 'slot', slotIndex: currentSlot };
+      return { type: 'slot' as const, slotIndex: currentSlot };
     }
 
     return {
-      type: 'layout',
+      type: 'layout' as const,
       direction: item.direction,
       items: item.items.map(processItem),
     };
   };
 
-  if (typeof layoutItem === 'string' || 'type' in layoutItem) {
-    const viewInfo = viewSpecToViewInfoInit(layoutItem as z.infer<typeof viewSpec>);
-    views.push(viewInfo);
-    return {
-      layout: {
-        direction: 'H',
-        items: [{ type: 'slot', slotIndex: 0 }],
-      },
-      views,
-    };
-  }
+  const rootLayout = isViewSpec(layoutItem)
+    ? { direction: 'column' as const, items: [layoutItem] }
+    : layoutItem;
 
   return {
     layout: {
-      direction: layoutItem.direction,
-      items: layoutItem.items.map(processItem),
+      direction: rootLayout.direction,
+      items: rootLayout.items.map(processItem),
     },
     views,
   };

@@ -12,7 +12,7 @@ import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '6.0.0';
+export const MANIFEST_VERSION = '6.1.0';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
@@ -42,7 +42,7 @@ export async function serialize() {
       current: Tools.WindowLevel,
     },
     layout: {
-      direction: 'H',
+      direction: 'column',
       items: [],
     },
     layoutSlots: [],
