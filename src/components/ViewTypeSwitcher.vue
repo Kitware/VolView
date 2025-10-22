@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { getAvailableViews } from '@/src/config';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
 import { computed, toRefs } from 'vue';
@@ -17,11 +16,14 @@ const viewName = computed(() => {
   return viewInfo?.name ?? '';
 });
 
-const availableViews = getAvailableViews().list;
-const availableViewNames = availableViews.map((v) => v.name);
+const availableViewNames = computed(() =>
+  viewStore.availableViewsForSwitcher.map((v) => v.name)
+);
 
 function updateView(newViewName: string) {
-  const selectedView = availableViews.find((v) => v.name === newViewName);
+  const selectedView = viewStore.availableViewsForSwitcher.find(
+    (v) => v.name === newViewName
+  );
   if (!selectedView) return;
   viewStore.replaceView(viewId.value, {
     ...selectedView,

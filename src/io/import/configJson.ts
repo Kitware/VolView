@@ -133,12 +133,15 @@ const windowing = z
   })
   .optional();
 
+const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
+
 export const config = z.object({
   layout,
   labels,
   shortcuts,
   io,
   windowing,
+  disabledViewTypes,
 });
 
 export type Config = z.infer<typeof config>;
@@ -363,7 +366,14 @@ const applyWindowing = (manifest: Config) => {
   useWindowingStore().runtimeConfigWindowLevel = manifest.windowing;
 };
 
+const applyDisabledViewTypes = (manifest: Config) => {
+  if (!manifest.disabledViewTypes) return;
+
+  useViewStore().disabledViewTypes = manifest.disabledViewTypes;
+};
+
 export const applyPreStateConfig = (manifest: Config) => {
+  applyDisabledViewTypes(manifest);
   applyLayout(manifest);
   applyShortcuts(manifest);
   applyIo(manifest);
