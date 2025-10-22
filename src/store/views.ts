@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
-import { computed, markRaw, reactive, ref } from 'vue';
+import { computed, markRaw, reactive, ref, watch } from 'vue';
 import { createEventHook } from '@vueuse/core';
 import type { Maybe } from '@/src/types';
 import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
-import type { ViewInfo, ViewInfoInit } from '@/src/types/views';
-import { DefaultLayout, DefaultLayoutSlots } from '@/src/config';
+import type { ViewInfo, ViewInfoInit, ViewType } from '@/src/types/views';
+import { DefaultLayout, DefaultLayoutSlots, getAvailableViews } from '@/src/config';
 import type { StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
@@ -70,12 +70,20 @@ export const useViewStore = defineStore('view', () => {
   const layoutSlots = ref<string[]>([]);
   const viewByID = reactive<Record<string, ViewInfo>>({});
   const activeView = ref<Maybe<string>>();
+  const disabledViewTypes = ref<ViewType[]>([]);
 
   const isActiveViewMaximized = ref(false);
   const maximizedView = computed(() => {
     if (activeView.value && isActiveViewMaximized.value)
       return viewByID[activeView.value];
     return undefined;
+  });
+
+  const availableViewsForSwitcher = computed(() => {
+    const allViews = getAvailableViews();
+    return allViews.list.filter(
+      (view) => !disabledViewTypes.value.includes(view.type)
+    );
   });
 
   const visibleViews = computed(() => {
@@ -211,6 +219,20 @@ export const useViewStore = defineStore('view', () => {
     });
   }
 
+  function applyDisabledViewTypesFilter() {
+    if (!disabledViewTypes.value.length) return;
+
+    layoutSlots.value.forEach((id) => {
+      const view = viewByID[id];
+      if (disabledViewTypes.value.includes(view.type)) {
+        const replacement = availableViewsForSwitcher.value[0];
+        if (replacement) {
+          replaceView(id, replacement);
+        }
+      }
+    });
+  }
+
   function serialize(stateFile: StateFile) {
     const { manifest } = stateFile;
     manifest.layout = layout.value;
@@ -247,6 +269,10 @@ export const useViewStore = defineStore('view', () => {
     layoutSlots.value.push(addView(viewInit));
   });
 
+  watch(disabledViewTypes, () => {
+    applyDisabledViewTypesFilter();
+  });
+
   return {
     visibleLayout: computed<Layout>(() => {
       if (maximizedView.value)
@@ -260,6 +286,8 @@ export const useViewStore = defineStore('view', () => {
     viewIDs,
     activeView,
     viewByID,
+    disabledViewTypes,
+    availableViewsForSwitcher,
     getView,
     getAllViews,
     getViewsForData,
