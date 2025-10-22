@@ -168,6 +168,24 @@ export const useViewStore = defineStore('view', () => {
     setLayout(generateLayoutFromGrid(gridSize));
   }
 
+  function setLayoutWithViews(newLayout: Layout, views: ViewInfoInit[]) {
+    isActiveViewMaximized.value = false;
+
+    const newLayoutViewCount = calcLayoutViewCount(newLayout);
+    if (newLayoutViewCount !== views.length) {
+      throw new Error('Layout view count does not match views array length');
+    }
+
+    layoutSlots.value = views.map((viewInit) => addView(viewInit));
+    layout.value = newLayout;
+
+    if (!visibleViews.value.length) {
+      setActiveView(null);
+    } else {
+      setActiveView(visibleViews.value[0].id);
+    }
+  }
+
   function setDataForView(viewID: string, dataID: Maybe<string>) {
     if (!(viewID in viewByID)) return;
     viewByID[viewID].dataID = dataID;
@@ -248,6 +266,7 @@ export const useViewStore = defineStore('view', () => {
     replaceView,
     setLayout,
     setLayoutFromGrid,
+    setLayoutWithViews,
     setActiveView,
     setDataForView,
     setDataForActiveView,
