@@ -28,4 +28,9 @@ export type AnnotationTool = {
   name: string;
 
   hidden?: boolean;
+
+  /*
+   * Arbitrary key-value pairs associated with the annotation.
+   */
+  metadata?: Record<string, string>;
 };
