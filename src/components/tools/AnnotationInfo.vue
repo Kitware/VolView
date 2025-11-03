@@ -6,7 +6,7 @@ import { OverlayInfo } from '@/src/composables/annotationTool';
 
 // These seem to work ¯\_(ツ)_/¯
 const TOOLTIP_PADDING_X = 30;
-const TOOLTIP_PADDING_Y = 20;
+const TOOLTIP_PADDING_Y = 10;
 
 const props = defineProps<{
   info: OverlayInfo;
@@ -15,6 +15,18 @@ const props = defineProps<{
 
 const visible = computed(() => {
   return props.info.visible;
+});
+
+const metadata = computed(() => {
+  if (!props.info.visible) return [] as Array<{ key: string; value: string }>;
+  const meta = props.toolStore.toolByID[props.info.toolID].metadata ?? {};
+  // Preserve insertion order of keys
+  return Object.entries(meta).map(([key, value]) => {
+    return {
+      key,
+      value,
+    };
+  });
 });
 
 const label = computed(() => {
@@ -50,7 +62,13 @@ const offset = computed(() => {
     }"
     class="better-contrast"
   >
-    {{ label }}
+    <div class="tooltip-text font-weight-bold">{{ label }}</div>
+    <div v-if="metadata.length > 0">
+      <v-divider></v-divider>
+      <div v-for="item in metadata" :key="item.key" class="tooltip-text">
+        {{ item.key }}: {{ item.value }}
+      </div>
+    </div>
   </v-tooltip>
 </template>
 
@@ -58,5 +76,11 @@ const offset = computed(() => {
 .better-contrast :deep(.v-overlay__content) {
   opacity: 1 !important;
   background: rgba(255, 255, 255, 0.9) !important;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.tooltip-text {
+  padding: 0 10px;
 }
 </style>

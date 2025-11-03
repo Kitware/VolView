@@ -340,6 +340,7 @@ const annotationTool = z.object({
   strokeWidth: z.number().optional(),
   label: z.string().optional(),
   labelName: z.string().optional(),
+  metadata: z.record(z.string()).optional(),
 }) satisfies z.ZodType<AnnotationTool>;
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
