@@ -20,10 +20,8 @@ const visible = computed(() => {
 const metadata = computed(() => {
   if (!props.info.visible) return [] as Array<{ key: string; value: string }>;
   const meta = props.toolStore.toolByID[props.info.toolID].metadata ?? {};
-  const sortedMetadata = Object.entries(meta ?? {}).sort((a, b) =>
-    a[0].localeCompare(b[0])
-  );
-  return sortedMetadata.map(([key, value]) => {
+  // Preserve insertion order of keys
+  return Object.entries(meta).map(([key, value]) => {
     return {
       key,
       value,
