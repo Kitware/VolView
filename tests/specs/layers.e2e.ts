@@ -89,9 +89,9 @@ describe('Add Layer button', () => {
     if (!views2D || viewCount === 0) {
       throw new Error('Could not find 2D views for screenshot');
     }
-    const lastView2D = views2D[viewCount - 1];
+    const firstView2D = views2D[0];
     const result = await browser.checkElement(
-      lastView2D,
+      firstView2D,
       'layers_max_opacity_2d_view'
     );
 
