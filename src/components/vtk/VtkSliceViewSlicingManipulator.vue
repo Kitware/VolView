@@ -54,7 +54,8 @@ const scroll = useMouseRangeManipulatorListener(
   'scroll',
   sliceConfig.range,
   1,
-  sliceConfig.slice.value
+  sliceConfig.slice.value,
+  -1 // Invert scroll: scroll down = decrease slice for anatomical consistency
 );
 
 watch(scroll, () => {
