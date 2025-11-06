@@ -226,3 +226,19 @@ export const parseLayoutConfig = (
   }
   return parseNestedLayout(layoutDef);
 };
+
+export const parseNamedLayouts = (
+  layouts: Record<string, LayoutConfig>
+): Record<string, { layout: Layout; views: ViewInfoInit[] }> => {
+  const entries = Object.entries(layouts);
+
+  entries.forEach(([name]) => {
+    if (name.trim() === '') {
+      throw new Error('Layout names cannot be empty');
+    }
+  });
+
+  return Object.fromEntries(
+    entries.map(([name, layoutDef]) => [name, parseLayoutConfig(layoutDef)])
+  );
+};

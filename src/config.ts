@@ -77,11 +77,11 @@ export const getAvailableViews = () => {
 };
 
 export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
-  'four-up': [
+  'Four Up': [
     ['axial', 'coronal'],
     ['sagittal', 'volume'],
   ],
-  'axial-coronal-sagittal': {
+  'Axial Coronal Sagittal': {
     direction: 'row',
     items: [
       'axial',
@@ -91,10 +91,10 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
       },
     ],
   },
-  'axial-only': [['axial']],
-  '3d-only': [['volume']],
-  oblique: [['oblique']],
-  '3d-primary': {
+  'Axial Only': [['axial']],
+  '3D Only': [['volume']],
+  Oblique: [['oblique']],
+  '3D Primary': {
     direction: 'row',
     items: [
       'volume',

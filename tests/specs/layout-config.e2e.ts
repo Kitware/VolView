@@ -165,11 +165,11 @@ describe('VolView Layout Configuration', () => {
   it('should support multiple named layouts', async () => {
     const config = {
       layouts: {
-        'quad-view': [
+        'Quad View': [
           ['axial', 'sagittal'],
           ['coronal', 'axial'],
         ],
-        'triple-view': {
+        'Triple View': {
           direction: 'row',
           items: [
             'axial',
@@ -179,7 +179,7 @@ describe('VolView Layout Configuration', () => {
             },
           ],
         },
-        'single-view': [['axial']],
+        'Single View': [['axial']],
       },
     };
 

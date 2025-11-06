@@ -7,7 +7,7 @@ import { useIdStore } from '@/src/store/id';
 import type { ViewInfo, ViewInfoInit, ViewType } from '@/src/types/views';
 import { DefaultNamedLayouts, getAvailableViews } from '@/src/config';
 import {
-  parseLayoutConfig,
+  parseNamedLayouts,
   type LayoutConfig,
 } from '@/src/utils/layoutParsing';
 import type { StateFile } from '../io/state-file/schema';
@@ -69,15 +69,11 @@ export const useViewStore = defineStore('view', () => {
   // [beforeViewID, afterViewID]
   const LayoutViewReplacedEvent = markRaw(createEventHook<[string, string]>());
 
-  const parsedDefaultLayouts = Object.fromEntries(
-    Object.entries(DefaultNamedLayouts).map(([name, layoutDef]) => [
-      name,
-      parseLayoutConfig(layoutDef),
-    ])
-  );
+  const parsedDefaultLayouts = parseNamedLayouts(DefaultNamedLayouts);
 
   const defaultNamedLayoutEntries = Object.entries(parsedDefaultLayouts);
   const firstLayout = defaultNamedLayoutEntries[0][1];
+  const firstLayoutName = defaultNamedLayoutEntries[0][0];
 
   const layout = ref<Layout>(firstLayout.layout);
   // which assigns view IDs to layout slots
@@ -89,7 +85,7 @@ export const useViewStore = defineStore('view', () => {
     ref<Record<string, { layout: Layout; views: ViewInfoInit[] }>>(
       parsedDefaultLayouts
     );
-  const currentLayoutName = ref<Maybe<string>>(null);
+  const currentLayoutName = ref<Maybe<string>>(firstLayoutName);
 
   const isActiveViewMaximized = ref(false);
   const maximizedView = computed(() => {
@@ -215,13 +211,7 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setNamedLayoutsFromConfig(layouts: Record<string, LayoutConfig>) {
-    const parsed = Object.fromEntries(
-      Object.entries(layouts).map(([name, layoutDef]) => [
-        name,
-        parseLayoutConfig(layoutDef),
-      ])
-    );
-    namedLayouts.value = parsed;
+    namedLayouts.value = parseNamedLayouts(layouts);
   }
 
   function switchToNamedLayout(name: string) {

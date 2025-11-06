@@ -16,13 +16,6 @@ const namedLayoutsList = computed(() => {
   return Object.keys(viewStore.namedLayouts);
 });
 
-const formatLayoutName = (name: string) => {
-  return name
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-};
-
 const selectNamedLayout = (name: string) => {
   viewStore.switchToNamedLayout(name);
 };
@@ -38,7 +31,7 @@ const selectNamedLayout = (name: string) => {
           :active="viewStore.currentLayoutName === name"
           @click="selectNamedLayout(name)"
         >
-          <v-list-item-title>{{ formatLayoutName(name) }}</v-list-item-title>
+          <v-list-item-title>{{ name }}</v-list-item-title>
         </v-list-item>
       </v-list>
       <v-divider class="my-2" />
