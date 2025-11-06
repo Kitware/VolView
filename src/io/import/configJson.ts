@@ -80,7 +80,7 @@ const layoutConfig = z.union([
   }),
 ]);
 
-const layout = layoutConfig.optional();
+const layouts = z.record(z.string(), layoutConfig).optional();
 
 const shortcuts = z.record(zodEnumFromObjKeys(ACTIONS), z.string()).optional();
 
@@ -136,7 +136,7 @@ const windowing = z
 const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 
 export const config = z.object({
-  layout,
+  layouts,
   labels,
   shortcuts,
   io,
@@ -266,6 +266,16 @@ const parseGridLayout = (grid: z.infer<typeof viewString>[][]) => {
   };
 };
 
+const parseGridSizeLayout = (gridSize: [number, number]) => {
+  const cols = gridSize[0];
+  const rows = gridSize[1];
+  const grid: z.infer<typeof viewString>[][] = Array.from(
+    { length: rows },
+    () => Array.from({ length: cols }, () => 'axial' as const)
+  );
+  return parseGridLayout(grid);
+};
+
 const parseNestedLayout = (layoutItem: LayoutConfigItem) => {
   const views: ViewInfoInit[] = [];
   let slotIndex = 0;
@@ -330,17 +340,29 @@ const applyLabels = (manifest: Config) => {
 };
 
 const applyLayout = (manifest: Config) => {
-  if (!manifest.layout) return;
+  if (!manifest.layouts) return;
 
-  if (Array.isArray(manifest.layout)) {
-    const parsedLayout = parseGridLayout(manifest.layout);
-    useViewStore().setLayoutWithViews(parsedLayout.layout, parsedLayout.views);
-  } else if ('gridSize' in manifest.layout) {
-    useViewStore().setLayoutFromGrid(manifest.layout.gridSize);
-  } else {
-    const parsedLayout = parseNestedLayout(manifest.layout);
-    useViewStore().setLayoutWithViews(parsedLayout.layout, parsedLayout.views);
-  }
+  const viewStore = useViewStore();
+  const layoutEntries = Object.entries(manifest.layouts);
+
+  if (layoutEntries.length === 0) return;
+
+  const namedLayouts = Object.fromEntries(
+    layoutEntries.map(([name, layoutDef]) => {
+      if (Array.isArray(layoutDef)) {
+        return [name, parseGridLayout(layoutDef)];
+      }
+      if ('gridSize' in layoutDef) {
+        return [name, parseGridSizeLayout(layoutDef.gridSize)];
+      }
+      return [name, parseNestedLayout(layoutDef)];
+    })
+  );
+
+  viewStore.setNamedLayouts(namedLayouts);
+
+  const firstLayoutName = layoutEntries[0][0];
+  viewStore.switchToNamedLayout(firstLayoutName);
 };
 
 const applyShortcuts = (manifest: Config) => {

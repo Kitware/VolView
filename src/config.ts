@@ -78,45 +78,116 @@ export const getAvailableViews = () => {
 
 const availableViews = getAvailableViews();
 
-export const DefaultLayoutSlots: ViewInfoInit[] = [
-  availableViews.byName.Axial,
-  availableViews.byName.Coronal,
-  availableViews.byName.Sagittal,
-  availableViews.byName.Volume,
-];
-
-export const DefaultLayout: Layout = {
-  direction: 'column',
-  items: [
-    {
-      type: 'layout',
-      direction: 'row',
+export const DefaultNamedLayouts: Record<
+  string,
+  { layout: Layout; views: ViewInfoInit[] }
+> = {
+  'four-up': {
+    layout: {
+      direction: 'column',
       items: [
         {
-          type: 'slot',
-          slotIndex: 0,
+          type: 'layout',
+          direction: 'row',
+          items: [
+            {
+              type: 'slot',
+              slotIndex: 0,
+            },
+            {
+              type: 'slot',
+              slotIndex: 1,
+            },
+          ],
         },
         {
-          type: 'slot',
-          slotIndex: 1,
+          type: 'layout',
+          direction: 'row',
+          items: [
+            {
+              type: 'slot',
+              slotIndex: 2,
+            },
+            {
+              type: 'slot',
+              slotIndex: 3,
+            },
+          ],
         },
       ],
     },
-    {
-      type: 'layout',
+    views: [
+      availableViews.byName.Axial,
+      availableViews.byName.Coronal,
+      availableViews.byName.Sagittal,
+      availableViews.byName.Volume,
+    ],
+  },
+  'axial-coronal-sagittal': {
+    layout: {
       direction: 'row',
       items: [
+        { type: 'slot', slotIndex: 0 },
         {
-          type: 'slot',
-          slotIndex: 2,
-        },
-        {
-          type: 'slot',
-          slotIndex: 3,
+          type: 'layout',
+          direction: 'column',
+          items: [
+            { type: 'slot', slotIndex: 1 },
+            { type: 'slot', slotIndex: 2 },
+          ],
         },
       ],
     },
-  ],
+    views: [
+      availableViews.byName.Axial,
+      availableViews.byName.Coronal,
+      availableViews.byName.Sagittal,
+    ],
+  },
+  'axial-only': {
+    layout: {
+      direction: 'column',
+      items: [{ type: 'slot', slotIndex: 0 }],
+    },
+    views: [availableViews.byName.Axial],
+  },
+  '3d-only': {
+    layout: {
+      direction: 'column',
+      items: [{ type: 'slot', slotIndex: 0 }],
+    },
+    views: [availableViews.byName.Volume],
+  },
+  oblique: {
+    layout: {
+      direction: 'column',
+      items: [{ type: 'slot', slotIndex: 0 }],
+    },
+    views: [availableViews.byName.Oblique],
+  },
+  '3d-primary': {
+    layout: {
+      direction: 'row',
+      items: [
+        { type: 'slot', slotIndex: 0 },
+        {
+          type: 'layout',
+          direction: 'column',
+          items: [
+            { type: 'slot', slotIndex: 1 },
+            { type: 'slot', slotIndex: 2 },
+            { type: 'slot', slotIndex: 3 },
+          ],
+        },
+      ],
+    },
+    views: [
+      availableViews.byName.Volume,
+      availableViews.byName.Axial,
+      availableViews.byName.Coronal,
+      availableViews.byName.Sagittal,
+    ],
+  },
 };
 
 export const SAMPLE_DATA: SampleDataset[] = [

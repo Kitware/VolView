@@ -12,16 +12,13 @@ import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
 import MessageCenter from '@/src/components/MessageCenter.vue';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import { ConnectionState, useServerStore } from '@/src/store/server';
-import { useViewStore } from '@/src/store/views';
-import LayoutGridEditor from '@/src/components/LayoutGridEditor.vue';
+import LayoutSelector from '@/src/components/LayoutSelector.vue';
 
 interface Props {
   hasData: boolean;
 }
 
 defineProps<Props>();
-
-const viewStore = useViewStore();
 
 function useSaveControls() {
   const remoteSaveStateStore = useRemoteSaveStateStore();
@@ -90,13 +87,6 @@ const messageDialog = ref(false);
 const { icon: connIcon, url: serverUrl } = useServerConnection();
 const { handleSave, saveDialog, isSaving } = useSaveControls();
 const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
-
-const layoutGridSize = computed({
-  get: () => [0, 0] as [number, number],
-  set: (size) => {
-    viewStore.setLayoutFromGrid(size);
-  },
-});
 </script>
 
 <template>
@@ -118,7 +108,7 @@ const layoutGridSize = computed({
       @click="handleSave"
     />
     <div class="my-1 tool-separator" />
-    <v-menu location="right" :close-on-content-click="true">
+    <v-menu location="left" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
         <div>
           <control-button
@@ -131,7 +121,7 @@ const layoutGridSize = computed({
       </template>
       <v-card>
         <v-card-text>
-          <LayoutGridEditor v-model="layoutGridSize" />
+          <LayoutSelector />
         </v-card-text>
       </v-card>
     </v-menu>
