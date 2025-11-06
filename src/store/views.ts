@@ -6,6 +6,10 @@ import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
 import type { ViewInfo, ViewInfoInit, ViewType } from '@/src/types/views';
 import { DefaultNamedLayouts, getAvailableViews } from '@/src/config';
+import {
+  parseLayoutConfig,
+  type LayoutConfig,
+} from '@/src/utils/layoutParsing';
 import type { StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
@@ -65,8 +69,17 @@ export const useViewStore = defineStore('view', () => {
   // [beforeViewID, afterViewID]
   const LayoutViewReplacedEvent = markRaw(createEventHook<[string, string]>());
 
-  const defaultNamedLayoutEntries = Object.entries(DefaultNamedLayouts);
-  const layout = ref<Layout>(defaultNamedLayoutEntries[0][1].layout);
+  const parsedDefaultLayouts = Object.fromEntries(
+    Object.entries(DefaultNamedLayouts).map(([name, layoutDef]) => [
+      name,
+      parseLayoutConfig(layoutDef),
+    ])
+  );
+
+  const defaultNamedLayoutEntries = Object.entries(parsedDefaultLayouts);
+  const firstLayout = defaultNamedLayoutEntries[0][1];
+
+  const layout = ref<Layout>(firstLayout.layout);
   // which assigns view IDs to layout slots
   const layoutSlots = ref<string[]>([]);
   const viewByID = reactive<Record<string, ViewInfo>>({});
@@ -74,7 +87,7 @@ export const useViewStore = defineStore('view', () => {
   const disabledViewTypes = ref<ViewType[]>([]);
   const namedLayouts =
     ref<Record<string, { layout: Layout; views: ViewInfoInit[] }>>(
-      DefaultNamedLayouts
+      parsedDefaultLayouts
     );
   const currentLayoutName = ref<Maybe<string>>(null);
 
@@ -201,10 +214,14 @@ export const useViewStore = defineStore('view', () => {
     }
   }
 
-  function setNamedLayouts(
-    layouts: Record<string, { layout: Layout; views: ViewInfoInit[] }>
-  ) {
-    namedLayouts.value = layouts;
+  function setNamedLayoutsFromConfig(layouts: Record<string, LayoutConfig>) {
+    const parsed = Object.fromEntries(
+      Object.entries(layouts).map(([name, layoutDef]) => [
+        name,
+        parseLayoutConfig(layoutDef),
+      ])
+    );
+    namedLayouts.value = parsed;
   }
 
   function switchToNamedLayout(name: string) {
@@ -316,7 +333,7 @@ export const useViewStore = defineStore('view', () => {
 
   // initialization
 
-  defaultNamedLayoutEntries[0][1].views.forEach((viewInit) => {
+  firstLayout.views.forEach((viewInit) => {
     layoutSlots.value.push(addView(viewInit));
   });
 
@@ -348,7 +365,7 @@ export const useViewStore = defineStore('view', () => {
     setLayout,
     setLayoutFromGrid,
     setLayoutWithViews,
-    setNamedLayouts,
+    setNamedLayoutsFromConfig,
     switchToNamedLayout,
     setActiveView,
     setDataForView,

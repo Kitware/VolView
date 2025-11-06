@@ -4,7 +4,7 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import { SegmentMask } from '@/src/types/segment';
-import type { Layout } from './types/layout';
+import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
 import { Action } from './constants';
@@ -76,116 +76,32 @@ export const getAvailableViews = () => {
   return { list, byName };
 };
 
-const availableViews = getAvailableViews();
-
-export const DefaultNamedLayouts: Record<
-  string,
-  { layout: Layout; views: ViewInfoInit[] }
-> = {
-  'four-up': {
-    layout: {
-      direction: 'column',
-      items: [
-        {
-          type: 'layout',
-          direction: 'row',
-          items: [
-            {
-              type: 'slot',
-              slotIndex: 0,
-            },
-            {
-              type: 'slot',
-              slotIndex: 1,
-            },
-          ],
-        },
-        {
-          type: 'layout',
-          direction: 'row',
-          items: [
-            {
-              type: 'slot',
-              slotIndex: 2,
-            },
-            {
-              type: 'slot',
-              slotIndex: 3,
-            },
-          ],
-        },
-      ],
-    },
-    views: [
-      availableViews.byName.Axial,
-      availableViews.byName.Coronal,
-      availableViews.byName.Sagittal,
-      availableViews.byName.Volume,
-    ],
-  },
+export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
+  'four-up': [
+    ['axial', 'coronal'],
+    ['sagittal', 'volume'],
+  ],
   'axial-coronal-sagittal': {
-    layout: {
-      direction: 'row',
-      items: [
-        { type: 'slot', slotIndex: 0 },
-        {
-          type: 'layout',
-          direction: 'column',
-          items: [
-            { type: 'slot', slotIndex: 1 },
-            { type: 'slot', slotIndex: 2 },
-          ],
-        },
-      ],
-    },
-    views: [
-      availableViews.byName.Axial,
-      availableViews.byName.Coronal,
-      availableViews.byName.Sagittal,
+    direction: 'row',
+    items: [
+      'axial',
+      {
+        direction: 'column',
+        items: ['coronal', 'sagittal'],
+      },
     ],
   },
-  'axial-only': {
-    layout: {
-      direction: 'column',
-      items: [{ type: 'slot', slotIndex: 0 }],
-    },
-    views: [availableViews.byName.Axial],
-  },
-  '3d-only': {
-    layout: {
-      direction: 'column',
-      items: [{ type: 'slot', slotIndex: 0 }],
-    },
-    views: [availableViews.byName.Volume],
-  },
-  oblique: {
-    layout: {
-      direction: 'column',
-      items: [{ type: 'slot', slotIndex: 0 }],
-    },
-    views: [availableViews.byName.Oblique],
-  },
+  'axial-only': [['axial']],
+  '3d-only': [['volume']],
+  oblique: [['oblique']],
   '3d-primary': {
-    layout: {
-      direction: 'row',
-      items: [
-        { type: 'slot', slotIndex: 0 },
-        {
-          type: 'layout',
-          direction: 'column',
-          items: [
-            { type: 'slot', slotIndex: 1 },
-            { type: 'slot', slotIndex: 2 },
-            { type: 'slot', slotIndex: 3 },
-          ],
-        },
-      ],
-    },
-    views: [
-      availableViews.byName.Volume,
-      availableViews.byName.Axial,
-      availableViews.byName.Coronal,
-      availableViews.byName.Sagittal,
+    direction: 'row',
+    items: [
+      'volume',
+      {
+        direction: 'column',
+        items: ['axial', 'coronal', 'sagittal'],
+      },
     ],
   },
 };

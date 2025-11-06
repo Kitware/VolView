@@ -11,11 +11,10 @@ import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
-import type { LayoutItem, LayoutDirection } from '@/src/types/layout';
-import type { ViewInfoInit } from '@/src/types/views';
+import type { LayoutConfigItem } from '@/src/utils/layoutParsing';
 
 // --------------------------------------------------------------------------
-// View Specifications
+// Layout Specifications (Zod schema only, parsing is in views.ts)
 
 const viewString = z.enum([
   'axial',
@@ -48,16 +47,6 @@ const viewOblique = z.object({
 });
 
 const viewSpec = z.union([viewString, view2D, view3D, viewOblique]);
-
-// --------------------------------------------------------------------------
-// Layout Specifications
-
-type LayoutConfigItem =
-  | z.infer<typeof viewSpec>
-  | {
-      direction: LayoutDirection;
-      items: LayoutConfigItem[];
-    };
 
 const layoutConfigItem: z.ZodType<LayoutConfigItem> = z.lazy(() =>
   z.union([
@@ -153,167 +142,6 @@ export const readConfigFile = async (configFile: File) => {
   return config.parse(JSON.parse(text));
 };
 
-// --------------------------------------------------------------------------
-// Layout Parsing
-
-const stringToViewInfoInit = (
-  str: z.infer<typeof viewString>
-): ViewInfoInit => {
-  switch (str) {
-    case 'axial':
-      return {
-        name: 'Axial',
-        type: '2D',
-        dataID: null,
-        options: { orientation: 'Axial' },
-      };
-    case 'coronal':
-      return {
-        name: 'Coronal',
-        type: '2D',
-        dataID: null,
-        options: { orientation: 'Coronal' },
-      };
-    case 'sagittal':
-      return {
-        name: 'Sagittal',
-        type: '2D',
-        dataID: null,
-        options: { orientation: 'Sagittal' },
-      };
-    case 'volume':
-      return {
-        name: 'Volume',
-        type: '3D',
-        dataID: null,
-        options: { viewDirection: 'Posterior', viewUp: 'Superior' },
-      };
-    case 'oblique':
-      return { name: 'Oblique', type: 'Oblique', dataID: null, options: {} };
-    default:
-      throw new Error(`Unknown view string: ${str}`);
-  }
-};
-
-const viewSpecToViewInfoInit = (
-  spec: z.infer<typeof viewSpec>
-): ViewInfoInit => {
-  if (typeof spec === 'string') {
-    return stringToViewInfoInit(spec);
-  }
-
-  if (spec.type === '2D') {
-    return {
-      name: spec.name ?? spec.orientation,
-      type: '2D',
-      dataID: null,
-      options: { orientation: spec.orientation },
-    };
-  }
-
-  if (spec.type === '3D') {
-    return {
-      name: spec.name ?? 'Volume',
-      type: '3D',
-      dataID: null,
-      options: {
-        viewDirection: spec.viewDirection ?? 'Posterior',
-        viewUp: spec.viewUp ?? 'Superior',
-      },
-    };
-  }
-
-  if (spec.type === 'Oblique') {
-    return {
-      name: spec.name ?? 'Oblique',
-      type: 'Oblique',
-      dataID: null,
-      options: {},
-    };
-  }
-
-  throw new Error(`Unknown view spec type`);
-};
-
-const parseGridLayout = (grid: z.infer<typeof viewString>[][]) => {
-  const views: ViewInfoInit[] = [];
-  let slotIndex = 0;
-
-  const items = grid.map((row) => {
-    const rowItems = row.map(() => {
-      const currentSlot = slotIndex;
-      slotIndex += 1;
-      return { type: 'slot' as const, slotIndex: currentSlot };
-    });
-
-    return {
-      type: 'layout' as const,
-      direction: 'row' as const,
-      items: rowItems,
-    };
-  });
-
-  grid.flat().forEach((viewStr) => {
-    views.push(stringToViewInfoInit(viewStr));
-  });
-
-  return {
-    layout: {
-      direction: 'column' as const,
-      items,
-    },
-    views,
-  };
-};
-
-const parseGridSizeLayout = (gridSize: [number, number]) => {
-  const cols = gridSize[0];
-  const rows = gridSize[1];
-  const grid: z.infer<typeof viewString>[][] = Array.from(
-    { length: rows },
-    () => Array.from({ length: cols }, () => 'axial' as const)
-  );
-  return parseGridLayout(grid);
-};
-
-const parseNestedLayout = (layoutItem: LayoutConfigItem) => {
-  const views: ViewInfoInit[] = [];
-  let slotIndex = 0;
-
-  const isViewSpec = (
-    item: LayoutConfigItem
-  ): item is z.infer<typeof viewSpec> =>
-    typeof item === 'string' || 'type' in item;
-
-  const processItem = (item: LayoutConfigItem): LayoutItem => {
-    if (isViewSpec(item)) {
-      const viewInfo = viewSpecToViewInfoInit(item);
-      views.push(viewInfo);
-      const currentSlot = slotIndex;
-      slotIndex += 1;
-      return { type: 'slot' as const, slotIndex: currentSlot };
-    }
-
-    return {
-      type: 'layout' as const,
-      direction: item.direction,
-      items: item.items.map(processItem),
-    };
-  };
-
-  const rootLayout = isViewSpec(layoutItem)
-    ? { direction: 'column' as const, items: [layoutItem] }
-    : layoutItem;
-
-  return {
-    layout: {
-      direction: rootLayout.direction,
-      items: rootLayout.items.map(processItem),
-    },
-    views,
-  };
-};
-
 const applyLabels = (manifest: Config) => {
   if (!manifest.labels) return;
 
@@ -347,19 +175,7 @@ const applyLayout = (manifest: Config) => {
 
   if (layoutEntries.length === 0) return;
 
-  const namedLayouts = Object.fromEntries(
-    layoutEntries.map(([name, layoutDef]) => {
-      if (Array.isArray(layoutDef)) {
-        return [name, parseGridLayout(layoutDef)];
-      }
-      if ('gridSize' in layoutDef) {
-        return [name, parseGridSizeLayout(layoutDef.gridSize)];
-      }
-      return [name, parseNestedLayout(layoutDef)];
-    })
-  );
-
-  viewStore.setNamedLayouts(namedLayouts);
+  viewStore.setNamedLayoutsFromConfig(manifest.layouts);
 
   const firstLayoutName = layoutEntries[0][0];
   viewStore.switchToNamedLayout(firstLayoutName);
