@@ -91,8 +91,8 @@ export const ACTION_TO_FUNC = {
   polygon: setTool(Tools.Polygon),
   select: setTool(Tools.Select),
 
-  nextSlice: changeSlice(1),
-  previousSlice: changeSlice(-1),
+  nextSlice: changeSlice(-1),
+  previousSlice: changeSlice(1),
   grabSlice: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
   decrementLabel: applyLabelOffset(-1),
