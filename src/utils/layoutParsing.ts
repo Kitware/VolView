@@ -1,56 +1,71 @@
-import type { Layout, LayoutDirection, LayoutItem } from '@/src/types/layout';
+import { z } from 'zod';
+import type { Layout, LayoutItem } from '@/src/types/layout';
 import type { ViewInfoInit } from '@/src/types/views';
 
-type ViewString = 'axial' | 'coronal' | 'sagittal' | 'volume' | 'oblique';
+const viewString = z.enum([
+  'axial',
+  'coronal',
+  'sagittal',
+  'volume',
+  'oblique',
+]);
 
-type View2DSpec = {
-  type: '2D';
-  name?: string;
-  orientation: 'Axial' | 'Coronal' | 'Sagittal';
-};
+const view2D = z.object({
+  type: z.literal('2D'),
+  name: z.string().optional(),
+  orientation: z.enum(['Axial', 'Coronal', 'Sagittal']),
+});
 
-type View3DSpec = {
-  type: '3D';
-  name?: string;
-  viewDirection?:
-    | 'Left'
-    | 'Right'
-    | 'Posterior'
-    | 'Anterior'
-    | 'Superior'
-    | 'Inferior';
-  viewUp?:
-    | 'Left'
-    | 'Right'
-    | 'Posterior'
-    | 'Anterior'
-    | 'Superior'
-    | 'Inferior';
-};
+const view3D = z.object({
+  type: z.literal('3D'),
+  name: z.string().optional(),
+  viewDirection: z
+    .enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior'])
+    .optional(),
+  viewUp: z
+    .enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior'])
+    .optional(),
+});
 
-type ViewObliqueSpec = {
-  type: 'Oblique';
-  name?: string;
-};
+const viewOblique = z.object({
+  type: z.literal('Oblique'),
+  name: z.string().optional(),
+});
 
-type ViewSpec = ViewString | View2DSpec | View3DSpec | ViewObliqueSpec;
+const viewSpec = z.union([viewString, view2D, view3D, viewOblique]);
 
-export type LayoutConfigItem =
-  | ViewSpec
+type LayoutConfigItemType =
+  | z.infer<typeof viewSpec>
   | {
-      direction: LayoutDirection;
-      items: LayoutConfigItem[];
+      direction: 'row' | 'column';
+      items: LayoutConfigItemType[];
     };
 
-export type LayoutConfig =
-  | ViewString[][]
-  | {
-      direction: LayoutDirection;
-      items: LayoutConfigItem[];
-    }
-  | {
-      gridSize: [number, number];
-    };
+const layoutConfigItem: z.ZodType<LayoutConfigItemType> = z.lazy(() =>
+  z.union([
+    viewSpec,
+    z.object({
+      direction: z.enum(['row', 'column']),
+      items: z.array(layoutConfigItem),
+    }),
+  ])
+);
+
+export const layoutConfig = z.union([
+  z.array(z.array(viewString)),
+  z.object({
+    direction: z.enum(['row', 'column']),
+    items: z.array(layoutConfigItem),
+  }),
+  z.object({
+    gridSize: z.tuple([z.number(), z.number()]),
+  }),
+]);
+
+export type ViewString = z.infer<typeof viewString>;
+export type ViewSpec = z.infer<typeof viewSpec>;
+export type LayoutConfigItem = LayoutConfigItemType;
+export type LayoutConfig = z.infer<typeof layoutConfig>;
 
 const stringToViewInfoInit = (str: ViewString): ViewInfoInit => {
   switch (str) {

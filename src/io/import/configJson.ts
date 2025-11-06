@@ -11,65 +11,15 @@ import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
-import type { LayoutConfigItem } from '@/src/utils/layoutParsing';
+import { layoutConfig } from '@/src/utils/layoutParsing';
 
 // --------------------------------------------------------------------------
-// Layout Specifications (Zod schema only, parsing is in views.ts)
-
-const viewString = z.enum([
-  'axial',
-  'coronal',
-  'sagittal',
-  'volume',
-  'oblique',
-]);
-
-const view2D = z.object({
-  type: z.literal('2D'),
-  name: z.string().optional(),
-  orientation: z.enum(['Axial', 'Coronal', 'Sagittal']),
-});
-
-const view3D = z.object({
-  type: z.literal('3D'),
-  name: z.string().optional(),
-  viewDirection: z
-    .enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior'])
-    .optional(),
-  viewUp: z
-    .enum(['Left', 'Right', 'Posterior', 'Anterior', 'Superior', 'Inferior'])
-    .optional(),
-});
-
-const viewOblique = z.object({
-  type: z.literal('Oblique'),
-  name: z.string().optional(),
-});
-
-const viewSpec = z.union([viewString, view2D, view3D, viewOblique]);
-
-const layoutConfigItem: z.ZodType<LayoutConfigItem> = z.lazy(() =>
-  z.union([
-    viewSpec,
-    z.object({
-      direction: z.enum(['row', 'column']),
-      items: z.array(layoutConfigItem),
-    }),
-  ])
-);
-
-const layoutConfig = z.union([
-  z.array(z.array(viewString)),
-  z.object({
-    direction: z.enum(['row', 'column']),
-    items: z.array(layoutConfigItem),
-  }),
-  z.object({
-    gridSize: z.tuple([z.number(), z.number()]),
-  }),
-]);
+// Layout
 
 const layouts = z.record(z.string(), layoutConfig).optional();
+
+// --------------------------------------------------------------------------
+// Keyboard shortcuts
 
 const shortcuts = z.record(zodEnumFromObjKeys(ACTIONS), z.string()).optional();
 
