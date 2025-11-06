@@ -1,54 +1,39 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 import { writeManifestToFile } from './utils';
 
 const SAMPLE_DICOM_URL =
   'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download';
 const SAMPLE_DICOM_NAME = 'CT000085.dcm';
 
+const PROSTATEX_DATASET = {
+  url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
+  name: 'MRI-PROSTATEx-0004.zip',
+};
+
+type DatasetResource = {
+  url: string;
+  name?: string;
+};
+
+const DEFAULT_DATASET: DatasetResource = {
+  url: SAMPLE_DICOM_URL,
+  name: SAMPLE_DICOM_NAME,
+};
+
 const createConfigManifest = async (
   config: unknown,
   configFileName: string,
-  manifestFileName: string
+  manifestFileName: string,
+  dataset: DatasetResource = DEFAULT_DATASET
 ) => {
   await writeManifestToFile(config, configFileName);
 
   const manifest = {
-    resources: [
-      { url: `/tmp/${configFileName}` },
-      {
-        url: SAMPLE_DICOM_URL,
-        name: SAMPLE_DICOM_NAME,
-      },
-    ],
+    resources: [{ url: `/tmp/${configFileName}` }, dataset],
   };
 
   await writeManifestToFile(manifest, manifestFileName);
   return manifestFileName;
-};
-
-const waitForViewCounts = async (
-  expected2DCount: number,
-  expected3DExists: boolean,
-  timeout = DOWNLOAD_TIMEOUT
-) => {
-  await browser.waitUntil(
-    async () => {
-      const views2D = await volViewPage.getViews2D();
-      const view3D = await volViewPage.getView3D();
-      return (
-        (await views2D.length) === expected2DCount &&
-        (view3D !== null) === expected3DExists
-      );
-    },
-    {
-      timeout,
-      timeoutMsg: `Expected ${expected2DCount} 2D views and ${
-        expected3DExists ? 'a' : 'no'
-      } 3D view`,
-      interval: 1000,
-    }
-  );
 };
 
 const expectViewCounts = async (
@@ -57,13 +42,27 @@ const expectViewCounts = async (
 ) => {
   const views2D = await volViewPage.getViews2D();
   const view3D = await volViewPage.getView3D();
+  const views2DCount = await views2D.length;
 
-  expect(await views2D.length).toBe(expected2DCount);
-  if (expected3DExists) {
-    expect(view3D).not.toBeNull();
-  } else {
-    expect(view3D).toBeNull();
-  }
+  expect(views2DCount).toBe(expected2DCount);
+  expect(view3D !== null).toBe(expected3DExists);
+};
+
+const openConfigAndWait = async (
+  config: unknown,
+  configFileName: string,
+  manifestFileName: string,
+  dataset: DatasetResource = DEFAULT_DATASET
+) => {
+  const manifestFileNameOnDisk = await createConfigManifest(
+    config,
+    configFileName,
+    manifestFileName,
+    dataset
+  );
+
+  await volViewPage.open(`?urls=[tmp/${manifestFileNameOnDisk}]`);
+  await volViewPage.waitForViews();
 };
 
 describe('VolView Layout Configuration', () => {
@@ -77,16 +76,13 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    const manifestFileName = await createConfigManifest(
+    await openConfigAndWait(
       config,
       'layout-grid-config.json',
       'layout-grid-manifest.json'
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await waitForViewCounts(3, true);
+    await volViewPage.waitForViewCounts(3, true);
     await expectViewCounts(3, true);
   });
 
@@ -106,16 +102,13 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    const manifestFileName = await createConfigManifest(
+    await openConfigAndWait(
       config,
       'layout-nested-config.json',
       'layout-nested-manifest.json'
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await waitForViewCounts(3, true);
+    await volViewPage.waitForViewCounts(3, true);
     await expectViewCounts(3, true);
   });
 
@@ -149,113 +142,72 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    const manifestFileName = await createConfigManifest(
+    await openConfigAndWait(
       config,
       'layout-custom-views-config.json',
       'layout-custom-views-manifest.json'
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await waitForViewCounts(2, true);
+    await volViewPage.waitForViewCounts(2, true);
     await expectViewCounts(2, true);
   });
 
-  it('should support multiple named layouts', async () => {
+  it('should support multiple named layouts and preserve slice selection', async () => {
     const config = {
       layouts: {
-        'Quad View': [
+        'Four Up Axial': [
           ['axial', 'sagittal'],
           ['coronal', 'axial'],
         ],
-        'Triple View': {
-          direction: 'row',
-          items: [
-            'axial',
-            {
-              direction: 'column',
-              items: ['coronal', 'sagittal'],
-            },
-          ],
-        },
-        'Single View': [['axial']],
+        'Single Axial': [['axial']],
+        'Dual Axial': [['axial'], ['axial']],
       },
     };
 
-    const manifestFileName = await createConfigManifest(
+    await openConfigAndWait(
       config,
       'multiple-layouts-config.json',
-      'multiple-layouts-manifest.json'
+      'multiple-layouts-manifest.json',
+      PROSTATEX_DATASET
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await waitForViewCounts(4, false);
+    await volViewPage.waitForViewCounts(4, false);
     await expectViewCounts(4, false);
 
-    const layoutButton = await $(
-      'button[data-testid="control-button-Layouts"]'
-    );
-    await browser.waitUntil(
-      async () => {
-        return layoutButton.isDisplayed();
-      },
-      {
-        timeout: 5000,
-        timeoutMsg: 'Layout button not displayed',
-        interval: 500,
-      }
-    );
-    await layoutButton.click();
+    await volViewPage.focusFirst2DView();
 
-    await browser.waitUntil(
-      async () => {
-        const layoutItems = await $$('.v-list-item');
-        return (await layoutItems.length) >= 3;
-      },
-      {
-        timeout: 5000,
-        timeoutMsg: 'Expected layout menu to show at least 3 layout options',
-        interval: 500,
-      }
+    const initialSlice = await volViewPage.getFirst2DSlice();
+    expect(initialSlice).not.toBeNull();
+
+    await volViewPage.advanceSlice();
+    await volViewPage.waitForSliceIncrease(initialSlice);
+
+    const sliceAfterScroll = await volViewPage.getFirst2DSlice();
+    expect(sliceAfterScroll).not.toBeNull();
+    if (initialSlice !== null && sliceAfterScroll !== null) {
+      expect(sliceAfterScroll).toBeGreaterThan(initialSlice);
+    }
+
+    await volViewPage.openLayoutMenu(3);
+    const layoutTitles = await volViewPage.getLayoutOptionTitles();
+    expect(layoutTitles).toEqual(
+      expect.arrayContaining(['Four Up Axial', 'Single Axial', 'Dual Axial'])
     );
 
-    const layoutTitles = await browser.execute(() => {
-      const items = Array.from(document.querySelectorAll('.v-list-item-title'));
-      return items.map((item) => item.textContent?.trim() ?? '');
-    });
+    await volViewPage.selectLayoutOption('Single Axial');
+    await volViewPage.waitForViewCounts(1, false);
 
-    expect(layoutTitles).toContain('Quad View');
-    expect(layoutTitles).toContain('Triple View');
-    expect(layoutTitles).toContain('Single View');
+    await volViewPage.focusFirst2DView();
+    const sliceAfterLayoutSwitch = await volViewPage.getFirst2DSlice();
+    expect(sliceAfterLayoutSwitch).toBe(sliceAfterScroll);
 
-    await browser.execute((targetText: string) => {
-      const items = Array.from(document.querySelectorAll('.v-list-item-title'));
-      const targetItem = items.find(
-        (item) => item.textContent?.trim() === targetText
-      );
-      if (targetItem) {
-        const listItem = targetItem.closest('.v-list-item') as HTMLElement;
-        if (listItem) listItem.click();
-      }
-    }, 'Single View');
+    await volViewPage.openLayoutMenu(3);
+    await volViewPage.selectLayoutOption('Dual Axial');
+    await volViewPage.waitForViewCounts(2, false);
 
-    await browser.waitUntil(
-      async () => {
-        const views2DAfter = await volViewPage.getViews2D();
-        return (await views2DAfter.length) === 1;
-      },
-      {
-        timeout: 5000,
-        timeoutMsg: 'Expected single-view layout with 1 2D view',
-        interval: 500,
-      }
-    );
-
-    const views2DAfter = await volViewPage.getViews2D();
-    expect(await views2DAfter.length).toBe(1);
+    await volViewPage.focusFirst2DView();
+    const sliceInFirstViewAfterDualSwitch = await volViewPage.getFirst2DSlice();
+    expect(sliceInFirstViewAfterDualSwitch).toBe(sliceAfterScroll);
   });
 
   it('should disable 3D and Oblique view types', async () => {
@@ -263,16 +215,13 @@ describe('VolView Layout Configuration', () => {
       disabledViewTypes: ['3D', 'Oblique'],
     };
 
-    const manifestFileName = await createConfigManifest(
+    await openConfigAndWait(
       config,
       'disabled-view-types-config.json',
       'disabled-view-types-manifest.json'
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await waitForViewCounts(4, false);
+    await volViewPage.waitForViewCounts(4, false);
     await expectViewCounts(4, false);
 
     const viewTypeSwitchers = await $$('.view-type-select');

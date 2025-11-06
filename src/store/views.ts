@@ -57,6 +57,15 @@ function generateLayoutFromGrid(size: [number, number]): Layout {
   };
 }
 
+function needsViewReplacement(existingView: ViewInfo, nextView: ViewInfoInit) {
+  if (existingView.type !== nextView.type) return true;
+
+  const existingOptions = existingView.options ?? null;
+  const nextOptions = nextView.options ?? null;
+
+  return JSON.stringify(existingOptions) !== JSON.stringify(nextOptions);
+}
+
 export const useViewStore = defineStore('view', () => {
   const idStore = useIdStore();
 
@@ -138,6 +147,17 @@ export const useViewStore = defineStore('view', () => {
     isActiveViewMaximized.value = !isActiveViewMaximized.value;
   }
 
+  function ensureActiveViewIsVisible() {
+    if (!visibleViews.value.length) {
+      setActiveView(null);
+      return;
+    }
+
+    if (!visibleViews.value.find((view) => view.id === activeView.value)) {
+      setActiveView(visibleViews.value[0].id);
+    }
+  }
+
   function addView(viewInit: ViewInfoInit) {
     const id = idStore.nextId();
 
@@ -168,46 +188,42 @@ export const useViewStore = defineStore('view', () => {
     delete viewByID[id];
   }
 
-  function setLayout(newLayout: Layout) {
+  function applyLayoutChange(
+    newLayout: Layout,
+    options?: {
+      layoutName?: Maybe<string>;
+      updateSlots?: (viewCount: number) => void;
+    }
+  ) {
+    if (options?.layoutName !== undefined) {
+      currentLayoutName.value = options.layoutName;
+    }
+
     isActiveViewMaximized.value = false;
-    // we don't remove non-visible views so we can preserve their state for later
-    const newLayoutViewCount = calcLayoutViewCount(newLayout);
-    while (layoutSlots.value.length < newLayoutViewCount) {
-      layoutSlots.value.push(addView(DEFAULT_VIEW_INIT));
+
+    if (options?.updateSlots) {
+      const viewCount = calcLayoutViewCount(newLayout);
+      options.updateSlots(viewCount);
     }
 
     layout.value = newLayout;
+    ensureActiveViewIsVisible();
+  }
 
-    if (!visibleViews.value.length) {
-      setActiveView(null);
-    } else if (
-      !visibleViews.value.find((view) => view.id === activeView.value)
-    ) {
-      setActiveView(visibleViews.value[0].id);
-    }
+  function setLayout(newLayout: Layout) {
+    applyLayoutChange(newLayout, {
+      updateSlots: (viewCount) => {
+        // we don't remove non-visible views so we can preserve their state for later
+        while (layoutSlots.value.length < viewCount) {
+          layoutSlots.value.push(addView(DEFAULT_VIEW_INIT));
+        }
+      },
+    });
   }
 
   function setLayoutFromGrid(gridSize: [number, number]) {
     currentLayoutName.value = null;
     setLayout(generateLayoutFromGrid(gridSize));
-  }
-
-  function setLayoutWithViews(newLayout: Layout, views: ViewInfoInit[]) {
-    isActiveViewMaximized.value = false;
-
-    const newLayoutViewCount = calcLayoutViewCount(newLayout);
-    if (newLayoutViewCount !== views.length) {
-      throw new Error('Layout view count does not match views array length');
-    }
-
-    layoutSlots.value = views.map((viewInit) => addView(viewInit));
-    layout.value = newLayout;
-
-    if (!visibleViews.value.length) {
-      setActiveView(null);
-    } else {
-      setActiveView(visibleViews.value[0].id);
-    }
   }
 
   function setNamedLayoutsFromConfig(layouts: Record<string, LayoutConfig>) {
@@ -219,37 +235,29 @@ export const useViewStore = defineStore('view', () => {
     if (!namedLayout) {
       throw new Error(`Named layout "${name}" not found`);
     }
-    currentLayoutName.value = name;
-
-    isActiveViewMaximized.value = false;
-
-    // Update existing views with new properties while preserving dataID
-    namedLayout.views.forEach((viewInit, index) => {
-      if (index < layoutSlots.value.length) {
-        const existingViewId = layoutSlots.value[index];
-        const existingView = viewByID[existingViewId];
-        if (existingView) {
-          // Replace view with new type/options, preserving dataID
-          replaceView(existingViewId, {
-            ...viewInit,
-            dataID: existingView.dataID,
-          });
-        }
-      } else {
-        // Add new view if layout needs more slots
-        layoutSlots.value.push(addView(viewInit));
-      }
+    applyLayoutChange(namedLayout.layout, {
+      layoutName: name,
+      updateSlots: () => {
+        namedLayout.views.forEach((viewInit, index) => {
+          if (index < layoutSlots.value.length) {
+            const existingViewId = layoutSlots.value[index];
+            const existingView = viewByID[existingViewId];
+            if (existingView) {
+              if (needsViewReplacement(existingView, viewInit)) {
+                replaceView(existingViewId, {
+                  ...viewInit,
+                  dataID: existingView.dataID,
+                });
+              } else {
+                existingView.name = viewInit.name;
+              }
+            }
+          } else {
+            layoutSlots.value.push(addView(viewInit));
+          }
+        });
+      },
     });
-
-    layout.value = namedLayout.layout;
-
-    if (!visibleViews.value.length) {
-      setActiveView(null);
-    } else if (
-      !visibleViews.value.find((view) => view.id === activeView.value)
-    ) {
-      setActiveView(visibleViews.value[0].id);
-    }
   }
 
   function setDataForView(viewID: string, dataID: Maybe<string>) {
@@ -354,7 +362,6 @@ export const useViewStore = defineStore('view', () => {
     replaceView,
     setLayout,
     setLayoutFromGrid,
-    setLayoutWithViews,
     setNamedLayoutsFromConfig,
     switchToNamedLayout,
     setActiveView,
