@@ -72,7 +72,9 @@ export default {
   computed: {
     handlePosition() {
       const range = this.max - this.min <= 0 ? 1 : this.max - this.min;
-      const pos = this.maxHandlePos * ((this.modelValue - this.min) / range);
+      // Invert mapping: lower slice numbers at bottom for anatomical consistency
+      const pos =
+        this.maxHandlePos * (1 - (this.modelValue - this.min) / range);
       return this.dragging ? this.draggingHandlePos : pos;
     },
     draggingHandlePos() {
@@ -148,7 +150,8 @@ export default {
     },
 
     getNearestSlice(pos) {
-      const sliceEstimate = pos / this.maxHandlePos;
+      // Invert position: bottom of slider = lower slice numbers
+      const sliceEstimate = 1 - pos / this.maxHandlePos;
       const frac = sliceEstimate * (this.max - this.min) + this.min;
       return Math.round(frac / this.step) * this.step;
     },
