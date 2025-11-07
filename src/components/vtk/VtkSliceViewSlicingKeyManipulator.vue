@@ -66,7 +66,8 @@ const scroll = useMouseRangeManipulatorListener(
   'vertical',
   sliceConfig.range,
   1,
-  sliceConfig.slice.value
+  sliceConfig.slice.value,
+  -1
 );
 
 syncRef(scroll, sliceConfig.slice, { immediate: true });
