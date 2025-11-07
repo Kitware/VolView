@@ -80,17 +80,21 @@ function isSegmentation(extension: string, name: string) {
   return extensions.includes(extension);
 }
 
-// does not pick segmentation images
+// does not pick segmentation or layer images
 function findBaseImage(
   loadableDataSources: Array<LoadableResult>,
-  segmentGroupExtension: string
+  segmentGroupExtension: string,
+  layerExtension: string
 ) {
   const baseImages = loadableDataSources
     .filter(({ dataType }) => dataType === 'image')
     .filter((importResult) => {
       const name = getDataSourceName(importResult.dataSource);
       if (!name) return false;
-      return !isSegmentation(segmentGroupExtension, name);
+      return (
+        !isSegmentation(segmentGroupExtension, name) &&
+        !isSegmentation(layerExtension, name)
+      );
     });
 
   if (baseImages.length) return baseImages[0];
@@ -138,13 +142,18 @@ function getStudyUID(volumeID: string) {
 
 function findBaseDataSource(
   succeeded: Array<ImportResult>,
-  segmentGroupExtension: string
+  segmentGroupExtension: string,
+  layerExtension: string
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
   const baseDicom = findBaseDicom(loadableDataSources);
   if (baseDicom) return baseDicom;
 
-  const baseImage = findBaseImage(loadableDataSources, segmentGroupExtension);
+  const baseImage = findBaseImage(
+    loadableDataSources,
+    segmentGroupExtension,
+    layerExtension
+  );
   if (baseImage) return baseImage;
   return loadableDataSources[0];
 }
@@ -164,7 +173,7 @@ function filterOtherVolumesInStudy(
 }
 
 // Layers a DICOM PET on a CT if found
-function loadLayers(
+function autoLayerDicoms(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>
 ) {
@@ -188,6 +197,26 @@ function loadLayers(
   const layersStore = useLayersStore();
   const layerSelection = toDataSelection(toLayer);
   layersStore.addLayer(primarySelection, layerSelection);
+}
+
+function autoLayerByName(
+  primaryDataSource: LoadableVolumeResult,
+  succeeded: Array<ImportResult>,
+  layerExtension: string
+) {
+  if (isDicomImage(primaryDataSource.dataID)) return;
+  const matchingLayers = filterMatchingNames(
+    primaryDataSource,
+    succeeded,
+    layerExtension
+  ).filter(isVolumeResult);
+
+  const primarySelection = toDataSelection(primaryDataSource);
+  const layersStore = useLayersStore();
+  matchingLayers.forEach((ds) => {
+    const layerSelection = toDataSelection(ds);
+    layersStore.addLayer(primarySelection, layerSelection);
+  });
 }
 
 // Loads other DataSources as Segment Groups:
@@ -254,19 +283,25 @@ function loadDataSources(sources: DataSource[]) {
     if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
-        loadDataStore.segmentGroupExtension
+        loadDataStore.segmentGroupExtension,
+        loadDataStore.layerExtension
       );
 
       if (isVolumeResult(primaryDataSource)) {
         const selection = toDataSelection(primaryDataSource);
         viewStore.setDataForAllViews(selection);
-        loadLayers(primaryDataSource, succeeded);
+        autoLayerDicoms(primaryDataSource, succeeded);
+        autoLayerByName(
+          primaryDataSource,
+          succeeded,
+          loadDataStore.layerExtension
+        );
         loadSegmentations(
           primaryDataSource,
           succeeded,
           loadDataStore.segmentGroupExtension
         );
-      } // then must be primaryDataSource.type === 'model'
+      } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
 
     if (errored.length) {

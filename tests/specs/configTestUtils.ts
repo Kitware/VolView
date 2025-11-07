@@ -26,6 +26,11 @@ export const MRA_HEAD_NECK_DATASET = {
   name: 'MRA-Head_and_Neck.zip',
 } as const;
 
+export const FETUS_DATASET = {
+  url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
+  name: 'fetus.zip',
+} as const;
+
 export type DatasetResource = {
   url: string;
   name?: string;

@@ -59,6 +59,7 @@ const io = z
   .object({
     segmentGroupSaveFormat: z.string().optional(),
     segmentGroupExtension: z.string().default(''),
+    layerExtension: z.string().default(''),
   })
   .optional();
 
@@ -145,7 +146,9 @@ const applyIo = (manifest: Config) => {
 
   if (manifest.io.segmentGroupSaveFormat)
     useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
-  useLoadDataStore().segmentGroupExtension = manifest.io.segmentGroupExtension;
+  const loadDataStore = useLoadDataStore();
+  loadDataStore.segmentGroupExtension = manifest.io.segmentGroupExtension;
+  loadDataStore.layerExtension = manifest.io.layerExtension;
 };
 
 const applyWindowing = (manifest: Config) => {
