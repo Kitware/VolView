@@ -31,35 +31,18 @@ export type DatasetResource = {
   name?: string;
 };
 
-export const createConfigManifest = async (
+export const openConfigAndDataset = async (
   config: unknown,
   name: string,
   dataset: DatasetResource = ONE_CT_SLICE_DICOM
 ) => {
   const configFileName = `${name}-config.json`;
-  const manifestFileName = `${name}-manifest.json`;
-
   await writeManifestToFile(config, configFileName);
 
-  const manifest = {
-    resources: [{ url: `/tmp/${configFileName}` }, dataset],
-  };
-
-  await writeManifestToFile(manifest, manifestFileName);
-  return manifestFileName;
-};
-
-export const openConfigAndWait = async (
-  config: unknown,
-  name: string,
-  dataset: DatasetResource = ONE_CT_SLICE_DICOM
-) => {
-  const manifestFileNameOnDisk = await createConfigManifest(
-    config,
-    name,
-    dataset
+  await volViewPage.open(
+    `?config=[tmp/${configFileName}]&urls=${dataset.url}&names=${
+      dataset.name ?? ''
+    }`
   );
-
-  await volViewPage.open(`?urls=[tmp/${manifestFileNameOnDisk}]`);
   await volViewPage.waitForViews();
 };

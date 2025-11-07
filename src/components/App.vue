@@ -149,10 +149,6 @@ export default defineComponent({
     const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
 
     onMounted(() => {
-      if (!urlParams.urls) {
-        return;
-      }
-
       loadUrls(urlParams);
     });
 
