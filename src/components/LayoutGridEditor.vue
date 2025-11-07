@@ -69,8 +69,13 @@ function isIndexInSelection(idx: number) {
 <style scoped>
 .grid-container {
   display: grid;
-  grid-template-columns: repeat(3, 32px);
-  grid-template-rows: repeat(3, 32px);
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  aspect-ratio: 1;
+  min-width: 96px;
+  max-width: 200px;
+  gap: 2px;
 }
 
 .grid-cell {
@@ -78,8 +83,8 @@ function isIndexInSelection(idx: number) {
 }
 
 .grid-cell-box {
-  width: calc(100% - 2px);
-  height: calc(100% - 2px);
+  width: 100%;
+  height: 100%;
   background-color: rgba(72, 72, 72, 0.5);
 }
 

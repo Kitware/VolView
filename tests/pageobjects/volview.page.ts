@@ -33,10 +33,6 @@ class VolViewPage extends Page {
     return this.samplesList.$('div[title="MRI PROSTATEx"]');
   }
 
-  get layoutGrid() {
-    return $('div[data-testid="layout-grid"]');
-  }
-
   async downloadProstateSample() {
     const sample = await this.prostateSample;
     await sample.click();
@@ -44,6 +40,14 @@ class VolViewPage extends Page {
 
   get views() {
     return $$('div[data-testid~="vtk-view"] canvas');
+  }
+
+  get layoutButton() {
+    return $('button[data-testid="control-button-Layouts"]');
+  }
+
+  get layoutMenuItems() {
+    return $$('.v-list-item');
   }
 
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
@@ -129,10 +133,6 @@ class VolViewPage extends Page {
     await button.click();
   }
 
-  get twoViews() {
-    return $$('div[data-testid~="vtk-two-view"] > canvas');
-  }
-
   get viewTwoContainer() {
     return $('div[data-testid~="two-view-container"]');
   }
@@ -200,10 +200,6 @@ class VolViewPage extends Page {
     return exists ? pwfEditor : null;
   }
 
-  get create3DViewMessage() {
-    return $('div.text-body-2.text-center.text-medium-emphasis');
-  }
-
   async getView3D() {
     const view3D = $('div[data-testid="vtk-view vtk-volume-view"]');
     const exists = await view3D.isExisting();
@@ -219,6 +215,123 @@ class VolViewPage extends Page {
   async getViews2D() {
     const views2D = $$('div[data-testid="vtk-view vtk-two-view"]');
     return views2D;
+  }
+
+  async waitForViewCounts(
+    expected2DCount: number,
+    expected3DExists: boolean,
+    timeout = DOWNLOAD_TIMEOUT
+  ) {
+    await browser.waitUntil(
+      async () => {
+        const views2D = await this.getViews2D();
+        const view3D = await this.getView3D();
+        const view2DCount = await views2D.length;
+        return (
+          view2DCount === expected2DCount &&
+          (view3D !== null) === expected3DExists
+        );
+      },
+      {
+        timeout,
+        timeoutMsg: `Expected ${expected2DCount} 2D views and ${
+          expected3DExists ? 'a' : 'no'
+        } 3D view`,
+        interval: 1000,
+      }
+    );
+  }
+
+  async openLayoutMenu(minOptionCount = 1) {
+    const button = await this.layoutButton;
+    await browser.waitUntil(async () => button.isDisplayed(), {
+      timeout: 5000,
+      timeoutMsg: 'Layout button not displayed',
+      interval: 500,
+    });
+    await button.click();
+
+    await browser.waitUntil(
+      async () => {
+        const items = await this.layoutMenuItems;
+        const itemCount = await items.length;
+        return itemCount >= minOptionCount;
+      },
+      {
+        timeout: 5000,
+        timeoutMsg: `Expected layout menu to show at least ${minOptionCount} layout options`,
+        interval: 500,
+      }
+    );
+  }
+
+  async getLayoutOptionTitles() {
+    return browser.execute((titleSelector: string) => {
+      const items = Array.from(document.querySelectorAll(titleSelector));
+      return items.map((item) => item.textContent?.trim() ?? '');
+    }, '.v-list-item-title');
+  }
+
+  async selectLayoutOption(targetText: string) {
+    await browser.execute(
+      (text: string, titleSelector: string) => {
+        const items = Array.from(document.querySelectorAll(titleSelector));
+        const targetItem = items.find(
+          (item) => item.textContent?.trim() === text
+        );
+        if (!targetItem) return;
+        const listItem = targetItem.closest(
+          '.v-list-item'
+        ) as HTMLElement | null;
+        listItem?.click();
+      },
+      targetText,
+      '.v-list-item-title'
+    );
+  }
+
+  async focusFirst2DView() {
+    const views = await this.getViews2D();
+    const viewCount = await views.length;
+    if (!viewCount) {
+      throw new Error('No 2D views rendered to focus');
+    }
+
+    const firstView = views[0];
+    const canvas = await firstView.$('canvas');
+    await canvas.scrollIntoView();
+    await canvas.click();
+  }
+
+  async getFirst2DSlice() {
+    return browser.execute((selector: string) => {
+      const views = document.querySelectorAll(selector);
+      if (views.length === 0) return null;
+      const overlayText = views[0].textContent;
+      const match = overlayText?.match(/Slice:\s*(\d+)/);
+      return match ? parseInt(match[1], 10) : null;
+    }, 'div[data-testid="vtk-view vtk-two-view"]');
+  }
+
+  async waitForSliceDecrease(initialSlice: number | null) {
+    await browser.waitUntil(
+      async () => {
+        const currentSlice = await this.getFirst2DSlice();
+        if (initialSlice === null) {
+          return currentSlice !== null;
+        }
+        return currentSlice !== null && currentSlice < initialSlice;
+      },
+      {
+        timeoutMsg: 'Expected slice to decrease after advancing',
+      }
+    );
+  }
+
+  async advanceSliceAndWait() {
+    const initialSlice = await this.getFirst2DSlice();
+    await browser.keys([Key.ArrowDown]);
+    await this.waitForSliceDecrease(initialSlice);
   }
 
   async waitForLoadingIndicator(

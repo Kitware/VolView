@@ -4,7 +4,7 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import { SegmentMask } from '@/src/types/segment';
-import type { Layout } from './types/layout';
+import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
 import { Action } from './constants';
@@ -76,47 +76,34 @@ export const getAvailableViews = () => {
   return { list, byName };
 };
 
-const availableViews = getAvailableViews();
-
-export const DefaultLayoutSlots: ViewInfoInit[] = [
-  availableViews.byName.Axial,
-  availableViews.byName.Coronal,
-  availableViews.byName.Sagittal,
-  availableViews.byName.Volume,
-];
-
-export const DefaultLayout: Layout = {
-  direction: 'column',
-  items: [
-    {
-      type: 'layout',
-      direction: 'row',
-      items: [
-        {
-          type: 'slot',
-          slotIndex: 0,
-        },
-        {
-          type: 'slot',
-          slotIndex: 1,
-        },
-      ],
-    },
-    {
-      type: 'layout',
-      direction: 'row',
-      items: [
-        {
-          type: 'slot',
-          slotIndex: 2,
-        },
-        {
-          type: 'slot',
-          slotIndex: 3,
-        },
-      ],
-    },
+export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
+  'Four Up': [
+    ['axial', 'coronal'],
+    ['sagittal', 'volume'],
   ],
+  'Axial Coronal Sagittal': {
+    direction: 'row',
+    items: [
+      'axial',
+      {
+        direction: 'column',
+        items: ['coronal', 'sagittal'],
+      },
+    ],
+  },
+  'Axial Only': [['axial']],
+  '3D Only': [['volume']],
+  Oblique: [['oblique']],
+  '3D Primary': {
+    direction: 'row',
+    items: [
+      'volume',
+      {
+        direction: 'column',
+        items: ['axial', 'coronal', 'sagittal'],
+      },
+    ],
+  },
 };
 
 export const SAMPLE_DATA: SampleDataset[] = [

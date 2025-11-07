@@ -1,5 +1,10 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { openUrls, writeManifestToFile } from './utils';
+import { openUrls } from './utils';
+import {
+  openConfigAndWait,
+  ONE_CT_SLICE_DICOM,
+  MINIMAL_DICOM,
+} from './configTestUtils';
 
 describe('VolView windowing configuration', () => {
   it('should use runtime config window level over DICOM window level', async () => {
@@ -12,24 +17,7 @@ describe('VolView windowing configuration', () => {
       windowing: runtimeWindowLevel,
     };
 
-    const configFileName = 'windowing-config.json';
-    await writeManifestToFile(config, configFileName);
-
-    const manifest = {
-      resources: [
-        { url: `/tmp/${configFileName}` },
-        {
-          url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download/CT000085.dcm',
-          name: 'CT000085.dcm',
-        },
-      ],
-    };
-
-    const manifestFileName = 'windowing-manifest.json';
-    await writeManifestToFile(manifest, manifestFileName);
-
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
+    await openConfigAndWait(config, 'windowing');
 
     const view = await $('div[data-testid="vtk-view vtk-two-view"]');
 
@@ -49,12 +37,7 @@ describe('VolView windowing configuration', () => {
   });
 
   it('should use DICOM window level when no runtime config is provided', async () => {
-    await openUrls([
-      {
-        url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download/CT000085.dcm',
-        name: 'CT000085.dcm',
-      },
-    ]);
+    await openUrls([ONE_CT_SLICE_DICOM]);
 
     const view = await $('div[data-testid="vtk-view vtk-two-view"]');
 
@@ -74,12 +57,7 @@ describe('VolView windowing configuration', () => {
   });
 
   it('should use auto windowing for DICOM without window/level metadata', async () => {
-    await openUrls([
-      {
-        url: 'https://data.kitware.com/api/v1/file/68e9807dbf0f869935e36481/download/minimal.dcm',
-        name: 'minimal.dcm',
-      },
-    ]);
+    await openUrls([MINIMAL_DICOM]);
 
     const view = await $('div[data-testid="vtk-view vtk-two-view"]');
 

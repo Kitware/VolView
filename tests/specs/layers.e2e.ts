@@ -1,19 +1,11 @@
 import { DOWNLOAD_TIMEOUT } from '@/wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
+import { PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET } from './configTestUtils';
 
 describe('Add Layer button', () => {
   it('should create overlay with 2 DICOM images', async () => {
-    await openUrls([
-      {
-        url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
-        name: 'prostate.zip',
-      },
-      {
-        url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
-        name: 'MRA-Head_and_Neck.zip',
-      },
-    ]);
+    await openUrls([PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET]);
 
     await browser.waitUntil(
       async () => {

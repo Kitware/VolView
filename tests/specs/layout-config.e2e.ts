@@ -1,217 +1,127 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
-import { writeManifestToFile } from './utils';
+import { PROSTATEX_DATASET, openConfigAndWait } from './configTestUtils';
 
 describe('VolView Layout Configuration', () => {
   it('should create a 2x2 grid layout from simple string array', async () => {
     const config = {
-      layout: [
-        ['axial', 'sagittal'],
-        ['coronal', 'volume'],
-      ],
-    };
-
-    const configFileName = 'layout-grid-config.json';
-    await writeManifestToFile(config, configFileName);
-
-    const manifest = {
-      resources: [
-        { url: `/tmp/${configFileName}` },
-        {
-          url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
-          name: 'CT000085.dcm',
-        },
-      ],
-    };
-
-    const manifestFileName = 'layout-grid-manifest.json';
-    await writeManifestToFile(manifest, manifestFileName);
-
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await browser.waitUntil(
-      async () => {
-        const views2D = await volViewPage.getViews2D();
-        const view3D = await volViewPage.getView3D();
-        return (await views2D.length) === 3 && view3D !== null;
+      layouts: {
+        default: [
+          ['axial', 'sagittal'],
+          ['coronal', 'volume'],
+        ],
       },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected 3 2D views and 1 3D view',
-        interval: 1000,
-      }
-    );
-
-    const views2D = await volViewPage.getViews2D();
-    const view3D = await volViewPage.getView3D();
-
-    expect(await views2D.length).toBe(3);
-    expect(view3D).not.toBeNull();
-  });
-
-  it('should create a single row layout', async () => {
-    const config = {
-      layout: [['axial', 'coronal', 'sagittal']],
     };
 
-    const configFileName = 'layout-single-row-config.json';
-    await writeManifestToFile(config, configFileName);
+    await openConfigAndWait(config, 'layout-grid');
 
-    const manifest = {
-      resources: [
-        { url: `/tmp/${configFileName}` },
-        {
-          url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
-          name: 'CT000085.dcm',
-        },
-      ],
-    };
-
-    const manifestFileName = 'layout-single-row-manifest.json';
-    await writeManifestToFile(manifest, manifestFileName);
-
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await browser.waitUntil(
-      async () => {
-        const views2D = await volViewPage.getViews2D();
-        const view3D = await volViewPage.getView3D();
-        return (await views2D.length) === 3 && view3D === null;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected 3 2D views and no 3D view',
-        interval: 1000,
-      }
-    );
-
-    const views2D = await volViewPage.getViews2D();
-    const view3D = await volViewPage.getView3D();
-
-    expect(await views2D.length).toBe(3);
-    expect(view3D).toBeNull();
+    await volViewPage.waitForViewCounts(3, true);
   });
 
   it('should create an asymmetric nested layout', async () => {
     const config = {
-      layout: {
-        direction: 'row',
-        items: [
-          'volume',
-          {
-            direction: 'column',
-            items: ['axial', 'coronal', 'sagittal'],
-          },
-        ],
-      },
-    };
-
-    const configFileName = 'layout-nested-config.json';
-    await writeManifestToFile(config, configFileName);
-
-    const manifest = {
-      resources: [
-        { url: `/tmp/${configFileName}` },
-        {
-          url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
-          name: 'CT000085.dcm',
+      layouts: {
+        default: {
+          direction: 'row',
+          items: [
+            'volume',
+            {
+              direction: 'column',
+              items: ['axial', 'coronal', 'sagittal'],
+            },
+          ],
         },
-      ],
+      },
     };
 
-    const manifestFileName = 'layout-nested-manifest.json';
-    await writeManifestToFile(manifest, manifestFileName);
+    await openConfigAndWait(config, 'layout-nested');
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await browser.waitUntil(
-      async () => {
-        const views2D = await volViewPage.getViews2D();
-        const view3D = await volViewPage.getView3D();
-        return (await views2D.length) === 3 && view3D !== null;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected 3 2D views and 1 3D view',
-        interval: 1000,
-      }
-    );
-
-    const views2D = await volViewPage.getViews2D();
-    const view3D = await volViewPage.getView3D();
-
-    expect(await views2D.length).toBe(3);
-    expect(view3D).not.toBeNull();
+    await volViewPage.waitForViewCounts(3, true);
   });
 
   it('should create layout with custom view options', async () => {
     const config = {
-      layout: {
-        direction: 'column',
-        items: [
-          {
-            type: '3D',
-            name: 'Top View',
-            viewDirection: 'Superior',
-            viewUp: 'Anterior',
-          },
-          {
-            direction: 'row',
-            items: [
-              {
-                type: '2D',
-                orientation: 'Axial',
-              },
-              {
-                type: '2D',
-                orientation: 'Coronal',
-              },
-            ],
-          },
-        ],
-      },
-    };
-
-    const configFileName = 'layout-custom-views-config.json';
-    await writeManifestToFile(config, configFileName);
-
-    const manifest = {
-      resources: [
-        { url: `/tmp/${configFileName}` },
-        {
-          url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
-          name: 'CT000085.dcm',
+      layouts: {
+        default: {
+          direction: 'column',
+          items: [
+            {
+              type: '3D',
+              name: 'Top View',
+              viewDirection: 'Superior',
+              viewUp: 'Anterior',
+            },
+            {
+              direction: 'row',
+              items: [
+                {
+                  type: '2D',
+                  orientation: 'Axial',
+                },
+                {
+                  type: '2D',
+                  orientation: 'Coronal',
+                },
+              ],
+            },
+          ],
         },
-      ],
+      },
     };
 
-    const manifestFileName = 'layout-custom-views-manifest.json';
-    await writeManifestToFile(manifest, manifestFileName);
+    await openConfigAndWait(config, 'layout-custom-views');
 
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
+    await volViewPage.waitForViewCounts(2, true);
+  });
 
-    await browser.waitUntil(
-      async () => {
-        const views2D = await volViewPage.getViews2D();
-        const view3D = await volViewPage.getView3D();
-        return (await views2D.length) === 2 && view3D !== null;
+  it('should support multiple named layouts and preserve slice selection', async () => {
+    const config = {
+      layouts: {
+        'Four Up Axial': [
+          ['axial', 'sagittal'],
+          ['coronal', 'axial'],
+        ],
+        'Single Axial': [['axial']],
+        'Dual Axial': [['axial'], ['axial']],
       },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected 2 2D views and 1 3D view',
-        interval: 1000,
-      }
+    };
+
+    await openConfigAndWait(config, 'multiple-layouts', PROSTATEX_DATASET);
+
+    await volViewPage.waitForViewCounts(4, false);
+
+    await volViewPage.focusFirst2DView();
+
+    const initialSlice = await volViewPage.getFirst2DSlice();
+    expect(initialSlice).not.toBeNull();
+
+    await volViewPage.advanceSliceAndWait();
+
+    const sliceAfterScroll = await volViewPage.getFirst2DSlice();
+    expect(sliceAfterScroll).not.toBeNull();
+    if (initialSlice !== null && sliceAfterScroll !== null) {
+      expect(sliceAfterScroll).toBeLessThan(initialSlice);
+    }
+
+    await volViewPage.openLayoutMenu(3);
+    const layoutTitles = await volViewPage.getLayoutOptionTitles();
+    expect(layoutTitles).toEqual(
+      expect.arrayContaining(['Four Up Axial', 'Single Axial', 'Dual Axial'])
     );
 
-    const views2D = await volViewPage.getViews2D();
-    const view3D = await volViewPage.getView3D();
+    await volViewPage.selectLayoutOption('Single Axial');
+    await volViewPage.waitForViewCounts(1, false);
 
-    expect(await views2D.length).toBe(2);
-    expect(view3D).not.toBeNull();
+    await volViewPage.focusFirst2DView();
+    const sliceAfterLayoutSwitch = await volViewPage.getFirst2DSlice();
+    expect(sliceAfterLayoutSwitch).toBe(sliceAfterScroll);
+
+    await volViewPage.openLayoutMenu(3);
+    await volViewPage.selectLayoutOption('Dual Axial');
+    await volViewPage.waitForViewCounts(2, false);
+
+    await volViewPage.focusFirst2DView();
+    const sliceInFirstViewAfterDualSwitch = await volViewPage.getFirst2DSlice();
+    expect(sliceInFirstViewAfterDualSwitch).toBe(sliceAfterScroll);
   });
 
   it('should disable 3D and Oblique view types', async () => {
@@ -219,43 +129,9 @@ describe('VolView Layout Configuration', () => {
       disabledViewTypes: ['3D', 'Oblique'],
     };
 
-    const configFileName = 'disabled-view-types-config.json';
-    await writeManifestToFile(config, configFileName);
+    await openConfigAndWait(config, 'disabled-view-types');
 
-    const manifest = {
-      resources: [
-        { url: `/tmp/${configFileName}` },
-        {
-          url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
-          name: 'CT000085.dcm',
-        },
-      ],
-    };
-
-    const manifestFileName = 'disabled-view-types-manifest.json';
-    await writeManifestToFile(manifest, manifestFileName);
-
-    await volViewPage.open(`?urls=[tmp/${manifestFileName}]`);
-    await volViewPage.waitForViews();
-
-    await browser.waitUntil(
-      async () => {
-        const views2D = await volViewPage.getViews2D();
-        const view3D = await volViewPage.getView3D();
-        return (await views2D.length) === 4 && view3D === null;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected 4 2D views and no 3D view',
-        interval: 1000,
-      }
-    );
-
-    const views2D = await volViewPage.getViews2D();
-    const view3D = await volViewPage.getView3D();
-
-    expect(await views2D.length).toBe(4);
-    expect(view3D).toBeNull();
+    await volViewPage.waitForViewCounts(4, false);
 
     const viewTypeSwitchers = await $$('.view-type-select');
     expect(viewTypeSwitchers.length).toBeGreaterThan(0);
