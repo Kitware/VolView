@@ -4,7 +4,7 @@
 
 Before you begin, make sure your environment matches the following versions:
 
-- **Node.js**: >= 18.20.0 (20.x LTS recommended)  
+- **Node.js**: >= 18.20.0 (20.x LTS recommended)
 - **npm**: >= 9.x (npm 10+ works with Node 20)
 
 Check your versions:
@@ -21,7 +21,6 @@ For reproducible installs, use:
 ```bash
 npm ci
 ```
-
 
 ---
 
@@ -94,6 +93,24 @@ When adding a new baseline image and test, the image should be pulled from GitHu
 ```bash
 npm run test:e2e:dev -- -- --spec ./tests/specs/remote-manifest.e2e.ts
 ```
+
+---
+
+## NPM Publishing
+
+Merging to `main` automatically publishes to NPM:
+
+1. Merge creates a patch version tag (v4.4.1, v4.4.2, etc.)
+2. Tag triggers automatic NPM publish
+
+For minor/major releases, manually create a tag:
+
+```bash
+git tag v4.5.0  # or v5.0.0
+git push origin v4.5.0
+```
+
+To update https://volview.kitware.app/, merge to the `stable` branch.
 
 ---
 

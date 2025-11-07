@@ -1,0 +1,37 @@
+name: Publish to NPM
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        run: npm version --no-git-tag-version ${{ steps.get_version.outputs.version }}
+
+      - run: npm ci
+      - run: npm run postinstall
+
+      - name: Build with remote save enabled
+        run: VITE_REMOTE_SERVER_URL= VITE_ENABLE_REMOTE_SAVE=true npm run build
+
+      - run: npm publish --provenance --access public

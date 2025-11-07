@@ -1,0 +1,50 @@
+name: Bump Version Tag
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Get latest version tag
+        id: get_version
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git tag -l "v*" | sort -V | tail -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "latest=v0.0.0" >> $GITHUB_OUTPUT
+          else
+            echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump patch version
+        id: bump_version
+        run: |
+          LATEST_VERSION="${{ steps.get_version.outputs.latest }}"
+          VERSION_NUMBER="${LATEST_VERSION#v}"
+
+          echo "$VERSION_NUMBER" > VERSION_TEMP
+          npm version --no-git-tag-version $VERSION_NUMBER
+          npm version --no-git-tag-version patch
+
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "new_version=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.bump_version.outputs.new_version }}
+          git push origin ${{ steps.bump_version.outputs.new_version }}

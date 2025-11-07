@@ -2,6 +2,7 @@
   "name": "volview",
   "version": "4.4.0",
   "type": "module",
+  "files": ["dist", "src"],
   "scripts": {
     "dev": "cross-env VITE_SHOW_SAMPLE_DATA=true vite",
     "preview": "vite preview",
