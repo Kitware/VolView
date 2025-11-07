@@ -181,20 +181,32 @@ Working segment group file formats:
 
 hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 
-## Automatic Segment Groups by File Name
+## Automatic Layers and Segment Groups by File Name
 
-When loading files, VolView can automatically convert images to segment groups
-if they follow a naming convention. For example, an image with name like `foo.segmentation.bar`
-will be converted to a segment group for a base image named like `foo.baz`.
-The `segmentation` extension is defined by the `io.segmentGroupExtension` key, which takes a
-string. Files `foo.[segmentGroupExtension].bar` will be automatilly converted to segment groups for a base image named `foo.baz`. The default is `''` and will disable the feature.
+When loading multiple files, VolView can automatically associate related images based on file naming patterns.
+Files matching `base.[extension].format` will be associated with a base image named `base.format`.
+Both features default to `''` which disables them.
 
-This will define `myFile.seg.nrrd` as a segment group for a `myFile.nii` base file.
+### Segment Groups
+
+Use `segmentGroupExtension` to automatically convert matching non-DICOM images to segment groups. For example, `myFile.seg.nrrd` becomes a segment group for `myFile.nii`:
 
 ```json
 {
   "io": {
     "segmentGroupExtension": "seg"
+  }
+}
+```
+
+### Layering
+
+Use `layerExtension` to automatically layer matching non-DICOM images on top of the base image. For example, `myImage.layer.nii` is layered on top of `myImage.nii`:
+
+```json
+{
+  "io": {
+    "layerExtension": "layer"
   }
 }
 ```
@@ -285,7 +297,9 @@ To configure a key for an action, add its action name and the key(s) under the `
     "showKeyboardShortcuts": "t"
   },
   "io": {
-    "segmentGroupSaveFormat": "nrrd"
+    "segmentGroupSaveFormat": "nrrd",
+    "segmentGroupExtension": "seg",
+    "layerExtension": "layer"
   }
 }
 ```
