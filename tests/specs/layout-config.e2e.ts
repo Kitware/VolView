@@ -1,5 +1,5 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { PROSTATEX_DATASET, openConfigAndWait } from './configTestUtils';
+import { PROSTATEX_DATASET, openConfigAndDataset } from './configTestUtils';
 
 describe('VolView Layout Configuration', () => {
   it('should create a 2x2 grid layout from simple string array', async () => {
@@ -12,7 +12,7 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndWait(config, 'layout-grid');
+    await openConfigAndDataset(config, 'layout-grid');
 
     await volViewPage.waitForViewCounts(3, true);
   });
@@ -33,7 +33,7 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndWait(config, 'layout-nested');
+    await openConfigAndDataset(config, 'layout-nested');
 
     await volViewPage.waitForViewCounts(3, true);
   });
@@ -68,7 +68,7 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndWait(config, 'layout-custom-views');
+    await openConfigAndDataset(config, 'layout-custom-views');
 
     await volViewPage.waitForViewCounts(2, true);
   });
@@ -85,7 +85,7 @@ describe('VolView Layout Configuration', () => {
       },
     };
 
-    await openConfigAndWait(config, 'multiple-layouts', PROSTATEX_DATASET);
+    await openConfigAndDataset(config, 'multiple-layouts', PROSTATEX_DATASET);
 
     await volViewPage.waitForViewCounts(4, false);
 
@@ -129,7 +129,7 @@ describe('VolView Layout Configuration', () => {
       disabledViewTypes: ['3D', 'Oblique'],
     };
 
-    await openConfigAndWait(config, 'disabled-view-types');
+    await openConfigAndDataset(config, 'disabled-view-types');
 
     await volViewPage.waitForViewCounts(4, false);
 

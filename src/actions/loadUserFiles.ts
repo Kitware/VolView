@@ -323,17 +323,25 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-export async function loadUrls(params: UrlParams) {
-  const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const sources = urls.map((url, idx) =>
-    uriToDataSource(
-      url,
-      names[idx] ||
-        basename(parseUrl(url, window.location.href).pathname) ||
-        url
-    )
-  );
+function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
+  return urls.map((url, idx) => {
+    const defaultName =
+      basename(parseUrl(url, window.location.href).pathname) || url;
+    return uriToDataSource(url, names[idx] || defaultName);
+  });
+}
 
-  return loadDataSources(sources);
+export async function loadUrls(params: UrlParams) {
+  if (params.config) {
+    const configUrls = wrapInArray(params.config);
+    const configSources = urlsToDataSources(configUrls);
+    await loadDataSources(configSources);
+  }
+
+  if (params.urls) {
+    const urls = wrapInArray(params.urls);
+    const names = wrapInArray(params.names ?? []);
+    const sources = urlsToDataSources(urls, names);
+    await loadDataSources(sources);
+  }
 }

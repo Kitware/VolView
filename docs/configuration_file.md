@@ -8,6 +8,14 @@ By loading a JSON file, you can set VolView's configuration:
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
+## Loading Configuration Files
+
+Use the `config` URL parameter to load configuration before data files:
+
+```
+https://volview.kitware.com/?config=https://example.com/config.json&urls=https://example.com/data.nrrd
+```
+
 ## View Layouts
 
 Define one or more named layouts using the `layouts` key. VolView will use the first layout as the default. Each named layout will be in the layout selector menu. Layout are specified in three formats:

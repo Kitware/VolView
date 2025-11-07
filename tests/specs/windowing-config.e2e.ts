@@ -1,7 +1,7 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
 import {
-  openConfigAndWait,
+  openConfigAndDataset,
   ONE_CT_SLICE_DICOM,
   MINIMAL_DICOM,
 } from './configTestUtils';
@@ -17,7 +17,7 @@ describe('VolView windowing configuration', () => {
       windowing: runtimeWindowLevel,
     };
 
-    await openConfigAndWait(config, 'windowing');
+    await openConfigAndDataset(config, 'windowing');
 
     const view = await $('div[data-testid="vtk-view vtk-two-view"]');
 
