@@ -3,6 +3,7 @@ name: Publish to NPM
 on:
   push:
     tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-dev.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
@@ -24,6 +25,11 @@ jobs:
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "$VERSION" == *"-dev."* ]]; then
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
 
       - name: Update package.json version
         run: npm version --no-git-tag-version ${{ steps.get_version.outputs.version }}
@@ -34,4 +40,4 @@ jobs:
       - name: Build with remote save enabled
         run: VITE_REMOTE_SERVER_URL= VITE_ENABLE_REMOTE_SAVE=true npm run build
 
-      - run: npm publish --provenance --access public
+      - run: npm publish --provenance --access public --tag ${{ steps.get_version.outputs.tag }}

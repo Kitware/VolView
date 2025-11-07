@@ -96,19 +96,28 @@ npm run test:e2e:dev -- -- --spec ./tests/specs/remote-manifest.e2e.ts
 
 ---
 
-## NPM Publishing
+## Versioning
 
-Merging to `main` automatically publishes to NPM:
+Merging to `main` automatically publishes dev versions to NPM:
 
-1. Merge creates a patch version tag (v4.4.1, v4.4.2, etc.)
-2. Tag triggers automatic NPM publish
+1. Merge creates a prerelease tag (v4.4.0-dev.1, v4.4.0-dev.2, etc.)
+2. Tag triggers automatic NPM publish with `@dev` dist-tag
 
-For minor/major releases, manually create a tag:
+Users install stable versions by default:
+
+```bash
+npm install volview          # Gets latest stable (e.g., 4.4.0)
+npm install volview@dev      # Gets latest dev (e.g., 4.4.0-dev.5)
+```
+
+For stable releases, manually create a tag:
 
 ```bash
 git tag v4.5.0  # or v5.0.0
 git push origin v4.5.0
 ```
+
+### Update demo site
 
 To update https://volview.kitware.app/, merge to the `stable` branch.
 

@@ -29,7 +29,7 @@ jobs:
             echo "latest=$LATEST_TAG" >> $GITHUB_OUTPUT
           fi
 
-      - name: Bump patch version
+      - name: Bump prerelease version
         id: bump_version
         run: |
           LATEST_VERSION="${{ steps.get_version.outputs.latest }}"
@@ -37,7 +37,7 @@ jobs:
 
           echo "$VERSION_NUMBER" > VERSION_TEMP
           npm version --no-git-tag-version $VERSION_NUMBER
-          npm version --no-git-tag-version patch
+          npm version --no-git-tag-version prerelease --preid=dev
 
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "new_version=v$NEW_VERSION" >> $GITHUB_OUTPUT
