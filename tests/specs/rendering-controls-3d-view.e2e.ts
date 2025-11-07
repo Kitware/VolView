@@ -1,14 +1,10 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
+import { PROSTATEX_DATASET } from './configTestUtils';
 
 describe('3D Rendering Controls', () => {
   it('should show controls when 3D view exists regardless of active view', async () => {
-    await openUrls([
-      {
-        url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
-        name: 'prostate.zip',
-      },
-    ]);
+    await openUrls([PROSTATEX_DATASET]);
 
     await volViewPage.waitForViews();
 

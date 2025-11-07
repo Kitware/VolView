@@ -2,15 +2,15 @@
 
 By loading a JSON file, you can set VolView's configuration:
 
-- Starting view layout (grid size, view types, or hierarchical layouts)
+- View layouts (grid size, view types, or hierarchical layouts)
 - Disabled view types
 - Labels for tools
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
-## Starting view layout
+## View Layouts
 
-Define one or more named layouts using the `layouts` key. VolView will display a layout selector in the UI allowing users to switch between layouts. Each layout can use one of three formats:
+Define one or more named layouts using the `layouts` key. VolView will use the first layout as the default. Each named layout will be in the layout selector menu. Layout are specified in three formats:
 
 ### 1. Grid with View Types (2D String Array)
 
@@ -19,7 +19,7 @@ Use a 2D array of view type strings to specify both the grid layout and which vi
 ```json
 {
   "layouts": {
-    "four-up": [
+    "Four Up": [
       ["axial", "coronal"],
       ["sagittal", "volume"]
     ]
@@ -36,7 +36,7 @@ Use `gridSize` to set the layout grid as `[width, height]`. For example, `[2, 2]
 ```json
 {
   "layouts": {
-    "simple-grid": {
+    "Four by Four": {
       "gridSize": [2, 2]
     }
   }
@@ -50,7 +50,7 @@ For complex layouts, use a nested structure with full control over view placemen
 ```json
 {
   "layouts": {
-    "volume-focus": {
+    "Volume Primary": {
       "direction": "row",
       "items": [
         "volume",
@@ -74,7 +74,7 @@ You can also specify full view objects with custom options:
 ```json
 {
   "layouts": {
-    "custom-views": {
+    "Custom 3D Orientation": {
       "direction": "column",
       "items": [
         {
@@ -109,11 +109,11 @@ You can define multiple named layouts that users can switch between:
 ```json
 {
   "layouts": {
-    "four-up": [
+    "Four up": [
       ["axial", "coronal"],
       ["sagittal", "volume"]
     ],
-    "volume-focus": {
+    "Volume focus": {
       "direction": "row",
       "items": [
         "volume",
@@ -122,15 +122,10 @@ You can define multiple named layouts that users can switch between:
           "items": ["axial", "coronal", "sagittal"]
         }
       ]
-    },
-    "simple-grid": {
-      "gridSize": [2, 2]
     }
   }
 }
 ```
-
-VolView will start with the first layout in the object.
 
 ## Disabled View Types
 
@@ -258,7 +253,7 @@ To configure a key for an action, add its action name and the key(s) under the `
     }
   },
   "layouts": {
-    "default": {
+    "Volume primary": {
       "direction": "row",
       "items": [
         "volume",
@@ -268,7 +263,7 @@ To configure a key for an action, add its action name and the key(s) under the `
         }
       ]
     },
-    "four-up": [
+    "Four up": [
       ["axial", "coronal"],
       ["sagittal", "volume"]
     ]

@@ -10,11 +10,6 @@ const getId = () => {
   return lastId++;
 };
 
-const LAYOUT_BUTTON_SELECTOR = 'button[data-testid="control-button-Layouts"]';
-const LAYOUT_ITEM_SELECTOR = '.v-list-item';
-const LAYOUT_ITEM_TITLE_SELECTOR = '.v-list-item-title';
-const TWO_D_VIEW_SELECTOR = 'div[data-testid="vtk-view vtk-two-view"]';
-
 export const setValueVueInput = async (
   input: ChainablePromiseElement,
   value: string
@@ -38,10 +33,6 @@ class VolViewPage extends Page {
     return this.samplesList.$('div[title="MRI PROSTATEx"]');
   }
 
-  get layoutGrid() {
-    return $('div[data-testid="layout-grid"]');
-  }
-
   async downloadProstateSample() {
     const sample = await this.prostateSample;
     await sample.click();
@@ -52,11 +43,11 @@ class VolViewPage extends Page {
   }
 
   get layoutButton() {
-    return $(LAYOUT_BUTTON_SELECTOR);
+    return $('button[data-testid="control-button-Layouts"]');
   }
 
   get layoutMenuItems() {
-    return $$(LAYOUT_ITEM_SELECTOR);
+    return $$('.v-list-item');
   }
 
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
@@ -142,10 +133,6 @@ class VolViewPage extends Page {
     await button.click();
   }
 
-  get twoViews() {
-    return $$('div[data-testid~="vtk-two-view"] > canvas');
-  }
-
   get viewTwoContainer() {
     return $('div[data-testid~="two-view-container"]');
   }
@@ -211,10 +198,6 @@ class VolViewPage extends Page {
     const pwfEditor = await $('div.pwf-editor');
     const exists = await pwfEditor.isExisting();
     return exists ? pwfEditor : null;
-  }
-
-  get create3DViewMessage() {
-    return $('div.text-body-2.text-center.text-medium-emphasis');
   }
 
   async getView3D() {
@@ -286,7 +269,7 @@ class VolViewPage extends Page {
     return browser.execute((titleSelector: string) => {
       const items = Array.from(document.querySelectorAll(titleSelector));
       return items.map((item) => item.textContent?.trim() ?? '');
-    }, LAYOUT_ITEM_TITLE_SELECTOR);
+    }, '.v-list-item-title');
   }
 
   async selectLayoutOption(targetText: string) {
@@ -303,7 +286,7 @@ class VolViewPage extends Page {
         listItem?.click();
       },
       targetText,
-      LAYOUT_ITEM_TITLE_SELECTOR
+      '.v-list-item-title'
     );
   }
 
@@ -327,32 +310,28 @@ class VolViewPage extends Page {
       const overlayText = views[0].textContent;
       const match = overlayText?.match(/Slice:\s*(\d+)/);
       return match ? parseInt(match[1], 10) : null;
-    }, TWO_D_VIEW_SELECTOR);
+    }, 'div[data-testid="vtk-view vtk-two-view"]');
   }
 
-  async advanceSlice(steps = 5, pauseMs = 200) {
-    const keySequence = Array.from({ length: steps }, () => Key.ArrowDown);
-    await browser.keys(keySequence);
-    if (pauseMs > 0) {
-      await browser.pause(pauseMs);
-    }
-  }
-
-  async waitForSliceIncrease(initialSlice: number | null, timeout = 3000) {
+  async waitForSliceDecrease(initialSlice: number | null) {
     await browser.waitUntil(
       async () => {
         const currentSlice = await this.getFirst2DSlice();
         if (initialSlice === null) {
           return currentSlice !== null;
         }
-        return currentSlice !== null && currentSlice > initialSlice;
+        return currentSlice !== null && currentSlice < initialSlice;
       },
       {
-        timeout,
-        timeoutMsg: 'Expected slice to change after advancing',
-        interval: 200,
+        timeoutMsg: 'Expected slice to decrease after advancing',
       }
     );
+  }
+
+  async advanceSliceAndWait() {
+    const initialSlice = await this.getFirst2DSlice();
+    await browser.keys([Key.ArrowDown]);
+    await this.waitForSliceDecrease(initialSlice);
   }
 
   async waitForLoadingIndicator(
