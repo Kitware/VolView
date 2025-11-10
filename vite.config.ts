@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { Plugin, defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -10,34 +11,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
 
-import pkgLock from './package-lock.json';
 import { config } from './wdio.shared.conf';
-
-function getPackageInfo(lockInfo: typeof pkgLock) {
-  if (lockInfo.lockfileVersion === 2) {
-    return {
-      versions: {
-        volview: lockInfo.version,
-        'vtk.js': lockInfo.dependencies['@kitware/vtk.js'].version,
-        'itk-wasm': lockInfo.dependencies['itk-wasm'].version,
-      },
-    };
-  }
-
-  if (lockInfo.lockfileVersion === 3) {
-    return {
-      versions: {
-        volview: lockInfo.version,
-        'vtk.js': lockInfo.packages['node_modules/@kitware/vtk.js'].version,
-        'itk-wasm': lockInfo.packages['node_modules/itk-wasm'].version,
-      },
-    };
-  }
-
-  throw new Error(
-    'VolView build: your package-lock.json version is not 2 or 3. Cannot extract dependency versions.'
-  );
-}
 
 function resolveNodeModulePath(moduleName: string) {
   const require = createRequire(import.meta.url);
@@ -55,13 +29,32 @@ function resolvePath(...args: string[]) {
   return normalizePath(path.resolve(...args));
 }
 
+function getPackageInfo() {
+  const mainPkgPath = path.resolve(__dirname, 'package.json');
+  const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, 'utf-8'));
+
+  const vtkJsPath = path.join(resolveNodeModulePath('@kitware/vtk.js'), 'package.json');
+  const vtkJsPkg = JSON.parse(fs.readFileSync(vtkJsPath, 'utf-8'));
+
+  const itkWasmPath = path.join(resolveNodeModulePath('itk-wasm'), 'package.json');
+  const itkWasmPkg = JSON.parse(fs.readFileSync(itkWasmPath, 'utf-8'));
+
+  return {
+    versions: {
+      volview: mainPkg.version,
+      'vtk.js': vtkJsPkg.version,
+      'itk-wasm': itkWasmPkg.version,
+    },
+  };
+}
+
 const rootDir = resolvePath(__dirname);
 const distDir = resolvePath(rootDir, 'dist');
 
 const { ANALYZE_BUNDLE, SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT } =
   process.env;
 
-const pkgInfo = getPackageInfo(pkgLock);
+const pkgInfo = getPackageInfo();
 
 function configureSentryPlugin() {
   return SENTRY_AUTH_TOKEN && SENTRY_ORG && SENTRY_PROJECT
