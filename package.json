@@ -23,7 +23,6 @@
     "build:resample": "itk-wasm -s src/io/resample/ build ",
     "build:resample:debug": "itk-wasm -s src/io/resample/ build -- -DCMAKE_BUILD_TYPE=Debug",
     "build:watch": "npm run build -- --watch",
-    "postinstall": "patch-package",
     "prettify": "prettier --write src tests",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
