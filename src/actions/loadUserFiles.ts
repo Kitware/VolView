@@ -80,6 +80,12 @@ function isSegmentation(extension: string, name: string) {
   return extensions.includes(extension);
 }
 
+function sortByDataSourceName(a: LoadableResult, b: LoadableResult) {
+  const nameA = getDataSourceName(a.dataSource) ?? '';
+  const nameB = getDataSourceName(b.dataSource) ?? '';
+  return nameA.localeCompare(nameB);
+}
+
 // does not pick segmentation or layer images
 function findBaseImage(
   loadableDataSources: Array<LoadableResult>,
@@ -209,7 +215,9 @@ function autoLayerByName(
     primaryDataSource,
     succeeded,
     layerExtension
-  ).filter(isVolumeResult);
+  )
+    .filter(isVolumeResult)
+    .sort(sortByDataSourceName);
 
   const primarySelection = toDataSelection(primaryDataSource);
   const layersStore = useLayersStore();
@@ -231,9 +239,11 @@ function loadSegmentations(
     primaryDataSource,
     succeeded,
     segmentGroupExtension
-  ).filter(
-    isVolumeResult // filter out models
-  );
+  )
+    .filter(
+      isVolumeResult // filter out models
+    )
+    .sort(sortByDataSourceName);
 
   const dicomStore = useDICOMStore();
   const otherSegVolumesInStudy = filterOtherVolumesInStudy(
