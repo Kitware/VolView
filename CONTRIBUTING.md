@@ -4,7 +4,7 @@
 
 Before you begin, make sure your environment matches the following versions:
 
-- **Node.js**: >= 18.20.0 (20.x LTS recommended)  
+- **Node.js**: >= 18.20.0 (20.x LTS recommended)
 - **npm**: >= 9.x (npm 10+ works with Node 20)
 
 Check your versions:
@@ -93,6 +93,27 @@ When adding a new baseline image and test, the image should be pulled from GitHu
 
 ```bash
 npm run test:e2e:dev -- -- --spec ./tests/specs/remote-manifest.e2e.ts
+```
+
+---
+
+## Versioning
+
+Merging to `main` automatically publishes prerelease packages to NPM:
+
+1. Merge creates a prerelease tag (e.g. v4.4.0-dev.<sha>)
+2. Tag triggers automatic NPM publish with `@dev` dist-tag
+
+```bash
+npm install volview          # Gets latest stable release (e.g., 4.4.0)
+npm install volview@dev      # Gets latest dev package (most recent commit to main branch)
+```
+
+To publish a new release via CI/CD, manually create and push a tag, e.g.:
+
+```bash
+git tag v4.5.0  # must match format 'v[0-9]+.[0-9]+.[0-9]+'
+git push origin --tags
 ```
 
 ---
