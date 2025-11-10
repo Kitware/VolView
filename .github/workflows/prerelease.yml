@@ -41,4 +41,4 @@ jobs:
       - name: Publish prerelease to npm (with 'dev' tag)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --tag dev --access public
+        run: npm publish --tag dev --access public --provenance
