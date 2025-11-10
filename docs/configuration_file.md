@@ -184,12 +184,24 @@ hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 ## Automatic Layers and Segment Groups by File Name
 
 When loading multiple files, VolView can automatically associate related images based on file naming patterns.
-Files matching `base.[extension].format` will be associated with a base image named `base.format`.
+Example: `base.[extension].nrrd` will match `base.nii`.
+
+The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot). Files matching `base.[extension]...` will be associated with a base image named `base.*`.
+
+**Ordering:** When multiple layers/segment groups match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
+
+For example, with a base image `patient001.nrrd`:
+
+- Layers (sorted alphabetically): `patient001.layer.1.pet.nii`, `patient001.layer.2.ct.mha`, `patient001.layer.3.overlay.vtk`
+- Segment groups: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
+
 Both features default to `''` which disables them.
 
 ### Segment Groups
 
-Use `segmentGroupExtension` to automatically convert matching non-DICOM images to segment groups. For example, `myFile.seg.nrrd` becomes a segment group for `myFile.nii`:
+Use `segmentGroupExtension` to automatically convert matching non-DICOM images to segment groups.
+For example, `myFile.seg.nrrd` becomes a segment group for `myFile.nii`.
+Defaults to `''` which disables matching.
 
 ```json
 {
@@ -201,7 +213,8 @@ Use `segmentGroupExtension` to automatically convert matching non-DICOM images t
 
 ### Layering
 
-Use `layerExtension` to automatically layer matching non-DICOM images on top of the base image. For example, `myImage.layer.nii` is layered on top of `myImage.nii`:
+Use `layerExtension` to automatically layer matching non-DICOM images on top of the base image. For example, `myImage.layer.nii` is layered on top of `myImage.nii`.
+Defaults to `''` which disables matching.
 
 ```json
 {
