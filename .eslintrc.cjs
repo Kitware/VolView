@@ -78,6 +78,12 @@ module.exports = {
       },
     },
     {
+      files: ['src/**/*.{j,t}s?(x)', 'src/**/*.vue'],
+      rules: {
+        'import/no-extraneous-dependencies': 'off',
+      },
+    },
+    {
       files: ['**/tests/pageobjects/**/*.ts'],
       rules: {
         'class-methods-use-this': 'off',
