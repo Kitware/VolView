@@ -80,17 +80,27 @@ function isSegmentation(extension: string, name: string) {
   return extensions.includes(extension);
 }
 
-// does not pick segmentation images
+function sortByDataSourceName(a: LoadableResult, b: LoadableResult) {
+  const nameA = getDataSourceName(a.dataSource) ?? '';
+  const nameB = getDataSourceName(b.dataSource) ?? '';
+  return nameA.localeCompare(nameB);
+}
+
+// does not pick segmentation or layer images
 function findBaseImage(
   loadableDataSources: Array<LoadableResult>,
-  segmentGroupExtension: string
+  segmentGroupExtension: string,
+  layerExtension: string
 ) {
   const baseImages = loadableDataSources
     .filter(({ dataType }) => dataType === 'image')
     .filter((importResult) => {
       const name = getDataSourceName(importResult.dataSource);
       if (!name) return false;
-      return !isSegmentation(segmentGroupExtension, name);
+      return (
+        !isSegmentation(segmentGroupExtension, name) &&
+        !isSegmentation(layerExtension, name)
+      );
     });
 
   if (baseImages.length) return baseImages[0];
@@ -138,13 +148,18 @@ function getStudyUID(volumeID: string) {
 
 function findBaseDataSource(
   succeeded: Array<ImportResult>,
-  segmentGroupExtension: string
+  segmentGroupExtension: string,
+  layerExtension: string
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
   const baseDicom = findBaseDicom(loadableDataSources);
   if (baseDicom) return baseDicom;
 
-  const baseImage = findBaseImage(loadableDataSources, segmentGroupExtension);
+  const baseImage = findBaseImage(
+    loadableDataSources,
+    segmentGroupExtension,
+    layerExtension
+  );
   if (baseImage) return baseImage;
   return loadableDataSources[0];
 }
@@ -164,7 +179,7 @@ function filterOtherVolumesInStudy(
 }
 
 // Layers a DICOM PET on a CT if found
-function loadLayers(
+function autoLayerDicoms(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>
 ) {
@@ -190,6 +205,28 @@ function loadLayers(
   layersStore.addLayer(primarySelection, layerSelection);
 }
 
+function autoLayerByName(
+  primaryDataSource: LoadableVolumeResult,
+  succeeded: Array<ImportResult>,
+  layerExtension: string
+) {
+  if (isDicomImage(primaryDataSource.dataID)) return;
+  const matchingLayers = filterMatchingNames(
+    primaryDataSource,
+    succeeded,
+    layerExtension
+  )
+    .filter(isVolumeResult)
+    .sort(sortByDataSourceName);
+
+  const primarySelection = toDataSelection(primaryDataSource);
+  const layersStore = useLayersStore();
+  matchingLayers.forEach((ds) => {
+    const layerSelection = toDataSelection(ds);
+    layersStore.addLayer(primarySelection, layerSelection);
+  });
+}
+
 // Loads other DataSources as Segment Groups:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
@@ -202,9 +239,11 @@ function loadSegmentations(
     primaryDataSource,
     succeeded,
     segmentGroupExtension
-  ).filter(
-    isVolumeResult // filter out models
-  );
+  )
+    .filter(
+      isVolumeResult // filter out models
+    )
+    .sort(sortByDataSourceName);
 
   const dicomStore = useDICOMStore();
   const otherSegVolumesInStudy = filterOtherVolumesInStudy(
@@ -254,19 +293,25 @@ function loadDataSources(sources: DataSource[]) {
     if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
-        loadDataStore.segmentGroupExtension
+        loadDataStore.segmentGroupExtension,
+        loadDataStore.layerExtension
       );
 
       if (isVolumeResult(primaryDataSource)) {
         const selection = toDataSelection(primaryDataSource);
         viewStore.setDataForAllViews(selection);
-        loadLayers(primaryDataSource, succeeded);
+        autoLayerDicoms(primaryDataSource, succeeded);
+        autoLayerByName(
+          primaryDataSource,
+          succeeded,
+          loadDataStore.layerExtension
+        );
         loadSegmentations(
           primaryDataSource,
           succeeded,
           loadDataStore.segmentGroupExtension
         );
-      } // then must be primaryDataSource.type === 'model'
+      } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
 
     if (errored.length) {
@@ -323,17 +368,25 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-export async function loadUrls(params: UrlParams) {
-  const urls = wrapInArray(params.urls);
-  const names = wrapInArray(params.names ?? []); // optional names should resolve to [] if params.names === undefined
-  const sources = urls.map((url, idx) =>
-    uriToDataSource(
-      url,
-      names[idx] ||
-        basename(parseUrl(url, window.location.href).pathname) ||
-        url
-    )
-  );
+function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
+  return urls.map((url, idx) => {
+    const defaultName =
+      basename(parseUrl(url, window.location.href).pathname) || url;
+    return uriToDataSource(url, names[idx] || defaultName);
+  });
+}
 
-  return loadDataSources(sources);
+export async function loadUrls(params: UrlParams) {
+  if (params.config) {
+    const configUrls = wrapInArray(params.config);
+    const configSources = urlsToDataSources(configUrls);
+    await loadDataSources(configSources);
+  }
+
+  if (params.urls) {
+    const urls = wrapInArray(params.urls);
+    const names = wrapInArray(params.names ?? []);
+    const sources = urlsToDataSources(urls, names);
+    await loadDataSources(sources);
+  }
 }

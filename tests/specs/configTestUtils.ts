@@ -26,40 +26,28 @@ export const MRA_HEAD_NECK_DATASET = {
   name: 'MRA-Head_and_Neck.zip',
 } as const;
 
+export const FETUS_DATASET = {
+  url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
+  name: 'fetus.zip',
+} as const;
+
 export type DatasetResource = {
   url: string;
   name?: string;
 };
 
-export const createConfigManifest = async (
+export const openConfigAndDataset = async (
   config: unknown,
   name: string,
   dataset: DatasetResource = ONE_CT_SLICE_DICOM
 ) => {
   const configFileName = `${name}-config.json`;
-  const manifestFileName = `${name}-manifest.json`;
-
   await writeManifestToFile(config, configFileName);
 
-  const manifest = {
-    resources: [{ url: `/tmp/${configFileName}` }, dataset],
-  };
-
-  await writeManifestToFile(manifest, manifestFileName);
-  return manifestFileName;
-};
-
-export const openConfigAndWait = async (
-  config: unknown,
-  name: string,
-  dataset: DatasetResource = ONE_CT_SLICE_DICOM
-) => {
-  const manifestFileNameOnDisk = await createConfigManifest(
-    config,
-    name,
-    dataset
+  await volViewPage.open(
+    `?config=[tmp/${configFileName}]&urls=${dataset.url}&names=${
+      dataset.name ?? ''
+    }`
   );
-
-  await volViewPage.open(`?urls=[tmp/${manifestFileNameOnDisk}]`);
   await volViewPage.waitForViews();
 };

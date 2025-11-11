@@ -8,6 +8,14 @@ By loading a JSON file, you can set VolView's configuration:
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
+## Loading Configuration Files
+
+Use the `config` URL parameter to load configuration before data files:
+
+```
+https://volview.kitware.com/?config=https://example.com/config.json&urls=https://example.com/data.nrrd
+```
+
 ## View Layouts
 
 Define one or more named layouts using the `layouts` key. VolView will use the first layout as the default. Each named layout will be in the layout selector menu. Layout are specified in three formats:
@@ -173,20 +181,45 @@ Working segment group file formats:
 
 hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 
-## Automatic Segment Groups by File Name
+## Automatic Layers and Segment Groups by File Name
 
-When loading files, VolView can automatically convert images to segment groups
-if they follow a naming convention. For example, an image with name like `foo.segmentation.bar`
-will be converted to a segment group for a base image named like `foo.baz`.
-The `segmentation` extension is defined by the `io.segmentGroupExtension` key, which takes a
-string. Files `foo.[segmentGroupExtension].bar` will be automatilly converted to segment groups for a base image named `foo.baz`. The default is `''` and will disable the feature.
+When loading multiple files, VolView can automatically associate related images based on file naming patterns.
+Example: `base.[extension].nrrd` will match `base.nii`.
 
-This will define `myFile.seg.nrrd` as a segment group for a `myFile.nii` base file.
+The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot). Files matching `base.[extension]...` will be associated with a base image named `base.*`.
+
+**Ordering:** When multiple layers/segment groups match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
+
+For example, with a base image `patient001.nrrd`:
+
+- Layers (sorted alphabetically): `patient001.layer.1.pet.nii`, `patient001.layer.2.ct.mha`, `patient001.layer.3.overlay.vtk`
+- Segment groups: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
+
+Both features default to `''` which disables them.
+
+### Segment Groups
+
+Use `segmentGroupExtension` to automatically convert matching non-DICOM images to segment groups.
+For example, `myFile.seg.nrrd` becomes a segment group for `myFile.nii`.
+Defaults to `''` which disables matching.
 
 ```json
 {
   "io": {
     "segmentGroupExtension": "seg"
+  }
+}
+```
+
+### Layering
+
+Use `layerExtension` to automatically layer matching non-DICOM images on top of the base image. For example, `myImage.layer.nii` is layered on top of `myImage.nii`.
+Defaults to `''` which disables matching.
+
+```json
+{
+  "io": {
+    "layerExtension": "layer"
   }
 }
 ```
@@ -277,7 +310,9 @@ To configure a key for an action, add its action name and the key(s) under the `
     "showKeyboardShortcuts": "t"
   },
   "io": {
-    "segmentGroupSaveFormat": "nrrd"
+    "segmentGroupSaveFormat": "nrrd",
+    "segmentGroupExtension": "seg",
+    "layerExtension": "layer"
   }
 }
 ```

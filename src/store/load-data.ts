@@ -100,9 +100,11 @@ const useLoadDataStore = defineStore('loadData', () => {
     useLoadingNotifications();
 
   const segmentGroupExtension = ref('');
+  const layerExtension = ref('');
 
   return {
     segmentGroupExtension,
+    layerExtension,
     isLoading,
     startLoading,
     stopLoading,
