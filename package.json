@@ -1,7 +1,11 @@
 {
   "name": "volview",
-  "version": "4.4.0",
+  "version": "0.0.0",
   "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "dev": "cross-env VITE_SHOW_SAMPLE_DATA=true vite",
     "preview": "vite preview",
@@ -19,7 +23,6 @@
     "build:resample": "itk-wasm -s src/io/resample/ build ",
     "build:resample:debug": "itk-wasm -s src/io/resample/ build -- -DCMAKE_BUILD_TYPE=Debug",
     "build:watch": "npm run build -- --watch",
-    "postinstall": "patch-package",
     "prettify": "prettier --write src tests",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
