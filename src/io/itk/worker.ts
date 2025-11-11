@@ -37,6 +37,18 @@ export function getDicomSeriesWorkerPool() {
   return readDicomSeriesWorkerPool;
 }
 
+export function terminateWorkers() {
+  console.log('MVET: Terminating ITK workers...')
+  if (readDicomSeriesWorkerPool) {
+    readDicomSeriesWorkerPool.terminateWorkers()
+    readDicomSeriesWorkerPool = null
+  }
+  if (webWorker) {
+    webWorker.terminate()
+    webWorker = null
+  }
+}
+
 export async function initItkWorker() {
   await Promise.all([ensureWorker(), ensureDicomSeriesWorkerPool()]);
 
