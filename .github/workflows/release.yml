@@ -1,8 +1,14 @@
-# Stable packages are published to the npm registry by pushing a tag matching the pattern 'v*.*.*'
-name: Publish stable release package
+# Unified workflow for both prerelease and stable releases
+# Prerelease: triggered on push to main
+# Stable: triggered on push of tag matching 'v*.*.*'
+# NOTE: The reason this is all done in one workflow is because npmjs.com only
+# allows one GH Actions file to be setup as a trusted publisher.
+name: Publish npm package
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
@@ -10,7 +16,7 @@ permissions:
   id-token: write
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,19 +31,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - run: npm run postinstall
-
-      - name: Set version from tag
+      - name: Determine version and tag
+        id: version
         run: |
-          # Strip prefix from current tag to get version number
-          VERSION=${GITHUB_REF#refs/tags/v}
-          npm version "$VERSION" --no-git-tag-version
-          echo "Setting version to $VERSION"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Stable release: use tag version
+            VERSION=${GITHUB_REF#refs/tags/v}
+            npm version "$VERSION" --no-git-tag-version
+            TAG="latest"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "Setting version to $VERSION for stable release"
+          else
+            # Prerelease: bump from latest stable tag
+            LATEST_TAG=$(git tag --list "v*.*.*" --sort=-v:refname | grep -v '-' | head -n1)
+            npm version "${LATEST_TAG#v}" --no-git-tag-version
+            npm version prerelease --preid="dev.${{ github.sha }}" --no-git-tag-version
+            VERSION=$(node -p "require('./package.json').version")
+            TAG="dev"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "Setting version to $VERSION for prerelease"
+          fi
 
       - name: Build with remote save enabled
         run: VITE_REMOTE_SERVER_URL= VITE_ENABLE_REMOTE_SAVE=true npm run build
 
-      - name: Publish stable version to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+      - name: Publish to npm
+        run: npm publish --tag ${{ steps.version.outputs.tag }} --access public --provenance
