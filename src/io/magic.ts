@@ -9,10 +9,13 @@ interface MagicDatabase {
 }
 
 /**
- * file magic database
- * Used to handle certain cases where files have no extension
+ * file magic database for when files have no extension
  */
 const FILE_MAGIC_DB: MagicDatabase[] = [
+  {
+    mime: 'application/zip',
+    header: [0x50, 0x4b, 0x03, 0x04], // PK\x03\x04
+  },
   {
     mime: 'application/dicom',
     skip: 128,

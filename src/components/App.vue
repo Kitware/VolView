@@ -85,6 +85,7 @@ import {
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
 import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
+import { normalizeUrlParams } from '@/src/utils/urlParams';
 
 export default defineComponent({
   name: 'App',
@@ -146,27 +147,29 @@ export default defineComponent({
     populateAuthorizationToken();
     stripTokenFromUrl();
 
-    const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
+    const urlParams = normalizeUrlParams(
+      vtkURLExtract.extractURLParameters() as UrlParams
+    );
 
     onMounted(() => {
       loadUrls(urlParams);
     });
 
-    // --- remote server --- //
+    // --- remote save state URL --- //
 
-    const serverStore = useServerStore();
-
-    onMounted(() => {
-      serverStore.connect();
-    });
-
-    // --- save state --- //
     if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
       const url = Array.isArray(urlParams.save)
         ? urlParams.save[0]
         : urlParams.save;
       useRemoteSaveStateStore().setSaveUrl(url);
     }
+
+    // --- remote server --- //
+
+    const serverStore = useServerStore();
+    onMounted(() => {
+      serverStore.connect();
+    });
 
     // --- layout --- //
 
