@@ -1,10 +1,10 @@
 const CONTENT_DISPOSITION_FILENAME_REGEXP =
   /filename\s*=\s*(?:"([^"]*)"|([^;\s]*))/i;
 
-export type ContentDisposition =
-  | { type: 'invalid'; filename: null }
-  | { type: 'inline'; filename: string | null }
-  | { type: 'attachment'; filename: string | null };
+export type ContentDisposition = {
+  type: 'inline' | 'attachment' | 'invalid';
+  filename: string | null;
+};
 
 export function parseContentDispositionHeader(
   headerValue: string | null

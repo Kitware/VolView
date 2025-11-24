@@ -18,6 +18,12 @@ const isValidUrl = (str: string) => {
   }
 };
 
+const splitAndClean = (str: string) =>
+  str
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+
 const parseUrlArray = (value: string | string[]): string[] => {
   if (Array.isArray(value)) {
     return value.flatMap((v) => parseUrlArray(v));
@@ -28,18 +34,11 @@ const parseUrlArray = (value: string | string[]): string[] => {
   if (!trimmed) return [];
 
   if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    const inner = trimmed.slice(1, -1);
-    return inner
-      .split(',')
-      .map((url) => url.trim())
-      .filter(Boolean);
+    return splitAndClean(trimmed.slice(1, -1));
   }
 
   if (trimmed.includes(',')) {
-    return trimmed
-      .split(',')
-      .map((url) => url.trim())
-      .filter(Boolean);
+    return splitAndClean(trimmed);
   }
 
   return [trimmed];

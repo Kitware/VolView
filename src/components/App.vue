@@ -147,9 +147,15 @@ export default defineComponent({
     populateAuthorizationToken();
     stripTokenFromUrl();
 
-    const urlParams = normalizeUrlParams(
-      vtkURLExtract.extractURLParameters() as UrlParams
-    );
+    let urlParams: ReturnType<typeof normalizeUrlParams>;
+    try {
+      urlParams = normalizeUrlParams(
+        vtkURLExtract.extractURLParameters() as UrlParams
+      );
+    } catch (error) {
+      console.error('Failed to parse URL parameters:', error);
+      urlParams = {};
+    }
 
     onMounted(() => {
       loadUrls(urlParams);
