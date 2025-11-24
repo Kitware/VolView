@@ -43,7 +43,9 @@ const importSingleFile: ImportHandler = async (dataSource) => {
     return asLoadableResult(dataID, dataSource, 'model');
   }
 
-  throw new Error('Data reader did not produce a valid dataset');
+  throw new Error(
+    `Failed to import "${dataSource.file.name}". The file may be corrupted or in an unsupported format variant.`
+  );
 };
 
 export default importSingleFile;
