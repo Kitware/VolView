@@ -28,18 +28,6 @@ export function createContentDispositionServer() {
     res.send(fileBuffer);
   });
 
-  app.get('/scan.dcm', (req, res) => {
-    const filePath = join(TEMP_DIR, 'CT_Electrodes.nii.gz');
-    const fileBuffer = readFileSync(filePath);
-
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="CT_Electrodes.nii.gz"'
-    );
-    res.send(fileBuffer);
-  });
-
   return app;
 }
 

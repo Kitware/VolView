@@ -30,12 +30,4 @@ describe('Content-Disposition header handling', () => {
     const notificationCount = await volViewPage.getNotificationsCount();
     expect(notificationCount).toBe(0);
   });
-
-  it('should prefer Content-Disposition over URL extension', async () => {
-    await volViewPage.open(`?urls=http://localhost:${SERVER_PORT}/scan.dcm`);
-    await volViewPage.waitForViews();
-
-    const notificationCount = await volViewPage.getNotificationsCount();
-    expect(notificationCount).toBe(0);
-  });
 });

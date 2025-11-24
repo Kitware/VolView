@@ -24,7 +24,11 @@ const openUriStream: ImportHandler = async (dataSource, context) => {
     fetcher.contentDisposition
   );
 
-  const finalName = filenameFromHeader || dataSource.name;
+  // Only use Content-Disposition if current name lacks an extension
+  // (indicating it's likely auto-derived from URL like "download" or "getImage")
+  const hasExtension = dataSource.name.includes('.');
+  const finalName =
+    !hasExtension && filenameFromHeader ? filenameFromHeader : dataSource.name;
 
   // ensure we close the connection on completion
   context?.onCleanup?.(() => {
