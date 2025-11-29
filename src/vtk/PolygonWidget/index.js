@@ -4,6 +4,7 @@ import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/Plane
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation/Constants';
 import vtkLineGlyphRepresentation from '@/src/vtk/LineGlyphRepresentation';
+import vtkPolygonFillRepresentation from '@/src/vtk/PolygonFillRepresentation';
 
 import widgetBehavior from './behavior';
 import stateGenerator, { HandlesLabel, MoveHandleLabel } from './state';
@@ -32,6 +33,13 @@ function vtkPolygonWidget(publicAPI, model) {
         scaleInPixels: true,
         lineThickness: 0.25, // smaller than .5 default to prioritize picking handles
         behavior: Behavior.HANDLE, // make pickable even if not visible
+      },
+    },
+    {
+      builder: vtkPolygonFillRepresentation,
+      labels: [HandlesLabel],
+      initialValues: {
+        behavior: Behavior.HANDLE,
       },
     },
   ];

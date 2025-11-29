@@ -66,6 +66,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return overSegment;
   };
 
+  // Check if mouse is over fill representation (for hover but not interaction)
+  const checkOverFill = () => {
+    const selections = model._widgetManager.getSelections();
+    return (
+      model.representations[2] &&
+      selections?.[0]?.getProperties().prop ===
+        model.representations[2].getActors()[0]
+    );
+  };
+
   const getWorldCoords = computeWorldCoords(model);
 
   /**
@@ -76,16 +86,26 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
+    // Ignore clicks on fill - let them pass through
+    if (checkOverFill()) {
+      return macro.VOID;
+    }
+
     // turns off hover while dragging
     publicAPI.invokeHoverEvent({
       ...eventData,
       hovering: false,
     });
 
-    // This ruler widget is passive, so if another widget
-    // is active, we don't do anything.
+    const intState = publicAPI.getInteractionState();
+
+    // If not placing and another widget is active, don't consume event.
     const activeWidget = model._widgetManager.getActiveWidget();
-    if (activeWidget && activeWidget !== publicAPI) {
+    if (
+      intState === InteractionState.Select &&
+      activeWidget &&
+      activeWidget !== publicAPI
+    ) {
       return macro.VOID;
     }
 
@@ -93,8 +113,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (!worldCoords?.length) {
       return macro.VOID;
     }
-
-    const intState = publicAPI.getInteractionState();
 
     if (intState === InteractionState.PlacingFirst) {
       publicAPI.setFirstPoint(worldCoords);
@@ -123,6 +141,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // dragging
     if (
       model.activeState?.getActive() &&
+      model.activeState?.setOrigin &&
       model.pickable &&
       !checkOverSegment()
     ) {
@@ -167,7 +186,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     publicAPI.invokeHoverEvent({
       ...eventData,
-      hovering: !!model.activeState,
+      hovering: !!model.activeState || checkOverFill(),
     });
 
     return macro.VOID;

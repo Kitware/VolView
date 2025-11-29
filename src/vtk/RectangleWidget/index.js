@@ -1,8 +1,11 @@
 import macro from '@kitware/vtk.js/macro';
+import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation/Constants';
 
 import { AnnotationToolType } from '@/src/store/tools/types';
 import vtkRulerWidget from '../RulerWidget';
 import vtkRectangleLineRepresentation from './RectangleLineRepresentation';
+import vtkRectangleFillRepresentation from './RectangleFillRepresentation';
+import { PointsLabel } from '../RulerWidget/state';
 
 export { InteractionState } from '../RulerWidget/behavior';
 
@@ -22,6 +25,14 @@ function vtkRectangleWidget(publicAPI, model) {
       ...reps[1].initialValues,
       widgetAPI: model,
     };
+    reps.push({
+      builder: vtkRectangleFillRepresentation,
+      labels: [PointsLabel],
+      initialValues: {
+        behavior: Behavior.HANDLE,
+        widgetAPI: model,
+      },
+    });
     return reps;
   };
 }
