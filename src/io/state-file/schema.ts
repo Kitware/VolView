@@ -14,7 +14,6 @@ import type { Rectangle } from '@/src/types/rectangle';
 import type { Polygon } from '@/src/types/polygon';
 import type { LPSCroppingPlanes } from '@/src/types/crop';
 import type { FrameOfReference } from '@/src/utils/frameOfReference';
-import type { Optional } from '@/src/types';
 
 import type {
   CameraConfig,
@@ -287,8 +286,8 @@ const View = z.object({
   name: z.string(),
   type: z.union([z.literal('2D'), z.literal('3D'), z.literal('Oblique')]),
   dataID: z.string().optional().nullable(),
-  options: z.record(z.string()).optional(),
-  config: z.record(ViewConfig).optional(),
+  options: z.record(z.string(), z.string()).optional(),
+  config: z.record(z.string(), ViewConfig).optional(),
 });
 
 export type View = z.infer<typeof View>;
@@ -330,6 +329,8 @@ const FrameOfReference = z.object({
   planeNormal: Vector3,
 }) satisfies z.ZodType<FrameOfReference>;
 
+type SerializedAnnotationTool = Omit<AnnotationTool, 'placing' | 'hidden'>;
+
 const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
@@ -340,29 +341,39 @@ const annotationTool = z.object({
   strokeWidth: z.number().optional(),
   label: z.string().optional(),
   labelName: z.string().optional(),
-  metadata: z.record(z.string()).optional(),
-}) satisfies z.ZodType<AnnotationTool>;
+  metadata: z.record(z.string(), z.string()).optional(),
+}) satisfies z.ZodType<SerializedAnnotationTool>;
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
-  z.object({ tools: z.array(tool), labels: z.record(tool.partial()) });
+  z.object({
+    tools: z.array(tool),
+    labels: z.record(z.string(), tool.partial()),
+  });
+
+type SerializedRuler = Omit<Ruler, 'placing' | 'hidden'>;
 
 const Ruler = annotationTool.extend({
   firstPoint: Vector3,
   secondPoint: Vector3,
-}) satisfies z.ZodType<Ruler>;
+}) satisfies z.ZodType<SerializedRuler>;
 
 const Rulers = makeToolEntry(Ruler);
 
+type SerializedRectangle = Omit<Rectangle, 'placing' | 'hidden' | 'fillColor'> &
+  Partial<Pick<Rectangle, 'fillColor'>>;
+
 const Rectangle = Ruler.extend({
   fillColor: z.string().optional(),
-}) satisfies z.ZodType<Optional<Rectangle, 'fillColor'>>;
+}) satisfies z.ZodType<SerializedRectangle>;
 
 const Rectangles = makeToolEntry(Rectangle);
+
+type SerializedPolygon = Omit<Polygon, 'placing' | 'hidden'>;
 
 const Polygon = annotationTool.extend({
   id: z.string() as unknown as z.ZodType<ToolID>,
   points: z.array(Vector3),
-}) satisfies z.ZodType<Omit<Polygon, 'movePoint'>>;
+}) satisfies z.ZodType<SerializedPolygon>;
 
 const Polygons = makeToolEntry(Polygon);
 
@@ -388,7 +399,7 @@ const LPSCroppingPlanes = z.object({
   Axial: z.tuple([z.number(), z.number()]),
 }) satisfies z.ZodType<LPSCroppingPlanes>;
 
-const Cropping = z.record(LPSCroppingPlanes);
+const Cropping = z.record(z.string(), LPSCroppingPlanes);
 
 const Tools = z.object({
   rulers: Rulers.optional(),
@@ -415,7 +426,7 @@ export const ManifestSchema = z.object({
   version: z.string(),
   datasets: Dataset.array(),
   dataSources: DataSource.array(),
-  datasetFilePath: z.record(z.string()),
+  datasetFilePath: z.record(z.string(), z.string()),
   labelMaps: LabelMap.array(),
   tools: Tools,
   activeView: z.string().optional().nullable(),
