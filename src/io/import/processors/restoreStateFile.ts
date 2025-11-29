@@ -408,7 +408,6 @@ async function rebuildDataSources(
     const serializedSrc = serializedDataSources[i];
 
     if (serializedSrc.id in dataSourceCache) {
-      // eslint-disable-next-line no-continue
       continue;
     }
 
@@ -421,7 +420,6 @@ async function rebuildDataSources(
 
     let stillResolving = true;
     while (stillResolving) {
-      // eslint-disable-next-line no-await-in-loop
       const result = await evaluateChain(dataSource, resolvingHandlers);
 
       stillResolving = result.type !== 'resolved';

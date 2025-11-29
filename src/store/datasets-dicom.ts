@@ -1,4 +1,3 @@
-import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
 import * as DICOM from '@/src/io/dicom';
@@ -7,7 +6,6 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
-import { useFileStore } from './datasets-files';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -49,50 +47,12 @@ export interface VolumeInfo {
   WindowWidth: string;
 }
 
-const buildImage = async (seriesFiles: File[], modality: string) => {
-  const messages: string[] = [];
-  if (modality === 'SEG') {
-    const segFile = seriesFiles[0];
-    const results = await DICOM.buildSegmentGroups(segFile);
-    if (seriesFiles.length > 1)
-      messages.push(
-        'Tried to make one volume from 2 SEG modality files. Using only the first file!'
-      );
-    return {
-      modality: 'SEG',
-      builtImageResults: results,
-      messages,
-    };
-  }
-  return {
-    builtImageResults: await DICOM.buildImage(seriesFiles),
-    messages,
-  };
-};
-
-const constructImage = async (volumeKey: string, volumeInfo: VolumeInfo) => {
-  const fileStore = useFileStore();
-  const files = fileStore.getFiles(volumeKey);
-  if (!files) throw new Error('No files for volume key');
-  const results = await buildImage(files, volumeInfo.Modality);
-  const image = vtkITKHelper.convertItkToVtkImage(
-    results.builtImageResults.outputImage
-  );
-  return {
-    ...results,
-    image,
-  };
-};
-
 interface State {
   // volumeKey -> imageCacheMultiKey -> ITKImage
   sliceData: Record<string, Record<string, Image>>;
 
   // volume invalidation information
   needsRebuild: Record<string, boolean>;
-
-  // Avoid recomputing image data for the same volume by checking this for existing buildVolume tasks
-  volumeBuildResults: Record<string, ReturnType<typeof constructImage>>;
 
   // patientKey -> patient info
   patientInfo: Record<string, PatientInfo>;
@@ -160,7 +120,6 @@ export const getWindowLevels = (info: VolumeInfo) => {
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
-    volumeBuildResults: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -269,10 +228,6 @@ export const useDICOMStore = defineStore('dicom', {
         delete this.volumeInfo[volumeKey];
         delete this.sliceData[volumeKey];
         delete this.volumeStudy[volumeKey];
-
-        if (volumeKey in this.volumeBuildResults) {
-          delete this.volumeBuildResults[volumeKey];
-        }
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);
         if (this.studyVolumes[studyKey].length === 0) {

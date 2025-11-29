@@ -21,14 +21,14 @@ export interface CachedStreamFetcherRequestInit extends RequestInit {
 
 export const StopSignal = Symbol('StopSignal');
 
-export function sliceChunks(chunks: Uint8Array[], start: number) {
-  const newChunks: Uint8Array[] = [];
+export function sliceChunks<T extends Uint8Array>(chunks: T[], start: number) {
+  const newChunks: T[] = [];
   let size = 0;
   for (let i = 0; i < chunks.length && size < start; i++) {
     const chunk = chunks[i];
     if (size + chunk.length > start) {
       const offset = start - size;
-      const newChunk = chunk.slice(0, offset);
+      const newChunk = chunk.slice(0, offset) as T;
       newChunks.push(newChunk);
       size += newChunk.length;
     } else {
@@ -72,7 +72,7 @@ function inferContentRange(
 export class CachedStreamFetcher implements Fetcher {
   private abortController: Maybe<AbortController>;
   private fetch: typeof fetch;
-  private chunks: Uint8Array[];
+  private chunks: Uint8Array<ArrayBuffer>[];
   private contentLength: number | null = null;
   private activeNetworkStream: ReadableStream<Uint8Array> | null = null;
   private activeNetworkStreamReader: ReadableStreamDefaultReader<Uint8Array> | null =
@@ -85,7 +85,7 @@ export class CachedStreamFetcher implements Fetcher {
     private request: RequestInfo | URL,
     private init?: CachedStreamFetcherRequestInit
   ) {
-    this.chunks = [...(init?.prefixChunks ?? [])];
+    this.chunks = [...(init?.prefixChunks ?? [])] as Uint8Array<ArrayBuffer>[];
     this.contentLength = init?.contentLength ?? null;
     this.fetch = init?.fetch ?? globalThis.fetch;
   }
@@ -236,7 +236,7 @@ export class CachedStreamFetcher implements Fetcher {
         .read()
         .then((result) => {
           if (!result.done) {
-            this.chunks.push(result.value);
+            this.chunks.push(result.value as Uint8Array<ArrayBuffer>);
           } else if (this.contentLength === null) {
             // Entire stream finished but had no Content-Length header; treat full cache as total length
             this.contentLength = this.size;

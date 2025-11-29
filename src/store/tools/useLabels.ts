@@ -1,6 +1,5 @@
-import { Maybe } from '@/src/types';
+import { Maybe, UnwrapAll } from '@/src/types';
 import { ref } from 'vue';
-import { StoreActions, StoreState } from 'pinia';
 import { TOOL_COLORS } from '@/src/config';
 import { useIdStore } from '../id';
 
@@ -122,7 +121,4 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
   };
 };
 
-type UseLabels<Tool> = ReturnType<typeof useLabels<Tool>>;
-
-export type LabelsStore<Tool> = StoreState<UseLabels<Tool>> &
-  StoreActions<UseLabels<Tool>>;
+export type LabelsStore<Tool> = UnwrapAll<ReturnType<typeof useLabels<Tool>>>;

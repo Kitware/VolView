@@ -8,8 +8,8 @@ export class DicomFileDataLoader implements DataLoader {
   }
 
   // Data is provided, so load/stop does nothing.
-  // eslint-disable-next-line class-methods-use-this
+
   load() {}
-  // eslint-disable-next-line class-methods-use-this
+
   stop() {}
 }

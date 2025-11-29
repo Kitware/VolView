@@ -1,7 +1,6 @@
-import { Ref, UnwrapNestedRefs, computed, ref, watch } from 'vue';
-import { StoreActions, StoreGetters, StoreState } from 'pinia';
+import { Ref, computed, ref, watch } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import type { Maybe, PartialWithRequired } from '@/src/types';
+import type { Maybe, PartialWithRequired, UnwrapAll } from '@/src/types';
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
@@ -15,7 +14,7 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import useViewSliceStore from '../view-configs/slicing';
-import { useLabels, Labels } from './useLabels';
+import { useLabels, type Labels } from './useLabels';
 
 const annotationToolLabelDefault = Object.freeze({
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
@@ -37,7 +36,7 @@ const makeAnnotationToolDefaults = () => ({
 // Must return addTool in consuming Pinia store.
 export const useAnnotationTool = <
   MakeToolDefaults extends (...args: any) => any,
-  LabelProps
+  LabelProps,
 >({
   toolDefaults,
   initialLabels,
@@ -197,7 +196,7 @@ export const useAnnotationTool = <
             ...rest,
             imageID: dataIDMap[imageID],
             label: (label && labelIDMap[label]) || '',
-          } as ToolPatch)
+          }) as ToolPatch
       )
       .forEach((tool) => addTool(tool));
   }
@@ -225,12 +224,6 @@ export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
   getPoints(id: ToolID): Vector3[];
 };
 
-type UseAnnotationToolBasedStore<T extends AnnotationTool> = StoreState<
-  AnnotationToolAPI<T>
-> &
-  StoreActions<AnnotationToolAPI<T>> &
-  UnwrapNestedRefs<StoreGetters<AnnotationToolAPI<T>>>;
-
 export interface AnnotationToolStore<T extends AnnotationTool = AnnotationTool>
-  extends UseAnnotationToolBasedStore<T>,
+  extends UnwrapAll<AnnotationToolAPI<T>>,
     IToolStore {}

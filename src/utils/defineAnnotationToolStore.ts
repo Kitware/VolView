@@ -12,7 +12,7 @@ import { defineStore } from 'pinia';
  */
 export function defineAnnotationToolStore<
   T extends AnnotationTool,
-  S extends AnnotationToolAPI<T>
+  S extends AnnotationToolAPI<T>,
 >(name: string, setup: () => S) {
   return defineStore(name, setup);
 }

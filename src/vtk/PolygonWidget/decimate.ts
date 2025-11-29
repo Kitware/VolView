@@ -1,5 +1,3 @@
-/* eslint-disable no-continue */
-
 /*
 File modified from https://github.com/cornerstonejs/cornerstone3D/blob/main/packages/tools/src/utilities/math/polyline/decimate.ts
 

@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { defer, Deferred } from './index';
 
 // to be used to instantiate a worker

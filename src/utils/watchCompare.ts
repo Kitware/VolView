@@ -6,8 +6,9 @@ import {
   watch,
 } from 'vue';
 
-export interface WatchCompareOptions<Immediate>
-  extends WatchOptions<Immediate> {
+export interface WatchCompareOptions<
+  Immediate,
+> extends WatchOptions<Immediate> {
   compare: (a: any, b: any) => boolean;
 }
 
@@ -28,7 +29,7 @@ export type MapOldSources<T, Immediate> = {
 // overloads
 export function watchCompare<
   T extends Readonly<WatchSource<unknown>[]>,
-  Immediate extends Readonly<boolean> = false
+  Immediate extends Readonly<boolean> = false,
 >(
   sources: [...T],
   cb: WatchCallback<MapSources<T>, MapOldSources<T, Immediate>>,
@@ -41,7 +42,7 @@ export function watchCompare<T, Immediate extends Readonly<boolean> = false>(
 ): WatchStopHandle;
 export function watchCompare<
   T extends object,
-  Immediate extends Readonly<boolean> = false
+  Immediate extends Readonly<boolean> = false,
 >(
   source: T,
   cb: WatchCallback<T, Immediate extends true ? T | undefined : T>,

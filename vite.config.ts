@@ -33,10 +33,16 @@ function getPackageInfo() {
   const mainPkgPath = path.resolve(__dirname, 'package.json');
   const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, 'utf-8'));
 
-  const vtkJsPath = path.join(resolveNodeModulePath('@kitware/vtk.js'), 'package.json');
+  const vtkJsPath = path.join(
+    resolveNodeModulePath('@kitware/vtk.js'),
+    'package.json'
+  );
   const vtkJsPkg = JSON.parse(fs.readFileSync(vtkJsPath, 'utf-8'));
 
-  const itkWasmPath = path.join(resolveNodeModulePath('itk-wasm'), 'package.json');
+  const itkWasmPath = path.join(
+    resolveNodeModulePath('itk-wasm'),
+    'package.json'
+  );
   const itkWasmPkg = JSON.parse(fs.readFileSync(itkWasmPath, 'utf-8'));
 
   return {
@@ -217,10 +223,15 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
-    threads: false,
-    deps: {
-      // needed for unit tests on components utilizing vuetify
-      inline: ['vuetify'],
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+    server: {
+      deps: {
+        inline: ['vuetify'],
+      },
     },
     setupFiles: ['./tests/setupVitest.ts'],
   },

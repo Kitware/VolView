@@ -8,7 +8,6 @@ export function guardedWritableRef<T>(
     get: () => obj.value,
     set: (v) => {
       if (accept(v, obj.value)) {
-        // eslint-disable-next-line no-param-reassign
         obj.value = v;
       }
     },

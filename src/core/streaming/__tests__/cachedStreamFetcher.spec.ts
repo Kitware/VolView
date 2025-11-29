@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 import { RequestPool } from '@/src/core/streaming/requestPool';
 import {
   CachedStreamFetcher,
@@ -41,7 +40,7 @@ describe('CachedStreamFetcher', () => {
       stream = fetcher.getStream();
       size = 0;
       // @ts-ignore
-      // eslint-disable-next-line no-await-in-loop
+
       for await (const chunk of stream) {
         size += chunk.length;
       }

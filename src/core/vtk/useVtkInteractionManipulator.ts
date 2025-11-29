@@ -25,7 +25,7 @@ function removeManipulator(style: vtkInteractorStyleManipulator, manip: any) {
 }
 
 export function useVtkInteractionManipulator<
-  T extends VtkObjectConstructor<any>
+  T extends VtkObjectConstructor<any>,
 >(
   style: vtkInteractorStyleManipulator,
   vtkCtor: MaybeRef<T>,

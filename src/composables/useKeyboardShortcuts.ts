@@ -24,7 +24,7 @@ export function useKeyboardShortcuts() {
           const shiftPressed = keys.current.has('shift');
           const lastPressedKey = Array.from(keys.current).pop();
           const currentKeyWithCase = shiftPressed
-            ? lastPressedKey?.toUpperCase() ?? lastPressedKey
+            ? (lastPressedKey?.toUpperCase() ?? lastPressedKey)
             : lastPressedKey;
 
           // keyCountMatches checks for exact modifier match

@@ -77,7 +77,7 @@ class VolViewPage extends Page {
                 return w > 10 && h > 10;
               }
               return false;
-            } catch (err) {
+            } catch {
               // Element may have been removed/recreated - that's ok, we'll retry
               return false;
             }
@@ -87,7 +87,7 @@ class VolViewPage extends Page {
 
           // At least one view must have real dimensions
           return results.some((result) => result);
-        } catch (error) {
+        } catch {
           // DOM may be updating, retry on next iteration
           return false;
         }
@@ -111,10 +111,9 @@ class VolViewPage extends Page {
   }
 
   async waitForNotification() {
-    const this_ = this;
     await browser.waitUntil(
       async () => {
-        const notificationCount = await this_.getNotificationsCount();
+        const notificationCount = await this.getNotificationsCount();
         return notificationCount >= 1;
       },
       {

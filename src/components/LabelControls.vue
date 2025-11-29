@@ -23,14 +23,14 @@ const labels = computed(() =>
 
 const selectedLabel = computed({
   get: () => props.labelsStore.activeLabel,
-  set: (id) => {
+  set: (id: string | undefined) => {
     if (id != null) props.labelsStore.setActiveLabel(id);
   },
 });
 
 // --- editing state --- //
 
-type LabelID = keyof typeof props.labelsStore.labels;
+type LabelID = string;
 const editingLabelID = ref<Maybe<LabelID>>(undefined);
 const editDialog = ref(false);
 const editState = reactive({

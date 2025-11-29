@@ -47,9 +47,10 @@ function updateRenderingProperty(
     );
   mapper.setSampleDistance(sampleDistance * 2 ** (0.4 * 3.0 - 1.5));
 
+  const diagonalLength = getDiagonalLength(image.getBounds()) ?? 1;
   prop.setScalarOpacityUnitDistance(
     0,
-    getDiagonalLength(image.getBounds()) / Math.max(...image.getDimensions())
+    diagonalLength / Math.max(...image.getDimensions())
   );
   prop.setGradientOpacityMinimumValue(0, 0);
   prop.setGradientOpacityMaximumValue(0, (dataRange[1] - dataRange[0]) * 0.05);

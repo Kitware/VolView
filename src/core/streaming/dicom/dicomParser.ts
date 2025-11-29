@@ -1,5 +1,3 @@
-/* eslint-disable no-use-before-define */
-/* eslint-disable no-continue */
 import StreamingByteReader from '@/src/core/streaming/streamingByteReader.js';
 import { toAscii, asCoroutine } from '@/src/utils';
 
@@ -81,7 +79,7 @@ function* peekElementTag(
   const bytes = yield* reader.read(4, { peek: true });
   let group = 0;
   let element = 0;
-  /* eslint-disable no-bitwise */
+
   if (littleEndian) {
     group = bytes[0] | (bytes[1] << 8);
     element = bytes[2] | (bytes[3] << 8);
@@ -89,7 +87,7 @@ function* peekElementTag(
     group = bytes[1] | (bytes[0] << 8);
     element = bytes[3] | (bytes[2] << 8);
   }
-  /* eslint-enable no-bitwise */
+
   return [group, element] as Tag;
 }
 

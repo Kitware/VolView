@@ -10,7 +10,6 @@ import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkVolumeMapper from '@kitware/vtk.js/Rendering/Core/VolumeMapper';
 import vtkVolumeProperty from '@kitware/vtk.js/Rendering/Core/VolumeProperty';
 import { Vector3 } from '@kitware/vtk.js/types';
-import { vec3 } from 'gl-matrix';
 
 /**
  * Sets the edge gradient.
@@ -27,7 +26,7 @@ export function setEdgeGradient(
   for (let component = 0; component < numberOfComponents; component++) {
     if (edgeGradient === 0) {
       property.setUseGradientOpacity(component, false);
-      // eslint-disable-next-line no-continue
+
       continue;
     }
 
@@ -83,6 +82,7 @@ export function setCinematicLighting({
 export interface SetCinematicVolumeSamplingParameters {
   enabled: boolean;
   mapper: vtkVolumeMapper;
+  property: vtkVolumeProperty;
   quality: number;
   image: vtkImageData;
 }
@@ -90,18 +90,12 @@ export interface SetCinematicVolumeSamplingParameters {
 export function setCinematicVolumeSampling({
   enabled,
   mapper,
+  property,
   quality,
   image,
 }: SetCinematicVolumeSamplingParameters) {
-  const dims = image.getDimensions();
   const spacing = image.getSpacing();
-  const spatialDiagonal = vec3.length(
-    vec3.fromValues(
-      dims[0] * spacing[0],
-      dims[1] * spacing[1],
-      dims[2] * spacing[2]
-    )
-  );
+  const spatialDiagonal = getDiagonalLength(image.getBounds()) ?? 0;
 
   // Use the average spacing for sampling by default
   let sampleDistance = spacing.reduce((a, b) => a + b) / 3.0;
@@ -111,8 +105,8 @@ export function setCinematicVolumeSampling({
   mapper.setMaximumSamplesPerRay(samplesPerRay);
   mapper.setSampleDistance(sampleDistance);
   // Adjust the global illumination reach by volume quality slider
-  mapper.setGlobalIlluminationReach(enabled ? 0.25 * quality : 0);
-  mapper.setComputeNormalFromOpacity(!enabled && quality > 2);
+  property.setGlobalIlluminationReach(enabled ? 0.25 * quality : 0);
+  property.setComputeNormalFromOpacity(!enabled && quality > 2);
 }
 
 export interface SetCinematicVolumeShadingParameters {
@@ -134,10 +128,10 @@ export function setCinematicVolumeShading({
   specular,
   component = 0,
 }: SetCinematicVolumeShadingParameters) {
+  const diagonalLength = getDiagonalLength(image.getBounds()) ?? 1;
   property.setScalarOpacityUnitDistance(
     0,
-    (0.5 * getDiagonalLength(image.getBounds())) /
-      Math.max(...image.getDimensions())
+    (0.5 * diagonalLength) / Math.max(...image.getDimensions())
   );
 
   property.setShade(true);
@@ -159,39 +153,38 @@ export function setCinematicVolumeShading({
 
 export interface SetCinematicVolumeScatterParameters {
   enabled: boolean;
-  mapper: vtkVolumeMapper;
+  property: vtkVolumeProperty;
   blending: number;
 }
 
 export function setCinematicVolumeScatter({
   enabled,
-  mapper,
+  property,
   blending,
 }: SetCinematicVolumeScatterParameters) {
-  (window as any).am = mapper;
-  mapper.setVolumetricScatteringBlending(enabled ? blending : 0);
+  property.setVolumetricScatteringBlending(enabled ? blending : 0);
 }
 
 export interface SetCinematicLocalAmbientOcclusionParameters {
   enabled: boolean;
-  mapper: vtkVolumeMapper;
+  property: vtkVolumeProperty;
   kernelSize: number;
   kernelRadius: number;
 }
 
 export function setCinematicLocalAmbientOcclusion({
   enabled,
-  mapper,
+  property,
   kernelSize,
   kernelRadius,
 }: SetCinematicLocalAmbientOcclusionParameters) {
   if (enabled) {
-    mapper.setLocalAmbientOcclusion(true);
-    mapper.setLAOKernelSize(kernelSize);
-    mapper.setLAOKernelRadius(kernelRadius);
+    property.setLocalAmbientOcclusion(true);
+    property.setLAOKernelSize(kernelSize);
+    property.setLAOKernelRadius(kernelRadius);
   } else {
-    mapper.setLocalAmbientOcclusion(false);
-    mapper.setLAOKernelSize(0);
-    mapper.setLAOKernelRadius(0);
+    property.setLocalAmbientOcclusion(false);
+    property.setLAOKernelSize(0);
+    property.setLAOKernelRadius(0);
   }
 }

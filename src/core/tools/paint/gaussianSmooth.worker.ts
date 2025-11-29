@@ -76,7 +76,7 @@ function convolve1D(
             const sampleIdx = sampleX + baseOffset;
             sum += inputData[sampleIdx] * kernel[k];
           }
-          // eslint-disable-next-line no-param-reassign
+
           outputData[x + baseOffset] = sum;
         }
       }
@@ -94,7 +94,7 @@ function convolve1D(
             const sampleIdx = baseOffset + sampleY * strideY;
             sum += inputData[sampleIdx] * kernel[k];
           }
-          // eslint-disable-next-line no-param-reassign
+
           outputData[x + y * strideY + zOffset] = sum;
         }
       }
@@ -112,7 +112,7 @@ function convolve1D(
             const sampleIdx = baseOffset + sampleZ * strideZ;
             sum += inputData[sampleIdx] * kernel[k];
           }
-          // eslint-disable-next-line no-param-reassign
+
           outputData[baseOffset + z * strideZ] = sum;
         }
       }
@@ -236,7 +236,6 @@ function copySubVolumeBack(
         const subValue = subData[subIndex];
 
         if (origLabel === label || origLabel === 0) {
-          // eslint-disable-next-line no-param-reassign
           originalData[origIndex] = subValue > 127.5 ? label : 0;
         }
         subIndex++;

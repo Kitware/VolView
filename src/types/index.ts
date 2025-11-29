@@ -1,13 +1,12 @@
-import { StoreDefinition } from 'pinia';
+import type { UnwrapRef } from 'vue';
 
 export type Maybe<T> = T | null | undefined;
+
+export type UnwrapAll<T> = { [K in keyof T]: UnwrapRef<T[K]> };
 
 export type NullableValues<T> = {
   [K in keyof T]: T[K] | null;
 };
-
-export type PiniaStoreState<S extends StoreDefinition> =
-  ReturnType<S>['$state'];
 
 export type SampleDataset = {
   name: string;

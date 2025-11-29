@@ -6,7 +6,10 @@ export class DicomFileMetaLoader implements MetaLoader {
   public tags: Maybe<Array<[string, string]>>;
   private file: File;
 
-  constructor(file: File, private readDicomTags: ReadDicomTagsFunction) {
+  constructor(
+    file: File,
+    private readDicomTags: ReadDicomTagsFunction
+  ) {
     this.file = file;
   }
 
@@ -23,7 +26,6 @@ export class DicomFileMetaLoader implements MetaLoader {
     this.tags = await this.readDicomTags(this.file);
   }
 
-  // eslint-disable-next-line class-methods-use-this
   stop() {
     // do nothing
   }

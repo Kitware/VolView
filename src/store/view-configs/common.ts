@@ -6,7 +6,7 @@ type ViewConfigStateKey = keyof ViewConfig;
 
 const serializeViewConfig = <
   K extends ViewConfigStateKey,
-  V extends ViewConfig[K]
+  V extends ViewConfig[K],
 >(
   stateFile: StateFile,
   viewConfigs: DoubleKeyRecord<V>,
@@ -21,7 +21,6 @@ const serializeViewConfig = <
       if (viewConfig !== undefined) {
         // Initialize config if it doesn't exist
         if (!view.config) {
-          // eslint-disable-next-line no-param-reassign
           view.config = {};
         }
         const configForData = ensureDefault(
@@ -42,7 +41,7 @@ const serializeViewConfig = <
  */
 export const createViewConfigSerializer = <
   K extends ViewConfigStateKey,
-  V extends ViewConfig[K]
+  V extends ViewConfig[K],
 >(
   viewConfigs: DoubleKeyRecord<V>,
   viewConfigStateKey: K

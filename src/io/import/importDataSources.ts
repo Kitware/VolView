@@ -142,7 +142,6 @@ export async function importDataSources(
     source: src,
   }));
 
-  /* eslint-disable no-await-in-loop */
   while (queue.length) {
     const { index } = await asyncSelect(queue.map((item) => item.promise));
     const { promise, source } = queue[index];

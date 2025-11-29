@@ -110,7 +110,7 @@ export const chunk = <T>(arr: T[], size: number) =>
   );
 
 export function plural(n: number, word: string, pluralWord?: string) {
-  return n > 1 ? pluralWord ?? `${word}s` : word;
+  return n > 1 ? (pluralWord ?? `${word}s`) : word;
 }
 
 export const ensureDefault = <T>(
@@ -119,7 +119,6 @@ export const ensureDefault = <T>(
   default_: T
 ) => {
   if (!(key in records)) {
-    // eslint-disable-next-line no-param-reassign
     records[key] = default_;
   }
 

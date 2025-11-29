@@ -26,5 +26,5 @@ export const writeImage = async (format: string, image: vtkImageData) => {
   const result = await writeImageItk(itkImage, `image.${format}`, {
     webWorker: getWorker(),
   });
-  return result.serializedImage.data;
+  return result.serializedImage.data as Uint8Array<ArrayBuffer>;
 };

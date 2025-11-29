@@ -34,12 +34,18 @@ export function mergeViewFilters(
   filterSpecs: Array<ViewFilterSpec | undefined>
 ) {
   if (filterSpecs.length === 0) return undefined;
-  return filterSpecs.reduce((result, spec) => {
-    if (result === undefined) return undefined;
-    const byViewIds = mergeArrayFilters(result?.byViewIds, spec?.byViewIds);
-    const byViewType = mergeArrayFilters(result?.byViewType, spec?.byViewType);
-    return { byViewIds, byViewType };
-  }, filterSpecs[0] as ViewFilterSpec | undefined);
+  return filterSpecs.reduce(
+    (result, spec) => {
+      if (result === undefined) return undefined;
+      const byViewIds = mergeArrayFilters(result?.byViewIds, spec?.byViewIds);
+      const byViewType = mergeArrayFilters(
+        result?.byViewType,
+        spec?.byViewType
+      );
+      return { byViewIds, byViewType };
+    },
+    filterSpecs[0] as ViewFilterSpec | undefined
+  );
 }
 
 const useViewAnimationStore = defineStore('viewAnimation', () => {

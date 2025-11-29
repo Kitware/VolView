@@ -1,5 +1,5 @@
-/* eslint-disable max-classes-per-file */
-/* eslint-disable class-methods-use-this */
+ 
+ 
 import { Maybe } from '@/src/types';
 import { ensureError } from '@/src/utils';
 import * as BaseParser from 'socket.io-parser';
@@ -134,7 +134,7 @@ class ChunkedEncoder extends BaseParser.Encoder {
 
 class ChunkedDecoder extends BaseParser.Decoder {
   protected chunkingInfo: Maybe<number[]>;
-  protected chunks: Array<string | Uint8Array> = [];
+  protected chunks: Array<string | ArrayBuffer> = [];
 
   add(obj: any): void {
     if (this.chunkingInfo?.length) {

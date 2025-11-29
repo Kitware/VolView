@@ -8,7 +8,9 @@ defineProps<{ color: RGBAColor }>();
 <template>
   <div
     class="color-dot"
-    :style="{ background: rgbaToHexa([...color.slice(0,3), 255] as RGBAColor) }"
+    :style="{
+      background: rgbaToHexa([...color.slice(0, 3), 255] as RGBAColor),
+    }"
   />
 </template>
 

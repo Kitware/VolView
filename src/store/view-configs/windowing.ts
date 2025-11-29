@@ -33,7 +33,7 @@ export const defaultWindowLevelConfig = () =>
     auto: WL_AUTO_DEFAULT,
     useAuto: false,
     userTriggered: false,
-  } as WindowLevelConfig);
+  }) as WindowLevelConfig;
 
 export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
