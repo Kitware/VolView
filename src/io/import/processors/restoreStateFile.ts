@@ -26,7 +26,6 @@ import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarge
 import { ChainHandler, evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import openUriStream from '@/src/io/import/processors/openUriStream';
 import updateUriType from '@/src/io/import/processors/updateUriType';
-import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
 import { useViewStore } from '@/src/store/views';
@@ -327,8 +326,8 @@ const resolvingHandlers: ResolvingImportHandler[] = [
   updateFileMimeType,
   updateUriType,
 
-  // stream handling
-  handleDicomStream,
+  // stream handling - only download, not DICOM processing
+  // DICOM processing happens in the main import pipeline
   downloadStream,
 
   extractArchiveTarget,
@@ -378,7 +377,7 @@ async function rebuildDataSources(
         return {
           type: 'uri',
           uri: serialized.uri,
-          name: serialized.name,
+          name: serialized.name ?? serialized.uri,
           mime: serialized.mime,
         };
       case 'collection': {
@@ -445,7 +444,14 @@ async function restoreDatasets(
   datasetFiles: FileEntry[],
   context?: ImportContext
 ) {
-  const { datasets, dataSources, datasetFilePath } = manifest;
+  const { dataSources } = manifest;
+  const datasets =
+    manifest.datasets ??
+    dataSources
+      .filter((ds) => ds.type === 'uri')
+      .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
+  const datasetFilePath = manifest.datasetFilePath ?? {};
+
   const dataSourceIDToStateID = datasets.reduce<Record<number, string>>(
     (acc, ds) =>
       Object.assign(acc, {
@@ -480,13 +486,16 @@ async function restoreDatasets(
   await Promise.all(
     [...leaves].map(async (leafId) => {
       const dataSource = dataSourceCache[leafId];
-      const importResult =
+      const importResults =
         (await context?.importDataSources?.([dataSource])) ?? [];
-      const [result] = importResult;
-      if (result?.type !== 'data' || importResult.length !== 1)
-        throw new Error('Expected a single dataset');
 
-      stateIDToStoreID[dataSourceIDToStateID[leafId]] = result.dataID;
+      const dataResults = importResults.filter(
+        (r): r is typeof r & { type: 'data' } => r.type === 'data'
+      );
+
+      if (dataResults.length > 0) {
+        stateIDToStoreID[dataSourceIDToStateID[leafId]] = dataResults[0].dataID;
+      }
     })
   );
 
@@ -518,9 +527,10 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       );
     }
 
-    // We restore the view first, so that the appropriate watchers are triggered
-    // in the views as the data is loaded
-    useViewStore().setLayout(manifest.layout);
+    // Set layout if provided, otherwise use existing default layout
+    if (manifest.layout) {
+      useViewStore().setLayout(manifest.layout);
+    }
 
     const stateIDToStoreID = await restoreDatasets(
       manifest,
@@ -528,10 +538,19 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       context
     );
 
-    // Restore the views
-    useViewStore().deserialize(manifest, stateIDToStoreID);
+    // Restore the views (handles missing viewByID gracefully)
+    const viewStore = useViewStore();
+    viewStore.deserialize(manifest, stateIDToStoreID);
 
-    // Restore view configs
+    // When viewByID is not in manifest, assign first dataset to all views
+    if (!manifest.viewByID) {
+      const firstDataID = Object.values(stateIDToStoreID)[0];
+      if (firstDataID) {
+        viewStore.setDataForAllViews(firstDataID);
+      }
+    }
+
+    // Restore view configs (handles missing configs gracefully)
     useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
 
     // Restore the labelmaps
@@ -541,7 +560,7 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       stateIDToStoreID
     );
 
-    // Restore the tools
+    // Restore the tools (each tool handles missing data gracefully)
     useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);

@@ -501,6 +501,10 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
     const segmentGroupIDMap: Record<string, string> = {};
 
+    if (!labelMaps || labelMaps.length === 0) {
+      return segmentGroupIDMap;
+    }
+
     // First restore the data, then restore the store.
     // This preserves ordering from orderByParent.
 

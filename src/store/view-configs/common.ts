@@ -12,8 +12,12 @@ const serializeViewConfig = <
   viewConfigs: DoubleKeyRecord<V>,
   viewConfigStateKey: K
 ) => {
-  const dataIDs = stateFile.manifest.datasets.map((dataset) => dataset.id);
-  const views = Object.values(stateFile.manifest.viewByID);
+  const datasets = stateFile.manifest.datasets;
+  const viewByID = stateFile.manifest.viewByID;
+  if (!datasets || !viewByID) return;
+
+  const dataIDs = datasets.map((dataset) => dataset.id);
+  const views = Object.values(viewByID);
 
   views.forEach((view) => {
     dataIDs.forEach((dataID) => {

@@ -124,11 +124,13 @@ export const useLayersStore = defineStore('layer', () => {
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+    const parentToLayersSerialized = manifest.parentToLayers;
+    if (!parentToLayersSerialized) return;
+
     const remapSelection = (selection: DataSelection) => {
       return dataIDMap[selection];
     };
 
-    const { parentToLayers: parentToLayersSerialized } = manifest;
     parentToLayersSerialized.forEach(
       ({ selectionKey, sourceSelectionKeys }) => {
         const parent = remapSelection(selectionKey);
