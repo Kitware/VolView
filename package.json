@@ -36,7 +36,7 @@
     "@itk-wasm/dicom": "^7.6.4",
     "@itk-wasm/image-io": "1.6.0",
     "@itk-wasm/morphological-contour-interpolation": "2.0.0",
-    "@kitware/vtk.js": "^34.15.1",
+    "@kitware/vtk.js": "^32.12.1",
     "@netlify/edge-functions": "^3.0.2",
     "@rollup/plugin-replace": "^6.0.3",
     "@sentry/vite-plugin": "^4.6.1",

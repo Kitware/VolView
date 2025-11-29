@@ -225,5 +225,4 @@ export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
 };
 
 export interface AnnotationToolStore<T extends AnnotationTool = AnnotationTool>
-  extends UnwrapAll<AnnotationToolAPI<T>>,
-    IToolStore {}
+  extends UnwrapAll<AnnotationToolAPI<T>>, IToolStore {}

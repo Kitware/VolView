@@ -92,8 +92,8 @@ useEventListener(
 
 watch(updatedExtents, (current, old) => {
   const startOffset = old.length;
-  rep.property.setUpdatedExtents([
-    ...rep.property.getUpdatedExtents(),
+  rep.mapper.setUpdatedExtents([
+    ...rep.mapper.getUpdatedExtents(),
     ...current.slice(startOffset),
   ]);
   view.requestRender();
@@ -149,7 +149,7 @@ watchEffect(() => {
 
   setCinematicVolumeScatter({
     enabled: enabled && useVolumetricScatteringBlending,
-    property,
+    mapper,
     blending: volumetricScatteringBlending,
   });
 
@@ -157,7 +157,6 @@ watchEffect(() => {
     enabled,
     image: img,
     mapper,
-    property,
     quality: volumeQuality,
   });
 
@@ -165,7 +164,7 @@ watchEffect(() => {
     enabled: enabled && useLocalAmbientOcclusion,
     kernelRadius: laoKernelRadius,
     kernelSize: laoKernelSize,
-    property,
+    mapper,
   });
 
   view.requestRender();

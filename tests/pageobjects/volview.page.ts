@@ -132,6 +132,15 @@ class VolViewPage extends Page {
     await button.click();
   }
 
+  get paintButton() {
+    return $('button span i[class~=mdi-brush]');
+  }
+
+  async activatePaint() {
+    const button = this.paintButton;
+    await button.click();
+  }
+
   get viewTwoContainer() {
     return $('div[data-testid~="two-view-container"]');
   }

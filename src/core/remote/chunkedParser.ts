@@ -1,5 +1,3 @@
- 
- 
 import { Maybe } from '@/src/types';
 import { ensureError } from '@/src/utils';
 import * as BaseParser from 'socket.io-parser';
