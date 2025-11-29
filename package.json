@@ -103,6 +103,7 @@
     "wdio-html-nice-reporter": "^8.1.7",
     "wdio-wait-for": "^3.1.0",
     "webdriverio": "^9.20.1",
+    "vue-eslint-parser": "^10.2.0",
     "yorkie": "^2.0.0",
     "zod": "^4.1.13"
   },
@@ -110,11 +111,6 @@
     "pre-commit": "lint-staged"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,vue}": [
-      "eslint"
-    ]
-  },
-  "dependencies": {
-    "vue-eslint-parser": "^10.2.0"
+    "*.{js,jsx,ts,tsx,vue}": ["eslint"]
   }
 }
