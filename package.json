@@ -40,7 +40,7 @@
     "@netlify/edge-functions": "^3.0.2",
     "@rollup/plugin-replace": "^6.0.3",
     "@sentry/vite-plugin": "^4.6.1",
-    "@sentry/vue": "^7.120.3",
+    "@sentry/vue": "^10.27.0",
     "@thi.ng/api": "^8.12.9",
     "@thi.ng/rasterize": "^1.0.171",
     "@types/cors": "^2.8.19",
@@ -51,7 +51,7 @@
     "@velipso/polybool": "^2.0.11",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/test-utils": "^2.4.6",
-    "@vueuse/core": "^13.0.0",
+    "@vueuse/core": "^14.1.0",
     "@wdio/cli": "^9.20.1",
     "@wdio/globals": "^9.17.0",
     "@wdio/local-runner": "^9.20.1",
@@ -80,7 +80,7 @@
     "mitt": "^3.0.1",
     "nanoid": "^5.1.6",
     "patch-package": "^8.0.1",
-    "pinia": "^2.3.1",
+    "pinia": "^3.0.4",
     "prettier": "3.7.2",
     "rollup-plugin-visualizer": "^6.0.5",
     "sass": "^1.94.2",
@@ -104,7 +104,7 @@
     "wdio-wait-for": "^3.1.0",
     "webdriverio": "^9.20.1",
     "yorkie": "^2.0.0",
-    "zod": "^3.24.4"
+    "zod": "^3.25.76"
   },
   "gitHooks": {
     "pre-commit": "lint-staged"

@@ -26,7 +26,7 @@ export const init = (app: App<Element>) => {
 };
 
 const setEnabled = (enabled: boolean) => {
-  const options = Sentry.getCurrentHub().getClient()?.getOptions();
+  const options = Sentry.getClient()?.getOptions();
   if (!options) return;
   options.enabled = enabled;
 };

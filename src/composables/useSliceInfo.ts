@@ -1,6 +1,6 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
+import type { MaybeRef } from 'vue';
 import { computed, unref } from 'vue';
-import { MaybeRef } from '@vueuse/core';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { Maybe } from '@/src/types';
