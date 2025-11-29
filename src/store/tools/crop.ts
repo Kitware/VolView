@@ -162,11 +162,13 @@ export const useCropStore = defineStore('crop', () => {
 
   function serialize(stateFile: StateFile) {
     const { tools } = stateFile.manifest;
+    if (!tools) return;
     tools.crop = state.croppingByImageID;
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    const cropping = manifest.tools.crop;
+    const cropping = manifest.tools?.crop;
+    if (!cropping) return;
 
     Object.entries(cropping).forEach(([imageID, planes]) => {
       const newImageID = dataIDMap[imageID];

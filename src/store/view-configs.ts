@@ -67,6 +67,8 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     manifest: StateFile['manifest'],
     dataIDMap: Record<string, string>
   ) => {
+    if (!manifest.viewByID) return;
+
     Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
       if (view.config) {
         deserialize(viewID, view.config, dataIDMap);

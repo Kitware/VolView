@@ -370,7 +370,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function serialize(state: StateFile) {
-    const { paint } = state.manifest.tools;
+    const paint = state.manifest.tools?.paint;
+    if (!paint) return;
 
     paint.activeSegmentGroupID = activeSegmentGroupID.value ?? null;
     paint.brushSize = brushSize.value;
@@ -383,11 +384,15 @@ export const usePaintToolStore = defineStore('paint', () => {
     manifest: Manifest,
     segmentGroupIDMap: Record<string, string>
   ) {
-    const { paint } = manifest.tools;
-    setBrushSize.call(this, paint.brushSize);
-    isActive.value = manifest.tools.current === Tools.Paint;
+    const paint = manifest.tools?.paint;
+    if (!paint) return;
 
-    if (paint.activeSegmentGroupID !== null) {
+    if (paint.brushSize !== undefined) {
+      setBrushSize.call(this, paint.brushSize);
+    }
+    isActive.value = manifest.tools?.current === Tools.Paint;
+
+    if (paint.activeSegmentGroupID) {
       activeSegmentGroupID.value =
         segmentGroupIDMap[paint.activeSegmentGroupID];
       setActiveSegmentGroup(activeSegmentGroupID.value);

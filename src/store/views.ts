@@ -10,7 +10,7 @@ import {
   parseNamedLayouts,
   type LayoutConfig,
 } from '@/src/utils/layoutParsing';
-import type { StateFile } from '../io/state-file/schema';
+import type { Manifest, StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
   type: '2D',
@@ -307,25 +307,30 @@ export const useViewStore = defineStore('view', () => {
     manifest.viewByID = viewByID;
   }
 
-  function deserialize(
-    manifest: StateFile['manifest'],
-    dataIDMap: Record<string, string>
-  ) {
-    setLayout(manifest.layout);
+  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+    if (manifest.layout) {
+      setLayout(manifest.layout);
+    }
     setActiveView(manifest.activeView);
-    isActiveViewMaximized.value = manifest.isActiveViewMaximized;
-    layoutSlots.value = manifest.layoutSlots;
+    if (manifest.isActiveViewMaximized !== undefined) {
+      isActiveViewMaximized.value = manifest.isActiveViewMaximized;
+    }
+    if (manifest.layoutSlots) {
+      layoutSlots.value = manifest.layoutSlots;
+    }
 
-    viewIDs.value.forEach((key) => {
-      delete viewByID[key];
-    });
+    if (manifest.viewByID) {
+      viewIDs.value.forEach((key) => {
+        delete viewByID[key];
+      });
 
-    Object.entries(manifest.viewByID).forEach(([id, view]) => {
-      viewByID[id] = {
-        ...view,
-        dataID: view.dataID ? dataIDMap[view.dataID] : null,
-      } as unknown as ViewInfo;
-    });
+      Object.entries(manifest.viewByID).forEach(([id, view]) => {
+        viewByID[id] = {
+          ...view,
+          dataID: view.dataID ? dataIDMap[view.dataID] : null,
+        } as unknown as ViewInfo;
+      });
+    }
   }
 
   // initialization

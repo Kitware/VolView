@@ -89,6 +89,7 @@ export const useToolStore = defineStore('tool', () => {
 
   function serialize(state: StateFile) {
     const { tools } = state.manifest;
+    if (!tools) return;
 
     Object.values(ToolStoreMap)
       .map((useStore) => useStore?.())
@@ -105,8 +106,6 @@ export const useToolStore = defineStore('tool', () => {
     segmentGroupIDMap: Record<string, string>,
     dataIDMap: Record<string, string>
   ) {
-    const { tools } = manifest;
-
     usePaintToolStore().deserialize(manifest, segmentGroupIDMap);
 
     Object.values(ToolStoreMap)
@@ -118,7 +117,9 @@ export const useToolStore = defineStore('tool', () => {
         store.deserialize?.(manifest, dataIDMap);
       });
 
-    currentTool.value = tools.current;
+    if (manifest.tools?.current) {
+      currentTool.value = manifest.tools.current;
+    }
   }
 
   return {

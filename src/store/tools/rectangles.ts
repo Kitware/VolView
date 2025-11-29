@@ -33,11 +33,12 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
+    if (!state.manifest.tools) return;
     state.manifest.tools.rectangles = toolAPI.serializeTools();
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    toolAPI.deserializeTools(manifest.tools.rectangles, dataIDMap);
+    toolAPI.deserializeTools(manifest.tools?.rectangles, dataIDMap);
   }
 
   return {

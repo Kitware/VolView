@@ -7,7 +7,7 @@ import type {
   PiecewiseNode,
 } from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 
-import type { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
+import type { ToolID } from '@/src/types/annotation-tool';
 import { Tools as ToolsEnum } from '@/src/store/tools/types';
 import type { Ruler } from '@/src/types/ruler';
 import type { Rectangle } from '@/src/types/rectangle';
@@ -54,7 +54,7 @@ const UriSource = z.object({
   id: z.number(),
   type: z.literal('uri'),
   uri: z.string(),
-  name: z.string(),
+  name: z.string().optional(),
   mime: z.string().optional(),
   parent: z.number().optional(),
 });
@@ -329,20 +329,18 @@ const FrameOfReference = z.object({
   planeNormal: Vector3,
 }) satisfies z.ZodType<FrameOfReference>;
 
-type SerializedAnnotationTool = Omit<AnnotationTool, 'placing' | 'hidden'>;
-
 const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
-  id: z.string() as unknown as z.ZodType<ToolID>,
-  name: z.string(),
-  color: z.string(),
+  id: z.string().optional() as unknown as z.ZodType<ToolID | undefined>,
+  name: z.string().optional(),
+  color: z.string().optional(),
   strokeWidth: z.number().optional(),
   label: z.string().optional(),
   labelName: z.string().optional(),
   metadata: z.record(z.string(), z.string()).optional(),
-}) satisfies z.ZodType<SerializedAnnotationTool>;
+});
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({
@@ -350,35 +348,27 @@ const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
     labels: z.record(z.string(), tool.partial()),
   });
 
-type SerializedRuler = Omit<Ruler, 'placing' | 'hidden'>;
-
 const Ruler = annotationTool.extend({
   firstPoint: Vector3,
   secondPoint: Vector3,
-}) satisfies z.ZodType<SerializedRuler>;
+});
 
 const Rulers = makeToolEntry(Ruler);
 
-type SerializedRectangle = Omit<Rectangle, 'placing' | 'hidden' | 'fillColor'> &
-  Partial<Pick<Rectangle, 'fillColor'>>;
-
 const Rectangle = Ruler.extend({
   fillColor: z.string().optional(),
-}) satisfies z.ZodType<SerializedRectangle>;
+});
 
 const Rectangles = makeToolEntry(Rectangle);
 
-type SerializedPolygon = Omit<Polygon, 'placing' | 'hidden'>;
-
 const Polygon = annotationTool.extend({
-  id: z.string() as unknown as z.ZodType<ToolID>,
   points: z.array(Vector3),
-}) satisfies z.ZodType<SerializedPolygon>;
+});
 
 const Polygons = makeToolEntry(Polygon);
 
 const Crosshairs = z.object({
-  position: Vector3,
+  position: Vector3.optional(),
 });
 
 export type Crosshairs = z.infer<typeof Crosshairs>;
@@ -386,11 +376,11 @@ export type Crosshairs = z.infer<typeof Crosshairs>;
 const ToolsEnumNative = z.nativeEnum(ToolsEnum);
 
 const Paint = z.object({
-  activeSegmentGroupID: z.string().nullable(),
+  activeSegmentGroupID: z.string().nullable().optional(),
   activeSegment: z.number().nullish(),
-  brushSize: z.number(),
-  crossPlaneSync: z.boolean().default(false),
-  labelmapOpacity: z.number().optional(), // labelmapOpacity now ignored.  Opacity per segment group via layerColoring store.
+  brushSize: z.number().optional(),
+  crossPlaneSync: z.boolean().optional(),
+  labelmapOpacity: z.number().optional(),
 });
 
 const LPSCroppingPlanes = z.object({
@@ -405,10 +395,10 @@ const Tools = z.object({
   rulers: Rulers.optional(),
   rectangles: Rectangles.optional(),
   polygons: Polygons.optional(),
-  crosshairs: Crosshairs,
-  paint: Paint,
-  crop: Cropping,
-  current: ToolsEnumNative,
+  crosshairs: Crosshairs.optional(),
+  paint: Paint.optional(),
+  crop: Cropping.optional(),
+  current: ToolsEnumNative.optional(),
 });
 
 export type Tools = z.infer<typeof Tools>;
@@ -424,18 +414,18 @@ export type ParentToLayers = z.infer<typeof ParentToLayers>;
 
 export const ManifestSchema = z.object({
   version: z.string(),
-  datasets: Dataset.array(),
+  datasets: Dataset.array().optional(),
   dataSources: DataSource.array(),
-  datasetFilePath: z.record(z.string(), z.string()),
-  labelMaps: LabelMap.array(),
-  tools: Tools,
+  datasetFilePath: z.record(z.string(), z.string()).optional(),
+  labelMaps: LabelMap.array().optional(),
+  tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
-  isActiveViewMaximized: z.boolean(),
-  viewByID: z.record(z.string(), View),
+  isActiveViewMaximized: z.boolean().optional(),
+  viewByID: z.record(z.string(), View).optional(),
   primarySelection: z.string().optional(),
-  layout: Layout,
-  layoutSlots: z.array(z.string()),
-  parentToLayers: ParentToLayers,
+  layout: Layout.optional(),
+  layoutSlots: z.array(z.string()).optional(),
+  parentToLayers: ParentToLayers.optional(),
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
