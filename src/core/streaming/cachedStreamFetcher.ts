@@ -79,6 +79,7 @@ export class CachedStreamFetcher implements Fetcher {
     null;
 
   public contentType: string = '';
+  public contentDisposition: string = '';
 
   constructor(
     private request: RequestInfo | URL,
@@ -130,6 +131,7 @@ export class CachedStreamFetcher implements Fetcher {
     });
 
     this.contentType = response.headers.get('content-type') ?? '';
+    this.contentDisposition = response.headers.get('content-disposition') ?? '';
 
     let remainingContentLength: number | null = null;
     if (response.headers.has('content-length')) {

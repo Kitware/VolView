@@ -376,7 +376,13 @@ function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
   });
 }
 
-export async function loadUrls(params: UrlParams) {
+type LoadUrlsParams = {
+  urls?: string[];
+  names?: string[];
+  config?: string[];
+};
+
+export async function loadUrls(params: UrlParams | LoadUrlsParams) {
   if (params.config) {
     const configUrls = wrapInArray(params.config);
     const configSources = urlsToDataSources(configUrls);
