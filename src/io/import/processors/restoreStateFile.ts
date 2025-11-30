@@ -19,6 +19,7 @@ import { Skip } from '@/src/utils/evaluateChain';
 import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { migrateManifest } from '@/src/io/state-file/migrations';
+import { useMessageStore } from '@/src/store/messages';
 
 type LeafSource =
   | { type: 'uri'; uri: string; name: string; mime?: string }
@@ -50,8 +51,10 @@ function resolveToLeafSources(
       if (file) {
         return [{ type: 'file', file, fileType: src.fileType }];
       }
-      console.warn(
-        `State file missing expected file: ${filePath ?? src.fileId}`
+      const missingFile = filePath ?? String(src.fileId);
+      useMessageStore().addError(
+        'State file missing expected file',
+        missingFile
       );
       return [];
     }

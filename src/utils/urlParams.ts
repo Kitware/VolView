@@ -10,9 +10,7 @@ type ParsedUrlParams = {
 
 const isValidUrl = (str: string) => {
   try {
-    // eslint-disable-next-line no-new
-    new URL(str.trim(), window.location.href);
-    return true;
+    return !!new URL(str.trim(), window.location.href);
   } catch {
     return false;
   }

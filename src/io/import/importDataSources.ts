@@ -1,7 +1,6 @@
 import {
   ImportHandler,
   ImportResult,
-  ImportContext,
   asErrorResult,
   asLoadableResult,
   ConfigResult,
@@ -122,7 +121,7 @@ export async function importDataSources(
     while (cleanupHandlers.length) cleanupHandlers.pop()!();
   };
 
-  const importContext: ImportContext = {
+  const importContext = {
     fetchFileCache: new Map<string, File>(),
     onCleanup,
     importDataSources,
