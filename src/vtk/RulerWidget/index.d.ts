@@ -15,8 +15,7 @@ import { AnnotationToolType } from '@/src/store/tools/types';
 
 export { InteractionState } from './behavior';
 
-export interface vtkRulerWidgetPointState
-  extends vtkAnnotationWidgetPointState {}
+export interface vtkRulerWidgetPointState extends vtkAnnotationWidgetPointState {}
 
 export interface vtkRulerWidgetState extends vtkAnnotationWidgetState {
   setIsPlaced(isPlaced: boolean): boolean;
@@ -31,13 +30,11 @@ export interface vtkRulerViewWidget extends vtkAnnotationToolWidget {
   getWidgetState(): vtkRulerWidgetState;
 }
 
-export interface IRulerWidgetInitialValues
-  extends IAnnotationToolWidgetInitialValues {
+export interface IRulerWidgetInitialValues extends IAnnotationToolWidgetInitialValues {
   isPlaced: boolean;
 }
 
-export interface vtkRulerWidget
-  extends vtkAbstractWidgetFactory<vtkRulerViewWidget> {
+export interface vtkRulerWidget extends vtkAbstractWidgetFactory<vtkRulerViewWidget> {
   getLength(): number;
   getWidgetState(): vtkRulerWidgetState;
 }

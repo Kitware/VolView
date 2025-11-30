@@ -50,7 +50,7 @@ export function leaves<S, TE>(event: UpdateEvent<S, TE>, state: S) {
 export default class StateMachine<
   S extends string,
   TE extends string,
-  E extends StateMachineEvents<S, TE> = StateMachineEvents<S, TE>
+  E extends StateMachineEvents<S, TE> = StateMachineEvents<S, TE>,
 > {
   private _events: Emitter<E>;
   private _state: S;

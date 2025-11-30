@@ -7,7 +7,6 @@ export type LayoutItem =
     }
   | ({
       type: 'layout';
-      // eslint-disable-next-line no-use-before-define
     } & Layout);
 
 export type Layout = {

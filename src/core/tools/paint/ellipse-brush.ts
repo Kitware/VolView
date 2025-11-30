@@ -22,7 +22,7 @@ function rasterizeEllipse(xdiam: number, ydiam: number) {
 
   let a = x1;
   let b = y1;
-  // eslint-disable-next-line no-bitwise
+
   const b1 = b & 1;
   let dx = 4 * (1 - a) * b * b;
   let dy = 4 * (b1 + 1) * a * a;

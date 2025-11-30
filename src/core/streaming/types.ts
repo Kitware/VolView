@@ -41,7 +41,7 @@ export interface Fetcher {
   getStream(): ReadableStream<Uint8Array>;
   blob(): Promise<Blob>;
   close(): void;
-  cachedChunks: Uint8Array[];
+  cachedChunks: Uint8Array<ArrayBuffer>[];
   connected: boolean;
   size: number;
   contentType?: string;

@@ -30,7 +30,7 @@ export const useServerStore = defineStore('server', () => {
     try {
       await client.connect(url.value);
       connState.value = ConnectionState.Connected;
-    } catch (err) {
+    } catch {
       connState.value = ConnectionState.Disconnected;
     }
   }

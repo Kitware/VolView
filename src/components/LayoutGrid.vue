@@ -1,7 +1,7 @@
 <template>
   <div class="layout-container flex-equal" :class="flexFlow">
     <div v-for="(item, i) in items" :key="i" class="d-flex flex-equal">
-      <layout-grid v-if="item.type === 'layout'" :layout="(item as Layout)" />
+      <layout-grid v-if="item.type === 'layout'" :layout="item as Layout" />
       <LayoutGridItem
         v-else
         class="layout-item"

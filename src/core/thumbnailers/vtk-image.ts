@@ -16,7 +16,7 @@ function scalarImageToImageData(
   for (let i = 0; i < values.length; i += 1) {
     const byte = Math.floor((values[i] - scaleMin) * factor);
     // ABGR order
-    // eslint-disable-next-line no-bitwise
+
     arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
   }
 

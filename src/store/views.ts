@@ -70,9 +70,8 @@ export const useViewStore = defineStore('view', () => {
   const idStore = useIdStore();
 
   // Triggers whenever a view is created with a dataID or when a view's dataset changes.
-  const ViewDataChangeEvent = markRaw(
-    createEventHook<[string, Maybe<string>]>()
-  );
+  const ViewDataChangeEvent =
+    markRaw(createEventHook<[string, Maybe<string>]>());
 
   // Triggers whenever a view in the layout is replaced.
   // [beforeViewID, afterViewID]

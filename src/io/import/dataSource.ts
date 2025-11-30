@@ -40,7 +40,7 @@ export interface ArchiveSource {
  */
 export interface CollectionSource {
   type: 'collection';
-  // eslint-disable-next-line no-use-before-define
+
   sources: DataSource[];
 }
 

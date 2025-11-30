@@ -15,7 +15,6 @@ export function concatStreams<T>(
           reader = streams[0].getReader();
         }
 
-        // eslint-disable-next-line no-await-in-loop
         const result = await reader.read();
 
         if (result.value) {

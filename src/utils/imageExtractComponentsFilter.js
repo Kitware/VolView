@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign */
 import macro from '@kitware/vtk.js/macro';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';

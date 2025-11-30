@@ -1,8 +1,9 @@
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { MaybeRef } from 'vue';
 import { computed, ref, unref, watchEffect } from 'vue';
-import { MaybeRef, useResizeObserver } from '@vueuse/core';
+import { useResizeObserver } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { Maybe } from '@/src/types';

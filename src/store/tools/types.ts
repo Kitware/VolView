@@ -31,6 +31,4 @@ export interface ISerializableTool {
 }
 
 export interface IToolStore
-  extends Partial<IActivatableTool>,
-    Partial<ISerializableTool>,
-    Store {}
+  extends Partial<IActivatableTool>, Partial<ISerializableTool>, Store {}

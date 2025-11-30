@@ -110,7 +110,7 @@ export const chunk = <T>(arr: T[], size: number) =>
   );
 
 export function plural(n: number, word: string, pluralWord?: string) {
-  return n > 1 ? pluralWord ?? `${word}s` : word;
+  return n > 1 ? (pluralWord ?? `${word}s`) : word;
 }
 
 export const ensureDefault = <T>(
@@ -119,7 +119,6 @@ export const ensureDefault = <T>(
   default_: T
 ) => {
   if (!(key in records)) {
-    // eslint-disable-next-line no-param-reassign
     records[key] = default_;
   }
 
@@ -234,10 +233,7 @@ export function standardizeColor(color: Maybe<string>) {
   return ctx.fillStyle;
 }
 
-// https://github.com/colinhacks/zod/discussions/839#discussioncomment-4335236
-export function zodEnumFromObjKeys<K extends string>(
-  obj: Record<K, any>
-): z.ZodEnum<[K, ...K[]]> {
+export function zodEnumFromObjKeys<K extends string>(obj: Record<K, any>) {
   const [firstKey, ...otherKeys] = Object.keys(obj) as K[];
   return z.enum([firstKey, ...otherKeys]);
 }

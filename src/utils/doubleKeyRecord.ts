@@ -2,8 +2,6 @@ import { Maybe } from '../types';
 
 export type DoubleKeyRecord<V> = Record<string, Record<string, V>>;
 
-/* eslint-disable no-param-reassign */
-
 export function patchDoubleKeyRecord<V>(
   record: DoubleKeyRecord<V>,
   k1: string,
@@ -40,8 +38,6 @@ export function deleteEntry<V>(
     delete record[k1][k2];
   }
 }
-
-/* eslint-enable no-param-reassign */
 
 export function getDoubleKeyRecord<V>(
   record: DoubleKeyRecord<V>,

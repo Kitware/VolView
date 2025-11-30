@@ -78,7 +78,7 @@ const HTTPHandler: URLHandler = {
       return response.blob();
     }
 
-    const contentLength = Number(response.headers.get('content-length')) ?? -1;
+    const contentLength = Number(response.headers.get('content-length')) || -1;
     if (contentLength < 0) {
       progress(Infinity);
       return response.blob();
@@ -93,7 +93,6 @@ const HTTPHandler: URLHandler = {
     let recv = 0;
     let done = false;
     do {
-      // eslint-disable-next-line no-await-in-loop
       const readData = await reader.read();
       done = readData.done;
       if (readData.value && !done) {
@@ -193,7 +192,6 @@ export async function fetchFileWithProgress(
   let recv = 0;
   let done = false;
   do {
-    // eslint-disable-next-line no-await-in-loop
     const readData = await reader.read();
     done = readData.done;
     if (readData.value && !done) {

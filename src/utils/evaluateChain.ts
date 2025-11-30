@@ -12,7 +12,6 @@ export async function evaluateChain<Input, Output, Context = any>(
   handlers: Array<ChainHandler<Input, Output, Context>>,
   context?: Context
 ) {
-  /* eslint-disable no-await-in-loop */
   for (let i = 0; i < handlers.length; i++) {
     const handler = handlers[i];
     const response = await handler(data, context);
@@ -20,7 +19,6 @@ export async function evaluateChain<Input, Output, Context = any>(
       return response;
     }
   }
-  /* eslint-enable no-await-in-loop */
 
   throw new Error('Unhandled request');
 }

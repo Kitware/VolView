@@ -26,7 +26,7 @@ export interface View {
 
 export type vtkPropWithMapperProperty<
   M extends vtkAbstractMapper = vtkAbstractMapper,
-  P extends vtkObject = vtkObject
+  P extends vtkObject = vtkObject,
 > = vtkProp & {
   setMapper(m: M): void;
   getProperty(): P;
@@ -34,7 +34,7 @@ export type vtkPropWithMapperProperty<
 
 export interface Representation<
   Actor extends vtkPropWithMapperProperty,
-  Mapper extends vtkAbstractMapper
+  Mapper extends vtkAbstractMapper,
 > {
   actor: Actor;
   mapper: Mapper;

@@ -1,6 +1,6 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
+import type { MaybeRef } from 'vue';
 import { computed, Ref, unref } from 'vue';
-import { MaybeRef } from '@vueuse/core';
 import { mat3 } from 'gl-matrix';
 import { ImageMetadata } from '@/src/types/image';
 import { LPSAxisDir } from '@/src/types/lps';

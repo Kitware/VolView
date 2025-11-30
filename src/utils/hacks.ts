@@ -7,7 +7,7 @@ export function patchExitPointerLock() {
   document.exitPointerLock = () => {
     try {
       exitPointerLock?.call(document);
-    } catch (e) {
+    } catch {
       // ignore if undefined
     }
   };

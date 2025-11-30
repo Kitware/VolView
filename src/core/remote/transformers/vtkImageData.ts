@@ -43,7 +43,7 @@ export function deserializeVtkImageData(obj: any) {
 
   try {
     return vtk(wrapValuesInTypedArray(obj));
-  } catch (e) {
+  } catch {
     return obj;
   }
 }

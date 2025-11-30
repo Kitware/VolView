@@ -1,15 +1,31 @@
 import { RequestPool } from '@/src/core/streaming/requestPool';
 import { describe, it, expect } from 'vitest';
 
-// @ts-ignore
-const fetch = async () => {
+const neverResolvingFetch = async () => {
   return new Promise<Response>(() => {});
+};
+
+const abortableFetch = async (
+  _input: RequestInfo | URL,
+  init?: RequestInit
+) => {
+  return new Promise<Response>((_resolve, reject) => {
+    if (init?.signal) {
+      if (init.signal.aborted) {
+        reject(init.signal.reason);
+        return;
+      }
+      init.signal.addEventListener('abort', () => {
+        reject(init.signal!.reason);
+      });
+    }
+  });
 };
 
 describe('requestPool', () => {
   it('should not have more active requests than the pool size', () => {
     const N = 4;
-    const pool = new RequestPool(N, fetch);
+    const pool = new RequestPool(N, neverResolvingFetch);
     for (let i = 0; i < 10; i++) {
       pool.fetch('http://localhost/url');
     }
@@ -18,7 +34,7 @@ describe('requestPool', () => {
 
   it('should support removal of requests via an AbortController', async () => {
     const N = 4;
-    const pool = new RequestPool(N);
+    const pool = new RequestPool(N, abortableFetch);
     const controllers: AbortController[] = [];
     const promises: Promise<any>[] = [];
 
@@ -34,9 +50,7 @@ describe('requestPool', () => {
       controller.abort('cancelled');
     });
 
-    // eslint-disable-next-line no-restricted-syntax
     for (const p of promises) {
-      // eslint-disable-next-line no-await-in-loop
       await expect(p).rejects.toThrow('cancelled');
     }
   });

@@ -11,8 +11,7 @@ import {
 } from '@/src/vtk/ToolWidgetUtils/types';
 import { IAnnotationToolWidgetInitialValues } from '@/src/types/annotation-tool';
 
-export interface vtkPolygonWidgetPointState
-  extends vtkAnnotationWidgetPointState {}
+export interface vtkPolygonWidgetPointState extends vtkAnnotationWidgetPointState {}
 
 export interface vtkPolygonWidgetState extends vtkAnnotationWidgetState {
   getMoveHandle(): any;
@@ -28,11 +27,9 @@ export interface vtkPolygonViewWidget extends vtkAnnotationToolWidget {
   onDraggingEvent(callback: (e: any) => void): vtkSubscription;
 }
 
-export interface IPolygonWidgetInitialValues
-  extends IAnnotationToolWidgetInitialValues {}
+export interface IPolygonWidgetInitialValues extends IAnnotationToolWidgetInitialValues {}
 
-export interface vtkPolygonWidget
-  extends vtkAbstractWidgetFactory<vtkPolygonViewWidget> {
+export interface vtkPolygonWidget extends vtkAbstractWidgetFactory<vtkPolygonViewWidget> {
   getLength(): number;
   getWidgetState(): vtkPolygonWidgetState;
 }

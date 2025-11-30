@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import { computed, effectScope, ref, Ref } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { ImageMetadata } from '@/src/types/image';
@@ -192,8 +191,6 @@ export class LoadedVtkImage extends BaseProgressiveImage {
     super.dispose();
     this.vtkImageData.value.delete();
   }
-
-  /* eslint-disable class-methods-use-this */
 
   startLoad(): void {
     // noop

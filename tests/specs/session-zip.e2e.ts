@@ -12,7 +12,16 @@ const SLOW_INTERACTION_TIMEOUT = 10000;
 // from https://stackoverflow.com/a/47764403
 function waitForFileExists(filePath: string, timeout: number) {
   return new Promise<void>((resolve, reject) => {
-    let watcher: fs.FSWatcher;
+    const dir = path.dirname(filePath);
+    const basename = path.basename(filePath);
+
+    const watcher = fs.watch(dir, (eventType: any, filename: string | null) => {
+      if (eventType === 'rename' && filename === basename) {
+        clearTimeout(timerId);
+        watcher.close();
+        resolve();
+      }
+    });
 
     const onTimeout = () => {
       watcher.close();
@@ -24,17 +33,6 @@ function waitForFileExists(filePath: string, timeout: number) {
     };
 
     const timerId = setTimeout(onTimeout, timeout);
-
-    // watch if file newly created
-    const dir = path.dirname(filePath);
-    const basename = path.basename(filePath);
-    watcher = fs.watch(dir, (eventType: any, filename: string | null) => {
-      if (eventType === 'rename' && filename === basename) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
 
     // check if file already exists
     fs.access(filePath, fs.constants.R_OK, (err) => {

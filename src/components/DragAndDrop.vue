@@ -15,7 +15,6 @@ async function readAllDirEntries(dirEntry) {
   const allEntries = [];
   let entries = [];
   do {
-    // eslint-disable-next-line no-await-in-loop
     entries = await new Promise((resolve, reject) => {
       reader.readEntries(resolve, reject);
     });
@@ -38,7 +37,6 @@ async function readAllFiles(entries) {
     if (entry.isFile) {
       fileEntries.push(entry);
     } else {
-      // eslint-disable-next-line no-await-in-loop
       toProcess.push(...(await readAllDirEntries(entry)));
     }
   }

@@ -21,10 +21,10 @@ type Just<T> = Exclude<T, null | undefined>;
 type GetterReturnType<T, F extends string> = T extends null | undefined
   ? undefined
   : NameToGetter<F> extends keyof T
-  ? T[NameToGetter<F>] extends (...args: any[]) => infer R
-    ? R
-    : never
-  : never;
+    ? T[NameToGetter<F>] extends (...args: any[]) => infer R
+      ? R
+      : never
+    : never;
 
 type ArraySetter = (...args: any[]) => boolean;
 
@@ -40,7 +40,7 @@ export type GetterSetterFactory<T> = {
  */
 export function vtkFieldRef<
   T extends Maybe<vtkObject>,
-  F extends GettableFields<Just<T>>
+  F extends GettableFields<Just<T>>,
 >(obj: MaybeRef<T>, fieldName: F): Ref<GetterReturnType<T, F>>;
 
 /**
@@ -122,8 +122,7 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
     setter = fieldNameOrFactory.set;
   }
 
-  let pause: () => void;
-  let resume: () => void;
+  const pausable = { pause: () => {}, resume: () => {} };
 
   const ref = customRef<any>((track, trigger) => {
     return {
@@ -133,14 +132,14 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
       },
       set: (v) => {
         let changed = false;
-        pause();
+        pausable.pause();
 
         try {
           const ret = setter(v);
           // in the event a setter returns undefined, assume something changed.
           changed = ret === undefined ? true : ret;
         } finally {
-          resume();
+          pausable.resume();
         }
 
         if (changed) {
@@ -169,11 +168,13 @@ export function vtkFieldRef<T extends Maybe<vtkObject>>(
     triggerRef(ref);
   });
 
-  ({ pause, resume } = onPausableVTKEvent(
+  const { pause, resume } = onPausableVTKEvent(
     obj as vtkObject,
     'onModified',
     onModified
-  ));
+  );
+  pausable.pause = pause;
+  pausable.resume = resume;
 
   return ref;
 }

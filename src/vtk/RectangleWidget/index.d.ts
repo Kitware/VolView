@@ -12,15 +12,13 @@ import vtkRulerWidget, {
 
 export { InteractionState } from '../RulerWidget';
 
-export interface vtkRectangleWidgetPointState
-  extends vtkRulerWidgetPointState {}
+export interface vtkRectangleWidgetPointState extends vtkRulerWidgetPointState {}
 
 export interface vtkRectangleWidgetState extends vtkRulerWidgetState {}
 
 export interface vtkRectangleViewWidget extends vtkRulerViewWidget {}
 
-export interface IRectangleWidgetInitialValues
-  extends IRulerWidgetInitialValues {}
+export interface IRectangleWidgetInitialValues extends IRulerWidgetInitialValues {}
 
 export interface vtkRectangleWidget extends vtkRulerWidget {}
 

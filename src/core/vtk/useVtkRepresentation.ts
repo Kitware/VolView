@@ -19,7 +19,7 @@ export interface UseVtkRepresentationParameters<Actor, Mapper> {
 export function useVtkRepresentation<
   Actor extends vtkPropWithMapperProperty,
   Mapper extends vtkAbstractMapper,
-  Property extends ReturnType<Actor['getProperty']>
+  Property extends ReturnType<Actor['getProperty']>,
 >({
   view,
   data: dataObject,

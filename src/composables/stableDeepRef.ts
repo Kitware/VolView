@@ -20,7 +20,6 @@ export function stableDeepRef<T>(sourceRef: Ref<T>) {
   return computed({
     get: () => stableRef.value,
     set: (v) => {
-      // eslint-disable-next-line no-param-reassign
       sourceRef.value = v;
     },
   });

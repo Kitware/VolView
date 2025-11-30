@@ -39,11 +39,15 @@ describe('normalizeUrlParams', () => {
     ]);
   });
 
-  it('filters out invalid URLs', () => {
+  it('allows relative URLs (they resolve against base URL)', () => {
     const result = normalizeUrlParams({
-      urls: ['https://example.com/valid.dcm', 'not-a-url', 'also-invalid'],
+      urls: ['https://example.com/valid.dcm', 'relative-path', 'another/path'],
     });
-    expect(result.urls).toEqual(['https://example.com/valid.dcm']);
+    expect(result.urls).toEqual([
+      'https://example.com/valid.dcm',
+      'relative-path',
+      'another/path',
+    ]);
   });
 
   it('handles URLs with query parameters', () => {
@@ -64,11 +68,11 @@ describe('normalizeUrlParams', () => {
     expect(result.names).toEqual(['Image 1', 'Image 2']);
   });
 
-  it('returns empty object for no valid URLs', () => {
+  it('treats relative paths as valid URLs', () => {
     const result = normalizeUrlParams({
-      urls: 'not-a-url',
+      urls: 'relative-path',
     });
-    expect(result.urls).toBeUndefined();
+    expect(result.urls).toEqual(['relative-path']);
   });
 
   it('handles save parameter', () => {

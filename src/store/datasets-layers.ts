@@ -51,7 +51,6 @@ export const useLayersStore = defineStore('layer', () => {
         sourceImage.getBounds()
       )
     ) {
-      // eslint-disable-next-line no-use-before-define
       deleteLayer(parent, source);
       throw new Error(
         'Image bounds do not intersect, so no overlap in physical space'
