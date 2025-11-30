@@ -5,9 +5,8 @@ import {
 } from '@/src/io/state-file/schema';
 import {
   asErrorResult,
-  asIntermediateResult,
   ImportHandler,
-  StateFileContext,
+  StateFileSetupResult,
 } from '@/src/io/import/common';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
 import { partition, getURLBasename } from '@/src/utils';
@@ -113,27 +112,38 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
   });
 }
 
-async function completeStateFileRestore(ctx: StateFileContext) {
-  const { manifest, stateFiles, stateIDToStoreID } = ctx;
-  const stateIDToStoreIDRecord = Object.fromEntries(stateIDToStoreID);
+export async function completeStateFileRestore(
+  manifest: Manifest,
+  stateFiles: FileEntry[],
+  stateIDToStoreID: Record<string, string>
+) {
+  const viewStore = useViewStore();
 
-  useViewConfigStore().deserializeAll(manifest, stateIDToStoreIDRecord);
+  Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
+    viewStore.bindViewsToData(stateID, storeID, manifest);
+  });
+
+  if (!manifest.viewByID) {
+    const firstStoreID = Object.values(stateIDToStoreID)[0];
+    if (firstStoreID) {
+      viewStore.setDataForAllViews(firstStoreID);
+    }
+  }
+
+  useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
 
   const segmentGroupIDMap = await useSegmentGroupStore().deserialize(
     manifest,
     stateFiles,
-    stateIDToStoreIDRecord
+    stateIDToStoreID
   );
-  useLayersStore().deserialize(manifest, stateIDToStoreIDRecord);
 
-  useToolStore().deserialize(
-    manifest,
-    segmentGroupIDMap,
-    stateIDToStoreIDRecord
-  );
+  useLayersStore().deserialize(manifest, stateIDToStoreID);
+
+  useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
 }
 
-export const restoreStateFile: ImportHandler = async (dataSource, context) => {
+export const restoreStateFile: ImportHandler = async (dataSource) => {
   if (dataSource.type === 'file' && (await isStateFile(dataSource.file))) {
     const stateFileContents = await extractFilesFromZip(dataSource.file);
 
@@ -158,61 +168,14 @@ export const restoreStateFile: ImportHandler = async (dataSource, context) => {
       );
     }
 
-    // Phase 1: Set up view layout immediately (without data bindings)
-    const viewStore = useViewStore();
-    viewStore.deserializeLayout(manifest);
+    useViewStore().deserializeLayout(manifest);
 
-    // Prepare leaf data sources with state file tags
-    const leafDataSources = prepareLeafDataSources(manifest, restOfStateFile);
-
-    if (leafDataSources.length === 0) {
-      // No datasets to import, complete restoration immediately
-      await completeStateFileRestore({
-        manifest,
-        stateFiles: restOfStateFile,
-        stateIDToStoreID: new Map(),
-        pendingLeafCount: 0,
-        onLeafImported: () => {},
-        onAllLeavesImported: async () => {},
-      });
-
-      // When viewByID is not in manifest, there's no data to assign
-      return asIntermediateResult([]);
-    }
-
-    // Set up state file context for phase 2 and 3 callbacks
-    const stateFileContext: StateFileContext = {
+    return {
+      type: 'stateFileSetup',
+      dataSources: prepareLeafDataSources(manifest, restOfStateFile),
       manifest,
       stateFiles: restOfStateFile,
-      stateIDToStoreID: new Map(),
-      pendingLeafCount: leafDataSources.length,
-      onLeafImported: (stateID: string, storeID: string) => {
-        // Phase 2: Bind view to data as each leaf completes
-        viewStore.bindViewsToData(stateID, storeID, manifest);
-      },
-      onAllLeavesImported: async () => {
-        // Phase 3: Restore segment groups, tools, layers after all data loaded
-        await completeStateFileRestore(stateFileContext);
-
-        // When viewByID is not in manifest, assign first dataset to all views
-        if (!manifest.viewByID) {
-          const firstStoreID = stateFileContext.stateIDToStoreID
-            .values()
-            .next().value;
-          if (firstStoreID) {
-            viewStore.setDataForAllViews(firstStoreID);
-          }
-        }
-      },
-    };
-
-    // Store context for use by main pipeline
-    if (context) {
-      context.stateFileContext = stateFileContext;
-    }
-
-    // Return leaf data sources to be processed by main pipeline
-    return asIntermediateResult(leafDataSources);
+    } as StateFileSetupResult;
   }
   return Skip;
 };

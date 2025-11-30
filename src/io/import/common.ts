@@ -38,6 +38,13 @@ export interface IntermediateResult {
   dataSources: DataSource[];
 }
 
+export interface StateFileSetupResult {
+  type: 'stateFileSetup';
+  dataSources: DataSource[];
+  manifest: Manifest;
+  stateFiles: FileEntry[];
+}
+
 export interface ErrorResult {
   type: 'error';
   error: Error;
@@ -48,6 +55,7 @@ export type ImportResult =
   | LoadableResult
   | ConfigResult
   | IntermediateResult
+  | StateFileSetupResult
   | OkayResult
   | ErrorResult;
 
@@ -101,31 +109,14 @@ export const asOkayResult = (dataSource: DataSource): OkayResult => ({
 export type ArchiveContents = Record<string, File>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
 
-export interface StateFileContext {
-  manifest: Manifest;
-  stateFiles: FileEntry[];
-  stateIDToStoreID: Map<string, string>;
-  pendingLeafCount: number;
-  onLeafImported: (stateID: string, storeID: string) => void;
-  onAllLeavesImported: () => Promise<void>;
-}
-
 export interface ImportContext {
-  // Caches URL responses
   fetchFileCache?: FetchCache<File>;
-  // Caches archives. ArchiveFile -> { [archivePath]: File }
   archiveCache?: ArchiveCache;
-  // Records dicom files
   dicomDataSources?: DataSource[];
   onCleanup?: (fn: () => void) => void;
-  /**
-   * A reference to importDataSources for nested imports.
-   */
   importDataSources?: (
     dataSources: DataSource[]
   ) => Promise<ImportDataSourcesResult[]>;
-  // State file restoration context for 3-phase restoration
-  stateFileContext?: StateFileContext;
 }
 
 export type ImportHandler = ChainHandler<
