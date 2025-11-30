@@ -23,7 +23,7 @@ import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
 import handleGoogleCloudStorage from '@/src/io/import/processors/handleGoogleCloudStorage';
 import importSingleFile from '@/src/io/import/processors/importSingleFile';
 import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
-import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
+import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import {

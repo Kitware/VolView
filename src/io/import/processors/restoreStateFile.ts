@@ -9,7 +9,6 @@ import {
   ImportHandler,
   StateFileContext,
 } from '@/src/io/import/common';
-import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
 import { partition, getURLBasename } from '@/src/utils';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -22,213 +21,119 @@ import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 
-function findRootUriAncestors(
+type LeafSource =
+  | { type: 'uri'; uri: string; name: string; mime?: string }
+  | { type: 'file'; file: File; fileType: string };
+
+function resolveToLeafSources(
   id: number,
-  byId: Record<string, DataSourceType>
-): DataSourceType[] {
+  byId: Record<number, DataSourceType>,
+  datasetFilePath: Record<string, string> | undefined,
+  pathToFile: Record<string, File>
+): LeafSource[] {
   const src = byId[id];
   if (!src) return [];
-  if (src.type === 'uri') return [src];
-  if ('parent' in src && src.parent !== undefined) {
-    return findRootUriAncestors(src.parent, byId);
-  }
-  if (src.type === 'collection') {
-    const uris = new Map<number, DataSourceType>();
-    src.sources.forEach((sourceId) => {
-      findRootUriAncestors(sourceId, byId).forEach((uri) => {
-        uris.set(uri.id, uri);
-      });
-    });
-    return [...uris.values()];
-  }
-  return [];
-}
 
-function rebuildDataSources(
-  serializedDataSources: DataSourceType[],
-  fileIDToFile: Record<number, File>
-) {
-  const dataSourceCache: Record<string, DataSource> = {};
-  const byId: Record<string, DataSourceType> = {};
-  const leaves = new Set<number>();
-
-  serializedDataSources.forEach((serializedSrc) => {
-    byId[serializedSrc.id] = serializedSrc;
-    leaves.add(serializedSrc.id);
-  });
-
-  const deserialize = (
-    serialized: (typeof serializedDataSources)[number]
-  ): DataSource | null => {
-    const { type } = serialized;
-    switch (type) {
-      case 'file':
-        return {
-          type: 'file',
-          file: fileIDToFile[serialized.fileId],
-          fileType: serialized.fileType,
-        };
-      case 'archive': {
-        const parent = dataSourceCache[serialized.parent];
-        if (!parent) {
-          return null;
-        }
-        if (parent.type !== 'file') {
-          return null;
-        }
-        return {
-          type: 'archive',
-          path: serialized.path,
-          parent,
-        };
-      }
-      case 'uri': {
-        const defaultName = getURLBasename(serialized.uri) || serialized.uri;
-        return {
+  switch (src.type) {
+    case 'uri':
+      return [
+        {
           type: 'uri',
-          uri: serialized.uri,
-          name: serialized.name ?? defaultName,
-          mime: serialized.mime,
-        };
+          uri: src.uri,
+          name: src.name ?? getURLBasename(src.uri) ?? src.uri,
+          mime: src.mime,
+        },
+      ];
+
+    case 'file': {
+      const filePath = datasetFilePath?.[src.fileId];
+      const file = filePath ? pathToFile[filePath] : undefined;
+      if (file) {
+        return [{ type: 'file', file, fileType: src.fileType }];
       }
-      case 'collection': {
-        serialized.sources.forEach((id) => {
-          leaves.delete(id);
-        });
-        const sources = serialized.sources
-          .map((id) => dataSourceCache[id])
-          .filter((src): src is DataSource => src != null);
-        if (sources.length === 0) {
-          return null;
-        }
-        return {
-          type: 'collection',
-          sources,
-        };
-      }
-      default:
-        throw new Error(
-          `Encountered an invalid serialized data source: ${type}`
-        );
-    }
-  };
-
-  for (let i = 0; i < serializedDataSources.length; i++) {
-    const serializedSrc = serializedDataSources[i];
-
-    if (serializedSrc.id in dataSourceCache) {
-      continue;
+      console.warn(
+        `State file missing expected file: ${filePath ?? src.fileId}`
+      );
+      return [];
     }
 
-    const dataSource = deserialize(serializedSrc);
+    case 'archive':
+      return resolveToLeafSources(
+        src.parent,
+        byId,
+        datasetFilePath,
+        pathToFile
+      );
 
-    if (!dataSource) {
-      const rootUris = findRootUriAncestors(serializedSrc.id, byId);
-      leaves.delete(serializedSrc.id);
-      rootUris.forEach((uri) => leaves.add(uri.id));
-      continue;
-    }
+    case 'collection':
+      return src.sources.flatMap((sourceId) =>
+        resolveToLeafSources(sourceId, byId, datasetFilePath, pathToFile)
+      );
 
-    if (serializedSrc.parent) {
-      dataSource.parent = dataSourceCache[serializedSrc.parent];
-      leaves.delete(serializedSrc.parent);
-    }
-
-    dataSourceCache[serializedSrc.id] = dataSource;
+    default:
+      return [];
   }
-
-  return { dataSourceCache, leaves, byId };
 }
 
 function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
-  const { dataSources } = manifest;
+  const byId: Record<number, DataSourceType> = Object.fromEntries(
+    manifest.dataSources.map((ds) => [ds.id, ds])
+  );
+
+  const pathToFile: Record<string, File> = Object.fromEntries(
+    datasetFiles.map((f) => [f.archivePath, f.file])
+  );
+
   const datasets =
     manifest.datasets ??
-    dataSources
+    manifest.dataSources
       .filter((ds) => ds.type === 'uri')
       .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
-  const datasetFilePath = manifest.datasetFilePath ?? {};
 
-  const dataSourceIDToStateID = datasets.reduce<Record<number, string>>(
-    (acc, ds) =>
-      Object.assign(acc, {
-        [ds.dataSourceId]: ds.id,
-      }),
-    {}
-  );
-  const pathToFile = datasetFiles.reduce<Record<string, File>>(
-    (acc, datasetFile) =>
-      Object.assign(acc, {
-        [datasetFile.archivePath]: datasetFile.file,
-      }),
-    {}
-  );
-  const fileIDToFile = Object.entries(datasetFilePath).reduce<
-    Record<number, File>
-  >(
-    (acc, [fileId, filePath]) =>
-      Object.assign(acc, {
-        [fileId]: pathToFile[filePath],
-      }),
-    {}
-  );
+  return datasets.flatMap((ds) => {
+    const sources = resolveToLeafSources(
+      ds.dataSourceId,
+      byId,
+      manifest.datasetFilePath,
+      pathToFile
+    );
 
-  const { dataSourceCache, leaves, byId } = rebuildDataSources(
-    dataSources,
-    fileIDToFile
-  );
-
-  const leafDataSources = [...leaves]
-    .filter((leafId) => leafId in dataSourceCache)
-    .map((leafId) => {
-      const dataSource = dataSourceCache[leafId];
-
-      let stateID = dataSourceIDToStateID[leafId];
-
-      if (!stateID) {
-        const matchingDataset = datasets.find((ds) => {
-          const rootUris = findRootUriAncestors(ds.dataSourceId, byId);
-          return rootUris.some((uri) => uri.id === leafId);
-        });
-        if (matchingDataset) {
-          stateID = matchingDataset.id;
-        }
-      }
-
-      return {
-        ...dataSource,
-        stateFileLeaf: { stateID },
-      };
+    const seen = new Set<string>();
+    const uniqueSources = sources.filter((src) => {
+      if (src.type !== 'uri') return true;
+      if (seen.has(src.uri)) return false;
+      seen.add(src.uri);
+      return true;
     });
 
-  return leafDataSources;
+    return uniqueSources.map((src) => ({
+      ...src,
+      stateFileLeaf: { stateID: ds.id },
+    }));
+  });
 }
 
 async function completeStateFileRestore(ctx: StateFileContext) {
   const { manifest, stateFiles, stateIDToStoreID } = ctx;
   const stateIDToStoreIDRecord = Object.fromEntries(stateIDToStoreID);
 
-  // Restore view configs (handles missing configs gracefully)
   useViewConfigStore().deserializeAll(manifest, stateIDToStoreIDRecord);
 
-  // Restore the labelmaps
   const segmentGroupIDMap = await useSegmentGroupStore().deserialize(
     manifest,
     stateFiles,
     stateIDToStoreIDRecord
   );
+  useLayersStore().deserialize(manifest, stateIDToStoreIDRecord);
 
-  // Restore the tools (each tool handles missing data gracefully)
   useToolStore().deserialize(
     manifest,
     segmentGroupIDMap,
     stateIDToStoreIDRecord
   );
-
-  useLayersStore().deserialize(manifest, stateIDToStoreIDRecord);
 }
 
-const restoreStateFile: ImportHandler = async (dataSource, context) => {
+export const restoreStateFile: ImportHandler = async (dataSource, context) => {
   if (dataSource.type === 'file' && (await isStateFile(dataSource.file))) {
     const stateFileContents = await extractFilesFromZip(dataSource.file);
 
@@ -311,5 +216,3 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
   }
   return Skip;
 };
-
-export default restoreStateFile;
