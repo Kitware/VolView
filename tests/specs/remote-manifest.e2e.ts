@@ -9,7 +9,9 @@ describe('VolView loading of remoteManifest.json', () => {
     };
     const fileName = 'remoteFilesBadUrl.json';
     await writeManifestToFile(manifest, fileName);
-    await openVolViewPage(fileName);
+
+    const urlParams = `?urls=[tmp/${fileName}]`;
+    await volViewPage.open(urlParams);
 
     await volViewPage.waitForNotification();
   });

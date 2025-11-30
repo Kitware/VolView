@@ -1,33 +1,5 @@
-import * as path from 'path';
-import * as fs from 'fs';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
 import { MINIMAL_DICOM } from './configTestUtils';
-import { downloadFile } from './utils';
-
-async function writeManifestToZip(manifest: unknown, fileName: string) {
-  const filePath = path.join(TEMP_DIR, fileName);
-  const manifestString = JSON.stringify(manifest, null, 2);
-
-  const zip = new JSZip();
-  zip.file('manifest.json', manifestString);
-  const data = await zip.generateAsync({ type: 'nodebuffer' });
-
-  await fs.promises.writeFile(filePath, data);
-  cleanuptotal.addCleanup(async () => {
-    fs.unlinkSync(filePath);
-  });
-
-  return filePath;
-}
-
-async function openVolViewPage(fileName: string) {
-  const urlParams = `?urls=[tmp/${fileName}]`;
-  await volViewPage.open(urlParams);
-  await volViewPage.waitForViews();
-}
+import { downloadFile, openVolViewPage, writeManifestToZip } from './utils';
 
 describe('Sparse manifest.json', () => {
   it('loads manifest with only URL data source', async () => {
@@ -47,9 +19,6 @@ describe('Sparse manifest.json', () => {
     const fileName = 'sparse-url-only.volview.zip';
     await writeManifestToZip(sparseManifest, fileName);
     await openVolViewPage(fileName);
-
-    const notifications = await volViewPage.getNotificationsCount();
-    expect(notifications).toEqual(0);
   });
 
   it('loads sparse manifest with tools section (rectangle)', async () => {
@@ -92,9 +61,6 @@ describe('Sparse manifest.json', () => {
     const fileName = 'sparse-url-rectangle.volview.zip';
     await writeManifestToZip(sparseManifest, fileName);
     await openVolViewPage(fileName);
-
-    const notifications = await volViewPage.getNotificationsCount();
-    expect(notifications).toEqual(0);
 
     const annotationsTab = await $(
       'button[data-testid="module-tab-Annotations"]'
