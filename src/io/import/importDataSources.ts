@@ -10,12 +10,9 @@ import {
   ErrorResult,
   ImportDataSourcesResult,
   asIntermediateResult,
+  StateFileSetupResult,
 } from '@/src/io/import/common';
-import {
-  DataSource,
-  ChunkSource,
-  StateFileLeaf,
-} from '@/src/io/import/dataSource';
+import { DataSource, ChunkSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
@@ -23,7 +20,10 @@ import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
 import handleGoogleCloudStorage from '@/src/io/import/processors/handleGoogleCloudStorage';
 import importSingleFile from '@/src/io/import/processors/importSingleFile';
 import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
-import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
+import {
+  restoreStateFile,
+  completeStateFileRestore,
+} from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import {
@@ -74,37 +74,16 @@ const applyConfigsPostState = (
     }
   });
 
-function findStateFileLeaf(dataSource: DataSource): StateFileLeaf | undefined {
+function findStateFileLeaf(dataSource: DataSource) {
   let current: DataSource | undefined = dataSource;
   while (current) {
     if (current.stateFileLeaf) return current.stateFileLeaf;
     current = current.parent;
   }
-  // For collections (DICOM volumes), check the first source's parent chain
   if (dataSource.type === 'collection' && dataSource.sources.length > 0) {
     return findStateFileLeaf(dataSource.sources[0]);
   }
   return undefined;
-}
-
-async function handleStateFileResult(
-  result: LoadableResult,
-  importContext: ImportContext
-) {
-  const stateLeaf = findStateFileLeaf(result.dataSource);
-  if (stateLeaf && importContext.stateFileContext) {
-    const ctx = importContext.stateFileContext;
-    ctx.stateIDToStoreID.set(stateLeaf.stateID, result.dataID);
-
-    // Phase 2: Immediately bind view to this data so user sees streaming
-    ctx.onLeafImported(stateLeaf.stateID, result.dataID);
-
-    ctx.pendingLeafCount--;
-    if (ctx.pendingLeafCount === 0) {
-      // Phase 3: Restore tools/segments after all data loaded
-      await ctx.onAllLeavesImported();
-    }
-  }
 }
 
 async function importDicomChunkSources(sources: ChunkSource[]) {
@@ -180,6 +159,7 @@ export async function importDataSources(
 
   const chunkSources: DataSource[] = [];
   const configResults: ConfigResult[] = [];
+  const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
 
   let queue = dataSources.map((src) => ({
@@ -194,6 +174,9 @@ export async function importDataSources(
     queue = queue.filter((_, i) => i !== index);
 
     switch (result.type) {
+      case 'stateFileSetup':
+        stateFileSetups.push(result);
+      // fallthrough to handle dataSources
       case 'intermediate': {
         const [chunks, otherSources] = partition(
           (ds) => ds.type === 'chunk',
@@ -201,7 +184,6 @@ export async function importDataSources(
         );
         chunkSources.push(...chunks);
 
-        // try loading intermediate results
         queue.push(
           ...otherSources.map((src) => ({
             promise: evaluateChain(src, handlers, importContext),
@@ -220,11 +202,8 @@ export async function importDataSources(
         break;
       case 'ok':
       case 'error':
-        results.push(result);
-        break;
       case 'data':
         results.push(result);
-        await handleStateFileResult(result, importContext);
         break;
       default:
         throw new Error(`Invalid result: ${result}`);
@@ -243,10 +222,6 @@ export async function importDataSources(
   try {
     const dicomResults = await importDicomChunkSources(dicomChunkSources);
     results.push(...dicomResults);
-    // Handle state file results for DICOM volumes
-    for (const dicomResult of dicomResults) {
-      await handleStateFileResult(dicomResult, importContext);
-    }
   } catch (err) {
     const errorSource =
       dicomChunkSources.length === 1
@@ -255,10 +230,26 @@ export async function importDataSources(
     results.push(asErrorResult(ensureError(err), errorSource));
   }
 
-  // save data sources
-  useDatasetStore().addDataSources(
-    results.filter((result): result is LoadableResult => result.type === 'data')
+  const loadableResults = results.filter(
+    (r): r is LoadableResult => r.type === 'data'
   );
+
+  useDatasetStore().addDataSources(loadableResults);
+
+  for (const setup of stateFileSetups) {
+    const stateIDToStoreID: Record<string, string> = {};
+    for (const loadable of loadableResults) {
+      const leaf = findStateFileLeaf(loadable.dataSource);
+      if (leaf) {
+        stateIDToStoreID[leaf.stateID] = loadable.dataID;
+      }
+    }
+    await completeStateFileRestore(
+      setup.manifest,
+      setup.stateFiles,
+      stateIDToStoreID
+    );
+  }
 
   return results;
 }
