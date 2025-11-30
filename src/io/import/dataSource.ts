@@ -53,18 +53,19 @@ export interface ChunkSource {
   mime: string;
 }
 
+export interface StateFileLeaf {
+  stateID: string;
+}
+
 /**
  * Represents a source of data.
  *
  * The parent chain denotes the provenance for each step of the data source resolution.
  */
-export type DataSource = { parent?: DataSource } & (
-  | FileSource
-  | UriSource
-  | ArchiveSource
-  | ChunkSource
-  | CollectionSource
-);
+export type DataSource = {
+  parent?: DataSource;
+  stateFileLeaf?: StateFileLeaf;
+} & (FileSource | UriSource | ArchiveSource | ChunkSource | CollectionSource);
 
 /**
  * Creates a DataSource from a single file.

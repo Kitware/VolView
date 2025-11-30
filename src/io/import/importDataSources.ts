@@ -1,6 +1,7 @@
 import {
   ImportHandler,
   ImportResult,
+  ImportContext,
   asErrorResult,
   asLoadableResult,
   ConfigResult,
@@ -10,7 +11,11 @@ import {
   ImportDataSourcesResult,
   asIntermediateResult,
 } from '@/src/io/import/common';
-import { DataSource, ChunkSource } from '@/src/io/import/dataSource';
+import {
+  DataSource,
+  ChunkSource,
+  StateFileLeaf,
+} from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
@@ -43,7 +48,14 @@ const unhandledResource: ImportHandler = (dataSource) => {
 
 const handleCollections: ImportHandler = (dataSource) => {
   if (dataSource.type !== 'collection') return Skip;
-  return asIntermediateResult(dataSource.sources);
+  // Propagate stateFileLeaf to sources so DICOM volumes can be mapped back to state file datasets
+  const sources = dataSource.stateFileLeaf
+    ? dataSource.sources.map((src) => ({
+        ...src,
+        stateFileLeaf: dataSource.stateFileLeaf,
+      }))
+    : dataSource.sources;
+  return asIntermediateResult(sources);
 };
 
 function isSelectable(result: ImportResult): result is LoadableVolumeResult {
@@ -61,6 +73,39 @@ const applyConfigsPostState = (
       return asErrorResult(ensureError(err), result.dataSource);
     }
   });
+
+function findStateFileLeaf(dataSource: DataSource): StateFileLeaf | undefined {
+  let current: DataSource | undefined = dataSource;
+  while (current) {
+    if (current.stateFileLeaf) return current.stateFileLeaf;
+    current = current.parent;
+  }
+  // For collections (DICOM volumes), check the first source's parent chain
+  if (dataSource.type === 'collection' && dataSource.sources.length > 0) {
+    return findStateFileLeaf(dataSource.sources[0]);
+  }
+  return undefined;
+}
+
+async function handleStateFileResult(
+  result: LoadableResult,
+  importContext: ImportContext
+) {
+  const stateLeaf = findStateFileLeaf(result.dataSource);
+  if (stateLeaf && importContext.stateFileContext) {
+    const ctx = importContext.stateFileContext;
+    ctx.stateIDToStoreID.set(stateLeaf.stateID, result.dataID);
+
+    // Phase 2: Immediately bind view to this data so user sees streaming
+    ctx.onLeafImported(stateLeaf.stateID, result.dataID);
+
+    ctx.pendingLeafCount--;
+    if (ctx.pendingLeafCount === 0) {
+      // Phase 3: Restore tools/segments after all data loaded
+      await ctx.onAllLeavesImported();
+    }
+  }
+}
 
 async function importDicomChunkSources(sources: ChunkSource[]) {
   if (sources.length === 0) return [];
@@ -98,7 +143,7 @@ export async function importDataSources(
     while (cleanupHandlers.length) cleanupHandlers.pop()!();
   };
 
-  const importContext = {
+  const importContext: ImportContext = {
     fetchFileCache: new Map<string, File>(),
     onCleanup,
     importDataSources,
@@ -174,9 +219,12 @@ export async function importDataSources(
         }
         break;
       case 'ok':
-      case 'data':
       case 'error':
         results.push(result);
+        break;
+      case 'data':
+        results.push(result);
+        await handleStateFileResult(result, importContext);
         break;
       default:
         throw new Error(`Invalid result: ${result}`);
@@ -193,7 +241,12 @@ export async function importDataSources(
   );
 
   try {
-    results.push(...(await importDicomChunkSources(dicomChunkSources)));
+    const dicomResults = await importDicomChunkSources(dicomChunkSources);
+    results.push(...dicomResults);
+    // Handle state file results for DICOM volumes
+    for (const dicomResult of dicomResults) {
+      await handleStateFileResult(dicomResult, importContext);
+    }
   } catch (err) {
     const errorSource =
       dicomChunkSources.length === 1

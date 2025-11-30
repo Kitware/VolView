@@ -4,6 +4,8 @@ import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { Awaitable } from '@vueuse/core';
 import { Config } from '@/src/io/import/configJson';
 import { ChainHandler } from '@/src/utils/evaluateChain';
+import type { Manifest } from '@/src/io/state-file/schema';
+import type { FileEntry } from '@/src/io/types';
 
 export interface LoadableResult {
   type: 'data';
@@ -99,6 +101,15 @@ export const asOkayResult = (dataSource: DataSource): OkayResult => ({
 export type ArchiveContents = Record<string, File>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
 
+export interface StateFileContext {
+  manifest: Manifest;
+  stateFiles: FileEntry[];
+  stateIDToStoreID: Map<string, string>;
+  pendingLeafCount: number;
+  onLeafImported: (stateID: string, storeID: string) => void;
+  onAllLeavesImported: () => Promise<void>;
+}
+
 export interface ImportContext {
   // Caches URL responses
   fetchFileCache?: FetchCache<File>;
@@ -113,6 +124,8 @@ export interface ImportContext {
   importDataSources?: (
     dataSources: DataSource[]
   ) => Promise<ImportDataSourcesResult[]>;
+  // State file restoration context for 3-phase restoration
+  stateFileContext?: StateFileContext;
 }
 
 export type ImportHandler = ChainHandler<

@@ -7,7 +7,7 @@ export const WINDOW_SIZE = [1200, 800] as const;
 export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
-export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 60000);
+export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 20000);
 
 const ROOT = projectRoot();
 const TMP = '.tmp/';
