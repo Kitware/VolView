@@ -12,7 +12,7 @@ import {
 } from '@/src/io/import/common';
 import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
-import { partition } from '@/src/utils';
+import { partition, getURLBasename } from '@/src/utils';
 import { pipe } from '@/src/utils/functional';
 import {
   makeDefaultSegmentGroupName,
@@ -28,8 +28,11 @@ import openUriStream from '@/src/io/import/processors/openUriStream';
 import updateUriType from '@/src/io/import/processors/updateUriType';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FileEntry } from '@/src/io/types';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
+import { useMessageStore } from '@/src/store/messages';
+import { getDataSourceName } from '@/src/io/import/dataSource';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -319,19 +322,22 @@ type ResolvingImportHandler = ChainHandler<
   ImportContext
 >;
 
+const downloadNonDicomStream: ResolvingImportHandler = (
+  dataSource,
+  context
+) => {
+  if (dataSource.type === 'uri' && dataSource.mime === FILE_EXT_TO_MIME.dcm) {
+    return Skip;
+  }
+  return downloadStream(dataSource, context);
+};
+
 const resolvingHandlers: ResolvingImportHandler[] = [
   openUriStream,
-
-  // updating the file/uri type should be first step in the pipeline
   updateFileMimeType,
   updateUriType,
-
-  // stream handling - only download, not DICOM processing
-  // DICOM processing happens in the main import pipeline
-  downloadStream,
-
+  downloadNonDicomStream,
   extractArchiveTarget,
-
   (dataSource) => {
     return { type: 'resolved', dataSource };
   },
@@ -373,13 +379,15 @@ async function rebuildDataSources(
           parent,
         };
       }
-      case 'uri':
+      case 'uri': {
+        const defaultName = getURLBasename(serialized.uri) || serialized.uri;
         return {
           type: 'uri',
           uri: serialized.uri,
-          name: serialized.name ?? serialized.uri,
+          name: serialized.name ?? defaultName,
           mime: serialized.mime,
         };
+      }
       case 'collection': {
         // these sources are no longer leaves
         serialized.sources.forEach((id) => {
@@ -482,6 +490,7 @@ async function restoreDatasets(
   );
 
   const stateIDToStoreID: Record<string, string> = {};
+  const messageStore = useMessageStore();
 
   await Promise.all(
     [...leaves].map(async (leafId) => {
@@ -492,9 +501,27 @@ async function restoreDatasets(
       const dataResults = importResults.filter(
         (r): r is typeof r & { type: 'data' } => r.type === 'data'
       );
+      const errorResults = importResults.filter((r) => r.type === 'error');
+
+      if (errorResults.length > 0) {
+        const sourceName = getDataSourceName(dataSource) ?? 'Unknown source';
+        const errorMessages = errorResults
+          .map((r) => ('error' in r ? r.error.message : 'Unknown error'))
+          .join(', ');
+        messageStore.addError(
+          `Failed to load data source: ${sourceName}`,
+          errorMessages
+        );
+      }
 
       if (dataResults.length > 0) {
-        stateIDToStoreID[dataSourceIDToStateID[leafId]] = dataResults[0].dataID;
+        const stateID = dataSourceIDToStateID[leafId];
+        stateIDToStoreID[stateID] = dataResults[0].dataID;
+
+        dataResults.slice(1).forEach((result, index) => {
+          const generatedStateID = `${stateID}_${index + 1}`;
+          stateIDToStoreID[generatedStateID] = result.dataID;
+        });
       }
     })
   );
