@@ -5,10 +5,9 @@ import {
 } from '@/src/io/state-file/schema';
 import {
   asErrorResult,
-  asOkayResult,
-  ImportContext,
+  asIntermediateResult,
   ImportHandler,
-  ImportResult,
+  StateFileContext,
 } from '@/src/io/import/common';
 import { DataSource } from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file';
@@ -21,18 +20,10 @@ import {
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
-import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
-import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
-import { ChainHandler, evaluateChain, Skip } from '@/src/utils/evaluateChain';
-import openUriStream from '@/src/io/import/processors/openUriStream';
-import updateUriType from '@/src/io/import/processors/updateUriType';
-import downloadStream from '@/src/io/import/processors/downloadStream';
-import { FileEntry } from '@/src/io/types';
-import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import type { FileEntry } from '@/src/io/types';
+import { Skip } from '@/src/utils/evaluateChain';
 import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
-import { useMessageStore } from '@/src/store/messages';
-import { getDataSourceName } from '@/src/io/import/dataSource';
 
 const LABELMAP_PALETTE_2_1_0 = {
   '1': {
@@ -311,39 +302,29 @@ const migrateManifest = (manifestString: string) => {
   );
 };
 
-type ResolvedResult = {
-  type: 'resolved';
-  dataSource: DataSource;
-};
-
-type ResolvingImportHandler = ChainHandler<
-  DataSource,
-  ImportResult | ResolvedResult,
-  ImportContext
->;
-
-const downloadNonDicomStream: ResolvingImportHandler = (
-  dataSource,
-  context
-) => {
-  if (dataSource.type === 'uri' && dataSource.mime === FILE_EXT_TO_MIME.dcm) {
-    return Skip;
+function findRootUriAncestors(
+  id: number,
+  byId: Record<string, DataSourceType>
+): DataSourceType[] {
+  const src = byId[id];
+  if (!src) return [];
+  if (src.type === 'uri') return [src];
+  if ('parent' in src && src.parent !== undefined) {
+    return findRootUriAncestors(src.parent, byId);
   }
-  return downloadStream(dataSource, context);
-};
+  if (src.type === 'collection') {
+    const uris = new Map<number, DataSourceType>();
+    src.sources.forEach((sourceId) => {
+      findRootUriAncestors(sourceId, byId).forEach((uri) => {
+        uris.set(uri.id, uri);
+      });
+    });
+    return [...uris.values()];
+  }
+  return [];
+}
 
-const resolvingHandlers: ResolvingImportHandler[] = [
-  openUriStream,
-  updateFileMimeType,
-  updateUriType,
-  downloadNonDicomStream,
-  extractArchiveTarget,
-  (dataSource) => {
-    return { type: 'resolved', dataSource };
-  },
-];
-
-async function rebuildDataSources(
+function rebuildDataSources(
   serializedDataSources: DataSourceType[],
   fileIDToFile: Record<number, File>
 ) {
@@ -358,7 +339,7 @@ async function rebuildDataSources(
 
   const deserialize = (
     serialized: (typeof serializedDataSources)[number]
-  ): DataSource => {
+  ): DataSource | null => {
     const { type } = serialized;
     switch (type) {
       case 'file':
@@ -369,10 +350,12 @@ async function rebuildDataSources(
         };
       case 'archive': {
         const parent = dataSourceCache[serialized.parent];
-        if (!parent)
-          throw new Error('Could not find the parent of an archive source');
-        if (parent.type !== 'file')
-          throw new Error('Archive source parent is not a file');
+        if (!parent) {
+          return null;
+        }
+        if (parent.type !== 'file') {
+          return null;
+        }
         return {
           type: 'archive',
           path: serialized.path,
@@ -389,13 +372,15 @@ async function rebuildDataSources(
         };
       }
       case 'collection': {
-        // these sources are no longer leaves
         serialized.sources.forEach((id) => {
           leaves.delete(id);
         });
-        const sources = serialized.sources.map((id) => dataSourceCache[id]);
-        if (sources.some((src) => !src))
-          throw new Error('Could not deserialize a collection source');
+        const sources = serialized.sources
+          .map((id) => dataSourceCache[id])
+          .filter((src): src is DataSource => src != null);
+        if (sources.length === 0) {
+          return null;
+        }
         return {
           type: 'collection',
           sources,
@@ -408,9 +393,6 @@ async function rebuildDataSources(
     }
   };
 
-  // serializedDataSources should be topologically ordered by ancestors first
-  // and descendants last. This is established in
-  // datasets.ts/serializeDataSource()
   for (let i = 0; i < serializedDataSources.length; i++) {
     const serializedSrc = serializedDataSources[i];
 
@@ -418,40 +400,27 @@ async function rebuildDataSources(
       continue;
     }
 
-    let dataSource = deserialize(serializedSrc);
+    const dataSource = deserialize(serializedSrc);
+
+    if (!dataSource) {
+      const rootUris = findRootUriAncestors(serializedSrc.id, byId);
+      leaves.delete(serializedSrc.id);
+      rootUris.forEach((uri) => leaves.add(uri.id));
+      continue;
+    }
 
     if (serializedSrc.parent) {
       dataSource.parent = dataSourceCache[serializedSrc.parent];
       leaves.delete(serializedSrc.parent);
     }
 
-    let stillResolving = true;
-    while (stillResolving) {
-      const result = await evaluateChain(dataSource, resolvingHandlers);
-
-      stillResolving = result.type !== 'resolved';
-      if (!stillResolving) break;
-
-      if (result.type !== 'intermediate') {
-        throw new Error(
-          'Resolving pipeline does not produce intermediate results!'
-        );
-      }
-
-      dataSource = result.dataSources[0];
-    }
-
     dataSourceCache[serializedSrc.id] = dataSource;
   }
 
-  return { dataSourceCache, leaves };
+  return { dataSourceCache, leaves, byId };
 }
 
-async function restoreDatasets(
-  manifest: Manifest,
-  datasetFiles: FileEntry[],
-  context?: ImportContext
-) {
+function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
   const { dataSources } = manifest;
   const datasets =
     manifest.datasets ??
@@ -484,49 +453,59 @@ async function restoreDatasets(
     {}
   );
 
-  const { dataSourceCache, leaves } = await rebuildDataSources(
+  const { dataSourceCache, leaves, byId } = rebuildDataSources(
     dataSources,
     fileIDToFile
   );
 
-  const stateIDToStoreID: Record<string, string> = {};
-  const messageStore = useMessageStore();
-
-  await Promise.all(
-    [...leaves].map(async (leafId) => {
+  const leafDataSources = [...leaves]
+    .filter((leafId) => leafId in dataSourceCache)
+    .map((leafId) => {
       const dataSource = dataSourceCache[leafId];
-      const importResults =
-        (await context?.importDataSources?.([dataSource])) ?? [];
 
-      const dataResults = importResults.filter(
-        (r): r is typeof r & { type: 'data' } => r.type === 'data'
-      );
-      const errorResults = importResults.filter((r) => r.type === 'error');
+      let stateID = dataSourceIDToStateID[leafId];
 
-      if (errorResults.length > 0) {
-        const sourceName = getDataSourceName(dataSource) ?? 'Unknown source';
-        const errorMessages = errorResults
-          .map((r) => ('error' in r ? r.error.message : 'Unknown error'))
-          .join(', ');
-        messageStore.addError(
-          `Failed to load data source: ${sourceName}`,
-          errorMessages
-        );
-      }
-
-      if (dataResults.length > 0) {
-        const stateID = dataSourceIDToStateID[leafId];
-        stateIDToStoreID[stateID] = dataResults[0].dataID;
-
-        dataResults.slice(1).forEach((result, index) => {
-          const generatedStateID = `${stateID}_${index + 1}`;
-          stateIDToStoreID[generatedStateID] = result.dataID;
+      if (!stateID) {
+        const matchingDataset = datasets.find((ds) => {
+          const rootUris = findRootUriAncestors(ds.dataSourceId, byId);
+          return rootUris.some((uri) => uri.id === leafId);
         });
+        if (matchingDataset) {
+          stateID = matchingDataset.id;
+        }
       }
-    })
+
+      return {
+        ...dataSource,
+        stateFileLeaf: { stateID },
+      };
+    });
+
+  return leafDataSources;
+}
+
+async function completeStateFileRestore(ctx: StateFileContext) {
+  const { manifest, stateFiles, stateIDToStoreID } = ctx;
+  const stateIDToStoreIDRecord = Object.fromEntries(stateIDToStoreID);
+
+  // Restore view configs (handles missing configs gracefully)
+  useViewConfigStore().deserializeAll(manifest, stateIDToStoreIDRecord);
+
+  // Restore the labelmaps
+  const segmentGroupIDMap = await useSegmentGroupStore().deserialize(
+    manifest,
+    stateFiles,
+    stateIDToStoreIDRecord
   );
 
-  return stateIDToStoreID;
+  // Restore the tools (each tool handles missing data gracefully)
+  useToolStore().deserialize(
+    manifest,
+    segmentGroupIDMap,
+    stateIDToStoreIDRecord
+  );
+
+  useLayersStore().deserialize(manifest, stateIDToStoreIDRecord);
 }
 
 const restoreStateFile: ImportHandler = async (dataSource, context) => {
@@ -554,45 +533,61 @@ const restoreStateFile: ImportHandler = async (dataSource, context) => {
       );
     }
 
-    // Set layout if provided, otherwise use existing default layout
-    if (manifest.layout) {
-      useViewStore().setLayout(manifest.layout);
-    }
-
-    const stateIDToStoreID = await restoreDatasets(
-      manifest,
-      restOfStateFile,
-      context
-    );
-
-    // Restore the views (handles missing viewByID gracefully)
+    // Phase 1: Set up view layout immediately (without data bindings)
     const viewStore = useViewStore();
-    viewStore.deserialize(manifest, stateIDToStoreID);
+    viewStore.deserializeLayout(manifest);
 
-    // When viewByID is not in manifest, assign first dataset to all views
-    if (!manifest.viewByID) {
-      const firstDataID = Object.values(stateIDToStoreID)[0];
-      if (firstDataID) {
-        viewStore.setDataForAllViews(firstDataID);
-      }
+    // Prepare leaf data sources with state file tags
+    const leafDataSources = prepareLeafDataSources(manifest, restOfStateFile);
+
+    if (leafDataSources.length === 0) {
+      // No datasets to import, complete restoration immediately
+      await completeStateFileRestore({
+        manifest,
+        stateFiles: restOfStateFile,
+        stateIDToStoreID: new Map(),
+        pendingLeafCount: 0,
+        onLeafImported: () => {},
+        onAllLeavesImported: async () => {},
+      });
+
+      // When viewByID is not in manifest, there's no data to assign
+      return asIntermediateResult([]);
     }
 
-    // Restore view configs (handles missing configs gracefully)
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
-
-    // Restore the labelmaps
-    const segmentGroupIDMap = await useSegmentGroupStore().deserialize(
+    // Set up state file context for phase 2 and 3 callbacks
+    const stateFileContext: StateFileContext = {
       manifest,
-      restOfStateFile,
-      stateIDToStoreID
-    );
+      stateFiles: restOfStateFile,
+      stateIDToStoreID: new Map(),
+      pendingLeafCount: leafDataSources.length,
+      onLeafImported: (stateID: string, storeID: string) => {
+        // Phase 2: Bind view to data as each leaf completes
+        viewStore.bindViewsToData(stateID, storeID, manifest);
+      },
+      onAllLeavesImported: async () => {
+        // Phase 3: Restore segment groups, tools, layers after all data loaded
+        await completeStateFileRestore(stateFileContext);
 
-    // Restore the tools (each tool handles missing data gracefully)
-    useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
+        // When viewByID is not in manifest, assign first dataset to all views
+        if (!manifest.viewByID) {
+          const firstStoreID = stateFileContext.stateIDToStoreID
+            .values()
+            .next().value;
+          if (firstStoreID) {
+            viewStore.setDataForAllViews(firstStoreID);
+          }
+        }
+      },
+    };
 
-    useLayersStore().deserialize(manifest, stateIDToStoreID);
+    // Store context for use by main pipeline
+    if (context) {
+      context.stateFileContext = stateFileContext;
+    }
 
-    return asOkayResult(dataSource);
+    // Return leaf data sources to be processed by main pipeline
+    return asIntermediateResult(leafDataSources);
   }
   return Skip;
 };

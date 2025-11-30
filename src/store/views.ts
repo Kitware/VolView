@@ -307,7 +307,7 @@ export const useViewStore = defineStore('view', () => {
     manifest.viewByID = viewByID;
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+  function deserializeLayout(manifest: Manifest) {
     if (manifest.layout) {
       setLayout(manifest.layout);
     }
@@ -327,10 +327,25 @@ export const useViewStore = defineStore('view', () => {
       Object.entries(manifest.viewByID).forEach(([id, view]) => {
         viewByID[id] = {
           ...view,
-          dataID: view.dataID ? dataIDMap[view.dataID] : null,
+          dataID: null,
         } as unknown as ViewInfo;
       });
     }
+  }
+
+  function bindViewsToData(
+    stateID: string,
+    storeID: string,
+    manifest: Manifest
+  ) {
+    if (!manifest.viewByID) return;
+
+    Object.entries(manifest.viewByID).forEach(([id, view]) => {
+      if (view.dataID === stateID && viewByID[id]) {
+        viewByID[id].dataID = storeID;
+        ViewDataChangeEvent.trigger(id, storeID);
+      }
+    });
   }
 
   // initialization
@@ -375,7 +390,8 @@ export const useViewStore = defineStore('view', () => {
     removeDataFromViews,
     toggleActiveViewMaximized,
     serialize,
-    deserialize,
+    deserializeLayout,
+    bindViewsToData,
     ViewDataChangeEvent,
     LayoutViewReplacedEvent,
   };
