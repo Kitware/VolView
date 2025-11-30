@@ -3,7 +3,35 @@ import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
 import { PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET } from './configTestUtils';
 
-describe('Add Layer button', () => {
+describe('Layers and Rendering', () => {
+  it('should show 3D rendering controls regardless of active view', async () => {
+    await openUrls([PROSTATEX_DATASET]);
+
+    await volViewPage.waitForViews();
+
+    const renderTab = volViewPage.renderingModuleTab;
+    await renderTab.click();
+
+    const view3D = await volViewPage.getView3D();
+
+    const volumeRenderingSection =
+      await volViewPage.getVolumeRenderingSection();
+    await expect(volumeRenderingSection).toExist();
+    await expect(volumeRenderingSection).toBeDisplayed();
+
+    const pwfCanvas = await $('div.pwf-editor canvas');
+    await expect(pwfCanvas).toExist();
+
+    await view3D!.click();
+    await expect(volumeRenderingSection).toBeDisplayed();
+
+    const view2D = await volViewPage.getView2D();
+    await view2D!.click();
+
+    await expect(volumeRenderingSection).toBeDisplayed();
+    await expect(pwfCanvas).toExist();
+  });
+
   it('should create overlay with 2 DICOM images', async () => {
     await openUrls([PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET]);
 

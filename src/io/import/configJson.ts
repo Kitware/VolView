@@ -21,7 +21,9 @@ const layouts = z.record(z.string(), layoutConfig).optional();
 // --------------------------------------------------------------------------
 // Keyboard shortcuts
 
-const shortcuts = z.record(zodEnumFromObjKeys(ACTIONS), z.string()).optional();
+const shortcuts = z
+  .partialRecord(zodEnumFromObjKeys(ACTIONS), z.string())
+  .optional();
 
 // --------------------------------------------------------------------------
 // Labels
