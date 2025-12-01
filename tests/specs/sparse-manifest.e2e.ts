@@ -1,5 +1,10 @@
 import { MINIMAL_DICOM } from './configTestUtils';
-import { downloadFile, openVolViewPage, writeManifestToZip } from './utils';
+import {
+  downloadFile,
+  openVolViewPage,
+  writeManifestToFile,
+  writeManifestToZip,
+} from './utils';
 
 describe('Sparse manifest.json', () => {
   it('loads manifest with only URL data source', async () => {
@@ -84,5 +89,24 @@ describe('Sparse manifest.json', () => {
         timeoutMsg: 'Rectangle tool not found in measurements list',
       }
     );
+  });
+
+  it('loads standalone JSON state file (not zipped)', async () => {
+    await downloadFile(MINIMAL_DICOM.url, MINIMAL_DICOM.name);
+
+    const sparseManifest = {
+      version: '6.1.0',
+      dataSources: [
+        {
+          id: 0,
+          type: 'uri',
+          uri: `/tmp/${MINIMAL_DICOM.name}`,
+        },
+      ],
+    };
+
+    const fileName = 'standalone-state.volview.json';
+    await writeManifestToFile(sparseManifest, fileName);
+    await openVolViewPage(fileName);
   });
 });
