@@ -196,14 +196,27 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     const lastIndex = strokePoints.value.length - 1;
     if (lastIndex >= 0) {
-      const lastPoint = strokePoints.value[lastIndex];
-      const prevPoint =
+      const labelmapWorldToIndex = labelmap.getWorldToIndex();
+      const worldToLabelmapIndex = (worldPoint: vec3) => {
+        const indexPoint = vec3.create();
+        vec3.transformMat4(indexPoint, worldPoint, labelmapWorldToIndex);
+        return indexPoint;
+      };
+
+      const lastWorldPoint = strokePoints.value[lastIndex];
+      const prevWorldPoint =
         lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
+
+      const lastIndexPoint = worldToLabelmapIndex(lastWorldPoint);
+      const prevIndexPoint = prevWorldPoint
+        ? worldToLabelmapIndex(prevWorldPoint)
+        : undefined;
+
       this.$paint.paintLabelmap(
         labelmap,
         axisIndex,
-        lastPoint,
-        prevPoint,
+        lastIndexPoint,
+        prevIndexPoint,
         shouldPaint
       );
     }
@@ -250,32 +263,32 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function startStroke(
     this: _This,
-    indexPoint: vec3,
+    worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
     switchToSegmentGroupForImage.call(this, imageID);
-    strokePoints.value = [vec3.clone(indexPoint)];
+    strokePoints.value = [vec3.clone(worldPoint)];
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
   function placeStrokePoint(
     this: _This,
-    indexPoint: vec3,
+    worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
-    strokePoints.value.push(indexPoint);
+    strokePoints.value.push(worldPoint);
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
   function endStroke(
     this: _This,
-    indexPoint: vec3,
+    worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
-    strokePoints.value.push(indexPoint);
+    strokePoints.value.push(worldPoint);
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
