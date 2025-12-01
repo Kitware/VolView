@@ -146,20 +146,34 @@ export async function completeStateFileRestore(
   useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
 }
 
+async function parseManifestFromZip(file: File) {
+  const stateFileContents = await extractFilesFromZip(file);
+
+  const [manifests, restOfStateFile] = partition(
+    (dataFile) => dataFile.file.name === MANIFEST,
+    stateFileContents
+  );
+
+  if (manifests.length !== 1) {
+    throw new Error('State file does not have exactly 1 manifest');
+  }
+
+  const manifestString = await manifests[0].file.text();
+  return { manifestString, stateFiles: restOfStateFile };
+}
+
+async function parseManifestFromJson(file: File) {
+  const manifestString = await file.text();
+  return { manifestString, stateFiles: [] as FileEntry[] };
+}
+
 export const restoreStateFile: ImportHandler = async (dataSource) => {
   if (dataSource.type === 'file' && (await isStateFile(dataSource.file))) {
-    const stateFileContents = await extractFilesFromZip(dataSource.file);
+    const isJson = dataSource.fileType === 'application/json';
+    const { manifestString, stateFiles } = isJson
+      ? await parseManifestFromJson(dataSource.file)
+      : await parseManifestFromZip(dataSource.file);
 
-    const [manifests, restOfStateFile] = partition(
-      (dataFile) => dataFile.file.name === MANIFEST,
-      stateFileContents
-    );
-
-    if (manifests.length !== 1) {
-      throw new Error('State file does not have exactly 1 manifest');
-    }
-
-    const manifestString = await manifests[0].file.text();
     const migrated = migrateManifest(manifestString);
     let manifest: Manifest;
     try {
@@ -175,9 +189,9 @@ export const restoreStateFile: ImportHandler = async (dataSource) => {
 
     return {
       type: 'stateFileSetup',
-      dataSources: prepareLeafDataSources(manifest, restOfStateFile),
+      dataSources: prepareLeafDataSources(manifest, stateFiles),
       manifest,
-      stateFiles: restOfStateFile,
+      stateFiles,
     } as StateFileSetupResult;
   }
   return Skip;

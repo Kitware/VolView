@@ -5,10 +5,11 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useViewStore } from '@/src/store/views';
-import { Manifest } from '@/src/io/state-file/schema';
+import { Manifest, ManifestSchema } from '@/src/io/state-file/schema';
 
 import { retypeFile } from '@/src/io';
 import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
+import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
@@ -70,10 +71,21 @@ export async function serialize() {
 
 export async function isStateFile(file: File) {
   const typedFile = await retypeFile(file);
+
   if (ARCHIVE_FILE_TYPES.has(typedFile.type)) {
     const zip = await JSZip.loadAsync(typedFile);
-
     return zip.file(MANIFEST) !== null;
+  }
+
+  if (typedFile.type === 'application/json') {
+    try {
+      const text = await file.text();
+      const migrated = migrateManifest(text);
+      ManifestSchema.parse(migrated);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   return false;
