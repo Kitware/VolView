@@ -12,7 +12,7 @@ import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '6.1.0';
+export const MANIFEST_VERSION = '6.1.1';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
