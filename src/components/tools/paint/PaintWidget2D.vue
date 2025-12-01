@@ -57,11 +57,8 @@ export default defineComponent({
       () => imageMetadata.value.lpsOrientation[viewAxis.value]
     );
 
-    const worldPointToIndex = (worldPoint: vec3) => {
-      const { worldToIndex } = imageMetadata.value;
-      const indexPoint = vec3.create();
-      vec3.transformMat4(indexPoint, worldPoint, worldToIndex);
-      return indexPoint;
+    const cloneWorldPoint = (worldPoint: vec3) => {
+      return vec3.clone(worldPoint);
     };
 
     const widget = view.widgetManager.addWidget(
@@ -95,17 +92,17 @@ export default defineComponent({
       if (!imageId.value) return;
       paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       const origin = widgetState.getBrush().getOrigin()!;
-      const indexPoint = worldPointToIndex(origin);
-      paintStore.startStroke(indexPoint, viewAxisIndex.value, imageId.value);
+      const worldPoint = cloneWorldPoint(origin);
+      paintStore.startStroke(worldPoint, viewAxisIndex.value, imageId.value);
       paintStore.updatePaintPosition(origin, viewId.value);
     });
 
     onVTKEvent(widget, 'onInteractionEvent', () => {
       if (!imageId.value) return;
       const origin = widgetState.getBrush().getOrigin()!;
-      const indexPoint = worldPointToIndex(origin);
+      const worldPoint = cloneWorldPoint(origin);
       paintStore.placeStrokePoint(
-        indexPoint,
+        worldPoint,
         viewAxisIndex.value,
         imageId.value
       );
@@ -114,8 +111,8 @@ export default defineComponent({
 
     onVTKEvent(widget, 'onEndInteractionEvent', () => {
       if (!imageId.value) return;
-      const indexPoint = worldPointToIndex(widgetState.getBrush().getOrigin()!);
-      paintStore.endStroke(indexPoint, viewAxisIndex.value, imageId.value);
+      const worldPoint = cloneWorldPoint(widgetState.getBrush().getOrigin()!);
+      paintStore.endStroke(worldPoint, viewAxisIndex.value, imageId.value);
     });
 
     // --- manipulator --- //
