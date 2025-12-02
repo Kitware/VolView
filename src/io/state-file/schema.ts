@@ -310,11 +310,19 @@ export const SegmentGroupMetadata = z.object({
   }),
 });
 
-export const LabelMap = z.object({
-  id: z.string(),
-  path: z.string(),
-  metadata: SegmentGroupMetadata,
-});
+export const LabelMap = z
+  .object({
+    id: z.string(),
+    path: z.string().optional(),
+    dataSourceId: z.number().optional(),
+    metadata: SegmentGroupMetadata,
+  })
+  .refine(
+    (data) => data.path !== undefined || data.dataSourceId !== undefined,
+    {
+      message: 'Either path or dataSourceId is required',
+    }
+  );
 
 export type LabelMap = z.infer<typeof LabelMap>;
 
