@@ -26,6 +26,43 @@ export const PROSTATE_SEGMENT_GROUP = {
   name: 'prostate-total.seg.nii.gz',
 } as const;
 
+export const PROSTATE_WITH_LABELMAP_MANIFEST = {
+  version: '6.1.0',
+  dataSources: [
+    {
+      id: 0,
+      type: 'uri',
+      uri: `/tmp/${PROSTATEX_DATASET.name}`,
+    },
+    {
+      id: 1,
+      type: 'uri',
+      uri: `/tmp/${PROSTATE_SEGMENT_GROUP.name}`,
+    },
+  ],
+  labelMaps: [
+    {
+      id: 'seg-1',
+      dataSourceId: 1,
+      metadata: {
+        name: 'Prostate Segmentation',
+        parentImage: '0',
+        segments: {
+          order: [1],
+          byValue: {
+            '1': {
+              value: 1,
+              name: 'Prostate',
+              color: [255, 0, 0, 255],
+              visible: true,
+            },
+          },
+        },
+      },
+    },
+  ],
+} as const;
+
 export const MRA_HEAD_NECK_DATASET = {
   url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
   name: 'MRA-Head_and_Neck.zip',
