@@ -35,10 +35,6 @@ const parseUrlArray = (value: string | string[]): string[] => {
     return splitAndClean(trimmed.slice(1, -1));
   }
 
-  if (trimmed.includes(',')) {
-    return splitAndClean(trimmed);
-  }
-
   return [trimmed];
 };
 
