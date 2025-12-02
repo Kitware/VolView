@@ -127,9 +127,11 @@ export async function completeStateFileRestore(
   });
 
   if (!manifest.viewByID) {
-    const firstStoreID = Object.values(stateIDToStoreID)[0];
-    if (firstStoreID) {
-      viewStore.setDataForAllViews(firstStoreID);
+    const storeID = manifest.primarySelection
+      ? stateIDToStoreID[manifest.primarySelection]
+      : Object.values(stateIDToStoreID)[0];
+    if (storeID) {
+      viewStore.setDataForAllViews(storeID);
     }
   }
 
