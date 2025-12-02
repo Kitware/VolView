@@ -14,7 +14,9 @@ import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/ImageProperty/
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
-import { syncRef } from '@vueuse/core';
+import { watchImmediate } from '@vueuse/core';
+import { convertSliceIndex } from '@/src/utils/imageSpace';
+import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
@@ -86,17 +88,42 @@ watchEffect(() => {
 const parentImageId = computed(() => metadata.value?.parentImage);
 const { metadata: parentMetadata } = useImage(parentImageId);
 
+// Compute labelmap's LPS orientation from its direction matrix
+const labelmapLpsOrientation = computed(() => {
+  const labelmap = imageData.value;
+  if (!labelmap) return null;
+  return getLPSDirections(labelmap.getDirection());
+});
+
+// Set slicing mode based on labelmap's own orientation
 watchEffect(() => {
-  const { lpsOrientation } = parentMetadata.value;
+  const lpsOrientation = labelmapLpsOrientation.value;
+  if (!lpsOrientation) return;
   const ijkIndex = lpsOrientation[axis.value];
   const mode = [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkIndex];
   sliceRep.mapper.setSlicingMode(mode);
 });
 
-// sync slicing
+// sync slicing - convert parent slice to labelmap slice via world coordinates
 const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
-syncRef(storedSlice, slice, { immediate: true });
+
+watchImmediate(
+  [storedSlice, labelmapLpsOrientation, () => parentMetadata.value],
+  () => {
+    const parentImage = parentMetadata.value;
+    const labelmap = imageData.value;
+    if (!parentImage || !labelmap || storedSlice.value == null) return;
+
+    slice.value = convertSliceIndex(
+      storedSlice.value,
+      parentImage.lpsOrientation,
+      parentImage.indexToWorld,
+      labelmap,
+      axis.value
+    );
+  }
+);
 
 // set coloring properties
 const applySegmentColoring = () => {

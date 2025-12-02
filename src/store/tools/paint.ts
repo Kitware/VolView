@@ -10,6 +10,7 @@ import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { worldPointToIndex } from '@/src/utils/imageSpace';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
 import useViewSliceStore from '../view-configs/slicing';
@@ -196,20 +197,13 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     const lastIndex = strokePoints.value.length - 1;
     if (lastIndex >= 0) {
-      const labelmapWorldToIndex = labelmap.getWorldToIndex();
-      const worldToLabelmapIndex = (worldPoint: vec3) => {
-        const indexPoint = vec3.create();
-        vec3.transformMat4(indexPoint, worldPoint, labelmapWorldToIndex);
-        return indexPoint;
-      };
-
       const lastWorldPoint = strokePoints.value[lastIndex];
       const prevWorldPoint =
         lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
 
-      const lastIndexPoint = worldToLabelmapIndex(lastWorldPoint);
+      const lastIndexPoint = worldPointToIndex(labelmap, lastWorldPoint);
       const prevIndexPoint = prevWorldPoint
-        ? worldToLabelmapIndex(prevWorldPoint)
+        ? worldPointToIndex(labelmap, prevWorldPoint)
         : undefined;
 
       this.$paint.paintLabelmap(
