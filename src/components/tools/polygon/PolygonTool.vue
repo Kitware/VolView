@@ -110,6 +110,8 @@ import type { IGrid2D } from '@thi.ng/api';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import { convertSliceIndex } from '@/src/utils/imageSpace';
+import { getLPSDirections } from '@/src/utils/lps';
 import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
 import { usePaintToolStore } from '@/src/store/tools/paint';
@@ -177,7 +179,6 @@ export default defineComponent({
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice ?? 0);
-    const sliceAxis = computed(() => sliceInfo.value?.axisIndex ?? 0);
 
     const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -279,25 +280,41 @@ export default defineComponent({
         paintStore.setActiveSegment(segment.value);
       }
 
-      const image = segmentGroupStore.dataIndex[segmentGroupID];
-      if (!image) {
+      const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
+      if (!labelmap) {
         throw new Error(
           `Failed to get labelmap for segment group ${segmentGroupID}`
         );
       }
 
+      // Convert parent slice index to labelmap slice index
+      const parentMeta = imageMetadata.value;
+      const labelmapSlice = convertSliceIndex(
+        slice.value,
+        parentMeta.lpsOrientation,
+        parentMeta.indexToWorld,
+        labelmap,
+        viewAxis.value
+      );
+
       const points = activeToolStore.getPoints(toolId);
-      const axis = sliceAxis.value;
+      const labelmapIjkIndex = getLPSDirections(labelmap.getDirection())[
+        viewAxis.value
+      ];
 
       const indexSpacePoints2D = points.map((pt) => {
-        const output = [...image.worldToIndex(pt)];
-        output.splice(axis, 1);
+        const output = [...labelmap.worldToIndex(pt)];
+        output.splice(labelmapIjkIndex, 1);
         return output as Vector2;
       });
 
-      const grid = createGridAccessor(image, slice.value, axis);
+      const grid = createGridAccessor(
+        labelmap,
+        labelmapSlice,
+        labelmapIjkIndex
+      );
       fillPoly(grid, indexSpacePoints2D, segment.value);
-      image.modified();
+      labelmap.modified();
     }
 
     return {

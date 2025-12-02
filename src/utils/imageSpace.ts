@@ -1,7 +1,11 @@
 import { EPSILON } from '@/src/constants';
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
+import { vec3 } from 'gl-matrix';
+import type { mat4 } from 'gl-matrix';
+import { getLPSDirections } from '@/src/utils/lps';
+import type { LPSAxis, LPSDirections } from '@/src/types/lps';
 
 // give more fp tolerance due to transforms
 const RELAXED_EPSILON = EPSILON * 1e2;
@@ -37,4 +41,47 @@ export function compareImageSpaces(
   const corners1 = getImageWorldCorners(im1);
   const corners2 = getImageWorldCorners(im2);
   return corners1.every((p1) => corners2.some((p2) => areEquals(p1, p2, eps)));
+}
+
+/**
+ * Convert a world point to image index space.
+ */
+export function worldPointToIndex(image: vtkImageData, worldPoint: vec3): vec3 {
+  const indexPoint = vec3.create();
+  vec3.transformMat4(indexPoint, worldPoint, image.getWorldToIndex());
+  return indexPoint;
+}
+
+/**
+ * Convert an image index point to world space.
+ */
+export function indexPointToWorld(image: vtkImageData, indexPoint: vec3): vec3 {
+  const worldPoint = vec3.create();
+  vec3.transformMat4(worldPoint, indexPoint, image.getIndexToWorld());
+  return worldPoint;
+}
+
+/**
+ * Convert a slice index from source image space to target image space.
+ * Used when source and target have different coordinate systems.
+ */
+export function convertSliceIndex(
+  sourceSlice: number,
+  sourceLps: LPSDirections,
+  sourceIndexToWorld: mat4,
+  targetImage: vtkImageData,
+  axis: LPSAxis
+): number {
+  const sourceIjkIndex = sourceLps[axis];
+  const targetLps = getLPSDirections(targetImage.getDirection());
+  const targetIjkIndex = targetLps[axis];
+
+  const sourceIndexPoint = vec3.fromValues(0, 0, 0);
+  sourceIndexPoint[sourceIjkIndex] = sourceSlice;
+
+  const worldPoint = vec3.create();
+  vec3.transformMat4(worldPoint, sourceIndexPoint, sourceIndexToWorld);
+
+  const targetIndexPoint = worldPointToIndex(targetImage, worldPoint);
+  return Math.round(targetIndexPoint[targetIjkIndex]);
 }
