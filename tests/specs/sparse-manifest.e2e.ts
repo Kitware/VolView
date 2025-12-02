@@ -2,6 +2,7 @@ import {
   MINIMAL_DICOM,
   PROSTATEX_DATASET,
   PROSTATE_SEGMENT_GROUP,
+  PROSTATE_WITH_LABELMAP_MANIFEST,
 } from './configTestUtils';
 import {
   downloadFile,
@@ -9,6 +10,7 @@ import {
   writeManifestToFile,
   writeManifestToZip,
 } from './utils';
+import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 
 describe('Sparse manifest.json', () => {
   it('loads manifest with only URL data source', async () => {
@@ -118,45 +120,8 @@ describe('Sparse manifest.json', () => {
     await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
     await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
 
-    const sparseManifest = {
-      version: '6.1.0',
-      dataSources: [
-        {
-          id: 0,
-          type: 'uri',
-          uri: `/tmp/${PROSTATEX_DATASET.name}`,
-        },
-        {
-          id: 1,
-          type: 'uri',
-          uri: `/tmp/${PROSTATE_SEGMENT_GROUP.name}`,
-        },
-      ],
-      labelMaps: [
-        {
-          id: 'seg-1',
-          dataSourceId: 1,
-          metadata: {
-            name: 'Prostate Segmentation',
-            parentImage: '0',
-            segments: {
-              order: [1],
-              byValue: {
-                '1': {
-                  value: 1,
-                  name: 'Prostate',
-                  color: [255, 0, 0, 255],
-                  visible: true,
-                },
-              },
-            },
-          },
-        },
-      ],
-    };
-
     const fileName = 'remote-segment-group.volview.json';
-    await writeManifestToFile(sparseManifest, fileName);
+    await writeManifestToFile(PROSTATE_WITH_LABELMAP_MANIFEST, fileName);
     await openVolViewPage(fileName);
 
     const annotationsTab = await $(
@@ -175,7 +140,7 @@ describe('Sparse manifest.json', () => {
         return count >= 1;
       },
       {
-        timeout: 15000,
+        timeout: DOWNLOAD_TIMEOUT,
         timeoutMsg: 'Segment group not found in segment groups list',
       }
     );
