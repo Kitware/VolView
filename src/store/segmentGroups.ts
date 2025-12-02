@@ -24,10 +24,12 @@ import {
   StateFile,
   Manifest,
   SegmentGroupMetadata,
+  LabelMap,
 } from '../io/state-file/schema';
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
 import { untilLoaded } from '../composables/untilLoaded';
+import { useDatasetStore } from './datasets';
 
 const LabelmapArrayType = Uint8Array;
 export type LabelmapArrayType = Uint8Array;
@@ -498,6 +500,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     dataIDMap: Record<string, string>
   ) {
     const { labelMaps } = manifest;
+    const datasetStore = useDatasetStore();
 
     const segmentGroupIDMap: Record<string, string> = {};
 
@@ -508,33 +511,48 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // First restore the data, then restore the store.
     // This preserves ordering from orderByParent.
 
-    const newLabelmapIDs = await Promise.all(
-      labelMaps.map(async (labelMap) => {
-        const [file] = stateFiles
-          .filter((entry) => entry.archivePath === normalize(labelMap.path))
-          .map((entry) => entry.file);
+    async function loadLabelMapImage(labelMap: LabelMap) {
+      if (labelMap.dataSourceId !== undefined) {
+        const storeId = dataIDMap[String(labelMap.dataSourceId)];
+        await untilLoaded(storeId);
+        const image = imageCacheStore.getVtkImageData(storeId);
+        if (!image) {
+          throw new Error(
+            `Could not get image data for dataSourceId ${labelMap.dataSourceId}`
+          );
+        }
+        return { image, storeIdToRemove: storeId };
+      }
 
-        const vtkImage = await readImage(file);
-        const labelmapImage = toLabelMap(vtkImage);
+      const file = stateFiles.find(
+        (entry) => entry.archivePath === normalize(labelMap.path!)
+      )?.file;
+      return { image: await readImage(file!) };
+    }
+
+    const labelmapResults = await Promise.all(
+      labelMaps.map(async (labelMap) => {
+        const { image, storeIdToRemove } = await loadLabelMapImage(labelMap);
+        const labelmapImage = toLabelMap(image);
 
         const id = useIdStore().nextId();
         dataIndex[id] = labelmapImage;
-        return id;
+        return { id, storeIdToRemove };
       })
     );
 
     labelMaps.forEach((labelMap, index) => {
-      const { metadata } = labelMap;
-      // map parent id to new id
-      const parentImage = dataIDMap[metadata.parentImage];
-      metadata.parentImage = parentImage;
-
-      const newID = newLabelmapIDs[index];
+      const { id: newID, storeIdToRemove } = labelmapResults[index];
       segmentGroupIDMap[labelMap.id] = newID;
 
-      metadataByID[newID] = metadata;
+      const parentImage = dataIDMap[labelMap.metadata.parentImage];
+      metadataByID[newID] = { ...labelMap.metadata, parentImage };
       orderByParent.value[parentImage] ??= [];
       orderByParent.value[parentImage].push(newID);
+
+      if (storeIdToRemove) {
+        datasetStore.remove(storeIdToRemove);
+      }
     });
 
     return segmentGroupIDMap;

@@ -1,4 +1,8 @@
-import { MINIMAL_DICOM } from './configTestUtils';
+import {
+  MINIMAL_DICOM,
+  PROSTATEX_DATASET,
+  PROSTATE_SEGMENT_GROUP,
+} from './configTestUtils';
 import {
   downloadFile,
   openVolViewPage,
@@ -108,5 +112,72 @@ describe('Sparse manifest.json', () => {
     const fileName = 'standalone-state.volview.json';
     await writeManifestToFile(sparseManifest, fileName);
     await openVolViewPage(fileName);
+  });
+
+  it('loads remote segment group from URI', async () => {
+    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
+    await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
+
+    const sparseManifest = {
+      version: '6.1.0',
+      dataSources: [
+        {
+          id: 0,
+          type: 'uri',
+          uri: `/tmp/${PROSTATEX_DATASET.name}`,
+        },
+        {
+          id: 1,
+          type: 'uri',
+          uri: `/tmp/${PROSTATE_SEGMENT_GROUP.name}`,
+        },
+      ],
+      labelMaps: [
+        {
+          id: 'seg-1',
+          dataSourceId: 1,
+          metadata: {
+            name: 'Prostate Segmentation',
+            parentImage: '0',
+            segments: {
+              order: [1],
+              byValue: {
+                '1': {
+                  value: 1,
+                  name: 'Prostate',
+                  color: [255, 0, 0, 255],
+                  visible: true,
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const fileName = 'remote-segment-group.volview.json';
+    await writeManifestToFile(sparseManifest, fileName);
+    await openVolViewPage(fileName);
+
+    const annotationsTab = await $(
+      'button[data-testid="module-tab-Annotations"]'
+    );
+    await annotationsTab.click();
+
+    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
+    await segmentGroupsTab.waitForClickable();
+    await segmentGroupsTab.click();
+
+    await browser.waitUntil(
+      async () => {
+        const segmentGroups = await $$('.segment-group-list .v-list-item');
+        const count = await segmentGroups.length;
+        return count >= 1;
+      },
+      {
+        timeout: 15000,
+        timeoutMsg: 'Segment group not found in segment groups list',
+      }
+    );
   });
 });

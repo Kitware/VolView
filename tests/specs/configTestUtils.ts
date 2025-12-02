@@ -21,6 +21,11 @@ export const PROSTATEX_DATASET = {
   name: 'prostate.zip',
 } as const;
 
+export const PROSTATE_SEGMENT_GROUP = {
+  url: 'https://data.kitware.com/api/v1/file/692f13ed80eaefe49a4abb72/download',
+  name: 'prostate-total.seg.nii.gz',
+} as const;
+
 export const MRA_HEAD_NECK_DATASET = {
   url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
   name: 'MRA-Head_and_Neck.zip',
