@@ -35,7 +35,7 @@ import { defineComponent, onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import { onKeyDown } from '@vueuse/core';
 
-import { serialize } from '../io/state-file';
+import { serialize } from '../io/state-file/serialize';
 
 const DEFAULT_FILENAME = 'session.volview.zip';
 
