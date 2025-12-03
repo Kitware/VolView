@@ -24,7 +24,7 @@ import {
   StateFile,
   Manifest,
   SegmentGroupMetadata,
-  LabelMap,
+  SegmentGroup,
 } from '../io/state-file/schema';
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
@@ -478,7 +478,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       });
     });
 
-    state.manifest.labelMaps = serialized;
+    state.manifest.segmentGroups = serialized;
 
     // save labelmap images
     await Promise.all(
@@ -499,40 +499,41 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     stateFiles: FileEntry[],
     dataIDMap: Record<string, string>
   ) {
-    const { labelMaps } = manifest;
+    const { segmentGroups } = manifest;
     const datasetStore = useDatasetStore();
 
     const segmentGroupIDMap: Record<string, string> = {};
 
-    if (!labelMaps || labelMaps.length === 0) {
+    if (!segmentGroups || segmentGroups.length === 0) {
       return segmentGroupIDMap;
     }
 
     // First restore the data, then restore the store.
     // This preserves ordering from orderByParent.
 
-    async function loadLabelMapImage(labelMap: LabelMap) {
-      if (labelMap.dataSourceId !== undefined) {
-        const storeId = dataIDMap[String(labelMap.dataSourceId)];
+    async function loadSegmentGroupImage(segmentGroup: SegmentGroup) {
+      if (segmentGroup.dataSourceId !== undefined) {
+        const storeId = dataIDMap[String(segmentGroup.dataSourceId)];
         await untilLoaded(storeId);
         const image = imageCacheStore.getVtkImageData(storeId);
         if (!image) {
           throw new Error(
-            `Could not get image data for dataSourceId ${labelMap.dataSourceId}`
+            `Could not get image data for dataSourceId ${segmentGroup.dataSourceId}`
           );
         }
         return { image, storeIdToRemove: storeId };
       }
 
       const file = stateFiles.find(
-        (entry) => entry.archivePath === normalize(labelMap.path!)
+        (entry) => entry.archivePath === normalize(segmentGroup.path!)
       )?.file;
       return { image: await readImage(file!) };
     }
 
     const labelmapResults = await Promise.all(
-      labelMaps.map(async (labelMap) => {
-        const { image, storeIdToRemove } = await loadLabelMapImage(labelMap);
+      segmentGroups.map(async (segmentGroup) => {
+        const { image, storeIdToRemove } =
+          await loadSegmentGroupImage(segmentGroup);
         const labelmapImage = toLabelMap(image);
 
         const id = useIdStore().nextId();
@@ -541,12 +542,12 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       })
     );
 
-    labelMaps.forEach((labelMap, index) => {
+    segmentGroups.forEach((segmentGroup, index) => {
       const { id: newID, storeIdToRemove } = labelmapResults[index];
-      segmentGroupIDMap[labelMap.id] = newID;
+      segmentGroupIDMap[segmentGroup.id] = newID;
 
-      const parentImage = dataIDMap[labelMap.metadata.parentImage];
-      metadataByID[newID] = { ...labelMap.metadata, parentImage };
+      const parentImage = dataIDMap[segmentGroup.metadata.parentImage];
+      metadataByID[newID] = { ...segmentGroup.metadata, parentImage };
       orderByParent.value[parentImage] ??= [];
       orderByParent.value[parentImage].push(newID);
 

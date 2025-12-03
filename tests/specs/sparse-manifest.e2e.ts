@@ -2,7 +2,7 @@ import {
   MINIMAL_DICOM,
   PROSTATEX_DATASET,
   PROSTATE_SEGMENT_GROUP,
-  PROSTATE_WITH_LABELMAP_MANIFEST,
+  PROSTATE_610_LABELMAP_MANIFEST,
 } from './configTestUtils';
 import {
   downloadFile,
@@ -121,7 +121,7 @@ describe('Sparse manifest.json', () => {
     await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
 
     const fileName = 'remote-segment-group.volview.json';
-    await writeManifestToFile(PROSTATE_WITH_LABELMAP_MANIFEST, fileName);
+    await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
     await openVolViewPage(fileName);
 
     const annotationsTab = await $(

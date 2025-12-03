@@ -26,7 +26,7 @@ export const PROSTATE_SEGMENT_GROUP = {
   name: 'prostate-total.seg.nii.gz',
 } as const;
 
-export const PROSTATE_WITH_LABELMAP_MANIFEST = {
+export const PROSTATE_610_LABELMAP_MANIFEST = {
   version: '6.1.0',
   dataSources: [
     {

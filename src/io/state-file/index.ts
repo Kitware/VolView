@@ -13,7 +13,7 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '6.1.1';
+export const MANIFEST_VERSION = '6.2.0';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();
@@ -28,7 +28,7 @@ export async function serialize() {
     datasets: [],
     dataSources: [],
     datasetFilePath: {},
-    labelMaps: [],
+    segmentGroups: [],
     tools: {
       crosshairs: {
         position: [0, 0, 0],

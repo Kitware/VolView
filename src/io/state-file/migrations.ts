@@ -252,6 +252,14 @@ const migrate600To610 = (inputManifest: any) => {
   return manifest;
 };
 
+const migrate610To620 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  manifest.segmentGroups = inputManifest.labelMaps;
+  delete manifest.labelMaps;
+  manifest.version = '6.2.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
@@ -259,6 +267,7 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['1.1.0', '1.0.0', '0.5.0'], migrateBefore210),
     migrateOrPass(['2.1.0'], migrate210To300),
     migrateOrPass(['5.0.1'], migrate501To600),
-    migrateOrPass(['6.0.0'], migrate600To610)
+    migrateOrPass(['6.0.0'], migrate600To610),
+    migrateOrPass(['6.1.0'], migrate610To620)
   );
 };
