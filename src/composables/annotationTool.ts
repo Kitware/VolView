@@ -191,20 +191,21 @@ export const useHover = (
 
   watch(synchronousOverlayInfo, resetOverlay);
 
-  const overlayInfo = computed(() =>
-    showOverlay.value
-      ? synchronousOverlayInfo.value
-      : ({ visible: false } as Info)
-  );
-
   const toolStore = useToolStore();
-  const noInfoWithoutSelect = computed(() => {
-    if (toolStore.currentTool !== Tools.Select)
+  const TOOLS_WITH_HOVER = [
+    Tools.Select,
+    Tools.Ruler,
+    Tools.Rectangle,
+    Tools.Polygon,
+  ];
+  const overlayInfo = computed(() => {
+    if (!showOverlay.value) return { visible: false } as Info;
+    if (!TOOLS_WITH_HOVER.includes(toolStore.currentTool))
       return { visible: false } as Info;
-    return overlayInfo.value;
+    return synchronousOverlayInfo.value;
   });
 
-  return { overlayInfo: noInfoWithoutSelect, onHover };
+  return { overlayInfo, onHover };
 };
 
 export const usePlacingAnnotationTool = (
