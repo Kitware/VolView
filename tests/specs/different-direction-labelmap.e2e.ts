@@ -1,7 +1,7 @@
 import {
   PROSTATEX_DATASET,
   PROSTATE_SEGMENT_GROUP,
-  PROSTATE_WITH_LABELMAP_MANIFEST,
+  PROSTATE_610_LABELMAP_MANIFEST,
 } from './configTestUtils';
 import { downloadFile, writeManifestToFile } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -32,10 +32,7 @@ describe('Labelmap with different direction matrix', () => {
     };
 
     const manifestFileName = 'different-direction-labelmap.volview.json';
-    await writeManifestToFile(
-      PROSTATE_WITH_LABELMAP_MANIFEST,
-      manifestFileName
-    );
+    await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, manifestFileName);
 
     const configFileName = 'different-direction-labelmap-config.json';
     const configFilePath = path.join(TEMP_DIR, configFileName);

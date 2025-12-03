@@ -310,7 +310,7 @@ export const SegmentGroupMetadata = z.object({
   }),
 });
 
-export const LabelMap = z
+export const SegmentGroup = z
   .object({
     id: z.string(),
     path: z.string().optional(),
@@ -324,7 +324,7 @@ export const LabelMap = z
     }
   );
 
-export type LabelMap = z.infer<typeof LabelMap>;
+export type SegmentGroup = z.infer<typeof SegmentGroup>;
 
 const LPSAxis = z.union([
   z.literal('Axial'),
@@ -425,7 +425,7 @@ export const ManifestSchema = z.object({
   datasets: Dataset.array().optional(),
   dataSources: DataSource.array(),
   datasetFilePath: z.record(z.string(), z.string()).optional(),
-  labelMaps: LabelMap.array().optional(),
+  segmentGroups: SegmentGroup.array().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),
