@@ -4,7 +4,7 @@ import vtkPlanePointManipulator from '@kitware/vtk.js/Widgets/Manipulators/Plane
 import vtkSphereHandleRepresentation from '@kitware/vtk.js/Widgets/Representations/SphereHandleRepresentation';
 import { Behavior } from '@kitware/vtk.js/Widgets/Representations/WidgetRepresentation/Constants';
 import vtkLineGlyphRepresentation from '@/src/vtk/LineGlyphRepresentation';
-import vtkPolygonFillRepresentation from '@/src/vtk/PolygonFillRepresentation';
+import vtkPolygonFillRepresentation from './PolygonFillRepresentation';
 
 import widgetBehavior from './behavior';
 import stateGenerator, { HandlesLabel, MoveHandleLabel } from './state';

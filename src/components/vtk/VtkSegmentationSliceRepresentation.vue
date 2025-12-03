@@ -49,6 +49,9 @@ onVTKEvent(imageData, 'onModified', () => {
 // setup slice rep
 const sliceRep = useSliceRepresentation(view, imageData);
 
+// Let widget fill representations be picked through the segment overlay
+sliceRep.actor.setPickable(false);
+
 sliceRep.property.setRGBTransferFunction(
   0,
   vtkColorTransferFunction.newInstance()
