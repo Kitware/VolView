@@ -10,6 +10,7 @@ import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { worldPointToIndex } from '@/src/utils/imageSpace';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
 import useViewSliceStore from '../view-configs/slicing';
@@ -196,14 +197,20 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     const lastIndex = strokePoints.value.length - 1;
     if (lastIndex >= 0) {
-      const lastPoint = strokePoints.value[lastIndex];
-      const prevPoint =
+      const lastWorldPoint = strokePoints.value[lastIndex];
+      const prevWorldPoint =
         lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
+
+      const lastIndexPoint = worldPointToIndex(labelmap, lastWorldPoint);
+      const prevIndexPoint = prevWorldPoint
+        ? worldPointToIndex(labelmap, prevWorldPoint)
+        : undefined;
+
       this.$paint.paintLabelmap(
         labelmap,
         axisIndex,
-        lastPoint,
-        prevPoint,
+        lastIndexPoint,
+        prevIndexPoint,
         shouldPaint
       );
     }
@@ -250,32 +257,32 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function startStroke(
     this: _This,
-    indexPoint: vec3,
+    worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
     switchToSegmentGroupForImage.call(this, imageID);
-    strokePoints.value = [vec3.clone(indexPoint)];
+    strokePoints.value = [vec3.clone(worldPoint)];
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
   function placeStrokePoint(
     this: _This,
-    indexPoint: vec3,
+    worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
-    strokePoints.value.push(indexPoint);
+    strokePoints.value.push(worldPoint);
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
   function endStroke(
     this: _This,
-    indexPoint: vec3,
+    worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
-    strokePoints.value.push(indexPoint);
+    strokePoints.value.push(worldPoint);
     doPaintStroke.call(this, axisIndex, imageID);
   }
 
@@ -370,7 +377,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function serialize(state: StateFile) {
-    const { paint } = state.manifest.tools;
+    const paint = state.manifest.tools?.paint;
+    if (!paint) return;
 
     paint.activeSegmentGroupID = activeSegmentGroupID.value ?? null;
     paint.brushSize = brushSize.value;
@@ -383,11 +391,15 @@ export const usePaintToolStore = defineStore('paint', () => {
     manifest: Manifest,
     segmentGroupIDMap: Record<string, string>
   ) {
-    const { paint } = manifest.tools;
-    setBrushSize.call(this, paint.brushSize);
-    isActive.value = manifest.tools.current === Tools.Paint;
+    const paint = manifest.tools?.paint;
+    if (!paint) return;
 
-    if (paint.activeSegmentGroupID !== null) {
+    if (paint.brushSize !== undefined) {
+      setBrushSize.call(this, paint.brushSize);
+    }
+    isActive.value = manifest.tools?.current === Tools.Paint;
+
+    if (paint.activeSegmentGroupID) {
       activeSegmentGroupID.value =
         segmentGroupIDMap[paint.activeSegmentGroupID];
       setActiveSegmentGroup(activeSegmentGroupID.value);

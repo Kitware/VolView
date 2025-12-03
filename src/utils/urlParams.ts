@@ -10,9 +10,7 @@ type ParsedUrlParams = {
 
 const isValidUrl = (str: string) => {
   try {
-    // eslint-disable-next-line no-new
-    new URL(str.trim(), window.location.href);
-    return true;
+    return !!new URL(str.trim(), window.location.href);
   } catch {
     return false;
   }
@@ -35,10 +33,6 @@ const parseUrlArray = (value: string | string[]): string[] => {
 
   if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
     return splitAndClean(trimmed.slice(1, -1));
-  }
-
-  if (trimmed.includes(',')) {
-    return splitAndClean(trimmed);
   }
 
   return [trimmed];

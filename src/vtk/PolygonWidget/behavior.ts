@@ -51,6 +51,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     return overSegment && !overUnselectedHandle;
   };
 
+  // Check if mouse is over fill representation (for hover but not interaction)
+  const checkOverFill = () => {
+    const selections = model._widgetManager.getSelections();
+    return (
+      model.representations[2] &&
+      selections?.[0]?.getProperties().prop ===
+        model.representations[2].getActors()[0]
+    );
+  };
+
   // support setting per-view widget manipulators
   macro.setGet(publicAPI, model, ['manipulator']);
 
@@ -156,17 +166,23 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // --------------------------------------------------------------------------
 
   publicAPI.handleLeftButtonPress = (event: vtkMouseEvent) => {
+    if (!model.manipulator) {
+      return macro.VOID;
+    }
+
     const activeWidget = model._widgetManager.getActiveWidget();
 
+    // If not placing and hovering over another widget, don't consume event.
     if (
-      !model.manipulator ||
-      // If hovering over another widget, don't consume event.
-      (activeWidget && activeWidget !== publicAPI)
+      !model.widgetState.getPlacing() &&
+      activeWidget &&
+      activeWidget !== publicAPI
     ) {
       return macro.VOID;
     }
 
-    if (checkOverSegment()) {
+    // Ignore clicks on this widget's segment or fill
+    if (checkOverSegment() || checkOverFill()) {
       return macro.VOID;
     }
 
@@ -194,7 +210,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    if (model.activeState?.getActive() && model.pickable && model.dragable) {
+    if (
+      model.activeState?.getActive() &&
+      model.activeState?.setOrigin &&
+      model.pickable &&
+      model.dragable
+    ) {
       setDragging(true);
       model._apiSpecificRenderWindow.setCursor('grabbing');
       model._interactor.requestAnimation(publicAPI);
@@ -233,7 +254,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     publicAPI.invokeHoverEvent({
       ...event,
-      hovering: !!model.activeState,
+      hovering: !!model.activeState || checkOverFill(),
     });
 
     return macro.VOID;

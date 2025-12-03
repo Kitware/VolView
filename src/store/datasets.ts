@@ -157,12 +157,14 @@ export const useDatasetStore = defineStore('dataset', () => {
     manifest.dataSources = serializedDependencies;
 
     // add any locally loaded files
-    manifest.datasetFilePath = {};
-    Object.entries(files).forEach(([fileId, file]) => {
-      const filePath = `data/${fileId}/${file.name}`;
-      zip.file(filePath, file);
-      manifest.datasetFilePath[fileId] = filePath;
-    });
+    if (Object.keys(files).length > 0) {
+      manifest.datasetFilePath = {};
+      Object.entries(files).forEach(([fileId, file]) => {
+        const filePath = `data/${fileId}/${file.name}`;
+        zip.file(filePath, file);
+        manifest.datasetFilePath![fileId] = filePath;
+      });
+    }
   }
 
   const remove = (id: string | null) => {

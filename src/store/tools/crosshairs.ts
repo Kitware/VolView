@@ -111,13 +111,16 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   }
 
   function serialize(state: StateFile) {
-    const { crosshairs } = state.manifest.tools;
+    const crosshairs = state.manifest.tools?.crosshairs;
+    if (!crosshairs) return;
     crosshairs.position = position.value;
   }
 
   function deserialize(manifest: Manifest) {
-    const { crosshairs } = manifest.tools;
-    position.value = crosshairs.position;
+    const crosshairsPosition = manifest.tools?.crosshairs?.position;
+    if (crosshairsPosition) {
+      position.value = crosshairsPosition;
+    }
   }
 
   return {

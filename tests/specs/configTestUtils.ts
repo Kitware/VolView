@@ -11,6 +11,11 @@ export const MINIMAL_DICOM = {
   name: 'minimal.dcm',
 } as const;
 
+export const MINIMAL_501_SESSION = {
+  url: 'https://data.kitware.com/api/v1/file/693077d880eaefe49a4abb88/download',
+  name: 'minimal-501-session.volview.zip',
+} as const;
+
 export const ANOTHER_DICOM = {
   url: 'https://data.kitware.com/api/v1/file/655d42a694ef39bf0a4a8bb3/download',
   name: '1-001.dcm',
@@ -19,6 +24,48 @@ export const ANOTHER_DICOM = {
 export const PROSTATEX_DATASET = {
   url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
   name: 'prostate.zip',
+} as const;
+
+export const PROSTATE_SEGMENT_GROUP = {
+  url: 'https://data.kitware.com/api/v1/file/692f13ed80eaefe49a4abb72/download',
+  name: 'prostate-total.seg.nii.gz',
+} as const;
+
+export const PROSTATE_610_LABELMAP_MANIFEST = {
+  version: '6.1.0',
+  dataSources: [
+    {
+      id: 0,
+      type: 'uri',
+      uri: `/tmp/${PROSTATEX_DATASET.name}`,
+    },
+    {
+      id: 1,
+      type: 'uri',
+      uri: `/tmp/${PROSTATE_SEGMENT_GROUP.name}`,
+    },
+  ],
+  labelMaps: [
+    {
+      id: 'seg-1',
+      dataSourceId: 1,
+      metadata: {
+        name: 'Prostate Segmentation',
+        parentImage: '0',
+        segments: {
+          order: [1],
+          byValue: {
+            '1': {
+              value: 1,
+              name: 'Prostate',
+              color: [255, 0, 0, 255],
+              visible: true,
+            },
+          },
+        },
+      },
+    },
+  ],
 } as const;
 
 export const MRA_HEAD_NECK_DATASET = {

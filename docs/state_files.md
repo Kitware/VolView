@@ -1,11 +1,69 @@
 # State Files
 
-VolView state files are a great way to save your scene and data to either be used later, or for distributing to collaborators and other users. These files store all of the information you need to restore the state of VolView: your data, annotations, camera positions, background colors, colormaps, multi-view layouts, and more.
+VolView state files save your scene configuration: annotations, camera positions, colormaps, layouts, and more. There are two formats:
 
-State files can be saved by clicking on "Disk" icon in the top of the toolbar. This button will generate a `*.volview.zip` file that can then be re-opened in VolView at any time.
+## Zip State Files (`*.volview.zip`)
 
-When saving VolView state, your data is saved along with the application state. This way, when you send a state file to a collaborator, they too can open the state file and load the previously saved data. However, this means that your state file will be as large as your dataset(s) and may contain patient identifying information. Please follow your institutes HIPAA, IRB and other regulatory and confidentiality requirements.
+Save by clicking the "Disk" icon in the toolbar. This embeds your image data that was loaded from local files alongside the application state. Useful for sharing annotations with collaborators.
 
-State files are loaded by clicking on the "Folder" icon immediately below the save-state Disk icon. This will bring up a file browser for you to select and load your state file.
+## Sparse Manifest Files (`*.volview.json`)
 
-TIP: State files are a great way for developers to transfer data into / out of VolView for integration with other systems. For example, they can be used to integrate VolView with access control systems, to streamline workflows, or to ingest results from AI systems.
+JSON files that reference remote data via URIs instead of embedding it. Useful for:
+
+- Linking to data hosted on servers
+- Sharing annotations without duplicating large datasets
+- Integrating with external systems (AI pipelines, access control, etc.)
+
+Example manifest:
+
+```json
+{
+  "version": "6.2.0",
+  "dataSources": [
+    { "id": 0, "type": "uri", "uri": "https://example.com/scan.zip" },
+    { "id": 1, "type": "uri", "uri": "https://example.com/segmentation.nii.gz" }
+  ],
+  "segmentGroups": [
+    {
+      "id": "seg-1",
+      "dataSourceId": 1,
+      "metadata": {
+        "name": "Tumor Segmentation",
+        "parentImage": "0",
+        "segments": {
+          "order": [1],
+          "byValue": {
+            "1": { "value": 1, "name": "Tumor", "color": [255, 0, 0, 255] }
+          }
+        }
+      }
+    }
+  ],
+  "tools": {
+    "rectangles": {
+      "tools": [
+        {
+          "imageID": "0",
+          "frameOfReference": {
+            "planeNormal": [0, 0, 1],
+            "planeOrigin": [0, 0, 50]
+          },
+          "slice": 50,
+          "firstPoint": [-20, -20, 50],
+          "secondPoint": [20, 20, 50],
+          "label": "lesion"
+        }
+      ],
+      "labels": {
+        "lesion": { "color": "red" }
+      }
+    }
+  }
+}
+```
+
+## Loading State Files
+
+- **Drag and drop** onto VolView
+- **File browser** via the "Folder" icon below the save button
+- **URL parameter**: `?urls=[https://example.com/session.volview.json]`

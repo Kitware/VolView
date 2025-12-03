@@ -29,16 +29,6 @@ describe('normalizeUrlParams', () => {
     ]);
   });
 
-  it('handles comma-separated URLs', () => {
-    const result = normalizeUrlParams({
-      urls: 'https://example.com/file1.dcm,https://example.com/file2.dcm',
-    });
-    expect(result.urls).toEqual([
-      'https://example.com/file1.dcm',
-      'https://example.com/file2.dcm',
-    ]);
-  });
-
   it('allows relative URLs (they resolve against base URL)', () => {
     const result = normalizeUrlParams({
       urls: ['https://example.com/valid.dcm', 'relative-path', 'another/path'],
@@ -56,6 +46,15 @@ describe('normalizeUrlParams', () => {
     });
     expect(result.urls).toEqual([
       'https://api.example.com/getImage?id=123&format=dcm',
+    ]);
+  });
+
+  it('preserves commas in query strings', () => {
+    const result = normalizeUrlParams({
+      urls: '/api/v1/folder/123/volview?items=id1,id2,id3',
+    });
+    expect(result.urls).toEqual([
+      '/api/v1/folder/123/volview?items=id1,id2,id3',
     ]);
   });
 

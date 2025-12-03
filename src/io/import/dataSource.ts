@@ -5,32 +5,31 @@ import { Maybe } from '@/src/types';
 /**
  * Represents a URI source with a file name for the downloaded resource.
  */
-export interface UriSource {
+export type UriSource = {
   type: 'uri';
   uri: string;
   name: string;
   mime?: string;
   fetcher?: Fetcher;
-}
+};
 
 /**
  * Represents a user-specified file.
  */
-export interface FileSource {
+export type FileSource = {
   type: 'file';
   file: File;
   fileType: string;
-}
+};
 
 /**
  * Represents an archive member. The parent should exist and be a FileSource.
  */
-export interface ArchiveSource {
+export type ArchiveSource = {
   type: 'archive';
-  // Full path + filename inside the archive
   path: string;
   parent: FileSource;
-}
+};
 
 /**
  * Represents a collection of data sources.
@@ -38,33 +37,36 @@ export interface ArchiveSource {
  * This is used for data that is derived from a collection of data sources,
  * e.g. reconstructed DICOM.
  */
-export interface CollectionSource {
+export type CollectionSource = {
   type: 'collection';
-
   sources: DataSource[];
-}
+};
 
 /**
  * Represents a data chunk for further processing and import.
  */
-export interface ChunkSource {
+export type ChunkSource = {
   type: 'chunk';
   chunk: Chunk;
   mime: string;
-}
+};
+
+/**
+ * Used to map DICOM volumes back to state file datasets.
+ */
+export type StateFileLeaf = {
+  stateID: string;
+};
 
 /**
  * Represents a source of data.
  *
  * The parent chain denotes the provenance for each step of the data source resolution.
  */
-export type DataSource = { parent?: DataSource } & (
-  | FileSource
-  | UriSource
-  | ArchiveSource
-  | ChunkSource
-  | CollectionSource
-);
+export type DataSource = {
+  parent?: DataSource;
+  stateFileLeaf?: StateFileLeaf;
+} & (FileSource | UriSource | ArchiveSource | ChunkSource | CollectionSource);
 
 /**
  * Creates a DataSource from a single file.

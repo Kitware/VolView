@@ -67,3 +67,7 @@ To layer images:
 1. Under the Rendering tab, an opacity slider changes the transparency of the upper layer.
 
 ![Add Layer](./assets/add-layer.jpg)
+
+## State Files
+
+Load preconfigured scenes with annotations, segment groups, and view settings via [state files](./state_files.md). State files can embed data (`*.volview.zip`) or reference remote data via URIs (`*.volview.json`).

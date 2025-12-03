@@ -1,4 +1,4 @@
-import { serialize } from '@/src/io/state-file';
+import { serialize } from '@/src/io/state-file/serialize';
 import { useMessageStore } from '@/src/store/messages';
 import { $fetch } from '@/src/utils/fetch';
 import { defineStore } from 'pinia';

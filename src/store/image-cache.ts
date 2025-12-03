@@ -26,7 +26,13 @@ export const useImageCacheStore = defineStore('image-cache', () => {
 
   function getVtkImageData(id: Maybe<string>): Maybe<vtkImageData> {
     if (!id) return null;
-    return imageById[id]?.getVtkImageData() ?? null;
+    const image = imageById[id];
+    if (!image) return null;
+    const data = image.getVtkImageData();
+    // ProgressiveImage initializes with empty vtkImageData before actual data loads.
+    // VTK.js volume renderer crashes on empty data (null scalar texture).
+    if (!data.getPointData().getScalars()?.getData()?.length) return null;
+    return data;
   }
 
   function getImageMetadata(id: Maybe<string>): Maybe<ImageMetadata> {

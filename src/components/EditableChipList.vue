@@ -39,7 +39,11 @@ const itemsToRender = computed(() =>
     mandatory
   >
     <v-row dense>
-      <v-col cols="6" v-for="({ key, title }, idx) in itemsToRender" :key="key">
+      <v-col
+        cols="12"
+        v-for="({ key, title }, idx) in itemsToRender"
+        :key="key"
+      >
         <v-item v-slot="{ selectedClass, toggle }" :value="key">
           <v-chip
             variant="tonal"
@@ -59,7 +63,7 @@ const itemsToRender = computed(() =>
       </v-col>
 
       <!-- Add Label button -->
-      <v-col cols="6">
+      <v-col cols="12">
         <v-chip variant="outlined" class="w-100" @click="$emit('create')">
           <v-icon class="mr-2">mdi-plus</v-icon>
           {{ createLabelText }}

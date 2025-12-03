@@ -4,48 +4,58 @@ import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { Awaitable } from '@vueuse/core';
 import { Config } from '@/src/io/import/configJson';
 import { ChainHandler } from '@/src/utils/evaluateChain';
+import type { Manifest } from '@/src/io/state-file/schema';
+import type { FileEntry } from '@/src/io/types';
 
-export interface LoadableResult {
+export type LoadableResult = {
   type: 'data';
   dataID: string;
   dataSource: DataSource;
   dataType: 'image' | 'model';
-}
+};
 
-export interface LoadableVolumeResult extends LoadableResult {
+export type LoadableVolumeResult = LoadableResult & {
   dataType: 'image';
-}
+};
 
-export interface LoadableModelResult extends LoadableResult {
+export type LoadableModelResult = LoadableResult & {
   dataType: 'model';
-}
+};
 
-export interface ConfigResult {
+export type ConfigResult = {
   type: 'config';
   config: Config;
   dataSource: DataSource;
-}
+};
 
-export interface OkayResult {
+export type OkayResult = {
   type: 'ok';
   dataSource: DataSource;
-}
+};
 
-export interface IntermediateResult {
+export type IntermediateResult = {
   type: 'intermediate';
   dataSources: DataSource[];
-}
+};
 
-export interface ErrorResult {
+export type StateFileSetupResult = {
+  type: 'stateFileSetup';
+  dataSources: DataSource[];
+  manifest: Manifest;
+  stateFiles: FileEntry[];
+};
+
+export type ErrorResult = {
   type: 'error';
   error: Error;
   dataSource: DataSource;
-}
+};
 
 export type ImportResult =
   | LoadableResult
   | ConfigResult
   | IntermediateResult
+  | StateFileSetupResult
   | OkayResult
   | ErrorResult;
 
@@ -99,21 +109,15 @@ export const asOkayResult = (dataSource: DataSource): OkayResult => ({
 export type ArchiveContents = Record<string, File>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
 
-export interface ImportContext {
-  // Caches URL responses
+export type ImportContext = {
   fetchFileCache?: FetchCache<File>;
-  // Caches archives. ArchiveFile -> { [archivePath]: File }
   archiveCache?: ArchiveCache;
-  // Records dicom files
   dicomDataSources?: DataSource[];
   onCleanup?: (fn: () => void) => void;
-  /**
-   * A reference to importDataSources for nested imports.
-   */
   importDataSources?: (
     dataSources: DataSource[]
   ) => Promise<ImportDataSourcesResult[]>;
-}
+};
 
 export type ImportHandler = ChainHandler<
   DataSource,

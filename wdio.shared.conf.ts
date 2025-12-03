@@ -3,11 +3,40 @@ import * as fs from 'fs';
 import type { Options, Capabilities } from '@wdio/types';
 import { projectRoot } from './tests/e2eTestUtils';
 
+const TEST_DATASETS = [
+  {
+    url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
+    name: 'CT000085.dcm',
+  },
+  {
+    url: 'https://data.kitware.com/api/v1/file/68e9807dbf0f869935e36481/download',
+    name: 'minimal.dcm',
+  },
+  {
+    url: 'https://data.kitware.com/api/v1/file/655d42a694ef39bf0a4a8bb3/download',
+    name: '1-001.dcm',
+  },
+  {
+    url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
+    name: 'prostate.zip',
+  },
+  {
+    url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
+    name: 'MRA-Head_and_Neck.zip',
+  },
+  {
+    url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
+    name: 'fetus.zip',
+  },
+];
+
 export const WINDOW_SIZE = [1200, 800] as const;
 export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
-export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 60000);
+export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 20000);
+
+const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
 
 const ROOT = projectRoot();
 const TMP = '.tmp/';
@@ -26,21 +55,21 @@ export const config: Options.Testrunner = {
   // ==================
   // Specify Test Files
   // ==================
-  specs: ['./tests/specs/**/*.ts'],
-  exclude: ['./tests/specs/session-zip.e2e.ts'],
+  specs: ['./tests/specs/**/*.e2e.ts'],
+  exclude: [],
   //
   // ============
   // Capabilities
   // ============
-  maxInstances: 1,
+  maxInstances: IS_CI ? 1 : 6,
   //
   // ===================
   // Test Configurations
   // ===================
   logLevel: 'warn',
   bail: 0,
-  waitforTimeout: 30000,
-  connectionRetryTimeout: 120000,
+  waitforTimeout: 10000,
+  connectionRetryTimeout: 90000,
   connectionRetryCount: 3,
   services: [
     [
@@ -72,15 +101,26 @@ export const config: Options.Testrunner = {
   reporters: ['spec', 'html-nice'],
   mochaOpts: {
     ui: 'bdd',
-    timeout: 160 * 1000,
+    timeout: 60000,
   },
 
   //
   // Hooks
   //
 
-  onPrepare() {
+  async onPrepare() {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
+
+    const downloads = TEST_DATASETS.map(async ({ url, name }) => {
+      const savePath = path.join(TEMP_DIR, name);
+      if (fs.existsSync(savePath)) {
+        return;
+      }
+      const response = await fetch(url);
+      const data = await response.arrayBuffer();
+      fs.writeFileSync(savePath, Buffer.from(data));
+    });
+    await Promise.all(downloads);
   },
 
   async before(

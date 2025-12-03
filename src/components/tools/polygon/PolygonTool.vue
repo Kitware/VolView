@@ -110,6 +110,8 @@ import type { IGrid2D } from '@thi.ng/api';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
+import { convertSliceIndex } from '@/src/utils/imageSpace';
+import { getLPSDirections } from '@/src/utils/lps';
 import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
 import { usePaintToolStore } from '@/src/store/tools/paint';
@@ -177,7 +179,6 @@ export default defineComponent({
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice ?? 0);
-    const sliceAxis = computed(() => sliceInfo.value?.axisIndex ?? 0);
 
     const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -279,25 +280,41 @@ export default defineComponent({
         paintStore.setActiveSegment(segment.value);
       }
 
-      const image = segmentGroupStore.dataIndex[segmentGroupID];
-      if (!image) {
+      const segmentGroup = segmentGroupStore.dataIndex[segmentGroupID];
+      if (!segmentGroup) {
         throw new Error(
-          `Failed to get labelmap for segment group ${segmentGroupID}`
+          `Failed to get segment group data for ${segmentGroupID}`
         );
       }
 
+      // Convert parent slice index to segment group slice index
+      const parentMeta = imageMetadata.value;
+      const segmentGroupSlice = convertSliceIndex(
+        slice.value,
+        parentMeta.lpsOrientation,
+        parentMeta.indexToWorld,
+        segmentGroup,
+        viewAxis.value
+      );
+
       const points = activeToolStore.getPoints(toolId);
-      const axis = sliceAxis.value;
+      const segmentGroupIjkIndex = getLPSDirections(
+        segmentGroup.getDirection()
+      )[viewAxis.value];
 
       const indexSpacePoints2D = points.map((pt) => {
-        const output = [...image.worldToIndex(pt)];
-        output.splice(axis, 1);
+        const output = [...segmentGroup.worldToIndex(pt)];
+        output.splice(segmentGroupIjkIndex, 1);
         return output as Vector2;
       });
 
-      const grid = createGridAccessor(image, slice.value, axis);
+      const grid = createGridAccessor(
+        segmentGroup,
+        segmentGroupSlice,
+        segmentGroupIjkIndex
+      );
       fillPoly(grid, indexSpacePoints2D, segment.value);
-      image.modified();
+      segmentGroup.modified();
     }
 
     return {

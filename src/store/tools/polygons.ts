@@ -184,11 +184,12 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
+    if (!state.manifest.tools) return;
     state.manifest.tools.polygons = toolAPI.serializeTools();
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    toolAPI.deserializeTools(manifest.tools.polygons, dataIDMap);
+    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap);
   }
 
   return {

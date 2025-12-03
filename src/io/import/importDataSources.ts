@@ -9,6 +9,7 @@ import {
   ErrorResult,
   ImportDataSourcesResult,
   asIntermediateResult,
+  StateFileSetupResult,
 } from '@/src/io/import/common';
 import { DataSource, ChunkSource } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
@@ -18,7 +19,10 @@ import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
 import handleGoogleCloudStorage from '@/src/io/import/processors/handleGoogleCloudStorage';
 import importSingleFile from '@/src/io/import/processors/importSingleFile';
 import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
-import restoreStateFile from '@/src/io/import/processors/restoreStateFile';
+import {
+  restoreStateFile,
+  completeStateFileRestore,
+} from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
 import {
@@ -43,7 +47,14 @@ const unhandledResource: ImportHandler = (dataSource) => {
 
 const handleCollections: ImportHandler = (dataSource) => {
   if (dataSource.type !== 'collection') return Skip;
-  return asIntermediateResult(dataSource.sources);
+  // Propagate stateFileLeaf to sources so DICOM volumes can be mapped back to state file datasets
+  const sources = dataSource.stateFileLeaf
+    ? dataSource.sources.map((src) => ({
+        ...src,
+        stateFileLeaf: dataSource.stateFileLeaf,
+      }))
+    : dataSource.sources;
+  return asIntermediateResult(sources);
 };
 
 function isSelectable(result: ImportResult): result is LoadableVolumeResult {
@@ -61,6 +72,18 @@ const applyConfigsPostState = (
       return asErrorResult(ensureError(err), result.dataSource);
     }
   });
+
+function findStateFileLeaf(dataSource: DataSource) {
+  let current: DataSource | undefined = dataSource;
+  while (current) {
+    if (current.stateFileLeaf) return current.stateFileLeaf;
+    current = current.parent;
+  }
+  if (dataSource.type === 'collection' && dataSource.sources.length > 0) {
+    return findStateFileLeaf(dataSource.sources[0]);
+  }
+  return undefined;
+}
 
 async function importDicomChunkSources(sources: ChunkSource[]) {
   if (sources.length === 0) return [];
@@ -135,6 +158,7 @@ export async function importDataSources(
 
   const chunkSources: DataSource[] = [];
   const configResults: ConfigResult[] = [];
+  const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
 
   let queue = dataSources.map((src) => ({
@@ -149,6 +173,9 @@ export async function importDataSources(
     queue = queue.filter((_, i) => i !== index);
 
     switch (result.type) {
+      case 'stateFileSetup':
+        stateFileSetups.push(result);
+      // fallthrough to handle dataSources
       case 'intermediate': {
         const [chunks, otherSources] = partition(
           (ds) => ds.type === 'chunk',
@@ -156,7 +183,6 @@ export async function importDataSources(
         );
         chunkSources.push(...chunks);
 
-        // try loading intermediate results
         queue.push(
           ...otherSources.map((src) => ({
             promise: evaluateChain(src, handlers, importContext),
@@ -174,8 +200,8 @@ export async function importDataSources(
         }
         break;
       case 'ok':
-      case 'data':
       case 'error':
+      case 'data':
         results.push(result);
         break;
       default:
@@ -193,7 +219,8 @@ export async function importDataSources(
   );
 
   try {
-    results.push(...(await importDicomChunkSources(dicomChunkSources)));
+    const dicomResults = await importDicomChunkSources(dicomChunkSources);
+    results.push(...dicomResults);
   } catch (err) {
     const errorSource =
       dicomChunkSources.length === 1
@@ -202,10 +229,26 @@ export async function importDataSources(
     results.push(asErrorResult(ensureError(err), errorSource));
   }
 
-  // save data sources
-  useDatasetStore().addDataSources(
-    results.filter((result): result is LoadableResult => result.type === 'data')
+  const loadableResults = results.filter(
+    (r): r is LoadableResult => r.type === 'data'
   );
+
+  useDatasetStore().addDataSources(loadableResults);
+
+  for (const setup of stateFileSetups) {
+    const stateIDToStoreID: Record<string, string> = {};
+    for (const loadable of loadableResults) {
+      const leaf = findStateFileLeaf(loadable.dataSource);
+      if (leaf) {
+        stateIDToStoreID[leaf.stateID] = loadable.dataID;
+      }
+    }
+    await completeStateFileRestore(
+      setup.manifest,
+      setup.stateFiles,
+      stateIDToStoreID
+    );
+  }
 
   return results;
 }
