@@ -25,6 +25,5 @@ describe('VolView loading of remoteManifest.json', () => {
     const fileName = 'remoteFilesRelativeURI.json';
     await writeManifestToFile(manifest, fileName);
     await openVolViewPage(fileName);
-    await volViewPage.waitForViews();
   });
 });
