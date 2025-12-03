@@ -149,6 +149,7 @@ export default defineComponent({
   position: relative;
   flex: 2;
   overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .module-text {
