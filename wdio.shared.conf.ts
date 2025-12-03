@@ -13,10 +13,6 @@ const TEST_DATASETS = [
     name: 'minimal.dcm',
   },
   {
-    url: 'https://data.kitware.com/api/v1/file/655d42a694ef39bf0a4a8bb3/download',
-    name: '1-001.dcm',
-  },
-  {
     url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
     name: 'prostate.zip',
   },
