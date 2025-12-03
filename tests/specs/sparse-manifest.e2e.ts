@@ -144,5 +144,14 @@ describe('Sparse manifest.json', () => {
         timeoutMsg: 'Segment group not found in segment groups list',
       }
     );
+
+    // Verify the segment group source image is NOT in the Anonymous section
+    const dataTab = await $('button[data-testid="module-tab-Data"]');
+    await dataTab.click();
+
+    // The Anonymous panel should not exist since the labelmap source image should be removed
+    const anonymousPanelTitle = await $('.v-expansion-panel-title*=Anonymous');
+    const exists = await anonymousPanelTitle.isExisting();
+    expect(exists).toBe(false);
   });
 });
