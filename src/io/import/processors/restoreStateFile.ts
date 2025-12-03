@@ -8,7 +8,7 @@ import {
   ImportHandler,
   StateFileSetupResult,
 } from '@/src/io/import/common';
-import { MANIFEST, isStateFile } from '@/src/io/state-file';
+import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
 import { partition, getURLBasename } from '@/src/utils';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useToolStore } from '@/src/store/tools';
