@@ -11,6 +11,11 @@ export const MINIMAL_DICOM = {
   name: 'minimal.dcm',
 } as const;
 
+export const MINIMAL_501_SESSION = {
+  url: 'https://data.kitware.com/api/v1/file/693077d880eaefe49a4abb88/download',
+  name: 'minimal-501-session.volview.zip',
+} as const;
+
 export const ANOTHER_DICOM = {
   url: 'https://data.kitware.com/api/v1/file/655d42a694ef39bf0a4a8bb3/download',
   name: '1-001.dcm',

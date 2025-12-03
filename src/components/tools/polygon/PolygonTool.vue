@@ -280,41 +280,41 @@ export default defineComponent({
         paintStore.setActiveSegment(segment.value);
       }
 
-      const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
-      if (!labelmap) {
+      const segmentGroup = segmentGroupStore.dataIndex[segmentGroupID];
+      if (!segmentGroup) {
         throw new Error(
-          `Failed to get labelmap for segment group ${segmentGroupID}`
+          `Failed to get segment group data for ${segmentGroupID}`
         );
       }
 
-      // Convert parent slice index to labelmap slice index
+      // Convert parent slice index to segment group slice index
       const parentMeta = imageMetadata.value;
-      const labelmapSlice = convertSliceIndex(
+      const segmentGroupSlice = convertSliceIndex(
         slice.value,
         parentMeta.lpsOrientation,
         parentMeta.indexToWorld,
-        labelmap,
+        segmentGroup,
         viewAxis.value
       );
 
       const points = activeToolStore.getPoints(toolId);
-      const labelmapIjkIndex = getLPSDirections(labelmap.getDirection())[
-        viewAxis.value
-      ];
+      const segmentGroupIjkIndex = getLPSDirections(
+        segmentGroup.getDirection()
+      )[viewAxis.value];
 
       const indexSpacePoints2D = points.map((pt) => {
-        const output = [...labelmap.worldToIndex(pt)];
-        output.splice(labelmapIjkIndex, 1);
+        const output = [...segmentGroup.worldToIndex(pt)];
+        output.splice(segmentGroupIjkIndex, 1);
         return output as Vector2;
       });
 
       const grid = createGridAccessor(
-        labelmap,
-        labelmapSlice,
-        labelmapIjkIndex
+        segmentGroup,
+        segmentGroupSlice,
+        segmentGroupIjkIndex
       );
       fillPoly(grid, indexSpacePoints2D, segment.value);
-      labelmap.modified();
+      segmentGroup.modified();
     }
 
     return {

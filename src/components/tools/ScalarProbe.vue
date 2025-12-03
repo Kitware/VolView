@@ -118,47 +118,49 @@ const getImageSamples = (x: number, y: number) => {
     firstToSample.image.indexToWorld(pickedIjk) as vec3
   );
 
-  const samples = sampleSet.value.map((item: any) => {
-    // Convert world position to this specific image's IJK
-    const itemIjk = worldPointToIndex(item.image, worldPosition);
-    const dims = item.image.getDimensions();
-    const scalarData = item.image.getPointData().getScalars();
+  const samples = sampleSet.value
+    .map((item: any) => {
+      // Convert world position to this specific image's IJK
+      const itemIjk = worldPointToIndex(item.image, worldPosition);
+      const dims = item.image.getDimensions();
+      const scalarData = item.image.getPointData().getScalars();
 
-    // Round to nearest integer indices
-    const i = Math.round(itemIjk[0]);
-    const j = Math.round(itemIjk[1]);
-    const k = Math.round(itemIjk[2]);
+      // Round to nearest integer indices
+      const i = Math.round(itemIjk[0]);
+      const j = Math.round(itemIjk[1]);
+      const k = Math.round(itemIjk[2]);
 
-    // Check bounds
-    if (
-      i < 0 ||
-      j < 0 ||
-      k < 0 ||
-      i >= dims[0] ||
-      j >= dims[1] ||
-      k >= dims[2]
-    ) {
-      return null;
-    }
+      // Check bounds
+      if (
+        i < 0 ||
+        j < 0 ||
+        k < 0 ||
+        i >= dims[0] ||
+        j >= dims[1] ||
+        k >= dims[2]
+      ) {
+        return null;
+      }
 
-    const index = dims[0] * dims[1] * k + dims[0] * j + i;
-    const scalars = scalarData.getTuple(index) as number[];
-    const baseInfo = { id: item.id, name: item.name };
+      const index = dims[0] * dims[1] * k + dims[0] * j + i;
+      const scalars = scalarData.getTuple(index) as number[];
+      const baseInfo = { id: item.id, name: item.name };
 
-    if (item.type === 'segmentGroup') {
-      return {
-        ...baseInfo,
-        displayValues: scalars.map(
-          (v) => item.segments.byValue[v]?.name || 'Background'
-        ),
-      };
-    }
-    return { ...baseInfo, displayValues: scalars };
-  });
+      if (item.type === 'segmentGroup') {
+        return {
+          ...baseInfo,
+          displayValues: scalars.map(
+            (v) => item.segments.byValue[v]?.name || 'Background'
+          ),
+        };
+      }
+      return { ...baseInfo, displayValues: scalars };
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null);
 
   return {
     pos: worldPosition,
-    samples: samples.filter((s): s is NonNullable<typeof s> => s !== null),
+    samples,
   };
 };
 

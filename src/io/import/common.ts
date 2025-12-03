@@ -7,49 +7,49 @@ import { ChainHandler } from '@/src/utils/evaluateChain';
 import type { Manifest } from '@/src/io/state-file/schema';
 import type { FileEntry } from '@/src/io/types';
 
-export interface LoadableResult {
+export type LoadableResult = {
   type: 'data';
   dataID: string;
   dataSource: DataSource;
   dataType: 'image' | 'model';
-}
+};
 
-export interface LoadableVolumeResult extends LoadableResult {
+export type LoadableVolumeResult = LoadableResult & {
   dataType: 'image';
-}
+};
 
-export interface LoadableModelResult extends LoadableResult {
+export type LoadableModelResult = LoadableResult & {
   dataType: 'model';
-}
+};
 
-export interface ConfigResult {
+export type ConfigResult = {
   type: 'config';
   config: Config;
   dataSource: DataSource;
-}
+};
 
-export interface OkayResult {
+export type OkayResult = {
   type: 'ok';
   dataSource: DataSource;
-}
+};
 
-export interface IntermediateResult {
+export type IntermediateResult = {
   type: 'intermediate';
   dataSources: DataSource[];
-}
+};
 
-export interface StateFileSetupResult {
+export type StateFileSetupResult = {
   type: 'stateFileSetup';
   dataSources: DataSource[];
   manifest: Manifest;
   stateFiles: FileEntry[];
-}
+};
 
-export interface ErrorResult {
+export type ErrorResult = {
   type: 'error';
   error: Error;
   dataSource: DataSource;
-}
+};
 
 export type ImportResult =
   | LoadableResult
@@ -109,7 +109,7 @@ export const asOkayResult = (dataSource: DataSource): OkayResult => ({
 export type ArchiveContents = Record<string, File>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
 
-export interface ImportContext {
+export type ImportContext = {
   fetchFileCache?: FetchCache<File>;
   archiveCache?: ArchiveCache;
   dicomDataSources?: DataSource[];
@@ -117,7 +117,7 @@ export interface ImportContext {
   importDataSources?: (
     dataSources: DataSource[]
   ) => Promise<ImportDataSourcesResult[]>;
-}
+};
 
 export type ImportHandler = ChainHandler<
   DataSource,
