@@ -91,38 +91,38 @@ watchEffect(() => {
 const parentImageId = computed(() => metadata.value?.parentImage);
 const { metadata: parentMetadata } = useImage(parentImageId);
 
-// Compute labelmap's LPS orientation from its direction matrix
-const labelmapLpsOrientation = computed(() => {
-  const labelmap = imageData.value;
-  if (!labelmap) return null;
-  return getLPSDirections(labelmap.getDirection());
+// Compute segment group's LPS orientation from its direction matrix
+const segmentGroupLpsOrientation = computed(() => {
+  const segmentGroup = imageData.value;
+  if (!segmentGroup) return null;
+  return getLPSDirections(segmentGroup.getDirection());
 });
 
-// Set slicing mode based on labelmap's own orientation
+// Set slicing mode based on segment group's own orientation
 watchEffect(() => {
-  const lpsOrientation = labelmapLpsOrientation.value;
+  const lpsOrientation = segmentGroupLpsOrientation.value;
   if (!lpsOrientation) return;
   const ijkIndex = lpsOrientation[axis.value];
   const mode = [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkIndex];
   sliceRep.mapper.setSlicingMode(mode);
 });
 
-// sync slicing - convert parent slice to labelmap slice via world coordinates
+// sync slicing - convert parent slice to segment group slice via world coordinates
 const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 
 watchImmediate(
-  [storedSlice, labelmapLpsOrientation, () => parentMetadata.value],
+  [storedSlice, segmentGroupLpsOrientation, parentMetadata],
   () => {
     const parentImage = parentMetadata.value;
-    const labelmap = imageData.value;
-    if (!parentImage || !labelmap || storedSlice.value == null) return;
+    const segmentGroup = imageData.value;
+    if (!parentImage || !segmentGroup || storedSlice.value == null) return;
 
     slice.value = convertSliceIndex(
       storedSlice.value,
       parentImage.lpsOrientation,
       parentImage.indexToWorld,
-      labelmap,
+      segmentGroup,
       axis.value
     );
   }

@@ -36,6 +36,8 @@ export const TEST_PORT = 4567;
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
 export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 20000);
 
+const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
+
 const ROOT = projectRoot();
 const TMP = '.tmp/';
 // TEMP_DIR is also browser downloads directory
@@ -53,13 +55,13 @@ export const config: Options.Testrunner = {
   // ==================
   // Specify Test Files
   // ==================
-  specs: ['./tests/specs/**/*.ts'],
-  exclude: ['./tests/specs/session-zip.e2e.ts'],
+  specs: ['./tests/specs/**/*.e2e.ts'],
+  exclude: [],
   //
   // ============
   // Capabilities
   // ============
-  maxInstances: 1,
+  maxInstances: IS_CI ? 1 : 6,
   //
   // ===================
   // Test Configurations
