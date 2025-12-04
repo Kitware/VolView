@@ -92,6 +92,7 @@ import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
 import {
   useContextMenu,
   useCurrentTools,
@@ -235,7 +236,31 @@ export default defineComponent({
 
     // ---  //
 
-    const { contextMenu, openContextMenu } = useContextMenu();
+    const { contextMenu, openContextMenu: baseOpenContextMenu } =
+      useContextMenu();
+
+    // Check if any rectangle is actively being placed
+    const rectangleStore = useRectangleStore();
+    const isAnyRectanglePlacing = () => {
+      return rectangleStore.tools.some(
+        (tool) => tool.placing && tool.firstPoint && tool.secondPoint
+      );
+    };
+
+    // Suppress context menu for non-placing polygons when actively placing
+    // or when a rectangle is actively being placed
+    const openContextMenu = (id: ToolID, event: any) => {
+      if (isAnyRectanglePlacing()) {
+        return;
+      }
+      if (placingTool.id.value && id !== placingTool.id.value) {
+        const placingToolData = activeToolStore.toolByID[placingTool.id.value];
+        if (placingToolData?.points?.length > 0) {
+          return;
+        }
+      }
+      baseOpenContextMenu(id, event);
+    };
 
     const currentTools = useCurrentTools(
       activeToolStore,
@@ -247,7 +272,24 @@ export default defineComponent({
       })
     );
 
-    const { onHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
+
+    // Suppress hover for non-placing polygons when actively placing (has points)
+    // or when a rectangle is actively being placed
+    const onHover = (id: ToolID, event: any) => {
+      if (isAnyRectanglePlacing()) {
+        baseOnHover(id, { ...event, hovering: false });
+        return;
+      }
+      if (placingTool.id.value && id !== placingTool.id.value) {
+        const placingToolData = activeToolStore.toolByID[placingTool.id.value];
+        if (placingToolData?.points?.length > 0) {
+          baseOnHover(id, { ...event, hovering: false });
+          return;
+        }
+      }
+      baseOnHover(id, event);
+    };
 
     const mergePossible = computed(
       () => activeToolStore.mergeableTools.length >= 1

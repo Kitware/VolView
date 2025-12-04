@@ -184,6 +184,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
+    // Don't emit hover events if another widget has focus (e.g., is placing)
+    const activeWidget = model._widgetManager.getActiveWidget();
+    if (activeWidget && activeWidget !== publicAPI) {
+      publicAPI.invokeHoverEvent({
+        ...eventData,
+        hovering: false,
+      });
+      return macro.VOID;
+    }
+
     publicAPI.invokeHoverEvent({
       ...eventData,
       hovering: !!model.activeState || checkOverFill(),
@@ -220,6 +230,13 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       return macro.VOID;
     }
+
+    // If another widget has focus (e.g., is placing), don't show context menu
+    const activeWidget = model._widgetManager.getActiveWidget();
+    if (activeWidget && activeWidget !== publicAPI) {
+      return macro.VOID;
+    }
+
     publicAPI.invokeRightClickEvent(eventData);
     return macro.EVENT_ABORT;
   };

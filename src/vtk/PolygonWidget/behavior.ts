@@ -192,8 +192,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (model.widgetState.getPlacing() && manipulator) {
       // Dropping first point?
       if (model.widgetState.getHandles().length === 0) {
-        // update variables used by updateActiveStateHandle
-        model.activeState = model.widgetState.getMoveHandle();
         model._widgetManager.grabFocus(publicAPI);
       }
       updateActiveStateHandle(event);
@@ -250,6 +248,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
     if (model.hasFocus) {
       model._widgetManager.disablePicking();
+    }
+
+    // Don't emit hover events if another widget has focus (e.g., is placing)
+    const activeWidget = model._widgetManager.getActiveWidget();
+    if (activeWidget && activeWidget !== publicAPI) {
+      publicAPI.invokeHoverEvent({
+        ...event,
+        hovering: false,
+      });
+      return macro.VOID;
     }
 
     publicAPI.invokeHoverEvent({
@@ -422,6 +430,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     if (model.widgetState.getPlacing()) {
       removeLastHandle();
       return macro.EVENT_ABORT;
+    }
+
+    // If another widget has focus (e.g., is placing), don't show context menu
+    const activeWidget = model._widgetManager.getActiveWidget();
+    if (activeWidget && activeWidget !== publicAPI) {
+      return macro.VOID;
     }
 
     const eventWithWidgetAction = {
