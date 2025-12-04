@@ -16,11 +16,6 @@ export const MINIMAL_501_SESSION = {
   name: 'minimal-501-session.volview.zip',
 } as const;
 
-export const ANOTHER_DICOM = {
-  url: 'https://data.kitware.com/api/v1/file/655d42a694ef39bf0a4a8bb3/download',
-  name: '1-001.dcm',
-} as const;
-
 export const PROSTATEX_DATASET = {
   url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
   name: 'prostate.zip',

@@ -96,26 +96,23 @@ const pointPicker = vtkPointPicker.newInstance();
 pointPicker.setPickFromList(true);
 
 watch(
-  sampleSet,
-  (samples) => {
-    pointPicker.setPickList(
-      samples.length > 0 && samples[0] ? [samples[0].rep.actor] : []
-    );
+  () => baseRep.value?.actor,
+  (actor) => {
+    pointPicker.setPickList(actor ? [actor] : []);
   },
   { immediate: true }
 );
 
 const getImageSamples = (x: number, y: number) => {
-  const firstToSample = sampleSet.value[0];
-  if (!firstToSample?.image) return undefined;
+  if (!currentImageData.value) return undefined;
 
   pointPicker.pick([x, y, 1.0], view.renderer);
   if (pointPicker.getActors().length === 0) return undefined;
 
-  // Get world position from the picked point
+  // Get world position from the picked point (in base image space)
   const pickedIjk = pointPicker.getPointIJK() as unknown as ReadonlyVec3;
   const worldPosition = vec3.clone(
-    firstToSample.image.indexToWorld(pickedIjk) as vec3
+    currentImageData.value.indexToWorld(pickedIjk) as vec3
   );
 
   const samples = sampleSet.value
