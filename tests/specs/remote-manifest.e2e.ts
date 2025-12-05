@@ -9,12 +9,14 @@ describe('VolView loading of remoteManifest.json', () => {
     };
     const fileName = 'remoteFilesBadUrl.json';
     await writeManifestToFile(manifest, fileName);
-    await openVolViewPage(fileName);
+
+    const urlParams = `?urls=[tmp/${fileName}]`;
+    await volViewPage.open(urlParams);
 
     await volViewPage.waitForNotification();
   });
 
-  it.skip('should load relative URI with no name property', async () => {
+  it('should load relative URI with no name property', async () => {
     await downloadFile(MINIMAL_DICOM.url, MINIMAL_DICOM.name);
 
     const manifest = {
