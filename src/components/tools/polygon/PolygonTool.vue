@@ -92,6 +92,7 @@ import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
 import {
   useContextMenu,
   useCurrentTools,
@@ -235,19 +236,41 @@ export default defineComponent({
 
     // ---  //
 
-    const { contextMenu, openContextMenu } = useContextMenu();
+    const { contextMenu, openContextMenu: baseOpenContextMenu } =
+      useContextMenu();
+
+    const rectangleStore = useRectangleStore();
+    const shouldSuppressInteraction = (id: ToolID) => {
+      const rectanglePlacing = rectangleStore.tools.some(
+        (tool) => tool.placing && tool.firstPoint && tool.secondPoint
+      );
+      if (rectanglePlacing) return true;
+      if (placingTool.id.value && id !== placingTool.id.value) {
+        const placingToolData = activeToolStore.toolByID[placingTool.id.value];
+        if (placingToolData?.points?.length > 0) return true;
+      }
+      return false;
+    };
+
+    const openContextMenu = (id: ToolID, event: any) => {
+      if (!shouldSuppressInteraction(id)) baseOpenContextMenu(id, event);
+    };
 
     const currentTools = useCurrentTools(
       activeToolStore,
       viewAxis,
-      // only show this view's placing tool
-      computed(() => {
-        if (placingTool.id.value) return [placingTool.id.value];
-        return [];
-      })
+      computed(() => (placingTool.id.value ? [placingTool.id.value] : []))
     );
 
-    const { onHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
+
+    const onHover = (id: ToolID, event: any) => {
+      if (shouldSuppressInteraction(id)) {
+        baseOnHover(id, { ...event, hovering: false });
+        return;
+      }
+      baseOnHover(id, event);
+    };
 
     const mergePossible = computed(
       () => activeToolStore.mergeableTools.length >= 1

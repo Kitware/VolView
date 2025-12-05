@@ -16,6 +16,11 @@ export function shouldIgnoreEvent(e: any) {
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkRulerWidgetProp');
 
+  const anotherWidgetHasFocus = () =>
+    model._widgetManager
+      .getWidgets()
+      .some((w: any) => w !== publicAPI && w.hasFocus());
+
   model.interactionState = InteractionState.Select;
   let draggingState: any = null;
 
@@ -184,6 +189,14 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
+    if (anotherWidgetHasFocus()) {
+      publicAPI.invokeHoverEvent({
+        ...eventData,
+        hovering: false,
+      });
+      return macro.VOID;
+    }
+
     publicAPI.invokeHoverEvent({
       ...eventData,
       hovering: !!model.activeState || checkOverFill(),
@@ -220,6 +233,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     ) {
       return macro.VOID;
     }
+
+    if (anotherWidgetHasFocus()) {
+      return macro.VOID;
+    }
+
     publicAPI.invokeRightClickEvent(eventData);
     return macro.EVENT_ABORT;
   };

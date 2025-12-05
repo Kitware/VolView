@@ -4,9 +4,8 @@ import { useElementSize } from '@vueuse/core';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { OverlayInfo } from '@/src/composables/annotationTool';
 
-// These seem to work ¯\_(ツ)_/¯
 const TOOLTIP_PADDING_X = 30;
-const TOOLTIP_PADDING_Y = 10;
+const TOOLTIP_PADDING_Y = 16;
 
 const props = defineProps<{
   info: OverlayInfo;
@@ -78,6 +77,7 @@ const offset = computed(() => {
   background: rgba(255, 255, 255, 0.9) !important;
   padding-left: 0;
   padding-right: 0;
+  pointer-events: none;
 }
 
 .tooltip-text {
