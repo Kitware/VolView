@@ -101,8 +101,17 @@ export default defineComponent({
     onVTKEvent(widget, 'onDraggingEvent', (eventData: any) => {
       dragging.value = eventData.dragging;
     });
+    const anotherToolPlacing = computed(() =>
+      toolStore.tools.some(
+        (t) => t.placing && t.id !== toolId.value && t.points.length > 0
+      )
+    );
     const showHandles = computed(() => {
-      return lastHoverEventData.value?.hovering && !dragging.value;
+      return (
+        lastHoverEventData.value?.hovering &&
+        !dragging.value &&
+        !anotherToolPlacing.value
+      );
     });
     watchEffect(() => {
       if (!lastHoverEventData.value) return;

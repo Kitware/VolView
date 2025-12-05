@@ -246,13 +246,12 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // So we can rely on getSelections() to be up to date now
     overUnselectedHandle = false;
 
-    if (model.hasFocus) {
-      model._widgetManager.disablePicking();
-    }
-
     // Don't emit hover events if another widget has focus (e.g., is placing)
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (activeWidget && activeWidget !== publicAPI) {
+    const widgets = model._widgetManager.getWidgets();
+    const anotherWidgetHasFocus = widgets.some(
+      (w: any) => w !== publicAPI && w.hasFocus()
+    );
+    if (anotherWidgetHasFocus) {
       publicAPI.invokeHoverEvent({
         ...event,
         hovering: false,
@@ -344,7 +343,6 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       (model.hasFocus && !model.activeState) ||
       (model.activeState && !model.activeState.getActive())
     ) {
-      // update if mouse hovered over handle/activeState for next onDown
       model._widgetManager.enablePicking();
       model._interactor.render();
     }
@@ -423,18 +421,22 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   };
 
   publicAPI.handleRightButtonPress = (eventData: any) => {
-    if (!model.activeState) {
-      return macro.VOID;
-    }
-
+    // When placing, handle right-click regardless of what widget manager picked
     if (model.widgetState.getPlacing()) {
       removeLastHandle();
       return macro.EVENT_ABORT;
     }
 
+    if (!model.activeState) {
+      return macro.VOID;
+    }
+
     // If another widget has focus (e.g., is placing), don't show context menu
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (activeWidget && activeWidget !== publicAPI) {
+    const widgets = model._widgetManager.getWidgets();
+    const anotherWidgetHasFocus = widgets.some(
+      (w: any) => w !== publicAPI && w.hasFocus()
+    );
+    if (anotherWidgetHasFocus) {
       return macro.VOID;
     }
 
@@ -465,7 +467,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
 
   // Called after we are finished/placed.
   publicAPI.loseFocus = () => {
-    if (model.hasFocus) {
+    const hadFocus = model.hasFocus;
+    if (hadFocus) {
       model._interactor.cancelAnimation(publicAPI);
       publicAPI.invokeEndInteractionEvent();
     }
@@ -475,6 +478,9 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.widgetState.getMoveHandle().setOrigin(null);
     model.activeState = null;
     model.hasFocus = false;
+    if (hadFocus) {
+      model._widgetManager.releaseFocus();
+    }
     model._widgetManager.enablePicking();
   };
 
