@@ -1,106 +1,149 @@
+import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
 import { MINIMAL_DICOM } from './configTestUtils';
 
+// Low-level mouse helpers
+const clickAt = async (x: number, y: number) => {
+  await browser
+    .action('pointer')
+    .move({ x: Math.round(x), y: Math.round(y) })
+    .down()
+    .up()
+    .perform();
+};
+
+const rightClickAt = async (x: number, y: number) => {
+  await browser
+    .action('pointer')
+    .move({ x: Math.round(x), y: Math.round(y) })
+    .down({ button: 2 })
+    .up({ button: 2 })
+    .perform();
+};
+
+const moveTo = async (x: number, y: number) => {
+  await browser
+    .action('pointer')
+    .move({ x: Math.round(x), y: Math.round(y) })
+    .perform();
+};
+
+// Test setup
+const setupTest = async () => {
+  await AppPage.open(`?urls=${MINIMAL_DICOM.url}&names=${MINIMAL_DICOM.name}`);
+  await AppPage.waitForViews();
+
+  const views2D = await AppPage.getViews2D();
+  const axialView = views2D[0];
+  const canvas = await axialView.$('canvas');
+  const location = await canvas.getLocation();
+  const size = await canvas.getSize();
+
+  return {
+    axialView,
+    centerX: location.x + size.width / 2,
+    centerY: location.y + size.height / 2,
+  };
+};
+
+// Tool selection
+const selectPolygonTool = async () => {
+  const btn = await $('button span i[class~=mdi-pentagon-outline]');
+  await btn.click();
+};
+
+const selectRectangleTool = async () => {
+  const btn = await $('button span i[class~=mdi-vector-square]');
+  await btn.click();
+};
+
+// High-level shape creation
+const createSquarePolygon = async (
+  centerX: number,
+  centerY: number,
+  halfSize: number
+) => {
+  const s = halfSize;
+  await clickAt(centerX - s, centerY - s);
+  await clickAt(centerX + s, centerY - s);
+  await clickAt(centerX + s, centerY + s);
+  await clickAt(centerX - s, centerY + s);
+  await clickAt(centerX - s, centerY - s); // close
+};
+
+const createTrianglePolygon = async (
+  centerX: number,
+  centerY: number,
+  offsets: [number, number][]
+) => {
+  for (const [dx, dy] of offsets) {
+    await clickAt(centerX + dx, centerY + dy);
+  }
+  await clickAt(centerX + offsets[0][0], centerY + offsets[0][1]); // close
+};
+
+const startPolygonPoints = async (
+  centerX: number,
+  centerY: number,
+  offsets: [number, number][]
+) => {
+  for (const [dx, dy] of offsets) {
+    await clickAt(centerX + dx, centerY + dy);
+  }
+};
+
+const createRectangle = async (
+  centerX: number,
+  centerY: number,
+  halfSize: number
+) => {
+  await clickAt(centerX - halfSize, centerY - halfSize);
+  await clickAt(centerX + halfSize, centerY + halfSize);
+};
+
+// Assertions
+const getCircleCount = async (axialView: ChainablePromiseElement) => {
+  const circles = await axialView.$$('svg circle');
+  return circles.length;
+};
+
+const waitForPointRemoved = async (
+  axialView: ChainablePromiseElement,
+  countBefore: number,
+  msg: string
+) => {
+  await browser.waitUntil(
+    async () => (await getCircleCount(axialView)) === countBefore - 1,
+    { timeout: 5000, timeoutMsg: msg }
+  );
+};
+
+const getVisibleCircleCount = async (axialView: ChainablePromiseElement) => {
+  const circles = await axialView.$$('svg circle');
+  let count = 0;
+  for (const circle of circles) {
+    if ((await circle.getAttribute('visibility')) !== 'hidden') count++;
+  }
+  return count;
+};
+
 describe('Polygon tool nested interaction', () => {
   it('should not show first polygon handles when hovering over it while placing second polygon', async () => {
-    await AppPage.open(
-      `?urls=${MINIMAL_DICOM.url}&names=${MINIMAL_DICOM.name}`
-    );
-    await AppPage.waitForViews();
+    const { axialView, centerX, centerY } = await setupTest();
+    await selectPolygonTool();
 
-    const views2D = await AppPage.getViews2D();
-    const axialView = views2D[0];
-    const canvas = await axialView.$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
+    await createSquarePolygon(centerX, centerY, 80);
+    expect(await getCircleCount(axialView)).toBe(4);
 
-    const centerX = location.x + size.width / 2;
-    const centerY = location.y + size.height / 2;
+    await startPolygonPoints(centerX, centerY, [
+      [-40, -40],
+      [40, -40],
+    ]);
 
-    const polygonButton = await $('button span i[class~=mdi-pentagon-outline]');
-    await polygonButton.click();
+    await moveTo(centerX - 80, centerY - 80);
 
-    // Create first polygon (outer, larger)
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY - 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 80), y: Math.round(centerY - 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 80), y: Math.round(centerY + 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY + 80) })
-      .down()
-      .up()
-      .perform();
-
-    // Close first polygon by clicking first point
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY - 80) })
-      .down()
-      .up()
-      .perform();
-
-    // Verify first polygon has 4 handles
-    const firstPolygonHandles = await axialView.$$('svg circle');
-    expect(await firstPolygonHandles.length).toBe(4);
-
-    // Start second polygon inside first - place first point
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 40), y: Math.round(centerY - 40) })
-      .down()
-      .up()
-      .perform();
-
-    // Place second point of new polygon
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 40), y: Math.round(centerY - 40) })
-      .down()
-      .up()
-      .perform();
-
-    // Now hover over the FIRST polygon's corner (top-left) to trigger hover handles
-    // Bug: This should NOT show handles on first polygon while placing second
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY - 80) })
-      .perform();
-
-    // Wait a moment for hover state to update
     await browser.waitUntil(
-      async () => {
-        const allCircles = await axialView.$$('svg circle');
-        // Count visible circles - should only be from placing polygon (2 points)
-        // not from first polygon's hover handles
-        let visibleCount = 0;
-        for (const circle of allCircles) {
-          const visibility = await circle.getAttribute('visibility');
-          if (visibility !== 'hidden') {
-            visibleCount++;
-          }
-        }
-        // Should be 2 (placing polygon points) + 4 (first polygon, but hidden)
-        // If bug exists: will be 6+ (first polygon handles become visible on hover)
-        return visibleCount <= 2;
-      },
+      async () => (await getVisibleCircleCount(axialView)) <= 2,
       {
         timeout: 3000,
         timeoutMsg:
@@ -110,221 +153,68 @@ describe('Polygon tool nested interaction', () => {
   });
 
   it('should allow right-click to remove points on third polygon inside existing one', async () => {
-    await AppPage.open(
-      `?urls=${MINIMAL_DICOM.url}&names=${MINIMAL_DICOM.name}`
-    );
-    await AppPage.waitForViews();
+    const { axialView, centerX, centerY } = await setupTest();
+    await selectPolygonTool();
 
-    const views2D = await AppPage.getViews2D();
-    const axialView = views2D[0];
-    const canvas = await axialView.$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
+    await createSquarePolygon(centerX, centerY, 100);
+    await createTrianglePolygon(centerX, centerY, [
+      [-60, -60],
+      [-20, -60],
+      [-40, -20],
+    ]);
+    await startPolygonPoints(centerX, centerY, [
+      [20, 20],
+      [60, 20],
+    ]);
 
-    const centerX = location.x + size.width / 2;
-    const centerY = location.y + size.height / 2;
-
-    const polygonButton = await $('button span i[class~=mdi-pentagon-outline]');
-    await polygonButton.click();
-
-    // Create first (outer) polygon
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 100), y: Math.round(centerY - 100) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 100), y: Math.round(centerY - 100) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 100), y: Math.round(centerY + 100) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 100), y: Math.round(centerY + 100) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 100), y: Math.round(centerY - 100) })
-      .down()
-      .up()
-      .perform();
-
-    // Create second polygon inside first, finish it
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 60), y: Math.round(centerY - 60) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 20), y: Math.round(centerY - 60) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 40), y: Math.round(centerY - 20) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 60), y: Math.round(centerY - 60) })
-      .down()
-      .up()
-      .perform();
-
-    // Start third polygon inside first, place 2 points
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 20), y: Math.round(centerY + 20) })
-      .down()
-      .up()
-      .perform();
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 60), y: Math.round(centerY + 20) })
-      .down()
-      .up()
-      .perform();
-
-    const circlesBeforeRightClick = await axialView.$$('svg circle');
-    const countBefore = await circlesBeforeRightClick.length;
-
-    // Right-click to remove second point of third polygon
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 40), y: Math.round(centerY + 40) })
-      .down({ button: 2 })
-      .up({ button: 2 })
-      .perform();
-
-    await browser.waitUntil(
-      async () => {
-        const circlesAfterRightClick = await axialView.$$('svg circle');
-        const countAfter = await circlesAfterRightClick.length;
-        return countAfter === countBefore - 1;
-      },
-      {
-        timeout: 5000,
-        timeoutMsg:
-          'Right-click should remove one point from the third polygon',
-      }
+    const countBefore = await getCircleCount(axialView);
+    await rightClickAt(centerX + 40, centerY + 40);
+    await waitForPointRemoved(
+      axialView,
+      countBefore,
+      'Right-click should remove one point from the third polygon'
     );
   });
 
   it('should allow right-click to remove points while placing new polygon inside existing one', async () => {
-    await AppPage.open(
-      `?urls=${MINIMAL_DICOM.url}&names=${MINIMAL_DICOM.name}`
+    const { axialView, centerX, centerY } = await setupTest();
+    await selectPolygonTool();
+
+    await createSquarePolygon(centerX, centerY, 80);
+    await startPolygonPoints(centerX, centerY, [
+      [-40, -40],
+      [40, -40],
+      [40, 40],
+    ]);
+
+    const countBefore = await getCircleCount(axialView);
+    await rightClickAt(centerX, centerY);
+    await waitForPointRemoved(
+      axialView,
+      countBefore,
+      'Right-click should remove exactly one point from the placing polygon'
     );
-    await AppPage.waitForViews();
+  });
 
-    const views2D = await AppPage.getViews2D();
-    const axialView = views2D[0];
-    const canvas = await axialView.$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
+  it('should allow right-click to remove polygon points when placing inside a rectangle', async () => {
+    const { axialView, centerX, centerY } = await setupTest();
 
-    const centerX = location.x + size.width / 2;
-    const centerY = location.y + size.height / 2;
+    await selectRectangleTool();
+    await createRectangle(centerX, centerY, 80);
 
-    const polygonButton = await $('button span i[class~=mdi-pentagon-outline]');
-    await polygonButton.click();
+    await selectPolygonTool();
+    await startPolygonPoints(centerX, centerY, [
+      [-40, -40],
+      [40, -40],
+      [40, 40],
+    ]);
 
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY - 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 80), y: Math.round(centerY - 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 80), y: Math.round(centerY + 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY + 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 80), y: Math.round(centerY - 80) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX - 40), y: Math.round(centerY - 40) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 40), y: Math.round(centerY - 40) })
-      .down()
-      .up()
-      .perform();
-
-    await browser
-      .action('pointer')
-      .move({ x: Math.round(centerX + 40), y: Math.round(centerY + 40) })
-      .down()
-      .up()
-      .perform();
-
-    // Count total circles (handles may not be visible when placing)
-    const circlesBeforeRightClick = await axialView.$$('svg circle');
-    const countBefore = await circlesBeforeRightClick.length;
-
-    // Right-click inside the first polygon to test that placing polygon handles it
-    await browser
-      .action('pointer')
-      .move({
-        x: Math.round(centerX),
-        y: Math.round(centerY),
-      })
-      .down({ button: 2 })
-      .up({ button: 2 })
-      .perform();
-
-    await browser.waitUntil(
-      async () => {
-        const circlesAfterRightClick = await axialView.$$('svg circle');
-        const countAfter = await circlesAfterRightClick.length;
-        // Should remove exactly one point
-        return countAfter === countBefore - 1;
-      },
-      {
-        timeout: 5000,
-        timeoutMsg:
-          'Right-click should remove exactly one point from the placing polygon',
-      }
+    const countBefore = await getCircleCount(axialView);
+    await rightClickAt(centerX, centerY);
+    await waitForPointRemoved(
+      axialView,
+      countBefore,
+      'Right-click should remove one point from the polygon when placing inside a rectangle'
     );
   });
 });

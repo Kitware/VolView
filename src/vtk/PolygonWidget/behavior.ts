@@ -23,6 +23,11 @@ const DOUBLE_CLICK_SLIP_DISTANCE_MAX_SQUARED =
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkPolygonWidgetBehavior');
 
+  const anotherWidgetHasFocus = () =>
+    model._widgetManager
+      .getWidgets()
+      .some((w: any) => w !== publicAPI && w.hasFocus());
+
   const setDragging = (isDragging: boolean) => {
     model._dragging = isDragging;
     publicAPI.invokeDraggingEvent({
@@ -246,12 +251,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     // So we can rely on getSelections() to be up to date now
     overUnselectedHandle = false;
 
-    // Don't emit hover events if another widget has focus (e.g., is placing)
-    const widgets = model._widgetManager.getWidgets();
-    const anotherWidgetHasFocus = widgets.some(
-      (w: any) => w !== publicAPI && w.hasFocus()
-    );
-    if (anotherWidgetHasFocus) {
+    if (anotherWidgetHasFocus()) {
       publicAPI.invokeHoverEvent({
         ...event,
         hovering: false,
@@ -431,12 +431,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    // If another widget has focus (e.g., is placing), don't show context menu
-    const widgets = model._widgetManager.getWidgets();
-    const anotherWidgetHasFocus = widgets.some(
-      (w: any) => w !== publicAPI && w.hasFocus()
-    );
-    if (anotherWidgetHasFocus) {
+    if (anotherWidgetHasFocus()) {
       return macro.VOID;
     }
 
@@ -480,6 +475,11 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model.hasFocus = false;
     if (hadFocus) {
       model._widgetManager.releaseFocus();
+      // Deactivate all widgets so stale activeStates don't persist
+      // (user may right-click again without moving mouse)
+      model._widgetManager
+        .getWidgets()
+        .forEach((w: any) => w.deactivateAllHandles());
     }
     model._widgetManager.enablePicking();
   };

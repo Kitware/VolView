@@ -16,6 +16,11 @@ export function shouldIgnoreEvent(e: any) {
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkRulerWidgetProp');
 
+  const anotherWidgetHasFocus = () =>
+    model._widgetManager
+      .getWidgets()
+      .some((w: any) => w !== publicAPI && w.hasFocus());
+
   model.interactionState = InteractionState.Select;
   let draggingState: any = null;
 
@@ -184,9 +189,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    // Don't emit hover events if another widget has focus (e.g., is placing)
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (activeWidget && activeWidget !== publicAPI) {
+    if (anotherWidgetHasFocus()) {
       publicAPI.invokeHoverEvent({
         ...eventData,
         hovering: false,
@@ -231,9 +234,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.VOID;
     }
 
-    // If another widget has focus (e.g., is placing), don't show context menu
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (activeWidget && activeWidget !== publicAPI) {
+    if (anotherWidgetHasFocus()) {
       return macro.VOID;
     }
 
