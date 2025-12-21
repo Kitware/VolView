@@ -25,17 +25,17 @@ const doSum = async () => {
   }
 };
 
-// --- number trivia --- //
+// --- cat fact --- //
 
-const trivia = ref('');
-const triviaLoading = ref(false);
+const catFact = ref('');
+const catFactLoading = ref(false);
 
-const getTrivia = async () => {
-  triviaLoading.value = true;
+const getCatFact = async () => {
+  catFactLoading.value = true;
   try {
-    trivia.value = (await client.call('number_trivia')) as string;
+    catFact.value = (await client.call('cat_fact')) as string;
   } finally {
-    triviaLoading.value = false;
+    catFactLoading.value = false;
   }
 };
 
@@ -122,21 +122,21 @@ const hasCurrentImage = computed(() => !!currentImageID.value);
       </v-col>
     </v-row>
     <v-divider />
-    <v-list-subheader>Trivia</v-list-subheader>
+    <v-list-subheader>Cat Fact</v-list-subheader>
     <v-row>
-      <v-btn @click="getTrivia" :loading="triviaLoading" :disabled="!ready">
-        Random number trivia
+      <v-btn @click="getCatFact" :loading="catFactLoading" :disabled="!ready">
+        Random cat fact
       </v-btn>
     </v-row>
     <v-row>
       <v-col>
-        <label for="remote-trivia-text">
+        <label for="remote-cat-fact-text">
           <textarea
-            id="remote-trivia-text"
+            id="remote-cat-fact-text"
             readonly
             class="text-white"
             style="width: 100%"
-            :value="trivia"
+            :value="catFact"
           />
         </label>
       </v-col>
