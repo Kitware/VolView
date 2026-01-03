@@ -49,8 +49,8 @@ class ExampleApi:
     def __init__(self):
         self.rpc_router = RpcRouter()
         self.rpc_router.add_endpoint("add", self.add)
-        self.rpc_router.add_endpoint("number_trivia", self.number_trivia)
-        self.rpc_router.add_endpoint("get_number_trivia", self.number_trivia)
+        self.rpc_router.add_endpoint("cat_fact", self.cat_fact)
+        self.rpc_router.add_endpoint("get_cat_fact", self.cat_fact)
         self.rpc_router.add_endpoint("progress", self.number_stream)
         self.rpc_router.add_endpoint("medianFilter", self.median_filter)
 
@@ -61,13 +61,14 @@ class ExampleApi:
     def add(self, a, b):
         return a + b
 
-    ## number trivia example ##
+    ## cat fact example ##
 
-    async def number_trivia(self):
+    async def cat_fact(self):
         async with aiohttp.ClientSession() as session:
-            url = "http://numbersapi.com/random/"
+            url = "https://catfact.ninja/fact"
             async with session.get(url) as resp:
-                return await resp.text()
+                data = await resp.json()
+                return data["fact"]
 
     ## progress bar example ##
 
@@ -121,8 +122,8 @@ class ExampleApi:
         return img_id
 
     async def _show_image(self, img_id):
-        store = get_current_client_store("dataset")
-        await store.setPrimarySelection(img_id)
+        store = get_current_client_store("view")
+        await store.setDataForAllViews(img_id)
 
 
 volview = VolViewApi()
