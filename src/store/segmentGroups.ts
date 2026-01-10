@@ -430,7 +430,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const metadata = getMetadata(segmentGroupID);
     const segment = getSegment(segmentGroupID, segmentValue);
     metadata.segments.byValue[segmentValue] = {
-      ...segment,
+      ...toRaw(segment),
       ...segmentUpdate,
     };
   }
