@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { removeFromArray } from '../utils';
+import { generateBugReport } from '../utils/bugReport';
 
 export enum MessageType {
   Error,
@@ -10,6 +11,7 @@ export enum MessageType {
 
 export type MessageOptions = {
   details?: string;
+  bugReport?: string;
   persist?: boolean;
 };
 
@@ -22,6 +24,7 @@ export interface Message {
 
 export type UpdateProgressFunction = (progress: number) => void;
 export type TaskFunction = (updateProgress?: UpdateProgressFunction) => any;
+
 interface State {
   _nextID: number;
   byID: Record<string, Message>;
@@ -52,25 +55,31 @@ export const useMessageStore = defineStore('message', {
     addError(title: string, opts?: Error | string | MessageOptions) {
       console.error(title, opts);
 
+      let id: string;
       if (opts instanceof Error) {
-        return this._addMessage(
+        id = this._addMessage(
           {
             type: MessageType.Error,
             title,
           },
           {
-            details: String(opts),
+            details: opts.stack ?? String(opts),
             persist: false,
           }
         );
+      } else {
+        id = this._addMessage(
+          {
+            type: MessageType.Error,
+            title,
+          },
+          opts
+        );
       }
-      return this._addMessage(
-        {
-          type: MessageType.Error,
-          title,
-        },
-        opts
-      );
+
+      this.byID[id].options.bugReport = generateBugReport(opts);
+
+      return id;
     },
     /**
      * Adds a warning message.

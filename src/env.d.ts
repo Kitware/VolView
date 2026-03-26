@@ -12,3 +12,4 @@ interface ImportMeta {
 }
 
 declare const __VERSIONS__: Record<string, string>;
+declare const __GIT_SHORT_SHA__: string;
