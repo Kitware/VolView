@@ -6,7 +6,8 @@ if (process.env.CI || process.env.GITHUB_ACTIONS) {
   chromeArgs.push(
     '--no-sandbox',
     '--disable-dev-shm-usage',
-    '--disable-infobars'
+    '--disable-infobars',
+    '--enable-unsafe-swiftshader'
   );
 }
 

@@ -9,40 +9,8 @@ const MAX_ERROR_LENGTH = 4000;
 
 const COMPOUND_EXTENSIONS = ['nii.gz', 'iwi.cbor', 'seg.nrrd'];
 
-const parseBrowserInfo = (): string => {
-  if (typeof navigator === 'undefined') return 'unknown';
-
-  const { userAgent: ua } = navigator;
-
-  const patterns: [string, RegExp][] = [
-    ['Firefox', /Firefox\/([\d.]+)/],
-    ['Edge', /Edg\/([\d.]+)/],
-    ['Chrome', /Chrome\/([\d.]+)/],
-    ['Safari', /Version\/([\d.]+).*Safari/],
-  ];
-
-  const match = patterns
-    .map(([name, re]) => {
-      const m = ua.match(re);
-      return m ? `${name} ${m[1]}` : null;
-    })
-    .find(Boolean);
-
-  const browser = match ?? 'Unknown';
-
-  const os = ['Windows', 'Mac', 'Linux', 'Android', 'iPhone', 'iPad'].find(
-    (name) => ua.includes(name)
-  );
-
-  const osLabel =
-    os === 'Mac'
-      ? 'macos'
-      : os === 'iPhone' || os === 'iPad'
-        ? 'ios'
-        : (os?.toLowerCase() ?? 'unknown');
-
-  return `${browser} (${osLabel})`;
-};
+const getBrowserInfo = (): string =>
+  typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';
 
 const getSourceFormat = (name: string, isDicom: boolean): string => {
   if (isDicom) return 'DICOM';
@@ -91,7 +59,10 @@ const collectDatasetInfo = (): string[] => {
         : 'unknown';
 
     const segCount = segmentGroupStore.orderByParent[id]?.length ?? 0;
-    const segPart = segCount > 0 ? ` (segment groups: ${segCount})` : '';
+    const segPart =
+      segCount > 0
+        ? ` (segment groups: ${segCount} as ${segmentGroupStore.saveFormat})`
+        : '';
 
     return `  [${i}] ${dims} ${dataType} from ${sourceFormat}${segPart}`;
   });
@@ -104,22 +75,18 @@ export const generateBugReport = (error?: Error): string => {
   const lines = [
     '--- VolView Bug Report ---',
     `Build: volview ${versions.volview} (${sha}) | vtk.js: ${versions['vtk.js']}, itk-wasm: ${versions['itk-wasm']}`,
-    `Browser: ${parseBrowserInfo()}`,
+    `Browser: ${getBrowserInfo()}`,
     '',
     'Error:',
     formatError(error),
   ];
 
-  try {
-    const datasets = collectDatasetInfo();
-    const segmentGroupStore = useSegmentGroupStore();
+  const datasets = collectDatasetInfo();
+  const segmentGroupStore = useSegmentGroupStore();
 
-    lines.push('', `Datasets: ${datasets.length}`);
-    lines.push(...datasets);
-    lines.push(`Save format: ${segmentGroupStore.saveFormat}`);
-  } catch {
-    lines.push('', 'Datasets: unavailable');
-  }
+  lines.push('', `Datasets: ${datasets.length}`);
+  lines.push(...datasets);
+  lines.push(`Save format: ${segmentGroupStore.saveFormat}`);
 
   lines.push('--- End Report ---');
 

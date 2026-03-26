@@ -56,18 +56,17 @@ export const useMessageStore = defineStore('message', {
     addError(title: string, opts?: ErrorOptions) {
       console.error(title, opts?.error ?? opts?.details);
 
-      const details =
-        opts?.details ??
-        (opts?.error ? (opts.error.stack ?? String(opts.error)) : undefined);
-
-      const id = this._addMessage(
-        { type: MessageType.Error, title },
-        { details, persist: opts?.persist ?? false }
+      return this._addMessage(
+        {
+          type: MessageType.Error,
+          title,
+          bugReport: generateBugReport(opts?.error),
+        },
+        {
+          details: opts?.details ?? opts?.error?.stack,
+          persist: opts?.persist ?? false,
+        }
       );
-
-      this.byID[id].bugReport = generateBugReport(opts?.error);
-
-      return id;
     },
     /**
      * Adds a warning message.
