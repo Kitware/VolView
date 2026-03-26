@@ -61,7 +61,7 @@ export function useLoadingNotifications() {
     if (error) {
       logError(error);
       toast.dismiss(toastID);
-      messageStore.addError(NotificationMessages.Error, error);
+      messageStore.addError(NotificationMessages.Error, { error });
     } else {
       toast.update(toastID, {
         content: NotificationMessages.Done,

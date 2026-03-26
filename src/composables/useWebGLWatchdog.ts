@@ -33,7 +33,9 @@ function getVolumeMapperContext(view: View) {
 export function useWebGLWatchdog(view: MaybeRef<Maybe<View>>) {
   const reportError = useThrottleFn(() => {
     const messageStore = useMessageStore();
-    messageStore.addError(Messages.WebGLLost.title, Messages.WebGLLost.details);
+    messageStore.addError(Messages.WebGLLost.title, {
+      details: Messages.WebGLLost.details,
+    });
 
     const contexts: Record<string, any> = {};
     const viewVal = unref(view);

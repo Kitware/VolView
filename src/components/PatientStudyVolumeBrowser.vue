@@ -118,6 +118,7 @@ export default defineComponent({
             if (err instanceof Error) {
               const messageStore = useMessageStore();
               messageStore.addError('Failed to generate thumbnails', {
+                error: err,
                 details: `${err}. More details can be found in the developer's console.`,
               });
             }

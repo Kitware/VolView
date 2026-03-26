@@ -56,10 +56,9 @@ const getSourceFormat = (name: string, isDicom: boolean): string => {
 const formatScalarType = (constructorName: string): string =>
   constructorName.replace('Array', '');
 
-const formatError = (error: unknown): string => {
+const formatError = (error?: Error): string => {
   if (!error) return 'No error details available';
-  const text =
-    error instanceof Error ? (error.stack ?? String(error)) : String(error);
+  const text = error.stack ?? String(error);
   return text.length > MAX_ERROR_LENGTH
     ? `${text.slice(0, MAX_ERROR_LENGTH)}\n... (truncated)`
     : text;
@@ -98,7 +97,7 @@ const collectDatasetInfo = (): string[] => {
   });
 };
 
-export const generateBugReport = (error: unknown): string => {
+export const generateBugReport = (error?: Error): string => {
   const versions = __VERSIONS__;
   const sha = __GIT_SHORT_SHA__;
 

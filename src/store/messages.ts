@@ -11,7 +11,6 @@ export enum MessageType {
 
 export type MessageOptions = {
   details?: string;
-  bugReport?: string;
   persist?: boolean;
 };
 
@@ -20,7 +19,14 @@ export interface Message {
   type: MessageType;
   title: string;
   options: MessageOptions;
+  bugReport?: string;
 }
+
+export type ErrorOptions = {
+  error?: Error;
+  details?: string;
+  persist?: boolean;
+};
 
 export type UpdateProgressFunction = (progress: number) => void;
 export type TaskFunction = (updateProgress?: UpdateProgressFunction) => any;
@@ -47,37 +53,19 @@ export const useMessageStore = defineStore('message', {
     },
   },
   actions: {
-    /**
-     * Adds an error message.
-     * @param title message title
-     * @param opts an Error, a string containing details, or a MessageOptions
-     */
-    addError(title: string, opts?: Error | string | MessageOptions) {
-      console.error(title, opts);
+    addError(title: string, opts?: ErrorOptions) {
+      console.error(title, opts?.error ?? opts?.details);
 
-      let id: string;
-      if (opts instanceof Error) {
-        id = this._addMessage(
-          {
-            type: MessageType.Error,
-            title,
-          },
-          {
-            details: opts.stack ?? String(opts),
-            persist: false,
-          }
-        );
-      } else {
-        id = this._addMessage(
-          {
-            type: MessageType.Error,
-            title,
-          },
-          opts
-        );
-      }
+      const details =
+        opts?.details ??
+        (opts?.error ? (opts.error.stack ?? String(opts.error)) : undefined);
 
-      this.byID[id].options.bugReport = generateBugReport(opts);
+      const id = this._addMessage(
+        { type: MessageType.Error, title },
+        { details, persist: opts?.persist ?? false }
+      );
+
+      this.byID[id].bugReport = generateBugReport(opts?.error);
 
       return id;
     },

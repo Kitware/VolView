@@ -7,6 +7,7 @@ export async function useErrorMessage(message: string, task: Function) {
     if (err instanceof Error) {
       const messageStore = useMessageStore();
       messageStore.addError(message, {
+        error: err,
         details: `${err}. More details can be found in the developer's console.`,
       });
     }

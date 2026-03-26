@@ -52,10 +52,9 @@ function resolveToLeafSources(
         return [{ type: 'file', file, fileType: src.fileType }];
       }
       const missingFile = filePath ?? String(src.fileId);
-      useMessageStore().addError(
-        'State file missing expected file',
-        missingFile
-      );
+      useMessageStore().addError('State file missing expected file', {
+        details: missingFile,
+      });
       return [];
     }
 

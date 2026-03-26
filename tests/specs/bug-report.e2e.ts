@@ -2,7 +2,7 @@ import { volViewPage } from '../pageobjects/volview.page';
 import { writeManifestToFile } from './utils';
 
 describe('Bug report generation', () => {
-  it('should show Copy Bug Report button on error with stack trace details', async () => {
+  it('should attach bug report to error messages', async () => {
     // Trigger an error by loading a malformed URL
     const manifest = { resources: [{ url: 'bad-url-to-trigger-error' }] };
     await writeManifestToFile(manifest, 'bugReportTest.json');
@@ -14,7 +14,7 @@ describe('Bug report generation', () => {
     const notificationBadge = volViewPage.notifications;
     await notificationBadge.click();
 
-    // Wait for the message center dialog and the Copy Bug Report button in the title
+    // Wait for the Copy Bug Report button to appear
     await browser.waitUntil(
       async () => {
         const btn = await $('[data-testid="copy-bug-report-button"]');
@@ -23,19 +23,19 @@ describe('Bug report generation', () => {
       { timeout: 5000, timeoutMsg: 'Expected Copy Bug Report button' }
     );
 
-    // Expand the error message to reveal details
-    const panelTitle = await $('.v-expansion-panel-title');
-    await panelTitle.click();
+    // Verify bug report content via the store
+    const report = await browser.execute(() => {
+      // Access the Pinia store from the app instance
+      const app = document.querySelector('#app') as any;
+      const pinia = app?.__vue_app__?.config?.globalProperties?.$pinia;
+      if (!pinia) return '';
+      const store = pinia.state.value.message;
+      if (!store) return '';
+      const firstId = store.msgList[0];
+      return store.byID[firstId]?.bugReport ?? '';
+    });
 
-    // Verify the error details with stack trace are shown
-    await browser.waitUntil(
-      async () => {
-        const details = await $('.details');
-        if (!(await details.isExisting())) return false;
-        const text = await details.getText();
-        return text.length > 0;
-      },
-      { timeout: 3000, timeoutMsg: 'Expected error details with stack trace' }
-    );
+    expect(report).toContain('--- VolView Bug Report ---');
+    expect(report).toContain('Browser:');
   });
 });

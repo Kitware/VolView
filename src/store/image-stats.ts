@@ -178,7 +178,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
           );
           messageStore.addError(
             `Auto range computation failed for image ${id}`,
-            ensureError(error)
+            { error: ensureError(error) }
           );
         })
         .finally(() => {

@@ -30,7 +30,7 @@ export default defineComponent({
     });
 
     const copyBugReport = () => {
-      const report = message.value.options.bugReport;
+      const report = message.value.bugReport;
       if (report) copy(report);
     };
 
@@ -50,7 +50,7 @@ export default defineComponent({
         <span>{{ message.title }}</span>
         <div>
           <v-btn
-            v-if="message.options.bugReport"
+            v-if="message.bugReport"
             :prepend-icon="copied ? 'mdi-check' : 'mdi-content-copy'"
             variant="tonal"
             size="small"

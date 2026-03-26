@@ -53,7 +53,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
       imageErrors[id].push(error);
 
       const messageStore = useMessageStore();
-      messageStore.addError('Error loading DICOM data', error);
+      messageStore.addError('Error loading DICOM data', { error });
     };
 
     imageListenerCleanup[id] = () => {
