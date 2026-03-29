@@ -73,7 +73,7 @@
     "file-saver": "^2.0.5",
     "gl-matrix": "3.4.3",
     "globals": "^16.2.0",
-    "happy-dom": "^20.0.11",
+    "happy-dom": "^20.8.9",
     "itk-wasm": "^1.0.0-b.196",
     "jszip": "3.10.1",
     "lint-staged": "16.2.7",
