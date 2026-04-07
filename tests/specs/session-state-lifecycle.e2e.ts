@@ -2,42 +2,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
 import { MINIMAL_501_SESSION } from './configTestUtils';
-import { downloadFile } from './utils';
+import { downloadFile, waitForFileExists } from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
 const SESSION_SAVE_TIMEOUT = 40000;
-
-const waitForFileExists = (filePath: string, timeout: number) =>
-  new Promise<void>((resolve, reject) => {
-    const dir = path.dirname(filePath);
-    const basename = path.basename(filePath);
-
-    const watcher = fs.watch(dir, (eventType, filename) => {
-      if (eventType === 'rename' && filename === basename) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
-
-    const timerId = setTimeout(() => {
-      watcher.close();
-      reject(
-        new Error(
-          `File ${filePath} did not exist and was not created during timeout of ${timeout}ms`
-        )
-      );
-    }, timeout);
-
-    fs.access(filePath, fs.constants.R_OK, (err) => {
-      if (!err) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
-  });
 
 const saveSession = async () => {
   const sessionFileName = await volViewPage.saveSession();
