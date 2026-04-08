@@ -142,7 +142,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
     <div v-if="false" class="my-1 tool-separator" />
     <v-menu location="right" :close-on-content-click="true">
       <template v-slot:activator="{ props }">
-        <div>
+        <div class="mt-15">
           <control-button
             v-bind="props"
             size="40"
@@ -216,7 +216,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <style scoped>
 #tools-strip {
   border-left: 1px solid #212121;
-  flex: 0 0 40px;
+  height: 100%;
 }
 
 .tool-separator {

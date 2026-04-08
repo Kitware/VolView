@@ -14,7 +14,7 @@
           <module-panel @close="leftSideBar = false" />
         </v-navigation-drawer>
         <v-main id="content-main">
-          <div class="fill-height d-flex flex-row flex-grow-1">
+          <div class="fill-height" style="display: grid; grid-template-columns: 40px 1fr; height: 100%;">
             <controls-strip :has-data="hasData"></controls-strip>
             <div class="d-flex flex-column flex-grow-1">
               <layout-grid v-show="hasData" :layout="layout" />
