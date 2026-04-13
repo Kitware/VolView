@@ -14,12 +14,14 @@ export const setValueVueInput = async (
   input: ChainablePromiseElement,
   value: string
 ) => {
-  // input.setValue does not clear existing input, so click and backspace
+  // input.setValue does not clear existing input, so select all and replace.
   await input.click();
   const oldValue = await input.getValue();
   if (oldValue) {
-    const backspaces = new Array(oldValue.length).fill(Key.Backspace);
-    await browser.keys([Key.ArrowRight, ...backspaces]);
+    const selectAllModifier =
+      process.platform === 'darwin' ? 'Meta' : 'Control';
+    await browser.keys([selectAllModifier, 'a']);
+    await browser.keys(Key.Backspace);
   }
   await input.setValue(value);
 };
@@ -149,12 +151,55 @@ class VolViewPage extends Page {
     return $('button span i[class~=mdi-content-save-all]');
   }
 
+  get annotationsModuleTab() {
+    return $('button[data-testid="module-tab-Annotations"]');
+  }
+
+  get newSegmentGroupButton() {
+    return $('button*=New Group');
+  }
+
+  get activeDialog() {
+    return $('div[role="dialog"]');
+  }
+
+  get activeDialogInput() {
+    return this.activeDialog.$('input[placeholder="Unnamed Segment Group"]');
+  }
+
   get saveSessionFilenameInput() {
     return $('#session-state-filename');
   }
 
   get saveSessionConfirmButton() {
     return $('span[data-testid="save-session-confirm-button"]');
+  }
+
+  get segmentGroupsTab() {
+    return $('button.v-tab*=Segment Groups');
+  }
+
+  get segmentGroupSaveButtons() {
+    return $$('button[data-testid="segment-group-save-button"]');
+  }
+
+  get saveSegmentGroupFilenameInput() {
+    return this.activeDialog.$('#filename');
+  }
+
+  get saveSegmentGroupConfirmButton() {
+    return this.activeDialog.$('button=Save');
+  }
+
+  async clickFirstSegmentGroupSaveButton() {
+    await browser.waitUntil(async () => {
+      const buttons = await this.segmentGroupSaveButtons;
+      return (await buttons.length) >= 1;
+    });
+    const buttons = await this.segmentGroupSaveButtons;
+    await buttons[0].scrollIntoView();
+    await buttons[0].waitForClickable();
+    await buttons[0].click();
   }
 
   async saveSession() {
@@ -175,6 +220,20 @@ class VolViewPage extends Page {
     });
 
     return fileName;
+  }
+
+  async createSegmentGroup(name: string) {
+    const annotationsTab = await this.annotationsModuleTab;
+    await annotationsTab.click();
+
+    const newGroup = await this.newSegmentGroupButton;
+    await newGroup.waitForClickable();
+    await newGroup.click();
+
+    const input = await this.activeDialogInput;
+    await input.waitForDisplayed();
+    await setValueVueInput(input, name);
+    await browser.keys([Key.Enter]);
   }
 
   get editLabelButtons() {

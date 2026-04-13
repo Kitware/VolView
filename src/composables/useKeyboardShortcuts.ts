@@ -7,6 +7,19 @@ import { ACTION_TO_FUNC } from './actions';
 
 export const actionToKey = ref(ACTION_TO_KEY);
 
+export function shouldIgnoreKeyboardShortcuts(
+  activeElement: Element | null = document.activeElement
+) {
+  if (!(activeElement instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    activeElement.isContentEditable ||
+    activeElement.closest('input, textarea, select, [role="textbox"]') !== null
+  );
+}
+
 export function useKeyboardShortcuts() {
   const keys = useMagicKeys();
   let unwatchFuncs = [] as Array<ReturnType<typeof whenever>>;
@@ -21,6 +34,10 @@ export function useKeyboardShortcuts() {
         const lastKey = individualKeys[individualKeys.length - 1];
 
         return whenever(keys[key], () => {
+          if (shouldIgnoreKeyboardShortcuts()) {
+            return;
+          }
+
           const shiftPressed = keys.current.has('shift');
           const lastPressedKey = Array.from(keys.current).pop();
           const currentKeyWithCase = shiftPressed

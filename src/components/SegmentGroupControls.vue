@@ -335,6 +335,7 @@ function deleteSelected() {
             </v-tooltip>
           </v-btn>
           <v-btn
+            data-testid="segment-group-save-button"
             icon="mdi-content-save"
             size="small"
             variant="text"
