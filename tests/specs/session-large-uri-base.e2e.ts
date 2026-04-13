@@ -78,7 +78,7 @@ const createSessionZip = async (
     segmentGroups: [
       {
         id: 'seg-1',
-        path: 'labels/seg-1.nii.gz',
+        path: 'segmentations/seg-1.nii.gz',
         metadata: {
           name: 'Annotation',
           parentImage: '0',
@@ -100,7 +100,7 @@ const createSessionZip = async (
 
   const zip = new JSZip();
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-  zip.file('labels/seg-1.nii.gz', labelmapNiftiGz);
+  zip.file('segmentations/seg-1.nii.gz', labelmapNiftiGz);
   return zip.generateAsync({ type: 'nodebuffer', compression: 'STORE' });
 };
 

@@ -7,7 +7,7 @@
       <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
         <v-text-field
           v-model="fileName"
-          hint="Filename used for downloads. Invalid filename characters are replaced automatically."
+          hint="Filename used for downloads."
           label="Filename"
           :rules="[validFileName]"
           required

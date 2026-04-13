@@ -8,7 +8,7 @@ describe('io/state-file/segmentGroupArchivePath', () => {
 
       expect(
         makeSegmentGroupArchivePath('Liver: left/right*?', 'vti', usedPaths)
-      ).to.equal('labels/Liver left right.vti');
+      ).to.equal('segmentations/Liver left right.vti');
     });
 
     it('deduplicates colliding sanitized names case-insensitively', () => {
@@ -16,10 +16,10 @@ describe('io/state-file/segmentGroupArchivePath', () => {
 
       expect(
         makeSegmentGroupArchivePath('Liver/Left', 'vti', usedPaths)
-      ).to.equal('labels/Liver Left.vti');
+      ).to.equal('segmentations/Liver Left.vti');
       expect(
         makeSegmentGroupArchivePath('liver:left', 'vti', usedPaths)
-      ).to.equal('labels/liver left (2).vti');
+      ).to.equal('segmentations/liver left (2).vti');
     });
   });
 });

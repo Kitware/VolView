@@ -133,7 +133,7 @@ describe('Session state lifecycle', () => {
     await openUrls([PROSTATEX_DATASET]);
 
     const segmentGroupName = 'Liver: left/right*?';
-    const sanitizedFilePath = 'labels/Liver left right.vti';
+    const sanitizedFilePath = 'segmentations/Liver left right.vti';
 
     await volViewPage.createSegmentGroup(segmentGroupName);
 
@@ -141,14 +141,14 @@ describe('Session state lifecycle', () => {
     if (!zip) {
       throw new Error('Expected saved session zip to be available');
     }
-    const labelMaps = manifest.labelMaps as Array<{
+    const segmentGroups = manifest.segmentGroups as Array<{
       path: string;
       metadata: { name: string };
     }>;
 
-    expect(labelMaps.length).toEqual(1);
-    expect(labelMaps[0].metadata.name).toEqual(segmentGroupName);
-    expect(labelMaps[0].path).toEqual(sanitizedFilePath);
+    expect(segmentGroups.length).toEqual(1);
+    expect(segmentGroups[0].metadata.name).toEqual(segmentGroupName);
+    expect(segmentGroups[0].path).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 });

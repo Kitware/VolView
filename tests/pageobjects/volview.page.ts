@@ -7,7 +7,7 @@ import Page from './page';
 
 let lastId = 0;
 const getId = () => {
-  return lastId++;
+  return `${process.pid}-${Date.now()}-${lastId++}`;
 };
 
 export const setValueVueInput = async (
@@ -216,7 +216,10 @@ class VolViewPage extends Page {
     await confirm.click();
 
     cleanuptotal.addCleanup(async () => {
-      fs.unlinkSync(path.join(TEMP_DIR, fileName));
+      const filePath = path.join(TEMP_DIR, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
     });
 
     return fileName;
