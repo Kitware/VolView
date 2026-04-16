@@ -41,10 +41,11 @@ import { onMounted, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { writeImage } from '@/src/io/readWriteImage';
+import { writeSegmentation } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
 
 const EXTENSIONS = [
+  'seg.nrrd',
   'nrrd',
   'nii',
   'nii.gz',
@@ -76,8 +77,11 @@ async function saveSegmentGroup() {
 
   saving.value = true;
   await useErrorMessage('Failed to save segment group', async () => {
-    const image = segmentGroupStore.dataIndex[props.id];
-    const serialized = await writeImage(fileFormat.value, image);
+    const serialized = await writeSegmentation(
+      fileFormat.value,
+      segmentGroupStore.dataIndex[props.id],
+      segmentGroupStore.metadataByID[props.id]
+    );
     saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
   });
   saving.value = false;

@@ -4,7 +4,7 @@ import * as zlib from 'node:zlib';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { volViewPage } from '../pageobjects/volview.page';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
-import { writeManifestToFile } from './utils';
+import { writeManifestToFile, waitForFileExists } from './utils';
 
 // 268M voxels — labelmap at this size triggers Array.from OOM
 const DIM_X = 1024;
@@ -57,35 +57,6 @@ const createUint8NiftiGz = () => {
   const imageData = Buffer.alloc(DIM_X * DIM_Y * DIM_Z);
   return zlib.gzipSync(Buffer.concat([header, imageData]), { level: 1 });
 };
-
-const waitForFileExists = (filePath: string, timeout: number) =>
-  new Promise<void>((resolve, reject) => {
-    const dir = path.dirname(filePath);
-    const basename = path.basename(filePath);
-
-    const watcher = fs.watch(dir, (eventType, filename) => {
-      if (eventType === 'rename' && filename === basename) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
-
-    const timerId = setTimeout(() => {
-      watcher.close();
-      reject(
-        new Error(`File ${filePath} not created within ${timeout}ms timeout`)
-      );
-    }, timeout);
-
-    fs.access(filePath, fs.constants.R_OK, (err) => {
-      if (!err) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
-    });
-  });
 
 describe('Save large labelmap', function () {
   this.timeout(180_000);

@@ -78,6 +78,35 @@ export async function openVolViewPage(fileName: string) {
 
 type RemoteResourceType = z.infer<typeof RemoteResource> & { name: string };
 
+export const waitForFileExists = (filePath: string, timeout: number) =>
+  new Promise<void>((resolve, reject) => {
+    const dir = path.dirname(filePath);
+    const basename = path.basename(filePath);
+
+    const watcher = fs.watch(dir, (eventType, filename) => {
+      if (eventType === 'rename' && filename === basename) {
+        clearTimeout(timerId);
+        watcher.close();
+        resolve();
+      }
+    });
+
+    const timerId = setTimeout(() => {
+      watcher.close();
+      reject(
+        new Error(`File ${filePath} not created within ${timeout}ms timeout`)
+      );
+    }, timeout);
+
+    fs.access(filePath, fs.constants.R_OK, (err) => {
+      if (!err) {
+        clearTimeout(timerId);
+        watcher.close();
+        resolve();
+      }
+    });
+  });
+
 export async function openUrls(urlsAndNames: Array<RemoteResourceType>) {
   await Promise.all(
     urlsAndNames.map((resource) => downloadFile(resource.url, resource.name))

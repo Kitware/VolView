@@ -10,7 +10,7 @@ import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
 import { SegmentMask } from '@/src/types/segment';
 import { DEFAULT_SEGMENT_MASKS, CATEGORICAL_COLORS } from '@/src/config';
-import { readImage, writeImage } from '@/src/io/readWriteImage';
+import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import {
   type DataSelection,
   getImage,
@@ -483,8 +483,11 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // save labelmap images
     await Promise.all(
       serialized.map(async ({ id, path }) => {
-        const vtkImage = dataIndex[id];
-        const serializedImage = await writeImage(saveFormat.value, vtkImage);
+        const serializedImage = await writeSegmentation(
+          saveFormat.value,
+          dataIndex[id],
+          metadataByID[id]
+        );
         zip.file(path, serializedImage);
       })
     );
