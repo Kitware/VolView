@@ -232,12 +232,18 @@ class VolViewPage extends Page {
   ) {
     await browser.waitUntil(
       async () => {
-        const views2D = await this.getViews2D();
-        const view3D = await this.getView3D();
-        const view2DCount = await views2D.length;
+        const counts = await browser.execute(() => ({
+          view2DCount: document.querySelectorAll(
+            'div[data-testid="vtk-view vtk-two-view"]'
+          ).length,
+          view3DExists:
+            document.querySelector(
+              'div[data-testid="vtk-view vtk-volume-view"]'
+            ) !== null,
+        }));
         return (
-          view2DCount === expected2DCount &&
-          (view3D !== null) === expected3DExists
+          counts.view2DCount === expected2DCount &&
+          counts.view3DExists === expected3DExists
         );
       },
       {
@@ -245,7 +251,6 @@ class VolViewPage extends Page {
         timeoutMsg: `Expected ${expected2DCount} 2D views and ${
           expected3DExists ? 'a' : 'no'
         } 3D view`,
-        interval: 1000,
       }
     );
   }
