@@ -47,11 +47,23 @@ async function runTask(
   inputs: any[],
   outputs: any[]
 ) {
-  return runPipeline(module, args, outputs, inputs, {
+  const result = await runPipeline(module, args, outputs, inputs, {
     webWorker: getWorker(),
     pipelineBaseUrl: itkConfig.pipelinesUrl,
     pipelineWorkerUrl: itkConfig.pipelineWorkerUrl,
+  }).catch((error) => {
+    throw new Error(
+      `itk-wasm pipeline "${module}" crashed (check browser console for details)`,
+      { cause: error }
+    );
   });
+  if (result.returnValue !== 0) {
+    const detail = result.stderr?.trim() || 'unknown error';
+    throw new Error(
+      `itk-wasm pipeline "${module}" exited with code ${result.returnValue}: ${detail}`
+    );
+  }
+  return result;
 }
 
 /**

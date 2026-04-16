@@ -6,6 +6,7 @@ import { ReadDicomTagsFunction } from '@/src/core/streaming/dicom/dicomMetaLoade
 import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { getWorker } from '@/src/io/itk/worker';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { getErrorDetail } from '@/src/utils';
 import { readDicomTags } from '@itk-wasm/dicom';
 
 /**
@@ -22,8 +23,18 @@ const handleDicomFile: ImportHandler = async (dataSource) => {
   }
 
   const readTags: ReadDicomTagsFunction = async (file) => {
-    const result = await readDicomTags(file, { webWorker: getWorker() });
-    return result.tags;
+    try {
+      const result = await readDicomTags(file, { webWorker: getWorker() });
+      return result.tags;
+    } catch (error) {
+      const detail = getErrorDetail(
+        error,
+        'the file could not be parsed as valid DICOM (check browser console for details)'
+      );
+      throw new Error(`Failed to read DICOM tags: ${detail}`, {
+        cause: error,
+      });
+    }
   };
 
   const metaLoader = new DicomFileMetaLoader(dataSource.file, readTags);
