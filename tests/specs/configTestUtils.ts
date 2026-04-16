@@ -73,6 +73,14 @@ export const FETUS_DATASET = {
   name: 'fetus.zip',
 } as const;
 
+// Multiframe ultrasound DICOM from pydicom public test data.
+// SequenceOfUltrasoundRegions: PhysicalDeltaX/Y = 0.05104970559 cm/pixel
+// (unit code 3 = cm), so with US spacing fix the VTK spacing is ~0.5105 mm.
+export const US_MULTIFRAME_DICOM = {
+  url: 'https://data.kitware.com/api/v1/file/69e1630646ef98a20f563020/download',
+  name: 'US_multiframe_30frames.dcm',
+} as const;
+
 export type DatasetResource = {
   url: string;
   name?: string;
