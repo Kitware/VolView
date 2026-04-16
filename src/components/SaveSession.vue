@@ -36,6 +36,7 @@ import { saveAs } from 'file-saver';
 import { onKeyDown } from '@vueuse/core';
 
 import { serialize } from '../io/state-file/serialize';
+import { useMessageStore } from '../store/messages';
 
 const DEFAULT_FILENAME = 'session.volview.zip';
 
@@ -58,6 +59,11 @@ export default defineComponent({
           const blob = await serialize();
           saveAs(blob, fileName.value);
           props.close();
+        } catch (err) {
+          const messageStore = useMessageStore();
+          messageStore.addError('Failed to save session', {
+            error: err instanceof Error ? err : new Error(String(err)),
+          });
         } finally {
           saving.value = false;
         }
