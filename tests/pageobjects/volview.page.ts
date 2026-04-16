@@ -55,44 +55,15 @@ class VolViewPage extends Page {
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
     await browser.waitUntil(
       async () => {
-        try {
-          // Query views once per iteration to avoid multiple queries that could become stale
-          const currentViews = await this.views;
-          const viewCount = await currentViews.length;
-
-          if (viewCount === 0) {
-            return false;
-          }
-
-          // Check each view's dimensions in a single pass
-          const viewPromises = currentViews.map(async (view) => {
-            try {
-              // Get attributes directly from the element reference
-              const width = await view.getAttribute('width');
-              const height = await view.getAttribute('height');
-
-              if (width && height) {
-                const w = parseInt(width, 10);
-                const h = parseInt(height, 10);
-                // Canvas should have real dimensions, not be a 1x1 placeholder
-                // Accept any size > 10 as a real view
-                return w > 10 && h > 10;
-              }
-              return false;
-            } catch {
-              // Element may have been removed/recreated - that's ok, we'll retry
-              return false;
-            }
+        return browser.execute(() => {
+          const canvases = document.querySelectorAll(
+            'div[data-testid~="vtk-view"] canvas'
+          );
+          return Array.from(canvases).some((c) => {
+            const canvas = c as HTMLCanvasElement;
+            return canvas.width > 10 && canvas.height > 10;
           });
-
-          const results = await Promise.all(await viewPromises);
-
-          // At least one view must have real dimensions
-          return results.some((result) => result);
-        } catch {
-          // DOM may be updating, retry on next iteration
-          return false;
-        }
+        });
       },
       {
         timeout,
@@ -294,12 +265,18 @@ class VolViewPage extends Page {
   ) {
     await browser.waitUntil(
       async () => {
-        const views2D = await this.getViews2D();
-        const view3D = await this.getView3D();
-        const view2DCount = await views2D.length;
+        const counts = await browser.execute(() => ({
+          view2DCount: document.querySelectorAll(
+            'div[data-testid="vtk-view vtk-two-view"]'
+          ).length,
+          view3DExists:
+            document.querySelector(
+              'div[data-testid="vtk-view vtk-volume-view"]'
+            ) !== null,
+        }));
         return (
-          view2DCount === expected2DCount &&
-          (view3D !== null) === expected3DExists
+          counts.view2DCount === expected2DCount &&
+          counts.view3DExists === expected3DExists
         );
       },
       {
@@ -307,7 +284,6 @@ class VolViewPage extends Page {
         timeoutMsg: `Expected ${expected2DCount} 2D views and ${
           expected3DExists ? 'a' : 'no'
         } 3D view`,
-        interval: 1000,
       }
     );
   }
