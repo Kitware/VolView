@@ -7,12 +7,16 @@ export function useGlobalErrorHook() {
 
   const onError = (event: ErrorEvent) => {
     console.error(event);
-    const errorMessage = event.message ?? 'Unknown global error';
+    const error = event.error ?? event.message ?? 'Unknown global error';
 
-    captureException(event.error ?? errorMessage);
+    captureException(error);
 
-    const details = event.error ? event.error : { details: errorMessage };
-    messageStore.addError('Application error (click for details)', details);
+    const errorOptions =
+      error instanceof Error ? { error } : { details: String(error) };
+    messageStore.addError(
+      'Application error (click for details)',
+      errorOptions
+    );
   };
 
   onMounted(() => {

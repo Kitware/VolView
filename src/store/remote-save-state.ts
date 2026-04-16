@@ -30,9 +30,14 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
       });
 
       if (saveResult.ok) messageStore.addSuccess('Save Successful');
-      else messageStore.addError('Save Failed', 'Network response not OK');
+      else
+        messageStore.addError('Save Failed', {
+          details: 'Network response not OK',
+        });
     } catch (error) {
-      messageStore.addError('Save Failed with error', `Failed from: ${error}`);
+      messageStore.addError('Save Failed with error', {
+        details: `Failed from: ${error}`,
+      });
     } finally {
       isSaving.value = false;
     }

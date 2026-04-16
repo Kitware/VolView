@@ -12,7 +12,7 @@ describe('Message store', () => {
 
     const innerError = new Error('inner error');
     const ids = [
-      messageStore.addError('an error', innerError),
+      messageStore.addError('an error', { error: innerError }),
       messageStore.addWarning('warning'),
       messageStore.addInfo('info'),
       messageStore.addInfo('loading', {
@@ -26,7 +26,7 @@ describe('Message store', () => {
         type: MessageType.Error,
         title: 'an error',
         options: {
-          details: String(innerError),
+          details: innerError.stack ?? String(innerError),
           persist: false,
         },
       },
@@ -57,7 +57,7 @@ describe('Message store', () => {
     expect(messageStore.messages).to.have.length(4);
 
     ids.forEach((id, index) => {
-      expect(messageStore.byID[id]).to.deep.equal(expected[index]);
+      expect(messageStore.byID[id]).toMatchObject(expected[index]);
     });
 
     messageStore.clearOne(ids[1]);

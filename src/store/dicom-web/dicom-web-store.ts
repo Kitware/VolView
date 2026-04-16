@@ -202,7 +202,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       };
     } catch (error) {
       const messageStore = useMessageStore();
-      messageStore.addError('Failed to load DICOM', error as Error);
+      messageStore.addError('Failed to load DICOM', { error: error as Error });
       volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
         state: 'Error',

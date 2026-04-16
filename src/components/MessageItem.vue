@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, PropType, toRefs } from 'vue';
+import { useClipboard } from '@vueuse/core';
 import { Message, MessageType } from '../store/messages';
 
 const MessageTypeClass: Record<MessageType, string> = {
@@ -18,6 +19,7 @@ export default defineComponent({
   },
   setup(props) {
     const { message } = toRefs(props);
+    const { copy, copied } = useClipboard();
 
     const headerClass = computed(() => {
       const type = MessageTypeClass[message.value.type];
@@ -27,8 +29,15 @@ export default defineComponent({
       return '';
     });
 
+    const copyBugReport = () => {
+      const report = message.value.bugReport;
+      if (report) copy(report);
+    };
+
     return {
       headerClass,
+      copied,
+      copyBugReport,
     };
   },
 });
@@ -39,13 +48,25 @@ export default defineComponent({
     <v-expansion-panel-title :class="headerClass">
       <div class="header">
         <span>{{ message.title }}</span>
-        <v-btn
-          icon="mdi-delete"
-          variant="text"
-          size="small"
-          class="mr-3"
-          @click.stop="$emit('delete')"
-        />
+        <div>
+          <v-btn
+            v-if="message.bugReport"
+            :prepend-icon="copied ? 'mdi-check' : 'mdi-content-copy'"
+            variant="tonal"
+            size="small"
+            data-testid="copy-bug-report-button"
+            @click.stop="copyBugReport"
+          >
+            Copy Bug Report
+          </v-btn>
+          <v-btn
+            icon="mdi-delete"
+            variant="text"
+            size="small"
+            class="mr-3"
+            @click.stop="$emit('delete')"
+          />
+        </div>
       </div>
     </v-expansion-panel-title>
     <v-expansion-panel-text v-if="message.options.details">

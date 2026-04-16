@@ -115,7 +115,9 @@ export default defineComponent({
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();
-        messageStore.addError('Failed to load sample data', error as Error);
+        messageStore.addError('Failed to load sample data', {
+          error: error as Error,
+        });
       } finally {
         delete status.progress[sample.name];
       }

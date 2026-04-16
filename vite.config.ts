@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { Plugin, defineConfig, normalizePath } from 'vite';
 import vue from '@vitejs/plugin-vue';
@@ -54,6 +55,14 @@ function getPackageInfo() {
   };
 }
 
+function getGitShortSha() {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
 const rootDir = resolvePath(__dirname);
 const distDir = resolvePath(rootDir, 'dist');
 
@@ -101,6 +110,7 @@ export default defineConfig({
       'vtk.js': pkgInfo.versions['vtk.js'],
       'itk-wasm': pkgInfo.versions['itk-wasm'],
     },
+    __GIT_SHORT_SHA__: JSON.stringify(getGitShortSha()),
   },
   resolve: {
     alias: [

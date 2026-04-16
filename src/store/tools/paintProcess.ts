@@ -142,10 +142,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         showingOriginal: false,
       };
     } catch (error) {
-      messageStore.addError(
-        `${activeProcessType.value} Operation Failed`,
-        error as Error
-      );
+      messageStore.addError(`${activeProcessType.value} Operation Failed`, {
+        error: error as Error,
+      });
       if (processState.value.step === 'computing') {
         rollbackPreview(segImage, originalScalars);
         resetState();
