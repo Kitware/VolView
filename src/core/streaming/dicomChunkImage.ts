@@ -26,6 +26,10 @@ import {
 import { ensureError } from '@/src/utils';
 import { computed } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import {
+  getUltrasoundRegionFromMetadata,
+  US_UNIT_CENTIMETERS,
+} from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -279,6 +283,28 @@ export default class DicomChunkImage
   private reallocateImage() {
     this.vtkImageData.value.delete();
     this.vtkImageData.value = allocateImageFromChunks(this.chunks);
+    this.applyUltrasoundSpacing();
+  }
+
+  private applyUltrasoundSpacing() {
+    if (this.getModality() !== 'US') return;
+
+    const region = getUltrasoundRegionFromMetadata(this.getDicomMetadata());
+    if (!region) return;
+    if (
+      region.physicalUnitsXDirection !== US_UNIT_CENTIMETERS ||
+      region.physicalUnitsYDirection !== US_UNIT_CENTIMETERS
+    ) {
+      return;
+    }
+
+    const CM_TO_MM = 10;
+    const [, , zSpacing] = this.vtkImageData.value.getSpacing();
+    this.vtkImageData.value.setSpacing([
+      region.physicalDeltaX * CM_TO_MM,
+      region.physicalDeltaY * CM_TO_MM,
+      zSpacing,
+    ]);
   }
 
   private updateDataRangeFromChunks() {
