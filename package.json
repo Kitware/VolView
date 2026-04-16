@@ -58,7 +58,7 @@
     "@wdio/mocha-framework": "^9.20.1",
     "@wdio/spec-reporter": "^9.20.0",
     "@wdio/static-server-service": "^9.20.0",
-    "@wdio/visual-service": "^9.0.2",
+    "@wdio/visual-service": "9.0.2",
     "comlink": "^4.4.2",
     "concurrently": "^9.2.1",
     "core-js": "3.47.0",
@@ -73,7 +73,7 @@
     "file-saver": "^2.0.5",
     "gl-matrix": "3.4.3",
     "globals": "^16.2.0",
-    "happy-dom": "^20.0.11",
+    "happy-dom": "^20.8.9",
     "itk-wasm": "^1.0.0-b.197",
     "jszip": "3.10.1",
     "lint-staged": "16.2.7",
@@ -96,6 +96,7 @@
     "vitepress": "^1.6.4",
     "vitest": "^4.0.14",
     "vue": "^3.5.25",
+    "vue-eslint-parser": "^10.2.0",
     "vue-toastification": "^2.0.0-rc.5",
     "vue-tsc": "^3.1.5",
     "vuetify": "3.11.0",
@@ -103,7 +104,6 @@
     "wdio-html-nice-reporter": "^8.1.7",
     "wdio-wait-for": "^3.1.0",
     "webdriverio": "^9.20.1",
-    "vue-eslint-parser": "^10.2.0",
     "yorkie": "^2.0.0",
     "zod": "^4.1.13"
   },
@@ -111,6 +111,8 @@
     "pre-commit": "lint-staged"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,vue}": ["eslint"]
+    "*.{js,jsx,ts,tsx,vue}": [
+      "eslint"
+    ]
   }
 }
