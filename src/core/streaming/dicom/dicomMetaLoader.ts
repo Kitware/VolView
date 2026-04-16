@@ -9,6 +9,12 @@ import { Awaitable } from '@vueuse/core';
 import { toAscii } from '@/src/utils';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Tags } from '@/src/core/dicomTags';
+import {
+  decodeUltrasoundRegion,
+  encodeUltrasoundRegionMeta,
+  SEQUENCE_OF_ULTRASOUND_REGIONS,
+  UltrasoundRegion,
+} from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 export type ReadDicomTagsFunction = (
   file: File
@@ -51,6 +57,7 @@ export class DicomMetaLoader implements MetaLoader {
     let explicitVr = true;
     let dicomUpToPixelDataIdx = -1;
     let modality: string | undefined;
+    let ultrasoundRegion: UltrasoundRegion | null = null;
 
     const parse = createDicomParser({
       stopAtElement(group, element) {
@@ -65,6 +72,13 @@ export class DicomMetaLoader implements MetaLoader {
         // Capture Modality tag (0008,0060)
         if (el.group === 0x0008 && el.element === 0x0060 && el.data) {
           modality = toAscii(el.data as Uint8Array).trim();
+        }
+        if (
+          el.group === SEQUENCE_OF_ULTRASOUND_REGIONS[0] &&
+          el.element === SEQUENCE_OF_ULTRASOUND_REGIONS[1] &&
+          !ultrasoundRegion
+        ) {
+          ultrasoundRegion = decodeUltrasoundRegion(el.data);
         }
       },
     });
@@ -115,6 +129,10 @@ export class DicomMetaLoader implements MetaLoader {
 
     const metadataFile = new File([validPixelDataBlob], 'file.dcm');
     this.tags = await this.readDicomTags(metadataFile);
+
+    if (modality === 'US' && ultrasoundRegion) {
+      this.tags.push(encodeUltrasoundRegionMeta(ultrasoundRegion));
+    }
   }
 
   stop() {
