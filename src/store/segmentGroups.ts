@@ -26,6 +26,7 @@ import {
   SegmentGroupMetadata,
   SegmentGroup,
 } from '../io/state-file/schema';
+import { makeSegmentGroupArchivePath } from '../io/state-file/segmentGroupArchivePath';
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
 import { untilLoaded } from '../composables/untilLoaded';
@@ -458,6 +459,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
    */
   async function serialize(state: StateFile) {
     const { zip } = state;
+    const usedArchivePaths = new Set<string>();
 
     // orderByParent is implicitly preserved based on
     // the order of serialized entries.
@@ -469,7 +471,11 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
         const metadata = metadataByID[id];
         return {
           id,
-          path: `labels/${id}.${saveFormat.value}`,
+          path: makeSegmentGroupArchivePath(
+            metadata.name,
+            saveFormat.value,
+            usedArchivePaths
+          ),
           metadata: {
             ...metadata,
             parentImage: metadata.parentImage,

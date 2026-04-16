@@ -1,8 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
-import { MINIMAL_501_SESSION } from './configTestUtils';
-import { downloadFile, waitForFileExists } from './utils';
+import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from './configTestUtils';
+import { downloadFile, openUrls, waitForFileExists } from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
@@ -15,25 +15,31 @@ const saveSession = async () => {
   return sessionFileName;
 };
 
-const parseManifest = async (sessionFileName: string) => {
+const parseSession = async (sessionFileName: string) => {
   const session = fs.readFileSync(path.join(TEMP_DIR, sessionFileName));
   const zip = await JSZip.loadAsync(session);
   const manifestFile = await zip.files['manifest.json'].async('string');
-  return JSON.parse(manifestFile);
+  return {
+    zip,
+    manifest: JSON.parse(manifestFile),
+  };
 };
 
 const saveAndParseManifest = async () => {
   const session = await saveSession();
+  let zip: JSZip | undefined;
   let manifest: Record<string, unknown> = {};
   await browser.waitUntil(async () => {
     try {
-      manifest = await parseManifest(session);
+      const parsed = await parseSession(session);
+      zip = parsed.zip;
+      manifest = parsed.manifest;
       return manifest.version !== undefined;
     } catch {
       return false;
     }
   });
-  return { session, manifest };
+  return { session, zip, manifest };
 };
 
 const loadSession = async () => {
@@ -121,5 +127,28 @@ describe('Session state lifecycle', () => {
       rectangles: { tools: Array<{ strokeWidth: number }> };
     };
     expect(tools.rectangles.tools[0].strokeWidth).toEqual(editedStrokeWidth);
+  });
+
+  it('sanitizes segment group names when saving labelmaps into the session zip', async () => {
+    await openUrls([PROSTATEX_DATASET]);
+
+    const segmentGroupName = 'Liver: left/right*?';
+    const sanitizedFilePath = 'segmentations/Liver left right.vti';
+
+    await volViewPage.createSegmentGroup(segmentGroupName);
+
+    const { manifest, zip } = await saveAndParseManifest();
+    if (!zip) {
+      throw new Error('Expected saved session zip to be available');
+    }
+    const segmentGroups = manifest.segmentGroups as Array<{
+      path: string;
+      metadata: { name: string };
+    }>;
+
+    expect(segmentGroups.length).toEqual(1);
+    expect(segmentGroups[0].metadata.name).toEqual(segmentGroupName);
+    expect(segmentGroups[0].path).toEqual(sanitizedFilePath);
+    expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 });

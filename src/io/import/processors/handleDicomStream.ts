@@ -14,6 +14,7 @@ import {
 } from '@/src/io/import/common';
 import { getWorker } from '@/src/io/itk/worker';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { getErrorDetail } from '@/src/utils';
 import { readDicomTags } from '@itk-wasm/dicom';
 import { Tags } from '@/src/core/dicomTags';
 import { useMessageStore } from '@/src/store/messages';
@@ -34,8 +35,13 @@ const handleDicomStream: ImportHandler = async (dataSource) => {
       const result = await readDicomTags(file, { webWorker: getWorker() });
       return result.tags;
     } catch (error) {
+      const detail = getErrorDetail(
+        error,
+        'the file could not be parsed as valid DICOM (check browser console for details)'
+      );
       throw new Error(
-        `Failed to read DICOM tags from ${dataSource.uri}: ${error}`
+        `Failed to read DICOM tags from ${dataSource.uri}: ${detail}`,
+        { cause: error }
       );
     }
   };

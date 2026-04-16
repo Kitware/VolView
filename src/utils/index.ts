@@ -215,6 +215,10 @@ export function ensureError(e: unknown) {
   return e instanceof Error ? e : new Error(JSON.stringify(e));
 }
 
+export function getErrorDetail(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 // remove undefined properties
 export function cleanUndefined(obj: Object) {
   return Object.entries(obj).reduce(

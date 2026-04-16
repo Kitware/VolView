@@ -7,7 +7,7 @@
       <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
         <v-text-field
           v-model="fileName"
-          hint="Filename that will appear in downloads."
+          hint="Filename used for downloads."
           label="Filename"
           :rules="[validFileName]"
           required
@@ -37,12 +37,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
+import { sanitizeSegmentGroupFileStem } from '@/src/io/state-file/segmentGroupArchivePath';
 
 const EXTENSIONS = [
   'seg.nrrd',
@@ -63,12 +64,18 @@ const props = defineProps<{
 
 const emit = defineEmits(['done']);
 
-const fileName = ref('');
+const fileNameValue = ref('');
 const valid = ref(true);
 const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
 const segmentGroupStore = useSegmentGroupStore();
+const fileName = computed({
+  get: () => fileNameValue.value,
+  set: (value: string) => {
+    fileNameValue.value = sanitizeSegmentGroupFileStem(value, '');
+  },
+});
 
 async function saveSegmentGroup() {
   if (fileName.value.trim().length === 0) {
@@ -77,12 +84,14 @@ async function saveSegmentGroup() {
 
   saving.value = true;
   await useErrorMessage('Failed to save segment group', async () => {
+    const sanitizedFileName = sanitizeSegmentGroupFileStem(fileName.value);
+    fileNameValue.value = sanitizedFileName;
     const serialized = await writeSegmentation(
       fileFormat.value,
       segmentGroupStore.dataIndex[props.id],
       segmentGroupStore.metadataByID[props.id]
     );
-    saveAs(new Blob([serialized]), `${fileName.value}.${fileFormat.value}`);
+    saveAs(new Blob([serialized]), `${sanitizedFileName}.${fileFormat.value}`);
   });
   saving.value = false;
   emit('done');
@@ -90,7 +99,9 @@ async function saveSegmentGroup() {
 
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
-  fileName.value = segmentGroupStore.metadataByID[props.id].name;
+  fileNameValue.value = sanitizeSegmentGroupFileStem(
+    segmentGroupStore.metadataByID[props.id].name
+  );
 });
 
 onKeyDown('Enter', () => {
