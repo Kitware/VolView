@@ -10,7 +10,6 @@ from volview_server import VolViewApi
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from example_api import volview
 
-
 app = FastAPI()
 
 # Adds volview middlware

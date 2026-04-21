@@ -98,9 +98,9 @@ async def median_filter(img_id, radius):
     # blurred image, we instead assume we are re-running
     # the blur operation on the original image.
     base_image_id = get_base_image(state, img_id)
-    
+
     img = await cache_store.getVtkImageData(base_image_id)
-    
+
     if img is None:
         raise ValueError(f"No image found for ID: {base_image_id}")
 
@@ -110,7 +110,7 @@ async def median_filter(img_id, radius):
 
     blurred_id = state.image_id_map.get(base_image_id)
     images_store = get_current_client_store("images")
-    
+
     if not blurred_id:
         # Add new blurred image
         blurred_id = await images_store.addVTKImageData("Blurred image", output)
