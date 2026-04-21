@@ -8,6 +8,16 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 
 const SESSION_SAVE_TIMEOUT = 40000;
 
+const waitForElementCount = async (selector: string, minCount = 1) => {
+  await browser.waitUntil(async () => {
+    const count = await browser.execute(
+      (sel) => document.querySelectorAll(sel).length,
+      selector
+    );
+    return count >= minCount;
+  });
+};
+
 const saveSession = async () => {
   const sessionFileName = await volViewPage.saveSession();
   const downloadedPath = path.join(TEMP_DIR, sessionFileName);
@@ -65,28 +75,14 @@ describe('Session state lifecycle', () => {
     await measurementsTab.waitForClickable();
     await measurementsTab.click();
 
-    await browser.waitUntil(async () => {
-      const rectangleEntries = await $$(
-        '.v-list-item i.mdi-vector-square.tool-icon'
-      );
-      return (await rectangleEntries.length) >= 1;
-    });
-
-    await browser.waitUntil(async () => {
-      const polygonEntries = await $$(
-        '.v-list-item i.mdi-pentagon-outline.tool-icon'
-      );
-      return (await polygonEntries.length) >= 1;
-    });
+    await waitForElementCount('.v-list-item i.mdi-vector-square.tool-icon');
+    await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
 
     const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
     await segmentGroupsTab.waitForClickable();
     await segmentGroupsTab.click();
 
-    await browser.waitUntil(async () => {
-      const segmentGroups = await $$('.segment-group-list .v-list-item');
-      return (await segmentGroups.length) >= 1;
-    });
+    await waitForElementCount('.segment-group-list .v-list-item');
   });
 
   it('edited label strokeWidth persists through save/load cycle', async () => {
@@ -102,10 +98,7 @@ describe('Session state lifecycle', () => {
     );
     await annotationsTab.click();
 
-    await browser.waitUntil(async () => {
-      const buttons = await volViewPage.editLabelButtons;
-      return (await buttons.length) >= 1;
-    });
+    await waitForElementCount('button[data-testid="edit-label-button"]');
 
     const buttons = await volViewPage.editLabelButtons;
     await buttons[0].click();
