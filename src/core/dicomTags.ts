@@ -33,8 +33,20 @@ const tags: Tag[] = [
   { name: 'RescaleIntercept', tag: '0028|1052' },
   { name: 'RescaleSlope', tag: '0028|1053' },
   { name: 'NumberOfFrames', tag: '0028|0008' },
+  { name: 'SequenceOfUltrasoundRegions', tag: '0018|6011' },
+  { name: 'PhysicalDeltaX', tag: '0018|602c' },
+  { name: 'PhysicalDeltaY', tag: '0018|602e' },
+  { name: 'PhysicalUnitsXDirection', tag: '0018|6024' },
+  { name: 'PhysicalUnitsYDirection', tag: '0018|6026' },
 ];
 
 export const TAG_TO_NAME = new Map(tags.map((t) => [t.tag, t.name]));
 export const NAME_TO_TAG = new Map(tags.map((t) => [t.name, t.tag]));
 export const Tags = Object.fromEntries(tags.map((t) => [t.name, t.tag]));
+
+// Splits an itk-wasm-style "GGGG|EEEE" tag into the numeric [group, element]
+// pair emitted by the streaming DICOM parser.
+export const tagToGroupElement = (tag: string): [number, number] => {
+  const [group, element] = tag.split('|');
+  return [parseInt(group, 16), parseInt(element, 16)];
+};
