@@ -65,8 +65,18 @@ const fakeSequenceData = (items: Item[][]): DataElement['data'] =>
   );
 
 const wellFormedItem: Item[] = [
-  { group: 0x0018, element: 0x6024, vr: 'US', value: u16LE(US_UNIT_CENTIMETERS) },
-  { group: 0x0018, element: 0x6026, vr: 'US', value: u16LE(US_UNIT_CENTIMETERS) },
+  {
+    group: 0x0018,
+    element: 0x6024,
+    vr: 'US',
+    value: u16LE(US_UNIT_CENTIMETERS),
+  },
+  {
+    group: 0x0018,
+    element: 0x6026,
+    vr: 'US',
+    value: u16LE(US_UNIT_CENTIMETERS),
+  },
   { group: 0x0018, element: 0x602c, vr: 'FD', value: f64LE(0.05) },
   { group: 0x0018, element: 0x602e, vr: 'FD', value: f64LE(0.1) },
 ];
@@ -95,7 +105,9 @@ describe('decodeUltrasoundRegion', () => {
     const missingDeltaY = wellFormedItem.filter(
       (e) => !(e.group === 0x0018 && e.element === 0x602e)
     );
-    expect(decodeUltrasoundRegion(fakeSequenceData([missingDeltaY]))).toBeNull();
+    expect(
+      decodeUltrasoundRegion(fakeSequenceData([missingDeltaY]))
+    ).toBeNull();
   });
 
   it('ignores items beyond the first', () => {
