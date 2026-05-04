@@ -5,6 +5,7 @@ import {
   encodeUltrasoundRegionMeta,
   getUltrasoundRegionFromMetadata,
   parseUltrasoundRegionFromBlob,
+  unitToMm,
   US_REGION_META_KEY,
   US_UNIT_CENTIMETERS,
 } from '@/src/core/streaming/dicom/ultrasoundRegion';
@@ -121,6 +122,20 @@ describe('decodeUltrasoundRegion', () => {
       fakeSequenceData([wellFormedItem, second])
     );
     expect(region?.physicalDeltaX).toBe(0.05);
+  });
+});
+
+describe('unitToMm', () => {
+  it('returns 10 for centimetres (code 3)', () => {
+    expect(unitToMm(US_UNIT_CENTIMETERS)).toBe(10);
+  });
+
+  it('returns null for non-spatial unit codes', () => {
+    // Per DICOM PS3.3 C.8.5.5.1.15: 0=none, 1=percent, 2=dB, 4=seconds,
+    // 5=hertz, 6=dB/sec, 7=cm/sec, 8=cm², 9=cm²/sec, 10=degrees.
+    [0, 1, 2, 4, 5, 6, 7, 8, 9, 10].forEach((code) => {
+      expect(unitToMm(code)).toBeNull();
+    });
   });
 });
 
