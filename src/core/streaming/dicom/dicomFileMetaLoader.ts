@@ -3,12 +3,13 @@ import { MetaLoader } from '@/src/core/streaming/types';
 import { Maybe } from '@/src/types';
 import { Tags } from '@/src/core/dicomTags';
 import {
-  encodeUltrasoundRegionMeta,
   parseUltrasoundRegionFromBlob,
+  UltrasoundRegions,
 } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 export class DicomFileMetaLoader implements MetaLoader {
   public tags: Maybe<Array<[string, string]>>;
+  public ultrasoundRegions: UltrasoundRegions | null = null;
   private file: File;
 
   constructor(
@@ -32,10 +33,7 @@ export class DicomFileMetaLoader implements MetaLoader {
 
     const modality = new Map(this.tags).get(Tags.Modality)?.trim();
     if (modality === 'US') {
-      const regions = await parseUltrasoundRegionFromBlob(this.file);
-      if (regions) {
-        this.tags.push(encodeUltrasoundRegionMeta(regions));
-      }
+      this.ultrasoundRegions = await parseUltrasoundRegionFromBlob(this.file);
     }
   }
 

@@ -1,5 +1,6 @@
 import { Maybe } from '@/src/types';
 import { Awaitable } from '@vueuse/core';
+import type { UltrasoundRegions } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 export type LoaderEvents = {
   error: any;
@@ -17,6 +18,7 @@ interface Loader {
 export interface MetaLoader extends Loader {
   meta: Maybe<Array<[string, string]>>;
   metaBlob: Maybe<Blob>;
+  ultrasoundRegions?: UltrasoundRegions | null;
 }
 
 /**
