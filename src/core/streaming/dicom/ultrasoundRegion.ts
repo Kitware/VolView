@@ -6,9 +6,20 @@ import { Tags, tagToGroupElement } from '@/src/core/dicomTags';
 
 export const US_REGION_META_KEY = '__volview_us_region';
 
-// DICOM unit codes for PhysicalUnitsXDirection / YDirection
-// 0x0003 = centimeters. See DICOM PS3.3 C.8.5.5.1.1.
+// DICOM unit codes for PhysicalUnitsXDirection / YDirection.
+// See DICOM PS3.3 C.8.5.5.1.15. The only spatial spacing code defined for
+// this field is 3 (cm). Other codes (0=none, 1=percent, 2=dB, 4=seconds,
+// 5=hertz, 6=dB/seconds, 7=cm/sec, 8=cm², 9=cm²/sec, A=degrees) are time,
+// frequency, velocity, area, or angle, so they are not converted to a VTK
+// image spacing.
 export const US_UNIT_CENTIMETERS = 3;
+
+// Returns the multiplier that converts a physical-delta value in the given
+// unit to millimetres, or null when the unit is not a spatial spacing.
+export const unitToMm = (code: number): number | null => {
+  if (code === US_UNIT_CENTIMETERS) return 10;
+  return null;
+};
 
 export type UltrasoundRegion = {
   physicalDeltaX: number;
