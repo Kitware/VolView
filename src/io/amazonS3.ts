@@ -1,5 +1,4 @@
 import { parseUrl } from '@/src/utils/url';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
 /**
  * Detects `s3://` uri.
@@ -9,57 +8,125 @@ import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
 export const isAmazonS3Uri = (uri: string) =>
   parseUrl(uri, window.location.origin).protocol === 's3:';
 
-export type ObjectAvailableCallback = (url: string, name: string) => void;
+export type ObjectAvailableCallback = (name: string, url: string) => void;
 
-function getObjectPublicUrl(bucket: string, key: string) {
-  return `https://${bucket}.s3.amazonaws.com/${key}`;
-}
+const getObjectPublicUrl = (bucket: string, key: string) =>
+  `https://${bucket}.s3.amazonaws.com/${key}`;
 
-async function fetchObjectsWithPagination(
+const buildListUrl = (
+  bucket: string,
+  prefix: string,
+  continuationToken?: string
+) => {
+  const u = new URL(`https://${bucket}.s3.amazonaws.com/`);
+  u.searchParams.set('list-type', '2');
+  u.searchParams.set('prefix', prefix);
+  u.searchParams.set('max-keys', '1000');
+  if (continuationToken)
+    u.searchParams.set('continuation-token', continuationToken);
+  return u.toString();
+};
+
+type ListPage = {
+  keys: string[];
+  nextContinuationToken: string | null;
+};
+
+const getChildText = (el: Element, tag: string) =>
+  el.getElementsByTagName(tag)[0]?.textContent ?? null;
+
+const parseListResponse = (xmlText: string): ListPage => {
+  const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+  const root = xml.documentElement;
+  if (root.tagName === 'parsererror') {
+    throw new Error('S3 ListObjectsV2: invalid XML response');
+  }
+  if (root.tagName === 'Error') {
+    throw new Error(
+      `S3 ListObjectsV2: ${getChildText(root, 'Code') ?? 'Error'}: ${getChildText(root, 'Message') ?? ''}`
+    );
+  }
+  if (root.tagName !== 'ListBucketResult') {
+    throw new Error(
+      `S3 ListObjectsV2: unexpected response root <${root.tagName}>`
+    );
+  }
+  const keys = Array.from(root.getElementsByTagName('Contents'))
+    .map((c) => getChildText(c, 'Key'))
+    .filter((k): k is string => !!k);
+  const isTruncated = getChildText(root, 'IsTruncated') === 'true';
+  return {
+    keys,
+    nextContinuationToken: isTruncated
+      ? getChildText(root, 'NextContinuationToken')
+      : null,
+  };
+};
+
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 3;
+const BASE_BACKOFF_MS = 200;
+const MAX_BACKOFF_MS = 2000;
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const backoffDelay = (attempt: number) => {
+  const exp = Math.min(2 ** (attempt - 1) * BASE_BACKOFF_MS, MAX_BACKOFF_MS);
+  return exp + Math.random() * exp * 0.3;
+};
+
+const fetchWithRetry = async (url: string): Promise<Response> => {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await fetch(url);
+      if (res.ok || !RETRYABLE_STATUSES.has(res.status)) return res;
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (attempt < MAX_ATTEMPTS) await sleep(backoffDelay(attempt));
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+};
+
+const listObjectsV2Page = async (
+  bucket: string,
+  prefix: string,
+  continuationToken?: string
+): Promise<ListPage> => {
+  const res = await fetchWithRetry(
+    buildListUrl(bucket, prefix, continuationToken)
+  );
+  if (!res.ok) {
+    throw new Error(`S3 ListObjectsV2 ${bucket}: HTTP ${res.status}`);
+  }
+  return parseListResponse(await res.text());
+};
+
+const fetchObjectsWithPagination = async (
   bucket: string,
   prefix: string,
   onObjectAvailable: ObjectAvailableCallback = () => {}
-) {
-  const client = new S3Client({
-    region: 'us-east-1',
-    // workaround for sdk's inability to specify anonymous credentials
-    signer: { sign: async (request) => request },
-  });
-
-  const paginate = async (continuationToken?: string) => {
-    const listObjectsCmd = new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: prefix,
-      ContinuationToken: continuationToken,
-      MaxKeys: 1000,
+) => {
+  let continuationToken: string | undefined;
+  let total = 0;
+  do {
+    const page = await listObjectsV2Page(bucket, prefix, continuationToken);
+    page.keys.forEach((key) => {
+      onObjectAvailable(key, getObjectPublicUrl(bucket, key));
     });
+    total += page.keys.length;
+    continuationToken = page.nextContinuationToken ?? undefined;
+  } while (continuationToken);
 
-    let result;
-    try {
-      result = await client.send(listObjectsCmd);
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
-
-    if (!result.Contents) {
-      throw new Error('S3 returned no objects');
-    }
-
-    result.Contents.forEach((obj) => {
-      if (!obj.Key) return;
-      const name = obj.Key;
-      const url = getObjectPublicUrl(bucket, obj.Key);
-      onObjectAvailable(name, url);
-    });
-
-    if (result.IsTruncated && result.NextContinuationToken) {
-      await paginate(result.NextContinuationToken);
-    }
-  };
-
-  await paginate();
-}
+  if (total === 0) {
+    throw new Error('S3 returned no objects');
+  }
+};
 
 /**
  * Extracts bucket and prefix from `s3://` URIs

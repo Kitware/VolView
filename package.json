@@ -31,7 +31,6 @@
     "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.940.0",
     "@eslint/js": "^9.39.1",
     "@itk-wasm/dicom": "^7.6.4",
     "@itk-wasm/image-io": "1.6.1",
