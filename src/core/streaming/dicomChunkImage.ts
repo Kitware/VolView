@@ -26,10 +26,7 @@ import {
 import { ensureError } from '@/src/utils';
 import { computed } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
-import {
-  getUltrasoundRegionFromMetadata,
-  unitToMm,
-} from '@/src/core/streaming/dicom/ultrasoundRegion';
+import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -289,7 +286,7 @@ export default class DicomChunkImage
   private applyUltrasoundSpacing() {
     if (this.getModality() !== 'US') return;
 
-    const regions = getUltrasoundRegionFromMetadata(this.getDicomMetadata());
+    const regions = this.chunks[0]?.ultrasoundRegions ?? null;
     if (!regions?.region) return;
 
     // VTK image data has a single global spacing, so multi-region images

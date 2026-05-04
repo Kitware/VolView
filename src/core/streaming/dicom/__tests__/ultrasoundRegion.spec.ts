@@ -2,11 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { DataElement } from '@/src/core/streaming/dicom/dicomParser';
 import {
   decodeUltrasoundRegion,
-  encodeUltrasoundRegionMeta,
-  getUltrasoundRegionFromMetadata,
   parseUltrasoundRegionFromBlob,
   unitToMm,
-  US_REGION_META_KEY,
   US_UNIT_CENTIMETERS,
 } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
@@ -150,41 +147,6 @@ describe('unitToMm', () => {
     [0, 1, 2, 4, 5, 6, 7, 8, 9, 10].forEach((code) => {
       expect(unitToMm(code)).toBeNull();
     });
-  });
-});
-
-describe('encodeUltrasoundRegionMeta / getUltrasoundRegionFromMetadata', () => {
-  it('round-trips through the metadata tag array', () => {
-    const regions = {
-      region: {
-        physicalDeltaX: 0.05,
-        physicalDeltaY: 0.1,
-        physicalUnitsXDirection: US_UNIT_CENTIMETERS,
-        physicalUnitsYDirection: US_UNIT_CENTIMETERS,
-      },
-      regionCount: 2,
-    };
-    const entry = encodeUltrasoundRegionMeta(regions);
-    expect(entry[0]).toBe(US_REGION_META_KEY);
-
-    const meta: Array<[string, string]> = [
-      ['0008|0060', 'US'],
-      entry,
-      ['0010|0010', 'PATIENT^NAME'],
-    ];
-    expect(getUltrasoundRegionFromMetadata(meta)).toEqual(regions);
-  });
-
-  it('returns null when the entry is absent', () => {
-    expect(getUltrasoundRegionFromMetadata([])).toBeNull();
-    expect(getUltrasoundRegionFromMetadata(null)).toBeNull();
-    expect(getUltrasoundRegionFromMetadata(undefined)).toBeNull();
-  });
-
-  it('returns null when the entry value is unparseable', () => {
-    expect(
-      getUltrasoundRegionFromMetadata([[US_REGION_META_KEY, 'not-json']])
-    ).toBeNull();
   });
 });
 

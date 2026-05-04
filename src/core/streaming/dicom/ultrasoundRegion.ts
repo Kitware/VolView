@@ -4,8 +4,6 @@ import {
 } from '@/src/core/streaming/dicom/dicomParser';
 import { Tags, tagToGroupElement } from '@/src/core/dicomTags';
 
-export const US_REGION_META_KEY = '__volview_us_region';
-
 // DICOM unit codes for PhysicalUnitsXDirection / YDirection.
 // See DICOM PS3.3 C.8.5.5.1.15. The only spatial spacing code defined for
 // this field is 3 (cm). Other codes (0=none, 1=percent, 2=dB, 4=seconds,
@@ -143,23 +141,4 @@ export async function parseUltrasoundRegionFromBlob(
   }
 
   return regions;
-}
-
-export function encodeUltrasoundRegionMeta(
-  regions: UltrasoundRegions
-): [string, string] {
-  return [US_REGION_META_KEY, JSON.stringify(regions)];
-}
-
-export function getUltrasoundRegionFromMetadata(
-  meta: ReadonlyArray<readonly [string, string]> | null | undefined
-): UltrasoundRegions | null {
-  if (!meta) return null;
-  const entry = meta.find(([key]) => key === US_REGION_META_KEY);
-  if (!entry) return null;
-  try {
-    return JSON.parse(entry[1]) as UltrasoundRegions;
-  } catch {
-    return null;
-  }
 }

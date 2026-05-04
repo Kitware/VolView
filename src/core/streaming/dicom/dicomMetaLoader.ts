@@ -11,7 +11,6 @@ import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Tags } from '@/src/core/dicomTags';
 import {
   decodeUltrasoundRegion,
-  encodeUltrasoundRegionMeta,
   SEQUENCE_OF_ULTRASOUND_REGIONS,
   UltrasoundRegions,
 } from '@/src/core/streaming/dicom/ultrasoundRegion';
@@ -34,6 +33,7 @@ export class DicomMetaLoader implements MetaLoader {
   private fetcher: Fetcher;
   private readDicomTags: ReadDicomTagsFunction;
   private blob: Blob | null;
+  public ultrasoundRegions: UltrasoundRegions | null = null;
 
   constructor(fetcher: Fetcher, readDicomTags: ReadDicomTagsFunction) {
     this.fetcher = fetcher;
@@ -131,7 +131,7 @@ export class DicomMetaLoader implements MetaLoader {
     this.tags = await this.readDicomTags(metadataFile);
 
     if (modality === 'US' && ultrasoundRegions) {
-      this.tags.push(encodeUltrasoundRegionMeta(ultrasoundRegions));
+      this.ultrasoundRegions = ultrasoundRegions;
     }
   }
 
