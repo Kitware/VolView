@@ -32,9 +32,9 @@ export class DicomFileMetaLoader implements MetaLoader {
 
     const modality = new Map(this.tags).get(Tags.Modality)?.trim();
     if (modality === 'US') {
-      const region = await parseUltrasoundRegionFromBlob(this.file);
-      if (region) {
-        this.tags.push(encodeUltrasoundRegionMeta(region));
+      const regions = await parseUltrasoundRegionFromBlob(this.file);
+      if (regions) {
+        this.tags.push(encodeUltrasoundRegionMeta(regions));
       }
     }
   }

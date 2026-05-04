@@ -84,44 +84,58 @@ const wellFormedItem: Item[] = [
 
 describe('decodeUltrasoundRegion', () => {
   it('decodes the first item of the sequence', () => {
-    const region = decodeUltrasoundRegion(fakeSequenceData([wellFormedItem]));
-    expect(region).toEqual({
-      physicalDeltaX: 0.05,
-      physicalDeltaY: 0.1,
-      physicalUnitsXDirection: US_UNIT_CENTIMETERS,
-      physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+    const result = decodeUltrasoundRegion(fakeSequenceData([wellFormedItem]));
+    expect(result).toEqual({
+      region: {
+        physicalDeltaX: 0.05,
+        physicalDeltaY: 0.1,
+        physicalUnitsXDirection: US_UNIT_CENTIMETERS,
+        physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+      },
+      regionCount: 1,
     });
   });
 
-  it('returns null when the sequence is empty', () => {
-    expect(decodeUltrasoundRegion([])).toBeNull();
+  it('returns a null region with zero count when the sequence is empty', () => {
+    expect(decodeUltrasoundRegion([])).toEqual({
+      region: null,
+      regionCount: 0,
+    });
   });
 
-  it('returns null when the data is not a sequence', () => {
-    expect(decodeUltrasoundRegion(undefined)).toBeNull();
-    expect(decodeUltrasoundRegion(new Uint8Array(4))).toBeNull();
+  it('returns a null region with zero count when the data is not a sequence', () => {
+    expect(decodeUltrasoundRegion(undefined)).toEqual({
+      region: null,
+      regionCount: 0,
+    });
+    expect(decodeUltrasoundRegion(new Uint8Array(4))).toEqual({
+      region: null,
+      regionCount: 0,
+    });
   });
 
-  it('returns null when a required field is missing', () => {
+  it('returns a null region but reports the count when a required field is missing', () => {
     const missingDeltaY = wellFormedItem.filter(
       (e) => !(e.group === 0x0018 && e.element === 0x602e)
     );
-    expect(
-      decodeUltrasoundRegion(fakeSequenceData([missingDeltaY]))
-    ).toBeNull();
+    expect(decodeUltrasoundRegion(fakeSequenceData([missingDeltaY]))).toEqual({
+      region: null,
+      regionCount: 1,
+    });
   });
 
-  it('ignores items beyond the first', () => {
+  it('decodes only the first item but reports the total count', () => {
     const second: Item[] = [
       { group: 0x0018, element: 0x6024, vr: 'US', value: u16LE(0) },
       { group: 0x0018, element: 0x6026, vr: 'US', value: u16LE(0) },
       { group: 0x0018, element: 0x602c, vr: 'FD', value: f64LE(999) },
       { group: 0x0018, element: 0x602e, vr: 'FD', value: f64LE(999) },
     ];
-    const region = decodeUltrasoundRegion(
+    const result = decodeUltrasoundRegion(
       fakeSequenceData([wellFormedItem, second])
     );
-    expect(region?.physicalDeltaX).toBe(0.05);
+    expect(result.region?.physicalDeltaX).toBe(0.05);
+    expect(result.regionCount).toBe(2);
   });
 });
 
@@ -141,13 +155,16 @@ describe('unitToMm', () => {
 
 describe('encodeUltrasoundRegionMeta / getUltrasoundRegionFromMetadata', () => {
   it('round-trips through the metadata tag array', () => {
-    const region = {
-      physicalDeltaX: 0.05,
-      physicalDeltaY: 0.1,
-      physicalUnitsXDirection: US_UNIT_CENTIMETERS,
-      physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+    const regions = {
+      region: {
+        physicalDeltaX: 0.05,
+        physicalDeltaY: 0.1,
+        physicalUnitsXDirection: US_UNIT_CENTIMETERS,
+        physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+      },
+      regionCount: 2,
     };
-    const entry = encodeUltrasoundRegionMeta(region);
+    const entry = encodeUltrasoundRegionMeta(regions);
     expect(entry[0]).toBe(US_REGION_META_KEY);
 
     const meta: Array<[string, string]> = [
@@ -155,7 +172,7 @@ describe('encodeUltrasoundRegionMeta / getUltrasoundRegionFromMetadata', () => {
       entry,
       ['0010|0010', 'PATIENT^NAME'],
     ];
-    expect(getUltrasoundRegionFromMetadata(meta)).toEqual(region);
+    expect(getUltrasoundRegionFromMetadata(meta)).toEqual(regions);
   });
 
   it('returns null when the entry is absent', () => {
@@ -217,14 +234,17 @@ const buildDicomBlob = (item: Item[]) => {
 };
 
 describe('parseUltrasoundRegionFromBlob', () => {
-  it('extracts the region from a synthetic DICOM blob', async () => {
+  it('extracts the region and count from a synthetic DICOM blob', async () => {
     const blob = buildDicomBlob(wellFormedItem);
-    const region = await parseUltrasoundRegionFromBlob(blob);
-    expect(region).toEqual({
-      physicalDeltaX: 0.05,
-      physicalDeltaY: 0.1,
-      physicalUnitsXDirection: US_UNIT_CENTIMETERS,
-      physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+    const result = await parseUltrasoundRegionFromBlob(blob);
+    expect(result).toEqual({
+      region: {
+        physicalDeltaX: 0.05,
+        physicalDeltaY: 0.1,
+        physicalUnitsXDirection: US_UNIT_CENTIMETERS,
+        physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+      },
+      regionCount: 1,
     });
   });
 
