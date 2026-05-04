@@ -28,6 +28,15 @@ export type UltrasoundRegion = {
   physicalUnitsYDirection: number;
 };
 
+// First-region spacing plus the total number of regions in the source
+// SequenceOfUltrasoundRegions. Multi-region images (e.g. dual-pane B-mode +
+// Doppler) cannot be fully represented with a single VTK image spacing, so
+// we expose the count to let callers warn about partial support.
+export type UltrasoundRegions = {
+  region: UltrasoundRegion | null;
+  regionCount: number;
+};
+
 export const SEQUENCE_OF_ULTRASOUND_REGIONS = tagToGroupElement(
   Tags.SequenceOfUltrasoundRegions
 );
@@ -56,13 +65,18 @@ const readUint16LE = (bytes: Uint8Array) =>
   );
 
 /**
- * Decodes the first item of a SequenceOfUltrasoundRegions element.
- * Returns null if required fields are missing.
+ * Decodes the first item of a SequenceOfUltrasoundRegions element and
+ * reports the total number of regions found. The first region's spacing
+ * is what gets applied to the VTK image; the count lets callers warn when
+ * additional regions exist (multi-region images are only partially
+ * supported because VTK image data has a single global spacing).
  */
 export function decodeUltrasoundRegion(
   sequenceData: DataElement['data']
-): UltrasoundRegion | null {
-  if (!Array.isArray(sequenceData) || sequenceData.length === 0) return null;
+): UltrasoundRegions {
+  if (!Array.isArray(sequenceData) || sequenceData.length === 0) {
+    return { region: null, regionCount: 0 };
+  }
   const [firstItem] = sequenceData;
 
   const findBytes = (target: [number, number]) => {
@@ -76,34 +90,39 @@ export function decodeUltrasoundRegion(
   const unitsXBytes = findBytes(PHYSICAL_UNITS_X_DIRECTION);
   const unitsYBytes = findBytes(PHYSICAL_UNITS_Y_DIRECTION);
 
+  const regionCount = sequenceData.length;
   if (!deltaXBytes || !deltaYBytes || !unitsXBytes || !unitsYBytes) {
-    return null;
+    return { region: null, regionCount };
   }
 
   return {
-    physicalDeltaX: readFloat64LE(deltaXBytes),
-    physicalDeltaY: readFloat64LE(deltaYBytes),
-    physicalUnitsXDirection: readUint16LE(unitsXBytes),
-    physicalUnitsYDirection: readUint16LE(unitsYBytes),
+    region: {
+      physicalDeltaX: readFloat64LE(deltaXBytes),
+      physicalDeltaY: readFloat64LE(deltaYBytes),
+      physicalUnitsXDirection: readUint16LE(unitsXBytes),
+      physicalUnitsYDirection: readUint16LE(unitsYBytes),
+    },
+    regionCount,
   };
 }
 
 /**
- * Parses a DICOM blob and returns the first ultrasound region, if present.
+ * Parses a DICOM blob and returns the first ultrasound region plus the
+ * total region count, if a SequenceOfUltrasoundRegions is present.
  */
 export async function parseUltrasoundRegionFromBlob(
   blob: Blob
-): Promise<UltrasoundRegion | null> {
-  let region: UltrasoundRegion | null = null;
+): Promise<UltrasoundRegions | null> {
+  let regions: UltrasoundRegions | null = null;
 
   const parse = createDicomParser({
     stopAtElement(group, element) {
       return group === 0x7fe0 && element === 0x0010;
     },
     onDataElement(el) {
-      if (region) return;
+      if (regions) return;
       if (isTag(el, SEQUENCE_OF_ULTRASOUND_REGIONS)) {
-        region = decodeUltrasoundRegion(el.data);
+        regions = decodeUltrasoundRegion(el.data);
       }
     },
   });
@@ -111,7 +130,7 @@ export async function parseUltrasoundRegionFromBlob(
   const stream = blob.stream();
   const reader = stream.getReader();
   try {
-    while (!region) {
+    while (!regions) {
       const { value, done } = await reader.read();
       if (done) break;
       const result = parse(value);
@@ -123,23 +142,23 @@ export async function parseUltrasoundRegionFromBlob(
     reader.releaseLock();
   }
 
-  return region;
+  return regions;
 }
 
 export function encodeUltrasoundRegionMeta(
-  region: UltrasoundRegion
+  regions: UltrasoundRegions
 ): [string, string] {
-  return [US_REGION_META_KEY, JSON.stringify(region)];
+  return [US_REGION_META_KEY, JSON.stringify(regions)];
 }
 
 export function getUltrasoundRegionFromMetadata(
   meta: ReadonlyArray<readonly [string, string]> | null | undefined
-): UltrasoundRegion | null {
+): UltrasoundRegions | null {
   if (!meta) return null;
   const entry = meta.find(([key]) => key === US_REGION_META_KEY);
   if (!entry) return null;
   try {
-    return JSON.parse(entry[1]) as UltrasoundRegion;
+    return JSON.parse(entry[1]) as UltrasoundRegions;
   } catch {
     return null;
   }

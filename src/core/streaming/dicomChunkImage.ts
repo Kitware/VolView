@@ -289,9 +289,20 @@ export default class DicomChunkImage
   private applyUltrasoundSpacing() {
     if (this.getModality() !== 'US') return;
 
-    const region = getUltrasoundRegionFromMetadata(this.getDicomMetadata());
-    if (!region) return;
+    const regions = getUltrasoundRegionFromMetadata(this.getDicomMetadata());
+    if (!regions?.region) return;
 
+    // VTK image data has a single global spacing, so multi-region images
+    // (e.g. dual-pane B-mode + Doppler) cannot be fully represented. The
+    // first region's spacing is applied to the whole image; warn so the
+    // mismatch on additional panes is at least visible in the console.
+    if (regions.regionCount > 1) {
+      console.warn(
+        `Ultrasound image has ${regions.regionCount} regions; only the first region's physical spacing is applied. Multi-region (e.g. dual-pane B-mode + Doppler) ultrasound is not fully supported.`
+      );
+    }
+
+    const { region } = regions;
     const xFactor = unitToMm(region.physicalUnitsXDirection);
     const yFactor = unitToMm(region.physicalUnitsYDirection);
     if (xFactor === null || yFactor === null) return;
