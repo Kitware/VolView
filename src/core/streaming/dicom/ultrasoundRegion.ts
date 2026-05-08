@@ -7,9 +7,9 @@ import { Tags, tagToGroupElement } from '@/src/core/dicomTags';
 // DICOM unit codes for PhysicalUnitsXDirection / YDirection.
 // See DICOM PS3.3 C.8.5.5.1.15. The only spatial spacing code defined for
 // this field is 3 (cm). Other codes (0=none, 1=percent, 2=dB, 4=seconds,
-// 5=hertz, 6=dB/seconds, 7=cm/sec, 8=cm², 9=cm²/sec, A=degrees) are time,
-// frequency, velocity, area, or angle, so they are not converted to a VTK
-// image spacing.
+// 5=hertz, 6=dB/seconds, 7=cm/sec, 8=cm², 9=cm²/sec, A=cm³, B=cm³/sec,
+// C=degrees) are time, frequency, velocity, area, volume, or angle, so
+// they are not converted to a VTK image spacing.
 export const US_UNIT_CENTIMETERS = 3;
 
 // Returns the multiplier that converts a physical-delta value in the given
@@ -31,7 +31,7 @@ export type UltrasoundRegion = {
 // Doppler) cannot be fully represented with a single VTK image spacing, so
 // we expose the count to let callers warn about partial support.
 export type UltrasoundRegions = {
-  region: UltrasoundRegion | null;
+  region?: UltrasoundRegion;
   regionCount: number;
 };
 
@@ -73,13 +73,13 @@ export function decodeUltrasoundRegion(
   sequenceData: DataElement['data']
 ): UltrasoundRegions {
   if (!Array.isArray(sequenceData) || sequenceData.length === 0) {
-    return { region: null, regionCount: 0 };
+    return { regionCount: 0 };
   }
   const [firstItem] = sequenceData;
 
   const findBytes = (target: [number, number]) => {
     const el = firstItem.find((inner) => isTag(inner, target));
-    if (!el || !(el.data instanceof Uint8Array)) return null;
+    if (!el || !(el.data instanceof Uint8Array)) return undefined;
     return el.data;
   };
 
@@ -90,7 +90,7 @@ export function decodeUltrasoundRegion(
 
   const regionCount = sequenceData.length;
   if (!deltaXBytes || !deltaYBytes || !unitsXBytes || !unitsYBytes) {
-    return { region: null, regionCount };
+    return { regionCount };
   }
 
   return {
@@ -110,8 +110,8 @@ export function decodeUltrasoundRegion(
  */
 export async function parseUltrasoundRegionFromBlob(
   blob: Blob
-): Promise<UltrasoundRegions | null> {
-  let regions: UltrasoundRegions | null = null;
+): Promise<UltrasoundRegions | undefined> {
+  let regions: UltrasoundRegions | undefined;
 
   const parse = createDicomParser({
     stopAtElement(group, element) {
@@ -136,7 +136,7 @@ export async function parseUltrasoundRegionFromBlob(
     }
   } catch (err) {
     console.warn('Failed to parse SequenceOfUltrasoundRegions:', err);
-    return null;
+    return undefined;
   } finally {
     reader.releaseLock();
   }

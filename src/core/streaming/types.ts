@@ -18,7 +18,7 @@ interface Loader {
 export interface MetaLoader extends Loader {
   meta: Maybe<Array<[string, string]>>;
   metaBlob: Maybe<Blob>;
-  ultrasoundRegions?: UltrasoundRegions | null;
+  ultrasoundRegions?: UltrasoundRegions;
 }
 
 /**
