@@ -115,7 +115,7 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx,vue}": [
       "eslint",
-      "prettier --config ./prettier.config.cjs --write"
+      "prettier --write"
     ]
   }
 }
