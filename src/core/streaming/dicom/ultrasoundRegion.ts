@@ -7,8 +7,8 @@ import { Tags, tagToGroupElement } from '@/src/core/dicomTags';
 // DICOM unit codes for PhysicalUnitsXDirection / YDirection.
 // See DICOM PS3.3 C.8.5.5.1.15. The only spatial spacing code defined for
 // this field is 3 (cm). Other codes (0=none, 1=percent, 2=dB, 4=seconds,
-// 5=hertz, 6=dB/seconds, 7=cm/sec, 8=cm², 9=cm²/sec, A=cm³, B=cm³/sec,
-// C=degrees) are time, frequency, velocity, area, volume, or angle, so
+// 5=hertz, 6=dB/sec, 7=cm/sec, 8=cm², 9=cm²/sec, 10=cm³, 11=cm³/sec,
+// 12=degrees) are time, frequency, velocity, area, volume, or angle, so
 // they are not converted to a VTK image spacing.
 export const US_UNIT_CENTIMETERS = 3;
 
