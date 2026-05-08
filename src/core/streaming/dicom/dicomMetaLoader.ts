@@ -33,7 +33,7 @@ export class DicomMetaLoader implements MetaLoader {
   private fetcher: Fetcher;
   private readDicomTags: ReadDicomTagsFunction;
   private blob: Blob | null;
-  public ultrasoundRegions: UltrasoundRegions | null = null;
+  public ultrasoundRegions: UltrasoundRegions | undefined;
 
   constructor(fetcher: Fetcher, readDicomTags: ReadDicomTagsFunction) {
     this.fetcher = fetcher;
@@ -57,7 +57,7 @@ export class DicomMetaLoader implements MetaLoader {
     let explicitVr = true;
     let dicomUpToPixelDataIdx = -1;
     let modality: string | undefined;
-    let ultrasoundRegions: UltrasoundRegions | null = null;
+    let ultrasoundRegions: UltrasoundRegions | undefined;
 
     const parse = createDicomParser({
       stopAtElement(group, element) {

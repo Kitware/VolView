@@ -286,7 +286,7 @@ export default class DicomChunkImage
   private applyUltrasoundSpacing() {
     if (this.getModality() !== 'US') return;
 
-    const regions = this.chunks[0]?.ultrasoundRegions ?? null;
+    const regions = this.chunks[0]?.ultrasoundRegions;
     if (!regions?.region) return;
 
     // VTK image data has a single global spacing, so multi-region images
@@ -302,7 +302,15 @@ export default class DicomChunkImage
     const { region } = regions;
     const xFactor = unitToMm(region.physicalUnitsXDirection);
     const yFactor = unitToMm(region.physicalUnitsYDirection);
-    if (xFactor === null || yFactor === null) return;
+    // All-or-nothing: if either axis lacks a spatial unit (e.g. one axis is
+    // cm and the other is seconds, or unitless) the metadata can't be trusted
+    // as a 2D physical spacing, so leave the default 1mm fallback in place.
+    if (xFactor === null || yFactor === null) {
+      console.warn(
+        `Ultrasound spacing not applied: PhysicalUnitsXDirection=${region.physicalUnitsXDirection}, PhysicalUnitsYDirection=${region.physicalUnitsYDirection}; only code 3 (cm) is converted to mm.`
+      );
+      return;
+    }
 
     const [, , zSpacing] = this.vtkImageData.value.getSpacing();
     this.vtkImageData.value.setSpacing([

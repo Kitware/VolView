@@ -9,7 +9,7 @@ import {
 
 export class DicomFileMetaLoader implements MetaLoader {
   public tags: Maybe<Array<[string, string]>>;
-  public ultrasoundRegions: UltrasoundRegions | null = null;
+  public ultrasoundRegions: UltrasoundRegions | undefined;
   private file: File;
 
   constructor(

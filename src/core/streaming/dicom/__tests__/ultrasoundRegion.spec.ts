@@ -93,30 +93,22 @@ describe('decodeUltrasoundRegion', () => {
     });
   });
 
-  it('returns a null region with zero count when the sequence is empty', () => {
-    expect(decodeUltrasoundRegion([])).toEqual({
-      region: null,
-      regionCount: 0,
-    });
+  it('returns no region with zero count when the sequence is empty', () => {
+    expect(decodeUltrasoundRegion([])).toEqual({ regionCount: 0 });
   });
 
-  it('returns a null region with zero count when the data is not a sequence', () => {
-    expect(decodeUltrasoundRegion(undefined)).toEqual({
-      region: null,
-      regionCount: 0,
-    });
+  it('returns no region with zero count when the data is not a sequence', () => {
+    expect(decodeUltrasoundRegion(undefined)).toEqual({ regionCount: 0 });
     expect(decodeUltrasoundRegion(new Uint8Array(4))).toEqual({
-      region: null,
       regionCount: 0,
     });
   });
 
-  it('returns a null region but reports the count when a required field is missing', () => {
+  it('returns no region but reports the count when a required field is missing', () => {
     const missingDeltaY = wellFormedItem.filter(
       (e) => !(e.group === 0x0018 && e.element === 0x602e)
     );
     expect(decodeUltrasoundRegion(fakeSequenceData([missingDeltaY]))).toEqual({
-      region: null,
       regionCount: 1,
     });
   });
@@ -143,8 +135,9 @@ describe('unitToMm', () => {
 
   it('returns null for non-spatial unit codes', () => {
     // Per DICOM PS3.3 C.8.5.5.1.15: 0=none, 1=percent, 2=dB, 4=seconds,
-    // 5=hertz, 6=dB/sec, 7=cm/sec, 8=cm², 9=cm²/sec, 10=degrees.
-    [0, 1, 2, 4, 5, 6, 7, 8, 9, 10].forEach((code) => {
+    // 5=hertz, 6=dB/sec, 7=cm/sec, 8=cm², 9=cm²/sec, 10=cm³,
+    // 11=cm³/sec, 12=degrees.
+    [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach((code) => {
       expect(unitToMm(code)).toBeNull();
     });
   });
@@ -210,7 +203,7 @@ describe('parseUltrasoundRegionFromBlob', () => {
     });
   });
 
-  it('returns null when the blob has no SequenceOfUltrasoundRegions', async () => {
+  it('returns undefined when the blob has no SequenceOfUltrasoundRegions', async () => {
     // Build a blob with only the TransferSyntaxUID + pixel data tag.
     const preamble = new Uint8Array(128);
     const magic = new TextEncoder().encode('DICM');
@@ -221,6 +214,6 @@ describe('parseUltrasoundRegionFromBlob', () => {
     new DataView(pixelDataTag.buffer).setUint16(2, 0x0010, true);
     const blob = new Blob([concat([preamble, magic, tsx, pixelDataTag])]);
 
-    expect(await parseUltrasoundRegionFromBlob(blob)).toBeNull();
+    expect(await parseUltrasoundRegionFromBlob(blob)).toBeUndefined();
   });
 });
