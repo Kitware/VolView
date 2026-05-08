@@ -75,18 +75,6 @@ void replaceChars(std::string &str, char search, char replaceChar) {
   }
 }
 
-// doesn't actually do any length checks, or overflow checks, or anything
-// really.
-template <int N>
-double dotProduct(const std::vector<double> &vec1,
-                  const std::vector<double> &vec2) {
-  double result = 0;
-  for (int i = 0; i < N; i++) {
-    result += vec1.at(i) * vec2.at(i);
-  }
-  return result;
-}
-
 std::vector<double> ReadImageOrientationValue(const std::string &filename) {
   gdcm::Reader reader;
   reader.SetFileName(filename.c_str());
@@ -98,16 +86,18 @@ std::vector<double> ReadImageOrientationValue(const std::string &filename) {
   return gdcm::ImageHelper::GetDirectionCosinesValue(file);
 }
 
-bool areCosinesAlmostEqual(std::vector<double> cosines1,
-                           std::vector<double> cosines2,
+bool areCosinesAlmostEqual(const std::vector<double> &cosines1,
+                           const std::vector<double> &cosines2,
                            double epsilon = EPSILON) {
-  for (int i = 0; i <= 1; i++) {
-    std::vector<double> vec1{cosines1.at(i), cosines1.at(i + 1),
-                             cosines1.at(i + 2)};
-    std::vector<double> vec2{cosines2.at(i), cosines2.at(i + 1),
-                             cosines2.at(i + 2)};
-    double dot = dotProduct<3>(vec1, vec2);
-    if (dot < (1 - EPSILON)) {
+  // ImageOrientationPatient is two row vectors: X cosines at [0..2] and
+  // Y cosines at [3..5]. Compare each row.
+  for (int row = 0; row < 2; row++) {
+    const int offset = row * 3;
+    double dot = 0;
+    for (int i = 0; i < 3; i++) {
+      dot += cosines1.at(offset + i) * cosines2.at(offset + i);
+    }
+    if (dot < (1 - epsilon)) {
       return false;
     }
   }
@@ -116,8 +106,6 @@ bool areCosinesAlmostEqual(std::vector<double> cosines1,
 
 VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
   VolumeMapType newVolumeMap;
-  // Vector< Pair< cosines, volumeID >>
-  std::vector<std::pair<std::vector<double>, std::string>> cosinesToID;
 
   // append unique ID part to the volume ID, based on cosines
   // The format replaces non-alphanumeric chars to be semi-consistent with DICOM
@@ -141,6 +129,10 @@ VolumeMapType SeparateOnImageOrientation(const VolumeMapType &volumeMap) {
   };
 
   for (const auto &[volumeID, names] : volumeMap) {
+    // Scope the orientation lookup to a single input volume so distinct
+    // series with identical orientations stay separate.
+    std::vector<std::pair<std::vector<double>, std::string>> cosinesToID;
+
     for (const auto &filename : names) {
       std::vector<double> curCosines = ReadImageOrientationValue(filename);
 
