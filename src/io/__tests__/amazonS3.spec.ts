@@ -77,6 +77,33 @@ describe('amazonS3', () => {
       expect(init).toBeUndefined();
     });
 
+    it('percent-encodes reserved chars in keys but preserves slashes', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        okResponse(
+          xmlListResponse([
+            'scan?1.dcm',
+            'seg#1.dcm',
+            'my scan.dcm',
+            'a+b.dcm',
+            'sub/dir/file.dcm',
+          ])
+        )
+      );
+
+      const urls: string[] = [];
+      await getObjectsFromS3('s3://bucket/prefix', (_name, url) =>
+        urls.push(url)
+      );
+
+      expect(urls).toEqual([
+        'https://bucket.s3.amazonaws.com/scan%3F1.dcm',
+        'https://bucket.s3.amazonaws.com/seg%231.dcm',
+        'https://bucket.s3.amazonaws.com/my%20scan.dcm',
+        'https://bucket.s3.amazonaws.com/a%2Bb.dcm',
+        'https://bucket.s3.amazonaws.com/sub/dir/file.dcm',
+      ]);
+    });
+
     it('follows pagination via continuation token', async () => {
       fetchSpy
         .mockResolvedValueOnce(

@@ -10,8 +10,13 @@ export const isAmazonS3Uri = (uri: string) =>
 
 export type ObjectAvailableCallback = (name: string, url: string) => void;
 
+// Percent-encode each path segment so keys containing reserved URI chars
+// (`?`, `#`, space, `+`, …) round-trip correctly. Slashes are preserved.
+const encodeS3Key = (key: string) =>
+  key.split('/').map(encodeURIComponent).join('/');
+
 const getObjectPublicUrl = (bucket: string, key: string) =>
-  `https://${bucket}.s3.amazonaws.com/${key}`;
+  `https://${bucket}.s3.amazonaws.com/${encodeS3Key(key)}`;
 
 const buildListUrl = (
   bucket: string,
