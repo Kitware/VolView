@@ -31,6 +31,8 @@
     "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.0",
+    "@commitlint/config-conventional": "^21.0.0",
     "@eslint/js": "^9.39.1",
     "@itk-wasm/dicom": "^7.6.4",
     "@itk-wasm/image-io": "1.6.1",
@@ -107,7 +109,8 @@
     "zod": "^4.1.13"
   },
   "gitHooks": {
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "commit-msg": "commitlint --edit $1"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,vue}": [

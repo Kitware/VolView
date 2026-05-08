@@ -20,3 +20,19 @@ jobs:
         run: npm run lint
       - name: Tests
         run: npm test
+
+  commitlint:
+    runs-on: ubuntu-latest
+    name: Lint commit messages
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Validate PR commits with commitlint
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
