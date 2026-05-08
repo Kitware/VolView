@@ -134,7 +134,8 @@ export async function parseUltrasoundRegionFromBlob(
       const result = parse(value);
       if (result.done) break;
     }
-  } catch {
+  } catch (err) {
+    console.warn('Failed to parse SequenceOfUltrasoundRegions:', err);
     return null;
   } finally {
     reader.releaseLock();
