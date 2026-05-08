@@ -286,6 +286,10 @@ export default class DicomChunkImage
   private applyUltrasoundSpacing() {
     if (this.getModality() !== 'US') return;
 
+    // Ultrasound DICOMs are typically a single multi-frame chunk, so the
+    // region table on chunk[0] applies to the whole image. If a US series
+    // ever spanned multiple chunks with differing regions, this would
+    // silently use the first chunk's spacing for all of them.
     const regions = this.chunks[0]?.ultrasoundRegions;
     if (!regions?.region) return;
 

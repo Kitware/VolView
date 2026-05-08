@@ -78,7 +78,13 @@ export class DicomMetaLoader implements MetaLoader {
           el.element === SEQUENCE_OF_ULTRASOUND_REGIONS[1] &&
           !ultrasoundRegions
         ) {
-          ultrasoundRegions = decodeUltrasoundRegion(el.data);
+          // Decoding can throw if a malformed FD/US value has an unexpected
+          // length; swallow rather than abort the whole metadata load.
+          try {
+            ultrasoundRegions = decodeUltrasoundRegion(el.data);
+          } catch (err) {
+            console.warn('Failed to decode SequenceOfUltrasoundRegions:', err);
+          }
         }
       },
     });
