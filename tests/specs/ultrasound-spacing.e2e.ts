@@ -2,19 +2,12 @@ import { US_MULTIFRAME_DICOM } from './configTestUtils';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 
-// Vertical ruler in canvas pixels. The reported length in mm depends on
-// canvas size, image-fit zoom, and the applied spacing. With the fix the
-// VTK spacing comes from SequenceOfUltrasoundRegions (~0.5105 mm/image-px);
-// without the fix it falls back to 1 mm/image-px and the ruler reports
-// roughly 1.96× the with-fix value.
+// The exact ruler length depends on platform-specific viewport geometry, but
+// the unspaced fallback is roughly twice as large because the DICOM fixture's
+// PhysicalDeltaX/Y is 0.5104970559 mm/pixel.
 const CLICK_DY = 100;
-
-// At the shared viewport (1200×800), with the fix active the ruler reports
-// about 49 mm. Without the fix the same ruler reports about 97 mm. A wide
-// tolerance lets the assertion absorb minor canvas-size jitter between
-// runners while still excluding the 1 mm fallback.
-const EXPECTED_LENGTH_MM = 49;
-const LENGTH_TOLERANCE_MM = 8;
+const MIN_SPACED_LENGTH_MM = 30;
+const MAX_SPACED_LENGTH_MM = 80;
 
 describe('Ultrasound image spacing', () => {
   it('ruler length reflects physical spacing from SequenceOfUltrasoundRegions', async () => {
@@ -27,15 +20,12 @@ describe('Ultrasound image spacing', () => {
 
     // element.click({ x, y }) offsets are measured from the element's center,
     // so x:0 / y:0 is the canvas center.
-    const views = await volViewPage.views;
-    const canvas = views[0];
+    const canvas = await $('div[data-testid="vtk-view vtk-two-view"] canvas');
 
     await canvas.click({ x: 0, y: -CLICK_DY / 2 });
     await canvas.click({ x: 0, y: CLICK_DY / 2 });
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
+    const annotationsTab = await volViewPage.annotationsModuleTab;
     await annotationsTab.click();
 
     const measurementsTab = await $('button.v-tab*=Measurements');
@@ -64,7 +54,7 @@ describe('Ultrasound image spacing', () => {
 
     console.log(`[ultrasound-spacing] measured ruler length: ${lengthMm} mm`);
 
-    expect(lengthMm).toBeGreaterThan(EXPECTED_LENGTH_MM - LENGTH_TOLERANCE_MM);
-    expect(lengthMm).toBeLessThan(EXPECTED_LENGTH_MM + LENGTH_TOLERANCE_MM);
+    expect(lengthMm).toBeGreaterThan(MIN_SPACED_LENGTH_MM);
+    expect(lengthMm).toBeLessThan(MAX_SPACED_LENGTH_MM);
   });
 });

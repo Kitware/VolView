@@ -4,6 +4,12 @@ import { useIntervalFn } from '@vueuse/core';
 import { Maybe } from '@/src/types';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { getCineImage } from '@/src/core/cine/isCineImage';
+import {
+  clampCineFps,
+  MAX_CINE_FPS,
+  MIN_CINE_FPS,
+  useCinePlaybackStore,
+} from '@/src/store/view-configs/cine-playback';
 
 type Props = {
   viewId: string;
@@ -15,19 +21,48 @@ const { imageId, viewId } = toRefs(props);
 
 const cine = computed(() => getCineImage(imageId.value));
 const { slice, range } = useSliceConfig(viewId, imageId);
+const playbackStore = useCinePlaybackStore();
 
-const playing = ref(false);
-const fps = ref(0);
+const fpsInput = ref('');
+
+const playbackConfig = computed(() =>
+  playbackStore.getConfig(
+    viewId.value,
+    imageId.value,
+    cine.value?.header.frameTimeMs
+  )
+);
+
+function updatePlayback(
+  patch: Parameters<typeof playbackStore.updateConfig>[2]
+) {
+  if (!viewId.value || !imageId.value) return;
+  playbackStore.updateConfig(
+    viewId.value,
+    imageId.value,
+    patch,
+    cine.value?.header.frameTimeMs
+  );
+}
+
+const playing = computed({
+  get: () => playbackConfig.value.playing,
+  set: (value: boolean) => {
+    updatePlayback({ playing: value });
+  },
+});
+
+const fps = computed({
+  get: () => playbackConfig.value.fps,
+  set: (value: number) => {
+    updatePlayback({ fps: value });
+  },
+});
 
 watch(
-  cine,
-  (image) => {
-    if (!image) {
-      fps.value = 0;
-      return;
-    }
-    const frameTime = image.header.frameTimeMs;
-    fps.value = frameTime && frameTime > 0 ? Math.round(1000 / frameTime) : 24;
+  fps,
+  (value) => {
+    fpsInput.value = String(value);
   },
   { immediate: true }
 );
@@ -47,48 +82,82 @@ const { pause, resume } = useIntervalFn(
   { immediate: false, immediateCallback: false }
 );
 
-watch(playing, (isPlaying) => {
-  if (isPlaying) resume();
-  else pause();
-});
+watch(
+  playing,
+  (isPlaying) => {
+    if (isPlaying) resume();
+    else pause();
+  },
+  { immediate: true }
+);
 
 // Pause when the cine clip changes (or is removed).
-watch(imageId, () => {
-  playing.value = false;
-});
+watch(imageId, (nextImageId, previousImageId) => {
+  if (previousImageId && previousImageId !== nextImageId && viewId.value) {
+    playbackStore.updateConfig(
+      viewId.value,
+      previousImageId,
+      {
+        playing: false,
+      },
+      getCineImage(previousImageId)?.header.frameTimeMs
+    );
+  }
 
-const MIN_FPS = 1;
-const MAX_FPS = 120;
+  if (nextImageId && previousImageId !== nextImageId && viewId.value) {
+    updatePlayback({ playing: false });
+  }
+});
 
 function togglePlay() {
   playing.value = !playing.value;
 }
 
-function clampFps() {
-  if (!Number.isFinite(fps.value) || fps.value < MIN_FPS) fps.value = MIN_FPS;
-  else if (fps.value > MAX_FPS) fps.value = MAX_FPS;
-  else fps.value = Math.round(fps.value);
+function clampFpsValue(value: string | number) {
+  return clampCineFps(value);
+}
+
+function clampFpsInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  fpsInput.value = input.value;
+  if (fpsInput.value.trim() === '') return;
+
+  const clamped = clampFpsValue(fpsInput.value);
+  if (clamped == null) return;
+  fps.value = clamped;
+  fpsInput.value = String(clamped);
+  input.value = fpsInput.value;
+}
+
+function commitFpsInput() {
+  const clamped = clampFpsValue(fpsInput.value);
+  const value = clamped ?? fps.value;
+  fps.value = value;
+  fpsInput.value = String(value);
 }
 </script>
 
 <template>
-  <div v-if="cine" class="play-controls pointer-events-all">
+  <div v-if="cine" class="play-controls pointer-events-all" @dblclick.stop>
     <button
       type="button"
       class="play-btn"
       :title="playing ? 'Pause' : 'Play'"
+      :aria-pressed="playing"
+      :aria-label="playing ? 'Pause cine playback' : 'Play cine playback'"
       @click="togglePlay"
     >
       <v-icon size="14">{{ playing ? 'mdi-pause' : 'mdi-play' }}</v-icon>
     </button>
     <input
-      v-model.number="fps"
+      :value="fpsInput"
       type="number"
-      :min="MIN_FPS"
-      :max="MAX_FPS"
+      :min="MIN_CINE_FPS"
+      :max="MAX_CINE_FPS"
       class="fps-input"
       title="Frames per second"
-      @change="clampFps"
+      @input="clampFpsInput"
+      @blur="commitFpsInput"
     />
     <span class="fps-suffix">fps</span>
   </div>

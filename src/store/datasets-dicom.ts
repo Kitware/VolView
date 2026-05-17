@@ -48,8 +48,8 @@ export interface VolumeInfo {
   WindowLevel: string;
   WindowWidth: string;
   // 'cine' marks an ultrasound multi-frame image whose NumberOfSlices is the
-  // number of cine frames (not Z-axis slices). Absent/undefined means a normal
-  // 3D volume.
+  // number of cine frames (not Z-axis slices). 'volume' means a normal 3D
+  // DICOM volume. Older saved state may omit this field for normal volumes.
   kind?: 'volume' | 'cine';
 }
 
@@ -96,7 +96,7 @@ export const getDisplayName = (info: VolumeInfo) => {
   );
 };
 
-function isCineChunkGroup(chunks: Chunk[]): boolean {
+export function isCineChunkGroup(chunks: Chunk[]): boolean {
   if (chunks.length !== 1) return false;
   const meta = chunks[0].metadata;
   if (!meta) return false;
@@ -161,8 +161,11 @@ export const useDICOMStore = defineStore('dicom', {
       await Promise.all(
         Object.entries(chunksByVolume).map(async ([id, sortedChunks]) => {
           if (isCineChunkGroup(sortedChunks)) {
-            await this._importCineChunk(id, sortedChunks[0]);
-            return;
+            const importedAsCine = await this._importCineChunk(
+              id,
+              sortedChunks[0]
+            );
+            if (importedAsCine) return;
           }
 
           if (this.volumeInfo[id]?.kind === 'cine') {
@@ -170,8 +173,13 @@ export const useDICOMStore = defineStore('dicom', {
               `Volume ${id} is already loaded as a cine clip; cannot re-import as a chunk volume.`
             );
           }
-          const image = (imageCacheStore.imageById[id] ??
-            new DicomChunkImage()) as DicomChunkImage;
+          const cachedImage = imageCacheStore.imageById[id];
+          if (cachedImage && !(cachedImage instanceof DicomChunkImage)) {
+            throw new Error(
+              `Volume ${id} is already loaded as a non-chunk progressive image; cannot re-import as a chunk volume.`
+            );
+          }
+          const image = cachedImage ?? new DicomChunkImage();
 
           await image.addChunks(sortedChunks);
           imageCacheStore.addProgressiveImage(image, { id });
@@ -206,6 +214,7 @@ export const useDICOMStore = defineStore('dicom', {
             SeriesDescription: metadata[Tags.SeriesDescription],
             WindowLevel: metadata[Tags.WindowLevel],
             WindowWidth: metadata[Tags.WindowWidth],
+            kind: 'volume',
           };
 
           this._updateDatabase(patientInfo, studyInfo, volumeInfo);
@@ -218,12 +227,19 @@ export const useDICOMStore = defineStore('dicom', {
       return chunksByVolume;
     },
 
-    async _importCineChunk(id: string, chunk: Chunk) {
+    async _importCineChunk(id: string, chunk: Chunk): Promise<boolean> {
       const imageCacheStore = useImageCacheStore();
 
       // If we already created this cine image (state-file reload), bail.
       if (this.volumeInfo[id]?.kind === 'cine') {
-        return;
+        return true;
+      }
+
+      const cachedImage = imageCacheStore.imageById[id];
+      if (cachedImage && !(cachedImage instanceof DicomCineImage)) {
+        throw new Error(
+          `Volume ${id} is already loaded as a non-cine progressive image; cannot re-import as a cine clip.`
+        );
       }
 
       await chunk.loadData();
@@ -233,13 +249,7 @@ export const useDICOMStore = defineStore('dicom', {
       const parsed = parseCineDicom(buffer);
 
       if (!DicomCineImage.isSupported(parsed.header)) {
-        throw new Error(
-          `Unsupported cine transfer syntax / pixel format: ` +
-            `${parsed.header.transferSyntaxUID} (` +
-            `${parsed.header.bitsAllocated}-bit, ` +
-            `${parsed.header.samplesPerPixel}-sample ` +
-            `${parsed.header.photometricInterpretation})`
-        );
+        return false;
       }
 
       const image = new DicomCineImage(parsed);
@@ -278,6 +288,7 @@ export const useDICOMStore = defineStore('dicom', {
       this._updateDatabase(patientInfo, studyInfo, volumeInfo);
 
       image.setName(getDisplayName(volumeInfo));
+      return true;
     },
 
     _updateDatabase(

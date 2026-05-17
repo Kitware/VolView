@@ -120,6 +120,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     delete imageById[id];
     delete imageStatus[id];
     delete imageLoading[id];
+    delete imageErrors[id];
   }
 
   /**

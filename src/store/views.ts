@@ -10,6 +10,7 @@ import {
   parseNamedLayouts,
   type LayoutConfig,
 } from '@/src/utils/layoutParsing';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import type { Manifest, StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
@@ -147,13 +148,14 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function ensureActiveViewIsVisible() {
-    if (!visibleViews.value.length) {
+    const views = visibleViews.value;
+    if (!views.length) {
       setActiveView(null);
       return;
     }
 
-    if (!visibleViews.value.find((view) => view.id === activeView.value)) {
-      setActiveView(visibleViews.value[0].id);
+    if (!views.find((view) => view.id === activeView.value)) {
+      setActiveView(views[0].id);
     }
   }
 
@@ -260,9 +262,20 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setDataForView(viewID: string, dataID: Maybe<string>) {
-    if (!(viewID in viewByID)) return;
-    viewByID[viewID].dataID = dataID;
+    const view = viewByID[viewID];
+    if (!view) return;
+
+    if (dataID && isCineImage(dataID) && view.type !== '2D') {
+      replaceView(viewID, { ...DEFAULT_VIEW_INIT, dataID });
+      // Global tools resolve their image through activeView.
+      ensureActiveViewIsVisible();
+      return;
+    }
+
+    view.dataID = dataID;
     ViewDataChangeEvent.trigger(viewID, dataID);
+    // Global tools resolve their image through activeView.
+    ensureActiveViewIsVisible();
   }
 
   function setDataForActiveView(dataID: Maybe<string>) {
@@ -342,8 +355,7 @@ export const useViewStore = defineStore('view', () => {
 
     Object.entries(manifest.viewByID).forEach(([id, view]) => {
       if (view.dataID === stateID && viewByID[id]) {
-        viewByID[id].dataID = storeID;
-        ViewDataChangeEvent.trigger(id, storeID);
+        setDataForView(id, storeID);
       }
     });
   }
@@ -351,7 +363,11 @@ export const useViewStore = defineStore('view', () => {
   // initialization
 
   firstLayout.views.forEach((viewInit) => {
-    layoutSlots.value.push(addView(viewInit));
+    const viewId = addView(viewInit);
+    layoutSlots.value.push(viewId);
+    if (!activeView.value) {
+      setActiveView(viewId);
+    }
   });
 
   watch(disabledViewTypes, () => {
