@@ -1,12 +1,12 @@
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { MaybeRef } from 'vue';
 import { computed, unref } from 'vue';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { Maybe } from '@/src/types';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { useViewStore } from '@/src/store/views';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
 
 /**
  * Returns information about the current slice.
@@ -29,10 +29,9 @@ export function useSliceInfo(
   return computed(() => {
     if (!view.value || view.value.type !== '2D') return null;
 
-    const { orientation } = view.value.options;
-    const { viewDirection } = get2DViewingVectors(orientation);
+    const axis = getEffectiveViewAxis(view.value, unref(imageID));
+    const { viewDirection } = get2DViewingVectors(axis);
     const { lpsOrientation } = imageMetadata.value;
-    const axis = getLPSAxisFromDir(viewDirection);
     const planeOrigin = [0, 0, 0] as Vector3;
     planeOrigin[lpsOrientation[axis]] = slice.value;
     return {

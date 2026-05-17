@@ -128,8 +128,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
   };
 
   const setupImageWatchers = (id: string) => {
-    // Cine images are 8-bit display-encoded; histograms and auto-range are
-    // meaningless and would allocate a huge Float64Array. Skip them.
+    // Cine: 8-bit display-encoded, no histogram.
     if (isCineImage(id)) return;
 
     const { imageData, isLoading: isImageLoading } = useImage(

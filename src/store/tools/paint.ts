@@ -8,8 +8,7 @@ import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
-import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
@@ -353,8 +352,7 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (!view || view.type !== '2D') return;
 
       // Update slice position
-      const { viewDirection } = get2DViewingVectors(view.options.orientation);
-      const axis = getLPSAxisFromDir(viewDirection);
+      const axis = getEffectiveViewAxis(view, imageID);
       const index = lpsOrientation[axis];
       const slice = Math.round(indexPos[index]);
       if (slice !== sliceConfig.slice) {

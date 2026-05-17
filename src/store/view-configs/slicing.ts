@@ -73,14 +73,23 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     dataID: string,
     patch: Partial<SliceConfig>
   ) => {
-    const config = {
+    const current = {
       ...defaultSliceConfig(),
       ...getConfig(viewID, dataID),
-      ...patch,
     };
+    const next = { ...current, ...patch };
+    next.slice = clampValue(next.slice, next.min, next.max);
 
-    config.slice = clampValue(config.slice, config.min, config.max);
-    patchDoubleKeyRecord(configs, viewID, dataID, config);
+    if (
+      next.slice === current.slice &&
+      next.min === current.min &&
+      next.max === current.max &&
+      next.syncState === current.syncState
+    ) {
+      return;
+    }
+
+    patchDoubleKeyRecord(configs, viewID, dataID, next);
   };
 
   const resetSlice = (viewID: string, dataID: string) => {

@@ -58,12 +58,15 @@ export const useCinePlaybackStore = defineStore('cinePlayback', () => {
   ) => {
     const current = getConfig(viewID, dataID, frameTimeMs);
     const fps = patch.fps === undefined ? current.fps : clampCineFps(patch.fps);
-
-    patchDoubleKeyRecord(configs, viewID, dataID, {
+    const next = {
       ...current,
       ...patch,
       fps: fps ?? current.fps,
-    });
+    };
+
+    if (next.playing === current.playing && next.fps === current.fps) return;
+
+    patchDoubleKeyRecord(configs, viewID, dataID, next);
   };
 
   const removeView = (viewID: string) => {

@@ -5,12 +5,11 @@ import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { computed, ref, unref, watch } from 'vue';
 import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { ViewInfo2D } from '@/src/types/views';
-import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
@@ -64,9 +63,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     const { lpsOrientation } = unref(currentImageMetadata);
 
     otherViews.value.forEach((view) => {
-      const { orientation } = view.options;
-      const { viewDirection } = get2DViewingVectors(orientation);
-      const axis = getLPSAxisFromDir(viewDirection);
+      const axis = getEffectiveViewAxis(view, imageID);
       const index = lpsOrientation[axis];
       const slice = Math.round(indexPos[index]);
       viewSliceStore.updateConfig(view.id, imageID, { slice });
