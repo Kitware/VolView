@@ -175,7 +175,17 @@ export default class DicomCineImage extends BaseProgressiveImage {
         const ctx = canvas.getContext('2d');
         if (!ctx) return null;
         const imageData = ctx.createImageData(cols, rows);
-        imageData.data.set(frame.rgba);
+        const dst = imageData.data;
+        const { rgb } = frame;
+        const pixels = cols * rows;
+        for (let i = 0; i < pixels; i++) {
+          const s = i * 3;
+          const d = i * 4;
+          dst[d] = rgb[s];
+          dst[d + 1] = rgb[s + 1];
+          dst[d + 2] = rgb[s + 2];
+          dst[d + 3] = 255;
+        }
         ctx.putImageData(imageData, 0, 0);
         return canvas.toDataURL('image/png');
       } catch {
@@ -195,32 +205,46 @@ export default class DicomCineImage extends BaseProgressiveImage {
       Math.min(this.header.numberOfFrames - 1, frameIndex | 0)
     );
 
+    // Keep cache warm during forward playback when the clip exceeds the cache budget.
+    this.prefetchNext(clamped);
+
     const cached = this.cache.get(clamped);
     if (cached) return cached;
 
-    const inFlight = this.inFlightFrames.get(clamped);
+    return this.scheduleDecode(clamped);
+  }
+
+  private prefetchNext(currentFrame: number): void {
+    const total = this.header.numberOfFrames;
+    if (total <= 1) return;
+    const next = (currentFrame + 1) % total;
+    if (this.cache.has(next) || this.inFlightFrames.has(next)) return;
+    this.scheduleDecode(next).catch(() => {});
+  }
+
+  private scheduleDecode(frameIndex: number): Promise<DecodedFrame> {
+    const inFlight = this.inFlightFrames.get(frameIndex);
     if (inFlight) return inFlight;
 
     const decodePromise = (async () => {
       try {
-        const decoded = await this.decode(clamped);
+        const decoded = await this.decode(frameIndex);
         if (this.disposed) {
           throw new Error('DicomCineImage is disposed');
         }
-        this.cache.set(clamped, decoded);
+        this.cache.set(frameIndex, decoded);
         return decoded;
       } catch (err) {
-        // Disposal isn't a decode failure; don't emit a user-visible error.
         if (!this.disposed) {
           this.reportError(err);
         }
         throw err;
       } finally {
-        this.inFlightFrames.delete(clamped);
+        this.inFlightFrames.delete(frameIndex);
       }
     })();
 
-    this.inFlightFrames.set(clamped, decodePromise);
+    this.inFlightFrames.set(frameIndex, decodePromise);
     return decodePromise;
   }
 

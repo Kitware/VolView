@@ -11,7 +11,7 @@ function frame(byteLength: number): DecodedFrame {
   return {
     width: 1,
     height: 1,
-    rgba: { byteLength } as Uint8ClampedArray,
+    rgb: { byteLength } as unknown as Uint8Array,
   };
 }
 
@@ -58,7 +58,7 @@ describe('decodeNativeFrame', () => {
       planarConfiguration: 0,
     });
 
-    expect(Array.from(decoded.rgba)).toEqual([1, 2, 3, 255, 4, 5, 6, 255]);
+    expect(Array.from(decoded.rgb)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('decodes plane-interleaved native RGB frames', () => {
@@ -70,6 +70,6 @@ describe('decodeNativeFrame', () => {
       planarConfiguration: 1,
     });
 
-    expect(Array.from(decoded.rgba)).toEqual([1, 2, 3, 255, 4, 5, 6, 255]);
+    expect(Array.from(decoded.rgb)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 });
