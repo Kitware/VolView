@@ -139,8 +139,6 @@ function cineHeader(overrides: Partial<CineHeader> = {}): CineHeader {
       SeriesNumber: '7',
       SeriesDescription: 'Unsupported native cine',
       Modality: 'US',
-      SOPInstanceUID: 'sop-uid',
-      SOPClassUID: SOP_CLASS_ULTRASOUND_MULTIFRAME,
     },
     regions: [],
     ...overrides,

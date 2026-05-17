@@ -5,8 +5,6 @@ import dicomParser, { DataSet, Element } from 'dicom-parser';
 // =================================================================
 
 const TAG_PIXEL_DATA = 'x7fe00010';
-const TAG_SOP_CLASS_UID = 'x00080016';
-const TAG_SOP_INSTANCE_UID = 'x00080018';
 const TAG_PATIENT_NAME = 'x00100010';
 const TAG_PATIENT_ID = 'x00100020';
 const TAG_PATIENT_BIRTH_DATE = 'x00100030';
@@ -31,10 +29,6 @@ const TAG_FRAME_TIME = 'x00181063';
 const TAG_SEQUENCE_OF_ULTRASOUND_REGIONS = 'x00186011';
 const TAG_PLANAR_CONFIGURATION = 'x00280006';
 
-const TAG_REGION_LOCATION_MIN_X0 = 'x00186018';
-const TAG_REGION_LOCATION_MIN_Y0 = 'x0018601a';
-const TAG_REGION_LOCATION_MAX_X1 = 'x0018601c';
-const TAG_REGION_LOCATION_MAX_Y1 = 'x0018601e';
 const TAG_PHYSICAL_UNITS_X = 'x00186024';
 const TAG_PHYSICAL_UNITS_Y = 'x00186026';
 const TAG_PHYSICAL_DELTA_X = 'x0018602c';
@@ -47,10 +41,6 @@ const TAG_TRANSFER_SYNTAX_UID = 'x00020010';
 // =================================================================
 
 type CineUltrasoundRegion = {
-  minX0: number;
-  minY0: number;
-  maxX1: number;
-  maxY1: number;
   physicalDeltaX: number | null;
   physicalDeltaY: number | null;
   physicalUnitsX: number | null;
@@ -78,8 +68,6 @@ type CineSeriesInfo = {
   SeriesNumber: string;
   SeriesDescription: string;
   Modality: string;
-  SOPInstanceUID: string;
-  SOPClassUID: string;
 };
 
 export type CineHeader = {
@@ -130,10 +118,6 @@ const readDecimalString = (ds: DataSet, tag: string): number | null => {
 
 function buildRegion(item: DataSet): CineUltrasoundRegion {
   return {
-    minX0: u16(item, TAG_REGION_LOCATION_MIN_X0),
-    minY0: u16(item, TAG_REGION_LOCATION_MIN_Y0),
-    maxX1: u16(item, TAG_REGION_LOCATION_MAX_X1),
-    maxY1: u16(item, TAG_REGION_LOCATION_MAX_Y1),
     physicalDeltaX: readDouble(item, TAG_PHYSICAL_DELTA_X),
     physicalDeltaY: readDouble(item, TAG_PHYSICAL_DELTA_Y),
     physicalUnitsX: u16(item, TAG_PHYSICAL_UNITS_X) || null,
@@ -259,8 +243,6 @@ export function parseCineDicom(
       SeriesNumber: str(ds, TAG_SERIES_NUMBER),
       SeriesDescription: str(ds, TAG_SERIES_DESCRIPTION),
       Modality: str(ds, TAG_MODALITY),
-      SOPInstanceUID: str(ds, TAG_SOP_INSTANCE_UID),
-      SOPClassUID: str(ds, TAG_SOP_CLASS_UID),
     },
     regions,
   };
