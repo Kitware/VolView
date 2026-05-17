@@ -3,9 +3,7 @@ import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
-import { ThumbnailStrategy } from '@/src/core/streaming/chunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { getDisplayName, useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useMultiSelection } from '@/src/composables/useMultiSelection';
@@ -100,13 +98,11 @@ export default defineComponent({
           }
 
           const image = imageCacheStore.imageById[key];
-          if (!image || !(image instanceof DicomChunkImage)) return;
+          if (!image) return;
 
           try {
-            const thumb = await image.getThumbnail(
-              ThumbnailStrategy.MiddleSlice
-            );
-            if (thumb !== null) {
+            const thumb = await image.getThumbnail();
+            if (thumb) {
               thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
             } else {
               thumbnailCache[cacheKey] = {

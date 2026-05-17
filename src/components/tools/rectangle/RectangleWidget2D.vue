@@ -32,6 +32,7 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { Maybe } from '@/src/types';
 import { whenever } from '@vueuse/core';
+import { getRenderSlice } from '@/src/core/cine/getRenderSlice';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -122,10 +123,11 @@ export default defineComponent({
     widget.setManipulator(manipulator);
 
     watchEffect(() => {
+      const semantic = tool.value?.slice ?? slice.value;
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        tool.value?.slice ?? slice.value,
+        getRenderSlice(imageId.value, semantic),
         imageMetadata.value
       );
     });

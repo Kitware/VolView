@@ -110,6 +110,11 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     if (!(id in imageById)) return;
     unregisterListeners(id);
 
+    // Release vtk data and any per-image caches (e.g. cine compressed frames
+    // and decoded-frame LRU). Without this, removing a dataset leaks all of
+    // its memory until the page reloads.
+    imageById[id].dispose();
+
     const idx = imageIds.value.indexOf(id);
     if (idx > -1) imageIds.value.splice(idx, 1);
     delete imageById[id];

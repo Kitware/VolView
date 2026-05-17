@@ -67,16 +67,14 @@ const scroll = useMouseRangeManipulatorListener(
   sliceConfig.range,
   1,
   sliceConfig.slice.value,
-  -1
+  -1,
+  // Set the scrolled view as the active view — only on real user input.
+  () => {
+    useViewStore().setActiveView(unref(viewId));
+  }
 );
 
 syncRef(scroll, sliceConfig.slice, { immediate: true });
-
-// set just scrolled view as active view
-watch(scroll, () => {
-  const viewStore = useViewStore();
-  viewStore.setActiveView(unref(viewId));
-});
 </script>
 
 <template><slot></slot></template>

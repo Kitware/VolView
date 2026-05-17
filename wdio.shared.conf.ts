@@ -24,6 +24,10 @@ const TEST_DATASETS = [
     url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
     name: 'fetus.zip',
   },
+  {
+    url: 'https://sourceforge.net/p/gdcm/gdcmdata/ci/master/tree/US-MONO2-8-8x-execho.dcm?format=raw',
+    name: 'US-MONO2-8-8x-echo.dcm',
+  },
 ];
 
 export const WINDOW_SIZE = [1200, 800] as const;

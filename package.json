@@ -66,6 +66,7 @@
     "cors": "^2.8.5",
     "cross-env": "^10.1.0",
     "deep-equal": "^2.2.3",
+    "dicom-parser": "^1.8.21",
     "dicomweb-client-typed": "^0.8.6",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
