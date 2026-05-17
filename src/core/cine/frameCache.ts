@@ -1,33 +1,27 @@
 // Decoded-frame cache for cine playback.
 //
-// Holds CPU-visible RGBA bytes (not ImageBitmaps) because VTK's scalar buffer
-// needs to copy them in. Bounded by a byte budget; LRU eviction. Per-image
-// instance — disposed alongside the DicomCineImage that owns it.
+// Holds CPU-visible RGB bytes packed for direct copy into VTK's 3-component
+// scalar buffer. Bounded by a byte budget; LRU eviction. Per-image instance —
+// disposed alongside the DicomCineImage that owns it.
+
+import { decodeJpegInWorker } from './jpegDecodePool';
 
 export type DecodedFrame = {
   width: number;
   height: number;
-  // RGBA, 8-bit per channel, row-major (matches OffscreenCanvas getImageData).
-  rgba: Uint8ClampedArray;
+  // RGB, 8-bit per channel, row-major. Packed in the decoder (worker for JPEG)
+  // so the main thread can publish frames with a single buffer copy.
+  rgb: Uint8Array;
 };
 
-// Copy a decoded RGBA frame into a 3-component RGB buffer (VTK scalar shape).
 // Returns false when the buffers disagree on pixel count, so callers can skip
 // the publish step instead of rendering a partial frame.
 export function copyDecodedFrameToRgb(
   frame: DecodedFrame,
   out: Uint8Array
 ): boolean {
-  const { rgba } = frame;
-  const pixels = out.length / 3;
-  if (rgba.length !== pixels * 4) return false;
-  for (let i = 0; i < pixels; i++) {
-    const src = i * 4;
-    const dst = i * 3;
-    out[dst] = rgba[src];
-    out[dst + 1] = rgba[src + 1];
-    out[dst + 2] = rgba[src + 2];
-  }
+  if (frame.rgb.length !== out.length) return false;
+  out.set(frame.rgb);
   return true;
 }
 
@@ -57,11 +51,11 @@ export class FrameCache {
   set(frameIndex: number, frame: DecodedFrame): void {
     const existing = this.entries.get(frameIndex);
     if (existing) {
-      this.bytesInUse -= existing.rgba.byteLength;
+      this.bytesInUse -= existing.rgb.byteLength;
       this.entries.delete(frameIndex);
     }
     this.entries.set(frameIndex, frame);
-    this.bytesInUse += frame.rgba.byteLength;
+    this.bytesInUse += frame.rgb.byteLength;
     this.evictUntilUnderBudget();
   }
 
@@ -88,54 +82,18 @@ export class FrameCache {
     for (const key of this.entries.keys()) {
       if (this.bytesInUse <= this.budgetBytes) break;
       const entry = this.entries.get(key)!;
-      this.bytesInUse -= entry.rgba.byteLength;
+      this.bytesInUse -= entry.rgb.byteLength;
       this.entries.delete(key);
     }
   }
 }
 
-// =================================================================
-// Decoders
-// =================================================================
-
-// Decode a single JPEG-Baseline compressed frame to RGBA using the browser's
-// native JPEG decoder. Returns the decoded pixel bytes that can be copied
-// directly into a VTK scalar buffer.
-export async function decodeJpegFrame(
+export function decodeJpegFrame(
   bytes: Uint8Array,
   expectedWidth: number,
   expectedHeight: number
 ): Promise<DecodedFrame> {
-  // The Uint8Array is a view into the original DICOM ArrayBuffer; the cast
-  // satisfies the lib.dom typing of BlobPart (which excludes SharedArrayBuffer-
-  // backed views) without forcing a buffer copy.
-  const blob = new Blob([bytes as BlobPart], { type: 'image/jpeg' });
-  const bitmap = await createImageBitmap(blob);
-  try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('OffscreenCanvas 2D context unavailable');
-    if (
-      (expectedWidth && bitmap.width !== expectedWidth) ||
-      (expectedHeight && bitmap.height !== expectedHeight)
-    ) {
-      // The per-view RGB buffer is sized from DICOM Rows/Columns; a JPEG that
-      // disagrees can never be copied into it. Surface as a real error so the
-      // user sees a toast instead of a silently-black frame.
-      throw new Error(
-        `JPEG frame size ${bitmap.width}x${bitmap.height} does not match DICOM-declared ${expectedWidth}x${expectedHeight}`
-      );
-    }
-    ctx.drawImage(bitmap, 0, 0);
-    const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-    return {
-      width: bitmap.width,
-      height: bitmap.height,
-      rgba: imageData.data,
-    };
-  } finally {
-    bitmap.close();
-  }
+  return decodeJpegInWorker(bytes, expectedWidth, expectedHeight);
 }
 
 type NativeFrameLayout = {
@@ -148,7 +106,7 @@ type NativeFrameLayout = {
   planarConfiguration: number;
 };
 
-// Convert a raw uncompressed frame to RGBA. Supports the two photometric
+// Convert a raw uncompressed frame to packed RGB. Supports the two photometric
 // interpretations our sample corpus shows in the native PixelData path:
 // - 'RGB' with samplesPerPixel=3 (interleaved RGB)
 // - 'MONOCHROME2' with samplesPerPixel=1 (grayscale, replicated to RGB)
@@ -159,17 +117,16 @@ export function decodeNativeFrame(
   const { width, height, samplesPerPixel, photometric, planarConfiguration } =
     layout;
   const pixelCount = width * height;
-  const out = new Uint8ClampedArray(pixelCount * 4);
+  const out = new Uint8Array(pixelCount * 3);
 
   if (samplesPerPixel === 1) {
-    // Grayscale — replicate luminance to R, G, B; alpha = 255.
+    // Grayscale — replicate luminance to R, G, B.
     for (let i = 0; i < pixelCount; i++) {
       const v = bytes[i] ?? 0;
-      const j = i * 4;
+      const j = i * 3;
       out[j] = v;
       out[j + 1] = v;
       out[j + 2] = v;
-      out[j + 3] = 255;
     }
   } else if (
     samplesPerPixel === 3 &&
@@ -179,20 +136,17 @@ export function decodeNativeFrame(
       // RRRR...GGGG...BBBB...
       const plane = pixelCount;
       for (let i = 0; i < pixelCount; i++) {
-        const j = i * 4;
+        const j = i * 3;
         out[j] = bytes[i] ?? 0;
         out[j + 1] = bytes[plane + i] ?? 0;
         out[j + 2] = bytes[2 * plane + i] ?? 0;
-        out[j + 3] = 255;
       }
     } else {
       for (let i = 0; i < pixelCount; i++) {
         const k = i * 3;
-        const j = i * 4;
-        out[j] = bytes[k] ?? 0;
-        out[j + 1] = bytes[k + 1] ?? 0;
-        out[j + 2] = bytes[k + 2] ?? 0;
-        out[j + 3] = 255;
+        out[k] = bytes[k] ?? 0;
+        out[k + 1] = bytes[k + 1] ?? 0;
+        out[k + 2] = bytes[k + 2] ?? 0;
       }
     }
   } else {
@@ -201,5 +155,5 @@ export function decodeNativeFrame(
     );
   }
 
-  return { width, height, rgba: out };
+  return { width, height, rgb: out };
 }
