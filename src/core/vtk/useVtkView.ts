@@ -19,6 +19,23 @@ import {
   watchPostEffect,
 } from 'vue';
 
+// vtk.js' public interactor.cancelAnimation() is a no-op while the
+// post-wheel extension window is still open (model._animationExtendedEnd),
+// so on dispose during that window a pending rAF survives and fires against
+// the deleted interactor. Reach into the private animationRequest field to
+// cancel it directly.
+function cancelPendingInteractorAnimationFrame(
+  interactor: vtkRenderWindowInteractor
+) {
+  const model = (
+    interactor as unknown as { get(): { animationRequest?: number | null } }
+  ).get();
+  if (model.animationRequest == null) return;
+
+  cancelAnimationFrame(model.animationRequest);
+  model.animationRequest = null;
+}
+
 export function useWebGLRenderWindow(
   renderWindow: vtkRenderWindow,
   container: MaybeRef<Maybe<HTMLElement>>,
@@ -163,6 +180,7 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
 
     renderer.delete();
     renderWindow.delete();
+    cancelPendingInteractorAnimationFrame(interactor);
     interactor.delete();
   });
 

@@ -16,10 +16,7 @@ export function useMouseRangeManipulatorListener(
   step: MaybeRef<Maybe<number>>,
   initialValue?: number,
   scale: number = 1, // Negative scale inverts scroll direction
-  // Fires only on real wheel/drag input — not on programmatic writes that
-  // come back through a bidirectional sync. Use this to drive side effects
-  // like setActiveView so they don't fire during cine playback or other
-  // programmatic slice updates.
+  // Fires on real wheel/drag input only, not on programmatic writes.
   onUserInput?: () => void
 ) {
   const internalValue = ref(initialValue ?? 0);

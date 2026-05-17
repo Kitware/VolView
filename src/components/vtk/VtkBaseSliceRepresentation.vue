@@ -22,7 +22,7 @@ import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { getCineImage, isCineImage } from '@/src/core/cine/isCineImage';
 import type DicomCineImage from '@/src/core/cine/DicomCineImage';
-import type { DecodedFrame } from '@/src/core/cine/frameCache';
+import { copyDecodedFrameToRgb } from '@/src/core/cine/frameCache';
 
 interface Props {
   viewId: string;
@@ -42,17 +42,14 @@ function createCineRenderImage(cineImage: DicomCineImage): CineRenderImage {
     throw new Error('Cine image has no canonical vtkImageData');
   }
   const extent = source.getExtent();
-  const spacing = source.getSpacing();
-  const origin = source.getOrigin();
-  const direction = source.getDirection();
   const cols = extent[1] - extent[0] + 1;
   const rows = extent[3] - extent[2] + 1;
 
   const imageData = vtkImageData.newInstance();
   imageData.setExtent(extent);
-  imageData.setSpacing(spacing);
-  imageData.setOrigin(origin);
-  imageData.setDirection(direction);
+  imageData.setSpacing(source.getSpacing());
+  imageData.setOrigin(source.getOrigin());
+  imageData.setDirection(source.getDirection());
 
   const rgbBuffer = new Uint8Array(cols * rows * 3);
   const dataArray = vtkDataArray.newInstance({
@@ -65,24 +62,6 @@ function createCineRenderImage(cineImage: DicomCineImage): CineRenderImage {
   imageData.getPointData().setScalars(dataArray);
 
   return { imageData, dataArray, rgbBuffer };
-}
-
-function copyDecodedFrameToRgb(
-  frame: DecodedFrame,
-  target: CineRenderImage
-): boolean {
-  const { rgba } = frame;
-  const out = target.rgbBuffer;
-  const expectedPixels = out.length / 3;
-  if (rgba.length !== expectedPixels * 4) return false;
-  for (let i = 0; i < expectedPixels; i++) {
-    const src = i * 4;
-    const dst = i * 3;
-    out[dst] = rgba[src];
-    out[dst + 1] = rgba[src + 1];
-    out[dst + 2] = rgba[src + 2];
-  }
-  return true;
 }
 
 const props = defineProps<Props>();
@@ -99,11 +78,10 @@ const wlConfig = useWindowingConfig(viewID, imageID);
 
 const cine = computed(() => getCineImage(imageID.value));
 
-// Per-view render buffer for cine. Built from the canonical cine image's
-// geometry; the mapper renders from this local image so two views can show
-// different frames without overwriting each other's pixels.
+// Per-view render buffer for cine so two views can show different frames
+// without fighting over a single shared scalar buffer. Published to
+// `cineRender` only after the first decoded pixels land.
 const cineRender = shallowRef<CineRenderImage | null>(null);
-// Pending per-view buffer. Published to cineRender only after decoded pixels land.
 let localCineRender: CineRenderImage | null = null;
 
 watchEffect((onCleanup) => {
@@ -119,9 +97,7 @@ watchEffect((onCleanup) => {
     if (cineRender.value === local) {
       cineRender.value = null;
     }
-    // Defer the VTK free to nextTick so the mapper flushes its new input
-    // (driven by the cineRender.value change above) before we destroy the
-    // old vtkImageData. Otherwise the mapper briefly holds a deleted ref.
+    // Let the mapper flush before we delete the vtkImageData it still holds.
     nextTick(() => {
       local.imageData.delete();
     });
@@ -148,18 +124,13 @@ watchEffect(() => {
   sliceRep.mapper.setSlicingMode(mode);
 });
 
-// sync slicing
-// For cine, the semantic slice (frame index) is decoupled from the VTK
-// render slice — the per-view cine image is a single 2D plane, so the mapper
-// always renders slice 0. The frame index drives the local-buffer watcher
-// below.
+// Cine: the per-view image is a single 2D plane (mapper slice is always 0).
+// The frame index drives the local-buffer watcher below instead.
 const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 const renderSlice = computed(() => (cine.value ? 0 : sliceConfig.slice.value));
 syncRefs(renderSlice, slice, { immediate: true });
 
-// Decode the requested frame and copy it into the per-view buffer. A local
-// token guards against stale async work after rapid scrubs or cine-image
-// changes.
+// A token guards against stale decodes when scrubbing rapidly.
 let frameToken = 0;
 watch(
   [() => sliceConfig.slice.value, cine],
@@ -172,10 +143,12 @@ watch(
       .then((decoded) => {
         if (myToken !== frameToken) return;
         if (localCineRender !== target) return;
-        if (!copyDecodedFrameToRgb(decoded, target)) return;
+        if (!copyDecodedFrameToRgb(decoded, target.rgbBuffer)) return;
         target.dataArray.modified();
         target.imageData.modified();
-        cineRender.value = target;
+        if (cineRender.value !== target) {
+          cineRender.value = target;
+        }
         view.requestRender();
       })
       .catch(() => {
@@ -185,12 +158,9 @@ watch(
   { immediate: true }
 );
 
-// sync windowing
-// For cine, the pixels are 8-bit display-encoded — the volume W/L pipeline is
-// meaningless. Pin the property to a full-byte pass-through and skip the
-// bidirectional wlConfig sync, which otherwise overwrites these values with
-// the uninitialized defaults (width=1, level=2^32-1) on first paint and again
-// any time wlConfig changes for an adjacent volume in the same session.
+// Cine pixels are 8-bit display-encoded — pin W/L to a full-byte pass-through
+// and skip the bidirectional wlConfig sync, which would otherwise overwrite
+// these with uninitialized defaults on first paint.
 const colorLevel = vtkFieldRef(sliceRep.property, 'colorLevel');
 const colorWindow = vtkFieldRef(sliceRep.property, 'colorWindow');
 

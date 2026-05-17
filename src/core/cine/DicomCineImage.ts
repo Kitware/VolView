@@ -1,10 +1,6 @@
-// DicomCineImage — backing image for multi-frame ultrasound DICOM clips.
-//
-// Treats the clip as a normal VolView image selection: extends BaseProgressiveImage,
-// owns a single 2D vtkImageData (extent [0, cols-1, 0, rows-1, 0, 0], 3-component
-// RGB uint8 scalars), and swaps the scalars in-place whenever the selected frame
-// changes. The original compressed frame bytes live in this object too, so we never
-// hold all decoded frames at once — only the LRU's worth.
+// Backing image for multi-frame ultrasound DICOM clips. Owns a single 2D
+// vtkImageData with 3-component RGB scalars; the per-frame compressed bytes
+// stay in this object and decoded frames live in an LRU cache.
 
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -24,40 +20,22 @@ import {
 import {
   DecodedFrame,
   FrameCache,
+  copyDecodedFrameToRgb,
   decodeJpegFrame,
   decodeNativeFrame,
 } from './frameCache';
-
-// DICOM PhysicalUnits code 3 = centimetres. Other codes (dB, %, m/s, ...) are
-// used for Doppler regions and aren't a length we can express as VTK spacing.
-const PHYSICAL_UNITS_CM = 3;
+import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 function pickPixelSpacing(header: CineHeader): [number, number] {
-  const region = header.regions.find(
-    (r) =>
-      r.physicalUnitsX === PHYSICAL_UNITS_CM &&
-      r.physicalUnitsY === PHYSICAL_UNITS_CM
-  );
-  if (!region) return [1, 1];
-  const { physicalDeltaX: dx, physicalDeltaY: dy } = region;
-  if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) {
-    return [1, 1];
+  for (const r of header.regions) {
+    const sx = r.physicalUnitsX != null ? unitToMm(r.physicalUnitsX) : null;
+    const sy = r.physicalUnitsY != null ? unitToMm(r.physicalUnitsY) : null;
+    if (sx == null || sy == null) continue;
+    const { physicalDeltaX: dx, physicalDeltaY: dy } = r;
+    if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) continue;
+    return [Math.abs(dx) * sx, Math.abs(dy) * sy];
   }
-  // Convert centimetres-per-pixel to millimetres-per-pixel.
-  return [Math.abs(dx) * 10, Math.abs(dy) * 10];
-}
-
-// Convert RGBA (from createImageBitmap or our native decoder) to a 3-component
-// RGB Uint8Array suitable for VTK scalar swap.
-function rgbaToRgb(rgba: Uint8ClampedArray, out: Uint8Array): void {
-  const pixels = rgba.length >> 2;
-  for (let i = 0; i < pixels; i++) {
-    const src = i * 4;
-    const dst = i * 3;
-    out[dst] = rgba[src];
-    out[dst + 1] = rgba[src + 1];
-    out[dst + 2] = rgba[src + 2];
-  }
+  return [1, 1];
 }
 
 export default class DicomCineImage extends BaseProgressiveImage {
@@ -92,11 +70,8 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.scalarBuffer = new Uint8Array(cols * rows * 3);
     const imageData = vtkImageData.newInstance();
     imageData.setExtent([0, cols - 1, 0, rows - 1, 0, 0]);
-    // Region calibration — DICOM C.8.5.5.1: PhysicalUnits=3 means cm. We only
-    // apply spacing when both axes report cm, so length measurements come out
-    // in millimetres. Anything else (missing region, percent, dB, m/s, mixed
-    // units) leaves spacing at 1 — the ruler then reports pixels, which is
-    // the documented v1 behavior.
+    // Spacing falls back to 1 when no region declares a spatial unit, so
+    // rulers report pixels (documented v1 behavior).
     const [spacingX, spacingY] = pickPixelSpacing(header);
     imageData.setSpacing([spacingX, spacingY, 1]);
     imageData.setOrigin([0, 0, 0]);
@@ -113,9 +88,7 @@ export default class DicomCineImage extends BaseProgressiveImage {
 
     this.vtkImageData.value = imageData;
 
-    // The cine clip has all metadata up-front, so it is "complete" once the
-    // first frame is decoded. Volume views still see status='incomplete' until
-    // we kick off the initial decode in startLoad().
+    // Status flips to 'complete' once the first frame is decoded in startLoad().
     this.status.value = 'incomplete';
     this.loaded = computed(
       () => !this.loading.value && this.status.value === 'complete'
@@ -144,9 +117,8 @@ export default class DicomCineImage extends BaseProgressiveImage {
   }
 
   startLoad(): void {
-    // No streaming step — the compressed bytes are already in memory. We
-    // decode the first frame so the canonical compatibility image has valid
-    // scalars for older consumers (thumbnail, getVtkImageData, metadata).
+    // Decode frame 0 so the canonical vtkImageData has valid scalars for
+    // consumers that read it synchronously (thumbnail, getVtkImageData).
     if (this.disposed) return;
     if (!isSupportedCineTransferSyntax(this.header.transferSyntaxUID)) {
       this.reportError(
@@ -160,7 +132,7 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.getFrame(0)
       .then((frame) => {
         if (this.disposed) return;
-        rgbaToRgb(frame.rgba, this.scalarBuffer);
+        copyDecodedFrameToRgb(frame, this.scalarBuffer);
         this.vtkImageData.value.getPointData().getScalars().modified();
         this.vtkImageData.value.modified();
         this.events.emit('status', 'complete');
@@ -182,9 +154,6 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.events.all.clear();
     this.cache.clear();
     this.inFlightFrames.clear();
-    // Clear the compressed-frame views; we don't own the underlying buffer
-    // (it was sliced from the original ArrayBuffer), but null'ing the array
-    // lets GC reclaim the wrapper objects.
     this.frames.length = 0;
     this.vtkImageData.value.delete();
   }
@@ -216,8 +185,7 @@ export default class DicomCineImage extends BaseProgressiveImage {
     return this.thumbnailPromise;
   }
 
-  // Decoded-frame access for per-view render buffers. Concurrent requests
-  // for the same uncached frame share a single decode via inFlightFrames.
+  // Concurrent requests for the same uncached frame share a single decode.
   async getFrame(frameIndex: number): Promise<DecodedFrame> {
     if (this.disposed) {
       throw new Error('DicomCineImage is disposed');
@@ -256,8 +224,8 @@ export default class DicomCineImage extends BaseProgressiveImage {
     return decodePromise;
   }
 
-  // Emit an error and clear the loading flag — otherwise consumers stay stuck
-  // on the spinner forever after a bad first-frame decode.
+  // Clear the loading flag too — otherwise the spinner persists past a bad
+  // first-frame decode.
   private reportError(err: unknown): void {
     const error = err instanceof Error ? err : new Error(String(err));
     this.events.emit('error', error);
@@ -281,7 +249,6 @@ export default class DicomCineImage extends BaseProgressiveImage {
     });
   }
 
-  // Helper used by import routing to decide whether the file is cine-renderable.
   static isSupported(header: CineHeader): boolean {
     if (!isSupportedCineTransferSyntax(header.transferSyntaxUID)) return false;
     if (isNativeTransferSyntax(header.transferSyntaxUID)) {

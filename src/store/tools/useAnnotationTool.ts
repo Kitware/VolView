@@ -13,6 +13,8 @@ import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
+import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import useViewSliceStore from '../view-configs/slicing';
 import { useLabels, type Labels } from './useLabels';
 
@@ -145,10 +147,16 @@ export const useAnnotationTool = <
     if (!toolImageFrame) return;
 
     const viewStore = useViewStore();
+    // Cine collapses every 2D view to Axial, so without the active-view gate
+    // every cine view would jump to the same frame.
+    const restrictToActiveView = isCineImage(imageID);
     const relevantViews = viewStore.getAllViews().filter((view) => {
       if (view.type !== '2D') return false;
-      const axis = view.options.orientation;
-      return axis === toolImageFrame.axis;
+      if (getEffectiveViewAxis(view, imageID) !== toolImageFrame.axis)
+        return false;
+      if (restrictToActiveView && view.id !== viewStore.activeView)
+        return false;
+      return true;
     });
 
     const viewSliceStore = useViewSliceStore();

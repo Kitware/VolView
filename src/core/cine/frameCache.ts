@@ -11,6 +11,26 @@ export type DecodedFrame = {
   rgba: Uint8ClampedArray;
 };
 
+// Copy a decoded RGBA frame into a 3-component RGB buffer (VTK scalar shape).
+// Returns false when the buffers disagree on pixel count, so callers can skip
+// the publish step instead of rendering a partial frame.
+export function copyDecodedFrameToRgb(
+  frame: DecodedFrame,
+  out: Uint8Array
+): boolean {
+  const { rgba } = frame;
+  const pixels = out.length / 3;
+  if (rgba.length !== pixels * 4) return false;
+  for (let i = 0; i < pixels; i++) {
+    const src = i * 4;
+    const dst = i * 3;
+    out[dst] = rgba[src];
+    out[dst + 1] = rgba[src + 1];
+    out[dst + 2] = rgba[src + 2];
+  }
+  return true;
+}
+
 const DEFAULT_BUDGET_BYTES = 64 * 1024 * 1024;
 
 export class FrameCache {

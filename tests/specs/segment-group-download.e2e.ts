@@ -1,16 +1,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { waitForFileExists } from './utils';
+import { openUrls, waitForFileExists } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
+import { PROSTATEX_DATASET } from './configTestUtils';
 
 const SAVE_TIMEOUT = 40000;
 
 const loadSampleWithSegmentGroup = async (name: string) => {
-  await volViewPage.open();
-  await volViewPage.downloadProstateSample();
-  await volViewPage.waitForViews();
+  await openUrls([PROSTATEX_DATASET]);
   await volViewPage.createSegmentGroup(name);
 };
 

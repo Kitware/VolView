@@ -163,7 +163,7 @@ import { ref, toRefs, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useProbeStore } from '@/src/store/probe';
-import { getLPSAxisFromDir } from '@/src/utils/lps';
+import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { Tools } from '@/src/store/tools/types';
@@ -198,15 +198,11 @@ import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Inter
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useViewStore } from '@/src/store/views';
-import { LPSAxis } from '@/src/types/lps';
+import { ViewInfo2D } from '@/src/types/views';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
 interface Props {
   viewId: string;
-}
-
-interface SliceViewerOptions {
-  orientation: LPSAxis;
 }
 
 const vtkView = ref<VtkViewApi>();
@@ -218,10 +214,7 @@ const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
 const viewStore = useViewStore();
-const viewInfo = computed(() => viewStore.getView(viewId.value)!);
-const viewOptions = computed(
-  () => viewInfo.value.options as SliceViewerOptions
-);
+const viewInfo = computed(() => viewStore.getView(viewId.value) as ViewInfo2D);
 
 // base image
 const {
@@ -233,12 +226,12 @@ const {
 } = useCurrentImage();
 
 const isCine = computed(() => isCineImage(currentImageID.value));
-const viewingVectors = computed(() =>
-  get2DViewingVectors(isCine.value ? 'Axial' : viewOptions.value.orientation)
+const viewAxis = computed(() =>
+  getEffectiveViewAxis(viewInfo.value, currentImageID.value)
 );
+const viewingVectors = computed(() => get2DViewingVectors(viewAxis.value));
 const viewDirection = computed(() => viewingVectors.value.viewDirection);
 const viewUp = computed(() => viewingVectors.value.viewUp);
-const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
 const hover = ref(false);
 

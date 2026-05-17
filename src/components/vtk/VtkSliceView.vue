@@ -101,6 +101,12 @@ watchImmediate(
   }
 );
 
+// Must run before the clipping-range watcher below: resetCameraClippingRange
+// computes near/far from the camera's current position, so on remount the
+// saved position must be syncRef'd back first or the slice falls outside
+// the clip volume and the canvas goes black.
+usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
+
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
   if (!imageMetadata.value) return;
   if (
@@ -110,9 +116,6 @@ watchImmediate([imageMetadata, disableCameraAutoReset], () => {
     view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
   }
 });
-
-// persistent camera config
-usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 // exposed API
 const api: VtkViewApi = markRaw({

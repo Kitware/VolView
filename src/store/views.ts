@@ -139,6 +139,7 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setActiveView(id: Maybe<string>) {
+    if (activeView.value === id) return;
     activeView.value = id;
   }
 
@@ -267,13 +268,10 @@ export const useViewStore = defineStore('view', () => {
 
     if (dataID && isCineImage(dataID) && view.type !== '2D') {
       replaceView(viewID, { ...DEFAULT_VIEW_INIT, dataID });
-      // Global tools resolve their image through activeView.
-      ensureActiveViewIsVisible();
-      return;
+    } else {
+      view.dataID = dataID;
+      ViewDataChangeEvent.trigger(viewID, dataID);
     }
-
-    view.dataID = dataID;
-    ViewDataChangeEvent.trigger(viewID, dataID);
     // Global tools resolve their image through activeView.
     ensureActiveViewIsVisible();
   }

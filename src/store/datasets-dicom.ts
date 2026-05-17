@@ -47,9 +47,8 @@ export interface VolumeInfo {
   SeriesDescription: string;
   WindowLevel: string;
   WindowWidth: string;
-  // 'cine' marks an ultrasound multi-frame image whose NumberOfSlices is the
-  // number of cine frames (not Z-axis slices). 'volume' means a normal 3D
-  // DICOM volume. Older saved state may omit this field for normal volumes.
+  // For 'cine', NumberOfSlices is the frame count. Optional for back-compat
+  // with saved state that predates the field.
   kind?: 'volume' | 'cine';
 }
 
@@ -265,23 +264,6 @@ export const useDICOMStore = defineStore('dicom', {
       imageCacheStore.addProgressiveImage(image, { id });
 
       const { patient, study, series } = parsed.header;
-
-      const patientInfo: PatientInfo = {
-        PatientID: patient.PatientID,
-        PatientName: patient.PatientName,
-        PatientBirthDate: patient.PatientBirthDate,
-        PatientSex: patient.PatientSex,
-      };
-
-      const studyInfo: StudyInfo = {
-        StudyID: study.StudyID,
-        StudyInstanceUID: study.StudyInstanceUID,
-        StudyDate: study.StudyDate,
-        StudyTime: study.StudyTime,
-        AccessionNumber: study.AccessionNumber,
-        StudyDescription: study.StudyDescription,
-      };
-
       const volumeInfo: VolumeInfo = {
         NumberOfSlices: parsed.header.numberOfFrames,
         VolumeID: id,
@@ -294,7 +276,7 @@ export const useDICOMStore = defineStore('dicom', {
         kind: 'cine',
       };
 
-      this._updateDatabase(patientInfo, studyInfo, volumeInfo);
+      this._updateDatabase(patient, study, volumeInfo);
 
       image.setName(getDisplayName(volumeInfo));
       return true;
