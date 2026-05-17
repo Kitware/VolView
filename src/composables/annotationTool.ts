@@ -54,16 +54,23 @@ export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
 export const useCurrentTools = <S extends AnnotationToolStore>(
   toolStore: S,
   viewAxis: Ref<LPSAxis>,
-  placingToolWhitelist: Ref<Array<ToolID>>
+  placingToolWhitelist: Ref<Array<ToolID>>,
+  // For cine: the current frame. A tool matches when its own frame matches
+  // or is unset (volume tools have no frame). Pass undefined on volume views.
+  viewFrame?: MaybeRef<Maybe<number>>
 ) => {
   const { currentImageID, currentImageMetadata } = useCurrentImage();
   return computed(() => {
     const curImageID = currentImageID.value;
+    const frame = unref(viewFrame);
 
     type ToolType = S['tools'][number];
     return (toolStore.tools as Array<ToolType>).filter((tool) => {
       // ensure that we don't show placing tools from other views
       if (tool.placing && !placingToolWhitelist.value.includes(tool.id))
+        return false;
+
+      if (frame != null && tool.frame != null && tool.frame !== frame)
         return false;
 
       // only show tools for the current image,

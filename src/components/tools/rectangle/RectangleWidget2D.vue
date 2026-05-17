@@ -30,9 +30,10 @@ import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 import { ToolID } from '@/src/types/annotation-tool';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useCineFrame } from '@/src/composables/useCineFrame';
 import { Maybe } from '@/src/types';
 import { whenever } from '@vueuse/core';
-import { getRenderSlice } from '@/src/core/cine/getRenderSlice';
+import { toolRenderSlice } from '@/src/core/annotations/locator';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
@@ -72,6 +73,7 @@ export default defineComponent({
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice);
+    const { frame: cineFrame } = useCineFrame(viewId, imageId);
 
     const toolStore = useStore();
     const tool = computed(() => toolStore.toolByID[toolId.value]);
@@ -97,9 +99,9 @@ export default defineComponent({
       { immediate: true }
     );
 
-    // --- reset on slice/image changes --- //
-
-    watch([slice, imageId], () => {
+    // Reset unfinished placement when the view's cursor moves: slice for
+    // volume views, frame for cine.
+    watch([slice, cineFrame, imageId], () => {
       const isPlaced = widget.getWidgetState().getIsPlaced();
       if (!isPlaced) {
         widget.resetInteractions();
@@ -126,7 +128,7 @@ export default defineComponent({
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        getRenderSlice(imageId.value, slice.value, tool.value?.slice),
+        toolRenderSlice(tool.value, slice.value),
         imageMetadata.value
       );
     });

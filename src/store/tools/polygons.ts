@@ -127,6 +127,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const sameSliceAndLabel = (a: Tool, b: Tool) =>
     a.label === b.label &&
     a.slice === b.slice &&
+    a.frame === b.frame &&
     a.frameOfReference === b.frameOfReference;
 
   const mergable = (a: Tool, b: Tool) => {

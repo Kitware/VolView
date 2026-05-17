@@ -37,9 +37,9 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import { Maybe } from '@/src/types';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useViewLocator } from '@/src/composables/useViewLocator';
+import { locatorPatch } from '@/src/core/annotations/locator';
 import { watchImmediate } from '@vueuse/core';
 
 export default defineComponent({
@@ -66,20 +66,13 @@ export default defineComponent({
     const rulerStore = useRulerStore();
     const { activeLabel } = storeToRefs(rulerStore);
 
-    const sliceInfo = useSliceInfo(viewId, imageId);
-    const slice = computed(() => sliceInfo.value?.slice ?? 0);
+    const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
-    const { metadata: imageMetadata } = useImage(imageId);
+    useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     // --- active ruler management --- //
-
-    const frameOfReference = useFrameOfReference(
-      viewDirection,
-      slice,
-      imageMetadata
-    );
 
     const placingTool = usePlacingAnnotationTool(
       rulerStore,
@@ -87,8 +80,7 @@ export default defineComponent({
         if (!imageId.value) return {};
         return {
           imageID: imageId.value,
-          frameOfReference: frameOfReference.value,
-          slice: slice.value,
+          ...locatorPatch(locator.value),
           label: activeLabel.value,
           ...(activeLabel.value && rulerStore.labels[activeLabel.value]),
         };
@@ -126,7 +118,8 @@ export default defineComponent({
       computed(() => {
         if (placingTool.id.value) return [placingTool.id.value];
         return [];
-      })
+      }),
+      frame
     );
 
     const currentRulers = computed(() => {

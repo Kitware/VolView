@@ -20,7 +20,7 @@ describe('Ultrasound image spacing', () => {
 
     // element.click({ x, y }) offsets are measured from the element's center,
     // so x:0 / y:0 is the canvas center.
-    const canvas = await $('div[data-testid="vtk-view vtk-two-view"] canvas');
+    const canvas = await $('div[data-testid="vtk-view vtk-cine-view"] canvas');
 
     await canvas.click({ x: 0, y: -CLICK_DY / 2 });
     await canvas.click({ x: 0, y: CLICK_DY / 2 });

@@ -8,9 +8,11 @@ import { Action, NOOP } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
 import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
+import { useCineFrame } from './useCineFrame';
 import { useDatasetStore } from '../store/datasets';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
+import { computeEffectiveView } from '../core/views/effectiveView';
 
 const applyLabelOffset = (offset: number) => () => {
   const toolToStore = {
@@ -49,7 +51,19 @@ const showKeyboardShortcuts = () => {
 
 const changeSlice = (offset: number) => () => {
   const { currentImageID } = useCurrentImage();
-  const { activeView } = useViewStore();
+  const viewStore = useViewStore();
+  const { activeView } = viewStore;
+  if (!activeView) return;
+
+  const view = viewStore.getView(activeView);
+  if (!view) return;
+
+  const effective = computeEffectiveView(view, currentImageID.value);
+  if (effective.kind === 'cine') {
+    const { frame, setFrame } = useCineFrame(activeView, currentImageID);
+    setFrame(frame.value + offset);
+    return;
+  }
 
   const { slice: currentSlice } = useSliceConfig(activeView, currentImageID);
   currentSlice.value += offset;

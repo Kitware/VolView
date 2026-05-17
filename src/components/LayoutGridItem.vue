@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import CurrentImageProvider from '@/src/components/CurrentImageProvider.vue';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
-import { getComponentFromViewInfo } from '@/src/core/viewTypes';
+import { resolveSlotRendering } from '@/src/core/viewTypes';
 import { useViewStore } from '@/src/store/views';
 import { computed, ref } from 'vue';
 
@@ -11,10 +11,9 @@ const viewStore = useViewStore();
 const dragCounter = ref(0);
 const showDropTarget = computed(() => dragCounter.value > 0);
 
-const ItemComponent = computed(() => {
-  const viewInfo = viewStore.viewByID[props.viewId];
-  return getComponentFromViewInfo(viewInfo);
-});
+const rendering = computed(() =>
+  resolveSlotRendering(viewStore.viewByID[props.viewId])
+);
 
 const activeStyles = computed(() => {
   if (showDropTarget.value) {
@@ -30,11 +29,6 @@ const activeStyles = computed(() => {
   return {
     border: '2px solid rgba(255, 255, 255, 0.05)',
   };
-});
-
-const imageID = computed(() => {
-  const viewInfo = viewStore.viewByID[props.viewId];
-  return viewInfo.dataID;
 });
 
 function isValidDragEvent(event: DragEvent) {
@@ -74,11 +68,11 @@ function onDrop(event: DragEvent) {
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <div v-show="!imageID" class="overlay">
+    <div v-show="!rendering.renderImageID" class="overlay">
       <v-icon color="grey-darken-3" size="x-large">mdi-image-off</v-icon>
     </div>
-    <CurrentImageProvider :image-id="imageID">
-      <ItemComponent :view-id="viewId" />
+    <CurrentImageProvider :image-id="rendering.renderImageID">
+      <component :is="rendering.component" :view-id="viewId" />
     </CurrentImageProvider>
   </div>
 </template>

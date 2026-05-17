@@ -7,15 +7,11 @@ import {
 } from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
-import { useViewStore } from '@/src/store/views';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
-import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
-import { isCineImage } from '@/src/core/cine/isCineImage';
-import useViewSliceStore from '../view-configs/slicing';
+import { applyLocator } from '@/src/core/annotations/locator';
 import { useLabels, type Labels } from './useLabels';
 
 const annotationToolLabelDefault = Object.freeze({
@@ -128,7 +124,7 @@ export const useAnnotationTool = <
     });
   });
 
-  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
+  const { currentImageID } = useCurrentImage('global');
 
   function jumpToTool(toolID: ToolID) {
     const tool = toolByID.value[toolID];
@@ -136,35 +132,7 @@ export const useAnnotationTool = <
     const imageID = currentImageID.value;
     if (!imageID || tool.imageID !== imageID) return;
 
-    // Cine images report dimensions [cols, rows, 1] but tools may live on
-    // any frame; allow out-of-bounds so we still resolve the axis.
-    const toolImageFrame = frameOfReferenceToImageSliceAndAxis(
-      tool.frameOfReference,
-      currentImageMetadata.value,
-      { allowOutOfBoundsSlice: true }
-    );
-
-    if (!toolImageFrame) return;
-
-    const viewStore = useViewStore();
-    // Cine collapses every 2D view to Axial, so without the active-view gate
-    // every cine view would jump to the same frame.
-    const restrictToActiveView = isCineImage(imageID);
-    const relevantViews = viewStore.getAllViews().filter((view) => {
-      if (view.type !== '2D') return false;
-      if (getEffectiveViewAxis(view, imageID) !== toolImageFrame.axis)
-        return false;
-      if (restrictToActiveView && view.id !== viewStore.activeView)
-        return false;
-      return true;
-    });
-
-    const viewSliceStore = useViewSliceStore();
-    relevantViews.forEach((view) => {
-      viewSliceStore.updateConfig(view.id, imageID, {
-        slice: tool.slice!,
-      });
-    });
+    applyLocator(imageID, tool);
   }
 
   const serializeTools = () => {

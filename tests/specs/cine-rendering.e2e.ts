@@ -8,7 +8,7 @@ import { downloadFile, openUrls, writeManifestToFile } from './utils';
 
 const PLAY_CONTROLS = '.play-controls';
 const FRAME_LABEL = '.view-annotations .frame-label';
-const VIEW_SELECTOR = 'div[data-testid="vtk-view vtk-two-view"]';
+const VIEW_SELECTOR = 'div[data-testid="vtk-view vtk-cine-view"]';
 
 function parseFrameLabel(text: string) {
   const match = text.trim().match(/^Frame:\s*(\d+)\s*\/\s*(\d+)$/);

@@ -18,7 +18,6 @@ import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
-import { getRenderSlice } from '@/src/core/cine/getRenderSlice';
 
 export default defineComponent({
   name: 'CrosshairsWidget2D',
@@ -65,7 +64,7 @@ export default defineComponent({
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        getRenderSlice(imageId.value, slice.value),
+        slice.value,
         imageMetadata.value
       );
     });

@@ -14,7 +14,6 @@ import { ViewConfig } from '@/src/io/state-file/schema';
 import { SliceConfig } from '@/src/store/view-configs/types';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useViewStore } from '@/src/store/views';
-import { getCineImage } from '@/src/core/cine/isCineImage';
 
 export const defaultSliceConfig = (): SliceConfig => ({
   slice: 0,
@@ -36,19 +35,6 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
 
     const view = viewStore.getView(viewID);
     if (view?.type !== '2D') return defaultSliceConfig();
-
-    // Cine images report dimensions [cols, rows, 1] but the slice axis is the
-    // frame index, so override using the cine clip's frame count.
-    const cine = getCineImage(imageID);
-    if (cine) {
-      const max = Math.max(0, cine.getNumberOfFrames() - 1);
-      return {
-        min: 0,
-        slice: 0,
-        max,
-        syncState: false,
-      };
-    }
 
     const { orientation } = view.options;
     const { metadata } = useImage(imageID);

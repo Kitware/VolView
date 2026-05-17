@@ -19,10 +19,10 @@
         </v-tooltip>
       </v-btn>
       <slice-slider
-        v-model="currentSlice"
+        v-model="currentFrame"
         class="slice-slider"
-        :min="sliceRange[0]"
-        :max="sliceRange[1]"
+        :min="frameRange[0]"
+        :max="frameRange[1]"
         :step="1"
         :handle-height="20"
       />
@@ -39,11 +39,11 @@
         <vtk-slice-view
           class="vtk-view"
           ref="vtkView"
-          data-testid="vtk-view vtk-two-view"
+          data-testid="vtk-view vtk-cine-view"
           :view-id="viewId"
           :image-id="currentImageID"
-          :view-direction="viewDirection"
-          :view-up="viewUp"
+          :view-direction="VIEW_DIRECTION"
+          :view-up="VIEW_UP"
         >
           <vtk-mouse-interaction-manipulator
             v-if="currentTool === Tools.Pan"
@@ -71,85 +71,44 @@
             "
             :manipulator-props="{ button: 3 }"
           ></vtk-mouse-interaction-manipulator>
-          <vtk-slice-view-slicing-manipulator
+          <vtk-cine-scrub-manipulator
             :view-id="viewId"
             :image-id="currentImageID"
-            :view-direction="viewDirection"
-          ></vtk-slice-view-slicing-manipulator>
-          <vtk-slice-view-slicing-key-manipulator
+          ></vtk-cine-scrub-manipulator>
+          <vtk-cine-scrub-key-manipulator
             :view-id="viewId"
             :image-id="currentImageID"
-            :view-direction="viewDirection"
-          ></vtk-slice-view-slicing-key-manipulator>
-          <vtk-slice-view-window-manipulator
+          ></vtk-cine-scrub-key-manipulator>
+          <cine-viewer-overlay
             :view-id="viewId"
             :image-id="currentImageID"
-            :manipulator-config="windowingManipulatorProps"
-          ></vtk-slice-view-window-manipulator>
-          <slice-viewer-overlay
-            :view-id="viewId"
-            :image-id="currentImageID"
-          ></slice-viewer-overlay>
+          ></cine-viewer-overlay>
           <vtk-base-slice-representation
             ref="baseSliceRep"
             :view-id="viewId"
             :image-id="currentImageID"
-            :axis="viewAxis"
+            :axis="VIEW_AXIS"
+            :frame="currentFrame"
           ></vtk-base-slice-representation>
-          <vtk-segmentation-slice-representation
-            v-for="segId in segmentations"
-            :key="`seg-${segId}`"
-            :view-id="viewId"
-            :segmentation-id="segId"
-            :axis="viewAxis"
-            ref="segSliceReps"
-          ></vtk-segmentation-slice-representation>
-          <template v-if="currentImageID">
-            <vtk-layer-slice-representation
-              v-for="layer in currentLayers"
-              :key="`layer-${layer.id}`"
-              ref="layerSliceReps"
-              :view-id="viewId"
-              :layer-id="layer.id"
-              :parent-id="currentImageID"
-              :axis="viewAxis"
-            ></vtk-layer-slice-representation>
-          </template>
-          <crop-tool :view-id="viewId" :image-id="currentImageID" />
-          <crosshairs-tool
-            :view-id="viewId"
-            :image-id="currentImageID"
-            :view-direction="viewDirection"
-          />
-          <paint-tool
-            :view-id="viewId"
-            :image-id="currentImageID"
-            :view-direction="viewDirection"
-          />
           <polygon-tool
             :view-id="viewId"
             :image-id="currentImageID"
-            :view-direction="viewDirection"
+            :view-direction="VIEW_DIRECTION"
           />
           <ruler-tool
             :view-id="viewId"
             :image-id="currentImageID"
-            :view-direction="viewDirection"
+            :view-direction="VIEW_DIRECTION"
           />
           <rectangle-tool
             :view-id="viewId"
             :image-id="currentImageID"
-            :view-direction="viewDirection"
+            :view-direction="VIEW_DIRECTION"
           />
           <select-tool />
           <svg class="overlay-no-events">
             <bounding-rectangle :points="selectionPoints" />
           </svg>
-          <scalar-probe
-            :base-rep="baseSliceRep"
-            :layer-reps="layerSliceReps"
-            :segment-groups-reps="segSliceReps"
-          ></scalar-probe>
           <slot></slot>
         </vtk-slice-view>
       </div>
@@ -165,66 +124,43 @@ import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
-import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
-import CropTool from '@/src/components/tools/crop/CropTool.vue';
-import CrosshairsTool from '@/src/components/tools/crosshairs/CrosshairsTool.vue';
-import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
 import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
 import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
-import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
-import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
+import CineViewerOverlay from '@/src/components/CineViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
-import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
-import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
-import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
-import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceViewSlicingKeyManipulator.vue';
+import { useCineFrame } from '@/src/composables/useCineFrame';
+import VtkCineScrubManipulator from '@/src/components/vtk/VtkCineScrubManipulator.vue';
+import VtkCineScrubKeyManipulator from '@/src/components/vtk/VtkCineScrubKeyManipulator.vue';
 import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
 import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
 import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useViewStore } from '@/src/store/views';
-import { ViewInfo2D } from '@/src/types/views';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import type { LPSAxis } from '@/src/types/lps';
 
-interface Props {
+type Props = {
   viewId: string;
-}
+};
+
+const VIEW_AXIS: LPSAxis = 'Axial';
+const { viewDirection: VIEW_DIRECTION, viewUp: VIEW_UP } =
+  get2DViewingVectors(VIEW_AXIS);
 
 const vtkView = ref<VtkViewApi>();
 const baseSliceRep = ref();
-const layerSliceReps = ref([]);
-const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
 const { viewId } = toRefs(props);
 
-const viewStore = useViewStore();
-const viewInfo = computed(() => viewStore.getView(viewId.value) as ViewInfo2D);
-
-// base image
-const {
-  currentImageID,
-  currentLayers,
-  currentImageMetadata,
-  currentImageData,
-  isImageLoading,
-} = useCurrentImage();
-
-const viewAxis = computed(() => viewInfo.value.options.orientation);
-const viewingVectors = computed(() => get2DViewingVectors(viewAxis.value));
-const viewDirection = computed(() => viewingVectors.value.viewDirection);
-const viewUp = computed(() => viewingVectors.value.viewUp);
+const { currentImageID, currentImageData, isImageLoading } = useCurrentImage();
 
 const hover = ref(false);
 
@@ -237,30 +173,16 @@ useResetViewsEvents().onClick(resetCamera);
 useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, '2D');
 
-// active tool
 const { currentTool } = storeToRefs(useToolStore());
 
-const { slice: currentSlice, range: sliceRange } = useSliceConfig(
+const { frame: currentFrame, frameRange } = useCineFrame(
   viewId,
   currentImageID
 );
 
-const windowingManipulatorProps = computed(() => {
-  if (currentTool.value !== Tools.WindowLevel) return { button: -1 };
-  return { button: 1 };
-});
-
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
-
-const segmentations = computed(() => {
-  if (!currentImageID.value) return [];
-  const store = useSegmentGroupStore();
-  return store.orderByParent[currentImageID.value];
-});
-
-// --- selection points --- //
 
 const selectionStore = useToolSelectionStore();
 const selectionPoints = computed(() => {
@@ -271,9 +193,9 @@ const selectionPoints = computed(() => {
     })
     .filter(
       ({ tool }) =>
-        tool.slice === currentSlice.value &&
-        !tool.hidden &&
-        doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata)
+        tool.imageID === currentImageID.value &&
+        tool.frame === currentFrame.value &&
+        !tool.hidden
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));
 });

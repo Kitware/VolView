@@ -8,6 +8,7 @@ import {
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
+import { getCineImage } from '@/src/core/cine/isCineImage';
 
 export const MIN_CINE_FPS = 1;
 export const MAX_CINE_FPS = 120;
@@ -16,6 +17,7 @@ export const DEFAULT_CINE_FPS = 24;
 export interface CinePlaybackConfig {
   playing: boolean;
   fps: number;
+  frame: number;
 }
 
 export function clampCineFps(value: string | number) {
@@ -35,38 +37,49 @@ export function defaultCinePlaybackConfig(
   return {
     playing: false,
     fps: clampValue(fps, MIN_CINE_FPS, MAX_CINE_FPS),
+    frame: 0,
   };
 }
 
 export const useCinePlaybackStore = defineStore('cinePlayback', () => {
   const configs = reactive<DoubleKeyRecord<CinePlaybackConfig>>({});
 
-  const getConfig = (
-    viewID: Maybe<string>,
-    dataID: Maybe<string>,
-    frameTimeMs?: Maybe<number>
-  ) => ({
-    ...defaultCinePlaybackConfig(frameTimeMs),
-    ...getDoubleKeyRecord(configs, viewID, dataID),
-  });
+  const getConfig = (viewID: Maybe<string>, dataID: Maybe<string>) => {
+    const frameTimeMs = getCineImage(dataID)?.header.frameTimeMs;
+    return {
+      ...defaultCinePlaybackConfig(frameTimeMs),
+      ...getDoubleKeyRecord(configs, viewID, dataID),
+    };
+  };
 
+  // Hot path: playback fires at FPS rate, scrub fires per scroll tick. Detect
+  // no-op writes before materializing the merged config.
   const updateConfig = (
     viewID: string,
     dataID: string,
-    patch: Partial<CinePlaybackConfig>,
-    frameTimeMs?: Maybe<number>
+    patch: Partial<CinePlaybackConfig>
   ) => {
-    const current = getConfig(viewID, dataID, frameTimeMs);
-    const fps = patch.fps === undefined ? current.fps : clampCineFps(patch.fps);
-    const next = {
+    const stored = getDoubleKeyRecord(configs, viewID, dataID);
+    const nextFps =
+      patch.fps === undefined
+        ? undefined
+        : (clampCineFps(patch.fps) ?? undefined);
+
+    if (stored) {
+      const playingSame =
+        patch.playing === undefined || patch.playing === stored.playing;
+      const fpsSame = nextFps === undefined || nextFps === stored.fps;
+      const frameSame =
+        patch.frame === undefined || patch.frame === stored.frame;
+      if (playingSame && fpsSame && frameSame) return;
+    }
+
+    const current = stored ?? getConfig(viewID, dataID);
+    patchDoubleKeyRecord(configs, viewID, dataID, {
       ...current,
       ...patch,
-      fps: fps ?? current.fps,
-    };
-
-    if (next.playing === current.playing && next.fps === current.fps) return;
-
-    patchDoubleKeyRecord(configs, viewID, dataID, next);
+      fps: nextFps ?? current.fps,
+    });
   };
 
   const removeView = (viewID: string) => {

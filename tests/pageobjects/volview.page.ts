@@ -248,13 +248,17 @@ class VolViewPage extends Page {
   }
 
   async getView2D() {
-    const view2D = $('div[data-testid="vtk-view vtk-two-view"]');
+    const view2D = $(
+      'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
+    );
     const exists = await view2D.isExisting();
     return exists ? view2D : null;
   }
 
   async getViews2D() {
-    const views2D = $$('div[data-testid="vtk-view vtk-two-view"]');
+    const views2D = $$(
+      'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
+    );
     return views2D;
   }
 
@@ -267,7 +271,7 @@ class VolViewPage extends Page {
       async () => {
         const counts = await browser.execute(() => ({
           view2DCount: document.querySelectorAll(
-            'div[data-testid="vtk-view vtk-two-view"]'
+            'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]'
           ).length,
           view3DExists:
             document.querySelector(
@@ -356,7 +360,7 @@ class VolViewPage extends Page {
       const overlayText = views[0].textContent;
       const match = overlayText?.match(/Slice:\s*(\d+)/);
       return match ? parseInt(match[1], 10) : null;
-    }, 'div[data-testid="vtk-view vtk-two-view"]');
+    }, 'div[data-testid~="vtk-two-view"], div[data-testid~="vtk-cine-view"]');
   }
 
   async waitForSliceDecrease(initialSlice: number | null) {

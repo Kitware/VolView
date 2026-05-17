@@ -45,7 +45,11 @@
         icon="mdi-crosshairs"
         :name="`Crosshairs [${nameToShortcut['Crosshairs']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
+        :disabled="
+          noCurrentImage ||
+          isObliqueLayout ||
+          isDisallowedOnCine(Tools.Crosshairs)
+        "
         @click="toggle"
       />
     </groupable-item>
@@ -64,7 +68,9 @@
         icon="mdi-brush"
         :name="`Paint [${nameToShortcut['Paint']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
+        :disabled="
+          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Paint)
+        "
         @click="toggle"
       ></control-button>
     </groupable-item>
@@ -114,7 +120,9 @@
         icon="mdi-crop"
         :name="`Crop [${nameToShortcut['Crop']}]`"
         :active="active"
-        :disabled="noCurrentImage || isObliqueLayout"
+        :disabled="
+          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Crop)
+        "
         @click="toggle"
       >
         <crop-controls />
@@ -132,7 +140,9 @@ import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { useToolStore } from '@/src/store/tools';
+import { useToolStore, isToolAllowedFor } from '@/src/store/tools';
+import { useEffectiveView } from '@/src/composables/useEffectiveView';
+import { toRef } from 'vue';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
 import CropControls from '@/src/components/tools/crop/CropControls.vue';
 import ResetViews from '@/src/components/tools/ResetViews.vue';
@@ -164,11 +174,20 @@ export default defineComponent({
     const { currentImageID } = useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
-    const isObliqueLayout = computed(() => {
-      if (!viewStore.activeView) return false;
-      const view = viewStore.viewByID[viewStore.activeView];
-      return view.type === 'Oblique';
-    });
+
+    const activeViewRef = toRef(viewStore, 'activeView');
+    const activeEffective = useEffectiveView(
+      computed(() => activeViewRef.value ?? '')
+    );
+    // The rendered viewer is decided by effective kind, not stored slot type:
+    // a cine clip dropped into an Oblique slot still renders as cine, so the
+    // toolbar should treat it as cine, not Oblique.
+    const isObliqueLayout = computed(
+      () => activeEffective.value?.kind === 'oblique'
+    );
+    const isCineActive = computed(() => activeEffective.value?.kind === 'cine');
+    const isDisallowedOnCine = (tool: Tools) =>
+      isCineActive.value && !isToolAllowedFor(tool, activeEffective.value);
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -211,6 +230,7 @@ export default defineComponent({
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
       isObliqueLayout,
+      isDisallowedOnCine,
       Tools,
       paintMenu,
       cropMenu,
