@@ -27,6 +27,10 @@ export interface ProgressiveImage {
   getStatus(): ProgressiveImageStatus;
   isLoading(): boolean;
   isLoaded(): boolean;
+  // Returns a data-URI thumbnail, or null if this image has no thumbnail.
+  // The base implementation returns null so consumers can call this on any
+  // ProgressiveImage without type-narrowing.
+  getThumbnail(): Promise<string | null>;
   addEventListener<T extends keyof ProgressiveImageEvents>(
     type: T,
     callback: (info: ProgressiveImageEvents[T]) => void
@@ -160,6 +164,10 @@ export abstract class BaseProgressiveImage implements ProgressiveImage {
 
   dispose() {
     this.cleanupListeners();
+  }
+
+  getThumbnail(): Promise<string | null> {
+    return Promise.resolve(null);
   }
 
   abstract startLoad(): void;

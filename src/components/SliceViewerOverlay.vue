@@ -9,6 +9,9 @@ import { useOrientationLabels } from '@/src/composables/useOrientationLabels';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
+import { isCineImage } from '@/src/core/cine/isCineImage';
+import PlayControls from '@/src/components/PlayControls.vue';
+import { computed } from 'vue';
 
 interface Props {
   viewId: string;
@@ -34,6 +37,8 @@ const {
   level: windowLevel,
 } = useWindowingConfig(viewId, imageId);
 const { metadata } = useImage(imageId);
+
+const isCine = computed(() => isCineImage(imageId.value));
 </script>
 
 <template>
@@ -56,11 +61,21 @@ const { metadata } = useImage(imageId);
     <template v-slot:bottom-left>
       <div class="annotation-cell">
         <div v-if="sliceConfig">
-          Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}
+          <span v-if="isCine" class="frame-label">
+            Frame: {{ slice + 1 }} / {{ sliceRange[1] + 1 }}
+          </span>
+          <span v-else class="slice-label">
+            Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}
+          </span>
         </div>
-        <div v-if="wlConfig">
+        <div v-if="wlConfig && !isCine">
           W/L: {{ windowWidth.toFixed(2) }} / {{ windowLevel.toFixed(2) }}
         </div>
+      </div>
+    </template>
+    <template v-slot:bottom-center>
+      <div v-if="isCine" class="annotation-cell" @click.stop>
+        <play-controls :view-id="viewId" :image-id="imageId" />
       </div>
     </template>
     <template v-slot:top-right>

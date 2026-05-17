@@ -30,6 +30,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { ToolID } from '@/src/types/annotation-tool';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { getRenderSlice } from '@/src/core/cine/getRenderSlice';
 import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
@@ -134,10 +135,11 @@ export default defineComponent({
     widget.setManipulator(manipulator);
 
     watchEffect(() => {
+      const semantic = tool.value?.slice ?? slice.value ?? 0;
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        tool.value?.slice ?? slice.value ?? 0,
+        getRenderSlice(imageId.value, semantic),
         imageMetadata.value
       );
     });

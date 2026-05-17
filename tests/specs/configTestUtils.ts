@@ -81,6 +81,13 @@ export const US_MULTIFRAME_DICOM = {
   name: 'US_multiframe_30frames.dcm',
 } as const;
 
+// 8-frame echocardiogram from the BSD-licensed GDCM test corpus. Native
+// Explicit VR LE, MONOCHROME2, retired Ultrasound Multi-frame SOP UID.
+export const CINE_US_DATASET = {
+  url: 'https://sourceforge.net/p/gdcm/gdcmdata/ci/master/tree/US-MONO2-8-8x-execho.dcm?format=raw',
+  name: 'US-MONO2-8-8x-echo.dcm',
+} as const;
+
 export type DatasetResource = {
   url: string;
   name?: string;

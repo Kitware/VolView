@@ -4,7 +4,9 @@ import * as DICOM from '@/src/io/dicom';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { Tags } from '@/src/core/dicomTags';
+import DicomCineImage from '@/src/core/cine/DicomCineImage';
+import { parseCineDicom } from '@/src/core/cine/parseCineDicom';
+import { isUltrasoundMultiframeSopClass, Tags } from '@/src/core/dicomTags';
 import { removeFromArray } from '../utils';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
@@ -45,6 +47,10 @@ export interface VolumeInfo {
   SeriesDescription: string;
   WindowLevel: string;
   WindowWidth: string;
+  // 'cine' marks an ultrasound multi-frame image whose NumberOfSlices is the
+  // number of cine frames (not Z-axis slices). Absent/undefined means a normal
+  // 3D volume.
+  kind?: 'volume' | 'cine';
 }
 
 interface State {
@@ -89,6 +95,19 @@ export const getDisplayName = (info: VolumeInfo) => {
     info.SeriesInstanceUID
   );
 };
+
+function isCineChunkGroup(chunks: Chunk[]): boolean {
+  if (chunks.length !== 1) return false;
+  const meta = chunks[0].metadata;
+  if (!meta) return false;
+  const lookup = Object.fromEntries(meta);
+  const sopClass = lookup[Tags.SOPClassUID] ?? '';
+  const numberOfFrames = parseInt(
+    (lookup[Tags.NumberOfFrames] ?? '0').trim(),
+    10
+  );
+  return isUltrasoundMultiframeSopClass(sopClass) && numberOfFrames > 1;
+}
 
 export const getWindowLevels = (info: VolumeInfo) => {
   const { WindowWidth, WindowLevel } = info;
@@ -141,10 +160,18 @@ export const useDICOMStore = defineStore('dicom', {
 
       await Promise.all(
         Object.entries(chunksByVolume).map(async ([id, sortedChunks]) => {
-          const image = imageCacheStore.imageById[id] ?? new DicomChunkImage();
-          if (!(image instanceof DicomChunkImage)) {
-            throw new Error('image is not a DicomChunkImage');
+          if (isCineChunkGroup(sortedChunks)) {
+            await this._importCineChunk(id, sortedChunks[0]);
+            return;
           }
+
+          if (this.volumeInfo[id]?.kind === 'cine') {
+            throw new Error(
+              `Volume ${id} is already loaded as a cine clip; cannot re-import as a chunk volume.`
+            );
+          }
+          const image = (imageCacheStore.imageById[id] ??
+            new DicomChunkImage()) as DicomChunkImage;
 
           await image.addChunks(sortedChunks);
           imageCacheStore.addProgressiveImage(image, { id });
@@ -189,6 +216,68 @@ export const useDICOMStore = defineStore('dicom', {
       );
 
       return chunksByVolume;
+    },
+
+    async _importCineChunk(id: string, chunk: Chunk) {
+      const imageCacheStore = useImageCacheStore();
+
+      // If we already created this cine image (state-file reload), bail.
+      if (this.volumeInfo[id]?.kind === 'cine') {
+        return;
+      }
+
+      await chunk.loadData();
+      const blob = chunk.dataBlob;
+      if (!blob) throw new Error('Cine DICOM chunk has no data');
+      const buffer = await blob.arrayBuffer();
+      const parsed = parseCineDicom(buffer);
+
+      if (!DicomCineImage.isSupported(parsed.header)) {
+        throw new Error(
+          `Unsupported cine transfer syntax / pixel format: ` +
+            `${parsed.header.transferSyntaxUID} (` +
+            `${parsed.header.bitsAllocated}-bit, ` +
+            `${parsed.header.samplesPerPixel}-sample ` +
+            `${parsed.header.photometricInterpretation})`
+        );
+      }
+
+      const image = new DicomCineImage(parsed);
+      imageCacheStore.addProgressiveImage(image, { id });
+
+      const { patient, study, series } = parsed.header;
+
+      const patientInfo: PatientInfo = {
+        PatientID: patient.PatientID,
+        PatientName: patient.PatientName,
+        PatientBirthDate: patient.PatientBirthDate,
+        PatientSex: patient.PatientSex,
+      };
+
+      const studyInfo: StudyInfo = {
+        StudyID: study.StudyID,
+        StudyInstanceUID: study.StudyInstanceUID,
+        StudyDate: study.StudyDate,
+        StudyTime: study.StudyTime,
+        AccessionNumber: study.AccessionNumber,
+        StudyDescription: study.StudyDescription,
+      };
+
+      const volumeInfo: VolumeInfo = {
+        NumberOfSlices: parsed.header.numberOfFrames,
+        VolumeID: id,
+        Modality: series.Modality,
+        SeriesInstanceUID: series.SeriesInstanceUID,
+        SeriesNumber: series.SeriesNumber,
+        SeriesDescription: series.SeriesDescription,
+        WindowLevel: '',
+        WindowWidth: '',
+        kind: 'cine',
+      };
+
+      this._updateDatabase(patientInfo, studyInfo, volumeInfo);
+
+      image.setName(getDisplayName(volumeInfo));
     },
 
     _updateDatabase(

@@ -14,7 +14,6 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
 import {
   type ChunkImage,
-  ThumbnailStrategy,
   ChunkStatus,
   ChunkImageEvents,
 } from '@/src/core/streaming/chunkImage';
@@ -78,7 +77,7 @@ export default class DicomChunkImage
 {
   protected chunks: Chunk[];
   private chunkListeners: Array<() => void>;
-  private thumbnailCache: WeakMap<Chunk, Promise<unknown>>;
+  private thumbnailCache: WeakMap<Chunk, Promise<string>>;
   private events: Emitter<ChunkImageEvents>;
   private chunkStatus: ChunkStatus[];
 
@@ -220,10 +219,7 @@ export default class DicomChunkImage
     }
   }
 
-  getThumbnail(strategy: ThumbnailStrategy): Promise<any> {
-    if (strategy !== ThumbnailStrategy.MiddleSlice)
-      throw new Error('Can only handle MiddleSlice thumbnailing strategy');
-
+  getThumbnail(): Promise<string | null> {
     const middle = Math.floor(this.chunks.length / 2);
     const chunk = this.chunks[middle];
 

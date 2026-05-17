@@ -5,10 +5,6 @@ import {
 import { Chunk } from '@/src/core/streaming/chunk';
 import { Extent } from '@kitware/vtk.js/types';
 
-export enum ThumbnailStrategy {
-  MiddleSlice,
-}
-
 export enum ChunkStatus {
   NotLoaded,
   Loading,
@@ -33,7 +29,6 @@ export type ChunkImageEvents = {
 
 export interface ChunkImage extends ProgressiveImage {
   addChunks(chunks: Chunk[]): void;
-  getThumbnail(strategy: ThumbnailStrategy): Promise<string>;
   addEventListener<T extends keyof ChunkImageEvents>(
     type: T,
     callback: (info: ChunkImageEvents[T]) => void

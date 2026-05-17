@@ -19,6 +19,7 @@ import {
 import vtkImageExtractComponents from '@/src/utils/imageExtractComponentsFilter';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 import vtkLabelMap from '../vtk/LabelMap';
 import {
   StateFile,
@@ -266,7 +267,11 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     image: vtkLabelMap,
     component = 0
   ) {
-    if (!isRegularImage(imageId)) {
+    const dicomStore = useDICOMStore();
+    if (
+      !isRegularImage(imageId) &&
+      dicomStore.volumeInfo[imageId]?.kind !== 'cine'
+    ) {
       await untilLoaded(imageId);
 
       const chunkImage = imageCacheStore.imageById[imageId] as DicomChunkImage;

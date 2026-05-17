@@ -33,12 +33,35 @@ const tags: Tag[] = [
   { name: 'RescaleIntercept', tag: '0028|1052' },
   { name: 'RescaleSlope', tag: '0028|1053' },
   { name: 'NumberOfFrames', tag: '0028|0008' },
+  { name: 'SOPClassUID', tag: '0008|0016' },
+  { name: 'PhotometricInterpretation', tag: '0028|0004' },
+  { name: 'FrameTime', tag: '0018|1063' },
   { name: 'SequenceOfUltrasoundRegions', tag: '0018|6011' },
-  { name: 'PhysicalDeltaX', tag: '0018|602c' },
-  { name: 'PhysicalDeltaY', tag: '0018|602e' },
+  { name: 'RegionLocationMinX0', tag: '0018|6018' },
+  { name: 'RegionLocationMinY0', tag: '0018|601a' },
+  { name: 'RegionLocationMaxX1', tag: '0018|601c' },
+  { name: 'RegionLocationMaxY1', tag: '0018|601e' },
   { name: 'PhysicalUnitsXDirection', tag: '0018|6024' },
   { name: 'PhysicalUnitsYDirection', tag: '0018|6026' },
+  { name: 'PhysicalDeltaX', tag: '0018|602c' },
+  { name: 'PhysicalDeltaY', tag: '0018|602e' },
 ];
+
+// DICOM SOP Class UIDs for Ultrasound Multi-frame Image Storage. The current
+// identifier is .4.1.1.3.1; the retired pre-1993 identifier is .4.1.1.3.
+// Some legacy clinical archives and well-known test corpora (e.g. GDCM's
+// US-MONO2-8-8x-execho) still emit the retired UID.
+export const SOP_CLASS_ULTRASOUND_MULTIFRAME = '1.2.840.10008.5.1.4.1.1.3.1';
+export const SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED =
+  '1.2.840.10008.5.1.4.1.1.3';
+
+export function isUltrasoundMultiframeSopClass(uid: string): boolean {
+  const trimmed = uid.trim();
+  return (
+    trimmed === SOP_CLASS_ULTRASOUND_MULTIFRAME ||
+    trimmed === SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED
+  );
+}
 
 export const TAG_TO_NAME = new Map(tags.map((t) => [t.tag, t.name]));
 export const NAME_TO_TAG = new Map(tags.map((t) => [t.name, t.tag]));

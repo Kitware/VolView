@@ -146,6 +146,7 @@
             <bounding-rectangle :points="selectionPoints" />
           </svg>
           <scalar-probe
+            v-if="!isCine"
             :base-rep="baseSliceRep"
             :layer-reps="layerSliceReps"
             :segment-groups-reps="segSliceReps"
@@ -158,9 +159,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, toRefs, computed } from 'vue';
+import { ref, toRefs, computed, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useProbeStore } from '@/src/store/probe';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
@@ -186,6 +188,7 @@ import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
 import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
 import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceViewSlicingKeyManipulator.vue';
@@ -240,9 +243,6 @@ useViewAnimationListener(vtkView, viewId, '2D');
 
 // active tool
 const { currentTool } = storeToRefs(useToolStore());
-const windowingManipulatorProps = computed(() =>
-  currentTool.value === Tools.WindowLevel ? { button: 1 } : { button: -1 }
-);
 
 // base image
 const {
@@ -256,6 +256,22 @@ const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
 );
+
+const windowingManipulatorProps = computed(() => {
+  // W/L is meaningless for 8-bit display-encoded cine; keep the manipulator
+  // off so dragging doesn't crush colors.
+  if (currentTool.value !== Tools.WindowLevel) return { button: -1 };
+  if (isCineImage(currentImageID.value)) return { button: -1 };
+  return { button: 1 };
+});
+
+// Scalar probe samples the canonical image; for cine that's frame-0-only.
+// Unmount it for cine views and clear any stale probe data on switch.
+const isCine = computed(() => isCineImage(currentImageID.value));
+const probeStore = useProbeStore();
+watch(isCine, (cine) => {
+  if (cine) probeStore.clearProbeData();
+});
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();

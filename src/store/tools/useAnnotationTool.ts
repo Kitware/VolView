@@ -134,9 +134,12 @@ export const useAnnotationTool = <
     const imageID = currentImageID.value;
     if (!imageID || tool.imageID !== imageID) return;
 
+    // Cine images report dimensions [cols, rows, 1] but tools may live on
+    // any frame; allow out-of-bounds so we still resolve the axis.
     const toolImageFrame = frameOfReferenceToImageSliceAndAxis(
       tool.frameOfReference,
-      currentImageMetadata.value
+      currentImageMetadata.value,
+      { allowOutOfBoundsSlice: true }
     );
 
     if (!toolImageFrame) return;

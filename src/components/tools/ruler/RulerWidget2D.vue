@@ -33,6 +33,7 @@ import { Maybe } from '@/src/types';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { whenever } from '@vueuse/core';
+import { getRenderSlice } from '@/src/core/cine/getRenderSlice';
 
 export default defineComponent({
   name: 'RulerWidget2D',
@@ -121,10 +122,11 @@ export default defineComponent({
     widget.setManipulator(manipulator);
 
     watchEffect(() => {
+      const semantic = ruler.value?.slice ?? slice.value;
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        ruler.value?.slice ?? slice.value,
+        getRenderSlice(imageId.value, semantic),
         imageMetadata.value
       );
     });
