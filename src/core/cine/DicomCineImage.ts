@@ -33,14 +33,12 @@ import {
 const PHYSICAL_UNITS_CM = 3;
 
 function pickPixelSpacing(header: CineHeader): [number, number] {
-  const region = header.regions[0];
+  const region = header.regions.find(
+    (candidate) =>
+      candidate.physicalUnitsX === PHYSICAL_UNITS_CM &&
+      candidate.physicalUnitsY === PHYSICAL_UNITS_CM
+  );
   if (!region) return [1, 1];
-  if (
-    region.physicalUnitsX !== PHYSICAL_UNITS_CM ||
-    region.physicalUnitsY !== PHYSICAL_UNITS_CM
-  ) {
-    return [1, 1];
-  }
   const dx = region.physicalDeltaX;
   const dy = region.physicalDeltaY;
   if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) {
@@ -280,9 +278,10 @@ export default class DicomCineImage extends BaseProgressiveImage {
     if (isNativeTransferSyntax(header.transferSyntaxUID)) {
       // Native pixel data: only support 8-bit RGB or grayscale for v1.
       if (header.bitsAllocated !== 8) return false;
-      if (header.samplesPerPixel !== 1 && header.samplesPerPixel !== 3) {
-        return false;
-      }
+      const photometric = header.photometricInterpretation.trim();
+      if (header.samplesPerPixel === 1) return photometric === 'MONOCHROME2';
+      if (header.samplesPerPixel === 3) return photometric === 'RGB';
+      return false;
     }
     return true;
   }

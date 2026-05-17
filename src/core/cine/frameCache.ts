@@ -11,7 +11,7 @@ export type DecodedFrame = {
   rgba: Uint8ClampedArray;
 };
 
-const DEFAULT_BUDGET_BYTES = 256 * 1024 * 1024;
+const DEFAULT_BUDGET_BYTES = 64 * 1024 * 1024;
 
 export class FrameCache {
   private readonly budgetBytes: number;
@@ -95,18 +95,19 @@ export async function decodeJpegFrame(
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('OffscreenCanvas 2D context unavailable');
-    ctx.drawImage(bitmap, 0, 0);
-    const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
     if (
       (expectedWidth && bitmap.width !== expectedWidth) ||
       (expectedHeight && bitmap.height !== expectedHeight)
     ) {
-      // Mismatch is unusual for valid DICOM US clips. Keep the data but flag
-      // it in the console — the caller will still copy whatever it returns.
-      console.warn(
+      // The per-view RGB buffer is sized from DICOM Rows/Columns; a JPEG that
+      // disagrees can never be copied into it. Surface as a real error so the
+      // user sees a toast instead of a silently-black frame.
+      throw new Error(
         `JPEG frame size ${bitmap.width}x${bitmap.height} does not match DICOM-declared ${expectedWidth}x${expectedHeight}`
       );
     }
+    ctx.drawImage(bitmap, 0, 0);
+    const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
     return {
       width: bitmap.width,
       height: bitmap.height,

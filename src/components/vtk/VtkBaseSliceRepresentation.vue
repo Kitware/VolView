@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, toRefs, watchEffect, watch, inject, shallowRef } from 'vue';
+import {
+  computed,
+  toRefs,
+  watchEffect,
+  watch,
+  inject,
+  shallowRef,
+  nextTick,
+} from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -95,24 +103,33 @@ const cine = computed(() => getCineImage(imageID.value));
 // geometry; the mapper renders from this local image so two views can show
 // different frames without overwriting each other's pixels.
 const cineRender = shallowRef<CineRenderImage | null>(null);
+// Pending per-view buffer. Published to cineRender only after decoded pixels land.
+let localCineRender: CineRenderImage | null = null;
 
 watchEffect((onCleanup) => {
   const cineImage = cine.value;
   if (!cineImage) return;
   const local = createCineRenderImage(cineImage);
-  cineRender.value = local;
+  localCineRender = local;
+  cineRender.value = null;
   onCleanup(() => {
-    local.imageData.delete();
+    if (localCineRender === local) {
+      localCineRender = null;
+    }
     if (cineRender.value === local) {
       cineRender.value = null;
     }
+    // Defer the VTK free to nextTick so the mapper flushes its new input
+    // (driven by the cineRender.value change above) before we destroy the
+    // old vtkImageData. Otherwise the mapper briefly holds a deleted ref.
+    nextTick(() => {
+      local.imageData.delete();
+    });
   });
 });
 
-// Mapper input — when cine, use the per-view buffer (or null until decoded
-// so we don't briefly show frame 0 from the canonical image).
 const mapperInput = computed(() => {
-  if (cine.value) return cineRender.value?.imageData ?? null;
+  if (cine.value) return cineRender.value?.imageData;
   return imageData.value;
 });
 
@@ -145,18 +162,20 @@ syncRefs(renderSlice, slice, { immediate: true });
 // changes.
 let frameToken = 0;
 watch(
-  [() => sliceConfig.slice.value, cine, cineRender],
-  ([frame, cineImage, target]) => {
+  [() => sliceConfig.slice.value, cine],
+  ([frame, cineImage]) => {
+    const target = localCineRender;
     if (!cineImage || !target) return;
     const myToken = ++frameToken;
     cineImage
       .getFrame(frame)
       .then((decoded) => {
         if (myToken !== frameToken) return;
-        if (cineRender.value !== target) return;
+        if (localCineRender !== target) return;
         if (!copyDecodedFrameToRgb(decoded, target)) return;
         target.dataArray.modified();
         target.imageData.modified();
+        cineRender.value = target;
         view.requestRender();
       })
       .catch(() => {

@@ -26,6 +26,7 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import { getRenderSlice } from '@/src/core/cine/getRenderSlice';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -138,7 +139,7 @@ export default defineComponent({
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        slice.value,
+        getRenderSlice(imageId.value, slice.value),
         imageMetadata.value
       );
     });

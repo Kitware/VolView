@@ -96,35 +96,70 @@ function fileMeta(transferSyntaxUID: string): Uint8Array {
   return elementShort(0x0002, 0x0010, 'UI', ascii(transferSyntaxUID));
 }
 
-const COMMON_TAGS = (numberOfFrames: number, rows: number, cols: number) =>
-  concat([
+const COMMON_TAGS = (
+  numberOfFrames: number,
+  rows: number,
+  cols: number,
+  options: {
+    samplesPerPixel?: number;
+    photometricInterpretation?: string;
+    planarConfiguration?: number;
+  } = {}
+) => {
+  const samplesPerPixel = options.samplesPerPixel ?? 1;
+  const photometricInterpretation =
+    options.photometricInterpretation ?? 'MONOCHROME2';
+
+  return concat([
     elementShort(0x0008, 0x0016, 'UI', ascii('1.2.840.10008.5.1.4.1.1.3.1')),
     elementShort(0x0008, 0x0018, 'UI', ascii('1.2.3.4.5.6.7.8.9')),
     elementShort(0x0008, 0x0060, 'CS', ascii('US')),
     elementShort(0x0020, 0x000d, 'UI', ascii('1.2.3.4.5.6.7.8.9.1')),
     elementShort(0x0020, 0x000e, 'UI', ascii('1.2.3.4.5.6.7.8.9.2')),
-    elementShort(0x0028, 0x0002, 'US', u16Bytes(1)),
-    elementShort(0x0028, 0x0004, 'CS', ascii('MONOCHROME2')),
+    elementShort(0x0028, 0x0002, 'US', u16Bytes(samplesPerPixel)),
+    elementShort(0x0028, 0x0004, 'CS', ascii(photometricInterpretation)),
+    ...(options.planarConfiguration == null
+      ? []
+      : [
+          elementShort(
+            0x0028,
+            0x0006,
+            'US',
+            u16Bytes(options.planarConfiguration)
+          ),
+        ]),
     elementShort(0x0028, 0x0008, 'IS', ascii(String(numberOfFrames))),
     elementShort(0x0028, 0x0010, 'US', u16Bytes(rows)),
     elementShort(0x0028, 0x0011, 'US', u16Bytes(cols)),
     elementShort(0x0028, 0x0100, 'US', u16Bytes(8)),
     elementShort(0x0028, 0x0101, 'US', u16Bytes(8)),
   ]);
+};
 
 function buildNativeDicom(opts: {
   numberOfFrames: number;
   rows: number;
   cols: number;
   fillByte?: number;
+  samplesPerPixel?: number;
+  photometricInterpretation?: string;
+  planarConfiguration?: number;
 }): Uint8Array {
-  const { numberOfFrames, rows, cols, fillByte = 0x42 } = opts;
+  const {
+    numberOfFrames,
+    rows,
+    cols,
+    fillByte = 0x42,
+    samplesPerPixel = 1,
+  } = opts;
   const preamble = new Uint8Array(128);
   const dicm = ascii('DICM');
   const meta = fileMeta(TS_EXPLICIT_VR_LE);
-  const dataset = COMMON_TAGS(numberOfFrames, rows, cols);
+  const dataset = COMMON_TAGS(numberOfFrames, rows, cols, opts);
 
-  const pixelBytes = new Uint8Array(numberOfFrames * rows * cols);
+  const pixelBytes = new Uint8Array(
+    numberOfFrames * rows * cols * samplesPerPixel
+  );
   pixelBytes.fill(fillByte);
   const pixelData = elementLong(0x7fe0, 0x0010, 'OB', pixelBytes);
 
@@ -218,6 +253,23 @@ describe('parseCineDicom on synthetic fixtures', () => {
     expect(frames.length).toBe(5);
     expect(frames[0].byteLength).toBe(4 * 3);
     expect(frames[0][0]).toBe(0x7f);
+  });
+
+  it('parses native RGB planar-configuration metadata', () => {
+    const bytes = buildNativeDicom({
+      numberOfFrames: 2,
+      rows: 1,
+      cols: 2,
+      samplesPerPixel: 3,
+      photometricInterpretation: 'RGB',
+      planarConfiguration: 1,
+    });
+    const { header, frames } = parseCineDicom(bytes);
+
+    expect(header.samplesPerPixel).toBe(3);
+    expect(header.photometricInterpretation).toBe('RGB');
+    expect(header.planarConfiguration).toBe(1);
+    expect(frames[0].byteLength).toBe(1 * 2 * 3);
   });
 
   it('parses encapsulated PixelData with a populated BOT', () => {
