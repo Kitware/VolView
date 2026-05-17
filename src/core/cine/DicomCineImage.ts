@@ -34,13 +34,12 @@ const PHYSICAL_UNITS_CM = 3;
 
 function pickPixelSpacing(header: CineHeader): [number, number] {
   const region = header.regions.find(
-    (candidate) =>
-      candidate.physicalUnitsX === PHYSICAL_UNITS_CM &&
-      candidate.physicalUnitsY === PHYSICAL_UNITS_CM
+    (r) =>
+      r.physicalUnitsX === PHYSICAL_UNITS_CM &&
+      r.physicalUnitsY === PHYSICAL_UNITS_CM
   );
   if (!region) return [1, 1];
-  const dx = region.physicalDeltaX;
-  const dy = region.physicalDeltaY;
+  const { physicalDeltaX: dx, physicalDeltaY: dy } = region;
   if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) {
     return [1, 1];
   }
@@ -71,6 +70,7 @@ export default class DicomCineImage extends BaseProgressiveImage {
   private readonly events: Emitter<ProgressiveImageEvents>;
   private readonly scalarBuffer: Uint8Array;
 
+  private thumbnailPromise: Promise<string | null> | null = null;
   private disposed = false;
 
   constructor(init: CineParseResult) {
@@ -85,8 +85,7 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.events = mitt();
 
     // Build the single 2D vtkImageData. 3-component RGB uint8.
-    const cols = header.cols;
-    const rows = header.rows;
+    const { cols, rows } = header;
     if (!cols || !rows) {
       throw new Error('Cine DICOM has invalid Rows/Columns');
     }
@@ -161,8 +160,11 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.getFrame(0)
       .then((frame) => {
         if (this.disposed) return;
-        this.applyDecodedFrame(frame.rgba);
-        this.markComplete();
+        rgbaToRgb(frame.rgba, this.scalarBuffer);
+        this.vtkImageData.value.getPointData().getScalars().modified();
+        this.vtkImageData.value.modified();
+        this.events.emit('status', 'complete');
+        this.events.emit('loading', false);
       })
       .catch(() => {
         // getFrame already routed the error through reportError.
@@ -189,6 +191,29 @@ export default class DicomCineImage extends BaseProgressiveImage {
 
   getNumberOfFrames(): number {
     return this.header.numberOfFrames;
+  }
+
+  getThumbnail(): Promise<string | null> {
+    if (this.disposed) return Promise.resolve(null);
+    if (this.thumbnailPromise) return this.thumbnailPromise;
+    this.thumbnailPromise = (async () => {
+      try {
+        const frame = await this.getFrame(0);
+        const { cols, rows } = this.header;
+        const canvas = document.createElement('canvas');
+        canvas.width = cols;
+        canvas.height = rows;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        const imageData = ctx.createImageData(cols, rows);
+        imageData.data.set(frame.rgba);
+        ctx.putImageData(imageData, 0, 0);
+        return canvas.toDataURL('image/png');
+      } catch {
+        return null;
+      }
+    })();
+    return this.thumbnailPromise;
   }
 
   // Decoded-frame access for per-view render buffers. Concurrent requests
@@ -254,22 +279,6 @@ export default class DicomCineImage extends BaseProgressiveImage {
       photometric: this.header.photometricInterpretation,
       planarConfiguration: this.header.planarConfiguration,
     });
-  }
-
-  private applyDecodedFrame(rgba: Uint8ClampedArray): void {
-    rgbaToRgb(rgba, this.scalarBuffer);
-    const scalars = this.vtkImageData.value.getPointData().getScalars();
-    scalars.modified();
-    this.vtkImageData.value.modified();
-  }
-
-  private markComplete(): void {
-    if (this.status.value !== 'complete') {
-      this.events.emit('status', 'complete');
-    }
-    if (this.loading.value) {
-      this.events.emit('loading', false);
-    }
   }
 
   // Helper used by import routing to decide whether the file is cine-renderable.

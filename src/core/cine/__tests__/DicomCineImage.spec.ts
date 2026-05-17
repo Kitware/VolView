@@ -5,6 +5,7 @@ import type { CineHeader, CineParseResult } from '../parseCineDicom';
 
 const TS_EXPLICIT_VR_LE = '1.2.840.10008.1.2.1';
 const TS_JPEG_BASELINE = '1.2.840.10008.1.2.4.50';
+const TS_JPEG_EXTENDED = '1.2.840.10008.1.2.4.51';
 const TS_UNSUPPORTED = '1.2.840.10008.1.2.5';
 
 function cineHeader(overrides: Partial<CineHeader> = {}): CineHeader {
@@ -117,6 +118,15 @@ describe('DicomCineImage.isSupported', () => {
         cineHeader({
           transferSyntaxUID: TS_UNSUPPORTED,
           photometricInterpretation: 'RGB',
+        })
+      )
+    ).toBe(false);
+
+    expect(
+      DicomCineImage.isSupported(
+        cineHeader({
+          transferSyntaxUID: TS_JPEG_EXTENDED,
+          photometricInterpretation: 'YBR_FULL_422',
         })
       )
     ).toBe(false);

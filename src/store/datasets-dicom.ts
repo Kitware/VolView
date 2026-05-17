@@ -246,7 +246,16 @@ export const useDICOMStore = defineStore('dicom', {
       const blob = chunk.dataBlob;
       if (!blob) throw new Error('Cine DICOM chunk has no data');
       const buffer = await blob.arrayBuffer();
-      const parsed = parseCineDicom(buffer);
+      let parsed: ReturnType<typeof parseCineDicom>;
+      try {
+        parsed = parseCineDicom(buffer);
+      } catch (err) {
+        console.warn(
+          'Failed to parse cine DICOM; falling back to volume import',
+          err
+        );
+        return false;
+      }
 
       if (!DicomCineImage.isSupported(parsed.header)) {
         return false;

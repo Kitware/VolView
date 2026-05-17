@@ -39,6 +39,15 @@ const {
 const { metadata } = useImage(imageId);
 
 const isCine = computed(() => isCineImage(imageId.value));
+const LOCKED_ORIENTATION_SUFFIXES = [
+  '-coronal',
+  '-sagittal',
+  '-axial',
+  '-multi-oblique',
+];
+const isLockedOrientationView = computed(() =>
+  LOCKED_ORIENTATION_SUFFIXES.some((suffix) => viewId.value.includes(suffix))
+);
 </script>
 
 <template>
@@ -73,11 +82,6 @@ const isCine = computed(() => isCineImage(imageId.value));
         </div>
       </div>
     </template>
-    <template v-slot:bottom-center>
-      <div v-if="isCine" class="annotation-cell" @click.stop>
-        <play-controls :view-id="viewId" :image-id="imageId" />
-      </div>
-    </template>
     <template v-slot:top-right>
       <div class="annotation-cell">
         <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
@@ -85,16 +89,12 @@ const isCine = computed(() => isCineImage(imageId.value));
     </template>
     <template #bottom-right>
       <div
-        v-if="
-          !viewId.includes('-coronal') &&
-          !viewId.includes('-sagittal') &&
-          !viewId.includes('-axial') &&
-          !viewId.includes('-multi-oblique')
-        "
+        v-if="isCine || !isLockedOrientationView"
         class="annotation-cell"
         @click.stop
       >
-        <ViewTypeSwitcher :view-id="viewId" :image-id="imageId" />
+        <play-controls v-if="isCine" :view-id="viewId" :image-id="imageId" />
+        <ViewTypeSwitcher v-else :view-id="viewId" :image-id="imageId" />
       </div>
     </template>
   </view-overlay-grid>

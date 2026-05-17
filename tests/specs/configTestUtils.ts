@@ -88,6 +88,13 @@ export const CINE_US_DATASET = {
   name: 'US-MONO2-8-8x-echo.dcm',
 } as const;
 
+// 120-frame RGB ultrasound cine encoded as JPEG Baseline. Exercises the async
+// browser JPEG decode path used by common compressed ultrasound clips.
+export const COLOR3D_JPEG_BASELINE_DICOM = {
+  url: 'https://raw.githubusercontent.com/pydicom/pydicom-data/master/data_store/data/color3d_jpeg_baseline.dcm',
+  name: 'color3d_jpeg_baseline.dcm',
+} as const;
+
 export type DatasetResource = {
   url: string;
   name?: string;

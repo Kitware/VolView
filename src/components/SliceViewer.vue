@@ -223,8 +223,18 @@ const viewOptions = computed(
   () => viewInfo.value.options as SliceViewerOptions
 );
 
+// base image
+const {
+  currentImageID,
+  currentLayers,
+  currentImageMetadata,
+  currentImageData,
+  isImageLoading,
+} = useCurrentImage();
+
+const isCine = computed(() => isCineImage(currentImageID.value));
 const viewingVectors = computed(() =>
-  get2DViewingVectors(viewOptions.value.orientation)
+  get2DViewingVectors(isCine.value ? 'Axial' : viewOptions.value.orientation)
 );
 const viewDirection = computed(() => viewingVectors.value.viewDirection);
 const viewUp = computed(() => viewingVectors.value.viewUp);
@@ -244,14 +254,6 @@ useViewAnimationListener(vtkView, viewId, '2D');
 // active tool
 const { currentTool } = storeToRefs(useToolStore());
 
-// base image
-const {
-  currentImageID,
-  currentLayers,
-  currentImageMetadata,
-  currentImageData,
-  isImageLoading,
-} = useCurrentImage();
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,
   currentImageID
@@ -261,13 +263,12 @@ const windowingManipulatorProps = computed(() => {
   // W/L is meaningless for 8-bit display-encoded cine; keep the manipulator
   // off so dragging doesn't crush colors.
   if (currentTool.value !== Tools.WindowLevel) return { button: -1 };
-  if (isCineImage(currentImageID.value)) return { button: -1 };
+  if (isCine.value) return { button: -1 };
   return { button: 1 };
 });
 
 // Scalar probe samples the canonical image; for cine that's frame-0-only.
 // Unmount it for cine views and clear any stale probe data on switch.
-const isCine = computed(() => isCineImage(currentImageID.value));
 const probeStore = useProbeStore();
 watch(isCine, (cine) => {
   if (cine) probeStore.clearProbeData();

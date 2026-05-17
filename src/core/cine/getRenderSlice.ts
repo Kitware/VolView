@@ -9,9 +9,14 @@ import { isCineImage } from './isCineImage';
 // [0, numberOfFrames-1], but the underlying vtkImageData has only one Z slice
 // at index 0. Anything that pokes a VTK slice mapper or 2D widget plane needs
 // the render slice (always 0 for cine).
+//
+// `toolSlice` is an optional per-tool override (e.g. a ruler pinned to a
+// specific slice) — when defined it wins over the view's current slice.
 export function getRenderSlice(
   imageID: Maybe<string>,
-  semanticSlice: number
+  viewSlice: Maybe<number>,
+  toolSlice?: Maybe<number>
 ): number {
-  return isCineImage(imageID) ? 0 : semanticSlice;
+  if (isCineImage(imageID)) return 0;
+  return toolSlice ?? viewSlice ?? 0;
 }
