@@ -38,8 +38,6 @@ function cineHeader(overrides: Partial<CineHeader> = {}): CineHeader {
       SeriesNumber: '1',
       SeriesDescription: 'Cine',
       Modality: 'US',
-      SOPInstanceUID: 'sop-uid',
-      SOPClassUID: '1.2.840.10008.5.1.4.1.1.3.1',
     },
     regions: [],
     ...overrides,
@@ -140,20 +138,12 @@ describe('DicomCineImage spacing', () => {
         cineHeader({
           regions: [
             {
-              minX0: 0,
-              minY0: 0,
-              maxX1: 1,
-              maxY1: 1,
               physicalDeltaX: 10,
               physicalDeltaY: 10,
               physicalUnitsX: 1,
               physicalUnitsY: 3,
             },
             {
-              minX0: 0,
-              minY0: 0,
-              maxX1: 1,
-              maxY1: 1,
               physicalDeltaX: -0.05,
               physicalDeltaY: 0.125,
               physicalUnitsX: 3,

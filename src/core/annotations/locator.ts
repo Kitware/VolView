@@ -38,16 +38,14 @@ export type LocatorFields = Pick<
   'slice' | 'frameOfReference' | 'frame'
 >;
 
-export interface ViewCursors {
-  slice?: number;
-  axis?: LPSAxis;
-  frameOfReference?: FrameOfReference;
-  frame?: number;
-}
-
 export function viewLocator(
   effective: EffectiveView | null,
-  cursors: ViewCursors
+  cursors: {
+    slice?: number;
+    axis?: LPSAxis;
+    frameOfReference?: FrameOfReference;
+    frame?: number;
+  }
 ): Locator {
   if (!effective) return { kind: 'none' };
   if (effective.kind === 'cine') {
@@ -67,23 +65,6 @@ export function viewLocator(
   return { kind: 'none' };
 }
 
-// Axis match is enforced separately by `doesToolFrameMatchViewAxis` (it needs
-// per-image metadata, which the locator deliberately does not).
-export function locatorMatches(tool: AnnotationTool, here: Locator) {
-  switch (here.kind) {
-    case 'none':
-      return false;
-    case 'temporal':
-      return tool.frame === here.frame;
-    case 'spatial':
-      return tool.slice === here.slice && !!tool.frameOfReference;
-    case 'spatiotemporal':
-      return tool.frame === here.frame && tool.slice === here.slice;
-    default:
-      return false;
-  }
-}
-
 export function locatorPatch(here: Locator): LocatorFields {
   switch (here.kind) {
     case 'spatial':
@@ -101,7 +82,6 @@ export function locatorPatch(here: Locator): LocatorFields {
         frame: here.frame,
       };
     case 'none':
-    default:
       return {
         slice: -1,
         frameOfReference: {
