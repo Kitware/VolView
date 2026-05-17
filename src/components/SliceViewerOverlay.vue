@@ -11,10 +11,10 @@ import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { computed } from 'vue';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, imageId } = toRefs(props);

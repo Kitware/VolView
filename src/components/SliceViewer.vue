@@ -197,9 +197,9 @@ import { useViewStore } from '@/src/store/views';
 import { ViewInfo2D } from '@/src/types/views';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
 
-interface Props {
+type Props = {
   viewId: string;
-}
+};
 
 const vtkView = ref<VtkViewApi>();
 const baseSliceRep = ref();

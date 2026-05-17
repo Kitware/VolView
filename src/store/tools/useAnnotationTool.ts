@@ -203,5 +203,5 @@ export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
   getPoints(id: ToolID): Vector3[];
 };
 
-export interface AnnotationToolStore<T extends AnnotationTool = AnnotationTool>
-  extends UnwrapAll<AnnotationToolAPI<T>>, IToolStore {}
+export type AnnotationToolStore<T extends AnnotationTool = AnnotationTool> =
+  UnwrapAll<AnnotationToolAPI<T>> & IToolStore;

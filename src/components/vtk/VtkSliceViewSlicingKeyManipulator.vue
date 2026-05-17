@@ -13,12 +13,12 @@ import { inject, toRefs, unref, watch, computed } from 'vue';
 import { useViewStore } from '@/src/store/views';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   manipulatorConfig?: IMouseRangeManipulatorInitialValues;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, imageId, manipulatorConfig } = toRefs(props);

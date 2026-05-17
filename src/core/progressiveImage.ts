@@ -16,7 +16,7 @@ export type ProgressiveImageEvents = {
   error: Error;
 };
 
-export interface ProgressiveImage {
+export type ProgressiveImage = {
   /**
    * A new vtkImageData may be returned at any time while this image is incomplete.
    */
@@ -49,7 +49,7 @@ export interface ProgressiveImage {
   vtkImageData: Ref<vtkImageData>;
   imageMetadata: Ref<ImageMetadata>;
   name: Ref<string>;
-}
+};
 
 export const defaultImageMetadata = (): ImageMetadata => ({
   name: NO_NAME,

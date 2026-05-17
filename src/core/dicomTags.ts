@@ -1,7 +1,7 @@
-interface Tag {
+type Tag = {
   name: string;
   tag: string;
-}
+};
 
 const tags: Tag[] = [
   { name: 'SOPInstanceUID', tag: '0008|0018' },

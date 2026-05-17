@@ -12,10 +12,10 @@ const tmp = vec3.create();
 /**
  * Defines a 2D plane used for locating annotations.
  */
-export interface FrameOfReference {
+export type FrameOfReference = {
   planeNormal: Vector3;
   planeOrigin: Vector3;
-}
+};
 
 // Identity-axial plane used by cine annotations whose true geometry is a
 // single 2D frame: they live at z=0 with a +Z normal.
@@ -24,11 +24,11 @@ export const AXIAL_FRAME_OF_REFERENCE: FrameOfReference = Object.freeze({
   planeNormal: [0, 0, 1] as Vector3,
 });
 
-export interface FrameOfReferenceToImageSliceAndAxisOptions {
+export type FrameOfReferenceToImageSliceAndAxisOptions = {
   epsilon?: number;
   allowNonIntegralSlice?: boolean;
   allowOutOfBoundsSlice?: boolean;
-}
+};
 
 /**
  * Returns the image slice and LPS axis for a given frame of reference.
