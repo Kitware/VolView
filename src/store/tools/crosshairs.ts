@@ -9,7 +9,7 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { ViewInfo2D } from '@/src/types/views';
-import { getEffectiveViewAxis } from '@/src/core/cine/getEffectiveViewAxis';
+import { computeEffectiveView } from '@/src/core/views/effectiveView';
 
 export const useCrosshairsToolStore = defineStore('crosshairs', () => {
   type _This = ReturnType<typeof useCrosshairsToolStore>;
@@ -63,8 +63,9 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     const { lpsOrientation } = unref(currentImageMetadata);
 
     otherViews.value.forEach((view) => {
-      const axis = getEffectiveViewAxis(view, imageID);
-      const index = lpsOrientation[axis];
+      const effective = computeEffectiveView(view, imageID);
+      if (effective.kind !== 'volume2D') return;
+      const index = lpsOrientation[effective.axis];
       const slice = Math.round(indexPos[index]);
       viewSliceStore.updateConfig(view.id, imageID, { slice });
     });

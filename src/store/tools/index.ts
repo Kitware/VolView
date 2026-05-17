@@ -2,7 +2,7 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { Maybe } from '@/src/types';
 import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useCropStore } from './crop';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
@@ -10,6 +10,29 @@ import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
+import { useViewStore } from '@/src/store/views';
+import {
+  EffectiveView,
+  getEffectiveView,
+} from '@/src/core/views/effectiveView';
+
+const CINE_DISALLOWED_TOOLS = new Set([
+  Tools.Paint,
+  Tools.Crop,
+  Tools.Crosshairs,
+]);
+
+export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
+  if (effective?.kind === 'cine' && CINE_DISALLOWED_TOOLS.has(tool))
+    return false;
+  return true;
+}
+
+const activeEffectiveView = () => getEffectiveView(useViewStore().activeView);
+
+function coerceForEffective(tool: Tools, effective: EffectiveView | null) {
+  return isToolAllowedFor(tool, effective) ? tool : Tools.Select;
+}
 
 // TODO move these types out
 export const AnnotationToolStoreMap: Record<
@@ -66,17 +89,19 @@ export const useToolStore = defineStore('tool', () => {
   const toolBeforeTemporaryCrosshairs = ref<Tools>(currentTool.value);
 
   function setCurrentTool(tool: Tools) {
-    if (currentTool.value === tool) {
+    const coerced = coerceForEffective(tool, activeEffectiveView());
+    if (currentTool.value === coerced) {
       return;
     }
-    if (!setupTool(tool)) {
+    if (!setupTool(coerced)) {
       return;
     }
     teardownTool(currentTool.value);
-    currentTool.value = tool;
+    currentTool.value = coerced;
   }
 
   function activateTemporaryCrosshairs() {
+    if (!isToolAllowedFor(Tools.Crosshairs, activeEffectiveView())) return;
     toolBeforeTemporaryCrosshairs.value = currentTool.value;
     setCurrentTool(Tools.Crosshairs);
     useCrosshairsToolStore().setDragging(true);
@@ -86,6 +111,18 @@ export const useToolStore = defineStore('tool', () => {
     useCrosshairsToolStore().setDragging(false);
     setCurrentTool(toolBeforeTemporaryCrosshairs.value);
   }
+
+  watch(
+    () => activeEffectiveView()?.kind ?? null,
+    () => {
+      const eff = activeEffectiveView();
+      const coerced = coerceForEffective(currentTool.value, eff);
+      if (coerced !== currentTool.value) {
+        teardownTool(currentTool.value);
+        currentTool.value = coerced;
+      }
+    }
+  );
 
   function serialize(state: StateFile) {
     const { tools } = state.manifest;
@@ -118,7 +155,10 @@ export const useToolStore = defineStore('tool', () => {
       });
 
     if (manifest.tools?.current) {
-      currentTool.value = manifest.tools.current;
+      currentTool.value = coerceForEffective(
+        manifest.tools.current,
+        activeEffectiveView()
+      );
     }
   }
 

@@ -17,6 +17,13 @@ export interface FrameOfReference {
   planeOrigin: Vector3;
 }
 
+// Identity-axial plane used by cine annotations whose true geometry is a
+// single 2D frame: they live at z=0 with a +Z normal.
+export const AXIAL_FRAME_OF_REFERENCE: FrameOfReference = Object.freeze({
+  planeOrigin: [0, 0, 0] as Vector3,
+  planeNormal: [0, 0, 1] as Vector3,
+});
+
 export interface FrameOfReferenceToImageSliceAndAxisOptions {
   epsilon?: number;
   allowNonIntegralSlice?: boolean;

@@ -1,10 +1,12 @@
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useViewStore } from '@/src/store/views';
+import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import type { Manifest } from '@/src/io/state-file/schema';
 
 vi.mock('@/src/core/cine/isCineImage', () => ({
   isCineImage: (imageID: string | null) => imageID === 'cine-image',
+  getCineImage: () => null,
 }));
 
 describe('View store', () => {
@@ -27,42 +29,32 @@ describe('View store', () => {
     expect(store.activeView).toBe(store.visibleViews[0].id);
   });
 
-  it('replaces non-2D views with axial views when cine data is attached', () => {
+  it('preserves stored view types when cine data is attached', () => {
     const store = useViewStore();
 
+    const storedTypes = store.visibleViews.map((view) => view.type);
     store.setDataForAllViews('cine-image');
 
     expect(store.visibleViews).toHaveLength(4);
-    store.visibleViews.forEach((view) => {
-      expect(view.type).toBe('2D');
+    store.visibleViews.forEach((view, idx) => {
+      expect(view.type).toBe(storedTypes[idx]);
       expect(view.dataID).toBe('cine-image');
-    });
-
-    expect(store.visibleViews[3]).toMatchObject({
-      type: '2D',
-      name: 'Axial',
-      options: {
-        orientation: 'Axial',
-      },
+      expect(computeEffectiveView(view, view.dataID).kind).toBe('cine');
     });
   });
 
-  it('keeps the active view on cine replacement', () => {
+  it('keeps the original view when cine binds to a 3D slot', () => {
     const store = useViewStore();
     const volumeView = store.visibleViews.find((view) => view.type === '3D')!;
 
     store.setActiveView(volumeView.id);
     store.setDataForView(volumeView.id, 'cine-image');
 
-    expect(store.getView(volumeView.id)).toBeNull();
-    expect(store.activeView).not.toBe(volumeView.id);
-    expect(store.getView(store.activeView)).toMatchObject({
-      type: '2D',
-      dataID: 'cine-image',
-      options: {
-        orientation: 'Axial',
-      },
-    });
+    const preserved = store.getView(volumeView.id)!;
+    expect(preserved.type).toBe('3D');
+    expect(preserved.dataID).toBe('cine-image');
+    expect(computeEffectiveView(preserved, preserved.dataID).kind).toBe('cine');
+    expect(store.activeView).toBe(volumeView.id);
   });
 
   it('selects a visible view when session data IDs are rebound', () => {

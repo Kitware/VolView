@@ -101,10 +101,10 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 import { Maybe } from '@/src/types';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { useViewLocator } from '@/src/composables/useViewLocator';
+import { locatorPatch } from '@/src/core/annotations/locator';
 import { useMagicKeys, watchImmediate } from '@vueuse/core';
 import { fillPoly } from '@thi.ng/rasterize';
 import type { IGrid2D } from '@thi.ng/api';
@@ -178,8 +178,7 @@ export default defineComponent({
     const activeToolStore = useActiveToolStore();
     const { activeLabel } = storeToRefs(activeToolStore);
 
-    const sliceInfo = useSliceInfo(viewId, imageId);
-    const slice = computed(() => sliceInfo.value?.slice ?? 0);
+    const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
     const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -187,20 +186,13 @@ export default defineComponent({
 
     // --- active tool management --- //
 
-    const frameOfReference = useFrameOfReference(
-      viewDirection,
-      slice,
-      imageMetadata
-    );
-
     const placingTool = usePlacingAnnotationTool(
       activeToolStore,
       computed(() => {
         if (!imageId.value) return {};
         return {
           imageID: imageId.value,
-          frameOfReference: frameOfReference.value,
-          slice: slice.value,
+          ...locatorPatch(locator.value),
           label: activeLabel.value,
           ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
         };
@@ -259,7 +251,8 @@ export default defineComponent({
     const currentTools = useCurrentTools(
       activeToolStore,
       viewAxis,
-      computed(() => (placingTool.id.value ? [placingTool.id.value] : []))
+      computed(() => (placingTool.id.value ? [placingTool.id.value] : [])),
+      frame
     );
 
     const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);

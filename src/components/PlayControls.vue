@@ -2,7 +2,7 @@
 import { computed, ref, toRefs, watch } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
 import { Maybe } from '@/src/types';
-import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useCineFrame } from '@/src/composables/useCineFrame';
 import { getCineImage } from '@/src/core/cine/isCineImage';
 import {
   clampCineFps,
@@ -20,15 +20,11 @@ const props = defineProps<Props>();
 const { imageId, viewId } = toRefs(props);
 
 const cine = computed(() => getCineImage(imageId.value));
-const { slice, range } = useSliceConfig(viewId, imageId);
+const { frame, frameRange, setFrame } = useCineFrame(viewId, imageId);
 const playbackStore = useCinePlaybackStore();
 
 const playbackConfig = computed(() =>
-  playbackStore.getConfig(
-    viewId.value,
-    imageId.value,
-    cine.value?.header.frameTimeMs
-  )
+  playbackStore.getConfig(viewId.value, imageId.value)
 );
 
 function patchConfig(
@@ -36,12 +32,7 @@ function patchConfig(
   patch: Parameters<typeof playbackStore.updateConfig>[2]
 ) {
   if (!clipId) return;
-  playbackStore.updateConfig(
-    viewId.value,
-    clipId,
-    patch,
-    getCineImage(clipId)?.header.frameTimeMs
-  );
+  playbackStore.updateConfig(viewId.value, clipId, patch);
 }
 
 const playing = computed({
@@ -58,10 +49,10 @@ const period = computed(() => Math.round(1000 / fps.value));
 
 const { pause, resume } = useIntervalFn(
   () => {
-    const [min, max] = range.value;
+    const [min, max] = frameRange.value;
     if (max <= min) return;
-    const next = (slice.value ?? min) + 1;
-    slice.value = next > max ? min : next;
+    const next = frame.value + 1;
+    setFrame(next > max ? min : next);
   },
   period,
   { immediate: false, immediateCallback: false }

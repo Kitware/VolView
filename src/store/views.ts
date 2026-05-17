@@ -10,7 +10,6 @@ import {
   parseNamedLayouts,
   type LayoutConfig,
 } from '@/src/utils/layoutParsing';
-import { isCineImage } from '@/src/core/cine/isCineImage';
 import type { Manifest, StateFile } from '../io/state-file/schema';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
@@ -266,12 +265,8 @@ export const useViewStore = defineStore('view', () => {
     const view = viewByID[viewID];
     if (!view) return;
 
-    if (dataID && isCineImage(dataID) && view.type !== '2D') {
-      replaceView(viewID, { ...DEFAULT_VIEW_INIT, dataID });
-    } else {
-      view.dataID = dataID;
-      ViewDataChangeEvent.trigger(viewID, dataID);
-    }
+    view.dataID = dataID;
+    ViewDataChangeEvent.trigger(viewID, dataID);
     // Global tools resolve their image through activeView.
     ensureActiveViewIsVisible();
   }

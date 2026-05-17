@@ -8,7 +8,14 @@ import { ToolID } from '@/src/types/annotation-tool';
 
 function createRuler(): RequiredWithPartial<
   Ruler,
-  'id' | 'color' | 'strokeWidth' | 'label' | 'labelName' | 'hidden' | 'metadata'
+  | 'id'
+  | 'color'
+  | 'strokeWidth'
+  | 'label'
+  | 'labelName'
+  | 'hidden'
+  | 'metadata'
+  | 'frame'
 > {
   return {
     firstPoint: [1, 1, 1],

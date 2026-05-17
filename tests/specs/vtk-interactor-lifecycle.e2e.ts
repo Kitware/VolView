@@ -1,7 +1,7 @@
 import { COLOR3D_JPEG_BASELINE_DICOM } from './configTestUtils';
 import { openUrls } from './utils';
 
-const VIEW_SELECTOR = 'div[data-testid="vtk-view vtk-two-view"]';
+const VIEW_SELECTOR = 'div[data-testid="vtk-view vtk-cine-view"]';
 const DELETED_INSTANCE_ERROR = 'instance deleted - cannot call any method';
 
 type BrowserLogEntry = { text: string | null };

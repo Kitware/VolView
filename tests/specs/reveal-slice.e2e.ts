@@ -1,7 +1,12 @@
-import { Key } from 'webdriverio';
 import { CINE_US_DATASET, PROSTATEX_DATASET } from './configTestUtils';
 import { downloadFile, openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
+import {
+  advanceCineFrame,
+  countCineRulerLines,
+  getCineFrame,
+  waitForFrame,
+} from './cineTestUtils';
 
 const openMeasurementsTab = async () => {
   const annotationsTab = await $(
@@ -109,33 +114,6 @@ describe('Reveal Slice on a volume image', () => {
 
 // --- cine ultrasound --------------------------------------------------
 
-const FRAME_LABEL_SELECTOR = '.view-annotations .frame-label';
-
-const getCineFrame = async () => {
-  const frameLabel = await $(FRAME_LABEL_SELECTOR);
-  const text = (await frameLabel.getText()).trim();
-  const match = text.match(/^Frame:\s*(\d+)\s*\/\s*\d+/);
-  return match ? parseInt(match[1], 10) : null;
-};
-
-const waitForFrame = async (expected: number) => {
-  await browser.waitUntil(async () => (await getCineFrame()) === expected, {
-    timeoutMsg: `Expected cine frame to reach ${expected}`,
-  });
-};
-
-const advanceCineFrame = async () => {
-  const before = await getCineFrame();
-  await browser.keys([Key.ArrowUp]);
-  await browser.waitUntil(
-    async () => {
-      const now = await getCineFrame();
-      return now !== null && now !== before;
-    },
-    { timeoutMsg: 'Cine frame counter did not advance' }
-  );
-};
-
 describe('Reveal Slice on cine ultrasound', () => {
   it('ruler Reveal Slice jumps to the cine frame the ruler was placed on', async () => {
     await openUrls([CINE_US_DATASET]);
@@ -155,10 +133,22 @@ describe('Reveal Slice on cine ultrasound', () => {
 
     await placeRulerAtCanvasCenter();
 
+    // Sanity check: the committed ruler is visible on the frame it was placed.
+    await browser.waitUntil(async () => (await countCineRulerLines()) >= 1, {
+      timeoutMsg: 'Expected the placed ruler line to render on the cine frame',
+    });
+
     await advanceCineFrame();
     await advanceCineFrame();
     const movedFrame = await getCineFrame();
     expect(movedFrame).not.toBe(placementFrame);
+
+    // Off the placement frame: the committed ruler must not render. The
+    // placing-tool stub has no points yet and so contributes no <line>.
+    await browser.waitUntil(async () => (await countCineRulerLines()) === 0, {
+      timeoutMsg:
+        'Expected the placed ruler to be hidden on frames other than the placement frame',
+    });
 
     await openMeasurementsTab();
     await waitForToolEntry('mdi-ruler');

@@ -341,6 +341,7 @@ const annotationTool = z.object({
   imageID: z.string(),
   frameOfReference: FrameOfReference,
   slice: z.number(),
+  frame: z.number().optional(),
   id: z.string().optional() as unknown as z.ZodType<ToolID | undefined>,
   name: z.string().optional(),
   color: z.string().optional(),
