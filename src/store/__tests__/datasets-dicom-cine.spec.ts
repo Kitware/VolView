@@ -247,6 +247,34 @@ describe('DICOM store cine routing', () => {
     expect(store.volumeInfo['volume-1'].kind).toBe('volume');
   });
 
+  it('falls back to chunk import when cine parsing throws', async () => {
+    const malformedCineChunk = chunk();
+    const chunksByVolume = { 'volume-1': [malformedCineChunk] };
+    mocks.splitAndSort.mockResolvedValue(chunksByVolume);
+    mocks.parseCineDicom.mockImplementation(() => {
+      throw new Error('unsupported encapsulated frame layout');
+    });
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const store = useDICOMStore();
+      await expect(store.importChunks([malformedCineChunk])).resolves.toBe(
+        chunksByVolume
+      );
+    } finally {
+      warn.mockRestore();
+    }
+
+    expect(malformedCineChunk.loadData).toHaveBeenCalledOnce();
+    expect(mocks.parseCineDicom).toHaveBeenCalledOnce();
+    expect(mocks.chunkImages).toHaveLength(1);
+    expect(mocks.chunkImages[0].chunks).toEqual([malformedCineChunk]);
+
+    const imageCacheStore = useImageCacheStore();
+    expect(imageCacheStore.imageById['volume-1']).toBe(mocks.chunkImages[0]);
+    expect(useDICOMStore().volumeInfo['volume-1'].kind).toBe('volume');
+  });
+
   it('rejects cached non-chunk images before chunk-volume reuse', async () => {
     const normalChunk = chunk(
       metadata({

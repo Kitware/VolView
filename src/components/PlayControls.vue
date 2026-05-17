@@ -23,8 +23,6 @@ const cine = computed(() => getCineImage(imageId.value));
 const { slice, range } = useSliceConfig(viewId, imageId);
 const playbackStore = useCinePlaybackStore();
 
-const fpsInput = ref('');
-
 const playbackConfig = computed(() =>
   playbackStore.getConfig(
     viewId.value,
@@ -33,43 +31,30 @@ const playbackConfig = computed(() =>
   )
 );
 
-function updatePlayback(
+function patchConfig(
+  clipId: Maybe<string>,
   patch: Parameters<typeof playbackStore.updateConfig>[2]
 ) {
-  if (!viewId.value || !imageId.value) return;
+  if (!clipId) return;
   playbackStore.updateConfig(
     viewId.value,
-    imageId.value,
+    clipId,
     patch,
-    cine.value?.header.frameTimeMs
+    getCineImage(clipId)?.header.frameTimeMs
   );
 }
 
 const playing = computed({
   get: () => playbackConfig.value.playing,
-  set: (value: boolean) => {
-    updatePlayback({ playing: value });
-  },
+  set: (value: boolean) => patchConfig(imageId.value, { playing: value }),
 });
 
 const fps = computed({
   get: () => playbackConfig.value.fps,
-  set: (value: number) => {
-    updatePlayback({ fps: value });
-  },
+  set: (value: number) => patchConfig(imageId.value, { fps: value }),
 });
 
-watch(
-  fps,
-  (value) => {
-    fpsInput.value = String(value);
-  },
-  { immediate: true }
-);
-
-const period = computed(() =>
-  fps.value > 0 ? Math.max(1, Math.round(1000 / fps.value)) : 1000
-);
+const period = computed(() => Math.round(1000 / fps.value));
 
 const { pause, resume } = useIntervalFn(
   () => {
@@ -91,38 +76,25 @@ watch(
   { immediate: true }
 );
 
-// Pause when the cine clip changes (or is removed).
+// Pause both sides on clip switch so an incoming clip with stored playing=true
+// doesn't auto-resume.
 watch(imageId, (nextImageId, previousImageId) => {
-  if (previousImageId && previousImageId !== nextImageId && viewId.value) {
-    playbackStore.updateConfig(
-      viewId.value,
-      previousImageId,
-      {
-        playing: false,
-      },
-      getCineImage(previousImageId)?.header.frameTimeMs
-    );
-  }
-
-  if (nextImageId && previousImageId !== nextImageId && viewId.value) {
-    updatePlayback({ playing: false });
-  }
+  if (nextImageId === previousImageId) return;
+  patchConfig(previousImageId, { playing: false });
+  patchConfig(nextImageId, { playing: false });
 });
 
-function togglePlay() {
-  playing.value = !playing.value;
-}
-
-function clampFpsValue(value: string | number) {
-  return clampCineFps(value);
-}
+const fpsInput = ref(String(fps.value));
+watch(fps, (value) => {
+  fpsInput.value = String(value);
+});
 
 function clampFpsInput(event: Event) {
   const input = event.target as HTMLInputElement;
   fpsInput.value = input.value;
   if (fpsInput.value.trim() === '') return;
 
-  const clamped = clampFpsValue(fpsInput.value);
+  const clamped = clampCineFps(fpsInput.value);
   if (clamped == null) return;
   fps.value = clamped;
   fpsInput.value = String(clamped);
@@ -130,10 +102,13 @@ function clampFpsInput(event: Event) {
 }
 
 function commitFpsInput() {
-  const clamped = clampFpsValue(fpsInput.value);
-  const value = clamped ?? fps.value;
-  fps.value = value;
-  fpsInput.value = String(value);
+  const clamped = clampCineFps(fpsInput.value) ?? fps.value;
+  fps.value = clamped;
+  fpsInput.value = String(clamped);
+}
+
+function togglePlay() {
+  playing.value = !playing.value;
 }
 </script>
 
@@ -149,17 +124,19 @@ function commitFpsInput() {
     >
       <v-icon size="14">{{ playing ? 'mdi-pause' : 'mdi-play' }}</v-icon>
     </button>
-    <input
-      :value="fpsInput"
-      type="number"
-      :min="MIN_CINE_FPS"
-      :max="MAX_CINE_FPS"
-      class="fps-input"
-      title="Frames per second"
-      @input="clampFpsInput"
-      @blur="commitFpsInput"
-    />
-    <span class="fps-suffix">fps</span>
+    <span class="fps-control">
+      <input
+        :value="fpsInput"
+        type="number"
+        :min="MIN_CINE_FPS"
+        :max="MAX_CINE_FPS"
+        class="fps-input"
+        title="Frames per second"
+        @input="clampFpsInput"
+        @blur="commitFpsInput"
+      />
+      <span class="fps-suffix">FPS</span>
+    </span>
   </div>
 </template>
 
@@ -169,8 +146,8 @@ function commitFpsInput() {
   align-items: center;
   gap: 4px;
   color: #fff;
-  font-size: 0.8125rem;
-  line-height: 1;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .play-btn {
@@ -184,10 +161,21 @@ function commitFpsInput() {
   border: none;
   color: inherit;
   cursor: pointer;
+  opacity: 1;
+}
+
+.play-btn :deep(.v-icon) {
+  opacity: 1;
 }
 
 .play-btn:hover {
   color: rgba(255, 255, 255, 0.8);
+}
+
+.fps-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .fps-input {
@@ -197,7 +185,8 @@ function commitFpsInput() {
   border: none;
   padding: 0 4px;
   text-align: right;
-  font-size: inherit;
+  font: inherit;
+  opacity: 1;
 }
 
 .fps-input:focus {
@@ -205,6 +194,6 @@ function commitFpsInput() {
 }
 
 .fps-suffix {
-  opacity: 0.7;
+  opacity: 1;
 }
 </style>

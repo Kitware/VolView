@@ -123,11 +123,10 @@ export default defineComponent({
     widget.setManipulator(manipulator);
 
     watchEffect(() => {
-      const semantic = tool.value?.slice ?? slice.value;
       updatePlaneManipulatorFor2DView(
         manipulator,
         viewDirection.value,
-        getRenderSlice(imageId.value, semantic),
+        getRenderSlice(imageId.value, slice.value, tool.value?.slice),
         imageMetadata.value
       );
     });
