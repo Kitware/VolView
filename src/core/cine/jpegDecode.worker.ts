@@ -46,8 +46,8 @@ async function decodeJpeg(
   }
 }
 
-export interface JpegDecoderWorker {
+export type JpegDecoderWorker = {
   decodeJpeg: typeof decodeJpeg;
-}
+};
 
 Comlink.expose({ decodeJpeg });

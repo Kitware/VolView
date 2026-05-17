@@ -42,14 +42,14 @@ export const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
   `Segment Group ${index} for ${baseName}`;
 const numberer = (index: number) => (index <= 1 ? '' : `${index}`); // start numbering at 2
 
-export interface SegmentGroupMetadata {
+export type SegmentGroupMetadata = {
   name: string;
   parentImage: string;
   segments: {
     order: number[];
     byValue: Record<number, SegmentMask>;
   };
-}
+};
 
 export function createLabelmapFromImage(imageData: vtkImageData) {
   const points = new LabelmapArrayType(imageData.getNumberOfPoints());

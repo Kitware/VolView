@@ -439,7 +439,7 @@ export const ManifestSchema = z.object({
 
 export type Manifest = z.infer<typeof ManifestSchema>;
 
-export interface StateFile {
+export type StateFile = {
   zip: JSZip;
   manifest: Manifest;
-}
+};

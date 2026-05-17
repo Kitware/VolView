@@ -13,12 +13,12 @@ import { syncRef } from '@vueuse/core';
 import { inject, toRefs, unref, computed } from 'vue';
 import { useViewStore } from '@/src/store/views';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   manipulatorConfig?: IMouseRangeManipulatorInitialValues;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, imageId, manipulatorConfig } = toRefs(props);

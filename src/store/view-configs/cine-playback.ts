@@ -14,11 +14,11 @@ export const MIN_CINE_FPS = 1;
 export const MAX_CINE_FPS = 120;
 export const DEFAULT_CINE_FPS = 24;
 
-export interface CinePlaybackConfig {
+export type CinePlaybackConfig = {
   playing: boolean;
   fps: number;
   frame: number;
-}
+};
 
 export function clampCineFps(value: string | number) {
   const parsed = Number(value);

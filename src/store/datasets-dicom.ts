@@ -16,29 +16,29 @@ export function imageCacheMultiKey(offset: number, asThumbnail: boolean) {
   return `${offset}!!${asThumbnail}`;
 }
 
-export interface VolumeKeys {
+export type VolumeKeys = {
   patientKey: string;
   studyKey: string;
   volumeKey: string;
-}
+};
 
-export interface PatientInfo {
+export type PatientInfo = {
   PatientID: string;
   PatientName: string;
   PatientBirthDate: string;
   PatientSex: string;
-}
+};
 
-export interface StudyInfo {
+export type StudyInfo = {
   StudyID: string;
   StudyInstanceUID: string;
   StudyDate: string;
   StudyTime: string;
   AccessionNumber: string;
   StudyDescription: string;
-}
+};
 
-export interface VolumeInfo {
+export type VolumeInfo = {
   NumberOfSlices: number;
   VolumeID: string;
   Modality: string;
@@ -50,9 +50,9 @@ export interface VolumeInfo {
   // For 'cine', NumberOfSlices is the frame count. Optional for back-compat
   // with saved state that predates the field.
   kind?: 'volume' | 'cine';
-}
+};
 
-interface State {
+type State = {
   // volumeKey -> imageCacheMultiKey -> ITKImage
   sliceData: Record<string, Record<string, Image>>;
 
@@ -77,7 +77,7 @@ interface State {
   volumeStudy: Record<string, string>;
   // studyKey -> patientKey
   studyPatient: Record<string, string>;
-}
+};
 
 /**
  * Trims and collapses multiple spaces into one.
