@@ -78,6 +78,8 @@ export async function openVolViewPage(fileName: string) {
 
 type RemoteResourceType = z.infer<typeof RemoteResource> & { name: string };
 
+export const SESSION_SAVE_TIMEOUT = 40_000;
+
 export const waitForFileExists = (filePath: string, timeout: number) =>
   new Promise<void>((resolve, reject) => {
     const dir = path.dirname(filePath);

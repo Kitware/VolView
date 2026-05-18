@@ -3,9 +3,7 @@ import { FIXTURES, WINDOW_SIZE } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { openVolViewPage, writeManifestToZip } from './utils';
 
-describe('State file manifest.json code', function () {
-  this.timeout(120_000);
-
+describe('State file manifest.json code', () => {
   it('has no errors loading version 5.0.1 manifest.json file ', async () => {
     const manifestPath = path.join(
       FIXTURES,

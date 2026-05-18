@@ -167,11 +167,6 @@ export const useDICOMStore = defineStore('dicom', {
             if (importedAsCine) return;
           }
 
-          if (this.volumeInfo[id]?.kind === 'cine') {
-            throw new Error(
-              `Volume ${id} is already loaded as a cine clip; cannot re-import as a chunk volume.`
-            );
-          }
           const cachedImage = imageCacheStore.imageById[id];
           if (cachedImage && !(cachedImage instanceof DicomChunkImage)) {
             throw new Error(

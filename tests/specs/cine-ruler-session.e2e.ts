@@ -4,7 +4,7 @@
 // silently lose the per-frame association.
 import * as path from 'path';
 import { CINE_US_DATASET } from './configTestUtils';
-import { openUrls, waitForFileExists } from './utils';
+import { openUrls, SESSION_SAVE_TIMEOUT, waitForFileExists } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
@@ -15,8 +15,6 @@ import {
   getCineFrame,
   waitForFrame,
 } from './cineTestUtils';
-
-const SESSION_SAVE_TIMEOUT = 40000;
 
 const placeRulerAtCanvasCenter = async () => {
   const rulerToolButton = await $('button span i[class~=mdi-ruler]');
