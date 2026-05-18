@@ -2,11 +2,14 @@ import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
 import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from './configTestUtils';
-import { downloadFile, openUrls, waitForFileExists } from './utils';
+import {
+  downloadFile,
+  openUrls,
+  SESSION_SAVE_TIMEOUT,
+  waitForFileExists,
+} from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-
-const SESSION_SAVE_TIMEOUT = 40000;
 
 const waitForElementCount = async (selector: string, minCount = 1) => {
   await browser.waitUntil(async () => {

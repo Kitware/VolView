@@ -267,7 +267,8 @@ export const useViewStore = defineStore('view', () => {
 
     view.dataID = dataID;
     ViewDataChangeEvent.trigger(viewID, dataID);
-    // Global tools resolve their image through activeView.
+    // If activeView is null/stale, fall back to a visible view so global
+    // tools (which resolve their image through activeView) have one to read.
     ensureActiveViewIsVisible();
   }
 
