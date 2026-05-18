@@ -13,7 +13,7 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '6.2.0';
+export const MANIFEST_VERSION = '6.3.0';
 
 export async function serialize() {
   const datasetStore = useDatasetStore();

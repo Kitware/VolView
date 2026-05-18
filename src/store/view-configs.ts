@@ -46,6 +46,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     layerColoringStore.serialize(stateFile);
     viewCameraStore.serialize(stateFile);
     volumeColoringStore.serialize(stateFile);
+    cinePlaybackStore.serialize(stateFile);
   };
 
   const deserialize = (
@@ -65,6 +66,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     layerColoringStore.deserialize(viewID, updatedConfig);
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
+    cinePlaybackStore.deserialize(viewID, updatedConfig);
   };
 
   const deserializeAll = (
