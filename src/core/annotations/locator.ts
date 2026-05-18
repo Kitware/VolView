@@ -16,7 +16,7 @@ import {
   EffectiveView,
 } from '@/src/core/views/effectiveView';
 
-export type Locator =
+type Locator =
   | { kind: 'none' }
   | {
       kind: 'spatial';
@@ -24,16 +24,9 @@ export type Locator =
       axis: LPSAxis;
       frameOfReference: FrameOfReference;
     }
-  | { kind: 'temporal'; frame: number }
-  | {
-      kind: 'spatiotemporal';
-      slice: number;
-      axis: LPSAxis;
-      frameOfReference: FrameOfReference;
-      frame: number;
-    };
+  | { kind: 'temporal'; frame: number };
 
-export type LocatorFields = Pick<
+type LocatorFields = Pick<
   AnnotationTool,
   'slice' | 'frameOfReference' | 'frame'
 >;
@@ -73,12 +66,6 @@ export function locatorPatch(here: Locator): LocatorFields {
       return {
         slice: 0,
         frameOfReference: AXIAL_FRAME_OF_REFERENCE,
-        frame: here.frame,
-      };
-    case 'spatiotemporal':
-      return {
-        slice: here.slice,
-        frameOfReference: here.frameOfReference,
         frame: here.frame,
       };
     case 'none':

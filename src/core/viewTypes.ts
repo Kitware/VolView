@@ -44,7 +44,3 @@ export function resolveSlotRendering(viewInfo: ViewInfo): {
     renderImageID: effective.renderDataID,
   };
 }
-
-export function getComponentFromViewInfo(info: ViewInfo) {
-  return resolveSlotRendering(info).component;
-}

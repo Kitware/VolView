@@ -21,7 +21,6 @@
 
 <script lang="ts">
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
-import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -68,7 +67,6 @@ export default defineComponent({
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
-    useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
