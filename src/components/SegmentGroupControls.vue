@@ -16,12 +16,14 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
 import { useMultiSelection } from '@/src/composables/useMultiSelection';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
 
 const segmentGroupStore = useSegmentGroupStore();
 const { currentImageID } = useCurrentImage();
 const dataStore = useDatasetStore();
+const isCurrentImageCine = computed(() => isCineImage(currentImageID.value));
 
 const currentSegmentGroups = computed(() => {
   if (!currentImageID.value) return [];
@@ -117,6 +119,7 @@ function stopEditing(commit: boolean) {
 function createSegmentGroup() {
   if (!currentImageID.value)
     throw new Error('Cannot create a labelmap without a base image');
+  if (isCurrentImageCine.value) return;
 
   const id = segmentGroupStore.newLabelmapFromImage(currentImageID.value);
   if (!id) throw new Error('Could not create a new labelmap');
@@ -152,6 +155,7 @@ function createSegmentGroupFromImage(selection: DataSelection) {
   if (!primarySelection) {
     throw new Error('No primary selection');
   }
+  if (isCurrentImageCine.value) return;
   segmentGroupStore.convertImageToLabelmap(selection, primarySelection);
 }
 
@@ -228,6 +232,7 @@ function deleteSelected() {
         variant="tonal"
         color="secondary"
         density="compact"
+        :disabled="isCurrentImageCine"
         @click.stop="createSegmentGroup"
       >
         <v-icon class="mr-1">mdi-plus</v-icon> New Group
@@ -238,6 +243,7 @@ function deleteSelected() {
             variant="tonal"
             color="secondary"
             density="compact"
+            :disabled="isCurrentImageCine"
             v-bind="props"
           >
             <v-icon class="mr-1">mdi-chevron-down</v-icon>From Image

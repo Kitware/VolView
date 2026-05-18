@@ -19,7 +19,7 @@
       :tool-store="activeToolStore"
       v-slot="{ context }"
     >
-      <v-list-item @click.stop>
+      <v-list-item v-if="!isCurrentImageCine" @click.stop>
         <template #prepend>
           <v-icon>mdi-grid</v-icon>
         </template>
@@ -119,6 +119,7 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import ColorDot from '@/src/components/ColorDot.vue';
 import { SegmentMask } from '@/src/types/segment';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
 const toolType = Tools.Polygon;
@@ -271,7 +272,9 @@ export default defineComponent({
 
     const segmentGroupStore = useSegmentGroupStore();
     const paintStore = usePaintToolStore();
+    const isCurrentImageCine = computed(() => isCineImage(imageId.value));
     const currentSegmentGroup = computed(() => {
+      if (isCurrentImageCine.value) return null;
       if (!imageId.value) return null;
       const groups = segmentGroupStore.orderByParent[imageId.value];
       if (!groups?.length) return null;
@@ -281,6 +284,9 @@ export default defineComponent({
     function rasterize(toolId: ToolID, segment: SegmentMask) {
       if (!imageId.value) {
         throw new Error('No image ID available for rasterization');
+      }
+      if (isCurrentImageCine.value) {
+        throw new Error('Rasterization is not supported for cine images');
       }
 
       const groups = segmentGroupStore.orderByParent[imageId.value];
@@ -346,6 +352,7 @@ export default defineComponent({
       overlayInfo,
       rasterize,
       currentSegmentGroup,
+      isCurrentImageCine,
     };
   },
 });
