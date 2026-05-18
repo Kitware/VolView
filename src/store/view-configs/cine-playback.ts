@@ -9,6 +9,9 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { getCineImage } from '@/src/core/cine/isCineImage';
+import { createViewConfigSerializer } from '@/src/store/view-configs/common';
+import type { StateFile, ViewConfig } from '@/src/io/state-file/schema';
+import type { CinePlaybackViewConfig } from '@/src/store/view-configs/types';
 
 export const MIN_CINE_FPS = 1;
 export const MAX_CINE_FPS = 120;
@@ -94,12 +97,33 @@ export const useCinePlaybackStore = defineStore('cinePlayback', () => {
     }
   };
 
+  const serialize = (stateFile: StateFile) => {
+    const frameConfigs: DoubleKeyRecord<CinePlaybackViewConfig> = {};
+    Object.entries(configs).forEach(([viewID, byDataID]) => {
+      frameConfigs[viewID] = {};
+      Object.entries(byDataID).forEach(([dataID, config]) => {
+        frameConfigs[viewID][dataID] = { frame: config.frame };
+      });
+    });
+    createViewConfigSerializer(frameConfigs, 'cinePlayback')(stateFile);
+  };
+
+  const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
+    Object.entries(config).forEach(([dataID, viewConfig]) => {
+      if (viewConfig.cinePlayback) {
+        updateConfig(viewID, dataID, { frame: viewConfig.cinePlayback.frame });
+      }
+    });
+  };
+
   return {
     configs,
     getConfig,
     updateConfig,
     removeView,
     removeData,
+    serialize,
+    deserialize,
   };
 });
 

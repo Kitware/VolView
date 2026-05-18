@@ -22,6 +22,7 @@ import type {
   LayersConfig,
   SegmentGroupConfig,
   VolumeColorConfig,
+  CinePlaybackViewConfig,
 } from '@/src/store/view-configs/types';
 import type { LPSAxis } from '@/src/types/lps';
 import type {
@@ -270,6 +271,10 @@ const SegmentGroupConfig = z.object({
   outlineThickness: z.number(),
 }) satisfies z.ZodType<SegmentGroupConfig>;
 
+const CinePlaybackViewConfig = z.object({
+  frame: z.number(),
+}) satisfies z.ZodType<CinePlaybackViewConfig>;
+
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
@@ -277,6 +282,7 @@ const ViewConfig = z.object({
   segmentGroup: SegmentGroupConfig.optional(),
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
+  cinePlayback: CinePlaybackViewConfig.optional(),
 });
 
 export type ViewConfig = z.infer<typeof ViewConfig>;

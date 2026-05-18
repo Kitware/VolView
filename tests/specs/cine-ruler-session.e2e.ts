@@ -13,6 +13,7 @@ import {
   countCineRulerLines,
   getCineCanvasCenter,
   getCineFrame,
+  retreatCineFrame,
   waitForFrame,
 } from './cineTestUtils';
 
@@ -25,7 +26,7 @@ const placeRulerAtCanvasCenter = async () => {
 };
 
 describe('Cine ruler survives save/reload at its placed frame', () => {
-  it('reloads with the ruler hidden on frame 1 and visible on the placed frame', async () => {
+  it('reloads at the persisted frame with the ruler visible and hides it on frame 1', async () => {
     await openUrls([CINE_US_DATASET]);
     await $('.play-controls').waitForDisplayed();
     await waitForFrame(1);
@@ -55,13 +56,14 @@ describe('Cine ruler survives save/reload at its placed frame', () => {
     await volViewPage.open(`?urls=[tmp/${sessionFileName}]`);
     await volViewPage.waitForViews();
     await $('.play-controls').waitForDisplayed({ timeout: 30000 });
-    await waitForFrame(1);
+    // The cine frame is persisted, so reload restores the cursor to
+    // placementFrame rather than frame 1.
+    await waitForFrame(placementFrame);
 
     // Wait for the deserialized ruler to surface in the Measurements list
-    // before asserting it's hidden on the canvas. Without this anchor a
-    // regression that loses `frame` (ruler tagged frame 1 instead) could
-    // race the assertion and pass for the wrong reason; the list entry
-    // proves deserialization has completed.
+    // before asserting visibility on the canvas. The list entry proves
+    // deserialization has completed, so the subsequent canvas checks
+    // can't race the load.
     const annotationsTab = await $(
       'button[data-testid="module-tab-Annotations"]'
     );
@@ -77,18 +79,21 @@ describe('Cine ruler survives save/reload at its placed frame', () => {
       }
     );
 
-    // On reload the cursor lives at frame 1 (playback frame is not
-    // persisted). The ruler must be hidden here — if `frame` was lost
-    // during serialize/deserialize, it would render at frame 1 instead.
-    expect(await countCineRulerLines()).toBe(0);
-
-    // Scrub forward to the placement frame and the ruler should reappear.
-    await volViewPage.focusFirst2DView();
-    while ((await getCineFrame())! < placementFrame) {
-      await advanceCineFrame();
-    }
+    // The ruler must be visible at the persisted placement frame — if
+    // `frame` was lost during serialize/deserialize, it would still
+    // render here, so we also need to verify it hides elsewhere.
     await browser.waitUntil(async () => (await countCineRulerLines()) >= 1, {
-      timeoutMsg: `Expected the ruler to reappear at the placement frame (${placementFrame}) after reload`,
+      timeoutMsg: `Expected the ruler to be visible at the persisted placement frame (${placementFrame}) after reload`,
+    });
+
+    // Scrub back to frame 1 — the ruler must hide there. A regression
+    // that dropped `frame` would leave it visible on every frame.
+    await volViewPage.focusFirst2DView();
+    while ((await getCineFrame())! > 1) {
+      await retreatCineFrame();
+    }
+    await browser.waitUntil(async () => (await countCineRulerLines()) === 0, {
+      timeoutMsg: 'Expected the ruler to hide on frame 1 after reload',
     });
   });
 });

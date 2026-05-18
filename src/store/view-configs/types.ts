@@ -55,3 +55,7 @@ export interface SegmentGroupConfig {
   outlineOpacity: number;
   outlineThickness: number;
 }
+
+export interface CinePlaybackViewConfig {
+  frame: number;
+}
