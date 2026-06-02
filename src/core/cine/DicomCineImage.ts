@@ -35,6 +35,12 @@ function pickPixelSpacing(header: CineHeader): [number, number] {
     if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) continue;
     return [Math.abs(dx) * sx, Math.abs(dy) * sy];
   }
+
+  if (header.pixelSpacing) {
+    const [rowSpacing, columnSpacing] = header.pixelSpacing;
+    return [columnSpacing, rowSpacing];
+  }
+
   return [1, 1];
 }
 

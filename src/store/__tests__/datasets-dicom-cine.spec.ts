@@ -119,6 +119,7 @@ function cineHeader(overrides: Partial<CineHeader> = {}): CineHeader {
     bitsAllocated: 8,
     planarConfiguration: 0,
     photometricInterpretation: 'MONOCHROME1',
+    pixelSpacing: null,
     frameTimeMs: null,
     patient: {
       PatientID: 'patient-1',
