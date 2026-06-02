@@ -18,6 +18,7 @@ function cineHeader(overrides: Partial<CineHeader> = {}): CineHeader {
     bitsAllocated: 8,
     planarConfiguration: 0,
     photometricInterpretation: 'MONOCHROME2',
+    pixelSpacing: null,
     frameTimeMs: null,
     patient: {
       PatientID: 'patient-1',
@@ -136,6 +137,7 @@ describe('DicomCineImage spacing', () => {
     const image = new DicomCineImage(
       parseResult(
         cineHeader({
+          pixelSpacing: [1.8, 0.45],
           regions: [
             {
               physicalDeltaX: 10,
@@ -156,6 +158,22 @@ describe('DicomCineImage spacing', () => {
 
     expect(Array.from(image.getVtkImageData().getSpacing())).toEqual([
       0.5, 1.25, 1,
+    ]);
+
+    image.dispose();
+  });
+
+  it('falls back to DICOM PixelSpacing in VTK axis order when no spatial ultrasound region is available', () => {
+    const image = new DicomCineImage(
+      parseResult(
+        cineHeader({
+          pixelSpacing: [1.8, 0.45],
+        })
+      )
+    );
+
+    expect(Array.from(image.getVtkImageData().getSpacing())).toEqual([
+      0.45, 1.8, 1,
     ]);
 
     image.dispose();

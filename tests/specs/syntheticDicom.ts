@@ -5,6 +5,7 @@
 // PixelSpacing, SliceThickness, image geometry, and zeroed PixelData.
 
 const SOP_CLASS_MR = '1.2.840.10008.5.1.4.1.1.4';
+const SOP_CLASS_ULTRASOUND_MULTIFRAME = '1.2.840.10008.5.1.4.1.1.3.1';
 const TS_EXPLICIT_VR_LE = '1.2.840.10008.1.2.1';
 
 const enc = new TextEncoder();
@@ -181,6 +182,82 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
   const fileMetaBody = combine(
     elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
     ui(0x0002, 0x0002, SOP_CLASS_MR),
+    ui(0x0002, 0x0003, sopUid),
+    ui(0x0002, 0x0010, TS_EXPLICIT_VR_LE)
+  );
+  const fileMeta = combine(
+    elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
+    fileMetaBody
+  );
+
+  return combine(new Uint8Array(128), enc.encode('DICM'), fileMeta, dataset);
+}
+
+export type SyntheticCineOptions = {
+  studyUid: string;
+  seriesUid: string;
+  sopUid: string;
+  numberOfFrames?: number;
+  rows?: number;
+  cols?: number;
+  pixelSpacing?: readonly [number, number];
+  patientName?: string;
+  patientId?: string;
+  seriesNumber?: number;
+  studyDate?: string;
+};
+
+export function buildSyntheticCineDicom(
+  opts: SyntheticCineOptions
+): Uint8Array {
+  const {
+    studyUid,
+    seriesUid,
+    sopUid,
+    numberOfFrames = 3,
+    rows = 4,
+    cols = 5,
+    pixelSpacing = [1, 1] as const,
+    patientName = 'TEST',
+    patientId = 'TEST001',
+    seriesNumber = 1,
+    studyDate = '20260101',
+  } = opts;
+
+  const pixelData = new Uint8Array(numberOfFrames * rows * cols);
+  for (let i = 0; i < pixelData.length; i++) pixelData[i] = i % 251;
+
+  const dataset = combine(
+    ui(0x0008, 0x0016, SOP_CLASS_ULTRASOUND_MULTIFRAME),
+    ui(0x0008, 0x0018, sopUid),
+    da(0x0008, 0x0020, studyDate),
+    da(0x0008, 0x0021, studyDate),
+    cs(0x0008, 0x0060, 'US'),
+    pn(0x0010, 0x0010, patientName),
+    lo(0x0010, 0x0020, patientId),
+    da(0x0010, 0x0030, '19700101'),
+    cs(0x0010, 0x0040, 'O'),
+    ui(0x0020, 0x000d, studyUid),
+    ui(0x0020, 0x000e, seriesUid),
+    sh(0x0020, 0x0010, '1'),
+    is(0x0020, 0x0011, String(seriesNumber)),
+    lo(0x0008, 0x103e, 'Synthetic cine'),
+    us(0x0028, 0x0002, 1),
+    cs(0x0028, 0x0004, 'MONOCHROME2'),
+    is(0x0028, 0x0008, String(numberOfFrames)),
+    us(0x0028, 0x0010, rows),
+    us(0x0028, 0x0011, cols),
+    ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\')),
+    us(0x0028, 0x0100, 8),
+    us(0x0028, 0x0101, 8),
+    us(0x0028, 0x0102, 7),
+    us(0x0028, 0x0103, 0),
+    elemLong(0x7fe0, 0x0010, 'OB', pixelData)
+  );
+
+  const fileMetaBody = combine(
+    elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
+    ui(0x0002, 0x0002, SOP_CLASS_ULTRASOUND_MULTIFRAME),
     ui(0x0002, 0x0003, sopUid),
     ui(0x0002, 0x0010, TS_EXPLICIT_VR_LE)
   );

@@ -22,6 +22,7 @@ const TAG_SERIES_DESCRIPTION = 'x0008103e';
 const TAG_NUMBER_OF_FRAMES = 'x00280008';
 const TAG_ROWS = 'x00280010';
 const TAG_COLUMNS = 'x00280011';
+const TAG_PIXEL_SPACING = 'x00280030';
 const TAG_BITS_ALLOCATED = 'x00280100';
 const TAG_SAMPLES_PER_PIXEL = 'x00280002';
 const TAG_PHOTOMETRIC = 'x00280004';
@@ -79,6 +80,7 @@ export type CineHeader = {
   bitsAllocated: number;
   planarConfiguration: number;
   photometricInterpretation: string;
+  pixelSpacing: [number, number] | null;
   frameTimeMs: number | null;
   patient: CinePatientInfo;
   study: CineStudyInfo;
@@ -114,6 +116,20 @@ const readDouble = (ds: DataSet, tag: string): number | null => {
 const readDecimalString = (ds: DataSet, tag: string): number | null => {
   const v = ds.floatString(tag);
   return v !== undefined && Number.isFinite(v) ? v : null;
+};
+
+const isPositiveFinite = (v: number | undefined): v is number =>
+  v !== undefined && Number.isFinite(v) && v > 0;
+
+const readPositiveDecimalPair = (
+  ds: DataSet,
+  tag: string
+): [number, number] | null => {
+  const first = ds.floatString(tag, 0);
+  const second = ds.floatString(tag, 1);
+  return isPositiveFinite(first) && isPositiveFinite(second)
+    ? [first, second]
+    : null;
 };
 
 function buildRegion(item: DataSet): CineUltrasoundRegion {
@@ -223,6 +239,7 @@ export function parseCineDicom(
     bitsAllocated,
     planarConfiguration,
     photometricInterpretation: str(ds, TAG_PHOTOMETRIC),
+    pixelSpacing: readPositiveDecimalPair(ds, TAG_PIXEL_SPACING),
     frameTimeMs: readDecimalString(ds, TAG_FRAME_TIME),
     patient: {
       PatientID: str(ds, TAG_PATIENT_ID),

@@ -104,6 +104,7 @@ const COMMON_TAGS = (
     samplesPerPixel?: number;
     photometricInterpretation?: string;
     planarConfiguration?: number;
+    pixelSpacing?: readonly [number, number];
   } = {}
 ) => {
   const samplesPerPixel = options.samplesPerPixel ?? 1;
@@ -131,6 +132,16 @@ const COMMON_TAGS = (
     elementShort(0x0028, 0x0008, 'IS', ascii(String(numberOfFrames))),
     elementShort(0x0028, 0x0010, 'US', u16Bytes(rows)),
     elementShort(0x0028, 0x0011, 'US', u16Bytes(cols)),
+    ...(options.pixelSpacing == null
+      ? []
+      : [
+          elementShort(
+            0x0028,
+            0x0030,
+            'DS',
+            ascii(options.pixelSpacing.map((n) => String(n)).join('\\'))
+          ),
+        ]),
     elementShort(0x0028, 0x0100, 'US', u16Bytes(8)),
     elementShort(0x0028, 0x0101, 'US', u16Bytes(8)),
   ]);
@@ -144,6 +155,7 @@ function buildNativeDicom(opts: {
   samplesPerPixel?: number;
   photometricInterpretation?: string;
   planarConfiguration?: number;
+  pixelSpacing?: readonly [number, number];
 }): Uint8Array {
   const {
     numberOfFrames,
@@ -250,9 +262,22 @@ describe('parseCineDicom on synthetic fixtures', () => {
     expect(header.cols).toBe(3);
     expect(header.transferSyntaxUID).toBe(TS_EXPLICIT_VR_LE);
     expect(header.photometricInterpretation).toBe('MONOCHROME2');
+    expect(header.pixelSpacing).toBeNull();
     expect(frames.length).toBe(5);
     expect(frames[0].byteLength).toBe(4 * 3);
     expect(frames[0][0]).toBe(0x7f);
+  });
+
+  it('parses PixelSpacing row and column values', () => {
+    const bytes = buildNativeDicom({
+      numberOfFrames: 2,
+      rows: 4,
+      cols: 3,
+      pixelSpacing: [1.8, 0.45],
+    });
+    const { header } = parseCineDicom(bytes);
+
+    expect(header.pixelSpacing).toEqual([1.8, 0.45]);
   });
 
   it('parses native RGB planar-configuration metadata', () => {
