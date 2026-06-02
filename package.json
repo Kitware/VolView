@@ -2,6 +2,7 @@
   "name": "volview",
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@10.9.8",
   "repository": "https://github.com/Kitware/VolView",
   "files": [
     "dist",
