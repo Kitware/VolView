@@ -29,6 +29,7 @@ const tags: Tag[] = [
   { name: 'ImagePositionPatient', tag: '0020|0032' },
   { name: 'ImageOrientationPatient', tag: '0020|0037' },
   { name: 'PixelSpacing', tag: '0028|0030' },
+  { name: 'SpacingBetweenSlices', tag: '0018|0088' },
   { name: 'SamplesPerPixel', tag: '0028|0002' },
   { name: 'RescaleIntercept', tag: '0028|1052' },
   { name: 'RescaleSlope', tag: '0028|1053' },

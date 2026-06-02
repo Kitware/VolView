@@ -9,6 +9,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 const ImagePositionPatientTag = NAME_TO_TAG.get('ImagePositionPatient')!;
 const ImageOrientationPatientTag = NAME_TO_TAG.get('ImageOrientationPatient')!;
 const PixelSpacingTag = NAME_TO_TAG.get('PixelSpacing')!;
+const SpacingBetweenSlicesTag = NAME_TO_TAG.get('SpacingBetweenSlices')!;
 const RowsTag = NAME_TO_TAG.get('Rows')!;
 const ColumnsTag = NAME_TO_TAG.get('Columns')!;
 const BitsStoredTag = NAME_TO_TAG.get('BitsStored')!;
@@ -21,6 +22,10 @@ const NumberOfFrames = NAME_TO_TAG.get('NumberOfFrames')!;
 function toVec(s: Maybe<string>): number[] | null {
   if (!s?.length) return null;
   return s.split('\\').map((a) => Number(a)) as number[];
+}
+
+function isPositiveFiniteNumber(value: number) {
+  return Number.isFinite(value) && value > 0;
 }
 
 function getBitStorageSize(num: number, signed: boolean) {
@@ -78,6 +83,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   const imagePositionPatient = toVec(meta.get(ImagePositionPatientTag));
   const imageOrientationPatient = toVec(meta.get(ImageOrientationPatientTag));
   const pixelSpacing = toVec(meta.get(PixelSpacingTag));
+  const spacingBetweenSlices = Number(meta.get(SpacingBetweenSlicesTag));
   const rows = Number(meta.get(RowsTag) ?? 0);
   const columns = Number(meta.get(ColumnsTag) ?? 0);
   const bitsStored = Number(meta.get(BitsStoredTag) ?? 0);
@@ -120,20 +126,30 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
     image.setOrigin(imagePositionPatient as Vector3);
   }
 
-  image.setSpacing([1, 1, 1]);
-  if (slices > 1 && imagePositionPatient && pixelSpacing) {
+  const spacing: Vector3 = [1, 1, 1];
+  if (
+    pixelSpacing &&
+    pixelSpacing.length >= 2 &&
+    isPositiveFiniteNumber(pixelSpacing[0]) &&
+    isPositiveFiniteNumber(pixelSpacing[1])
+  ) {
+    spacing[0] = pixelSpacing[1];
+    spacing[1] = pixelSpacing[0];
+  }
+
+  if (imagePositionPatient && sortedChunks.length > 1) {
     const lastMeta = new Map(sortedChunks[sortedChunks.length - 1].metadata);
     const lastIPP = toVec(lastMeta.get(ImagePositionPatientTag));
     if (lastIPP) {
       // assumption: uniform Z spacing
       const zVec = vec3.create();
-      const firstIPP = imagePositionPatient;
-      vec3.sub(zVec, lastIPP as vec3, firstIPP as vec3);
-      const zSpacing = vec3.len(zVec) / (slices - 1) || 1;
-      const spacing = [...pixelSpacing, zSpacing];
-      image.setSpacing(spacing);
+      vec3.sub(zVec, lastIPP as vec3, imagePositionPatient as vec3);
+      spacing[2] = vec3.len(zVec) / (slices - 1) || 1;
     }
+  } else if (slices === 1 && isPositiveFiniteNumber(spacingBetweenSlices)) {
+    spacing[2] = spacingBetweenSlices;
   }
+  image.setSpacing(spacing);
 
   if (imageOrientationPatient) {
     const zDir = vec3.create() as Vector3;
