@@ -1,14 +1,20 @@
 import { config as sharedConfig, TEMP_DIR } from './wdio.shared.conf';
 
+const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
+
 // Chrome arguments for CI environments
 const chromeArgs: string[] = [];
-if (process.env.CI || process.env.GITHUB_ACTIONS) {
+if (IS_CI) {
   chromeArgs.push(
     '--no-sandbox',
     '--disable-dev-shm-usage',
     '--disable-infobars',
     '--enable-unsafe-swiftshader'
   );
+}
+
+if (!IS_CI && !process.env.HEADED) {
+  chromeArgs.push('--headless=new', '--enable-unsafe-swiftshader');
 }
 
 export const config = {
