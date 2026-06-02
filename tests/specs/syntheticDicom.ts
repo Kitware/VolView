@@ -108,6 +108,7 @@ export type SyntheticSliceOptions = {
   rows?: number;
   cols?: number;
   pixelSpacing?: readonly [number, number];
+  spacingBetweenSlices?: number;
   sliceThickness?: number;
   modality?: string;
   patientName?: string;
@@ -127,6 +128,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     rows = 4,
     cols = 4,
     pixelSpacing = [1, 1] as const,
+    spacingBetweenSlices,
     sliceThickness = 1,
     modality = 'MR',
     patientName = 'TEST',
@@ -146,6 +148,9 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     da(0x0010, 0x0030, '19700101'),
     cs(0x0010, 0x0040, 'O'),
     ds(0x0018, 0x0050, String(sliceThickness)),
+    ...(spacingBetweenSlices == null
+      ? []
+      : [ds(0x0018, 0x0088, String(spacingBetweenSlices))]),
     ui(0x0020, 0x000d, studyUid),
     ui(0x0020, 0x000e, seriesUid),
     sh(0x0020, 0x0010, '1'),
