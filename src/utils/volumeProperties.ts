@@ -82,6 +82,7 @@ export function setCinematicLighting({
 export interface SetCinematicVolumeSamplingParameters {
   enabled: boolean;
   mapper: vtkVolumeMapper;
+  property: vtkVolumeProperty;
   quality: number;
   image: vtkImageData;
 }
@@ -89,6 +90,7 @@ export interface SetCinematicVolumeSamplingParameters {
 export function setCinematicVolumeSampling({
   enabled,
   mapper,
+  property,
   quality,
   image,
 }: SetCinematicVolumeSamplingParameters) {
@@ -103,8 +105,8 @@ export function setCinematicVolumeSampling({
   mapper.setMaximumSamplesPerRay(samplesPerRay);
   mapper.setSampleDistance(sampleDistance);
   // Adjust the global illumination reach by volume quality slider
-  mapper.setGlobalIlluminationReach(enabled ? 0.25 * quality : 0);
-  mapper.setComputeNormalFromOpacity(!enabled && quality > 2);
+  property.setGlobalIlluminationReach(enabled ? 0.25 * quality : 0);
+  property.setComputeNormalFromOpacity(!enabled && quality > 2);
 }
 
 export interface SetCinematicVolumeShadingParameters {
@@ -151,38 +153,38 @@ export function setCinematicVolumeShading({
 
 export interface SetCinematicVolumeScatterParameters {
   enabled: boolean;
-  mapper: vtkVolumeMapper;
+  property: vtkVolumeProperty;
   blending: number;
 }
 
 export function setCinematicVolumeScatter({
   enabled,
-  mapper,
+  property,
   blending,
 }: SetCinematicVolumeScatterParameters) {
-  mapper.setVolumetricScatteringBlending(enabled ? blending : 0);
+  property.setVolumetricScatteringBlending(enabled ? blending : 0);
 }
 
 export interface SetCinematicLocalAmbientOcclusionParameters {
   enabled: boolean;
-  mapper: vtkVolumeMapper;
+  property: vtkVolumeProperty;
   kernelSize: number;
   kernelRadius: number;
 }
 
 export function setCinematicLocalAmbientOcclusion({
   enabled,
-  mapper,
+  property,
   kernelSize,
   kernelRadius,
 }: SetCinematicLocalAmbientOcclusionParameters) {
   if (enabled) {
-    mapper.setLocalAmbientOcclusion(true);
-    mapper.setLAOKernelSize(kernelSize);
-    mapper.setLAOKernelRadius(kernelRadius);
+    property.setLocalAmbientOcclusion(true);
+    property.setLAOKernelSize(kernelSize);
+    property.setLAOKernelRadius(kernelRadius);
   } else {
-    mapper.setLocalAmbientOcclusion(false);
-    mapper.setLAOKernelSize(0);
-    mapper.setLAOKernelRadius(0);
+    property.setLocalAmbientOcclusion(false);
+    property.setLAOKernelSize(0);
+    property.setLAOKernelRadius(0);
   }
 }
