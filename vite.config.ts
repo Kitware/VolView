@@ -131,7 +131,7 @@ export default defineConfig({
         if (id.includes('@kitware/vtk.js')) {
           if (id.includes('ColorMaps.json.js')) {
             // We don't use the built-in colormaps
-            return 'export const v = []';
+            return 'export default [];';
           }
 
           // We don't use these classes
