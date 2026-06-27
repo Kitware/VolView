@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { FIXTURES, WINDOW_SIZE } from '../../wdio.shared.conf';
+import { FIXTURES, applyTestViewport } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { openVolViewPage, writeManifestToZip } from './utils';
 
@@ -16,7 +16,7 @@ describe('State file manifest.json code', () => {
 
   it('loads 5.0.1 manifest with axial layer layout', async () => {
     await browser.reloadSession();
-    await browser.setWindowSize(...WINDOW_SIZE);
+    await applyTestViewport(browser);
     const manifestPath = path.join(FIXTURES, 'layer-axial.5-0-1.volview.json');
     const fileName = 'temp-layer-axial.volview.zip';
     await writeManifestToZip(manifestPath, fileName);

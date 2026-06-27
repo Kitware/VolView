@@ -30,7 +30,14 @@ const TEST_DATASETS = [
   },
 ];
 
-export const WINDOW_SIZE = [1200, 800] as const;
+// Fixed capture viewport (Playwright's default).
+export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
+
+// Pin the content viewport so capture geometry is stable across Chrome versions
+// and OSes (independent of the OS window). Enables one shared baseline.
+export const applyTestViewport = (browser: any) =>
+  browser.setViewport({ ...CONTENT_VIEWPORT, devicePixelRatio: 1 });
+
 export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
@@ -89,8 +96,8 @@ export const config: Options.Testrunner = {
       'visual',
       {
         baselineFolder: path.resolve(ROOT, 'tests/baseline/'),
-        formatImageName:
-          '{tag}-{browserName}-{platformName}-{width}x{height}-{dpr}',
+        // Pinned geometry, so no {platformName}/{width}x{height}; one shared baseline.
+        formatImageName: '{tag}-{browserName}-{dpr}',
         screenshotPath: TEMP_DIR,
         autoSaveBaseline: true,
       },
@@ -161,7 +168,7 @@ export const config: Options.Testrunner = {
     _specs: string[],
     browser: any
   ) {
-    await browser.setWindowSize(...WINDOW_SIZE);
+    await applyTestViewport(browser);
 
     // Subscribe to browser console logs and output them directly
     await browser.sessionSubscribe({ events: ['log.entryAdded'] });
