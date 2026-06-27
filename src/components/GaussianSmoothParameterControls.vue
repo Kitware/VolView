@@ -46,6 +46,6 @@ const gaussianSmoothStore = useGaussianSmoothStore();
 const processStore = usePaintProcessStore();
 
 const sigma = computed(() => gaussianSmoothStore.sigma);
-const isDisabled = computed(() => processStore.processStep === 'previewing');
+const isDisabled = computed(() => processStore.processStep !== 'start');
 const { setSigma } = gaussianSmoothStore;
 </script>

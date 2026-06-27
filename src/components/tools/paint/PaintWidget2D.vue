@@ -24,7 +24,6 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
-import { PaintMode } from '@/src/core/tools/paint';
 import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
 
 export default defineComponent({
@@ -169,7 +168,7 @@ export default defineComponent({
     });
 
     watchEffect(() => {
-      widget.setEnabled(paintStore.activeMode !== PaintMode.Process);
+      widget.setEnabled(paintStore.isPaintingModeActive);
     });
 
     // Brush size scroll wheel control with customizable modifier key

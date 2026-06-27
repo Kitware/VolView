@@ -4,10 +4,12 @@
       v-model="activeProcessType"
       mandatory
       selected-class="selected"
-      class="d-flex align-center justify-center"
+      class="d-flex align-center justify-center flex-wrap"
     >
       <v-item
-        :value="ProcessType.FillBetween"
+        v-for="definition in PROCESS_DEFINITIONS"
+        :key="definition.type"
+        :value="definition.type"
         v-slot="{ selectedClass, toggle }"
       >
         <v-btn
@@ -17,23 +19,8 @@
           :class="['process-button', 'mx-2', selectedClass]"
           @click.stop="toggle"
         >
-          <v-icon>mdi-layers-triple</v-icon>
-          <span class="text-caption">Fill Between</span>
-        </v-btn>
-      </v-item>
-      <v-item
-        :value="ProcessType.GaussianSmooth"
-        v-slot="{ selectedClass, toggle }"
-      >
-        <v-btn
-          variant="tonal"
-          rounded="8"
-          stacked
-          :class="['process-button', 'mx-2', selectedClass]"
-          @click.stop="toggle"
-        >
-          <v-icon>mdi-blur</v-icon>
-          <span class="text-caption">Smooth</span>
+          <v-icon>{{ definition.icon }}</v-icon>
+          <span class="text-caption">{{ definition.label }}</span>
         </v-btn>
       </v-item>
     </v-item-group>
@@ -42,10 +29,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import {
-  ProcessType,
-  usePaintProcessStore,
-} from '@/src/store/tools/paintProcess';
+import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
+import { PROCESS_DEFINITIONS } from './processes';
 
 const processStore = usePaintProcessStore();
 
