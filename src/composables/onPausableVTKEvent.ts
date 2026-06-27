@@ -24,11 +24,12 @@ export function onPausableVTKEvent<T extends vtkObject, K extends keyof T>(
   };
 
   const withPaused = (fn: () => void) => {
+    const wasPaused = paused;
     pause();
     try {
       fn();
     } finally {
-      resume();
+      paused = wasPaused;
     }
   };
 
