@@ -114,6 +114,87 @@ class VolViewPage extends Page {
     await button.click();
   }
 
+  // Paint "Process" mode and the Fill Holes process workflow.
+  get processModeButton() {
+    return $('button*=Process');
+  }
+
+  get fillHolesProcessButton() {
+    return $('button*=Fill Holes');
+  }
+
+  get fillHolesWholeVolumeButton() {
+    return $('button*=All slices');
+  }
+
+  get fillHolesSelectedSegmentButton() {
+    return $('button*=Selected segment');
+  }
+
+  get processPreviewButton() {
+    return $('button*=Preview');
+  }
+
+  get processApplyButton() {
+    return $('button*=Apply');
+  }
+
+  get processOriginalButton() {
+    return $('button*=Original');
+  }
+
+  get processProcessedButton() {
+    return $('button*=Processed');
+  }
+
+  // The selected button in a Vuetify v-btn-toggle carries v-btn--active.
+  async isPreviewToggleActive(button: ChainablePromiseElement) {
+    const classes = await button.getAttribute('class');
+    return (classes ?? '').includes('v-btn--active');
+  }
+
+  async paintStrokeOnView(view: ChainablePromiseElement) {
+    const canvas = await view.$('canvas');
+    const location = await canvas.getLocation();
+    const size = await canvas.getSize();
+    const centerX = Math.round(location.x + size.width / 2);
+    const centerY = Math.round(location.y + size.height / 2);
+
+    await browser
+      .action('pointer')
+      .move({ x: centerX, y: centerY })
+      .down()
+      .move({ x: centerX + 40, y: centerY })
+      .move({ x: centerX + 40, y: centerY + 40 })
+      .move({ x: centerX, y: centerY + 40 })
+      .move({ x: centerX, y: centerY })
+      .up()
+      .perform();
+  }
+
+  async runFillHoles() {
+    await this.processModeButton.waitForClickable();
+    await this.processModeButton.click();
+
+    const fillHoles = this.fillHolesProcessButton;
+    await fillHoles.waitForClickable();
+    await fillHoles.click();
+
+    const preview = this.processPreviewButton;
+    await preview.waitForClickable();
+    await preview.click();
+
+    // Reaching the "previewing" state (Apply appears) only happens after the
+    // algorithm runs successfully on the label map.
+    const apply = this.processApplyButton;
+    await apply.waitForDisplayed();
+    await apply.waitForClickable();
+    await apply.click();
+
+    // Applying returns the workflow to its start state (Preview reappears).
+    await this.processPreviewButton.waitForDisplayed();
+  }
+
   get viewTwoContainer() {
     return $('div[data-testid~="two-view-container"]');
   }

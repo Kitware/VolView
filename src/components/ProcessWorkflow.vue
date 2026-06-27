@@ -16,17 +16,16 @@
       <v-btn-toggle
         v-if="processStep === 'previewing'"
         :model-value="showingOriginal ? 0 : 1"
-        @update:model-value="handleToggleChange"
         mandatory
         variant="outlined"
         divided
         density="compact"
       >
-        <v-btn :value="0" size="small">
+        <v-btn :value="0" size="small" @click="processStore.togglePreview()">
           <v-icon start size="small">mdi-eye-outline</v-icon>
           Original
         </v-btn>
-        <v-btn :value="1" size="small">
+        <v-btn :value="1" size="small" @click="processStore.togglePreview()">
           <v-icon start size="small">mdi-eye-settings</v-icon>
           Processed
         </v-btn>
@@ -60,9 +59,12 @@ import {
 
 interface Props {
   algorithm: ProcessAlgorithm;
+  requiresActiveSegment?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  requiresActiveSegment: true,
+});
 
 const processStore = usePaintProcessStore();
 const paintStore = usePaintToolStore();
@@ -73,14 +75,9 @@ const showingOriginal = computed(() => processStore.showingOriginal);
 function startCompute() {
   const id = paintStore.activeSegmentGroupID;
   if (!id) return;
-  processStore.startProcess(id, props.algorithm);
-}
-
-function handleToggleChange(value: number) {
-  const shouldShowOriginal = value === 0;
-  if (shouldShowOriginal !== showingOriginal.value) {
-    processStore.togglePreview();
-  }
+  processStore.startProcess(id, props.algorithm, {
+    requiresActiveSegment: props.requiresActiveSegment,
+  });
 }
 
 function handleCancel() {

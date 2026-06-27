@@ -2,7 +2,7 @@
   <v-container>
     <v-row no-gutters align="center" justify="center" class="mb-4">
       <v-item-group
-        v-model="mode"
+        v-model="controlsMode"
         mandatory
         selected-class="selected"
         class="d-flex align-center justify-center"
@@ -48,7 +48,12 @@
         </v-item>
       </v-item-group>
     </v-row>
-    <template v-if="mode === PaintMode.CirclePaint || mode === PaintMode.Erase">
+    <template
+      v-if="
+        controlsMode === PaintMode.CirclePaint ||
+        controlsMode === PaintMode.Erase
+      "
+    >
       <v-row no-gutters align="center" class="mb-2">
         <span class="mr-2">Sync Views</span>
         <v-switch
@@ -126,7 +131,7 @@
         </v-range-slider>
       </v-row>
     </template>
-    <template v-if="mode === PaintMode.Process">
+    <template v-if="controlsMode === PaintMode.Process">
       <v-row no-gutters align="center">
         <ProcessControls />
       </v-row>
@@ -145,7 +150,7 @@ import { useImageStatsStore } from '@/src/store/image-stats';
 
 const paintStore = usePaintToolStore();
 const imageStatsStore = useImageStatsStore();
-const { brushSize, activeMode, thresholdRange, crossPlaneSync } =
+const { brushSize, activeControlsMode, thresholdRange, crossPlaneSync } =
   storeToRefs(paintStore);
 const { currentImageID } = useCurrentImage();
 
@@ -177,10 +182,10 @@ const setBrushSize = (size: number) => {
   paintStore.setBrushSize(Number(size));
 };
 
-const mode = computed({
-  get: () => activeMode.value,
+const controlsMode = computed({
+  get: () => activeControlsMode.value,
   set: (m) => {
-    paintStore.setMode(m);
+    paintStore.setControlsMode(m);
   },
 });
 </script>

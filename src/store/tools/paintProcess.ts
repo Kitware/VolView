@@ -1,7 +1,6 @@
 import { defineStore, storeToRefs } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
-import { whenever } from '@vueuse/core';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { PaintMode } from '@/src/core/tools/paint';
@@ -10,6 +9,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useSegmentGroupStore } from '../segmentGroups';
 
 export enum ProcessType {
+  FillHoles = 'fillHoles',
   FillBetween = 'fillBetween',
   GaussianSmooth = 'gaussianSmooth',
 }
@@ -21,12 +21,14 @@ type StartState = {
 type ComputingState = {
   step: 'computing';
   activeParentImageID: string | null;
+  activeSegmentGroupID: string;
   processType: ProcessType;
 };
 
 type PreviewingState = {
   step: 'previewing';
   activeParentImageID: string | null;
+  activeSegmentGroupID: string;
   processType: ProcessType;
   segImage: vtkLabelMap;
   originalScalars: TypedArray | number[];
@@ -43,7 +45,8 @@ export type ProcessAlgorithm = (
 
 export const usePaintProcessStore = defineStore('paintProcess', () => {
   const processState = ref<ProcessState>({ step: 'start' });
-  const activeProcessType = ref<ProcessType>(ProcessType.FillBetween);
+  const activeProcessType = ref<ProcessType>(ProcessType.FillHoles);
+  let activeProcessRunId = 0;
 
   const processStep = computed(() => processState.value.step);
 
@@ -57,7 +60,19 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   function confirmProcess() {
+    const state = processState.value;
+    // Apply commits the processed result. When the user is viewing the
+    // original, the image currently holds originalScalars, so restore the
+    // processed scalars before finishing or the result is silently discarded.
+    if (state.step === 'previewing' && state.showingOriginal) {
+      state.segImage
+        .getPointData()
+        .getScalars()
+        .setData(state.processedScalars);
+      state.segImage.modified();
+    }
     resetState();
+    paintStore.restoreModeAfterProcess();
   }
 
   const segmentGroupStore = useSegmentGroupStore();
@@ -81,6 +96,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       rollbackPreview(state.segImage, state.originalScalars);
     }
     resetState();
+    paintStore.restoreModeAfterProcess();
   }
 
   function setActiveProcessType(processType: ProcessType) {
@@ -89,23 +105,35 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     activeProcessType.value = processType;
   }
 
-  async function startProcess(groupId: string, algorithm: ProcessAlgorithm) {
-    if (!paintStore.activeSegment) {
-      messageStore.addError('No active segment selected');
-      return;
-    }
+  async function startProcess(
+    groupId: string,
+    algorithm: ProcessAlgorithm,
+    options?: { requiresActiveSegment?: boolean }
+  ) {
+    const activeSegment = paintStore.activeSegment;
+    // Most processes operate on the active segment; all-segments processes opt
+    // out so they are not blocked by (or limited to) a single active segment.
+    const requiresActiveSegment = options?.requiresActiveSegment ?? true;
 
-    // Check if the active segment is locked
-    const segment = segmentGroupStore.getSegment(
-      groupId,
-      paintStore.activeSegment
-    );
-    if (segment?.locked) {
-      messageStore.addError('Cannot process locked segment');
-      return;
+    if (requiresActiveSegment) {
+      if (!activeSegment) {
+        messageStore.addError('No active segment selected');
+        return;
+      }
+
+      // Check if the active segment is locked
+      const segment = segmentGroupStore.getSegment(groupId, activeSegment);
+      if (segment?.locked) {
+        messageStore.addError('Cannot process locked segment');
+        return;
+      }
     }
 
     const segImage = segmentGroupStore.dataIndex[groupId];
+    const activeParentImageID =
+      segmentGroupStore.metadataByID[groupId].parentImage;
+    const processType = activeProcessType.value;
+    const processRunId = ++activeProcessRunId;
 
     const originalScalars = segImage
       .getPointData()
@@ -113,18 +141,23 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       .getData()
       .slice();
 
+    paintStore.enterProcessMode();
     processState.value = {
       step: 'computing',
-      activeParentImageID: segmentGroupStore.metadataByID[groupId].parentImage,
-      processType: activeProcessType.value,
+      activeParentImageID,
+      activeSegmentGroupID: groupId,
+      processType,
     };
 
     try {
-      const outputScalars = await algorithm(segImage, paintStore.activeSegment);
+      const outputScalars = await algorithm(segImage, activeSegment ?? 0);
 
-      // If the state changed during the async operation, stop processing
-      if (processState.value.step !== 'computing') {
-        return; // cancelProcess handled the state change
+      // If the state changed during the async operation, stop processing.
+      if (
+        processRunId !== activeProcessRunId ||
+        processState.value.step !== 'computing'
+      ) {
+        return;
       }
 
       const scalars = segImage.getPointData().getScalars();
@@ -133,22 +166,28 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
       processState.value = {
         step: 'previewing',
-        activeParentImageID:
-          segmentGroupStore.metadataByID[groupId].parentImage,
-        processType: activeProcessType.value,
+        activeParentImageID,
+        activeSegmentGroupID: groupId,
+        processType,
         segImage,
         originalScalars,
         processedScalars: outputScalars,
         showingOriginal: false,
       };
     } catch (error) {
-      messageStore.addError(`${activeProcessType.value} Operation Failed`, {
+      if (
+        processRunId !== activeProcessRunId ||
+        processState.value.step !== 'computing'
+      ) {
+        return;
+      }
+
+      messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,
       });
-      if (processState.value.step === 'computing') {
-        rollbackPreview(segImage, originalScalars);
-        resetState();
-      }
+      rollbackPreview(segImage, originalScalars);
+      resetState();
+      paintStore.restoreModeAfterProcess();
     }
   }
 
@@ -171,16 +210,29 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
   }
 
-  // Cancel process when switching away from Process mode
-  whenever(
-    () => paintStore.activeMode !== PaintMode.Process,
-    () => {
+  watch(
+    () => paintStore.activeMode,
+    (mode, previousMode) => {
+      if (previousMode !== PaintMode.Process || mode === PaintMode.Process) {
+        return;
+      }
+      const state = processState.value;
+      if (state.step !== 'computing' && state.step !== 'previewing') {
+        return;
+      }
       cancelProcess();
     }
   );
 
   // Cancel process when active segment group changes
-  watch(activeSegmentGroupID, () => {
+  watch(activeSegmentGroupID, (groupId) => {
+    const state = processState.value;
+    if (state.step !== 'computing' && state.step !== 'previewing') {
+      return;
+    }
+    if (state.activeSegmentGroupID === groupId) {
+      return;
+    }
     cancelProcess();
   });
 
