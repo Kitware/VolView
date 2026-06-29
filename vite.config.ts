@@ -233,11 +233,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
     server: {
       deps: {
         inline: ['vuetify'],

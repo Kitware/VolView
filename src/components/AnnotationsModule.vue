@@ -54,10 +54,9 @@ watch(
 </script>
 
 <template>
-  <div class="overflow-y-auto mx-2 fill-height">
+  <div>
     <tool-controls />
-    <v-divider thickness="4" />
-    <v-tabs v-model="tab" align-tabs="center" density="compact" class="my-1">
+    <v-tabs v-model="tab" density="compact" grow class="annotation-tabs my-1">
       <v-tab value="segmentGroups" class="tab-header">Segment Groups</v-tab>
       <v-tab value="measurements" class="tab-header">Measurements</v-tab>
     </v-tabs>
@@ -73,6 +72,11 @@ watch(
 </template>
 
 <style scoped>
+.annotation-tabs :deep(.v-tab.v-tab) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .tab-header {
   font-size: 0.8rem;
 }

@@ -27,8 +27,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   type _This = ReturnType<typeof usePaintToolStore>;
 
   const activeMode = ref(PaintMode.CirclePaint);
-  const activeControlsMode = ref(PaintMode.CirclePaint);
   const modeBeforeProcess = ref(PaintMode.CirclePaint);
+  const processControlsOpen = ref(false);
   const activeSegmentGroupID = ref<Maybe<string>>(null);
   const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
@@ -57,6 +57,9 @@ export const usePaintToolStore = defineStore('paint', () => {
       activeMode.value === PaintMode.CirclePaint ||
       activeMode.value === PaintMode.Erase
   );
+  const activePaintMode = computed(() =>
+    isPaintingModeActive.value ? activeMode.value : modeBeforeProcess.value
+  );
 
   const currentViewIDs = computed(() => {
     const imageID = unref(currentImageID);
@@ -76,18 +79,16 @@ export const usePaintToolStore = defineStore('paint', () => {
    */
   function setMode(this: _This, mode: PaintMode) {
     activeMode.value = mode;
-    activeControlsMode.value = mode;
-    if (mode !== PaintMode.Process) {
+    if (mode === PaintMode.Process) {
+      processControlsOpen.value = true;
+    } else {
       modeBeforeProcess.value = mode;
     }
     this.$paint.setMode(mode);
   }
 
-  function setControlsMode(this: _This, mode: PaintMode) {
-    activeControlsMode.value = mode;
-    if (mode !== PaintMode.Process) {
-      setMode.call(this, mode);
-    }
+  function setProcessControlsOpen(open: boolean) {
+    processControlsOpen.value = open;
   }
 
   function enterProcessMode(this: _This) {
@@ -95,7 +96,7 @@ export const usePaintToolStore = defineStore('paint', () => {
       modeBeforeProcess.value = activeMode.value;
     }
     activeMode.value = PaintMode.Process;
-    activeControlsMode.value = PaintMode.Process;
+    processControlsOpen.value = true;
     this.$paint.setMode(PaintMode.Process);
   }
 
@@ -444,7 +445,8 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   return {
     activeMode,
-    activeControlsMode,
+    activePaintMode,
+    processControlsOpen,
     activeSegmentGroupID,
     activeSegment,
     brushSize,
@@ -460,7 +462,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     deactivateTool,
 
     setMode,
-    setControlsMode,
+    setProcessControlsOpen,
     enterProcessMode,
     restoreModeAfterProcess,
     setActiveSegmentGroup,

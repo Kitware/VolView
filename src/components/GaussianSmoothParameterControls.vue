@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex align-center">
+  <div class="d-flex align-start w-100">
     <mini-expansion-panel>
       <template #title>Gaussian smooth selected segment.</template>
       <ul>
@@ -17,7 +17,6 @@
 
   <div class="w-100 mb-4">
     <v-slider
-      class="mx-4"
       label="Smoothing Strength (σ)"
       :min="MIN_SIGMA"
       :max="MAX_SIGMA"

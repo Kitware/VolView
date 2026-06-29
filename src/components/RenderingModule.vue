@@ -58,7 +58,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="overflow-y-auto mx-2 mt-1 fill-height">
+  <div class="mx-2 mt-1">
     <template v-if="hasCurrentImage">
       <template v-if="canShow3DControls">
         <v-skeleton-loader v-if="isImageLoading" type="image">

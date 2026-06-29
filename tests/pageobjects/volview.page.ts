@@ -119,8 +119,12 @@ class VolViewPage extends Page {
     return $('button*=Process');
   }
 
-  get fillHolesProcessButton() {
-    return $('button*=Fill Holes');
+  get processTypeSelector() {
+    return $('[data-testid="process-type-selector"]');
+  }
+
+  get fillHolesProcessOption() {
+    return $('[data-testid="process-type-fillHoles"]');
   }
 
   get fillHolesWholeVolumeButton() {
@@ -176,9 +180,7 @@ class VolViewPage extends Page {
     await this.processModeButton.waitForClickable();
     await this.processModeButton.click();
 
-    const fillHoles = this.fillHolesProcessButton;
-    await fillHoles.waitForClickable();
-    await fillHoles.click();
+    await this.selectFillHolesProcess();
 
     const preview = this.processPreviewButton;
     await preview.waitForClickable();
@@ -193,6 +195,15 @@ class VolViewPage extends Page {
 
     // Applying returns the workflow to its start state (Preview reappears).
     await this.processPreviewButton.waitForDisplayed();
+  }
+
+  async selectFillHolesProcess() {
+    await this.processTypeSelector.waitForClickable();
+    await this.processTypeSelector.click();
+
+    const fillHoles = this.fillHolesProcessOption;
+    await fillHoles.waitForClickable();
+    await fillHoles.click();
   }
 
   get viewTwoContainer() {

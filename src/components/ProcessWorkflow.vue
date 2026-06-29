@@ -1,6 +1,14 @@
 <template>
-  <div class="d-flex flex-column align-center">
-    <v-row justify="center" no-gutters class="align-center ga-2">
+  <div class="d-flex flex-column align-start w-100">
+    <v-row
+      justify="start"
+      no-gutters
+      :class="[
+        'align-center',
+        'ga-2',
+        { 'mb-4': processStep === 'previewing' },
+      ]"
+    >
       <v-btn
         v-if="processStep === 'start' || processStep === 'computing'"
         variant="tonal"
@@ -8,7 +16,6 @@
         @click="startCompute"
         :loading="processStep === 'computing'"
         :disabled="processStep === 'computing'"
-        size="small"
       >
         Preview
       </v-btn>
@@ -21,12 +28,12 @@
         divided
         density="compact"
       >
-        <v-btn :value="0" size="small" @click="processStore.togglePreview()">
-          <v-icon start size="small">mdi-eye-outline</v-icon>
+        <v-btn :value="0" @click="processStore.togglePreview()">
+          <v-icon start>mdi-eye-outline</v-icon>
           Original
         </v-btn>
-        <v-btn :value="1" size="small" @click="processStore.togglePreview()">
-          <v-icon start size="small">mdi-eye-settings</v-icon>
+        <v-btn :value="1" @click="processStore.togglePreview()">
+          <v-icon start>mdi-eye-settings</v-icon>
           Processed
         </v-btn>
       </v-btn-toggle>
@@ -34,9 +41,9 @@
 
     <v-row
       v-if="processStep === 'previewing'"
-      justify="center"
+      justify="start"
       no-gutters
-      class="align-center ga-2 mt-2"
+      class="align-center ga-2"
     >
       <v-btn prepend-icon="mdi-close" variant="tonal" @click="handleCancel">
         Cancel

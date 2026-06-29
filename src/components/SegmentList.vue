@@ -167,99 +167,101 @@ const toggleLock = (value: number) => {
 </script>
 
 <template>
-  <div class="d-flex justify-space-evenly">
-    <v-btn @click.stop="toggleGlobalVisible" class="my-1">
-      Toggle Segments
-      <slot name="append">
-        <v-icon v-if="allVisible" class="pl-2">mdi-eye</v-icon>
-        <v-icon v-else class="pl-2">mdi-eye-off</v-icon>
+  <div class="px-3">
+    <div class="d-flex justify-start ga-4">
+      <v-btn @click.stop="toggleGlobalVisible" class="my-1">
+        <template #prepend>
+          <v-icon v-if="allVisible">mdi-eye</v-icon>
+          <v-icon v-else>mdi-eye-off</v-icon>
+        </template>
+        Toggle Segments
         <v-tooltip location="top" activator="parent">{{
           allVisible ? 'Hide' : 'Show'
         }}</v-tooltip>
-      </slot>
-    </v-btn>
+      </v-btn>
 
-    <v-btn @click.stop="toggleGlobalLocked" class="my-1">
-      Toggle Locks
-      <slot name="append">
-        <v-icon v-if="allLocked" class="pl-2" color="red">mdi-lock</v-icon>
-        <v-icon v-else class="pl-2">mdi-lock-open</v-icon>
+      <v-btn @click.stop="toggleGlobalLocked" class="my-1">
+        <template #prepend>
+          <v-icon v-if="allLocked" color="red">mdi-lock</v-icon>
+          <v-icon v-else>mdi-lock-open</v-icon>
+        </template>
+        Toggle Locks
         <v-tooltip location="top" activator="parent">{{
           allLocked ? 'Unlock All' : 'Lock All'
         }}</v-tooltip>
-      </slot>
-    </v-btn>
-  </div>
+      </v-btn>
+    </div>
 
-  <editable-chip-list
-    v-model="selectedSegment"
-    :items="segments"
-    item-key="value"
-    item-title="name"
-    create-label-text="New segment"
-    @create="addNewSegment"
-    class="my-4"
-  >
-    <template #item-prepend="{ item }">
-      <!-- dot container keeps overflowing name from squishing dot width  -->
-      <div class="dot-container mr-3">
-        <ColorDot :color="item.color" />
-      </div>
-    </template>
-    <template #item-append="{ key, item }">
-      <!-- Lock/unlock segment button -->
-      <v-btn
-        icon
-        size="small"
-        density="compact"
-        class="mr-1"
-        variant="plain"
-        @click.stop="toggleLock(key as number)"
-        :color="item.locked ? 'error' : undefined"
-      >
-        <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
-        <v-tooltip location="left" activator="parent">{{
-          item.locked ? 'Unlock' : 'Lock'
-        }}</v-tooltip>
-      </v-btn>
-      <v-btn
-        icon
-        size="small"
-        density="compact"
-        class="ml-auto mr-1"
-        variant="plain"
-        @click.stop="toggleVisible(key as number)"
-      >
-        <v-icon v-if="item.visible" style="pointer-events: none"
-          >mdi-eye</v-icon
+    <editable-chip-list
+      v-model="selectedSegment"
+      :items="segments"
+      item-key="value"
+      item-title="name"
+      create-label-text="New segment"
+      @create="addNewSegment"
+      class="my-4"
+    >
+      <template #item-prepend="{ item }">
+        <!-- dot container keeps overflowing name from squishing dot width  -->
+        <div class="dot-container mr-3">
+          <ColorDot :color="item.color" />
+        </div>
+      </template>
+      <template #item-append="{ key, item }">
+        <!-- Lock/unlock segment button -->
+        <v-btn
+          icon
+          size="small"
+          density="compact"
+          class="mr-1"
+          variant="plain"
+          @click.stop="toggleLock(key as number)"
+          :color="item.locked ? 'error' : undefined"
         >
-        <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
-        <v-tooltip location="left" activator="parent">{{
-          item.visible ? 'Hide' : 'Show'
-        }}</v-tooltip>
-      </v-btn>
-      <!-- Edit segment button (disabled when locked) -->
-      <v-btn
-        icon="mdi-pencil"
-        size="small"
-        density="compact"
-        class="mr-1"
-        variant="plain"
-        @click.stop="startEditing(key as number)"
-        :disabled="item.locked"
-      />
-      <!-- Delete segment button (disabled when locked) -->
-      <v-btn
-        icon="mdi-delete"
-        size="small"
-        density="compact"
-        class="ml-auto"
-        variant="plain"
-        @click.stop="deleteSegment(key as number)"
-        :disabled="item.locked"
-      />
-    </template>
-  </editable-chip-list>
+          <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+          <v-tooltip location="left" activator="parent">{{
+            item.locked ? 'Unlock' : 'Lock'
+          }}</v-tooltip>
+        </v-btn>
+        <v-btn
+          icon
+          size="small"
+          density="compact"
+          class="ml-auto mr-1"
+          variant="plain"
+          @click.stop="toggleVisible(key as number)"
+        >
+          <v-icon v-if="item.visible" style="pointer-events: none"
+            >mdi-eye</v-icon
+          >
+          <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
+          <v-tooltip location="left" activator="parent">{{
+            item.visible ? 'Hide' : 'Show'
+          }}</v-tooltip>
+        </v-btn>
+        <!-- Edit segment button (disabled when locked) -->
+        <v-btn
+          icon="mdi-pencil"
+          size="small"
+          density="compact"
+          class="mr-1"
+          variant="plain"
+          @click.stop="startEditing(key as number)"
+          :disabled="item.locked"
+        />
+        <!-- Delete segment button (disabled when locked) -->
+        <v-btn
+          icon="mdi-delete"
+          size="small"
+          density="compact"
+          class="ml-auto"
+          variant="plain"
+          @click.stop="deleteSegment(key as number)"
+          :disabled="item.locked"
+        />
+      </template>
+    </editable-chip-list>
+  </div>
 
   <isolated-dialog v-model="editDialog" @keydown.stop max-width="800px">
     <segment-editor

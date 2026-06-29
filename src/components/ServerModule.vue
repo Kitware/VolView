@@ -86,7 +86,7 @@ const hasCurrentImage = computed(() => !!currentImageID.value);
 </script>
 
 <template>
-  <div class="overflow-y-auto overflow-x-hidden ma-2 fill-height">
+  <div class="ma-2">
     <v-alert v-if="!ready" color="info">Not connected to the server.</v-alert>
     <v-divider />
     <v-list-subheader>Add numbers</v-list-subheader>

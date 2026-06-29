@@ -25,8 +25,7 @@ describe('Fill Holes paint process', () => {
   it('runs Fill Holes with whole-volume and selected-segment options', async () => {
     await AppPage.processModeButton.waitForClickable();
     await AppPage.processModeButton.click();
-    await AppPage.fillHolesProcessButton.waitForClickable();
-    await AppPage.fillHolesProcessButton.click();
+    await AppPage.selectFillHolesProcess();
 
     // Switch both option toggles away from their defaults.
     await AppPage.fillHolesWholeVolumeButton.waitForClickable();
@@ -48,8 +47,7 @@ describe('Fill Holes paint process', () => {
   it('toggles the preview in place between processed and original', async () => {
     await AppPage.processModeButton.waitForClickable();
     await AppPage.processModeButton.click();
-    await AppPage.fillHolesProcessButton.waitForClickable();
-    await AppPage.fillHolesProcessButton.click();
+    await AppPage.selectFillHolesProcess();
 
     await AppPage.processPreviewButton.waitForClickable();
     await AppPage.processPreviewButton.click();

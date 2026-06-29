@@ -1,15 +1,17 @@
 <template>
-  <div class="d-flex flex-column align-center w-100">
+  <div class="d-flex flex-column align-start w-100">
     <ProcessTypeSelector />
 
     <template v-if="activeDefinition">
-      <component :is="activeDefinition.controls" />
-      <ProcessWorkflow
-        :algorithm="activeDefinition.getAlgorithm()"
-        :requires-active-segment="
-          activeDefinition.requiresActiveSegment?.() ?? true
-        "
-      />
+      <div class="process-settings">
+        <component :is="activeDefinition.controls" />
+        <ProcessWorkflow
+          :algorithm="activeDefinition.getAlgorithm()"
+          :requires-active-segment="
+            activeDefinition.requiresActiveSegment?.() ?? true
+          "
+        />
+      </div>
     </template>
   </div>
 </template>
@@ -27,3 +29,9 @@ const activeDefinition = computed(() =>
   PROCESS_DEFINITIONS.find((def) => def.type === processStore.activeProcessType)
 );
 </script>
+
+<style scoped>
+.process-settings {
+  width: 100%;
+}
+</style>
