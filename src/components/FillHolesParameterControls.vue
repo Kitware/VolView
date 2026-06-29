@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex align-center">
+  <div class="d-flex align-start w-100">
     <mini-expansion-panel>
       <template #title
         >Fill enclosed holes in the segmentation on the axis of the selected
@@ -22,11 +22,11 @@
   <div
     v-for="scope in scopes"
     :key="scope.label"
-    class="w-100 px-4 mb-4 d-flex flex-column align-center"
+    class="w-100 mb-4 d-flex flex-column align-start"
   >
-    <div class="text-caption mb-1">{{ scope.label }}</div>
     <v-btn-toggle
       :model-value="scope.value"
+      :aria-label="scope.label"
       density="compact"
       variant="outlined"
       divided

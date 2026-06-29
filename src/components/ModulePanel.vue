@@ -4,6 +4,7 @@
       <v-tabs
         id="module-switcher-tabs"
         v-model="selectedModuleIndex"
+        grow
         icons-and-text
         show-arrows
       >
@@ -21,11 +22,11 @@
       </v-tabs>
     </div>
     <div id="module-container">
-      <v-window v-model="selectedModuleIndex" touchless class="fill-height">
+      <v-window v-model="selectedModuleIndex" touchless class="module-window">
         <v-window-item
           v-for="mod in modules"
           :key="mod.name"
-          class="fill-height"
+          class="module-window-item"
         >
           <component
             :key="mod.name"
@@ -148,8 +149,14 @@ export default defineComponent({
 #module-container {
   position: relative;
   flex: 2;
-  overflow: auto;
-  scrollbar-gutter: stable;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.module-window,
+.module-window-item {
+  min-height: 100%;
 }
 
 .module-text {
@@ -165,8 +172,9 @@ export default defineComponent({
   align-items: center;
 }
 
-#module-switcher-tabs :deep(.v-slide-group__content) {
-  justify-content: center;
+#module-switcher-tabs :deep(.v-tab.v-tab) {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 #module-switcher-tabs

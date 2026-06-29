@@ -117,7 +117,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div id="data-module" class="mx-1 fill-height">
+  <div id="data-module">
     <div id="data-panels">
       <v-expansion-panels
         v-model="panels"
@@ -209,7 +209,6 @@ export default defineComponent({
 
 #data-panels {
   flex: 2;
-  overflow-y: auto;
 }
 
 .collection-header-icon {

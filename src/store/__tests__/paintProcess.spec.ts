@@ -70,10 +70,11 @@ describe('Paint process store', () => {
     const paintStore = usePaintToolStore();
 
     paintStore.setMode(PaintMode.Erase);
-    paintStore.setControlsMode(PaintMode.Process);
+    paintStore.setProcessControlsOpen(true);
 
-    expect(paintStore.activeControlsMode).toBe(PaintMode.Process);
+    expect(paintStore.processControlsOpen).toBe(true);
     expect(paintStore.activeMode).toBe(PaintMode.Erase);
+    expect(paintStore.activePaintMode).toBe(PaintMode.Erase);
     expect(paintStore.isPaintingModeActive).toBe(true);
   });
 
@@ -83,9 +84,10 @@ describe('Paint process store', () => {
     const { groupId, labelMap } = addTestSegmentGroup();
 
     paintStore.setMode(PaintMode.Erase);
-    paintStore.setControlsMode(PaintMode.Process);
     paintStore.activeSegmentGroupID = groupId;
     paintStore.activeSegment = 1;
+
+    expect(paintStore.processControlsOpen).toBe(false);
 
     await processStore.startProcess(
       groupId,
@@ -93,16 +95,18 @@ describe('Paint process store', () => {
     );
 
     expect(processStore.processState.step).toBe('previewing');
-    expect(paintStore.activeControlsMode).toBe(PaintMode.Process);
+    expect(paintStore.processControlsOpen).toBe(true);
     expect(paintStore.activeMode).toBe(PaintMode.Process);
+    expect(paintStore.activePaintMode).toBe(PaintMode.Erase);
     expect(paintStore.isPaintingModeActive).toBe(false);
     expect(getScalars(labelMap)).toEqual([2, 2]);
 
     processStore.confirmProcess();
 
     expect(processStore.processState.step).toBe('start');
-    expect(paintStore.activeControlsMode).toBe(PaintMode.Process);
+    expect(paintStore.processControlsOpen).toBe(true);
     expect(paintStore.activeMode).toBe(PaintMode.Erase);
+    expect(paintStore.activePaintMode).toBe(PaintMode.Erase);
     expect(paintStore.isPaintingModeActive).toBe(true);
   });
 
@@ -112,7 +116,7 @@ describe('Paint process store', () => {
     const { groupId, labelMap } = addTestSegmentGroup();
 
     paintStore.setMode(PaintMode.CirclePaint);
-    paintStore.setControlsMode(PaintMode.Process);
+    paintStore.setProcessControlsOpen(true);
     paintStore.activeSegmentGroupID = groupId;
     paintStore.activeSegment = 1;
 
@@ -124,8 +128,9 @@ describe('Paint process store', () => {
     processStore.cancelProcess();
 
     expect(processStore.processState.step).toBe('start');
-    expect(paintStore.activeControlsMode).toBe(PaintMode.Process);
+    expect(paintStore.processControlsOpen).toBe(true);
     expect(paintStore.activeMode).toBe(PaintMode.CirclePaint);
+    expect(paintStore.activePaintMode).toBe(PaintMode.CirclePaint);
     expect(paintStore.isPaintingModeActive).toBe(true);
     expect(getScalars(labelMap)).toEqual([0, 0]);
   });

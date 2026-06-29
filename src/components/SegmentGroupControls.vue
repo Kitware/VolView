@@ -224,29 +224,27 @@ function deleteSelected() {
 </script>
 
 <template>
-  <div class="mt-2" v-if="currentImageID">
+  <div class="mt-2 px-3" v-if="currentImageID">
     <div
-      class="text-grey text-subtitle-2 d-flex align-center justify-space-evenly mb-2"
+      class="text-grey text-subtitle-2 d-flex align-center justify-start ga-4 mb-2"
     >
       <v-btn
-        variant="tonal"
-        color="secondary"
-        density="compact"
+        class="my-1"
         :disabled="isCurrentImageCine"
         @click.stop="createSegmentGroup"
       >
-        <v-icon class="mr-1">mdi-plus</v-icon> New Group
+        <template #prepend>
+          <v-icon>mdi-plus</v-icon>
+        </template>
+        New Group
       </v-btn>
       <v-menu location="bottom">
         <template v-slot:activator="{ props }">
-          <v-btn
-            variant="tonal"
-            color="secondary"
-            density="compact"
-            :disabled="isCurrentImageCine"
-            v-bind="props"
-          >
-            <v-icon class="mr-1">mdi-chevron-down</v-icon>From Image
+          <v-btn class="my-1" :disabled="isCurrentImageCine" v-bind="props">
+            <template #prepend>
+              <v-icon>mdi-chevron-down</v-icon>
+            </template>
+            From Image
           </v-btn>
         </template>
         <v-list v-if="segmentGroupConvertibles.length !== 0">

@@ -1,5 +1,5 @@
 <template>
-  <div class="d-flex align-center">
+  <div class="d-flex align-start w-100">
     <mini-expansion-panel>
       <template #title> Interpolate segmentation between slices. </template>
       <ul>
