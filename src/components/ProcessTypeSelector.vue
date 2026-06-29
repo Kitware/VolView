@@ -7,14 +7,14 @@
             v-bind="props"
             variant="tonal"
             block
+            spaced="end"
             class="process-type-menu-button"
             data-testid="process-type-selector"
+            :prepend-icon="activeDefinition.icon"
+            append-icon="mdi-menu-down"
             :disabled="isDisabled"
           >
-            <v-icon start>{{ activeDefinition.icon }}</v-icon>
-            <span>{{ activeDefinition.label }}</span>
-            <v-spacer />
-            <v-icon end>mdi-menu-down</v-icon>
+            <span class="process-type-label">{{ activeDefinition.label }}</span>
           </v-btn>
         </template>
 
@@ -67,5 +67,10 @@ const activeDefinition = computed(
 .process-type-menu-button {
   justify-content: start;
   min-height: 40px;
+}
+
+.process-type-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
