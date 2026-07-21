@@ -153,13 +153,12 @@ describe('neutral job status fixtures', () => {
 // ---------------------------------------------------------------------------
 
 describe('result intent fixtures', () => {
-  it('exports vocabulary version 1 and the exactly-four state intents', () => {
+  it('exports vocabulary version 1 and the exactly-three state intents', () => {
     expect(INTENT_VOCABULARY_VERSION).toBe(1);
     expect([...RESULT_INTENTS]).toEqual([
       'add-base-image',
       'add-layer',
       'add-segment-group',
-      'restore-state',
     ]);
     expect(wire).not.toHaveProperty('intent.download');
   });
@@ -169,7 +168,6 @@ describe('result intent fixtures', () => {
     'intent.add-layer',
     'intent.add-segment-group.with-segments',
     'intent.add-segment-group.embedded',
-    'intent.restore-state',
     'intent.unknown',
   ])('validates %s', (name) => {
     expect(() => resultIntentSchema.parse(wire[name])).not.toThrow();
