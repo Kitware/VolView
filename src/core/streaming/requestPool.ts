@@ -1,4 +1,5 @@
 import { Deferred, defer } from '@/src/utils';
+import { $fetch } from '@/src/utils/fetch';
 
 const DEFAULT_POOL_SIZE = 24;
 
@@ -26,7 +27,7 @@ export class RequestPool {
   private inflight: Set<number>;
   private fetchFn: typeof fetch;
 
-  constructor(poolSize = DEFAULT_POOL_SIZE, fetchFn: typeof fetch = fetch) {
+  constructor(poolSize = DEFAULT_POOL_SIZE, fetchFn: typeof fetch = $fetch) {
     this.poolSize = poolSize;
     this.queue = [];
     this.inflight = new Set();

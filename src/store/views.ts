@@ -11,6 +11,7 @@ import {
   type LayoutConfig,
 } from '@/src/utils/layoutParsing';
 import type { Manifest, StateFile } from '../io/state-file/schema';
+import { onImageDeleted } from '@/src/composables/onImageDeleted';
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
   type: '2D',
@@ -284,10 +285,11 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function removeDataFromViews(dataID: string) {
-    layoutSlots.value.forEach((id) => {
-      if (viewByID[id].dataID === dataID) {
-        setDataForView(id, null);
-      }
+    // Every `viewByID` entry is serialized (not just the ones currently in a
+    // layout slot), so a view preserved off-slot with a stale dataID would
+    // still dangle in the save manifest — unbind ALL matching views.
+    getViewsForData(dataID).forEach((view) => {
+      setDataForView(view.id, null);
     });
   }
 
@@ -366,6 +368,13 @@ export const useViewStore = defineStore('view', () => {
 
   watch(disabledViewTypes, () => {
     applyDisabledViewTypesFilter();
+  });
+
+  // Delete-base cleanup: a removed dataset must not linger as a view's `dataID`
+  // (an orphaned binding the next save manifest would carry). Mirrors the
+  // segment-group / annotation-tool cascade.
+  onImageDeleted((deletedIDs) => {
+    deletedIDs.forEach((id) => removeDataFromViews(id));
   });
 
   return {

@@ -307,13 +307,33 @@ const SegmentMask = z.object({
   visible: z.boolean().default(true),
 });
 
+// Provenance of a segment group produced by a processing job — DISPLAY
+// PROVENANCE only (nothing keys dedup or attach semantics off it).
+// Optional and additive — a hand-painted group has none. Round-trips the
+// `.volview.zip` as interchange. Structurally mirrors the
+// backend-contract `resultSource` wire tag.
+export const SegmentGroupSource = z.object({
+  jobId: z.string(),
+  outputId: z.string(),
+});
+
 export const SegmentGroupMetadata = z.object({
   name: z.string(),
+  // The explicit parent binding stays REQUIRED: a segment group entry without
+  // a parent must not exist at all (the backend composes a parentless
+  // labelmap as an ordinary image dataset,
+  // never as a segment group). Segment descriptors are OPTIONAL: when absent,
+  // restore enumerates the labelmap's non-background voxel values and applies
+  // the same default names/colors (and embedded .seg.nrrd metadata overlay)
+  // that live convertImageToLabelmap uses.
   parentImage: z.string(),
-  segments: z.object({
-    order: z.number().array(),
-    byValue: z.record(z.string(), SegmentMask),
-  }),
+  segments: z
+    .object({
+      order: z.number().array(),
+      byValue: z.record(z.string(), SegmentMask),
+    })
+    .optional(),
+  source: SegmentGroupSource.optional(),
 });
 
 export const SegmentGroup = z

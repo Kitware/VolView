@@ -1,0 +1,6 @@
+{
+  "jobId": "job-abc123",
+  "state": "error",
+  "resultState": "unavailable",
+  "errorTail": "Traceback (most recent call last):\n  File \"/opt/cli/MedianFilter.py\", line 41, in <module>\n    main()\n  File \"/opt/cli/MedianFilter.py\", line 33, in main\n    out = median(image, radius)\nRuntimeError: itk::ERROR: input image is empty"
+}

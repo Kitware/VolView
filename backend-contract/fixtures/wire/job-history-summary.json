@@ -1,0 +1,16 @@
+{
+  "jobId": "job-abc123",
+  "taskId": "OtsuSegmentation",
+  "taskTitle": "Otsu segmentation",
+  "createdBy": { "id": "user-1", "name": "Ada Lovelace" },
+  "createdAt": "2026-07-03T18:24:00Z",
+  "startedAt": "2026-07-03T18:24:01Z",
+  "finishedAt": "2026-07-03T18:24:05Z",
+  "state": "success",
+  "resultState": "ready",
+  "progress": 1,
+  "outputSummary": {
+    "recorded": 1,
+    "missing": 0
+  }
+}

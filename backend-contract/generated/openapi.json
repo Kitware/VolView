@@ -1,0 +1,2040 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "VolView neutral backend contract",
+    "version": "0.1.0",
+    "description": "DRAFT 0.x — shapes may change until a second backend passes the conformance kit (the pinned 1.0 criterion). The neutral REST surface the VolView client calls to run processing tasks against a backend. A conforming server-side BACKEND implements these endpoints and the referenced wire schemas — no VolView client change is needed to bring a new backend online. Everything here is neutral: no backend routes, ids, status enums, or URL shapes leak. The artifact version is the draft artifact version, distinct from the shape versions: the result-intent vocabulary is at version 1 (INTENT_VOCABULARY_VERSION); the task-spec shape at version 1 (specVersion)."
+  },
+  "servers": [
+    {
+      "url": "{baseUrl}",
+      "description": "The provider processing base. Context-scoped endpoints are relative to a processing context; job-addressed endpoints are keyed by job id alone. The mapping of both onto concrete URLs is the backend choice.",
+      "variables": {
+        "baseUrl": {
+          "default": "/"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "context",
+      "description": "Context-scoped: operate against a processing context (the collection a task runs in)."
+    },
+    {
+      "name": "job",
+      "description": "Job-addressed: keyed by the opaque job id alone and gated by the job's own access control — no context in the path."
+    }
+  ],
+  "paths": {
+    "/tasks": {
+      "get": {
+        "operationId": "listTasks",
+        "tags": [
+          "context"
+        ],
+        "summary": "List the processing tasks available in this context.",
+        "responses": {
+          "200": {
+            "description": "The available tasks as advisory summaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{taskId}/spec": {
+      "get": {
+        "operationId": "getTaskSpec",
+        "tags": [
+          "context"
+        ],
+        "summary": "Get a task's VolView task spec (the backend translates its own native task format into this neutral spec).",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque task identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task's neutral task spec.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSpec"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such task in this context."
+          }
+        }
+      }
+    },
+    "/tasks/{taskId}/run": {
+      "post": {
+        "operationId": "runTask",
+        "tags": [
+          "context"
+        ],
+        "summary": "Submit a task; returns an opaque job handle to poll.",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque task identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The submitted job handle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRef"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such task in this context."
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "operationId": "listJobHistory",
+        "tags": [
+          "context"
+        ],
+        "summary": "The current user's complete job history, newest first.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque continuation cursor returned by the prior page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One bounded lightweight page; logs and parameters are absent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobHistoryPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{jobId}/detail": {
+      "get": {
+        "operationId": "getJobHistoryDetail",
+        "tags": [
+          "job"
+        ],
+        "summary": "Read logs and submitted parameters for one authorized job on demand.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque job identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The detail-only job fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobHistoryDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stage": {
+      "post": {
+        "operationId": "stageInput",
+        "tags": [
+          "context"
+        ],
+        "summary": "Stage a parent-bound labelmap as a transient input; returns backend-minted URIs the client round-trips as an InputValue at submit.",
+        "requestBody": {
+          "required": true,
+          "description": "A typed staged resource: the labelmap bytes plus its durable reference-image relationship.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "descriptor": {
+                    "$ref": "#/components/schemas/StageInputDescriptor"
+                  }
+                },
+                "required": [
+                  "file",
+                  "descriptor"
+                ],
+                "additionalProperties": false
+              },
+              "encoding": {
+                "descriptor": {
+                  "contentType": "text/plain",
+                  "description": "JSON serialization of StageInputDescriptor."
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The backend-minted URIs for the staged bytes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{jobId}": {
+      "get": {
+        "operationId": "getJob",
+        "tags": [
+          "job"
+        ],
+        "summary": "A job's neutral execution and result-readiness status. Poll through Poll until the job reaches a terminal state. Job-addressed: keyed by the job own access control — no context in the path.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque job identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The neutral job status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeutralJobStatus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteJob",
+        "tags": [
+          "job"
+        ],
+        "summary": "Delete one authorized terminal execution record AND everything it owns (cascading).",
+        "description": "Deletion is CASCADING, and the cascade is normative: removing the execution record also removes the results it produced and any staged inputs it still owns. A conforming backend MUST NOT retain results for a deleted record, so a client may truthfully tell the user that deleting the job deletes its results. Only a terminal (success / error / cancelled) job is deletable; a non-terminal job is refused with 409 — cancel it and delete once it settles.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque job identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The job and everything it owned (results, staged inputs) were deleted."
+          },
+          "409": {
+            "description": "The job is not terminal; cancel it and re-delete once it settles."
+          }
+        }
+      }
+    },
+    "/jobs/{jobId}/results": {
+      "get": {
+        "operationId": "getJobResults",
+        "tags": [
+          "job"
+        ],
+        "summary": "A job's settled results as the { resultState, intents, missing } envelope. Partial and total output loss return an incomplete envelope.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque job identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The resolved results as the { resultState, intents, missing } envelope (JobResults). Each entry of `intents` is a ResultIntent — a result row carrying a required `id` display key and required `name`/`url`, plus optional/null `mimeType`/`size` file metadata. `missing` counts declared outputs that never arrived plus recorded outputs that cannot be read. Total loss is a valid incomplete response with an empty intents array.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResults"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Results are still waiting, or execution made them unavailable. The typed body distinguishes retryable readiness from permanent unavailability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResultsError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{jobId}/cancel": {
+      "post": {
+        "operationId": "cancelJob",
+        "tags": [
+          "job"
+        ],
+        "summary": "Best-effort cancel. Returns the job's real projected status after the attempt — never a fabricated `cancelled`; the client poller converges on whatever terminal state the backend ultimately reports. Job-addressed.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "description": "Opaque job identifier.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The projected job status after the cancel attempt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeutralJobStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TaskSpec": {
+        "type": "object",
+        "properties": {
+          "specVersion": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "int"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "min": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "max": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "step": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "default": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "float"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    },
+                    "step": {
+                      "type": "number"
+                    },
+                    "default": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "default": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "bool"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "default": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "enum"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "options": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    },
+                    "default": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "options"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "sourceRef"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "accepts": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "accepts"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "bounds"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "help": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "order": {
+                      "type": "number"
+                    },
+                    "widget": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "default": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "help": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "specVersion",
+          "id",
+          "title",
+          "parameters",
+          "outputs"
+        ],
+        "additionalProperties": false
+      },
+      "InputValue": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "uris"
+        ],
+        "additionalProperties": false
+      },
+      "StageInputDescriptor": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "labelmap"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "referenceImage": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "image"
+              },
+              "format": {
+                "type": "string"
+              },
+              "uris": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "type",
+              "uris"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "referenceImage"
+        ],
+        "additionalProperties": false
+      },
+      "NeutralJobStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "progress": {
+                "type": "number"
+              },
+              "errorTail": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "const": "pending"
+              },
+              "resultState": {
+                "type": "string",
+                "const": "waiting"
+              }
+            },
+            "required": [
+              "jobId",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "progress": {
+                "type": "number"
+              },
+              "errorTail": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "const": "running"
+              },
+              "resultState": {
+                "type": "string",
+                "const": "waiting"
+              }
+            },
+            "required": [
+              "jobId",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "progress": {
+                "type": "number"
+              },
+              "errorTail": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "const": "success"
+              },
+              "resultState": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "incomplete"
+                ]
+              }
+            },
+            "required": [
+              "jobId",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "progress": {
+                "type": "number"
+              },
+              "errorTail": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "const": "error"
+              },
+              "resultState": {
+                "type": "string",
+                "const": "unavailable"
+              }
+            },
+            "required": [
+              "jobId",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "progress": {
+                "type": "number"
+              },
+              "errorTail": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "const": "cancelled"
+              },
+              "resultState": {
+                "type": "string",
+                "const": "unavailable"
+              }
+            },
+            "required": [
+              "jobId",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "ResultIntent": {
+        "anyOf": [
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "const": "add-base-image"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "intent",
+                  "id",
+                  "name",
+                  "url"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "const": "add-layer"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "intent",
+                  "id",
+                  "name",
+                  "url"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "const": "add-segment-group"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "segments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "color": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255
+                            }
+                          ]
+                        },
+                        "visible": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "name",
+                        "color"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "outputId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "jobId",
+                      "outputId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "intent",
+                  "id",
+                  "name",
+                  "url"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "const": "restore-state"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "intent",
+                  "id",
+                  "name",
+                  "url"
+                ],
+                "additionalProperties": {}
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "intent": {},
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "mimeType": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "size": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "url"
+            ],
+            "additionalProperties": {}
+          }
+        ]
+      },
+      "JobHistorySummary": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "taskTitle": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "success",
+              "error",
+              "cancelled"
+            ]
+          },
+          "resultState": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "ready",
+              "incomplete",
+              "unavailable"
+            ]
+          },
+          "progress": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "outputSummary": {
+            "type": "object",
+            "properties": {
+              "recorded": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "missing": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "recorded",
+              "missing"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "jobId",
+          "taskId",
+          "taskTitle",
+          "createdBy",
+          "createdAt",
+          "state",
+          "resultState"
+        ],
+        "additionalProperties": false
+      },
+      "JobHistoryPage": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "jobId": {
+                  "type": "string"
+                },
+                "taskId": {
+                  "type": "string"
+                },
+                "taskTitle": {
+                  "type": "string"
+                },
+                "createdBy": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "startedAt": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "running",
+                    "success",
+                    "error",
+                    "cancelled"
+                  ]
+                },
+                "resultState": {
+                  "type": "string",
+                  "enum": [
+                    "waiting",
+                    "ready",
+                    "incomplete",
+                    "unavailable"
+                  ]
+                },
+                "progress": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "outputSummary": {
+                  "type": "object",
+                  "properties": {
+                    "recorded": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "missing": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "recorded",
+                    "missing"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "jobId",
+                "taskId",
+                "taskTitle",
+                "createdBy",
+                "createdAt",
+                "state",
+                "resultState"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "jobs",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "JobHistoryDetail": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "log": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "jobId",
+          "log",
+          "parameters"
+        ],
+        "additionalProperties": false
+      },
+      "JobResults": {
+        "type": "object",
+        "properties": {
+          "resultState": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "incomplete"
+            ]
+          },
+          "intents": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "intent": {
+                          "type": "string",
+                          "const": "add-base-image"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "size": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "intent",
+                        "id",
+                        "name",
+                        "url"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "intent": {
+                          "type": "string",
+                          "const": "add-layer"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "size": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "intent",
+                        "id",
+                        "name",
+                        "url"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "intent": {
+                          "type": "string",
+                          "const": "add-segment-group"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "size": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "segments": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "value": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "color": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 255
+                                  }
+                                ]
+                              },
+                              "visible": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "name",
+                              "color"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "jobId": {
+                              "type": "string"
+                            },
+                            "outputId": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "jobId",
+                            "outputId"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "intent",
+                        "id",
+                        "name",
+                        "url"
+                      ],
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "intent": {
+                          "type": "string",
+                          "const": "restore-state"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "size": {
+                          "anyOf": [
+                            {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "intent",
+                        "id",
+                        "name",
+                        "url"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "intent": {},
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "mimeType": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "size": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "url"
+                  ],
+                  "additionalProperties": {}
+                }
+              ]
+            }
+          },
+          "missing": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "resultState",
+          "intents",
+          "missing"
+        ],
+        "additionalProperties": false
+      },
+      "JobResultsError": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "results_not_ready"
+              },
+              "message": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "running"
+                ]
+              },
+              "resultState": {
+                "type": "string",
+                "const": "waiting"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "results_unavailable"
+              },
+              "message": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "error",
+                  "cancelled"
+                ]
+              },
+              "resultState": {
+                "type": "string",
+                "const": "unavailable"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "state",
+              "resultState"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "TaskSummary": {
+        "type": "object",
+        "description": "Advisory display metadata for one task in the picker. Pass-through: the client renders it but validates only id/title; every other field is OPTIONAL advisory display metadata a backend MAY omit, and the client never dispatches on it — including `dockerImage`, a display-only implementation label with no neutral semantics.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dockerImage": {
+            "type": "string",
+            "description": "Optional advisory implementation label shown in the picker. Display-only: a backend MAY omit it and the client never dispatches on it."
+          },
+          "category": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "additionalProperties": true
+      },
+      "RunTaskRequest": {
+        "type": "object",
+        "description": "Submission payload. `values` maps each task parameter id to its bound value: an InputValue for an input binding, or a scalar/list for a plain parameter.",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/InputValue"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobRef": {
+        "type": "object",
+        "description": "Handle to the submitted job. `jobId` is opaque. An optional terminal `status` is the born-terminal fast-path for a synchronous backend.",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NeutralJobStatus"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "additionalProperties": false
+      },
+      "StageResponse": {
+        "type": "object",
+        "description": "Backend-minted opaque URIs for the staged bytes. The client mints no URI itself, so at least one is required (fail closed).",
+        "properties": {
+          "uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "uris"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

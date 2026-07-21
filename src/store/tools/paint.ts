@@ -52,6 +52,22 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   const segmentGroupStore = useSegmentGroupStore();
 
+  // Delete-base cleanup: removing a dataset cascades away its segment groups.
+  // `serialize` writes the raw `activeSegmentGroupID`, so null it the instant
+  // its record leaves the store or the save manifest carries an orphaned id.
+  // Sync flush keeps this within the same `datasetStore.remove` call — the same
+  // remove-cascade contract as onImageDeleted, but keyed on segmentGroupID (not
+  // imageID), so it watches the record set instead of using that composable.
+  watch(
+    () =>
+      activeSegmentGroupID.value != null &&
+      !(activeSegmentGroupID.value in segmentGroupStore.metadataByID),
+    (orphaned) => {
+      if (orphaned) activeSegmentGroupID.value = null;
+    },
+    { flush: 'sync' }
+  );
+
   const isPaintingModeActive = computed(
     () =>
       activeMode.value === PaintMode.CirclePaint ||

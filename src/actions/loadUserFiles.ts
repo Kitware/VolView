@@ -4,6 +4,7 @@ import {
   uriToDataSource,
   DataSource,
   getDataSourceName,
+  findStateFileLeaves,
 } from '@/src/io/import/dataSource';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
@@ -265,7 +266,7 @@ function loadSegmentations(
   });
 }
 
-function loadDataSources(sources: DataSource[]) {
+export function loadDataSources(sources: DataSource[]) {
   const loadDataStore = useLoadDataStore();
   const viewStore = useViewStore();
 
@@ -314,8 +315,15 @@ function loadDataSources(sources: DataSource[]) {
       } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
 
-    if (errored.length) {
-      const errorMessages = (errored as ErrorResult[]).map((errResult) => {
+    // ONE consolidated notice for degraded composed opens: a failed state-file
+    // leaf is already counted by the restore's consolidated missing-content
+    // warning — only genuinely standalone imports surface the generic error here.
+    const standaloneErrored = (errored as ErrorResult[]).filter(
+      ({ dataSource }) => findStateFileLeaves(dataSource).length === 0
+    );
+
+    if (standaloneErrored.length) {
+      const errorMessages = standaloneErrored.map((errResult) => {
         const { dataSource, error } = errResult;
         const name = getDataSourceName(dataSource);
         logError(error);
@@ -327,6 +335,11 @@ function loadDataSources(sources: DataSource[]) {
 
       loadDataStore.setError(failedError);
     }
+    return succeeded.flatMap((result) =>
+      'dataID' in result && typeof result.dataID === 'string'
+        ? [result.dataID]
+        : []
+    );
   };
 
   const wrapWithLoading = <T extends (...args: any[]) => void>(fn: T) => {
@@ -334,7 +347,7 @@ function loadDataSources(sources: DataSource[]) {
     return async function wrapper(...args: any[]) {
       try {
         startLoading();
-        await fn(...args);
+        return await fn(...args);
       } finally {
         stopLoading();
       }
@@ -383,16 +396,18 @@ type LoadUrlsParams = {
 };
 
 export async function loadUrls(params: UrlParams | LoadUrlsParams) {
+  const loadedIds: string[] = [];
   if (params.config) {
     const configUrls = wrapInArray(params.config);
-    const configSources = urlsToDataSources(configUrls);
-    await loadDataSources(configSources);
+    const configSources = urlsToDataSources(configUrls, []);
+    loadedIds.push(...((await loadDataSources(configSources)) ?? []));
   }
 
   if (params.urls) {
     const urls = wrapInArray(params.urls);
     const names = wrapInArray(params.names ?? []);
     const sources = urlsToDataSources(urls, names);
-    await loadDataSources(sources);
+    loadedIds.push(...((await loadDataSources(sources)) ?? []));
   }
+  return loadedIds;
 }

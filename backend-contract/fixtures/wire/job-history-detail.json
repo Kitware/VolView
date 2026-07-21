@@ -1,0 +1,5 @@
+{
+  "jobId": "job-abc123",
+  "log": ["completed\n"],
+  "parameters": { "threshold": 42 }
+}

@@ -141,6 +141,15 @@ export const useDatasetStore = defineStore('dataset', () => {
     return [...volumeKeys, ...images];
   });
 
+  // Provenance lookup by dataset id: the loaded volume's `DataSource` (its
+  // parent chain records where every byte came from). The input mint
+  // reads this to author a bound input's verbatim URIs; a volume with no URI
+  // ancestor here is not bindable. Returns undefined for an unknown id.
+  const getDataSource = (
+    id: string | null | undefined
+  ): DataSource | undefined =>
+    id ? loadedData.value.find((d) => d.dataID === id)?.dataSource : undefined;
+
   // --- actions --- //
 
   async function serialize(stateFile: Schema.StateFile) {
@@ -169,6 +178,11 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   const remove = (id: string | null) => {
     if (!id) return;
+    // Prune the provenance entry too, or `serialize` re-emits the removed
+    // dataset (e.g. the temp dataset a segment group consumed at restore) as a
+    // dangling manifest entry that a later restore fetches as a visible
+    // Anonymous volume.
+    loadedData.value = loadedData.value.filter((d) => d.dataID !== id);
     dicomStore.deleteVolume(id);
     imageStore.deleteData(id);
     layersStore.remove(id);
@@ -195,6 +209,7 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   return {
     idsAsSelections,
+    getDataSource,
     addDataSources,
     serialize,
     remove,

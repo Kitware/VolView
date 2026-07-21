@@ -1,0 +1,24 @@
+{
+  "specVersion": 1,
+  "id": "UnknownFieldKind",
+  "title": "Unknown Field Kind (must fail validation)",
+  "description": "A parameter with an unknown `kind` must fail whole-spec validation. The client fails closed on an unknown field kind (Chunk 5 negative fixture; Chunk 7 hides the param and refuses submit if it was required).",
+  "parameters": [
+    {
+      "kind": "sourceRef",
+      "id": "inputVolume",
+      "title": "Input Volume",
+      "required": true,
+      "accepts": [
+        "image"
+      ]
+    },
+    {
+      "kind": "color",
+      "id": "tint",
+      "title": "Tint",
+      "default": "#ff0000"
+    }
+  ],
+  "outputs": []
+}

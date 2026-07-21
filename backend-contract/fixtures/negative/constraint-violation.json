@@ -1,0 +1,26 @@
+{
+  "specVersion": 1,
+  "id": "ConstraintViolation",
+  "title": "Constraint Violation (must fail validation)",
+  "description": "An int parameter whose `default` (99) exceeds its `max` (10). The schema must reject a self-inconsistent constraint set.",
+  "parameters": [
+    {
+      "kind": "sourceRef",
+      "id": "inputVolume",
+      "title": "Input Volume",
+      "required": true,
+      "accepts": [
+        "image"
+      ]
+    },
+    {
+      "kind": "int",
+      "id": "radius",
+      "title": "Radius",
+      "min": 1,
+      "max": 10,
+      "default": 99
+    }
+  ],
+  "outputs": []
+}

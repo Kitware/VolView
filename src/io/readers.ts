@@ -1,6 +1,7 @@
 import { convertItkToVtkImage } from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { readImage, extensionToImageIo } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
+import { rememberSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { FileReaderMap } from '.';
 
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
@@ -18,7 +19,19 @@ async function itkReader(file: File) {
   const { image } = await readImage(file, {
     webWorker: getWorker(),
   });
-  return convertItkToVtkImage(image);
+  const vtkImage = convertItkToVtkImage(image);
+  // Carry any embedded `.seg.nrrd` segment metadata (Segment{N}_*) — dropped by
+  // the itk→vtk conversion above — to `importSingleFile`. itk-wasm
+  // surfaces the NRRD header fields as a string map; coerce defensively.
+  const meta = (image as { metadata?: Map<string, unknown> }).metadata;
+  if (meta instanceof Map && meta.size) {
+    const asStrings = new Map<string, string>();
+    meta.forEach((value, key) => {
+      asStrings.set(key, typeof value === 'string' ? value : String(value));
+    });
+    rememberSegNrrdMetadata(vtkImage, asStrings);
+  }
+  return vtkImage;
 }
 
 /**

@@ -1,0 +1,9 @@
+{
+  "type": "image",
+  "format": "dicom-series",
+  "uris": [
+    "/api/v1/file/6600000000000000000000a1/proxiable/1-001.dcm",
+    "/api/v1/file/6600000000000000000000a2/proxiable/1-002.dcm",
+    "/api/v1/file/6600000000000000000000a3/proxiable/1-003.dcm"
+  ]
+}

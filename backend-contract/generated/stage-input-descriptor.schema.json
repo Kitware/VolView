@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "labelmap"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "referenceImage": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "image"
+        },
+        "format": {
+          "type": "string"
+        },
+        "uris": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type",
+        "uris"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type",
+    "name",
+    "referenceImage"
+  ],
+  "additionalProperties": false
+}

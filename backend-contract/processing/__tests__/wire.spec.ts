@@ -1,0 +1,329 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  JOB_STATES,
+  RESULT_INTENTS,
+  INTENT_VOCABULARY_VERSION,
+  isKnownIntent,
+  inputValueSchema,
+  stageInputDescriptorSchema,
+  neutralJobStatusSchema,
+  resultIntentSchema,
+  jobHistoryPageSchema,
+  jobHistorySummarySchema,
+  jobHistoryDetailSchema,
+  jobResultsSchema,
+  jobResultsErrorSchema,
+} from '../wire';
+import { loadFixtureDir } from './loadFixtures';
+
+const wire = Object.fromEntries(
+  loadFixtureDir('wire').map((f) => [f.name, f.data])
+);
+
+// ---------------------------------------------------------------------------
+// Input values
+// ---------------------------------------------------------------------------
+
+describe('input value fixtures', () => {
+  it.each([
+    'input-value.dicom-series',
+    'input-value.single-file',
+    'input-value.labelmap',
+  ])('validates %s', (name) => {
+    expect(() => inputValueSchema.parse(wire[name])).not.toThrow();
+  });
+
+  it('carries multiple URIs for a dicom-series image', () => {
+    const value = inputValueSchema.parse(wire['input-value.dicom-series']);
+    expect(value.type).toBe('image');
+    expect(value.uris.length).toBeGreaterThan(1);
+  });
+
+  it('accepts the open `labelmap` type tag (no closed server enum)', () => {
+    const value = inputValueSchema.parse(wire['input-value.labelmap']);
+    expect(value.type).toBe('labelmap');
+  });
+
+  it('accepts an unknown/open type tag', () => {
+    expect(() =>
+      inputValueSchema.parse({ type: 'pet', uris: ['/x'] })
+    ).not.toThrow();
+  });
+});
+
+describe('staged resource descriptor fixtures', () => {
+  it('binds staged labelmap bytes to a durable reference image', () => {
+    const descriptor = stageInputDescriptorSchema.parse(
+      wire['stage-input.labelmap']
+    );
+    expect(descriptor.type).toBe('labelmap');
+    expect(descriptor.referenceImage.type).toBe('image');
+    expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('rejects a labelmap descriptor without reference provenance', () => {
+    expect(
+      stageInputDescriptorSchema.safeParse({
+        type: 'labelmap',
+        name: 'mask.seg.nrrd',
+        referenceImage: { type: 'image', uris: [] },
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects undeclared reference-image descriptor fields', () => {
+    expect(
+      stageInputDescriptorSchema.safeParse({
+        type: 'labelmap',
+        name: 'mask.seg.nrrd',
+        referenceImage: {
+          type: 'image',
+          uris: ['/x'],
+          backendArtifactId: 'mixed-identity-channel',
+        },
+      }).success
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Neutral status
+// ---------------------------------------------------------------------------
+
+describe('neutral job status fixtures', () => {
+  it('has exactly the five v1 states, cancelled included', () => {
+    // Runtime names: the backend projects and the
+    // client store consumes these; the canonical schema is named TO them.
+    expect([...JOB_STATES]).toEqual([
+      'pending',
+      'running',
+      'success',
+      'error',
+      'cancelled',
+    ]);
+  });
+
+  it.each([
+    'status.pending',
+    'status.running',
+    'status.success',
+    'status.error',
+    'status.cancelled',
+    'status.error-tail',
+  ])('validates %s', (name) => {
+    expect(() => neutralJobStatusSchema.parse(wire[name])).not.toThrow();
+  });
+
+  it('accepts cancelled with no wire change', () => {
+    const s = neutralJobStatusSchema.parse(wire['status.cancelled']);
+    expect(s.state).toBe('cancelled');
+  });
+
+  it('carries an errorTail on an errored job', () => {
+    const s = neutralJobStatusSchema.parse(wire['status.error-tail']);
+    expect(s.state).toBe('error');
+    expect(s.errorTail).toBeTruthy();
+  });
+
+  it('rejects a state outside the five (e.g. the retired `queued`)', () => {
+    // `queued`/`succeeded`/`failed` are the pre-reconcile spellings and are now
+    // rejected; the runtime names (`pending`/`success`/`error`) are the valid five.
+    expect(
+      neutralJobStatusSchema.safeParse({ jobId: 'j', state: 'queued' }).success
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Result intents
+// ---------------------------------------------------------------------------
+
+describe('result intent fixtures', () => {
+  it('exports vocabulary version 1 and the exactly-four state intents', () => {
+    expect(INTENT_VOCABULARY_VERSION).toBe(1);
+    expect([...RESULT_INTENTS]).toEqual([
+      'add-base-image',
+      'add-layer',
+      'add-segment-group',
+      'restore-state',
+    ]);
+    expect(wire).not.toHaveProperty('intent.download');
+  });
+
+  it.each([
+    'intent.add-base-image',
+    'intent.add-layer',
+    'intent.add-segment-group.with-segments',
+    'intent.add-segment-group.embedded',
+    'intent.restore-state',
+    'intent.unknown',
+  ])('validates %s', (name) => {
+    expect(() => resultIntentSchema.parse(wire[name])).not.toThrow();
+  });
+
+  it('parses add-segment-group WITH segments and a source provenance tag', () => {
+    const parsed = resultIntentSchema.parse(
+      wire['intent.add-segment-group.with-segments']
+    ) as Record<string, unknown>;
+    expect(parsed.intent).toBe('add-segment-group');
+    expect(Array.isArray(parsed.segments)).toBe(true);
+    expect(parsed.source).toEqual({
+      jobId: 'job-abc123',
+      outputId: 'outputLabelmap',
+    });
+  });
+
+  it('parses add-segment-group WITHOUT segments (embedded metadata) but with source', () => {
+    const parsed = resultIntentSchema.parse(
+      wire['intent.add-segment-group.embedded']
+    ) as Record<string, unknown>;
+    expect(parsed.intent).toBe('add-segment-group');
+    expect(parsed.segments).toBeUndefined();
+    expect(parsed.source).toMatchObject({ outputId: 'outputLabelmap' });
+  });
+
+  it('accepts an unknown intent as an ordinary result with no state action', () => {
+    const parsed = resultIntentSchema.parse(wire['intent.unknown']) as Record<
+      string,
+      unknown
+    >;
+    // It parses (fail-open), but is not one of the known state actions.
+    expect(isKnownIntent(parsed.intent as string)).toBe(false);
+    expect(parsed.url).toBeTruthy();
+    expect(parsed.name).toBeTruthy();
+  });
+
+  it.each([
+    ['missing', { id: 'r1', url: '/report.csv', name: 'report.csv' }],
+    [
+      'malformed',
+      { id: 'r1', intent: 17, url: '/report.csv', name: 'report.csv' },
+    ],
+  ])('accepts a %s intent as an ordinary result record', (_name, value) => {
+    expect(() => resultIntentSchema.parse(value)).not.toThrow();
+  });
+
+  it('preserves null mimeType/size and extra producer fields on an ordinary result', () => {
+    const parsed = resultIntentSchema.parse({
+      id: 'r1',
+      intent: 17,
+      url: '/report.csv',
+      name: 'report.csv',
+      mimeType: null,
+      size: null,
+      producerHint: 'keep-me',
+    }) as Record<string, unknown>;
+    expect(parsed.mimeType).toBeNull();
+    expect(parsed.size).toBeNull();
+    // A catchall-preserved extra field survives without gaining behavior.
+    expect(parsed.producerHint).toBe('keep-me');
+  });
+
+  it.each([
+    ['a missing id', { url: '/x', name: 'x' }],
+    ['an empty id', { id: '', url: '/x', name: 'x' }],
+    [
+      'a missing id on a known intent',
+      {
+        intent: 'add-base-image',
+        url: '/x',
+        name: 'x',
+      },
+    ],
+    [
+      'an empty id on a known intent',
+      {
+        id: '',
+        intent: 'add-base-image',
+        url: '/x',
+        name: 'x',
+      },
+    ],
+  ])('rejects a result row with %s', (_name, value) => {
+    expect(resultIntentSchema.safeParse(value).success).toBe(false);
+  });
+
+  it('recognizes only the four state intents via isKnownIntent', () => {
+    expect(isKnownIntent('add-segment-group')).toBe(true);
+    expect(isKnownIntent('download')).toBe(false);
+    expect(isKnownIntent('attach-segment-group')).toBe(false);
+  });
+
+  it('still rejects a result that is not even a file reference', () => {
+    expect(
+      resultIntentSchema.safeParse({ id: 'r1', intent: 'add-polygon' }).success
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Durable job-history handle + result-read payloads
+// ---------------------------------------------------------------------------
+
+describe('durable job-history handle + result-read payloads', () => {
+  it('validates job-history summary, page, and detail fixtures', () => {
+    expect(
+      jobHistorySummarySchema.parse(wire['job-history-summary']).state
+    ).toBe('success');
+    expect(
+      jobHistoryPageSchema.parse(wire['job-history-page']).nextCursor
+    ).toBe('opaque-continuation');
+    expect(
+      jobHistoryDetailSchema.parse(wire['job-history-detail']).log
+    ).toEqual(['completed\n']);
+  });
+
+  it('rejects an impossible job-history lifecycle pairing', () => {
+    // Parse the fixture first so the spread has a typed object source (the raw
+    // fixture is `unknown`, which cannot be spread — TS2698).
+    const summary = jobHistorySummarySchema.parse(wire['job-history-summary']);
+    const parsed = jobHistorySummarySchema.safeParse({
+      ...summary,
+      state: 'success',
+      resultState: 'waiting',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('validates the pinned lightweight job-history page', () => {
+    const page = jobHistoryPageSchema.parse({
+      jobs: [
+        {
+          jobId: 'job-1',
+          taskId: 'task-1',
+          taskTitle: 'Threshold',
+          createdBy: { id: 'user-1', name: 'Ada Lovelace' },
+          createdAt: '2026-06-01T12:00:00Z',
+          startedAt: '2026-06-01T12:00:01Z',
+          finishedAt: '2026-06-01T12:00:05Z',
+          state: 'success',
+          resultState: 'incomplete',
+          progress: 1,
+          outputSummary: {
+            recorded: 2,
+            missing: 1,
+          },
+        },
+      ],
+      nextCursor: 'opaque-value',
+    });
+    expect(page.jobs[0].taskTitle).toBe('Threshold');
+    expect(page.nextCursor).toBe('opaque-value');
+    expect(page.jobs[0]).not.toHaveProperty('inputUris');
+    expect(page.jobs[0]).not.toHaveProperty('log');
+    expect(page.jobs[0]).not.toHaveProperty('params');
+  });
+  it('validates a getJobResults success payload with a missing count', () => {
+    const results = jobResultsSchema.parse(wire['job-results.missing']);
+    expect(results.missing).toBe(2);
+    expect(results.intents.length).toBe(1);
+  });
+
+  it('validates a getJobResults error payload (non-success)', () => {
+    const err = jobResultsErrorSchema.parse(wire['job-results.error']);
+    expect(err.message).toBeTruthy();
+    expect(err.code).toBe('results_unavailable');
+    expect(err.state).toBe('error');
+  });
+});

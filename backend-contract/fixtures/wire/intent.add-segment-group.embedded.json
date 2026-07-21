@@ -1,0 +1,10 @@
+{
+  "id": "6600000000000000000000e2",
+  "intent": "add-segment-group",
+  "url": "/api/v1/file/6600000000000000000000e2/proxiable/threshold.seg.nrrd",
+  "name": "threshold.seg.nrrd",
+  "source": {
+    "jobId": "job-def456",
+    "outputId": "outputLabelmap"
+  }
+}

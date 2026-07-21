@@ -1,0 +1,12 @@
+{
+  "type": "labelmap",
+  "name": "tumor.seg.nrrd",
+  "referenceImage": {
+    "type": "image",
+    "format": "dicom-series",
+    "uris": [
+      "/api/v1/file/aaaaaaaaaaaaaaaaaaaaaaaa/proxiable/001.dcm",
+      "/api/v1/file/bbbbbbbbbbbbbbbbbbbbbbbb/proxiable/002.dcm"
+    ]
+  }
+}

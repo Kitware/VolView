@@ -59,6 +59,16 @@ export type StateFileLeaf = {
 };
 
 /**
+ * Namespaces a synthesized segment-group leaf's stateID so it can't collide
+ * with a save-time dataset id in the shared restore `dataIDMap` — both are
+ * small integers minted independently, and a bare `String(dataSourceId)` would
+ * let leaf-completion order decide the winner. Transient only; nothing
+ * serialized carries the prefix, so old saves restore unchanged.
+ */
+export const leafStateId = (dataSourceId: number): string =>
+  `leaf:${dataSourceId}`;
+
+/**
  * Represents a source of data.
  *
  * The parent chain denotes the provenance for each step of the data source resolution.
@@ -67,6 +77,30 @@ export type DataSource = {
   parent?: DataSource;
   stateFileLeaf?: StateFileLeaf;
 } & (FileSource | UriSource | ArchiveSource | ChunkSource | CollectionSource);
+
+/**
+ * Every state-file leaf a data source covers, provenance-first.
+ *
+ * A leaf on the source (or up its parent chain) names the source itself —
+ * one leaf. A leaf-less collection is a MERGED result (a multi-file DICOM
+ * volume): every member contributes its own leaf, because the backend's
+ * ephemeral compose emits one dataset per FILE while the client merges them
+ * into one volume — the restore accounting must map every per-file stateID
+ * to that one result (mapping only the first
+ * member leaves N-1 datasets "unresolved" and makes segment-group parent
+ * binding completion-order luck).
+ */
+export function findStateFileLeaves(dataSource: DataSource): StateFileLeaf[] {
+  let current: DataSource | undefined = dataSource;
+  while (current) {
+    if (current.stateFileLeaf) return [current.stateFileLeaf];
+    current = current.parent;
+  }
+  if (dataSource.type === 'collection') {
+    return dataSource.sources.flatMap(findStateFileLeaves);
+  }
+  return [];
+}
 
 /**
  * Creates a DataSource from a single file.

@@ -1,0 +1,14 @@
+{
+  "jobs": [
+    {
+      "jobId": "job-abc123",
+      "taskId": "OtsuSegmentation",
+      "taskTitle": "Otsu segmentation",
+      "createdBy": { "id": "user-1", "name": "Ada Lovelace" },
+      "createdAt": "2026-07-03T18:24:00Z",
+      "state": "success",
+      "resultState": "ready"
+    }
+  ],
+  "nextCursor": "opaque-continuation"
+}

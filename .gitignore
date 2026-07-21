@@ -32,7 +32,3 @@ bundle-analysis.html
 reports
 *.log
 .tmp/
-
-.github/copilot
-CLAUDE.md
-.claude/

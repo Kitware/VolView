@@ -54,8 +54,8 @@ jobs:
             echo "Setting version to $VERSION for prerelease"
           fi
 
-      - name: Build with remote save enabled
-        run: VITE_REMOTE_SERVER_URL= VITE_ENABLE_REMOTE_SAVE=true npm run build
+      - name: Build
+        run: VITE_REMOTE_SERVER_URL= npm run build
 
       - name: Publish to npm
         run: npm publish --tag ${{ steps.version.outputs.tag }} --access public --provenance

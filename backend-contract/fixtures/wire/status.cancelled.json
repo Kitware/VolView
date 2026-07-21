@@ -1,0 +1,5 @@
+{
+  "jobId": "job-abc123",
+  "state": "cancelled",
+  "resultState": "unavailable"
+}

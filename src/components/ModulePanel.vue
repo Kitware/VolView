@@ -41,9 +41,17 @@
 </template>
 
 <script lang="ts">
-import { Component, computed, defineComponent, ref, watch } from 'vue';
+import {
+  Component,
+  computed,
+  defineComponent,
+  onBeforeUnmount,
+  ref,
+  watch,
+} from 'vue';
 
 import { ConnectionState, useServerStore } from '@/src/store/server';
+import { JobsModule, useProcessingJobsStore } from '@/src/processing';
 import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
@@ -52,14 +60,14 @@ import ProbeView from './ProbeView.vue';
 import { useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 
-interface Module {
+type Module = {
   name: string;
   icon: string;
   component: Component;
   disabled?: boolean;
-}
+};
 
-const Modules: Module[] = [
+const CoreModules: Module[] = [
   {
     name: 'Data',
     icon: 'database',
@@ -75,12 +83,13 @@ const Modules: Module[] = [
     icon: 'cube',
     component: RenderingModule,
   },
-  {
-    name: 'Remote',
-    icon: 'server-network',
-    component: ServerModule,
-  },
 ];
+
+const RemoteModule: Module = {
+  name: 'Remote',
+  icon: 'server-network',
+  component: ServerModule,
+};
 
 const autoSwitchToAnnotationsTools = [
   Tools.Rectangle,
@@ -105,16 +114,48 @@ export default defineComponent({
     );
 
     const serverStore = useServerStore();
+    const jobsModule = ref<Module | null>(null);
+
+    // Processing ships in every build; the Jobs tab stays latent until a
+    // provider registers. `providerCount > 0` is the sole runtime gate — with
+    // no provider configured the tab never appears (latent = inert). JobsModule
+    // is the feature's lazily-loaded panel export (its chunk loads on mount).
+    const providersStore = useProcessingJobsStore();
+    const stopProviderCountWatch = watch(
+      () => providersStore.providerCount,
+      (providerCount) => {
+        jobsModule.value =
+          providerCount > 0
+            ? {
+                name: 'Jobs',
+                icon: 'creation',
+                component: JobsModule,
+              }
+            : null;
+      },
+      { immediate: true }
+    );
+
+    onBeforeUnmount(() => {
+      stopProviderCountWatch();
+    });
+
     const modules = computed(() => {
+      const filtered = [
+        ...CoreModules,
+        ...(jobsModule.value ? [jobsModule.value] : []),
+        RemoteModule,
+      ];
+
       if (!serverStore.url) {
-        return Modules.filter((m) => m.name !== 'Remote');
+        return filtered.filter((m) => m.name !== 'Remote');
       }
 
       if (serverStore.connState === ConnectionState.Connected) {
-        return Modules;
+        return filtered;
       }
 
-      return Modules.map((m) => {
+      return filtered.map((m) => {
         if (m.name === 'Remote') {
           return { ...m, disabled: true };
         }

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "results_not_ready"
+        },
+        "message": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running"
+          ]
+        },
+        "resultState": {
+          "type": "string",
+          "const": "waiting"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "state",
+        "resultState"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "const": "results_unavailable"
+        },
+        "message": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "error",
+            "cancelled"
+          ]
+        },
+        "resultState": {
+          "type": "string",
+          "const": "unavailable"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "state",
+        "resultState"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

@@ -225,6 +225,9 @@ export default defineConfig({
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
       '/tmp': config.baseUrl!,
+      // Local Girder stack, so girder-launched sessions (urls=/api/v1/...)
+      // work same-origin against the dev server.
+      '/api': 'http://localhost:8080',
     },
   },
   optimizeDeps: {
