@@ -1,0 +1,21 @@
+{
+  "id": "6600000000000000000000e1",
+  "intent": "add-segment-group",
+  "url": "/api/v1/file/6600000000000000000000e1/proxiable/otsu.nii.gz",
+  "name": "otsu.nii.gz",
+  "segments": [
+    {
+      "value": 1,
+      "name": "Bin 1",
+      "color": [
+        255,
+        0,
+        0
+      ]
+    }
+  ],
+  "source": {
+    "jobId": "job-abc123",
+    "outputId": "outputLabelmap"
+  }
+}

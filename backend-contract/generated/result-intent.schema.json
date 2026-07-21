@@ -149,6 +149,8 @@
                     "type": "string"
                   },
                   "color": {
+                    "minItems": 4,
+                    "maxItems": 4,
                     "type": "array",
                     "prefixItems": [
                       {

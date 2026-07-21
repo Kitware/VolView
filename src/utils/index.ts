@@ -50,6 +50,9 @@ export function clampValue(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 export function pick<T, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
   return keys.reduce((o, k) => ({ ...o, [k]: obj[k] }), {} as Pick<T, K>);
 }

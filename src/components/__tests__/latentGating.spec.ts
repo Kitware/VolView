@@ -1,6 +1,5 @@
-// One-build collapse acceptance: processing and remote-save code ship
-// in every build but stay latent = inert until a runtime signal turns them on.
-// These tests pin the two runtime gates that replace the deleted build flags:
+// Processing and remote-save code ship in every build but stay inert until a
+// runtime signal turns them on. These tests pin the two runtime gates:
 //   - Jobs tab       ⇒ ModulePanel reveals it only when `providerCount > 0`.
 //   - Remote save     ⇒ the surface/egress engage only when `saveUrl !== ''`.
 
@@ -104,9 +103,9 @@ describe('Remote save is latent — gated on a save target', () => {
     expect($fetch).not.toHaveBeenCalled();
   });
 
-  it('performs egress only after an allowed save target is set (always-built, latent)', async () => {
+  it('performs egress only after an allowed save target is set', async () => {
     const store = useRemoteSaveStateStore();
-    // Same-origin passes the runtime egress gate with zero config (chunk 2).
+    // Same-origin passes the runtime egress gate with zero config.
     const saveUrl = `${window.location.origin}/save`;
     store.setSaveUrl(saveUrl);
 

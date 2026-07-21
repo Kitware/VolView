@@ -1,11 +1,12 @@
 <template>
-  <v-checkbox
+  <!-- Neutral when on: the accent blue is reserved for tabs and links. -->
+  <v-switch
     :model-value="modelValue === true"
-    :label="param.title || param.id"
     :hint="param.help"
     persistent-hint
     density="compact"
     hide-details="auto"
+    color="grey-lighten-1"
     @update:model-value="(v) => emit('update:modelValue', !!v)"
   />
 </template>

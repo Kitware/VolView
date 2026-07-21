@@ -6,6 +6,7 @@
     item-title="title"
     item-value="id"
     label="Task"
+    variant="outlined"
     density="compact"
     hide-details
     @update:model-value="(v) => emit('update:taskId', v as string | null)"

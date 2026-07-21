@@ -28,8 +28,6 @@ describe('resultToIntent', () => {
   });
 
   it('returns a declared, shape-valid state directive (carrying the row id)', () => {
-    // The whole result row is the candidate now, so the parsed intent keeps the
-    // required `id` (a missing id would itself fail the gate).
     expect(resultToIntent(result({ intent: 'add-base-image' }))).toEqual({
       id: 'result-1',
       intent: 'add-base-image',

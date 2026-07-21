@@ -112,7 +112,7 @@ export const useLayersStore = defineStore('layer', () => {
   const remove = (selectionToRemove: DataSelection) => {
     // delete as parent
     getLayers(selectionToRemove).forEach(({ selection }) =>
-      deleteLayer(selection, selection)
+      deleteLayer(selectionToRemove, selection)
     );
     // delete from layer lists
     Object.keys(parentToLayers).forEach((parent) =>

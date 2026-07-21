@@ -21,10 +21,6 @@ const KNOWN_KINDS = [
   'bounds',
 ];
 
-// ---------------------------------------------------------------------------
-// WI1 — the form renders from the validated spec, for every golden fixture.
-// ---------------------------------------------------------------------------
-
 describe('form model renders every golden task-spec fixture', () => {
   const fixtures = loadFixtureDir('task-spec');
 
@@ -66,8 +62,8 @@ describe('form model renders every golden task-spec fixture', () => {
       parseTaskSpecEnvelope(loadFixture('task-spec/synthetic-all-kinds.json'))
     );
     const values = initialFormValues(model);
-    expect(values.radius).toBe(1); // int default
-    expect(values.inputVolume).toBeNull(); // minted from provenance
+    expect(values.radius).toBe(1);
+    expect(values.inputVolume).toBeNull();
   });
 
   it('seeds an enum default (and falls back to the first option)', () => {
@@ -81,15 +77,10 @@ describe('form model renders every golden task-spec fixture', () => {
     const model = buildTaskFormModel(
       parseTaskSpecEnvelope(loadFixture('task-spec/synthetic-bounds-enum.json'))
     );
-    // Slicer integer-enumeration: options and default stay numbers end-to-end
-    // (stringifying would submit a type the CLI rejects).
+    // Stringifying the default would submit a type the CLI rejects.
     expect(initialFormValues(model).iterations).toBe(2);
   });
 });
-
-// ---------------------------------------------------------------------------
-// WI2 — fail closed on an unknown / invalid parameter kind.
-// ---------------------------------------------------------------------------
 
 describe('fail closed on an unknown or invalid parameter', () => {
   it('hides an unknown field kind but keeps the valid params (negative fixture)', () => {
@@ -104,7 +95,6 @@ describe('fail closed on an unknown or invalid parameter', () => {
     const model = buildTaskFormModel(
       parseTaskSpecEnvelope(loadFixture('negative/unknown-field-kind.json'))
     );
-    // Bind the one required (valid) param; the hidden `tint` is optional.
     const issues = validateFormValues(model, { inputVolume: 'uri:1' });
     expect(issues.some((i) => i.parameter === 'tint')).toBe(false);
     expect(issues).toHaveLength(0);
@@ -137,10 +127,6 @@ describe('fail closed on an unknown or invalid parameter', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Submit gating: required-ness + numeric min/max.
-// ---------------------------------------------------------------------------
-
 describe('value validation gates submit', () => {
   const model = () =>
     buildTaskFormModel(
@@ -169,5 +155,24 @@ describe('value validation gates submit', () => {
       radius: 5,
     });
     expect(issues).toHaveLength(0);
+  });
+
+  it('accepts a required enum whose selected member is the empty string', () => {
+    // Enum membership includes '', so treating it as unfilled would block submit.
+    const enumModel = buildTaskFormModel(
+      parseTaskSpecEnvelope({
+        specVersion: 1,
+        id: 'x',
+        title: 'X',
+        parameters: [
+          { kind: 'enum', id: 'mode', required: true, options: ['', 'fast'] },
+        ],
+        outputs: [],
+      })
+    );
+    expect(validateFormValues(enumModel, { mode: '' })).toHaveLength(0);
+    expect(
+      validateFormValues(enumModel, { mode: null }).map((i) => i.parameter)
+    ).toContain('mode');
   });
 });

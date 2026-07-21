@@ -1,13 +1,31 @@
 <template>
+  <div v-if="slider" class="d-flex align-center">
+    <v-slider
+      :model-value="modelValue ?? slider.min"
+      :min="slider.min"
+      :max="slider.max"
+      :step="slider.step ?? 0"
+      :hint="param.help"
+      density="compact"
+      hide-details="auto"
+      persistent-hint
+      color="grey-lighten-1"
+      @update:model-value="(v: number) => emit('update:modelValue', v)"
+    />
+    <span class="slider-value text-caption ml-2">
+      {{ modelValue ?? slider.min }}
+    </span>
+  </div>
   <v-text-field
+    v-else
     :model-value="text"
-    :label="param.title || param.id"
     :hint="param.help"
     :min="numeric?.min"
     :max="numeric?.max"
     :step="numeric?.step ?? 'any'"
     :error-messages="error ?? []"
     type="number"
+    variant="outlined"
     density="compact"
     hide-details="auto"
     persistent-hint
@@ -27,31 +45,33 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: number | null): void;
 }>();
 
-// Only int/float carry min/max/step; narrow so the template can read them.
 const numeric = computed(() =>
   props.param.kind === 'int' || props.param.kind === 'float'
     ? props.param
     : null
 );
 
-// The field owns its raw text: rejected input (e.g. "1.9" for an int) must
-// stay visible under its error rather than being clobbered by the null the
-// widget emits for it.
+const slider = computed(() => {
+  const n = numeric.value;
+  return n && n.kind === 'float' && n.min != null && n.max != null
+    ? { min: n.min, max: n.max, step: n.step }
+    : null;
+});
+
+// Raw text is local so rejected input stays visible instead of being clobbered by the emitted null.
 const text = ref(props.modelValue == null ? '' : String(props.modelValue));
 const error = ref<string | null>(null);
 
 watch(
   () => props.modelValue,
   (v) => {
-    if (error.value != null) return; // keep rejected text visible mid-edit
+    if (error.value != null) return;
     const current = text.value === '' ? null : Number(text.value);
     if (v !== current) text.value = v == null ? '' : String(v);
   }
 );
 
-// Reject instead of coercing: parseInt("1.9") would silently submit 1. A
-// value that fails these checks emits null (blocking submit if required) and
-// names the problem inline.
+// Reject instead of coercing, since coercing "1.9" for an int silently submits 1.
 function problemWith(parsed: number): string | null {
   if (!Number.isFinite(parsed)) return 'Enter a number';
   if (props.param.kind !== 'int') return null;
@@ -76,3 +96,11 @@ function onInput(value: string) {
   emit('update:modelValue', error.value == null ? parsed : null);
 }
 </script>
+
+<style scoped>
+.slider-value {
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+</style>

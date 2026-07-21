@@ -1,10 +1,3 @@
-// ---------------------------------------------------------------------------
-// NumberWidget parsing: reject instead of coerce. parseInt-style truncation
-// ("1.9" -> 1) silently submitted a value the user never entered; the widget
-// must emit null for non-integral / invalid-step / non-numeric input on an
-// int param and surface the problem inline.
-// ---------------------------------------------------------------------------
-
 import { describe, it, expect } from 'vitest';
 import { defineComponent } from 'vue';
 import { shallowMount } from '@vue/test-utils';
@@ -67,7 +60,7 @@ describe('NumberWidget input parsing', () => {
 
   it('rejects off-step input on an int param with min+step', async () => {
     const w = mountWidget({ kind: 'int', min: 1, step: 2 });
-    await type(w, '4'); // valid values are 1, 3, 5, ...
+    await type(w, '4');
     expect(lastEmitted(w)).toBeNull();
     expect(fieldError(w)).toBe('Enter a value in steps of 2 from 1');
     await type(w, '3');
@@ -92,7 +85,6 @@ describe('NumberWidget input parsing', () => {
   it('keeps the rejected text visible instead of clobbering it', async () => {
     const w = mountWidget({ kind: 'int' }, 1);
     await type(w, '1.9');
-    // The parent reflects the emitted null back; the raw text must survive.
     await w.setProps({ modelValue: null });
     expect(w.findComponent(TextFieldStub).props('modelValue')).toBe('1.9');
   });

@@ -15,7 +15,6 @@
     "serve": "npm run dev",
     "prebuild": "patch-package",
     "contract:generate": "tsx backend-contract/scripts/generate-json-schema.ts && tsx backend-contract/scripts/generate-openapi.ts",
-    "contract:verify-backend": "backend-contract/scripts/verify-backend.sh",
     "build": "vue-tsc --noEmit && vite build",
     "build:analyze": "cross-env ANALYZE_BUNDLE=1 npm run build",
     "test": "vitest",

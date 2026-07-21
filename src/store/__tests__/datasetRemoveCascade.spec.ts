@@ -27,11 +27,9 @@ const bindFirstViewTo = (dataID: string) => {
 // before `remove()` returns — so a `serialize()` on the same tick (what
 // applying a job "Open" result does) can never snapshot a dangling reference.
 //
-// The tell of the bug is the absence of `await nextTick()` in these tests:
-// segment-group / annotation cleanup used to run on an async `onImageDeleted`
-// watcher (a tick late), and the view / crop / paint holders were never wired
-// at all — so a same-tick serialize wrote orphaned ids the manifest normalizer
-// then had to strip. This exercises the real `datasetStore.remove` entrypoint.
+// Note the absence of `await nextTick()` in these tests: the whole cascade is
+// synchronous, so a same-tick serialize never sees orphaned ids. This
+// exercises the real `datasetStore.remove` entrypoint.
 // ---------------------------------------------------------------------------
 
 const seatImage = (id: string, name: string) => {

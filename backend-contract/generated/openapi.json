@@ -262,7 +262,7 @@
         "tags": [
           "job"
         ],
-        "summary": "A job's neutral execution and result-readiness status. Poll through Poll until the job reaches a terminal state. Job-addressed: keyed by the job own access control — no context in the path.",
+        "summary": "A job's neutral execution and result-readiness status. Poll until the job reaches a terminal state. Job-addressed: keyed by the opaque job id alone and gated by the job's own access control — no context in the path.",
         "parameters": [
           {
             "name": "jobId",
@@ -723,6 +723,8 @@
                       "type": "boolean"
                     },
                     "default": {
+                      "minItems": 6,
+                      "maxItems": 6,
                       "type": "array",
                       "prefixItems": [
                         {
@@ -802,6 +804,7 @@
             "type": "string"
           },
           "uris": {
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string"
@@ -1154,6 +1157,8 @@
                           "type": "string"
                         },
                         "color": {
+                          "minItems": 4,
+                          "maxItems": 4,
                           "type": "array",
                           "prefixItems": [
                             {
@@ -1408,97 +1413,7 @@
           "jobs": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "jobId": {
-                  "type": "string"
-                },
-                "taskId": {
-                  "type": "string"
-                },
-                "taskTitle": {
-                  "type": "string"
-                },
-                "createdBy": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name"
-                  ],
-                  "additionalProperties": false
-                },
-                "createdAt": {
-                  "type": "string"
-                },
-                "startedAt": {
-                  "type": "string"
-                },
-                "finishedAt": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "pending",
-                    "running",
-                    "success",
-                    "error",
-                    "cancelled"
-                  ]
-                },
-                "resultState": {
-                  "type": "string",
-                  "enum": [
-                    "waiting",
-                    "ready",
-                    "incomplete",
-                    "unavailable"
-                  ]
-                },
-                "progress": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
-                },
-                "outputSummary": {
-                  "type": "object",
-                  "properties": {
-                    "recorded": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "missing": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "recorded",
-                    "missing"
-                  ],
-                  "additionalProperties": false
-                }
-              },
-              "required": [
-                "jobId",
-                "taskId",
-                "taskTitle",
-                "createdBy",
-                "createdAt",
-                "state",
-                "resultState"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/JobHistorySummary"
             }
           },
           "nextCursor": {
@@ -1558,309 +1473,7 @@
           "intents": {
             "type": "array",
             "items": {
-              "anyOf": [
-                {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "intent": {
-                          "type": "string",
-                          "const": "add-base-image"
-                        },
-                        "id": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "type": "string"
-                        },
-                        "mimeType": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "size": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "minimum": 0
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "intent",
-                        "id",
-                        "name",
-                        "url"
-                      ],
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "intent": {
-                          "type": "string",
-                          "const": "add-layer"
-                        },
-                        "id": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "type": "string"
-                        },
-                        "mimeType": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "size": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "minimum": 0
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "intent",
-                        "id",
-                        "name",
-                        "url"
-                      ],
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "intent": {
-                          "type": "string",
-                          "const": "add-segment-group"
-                        },
-                        "id": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "type": "string"
-                        },
-                        "mimeType": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "size": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "minimum": 0
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "segments": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "value": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 9007199254740991
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "color": {
-                                "type": "array",
-                                "prefixItems": [
-                                  {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": 255
-                                  },
-                                  {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": 255
-                                  },
-                                  {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": 255
-                                  },
-                                  {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "maximum": 255
-                                  }
-                                ]
-                              },
-                              "visible": {
-                                "type": "boolean"
-                              }
-                            },
-                            "required": [
-                              "value",
-                              "name",
-                              "color"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "source": {
-                          "type": "object",
-                          "properties": {
-                            "jobId": {
-                              "type": "string"
-                            },
-                            "outputId": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "jobId",
-                            "outputId"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "intent",
-                        "id",
-                        "name",
-                        "url"
-                      ],
-                      "additionalProperties": {}
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "intent": {
-                          "type": "string",
-                          "const": "restore-state"
-                        },
-                        "id": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "url": {
-                          "type": "string"
-                        },
-                        "mimeType": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "size": {
-                          "anyOf": [
-                            {
-                              "type": "number",
-                              "minimum": 0
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "intent",
-                        "id",
-                        "name",
-                        "url"
-                      ],
-                      "additionalProperties": {}
-                    }
-                  ]
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "intent": {},
-                    "id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "url": {
-                      "type": "string"
-                    },
-                    "mimeType": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "size": {
-                      "anyOf": [
-                        {
-                          "type": "number",
-                          "minimum": 0
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "url"
-                  ],
-                  "additionalProperties": {}
-                }
-              ]
+              "$ref": "#/components/schemas/ResultIntent"
             }
           },
           "missing": {
@@ -1942,7 +1555,7 @@
       },
       "TaskSummary": {
         "type": "object",
-        "description": "Advisory display metadata for one task in the picker. Pass-through: the client renders it but validates only id/title; every other field is OPTIONAL advisory display metadata a backend MAY omit, and the client never dispatches on it — including `dockerImage`, a display-only implementation label with no neutral semantics.",
+        "description": "Advisory display metadata for one task in the picker. Pass-through: the client renders it but validates only id/title; every other field is OPTIONAL advisory display metadata a backend MAY omit, and the client never dispatches on it.",
         "properties": {
           "id": {
             "type": "string"
@@ -1952,10 +1565,6 @@
           },
           "description": {
             "type": "string"
-          },
-          "dockerImage": {
-            "type": "string",
-            "description": "Optional advisory implementation label shown in the picker. Display-only: a backend MAY omit it and the client never dispatches on it."
           },
           "category": {
             "type": "array",

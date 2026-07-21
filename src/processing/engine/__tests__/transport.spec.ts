@@ -1,21 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { createEngineTransport } from '../transport';
+import type { HttpError } from '../transport';
 import type { ProcessingProviderConfig } from '@/src/processing/types';
 import { setGlobalHeader, deleteGlobalHeader } from '@/src/utils/fetch';
 
-// ---------------------------------------------------------------------------
-// The one required transport implements the paired backend's FIXED routes and
-// canonical parsers directly — there is no descriptor to swap. These tests pin
-// every route shape (from the correct base URL) and the real parser round-trips.
-//
-// The engine routes through `$fetch`, which attaches the global bearer only for
-// SAME-ORIGIN requests (P-04), so the config base URLs are built from
-// `window.location.origin` — a foreign host would silently drop the bearer.
-// ---------------------------------------------------------------------------
-
 type Call = { url: string; init: RequestInit | undefined };
 
+// Same-origin base URLs: the global bearer is only attached same-origin.
 const BASE = `${window.location.origin}/api/v1/folder/f1/volview_processing`;
 const JOBS_BASE = `${window.location.origin}/api/v1/volview_processing`;
 
@@ -26,14 +18,11 @@ const config: ProcessingProviderConfig = {
   jobsBaseUrl: JOBS_BASE,
 };
 
-// Minimal valid wire fixtures per route — the transport calls the REAL canonical
-// parsers, so a canned body must actually parse.
+// Fixtures reach the real parsers, so every canned body must actually parse.
 const FIXTURES = {
   tasks: [{ id: 'task-1', title: 'Threshold', description: 'd' }],
   spec: { specVersion: 1, id: 't', title: 'T', parameters: [], outputs: [] },
   run: { jobId: 'job-1' },
-  // The backend always sends jobId on a status; parseJobStatus re-pins it to the
-  // requested id, but the raw must still carry one to parse.
   status: { jobId: 'server-id', state: 'running', resultState: 'waiting' },
   results: {
     resultState: 'ready',
@@ -57,7 +46,6 @@ const FIXTURES = {
   jobs: { jobs: [], nextCursor: null },
 } as const;
 
-// Route a request URL to its fixture by the most specific path suffix first.
 const fixtureFor = (url: string): unknown => {
   const path = url.split('?')[0];
   if (path.endsWith('/spec')) return FIXTURES.spec;
@@ -67,8 +55,8 @@ const fixtureFor = (url: string): unknown => {
   if (path.endsWith('/detail')) return FIXTURES.detail;
   if (path.endsWith('/stage')) return FIXTURES.stage;
   if (path.endsWith('/tasks')) return FIXTURES.tasks;
-  if (path.endsWith('/jobs')) return FIXTURES.jobs; // history (baseUrl)
-  if (/\/jobs\/[^/]+$/.test(path)) return FIXTURES.status; // status / delete
+  if (path.endsWith('/jobs')) return FIXTURES.jobs;
+  if (/\/jobs\/[^/]+$/.test(path)) return FIXTURES.status;
   return {};
 };
 
@@ -119,17 +107,14 @@ describe('one required transport — fixed routes + $fetch', () => {
     await t.listJobHistory();
 
     const urls = calls.map((c) => c.url);
-    // Launch-context routes → folder-scoped baseUrl.
     expect(urls[0]).toBe(`${BASE}/tasks`);
     expect(urls[1]).toBe(`${BASE}/tasks/threshold/spec`);
     expect(urls[2]).toBe(`${BASE}/tasks/threshold/run`);
-    // Job-addressed routes → folder-free jobsBaseUrl.
     expect(urls[3]).toBe(`${JOBS_BASE}/jobs/job-1`);
     expect(urls[4]).toBe(`${JOBS_BASE}/jobs/job-1/results`);
     expect(urls[5]).toBe(`${JOBS_BASE}/jobs/job-1/cancel`);
     expect(urls[6]).toBe(`${JOBS_BASE}/jobs/job-1`);
     expect(urls[7]).toBe(`${JOBS_BASE}/jobs/job-1/detail`);
-    // Durable history is context-scoped (baseUrl), unlike the job routes.
     expect(urls[8]).toBe(`${BASE}/jobs`);
   });
 
@@ -163,8 +148,6 @@ describe('one required transport — fixed routes + $fetch', () => {
     expect(calls[0].url).toBe(`${JOBS_BASE}/jobs/job-1`);
     expect(calls[0].init?.method).toBe('DELETE');
   });
-
-  // --- parser round-trips for every operation ---
 
   it('parses tasks fail-soft: drops a malformed summary, keeps valid ones', async () => {
     stubFetch(() => [{ id: 'ok', title: 'OK' }, { id: 'bad-no-title' }]);
@@ -223,6 +206,54 @@ describe('one required transport — fixed routes + $fetch', () => {
     const calls = stubFetch();
     await makeTransport().listJobHistory('opaque cursor');
     expect(calls[0].url).toBe(`${BASE}/jobs?cursor=opaque%20cursor`);
+  });
+
+  const stubFetchNotOk = (status: number, body?: unknown) => {
+    const text = body === undefined ? '' : JSON.stringify(body);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status,
+            statusText: 'ERR',
+            json: async () => body,
+            text: async () => text,
+          }) as unknown as Response
+      )
+    );
+  };
+
+  const rejectionOf = async (promise: Promise<unknown>): Promise<HttpError> => {
+    try {
+      await promise;
+    } catch (err) {
+      return err as HttpError;
+    }
+    throw new Error('expected the operation to reject');
+  };
+
+  it('throws an HttpError carrying .status on a non-2xx JSON route', async () => {
+    stubFetchNotOk(401);
+    const err = await rejectionOf(makeTransport().getJob('job-1'));
+    expect(err.status).toBe(401);
+    expect(err.message).toContain('401');
+  });
+
+  it('carries .code and .body from a typed non-2xx error payload', async () => {
+    const payload = { code: 'results_unavailable', message: 'job errored' };
+    stubFetchNotOk(404, payload);
+    const err = await rejectionOf(makeTransport().getResults('job-1'));
+    expect(err.status).toBe(404);
+    expect(err.code).toBe('results_unavailable');
+    expect(err.body).toEqual(payload);
+  });
+
+  it('throws an HttpError carrying .status on a non-2xx empty route', async () => {
+    stubFetchNotOk(401);
+    const err = await rejectionOf(makeTransport().deleteJob('job-1'));
+    expect(err.status).toBe(401);
   });
 
   it('stages a labelmap multipart resource and returns the minted URIs', async () => {

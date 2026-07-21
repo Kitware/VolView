@@ -15,8 +15,8 @@
     >
       <v-expansion-panel value="run">
         <v-expansion-panel-title>
-          <v-icon class="mr-2">mdi-play-circle-outline</v-icon>
-          <span>Run a Task</span>
+          <v-icon class="mr-2">mdi-console-line</v-icon>
+          <span>Run a job</span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <v-select
@@ -27,6 +27,7 @@
             item-title="label"
             item-value="id"
             label="Provider"
+            variant="outlined"
             density="compact"
             hide-details
             class="mb-3"
@@ -77,6 +78,12 @@
         <v-expansion-panel-title>
           <v-icon class="mr-2">mdi-history</v-icon>
           <span>Jobs</span>
+          <span
+            v-if="historyCount > 0"
+            class="text-caption text-medium-emphasis ml-2"
+          >
+            {{ historyCount }} in history
+          </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <JobList />
@@ -88,6 +95,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { watchDebounced } from '@vueuse/core';
 
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -117,7 +125,6 @@ import {
 } from '@/src/processing/engine/mintInput';
 import {
   bindLabelmapInputs,
-  labelmapStageTargets,
   mintLabelmapValue,
   mintLabelmapReferenceImage,
   type SegmentGroupView,
@@ -144,8 +151,9 @@ const paintStore = usePaintToolStore();
 const segmentGroupStore = useSegmentGroupStore();
 const messageStore = useMessageStore();
 
-// Both top-level sections start expanded; each collapses independently.
 const openPanels = ref<string[]>(['run', 'jobs']);
+
+const historyCount = computed(() => providers.jobHistoryRows.length);
 
 const providerItems = computed(() =>
   Array.from(providers.configs.values()).map((c) => ({
@@ -172,7 +180,6 @@ const taskError = ref<string | null>(null);
 const initialValues = ref<Record<string, ProcessingValue>>({});
 const currentValues = ref<Record<string, ProcessingValue>>({});
 const issues = ref<FormValidationIssue[]>([]);
-// Per-`sourceRef`-param bind state, surfaced inline by FileWidget (input mint).
 const sourceRefStates = ref<Record<string, SourceRefBindingState>>({});
 const submitting = ref(false);
 
@@ -193,15 +200,6 @@ watch(
   { immediate: true }
 );
 
-// UI event handlers only ASSIGN selectedProviderId / selectedTaskId; the two
-// watchers below own all request lifecycle. Each watcher (a) clears state
-// derived from the previous selection immediately, (b) takes a request-local
-// `active` flag, (c) is invalidated through Vue watcher cleanup, and (d) commits
-// provider/task/model/loading/error state only while still active AND while the
-// selected id still matches — so a slower stale request can never clobber a
-// newer selection's state (not even via its `finally`).
-
-// One-line handler for the TaskPicker: assign only, never start a request.
 function onTaskIdPicked(id: string | null) {
   selectedTaskId.value = id;
 }
@@ -209,10 +207,7 @@ function onTaskIdPicked(id: string | null) {
 watch(
   selectedProviderId,
   async (id, _old, onCleanup) => {
-    // Clear everything derived from the previous provider immediately
-    // (ungated) — including the request lifecycle flags: a pending request's
-    // gated `finally` never fires for a superseded selection, so without this
-    // reset a cleared/failed selection leaks "loading" or a stale error.
+    // Ungated reset: a superseded request's gated finally never runs.
     provider.value = null;
     tasks.value = [];
     taskModel.value = null;
@@ -235,7 +230,6 @@ watch(
       if (!current()) return;
       tasks.value = loaded;
       if (tasks.value.length > 0) {
-        // Assign only — the selectedTaskId watcher loads the spec.
         selectedTaskId.value = tasks.value[0].id;
       }
     } catch (err) {
@@ -248,19 +242,7 @@ watch(
   { immediate: true }
 );
 
-// ---------------------------------------------------------------------------
-// Task spec → form model
-//
-// Fetch the server-emitted, zod-validated task spec and render the form from
-// it. No XML is parsed at runtime; the engine hides any param it cannot type
-// and refuses submit if a required one was hidden (fail closed).
-// ---------------------------------------------------------------------------
-
 watch(selectedTaskId, async (id, _old, onCleanup) => {
-  // Clear the previous task's model AND its request lifecycle flags
-  // immediately (ungated): a superseded request's gated `finally` never
-  // resets them, so a cleared selection (or one whose provider has no tasks)
-  // must not leave "Loading task spec…" or a previous error on screen.
   taskModel.value = null;
   loadingTask.value = false;
   taskError.value = null;
@@ -269,8 +251,7 @@ watch(selectedTaskId, async (id, _old, onCleanup) => {
   onCleanup(() => {
     active = false;
   });
-  // Pin the provider from this selection generation; a later provider change
-  // clears selectedTaskId (re-running this watcher) and invalidates `active`.
+  // A later provider change clears selectedTaskId and invalidates `active`.
   const activeProvider = provider.value;
   const current = () => active && selectedTaskId.value === id;
   loadingTask.value = true;
@@ -280,7 +261,6 @@ watch(selectedTaskId, async (id, _old, onCleanup) => {
     if (!current()) return;
     const model = buildTaskFormModel(envelope);
     taskModel.value = model;
-    // One provenance walk shared by both consumers below.
     const image = activeImageBinding(model);
     const initial = applyActiveBindings(model, initialFormValues(model), image);
     initialValues.value = initial;
@@ -301,11 +281,8 @@ function onValuesUpdate(values: Record<string, ProcessingValue>) {
 }
 
 async function onSubmit(values: Record<string, ProcessingValue>) {
-  // Snapshot the WHOLE submission context SYNCHRONOUSLY, before the first
-  // await. Everything below — staging and submit alike — runs against these
-  // locals only, so switching the provider, task, or active image while the
-  // labelmap upload is pending can never splice a URI minted for provider A
-  // into a submission against provider B (or attach the wrong image context).
+  // Snapshot the submission context before the first await so a provider, task,
+  // or image change mid-staging cannot splice into this submission.
   const submitProvider = provider.value;
   const providerId = selectedProviderId.value;
   const taskId = selectedTaskId.value;
@@ -313,9 +290,6 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
   if (!submitProvider || !providerId || !taskId || !model) return;
   const activeDatasetId = currentImageID.value ?? undefined;
 
-  // Mint the bound input value from the active
-  // volume's OWN provenance at submit, then fail closed if anything is
-  // unbindable or invalid — never submit a volume with no server URIs.
   const image = activeImageBinding(model);
   const finalValues = applyActiveBindings(model, values, image);
   const finalIssues = computeIssues(model, finalValues, image);
@@ -324,15 +298,13 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
     issues.value = finalIssues;
     return;
   }
-  // Part of the snapshot: display formatting reads the live active image and
-  // segment-group selection, so it must render before the staging await too.
+  // Display formatting reads live active image and segment-group state, so it
+  // must render before the staging await.
   const display = buildJobDisplay(model, finalValues);
 
   submitting.value = true;
 
-  // Stage the bound segment group(s) for
-  // backend-minted URIs BEFORE submit. A staging failure is not surfaced by the
-  // store, so surface it here (fail loud) and abort before running the job.
+  // The store does not surface staging failures, so report them here.
   let stagedValues: Record<string, ProcessingValue>;
   try {
     stagedValues = await stageLabelmapInputs(
@@ -354,20 +326,11 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
       display,
     });
   } catch {
-    // Item 4: the failure is already surfaced by the store (message center);
-    // swallow here only to reset `submitting` and avoid an unhandled rejection.
+    // The store already surfaces the failure; caught only to reset `submitting`.
   } finally {
     submitting.value = false;
   }
 }
-
-// ---------------------------------------------------------------------------
-// `bounds` binds from the crop tool
-//
-// A `bounds` parameter takes its value from the crop box of the active image,
-// converted to a world-space LPS 6-tuple. It tracks the crop tool: re-binding
-// whenever the active image or its crop box changes.
-// ---------------------------------------------------------------------------
 
 function worldBoundsForActive() {
   const id = currentImageID.value;
@@ -388,9 +351,8 @@ function applyBoundsBindings(
   values: Record<string, ProcessingValue>
 ): Record<string, ProcessingValue> {
   const world = worldBoundsForActive();
-  // The binder authors EVERY bounds field on EVERY rebind: an active image
-  // with no crop state resets to the task-spec default rather than silently
-  // keeping the previous image's bounds.
+  // Every bounds field is rewritten on each rebind so an uncropped image resets
+  // to the spec default instead of keeping the previous image's bounds.
   const defaults = world ? null : initialFormValues(model);
   const next = { ...values };
   model.fields.forEach((f) => {
@@ -399,17 +361,6 @@ function applyBoundsBindings(
   });
   return next;
 }
-
-// ---------------------------------------------------------------------------
-// Input binding
-//
-// The background image input auto-binds to the ACTIVE dataset: its value is
-// minted from that volume's OWN provenance (its verbatim server URIs), never a
-// backend-advertised source. A volume with no URI provenance (local drop /
-// archive / restored state) is not bindable — the widget says so inline and
-// submit is refused. Bounds and image inputs both track the active image, so
-// they rebind together whenever it (or its crop box) changes.
-// ---------------------------------------------------------------------------
 
 function activeDataSource() {
   return datasetStore.getDataSource(currentImageID.value);
@@ -424,9 +375,6 @@ function activeImageName(): string | undefined {
   );
 }
 
-// A pure read-only view of the segment-group store for the labelmap binder.
-// The bound background is the active
-// image, so the fallback chain + `parentImage` guard resolve against it.
 function segmentGroupView(): SegmentGroupView {
   return {
     orderByParent: segmentGroupStore.orderByParent,
@@ -451,17 +399,14 @@ function labelmapReferenceImage(segmentGroupId: string): InputValue | null {
   );
 }
 
-// Mint the active dataset's image-input binding. Deliberately callable once per
-// handler so `applyActiveBindings` and `computeIssues` can share ONE provenance
-// walk instead of each re-authoring the value set (crop-drag frames call both).
+// Callable once per handler so `applyActiveBindings` and `computeIssues` can
+// share one provenance walk; crop-drag frames call both.
 function activeImageBinding(model: TaskFormModel): ImageBindingResult {
   return bindImageInputs(model, activeDataSource());
 }
 
-// Apply every active-image-derived binding (crop bounds + the minted image
-// input) onto a base value set, overwriting only the bound params. The labelmap
-// value is NOT set here: a segment group has no server provenance, so it earns
-// URIs only at Run via the async staging POST (`stageLabelmapInputs`).
+// The labelmap value is not set here: a segment group has no server provenance,
+// so it earns URIs only at Run via `stageLabelmapInputs`.
 function applyActiveBindings(
   model: TaskFormModel,
   base: Record<string, ProcessingValue>,
@@ -471,12 +416,8 @@ function applyActiveBindings(
   return { ...withBounds, ...image.values };
 }
 
-// Recompute the submit-gating issues and refresh the per-widget bind state. The
-// image and labelmap sourceRef params are gated by their binders (fail closed on
-// no-provenance / no segment group / >1 input), which own them fully, so the
-// generic per-param check is suppressed for them to avoid a duplicate "required"
-// message. A no-provenance background blocks submit via the image binder even
-// when a labelmap is resolvable — the labelmap flow is blocked "for free".
+// Binder-owned sourceRef params are excluded from the generic check so they do
+// not also report a duplicate "required" message.
 function computeIssues(
   model: TaskFormModel,
   values: Record<string, ProcessingValue>,
@@ -505,23 +446,18 @@ function computeIssues(
   return [...image.issues, ...labelmapIssues, ...generic];
 }
 
-// The labelmap staging half, the ASYNC step. After the fail-closed gate
-// passes, serialize each bound segment group to a compressed `seg.nrrd` (the
-// literal 'seg.nrrd' token is required so `maybeBuildSegNrrdMetadata` embeds
-// segment names/colors; gzip is automatic), POST it to the backend staging
-// endpoint together with the parent image's opaque provenance, and mint
-// `{ type:"labelmap", uris }` from the backend response. Two HTTP calls (stage,
-// then run) sit behind one Run click; staging is automatic.
+// The literal 'seg.nrrd' name is required for segment names and colors to be
+// embedded in the serialized output.
 async function stageLabelmapInputs(
   p: ProcessingProvider,
   model: TaskFormModel,
   values: Record<string, ProcessingValue>
 ): Promise<Record<string, ProcessingValue>> {
-  const targets = labelmapStageTargets(bindLabelmaps(model));
+  const targets = Object.entries(bindLabelmaps(model).groups);
   if (targets.length === 0) return values;
 
   const staged = await Promise.all(
-    targets.map(async ({ parameterId, segmentGroupId }) => {
+    targets.map(async ([parameterId, segmentGroupId]) => {
       const metadata = segmentGroupStore.metadataByID[segmentGroupId];
       const labelmap = segmentGroupStore.dataIndex[segmentGroupId];
       const referenceImage = labelmapReferenceImage(segmentGroupId);
@@ -553,11 +489,8 @@ async function stageLabelmapInputs(
   return { ...values, ...Object.fromEntries(staged) };
 }
 
-// The segment group a labelmap sourceRef will ACTUALLY stage, from the same
-// binder snapshot staging uses (including its sole-group fallback). Display
-// must never read `paintStore.activeSegmentGroupID` directly: the active group
-// can belong to another image while binding correctly falls back to the
-// current image's sole group — naming the active group would mislabel the job.
+// Binding can fall back to the current image's sole group, so reading
+// `paintStore.activeSegmentGroupID` directly would mislabel the job.
 function boundLabelmapName(
   model: TaskFormModel,
   parameterId: string
@@ -566,8 +499,6 @@ function boundLabelmapName(
   return groupId ? segmentGroupStore.metadataByID[groupId]?.name : undefined;
 }
 
-// Display names for bound sourceRef inputs (param id → dataset / segment-group
-// name), shown inline by FileWidget in place of a generic "bound" notice.
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
   if (!model) return {};
@@ -592,7 +523,6 @@ function formatProcessingValue(
 ): string {
   if (field.kind === 'sourceRef') {
     if (field.accepts.includes(TYPE_TAG_LABELMAP)) {
-      // Same binder snapshot staging uses — never the raw active group id.
       return boundLabelmapName(model, field.id) ?? 'bound segment group';
     }
     return activeImageName() ?? 'active dataset';
@@ -648,13 +578,14 @@ function buildJobDisplay(
   };
 }
 
-watch(
+// Debounced: dragging a crop handle mutates the crop planes every frame, and
+// each rebind walks provenance and re-validates the whole form.
+watchDebounced(
   () => {
     const id = currentImageID.value;
     return {
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
-      // Refresh the labelmap widget state as the user paints / selects a group.
       activeSegmentGroup: paintStore.activeSegmentGroupID,
       groupCount: id ? (segmentGroupStore.orderByParent[id]?.length ?? 0) : 0,
     };
@@ -662,34 +593,23 @@ watch(
   () => {
     const model = taskModel.value;
     if (!model) return;
-    // One provenance walk shared by both consumers below.
     const image = activeImageBinding(model);
     const rebound = applyActiveBindings(model, currentValues.value, image);
     initialValues.value = rebound;
     currentValues.value = { ...rebound };
     issues.value = computeIssues(model, rebound, image);
   },
-  { deep: true }
+  { deep: true, debounce: 150 }
 );
 
-// ---------------------------------------------------------------------------
-// Result loading + completion messages
-//
-// The dedup seen-set lives in the store: a job that finishes
-// while this tab is unmounted replays into a fresh subscription exactly once on
-// remount, so no completion handling is lost across a tab switch.
-// ---------------------------------------------------------------------------
-
+// The dedup seen-set lives in the store, so a job finishing while this tab is
+// unmounted replays into a fresh subscription exactly once on remount.
 let unsubscribe: (() => void) | null = null;
 
 onMounted(() => {
   unsubscribe = providers.onJobComplete(
     ({ status, results, context, baseImageMissing }) => {
       if (status.state === 'success') {
-        // Auto-load supported result intents: plain images become new Data
-        // entries, and labelmaps attach to the submitted parent image. If that
-        // parent was closed mid-job, strip it from the context so labelmaps skip
-        // while plain images can still open.
         const autoContext =
           baseImageMissing && context
             ? { ...context, activeDatasetId: undefined }

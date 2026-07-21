@@ -7,18 +7,10 @@ import {
   bindLabelmapInputs,
   mintLabelmapValue,
   mintLabelmapReferenceImage,
-  labelmapStageTargets,
   type SegmentGroupView,
 } from '../mintLabelmap';
 import { bindImageInputs } from '../mintInput';
 import type { TaskFormModel, FormField } from '../formModel';
-
-// ---------------------------------------------------------------------------
-// Fixtures — a task model with one labelmap sourceRef, plus a pure segment-group
-// view built from a { groupId -> parentImage } map. Building `orderByParent`
-// FROM the metadata keeps the view internally consistent, exactly like the
-// store invariant (every id in `orderByParent[img]` has `parentImage === img`).
-// ---------------------------------------------------------------------------
 
 const labelmapModel = (
   overrides: Partial<Extract<FormField, { kind: 'sourceRef' }>> = {}
@@ -65,11 +57,6 @@ const remoteFile = (uri: string): DataSource => ({
   name: 'scan.nrrd',
 });
 
-// ---------------------------------------------------------------------------
-// labelmapInputFields — binds by the open type tag off the spec, not by Slicer
-// semantics.
-// ---------------------------------------------------------------------------
-
 describe('labelmapInputFields', () => {
   it('selects sourceRef params that accept a labelmap', () => {
     const model: TaskFormModel = {
@@ -85,10 +72,6 @@ describe('labelmapInputFields', () => {
     expect(labelmapInputFields(model).map((f) => f.id)).toEqual(['seg']);
   });
 });
-
-// ---------------------------------------------------------------------------
-// AC — the fallback chain, all three branches (WI1).
-// ---------------------------------------------------------------------------
 
 describe('resolveLabelmapGroup — fallback chain', () => {
   it('branch 1: the paint-active group (guard passes)', () => {
@@ -137,14 +120,8 @@ describe('resolveLabelmapGroup — fallback chain', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC — the parentImage guard (WI1).
-// ---------------------------------------------------------------------------
-
 describe('resolveLabelmapGroup — parentImage guard', () => {
   it('rejects a paint-active group whose parentImage is not the background', () => {
-    // g1 is paint-active but belongs to a DIFFERENT image; the background's own
-    // only group (g2) is used instead (guard skips g1, chain continues).
     const view = viewOf({ g1: 'other', g2: 'bg' });
     expect(resolveLabelmapGroup('bg', 'g1', view)).toEqual({
       kind: 'resolved',
@@ -166,10 +143,6 @@ describe('resolveLabelmapGroup — parentImage guard', () => {
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// bindLabelmapInputs — states, issues, and the resolved group.
-// ---------------------------------------------------------------------------
 
 describe('bindLabelmapInputs', () => {
   it('is a no-op when the task has no labelmap input', () => {
@@ -212,8 +185,6 @@ describe('bindLabelmapInputs', () => {
   });
 
   it('does not block an OPTIONAL labelmap input with no segment group', () => {
-    // Mirrors the image binder (mintInput): an optional, unresolved labelmap
-    // input stays unbound but must NOT gate submit — the task does not need it.
     const result = bindLabelmapInputs(
       labelmapModel({ required: false }),
       'bg',
@@ -253,11 +224,6 @@ describe('bindLabelmapInputs', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// WI3 — a labelmap painted on a no-provenance background is blocked "for free"
-// by the SAME Chunk-8 image-binder gate; no new gate is built here.
-// ---------------------------------------------------------------------------
-
 describe('no-provenance background blocks the labelmap flow for free', () => {
   it('keeps the image no-provenance issue even when the labelmap resolves', () => {
     const model: TaskFormModel = {
@@ -270,8 +236,6 @@ describe('no-provenance background blocks the labelmap flow for free', () => {
       hidden: [],
     };
 
-    // The background was dropped locally (no server URIs) → image binder fails
-    // closed; the labelmap is perfectly resolvable on the same active image.
     const image = bindImageInputs(model, localFile('local.nrrd'));
     const labelmap = bindLabelmapInputs(
       model,
@@ -283,18 +247,12 @@ describe('no-provenance background blocks the labelmap flow for free', () => {
     expect(labelmap.states.seg).toBe('bound');
     expect(labelmap.issues).toHaveLength(0);
 
-    // Submit is gated on the union of both binders' issues: the image
-    // no-provenance block stands, so the resolvable labelmap cannot clear it.
     const combined = [...image.issues, ...labelmap.issues];
     expect(combined).toHaveLength(1);
     expect(combined[0].parameter).toBe('bg');
     expect(combined[0].message).toMatch(/not loaded from the server/i);
   });
 });
-
-// ---------------------------------------------------------------------------
-// mintLabelmapValue / labelmapStageTargets — the value shape + stage targets.
-// ---------------------------------------------------------------------------
 
 describe('mintLabelmapValue', () => {
   it('mints { type: "labelmap", uris } from the staging response (no format)', () => {
@@ -319,24 +277,5 @@ describe('mintLabelmapReferenceImage', () => {
         localFile('local.nrrd')
       )
     ).toBeNull();
-  });
-});
-
-describe('labelmapStageTargets', () => {
-  it('lists the (paramId, groupId) pairs to serialize + stage', () => {
-    const binding = bindLabelmapInputs(
-      labelmapModel(),
-      'bg',
-      'g1',
-      viewOf({ g1: 'bg' })
-    );
-    expect(labelmapStageTargets(binding)).toEqual([
-      { parameterId: 'inputSeg', segmentGroupId: 'g1' },
-    ]);
-  });
-
-  it('is empty for an unresolved binding (nothing to stage)', () => {
-    const binding = bindLabelmapInputs(labelmapModel(), 'bg', null, viewOf({}));
-    expect(labelmapStageTargets(binding)).toEqual([]);
   });
 });

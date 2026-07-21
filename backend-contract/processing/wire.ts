@@ -8,8 +8,6 @@
 //     fixture) — the client must not silently render a param it can't type;
 //   * a missing, unknown, or malformed result INTENT is ACCEPTED as an
 //     ordinary result record but carries no VolView state directive.
-//
-// House rules: functional style; `type`, not `interface`.
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod';
@@ -25,11 +23,13 @@ export const INTENT_VOCABULARY_VERSION = 1;
 
 // The bound input's value: verbatim provenance URIs plus a SEMANTIC type tag.
 // `type`/`format` are an open vocabulary (no closed server enum). `uris`
-// are the client's own opaque provenance URIs in sorted slice order (advisory).
+// are the client's own opaque provenance URIs in sorted slice order (advisory),
+// and at least one is required — a bound input with no URIs is not a value
+// (the client never mints one, and the backend rejects it with a 400).
 export const inputValueSchema = z.object({
   type: typeTagSchema,
   format: z.string().optional(),
-  uris: z.array(z.string()),
+  uris: z.array(z.string()).min(1),
 });
 
 export type InputValue = z.infer<typeof inputValueSchema>;
@@ -56,7 +56,7 @@ export type StageInputDescriptor = z.infer<typeof stageInputDescriptorSchema>;
 
 // Exactly these five states, named to match what the backend projects and the
 // client store consumes at runtime (`pending | running | success | error |
-// cancelled`): girder's native job status maps onto these with no translation
+// cancelled`): typical backend job lifecycles map onto these with no translation
 // layer, so the producer and the consumer already agree. `cancelled` is present
 // so cancel needs no wire change; the terminal states (`success | error |
 // cancelled`) also carry the born-terminal sync fast-path at zero cost.

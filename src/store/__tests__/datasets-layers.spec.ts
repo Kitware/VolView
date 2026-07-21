@@ -77,3 +77,34 @@ describe('useLayersStore.addLayer return contract', () => {
     expect(imageCache.addVTKImageData).not.toHaveBeenCalled();
   });
 });
+
+describe('useLayersStore.remove', () => {
+  beforeEach(() => {
+    getImage.mockImplementation(async () =>
+      imageWithBounds([0, 2, 0, 2, 0, 2])
+    );
+  });
+
+  it('removing a base image prunes and disposes the layers it owns', async () => {
+    // The delete-as-parent loop passed the layer SOURCE as parent, so the
+    // owner's entry never matched: parentToLayers kept the stale layer and the
+    // resampled image was never evicted from the cache.
+    const store = useLayersStore();
+    await store.addLayer('parent', 'source');
+
+    store.remove('parent');
+
+    expect(store.getLayers('parent')).toHaveLength(0);
+    expect(imageCache.removeImage).toHaveBeenCalledWith('parent::source');
+  });
+
+  it('removing a layer source prunes it from every parent layer list', async () => {
+    const store = useLayersStore();
+    await store.addLayer('parent', 'source');
+
+    store.remove('source');
+
+    expect(store.getLayers('parent')).toHaveLength(0);
+    expect(imageCache.removeImage).toHaveBeenCalledWith('parent::source');
+  });
+});

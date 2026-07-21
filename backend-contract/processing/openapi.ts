@@ -17,8 +17,6 @@
 // normative zod definition. The hand-authored pieces are only the request/
 // response ENVELOPES the client wraps the wire schemas in (they have no zod home
 // — they are the engine's transport, not the contract vocabulary).
-//
-// House rules: functional style; `type`, not `interface`.
 // ---------------------------------------------------------------------------
 
 import { generateJsonSchemas, type GeneratedSchemaName } from './schema-json';
@@ -56,12 +54,44 @@ const stripDialect = (schema: unknown): Record<string, unknown> => {
 
 const wireComponentSchemas = (): Record<string, unknown> => {
   const generated = generateJsonSchemas();
-  return Object.fromEntries(
-    (Object.keys(WIRE_COMPONENTS) as GeneratedSchemaName[]).map((name) => [
-      WIRE_COMPONENTS[name],
-      stripDialect(generated[name]),
-    ])
+  return dedupeNestedComponents(
+    Object.fromEntries(
+      (Object.keys(WIRE_COMPONENTS) as GeneratedSchemaName[]).map((name) => [
+        WIRE_COMPONENTS[name],
+        stripDialect(generated[name]),
+      ])
+    )
   );
+};
+
+// The zod->JSON-Schema generation runs per schema, so a wire schema nested
+// inside another is emitted as a full inline copy of a component that is ALSO
+// published standalone. Replace those known copies with a $ref to the component
+// — smaller and unambiguous for a reader ("intents is an array of
+// ResultIntent"). Guarded: the inline copy must be byte-identical to the
+// component it is replaced by, so the substitution can never change meaning.
+const NESTED_COMPONENT_COPIES = [
+  { host: 'JobResults', property: 'intents', component: 'ResultIntent' },
+  { host: 'JobHistoryPage', property: 'jobs', component: 'JobHistorySummary' },
+] as const;
+
+const dedupeNestedComponents = (
+  schemas: Record<string, unknown>
+): Record<string, unknown> => {
+  NESTED_COMPONENT_COPIES.forEach(({ host, property, component }) => {
+    const hostSchema = schemas[host] as {
+      properties: Record<string, { items: unknown }>;
+    };
+    const inline = hostSchema.properties[property].items;
+    if (JSON.stringify(inline) !== JSON.stringify(schemas[component])) {
+      throw new Error(
+        `openapi dedupe: ${host}.${property}.items no longer matches the ` +
+          `${component} component; update NESTED_COMPONENT_COPIES`
+      );
+    }
+    hostSchema.properties[property].items = ref(component);
+  });
+  return schemas;
 };
 
 // ---------------------------------------------------------------------------
@@ -87,19 +117,11 @@ const envelopeComponentSchemas = (): Record<string, unknown> => ({
       'Advisory display metadata for one task in the picker. Pass-through: the ' +
       'client renders it but validates only id/title; every other field is ' +
       'OPTIONAL advisory display metadata a backend MAY omit, and the client ' +
-      'never dispatches on it — including `dockerImage`, a display-only ' +
-      'implementation label with no neutral semantics.',
+      'never dispatches on it.',
     properties: {
       id: { type: 'string' },
       title: { type: 'string' },
       description: { type: 'string' },
-      dockerImage: {
-        type: 'string',
-        description:
-          'Optional advisory implementation label shown in the picker. ' +
-          'Display-only: a backend MAY omit it and the client never dispatches ' +
-          'on it.',
-      },
       category: { type: 'array', items: { type: 'string' } },
     },
     required: ['id', 'title'],
@@ -351,9 +373,10 @@ const paths = (): Record<string, unknown> => ({
       operationId: 'getJob',
       tags: ['job'],
       summary:
-        "A job's neutral execution and result-readiness status. Poll through " +
-        'Poll until the job reaches a terminal state. Job-addressed: keyed by the job ' +
-        'own access control — no context in the path.',
+        "A job's neutral execution and result-readiness status. Poll until " +
+        'the job reaches a terminal state. Job-addressed: keyed by the opaque ' +
+        "job id alone and gated by the job's own access control — no context " +
+        'in the path.',
       parameters: [jobIdParam],
       responses: {
         '200': {

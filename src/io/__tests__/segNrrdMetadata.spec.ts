@@ -10,18 +10,10 @@ import {
 } from '@/src/io/segNrrdMetadata';
 import type { SegmentGroupMetadata } from '@/src/store/segmentGroups';
 
-// ---------------------------------------------------------------------------
-// Serialization "round-trips segment names/colors".
-//
-// `writeSegmentation('seg.nrrd', …)` embeds the segment names/colors by handing
-// this metadata Map to the NRRD writer (readWriteImage.ts). The ITK-wasm write
-// itself needs a web worker + wasm the happy-dom unit env cannot run, so the
-// faithful, hermetic proof is at the metadata-embedding layer that DECIDES what
-// gets written: the names/colors are embedded under the LITERAL 'seg.nrrd'
-// format token, and dropped for any other token. That format-token gate is the
-// load-bearing gotcha — passing 'nrrd' would silently ship a labelmap with no
-// segment names/colors.
-// ---------------------------------------------------------------------------
+// Tests the metadata-embedding layer rather than the ITK-wasm write, which
+// needs a worker + wasm the unit env cannot run. The key gate: names/colors
+// are embedded only for the literal 'seg.nrrd' format token; plain 'nrrd'
+// silently drops them.
 
 const metadata: SegmentGroupMetadata = {
   name: 'Tumor group',

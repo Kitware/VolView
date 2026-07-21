@@ -330,6 +330,8 @@
                 "type": "boolean"
               },
               "default": {
+                "minItems": 6,
+                "maxItems": 6,
                 "type": "array",
                 "prefixItems": [
                   {
