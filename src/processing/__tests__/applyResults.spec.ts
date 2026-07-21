@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   importVolumeDataSources: vi.fn(),
   toDataSelection: vi.fn(),
   isVolumeResult: vi.fn(),
-  loadUrlsWithOutcome: vi.fn(),
   loadVolumeUrls: vi.fn(),
   addLayer: vi.fn(),
   removeDataset: vi.fn(),
@@ -38,7 +37,6 @@ vi.mock('@/src/io/import/common', () => ({
   isVolumeResult: mocks.isVolumeResult,
 }));
 vi.mock('@/src/actions/loadUserFiles', () => ({
-  loadUrlsWithOutcome: mocks.loadUrlsWithOutcome,
   loadVolumeUrls: mocks.loadVolumeUrls,
 }));
 vi.mock('@/src/store/datasets', () => ({
@@ -88,10 +86,6 @@ beforeEach(() => {
   ]);
   mocks.isVolumeResult.mockReturnValue(true);
   mocks.toDataSelection.mockReturnValue('child-selection');
-  mocks.loadUrlsWithOutcome.mockResolvedValue({
-    datasetIds: ['dataset-live'],
-    hadErrors: false,
-  });
   mocks.loadVolumeUrls.mockResolvedValue(['dataset-live']);
   mocks.convertImageToLabelmap.mockResolvedValue(['seg-group']);
   mocks.addLayer.mockResolvedValue('layer-1');
@@ -114,43 +108,6 @@ describe('applyIntent', () => {
     });
     expect(mocks.addLayer).not.toHaveBeenCalled();
     expect(mocks.convertImageToLabelmap).not.toHaveBeenCalled();
-  });
-
-  it('restore-state opens the file (no dedicated session restore yet)', async () => {
-    await applyIntent({ intent: 'restore-state', ...file }, context('parent'));
-    expect(mocks.loadUrlsWithOutcome).toHaveBeenCalledWith({
-      urls: [file.url],
-      names: [file.name],
-    });
-    expect(mocks.loadVolumeUrls).not.toHaveBeenCalled();
-  });
-
-  it('restore-state succeeds when a valid restore produces no datasets', async () => {
-    mocks.loadUrlsWithOutcome.mockResolvedValue({
-      datasetIds: [],
-      hadErrors: false,
-    });
-
-    const outcome = await applyIntent(
-      { intent: 'restore-state', ...file },
-      context('parent')
-    );
-
-    expect(outcome.status).toBe('applied');
-  });
-
-  it('restore-state fails when loading reports an uncovered error', async () => {
-    mocks.loadUrlsWithOutcome.mockResolvedValue({
-      datasetIds: [],
-      hadErrors: true,
-    });
-
-    const outcome = await applyIntent(
-      { intent: 'restore-state', ...file },
-      context('parent')
-    );
-
-    expect(outcome.status).toBe('failed');
   });
 
   it('add-layer attaches a layer onto the originating dataset', async () => {

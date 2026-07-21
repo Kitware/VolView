@@ -117,12 +117,11 @@ export type NeutralJobStatus = z.infer<typeof neutralJobStatusSchema>;
 // Result-intent vocabulary
 // ---------------------------------------------------------------------------
 
-// The four state directives the applier understands.
+// The state directives the applier understands.
 export const RESULT_INTENTS = [
   'add-base-image',
   'add-layer',
   'add-segment-group',
-  'restore-state',
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
 
@@ -162,7 +161,7 @@ export const resultListItemSchema = z.object({
 });
 export type ResultListItem = z.infer<typeof resultListItemSchema>;
 
-// The four known intents are built from the common result-item shape.
+// The known intents are built from the common result-item shape.
 // `.passthrough()` keeps an unrecognized extra producer field on a KNOWN intent
 // (it survives round-trip but gains no behavior).
 const addBaseImage = z
@@ -189,11 +188,7 @@ const addSegmentGroup = z
   })
   .passthrough();
 
-const restoreState = z
-  .object({ intent: z.literal('restore-state'), ...resultListItemSchema.shape })
-  .passthrough();
-
-// The STRICT half of the vocabulary: exactly the four v1 state directives, each with its
+// The STRICT half of the vocabulary: exactly the v1 state directives, each with its
 // declared shape. Exported so the single applier can gate on which union member
 // strictly matched — a name-known-but-shape-invalid result (e.g. a broken
 // `segments`) carries no state directive rather than being applied as valid.
@@ -201,7 +196,6 @@ export const knownResultIntentSchema = z.discriminatedUnion('intent', [
   addBaseImage,
   addLayer,
   addSegmentGroup,
-  restoreState,
 ]);
 
 export type KnownResultIntent = z.infer<typeof knownResultIntentSchema>;

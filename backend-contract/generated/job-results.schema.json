@@ -227,53 +227,6 @@
                   "url"
                 ],
                 "additionalProperties": {}
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "intent": {
-                    "type": "string",
-                    "const": "restore-state"
-                  },
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "url": {
-                    "type": "string"
-                  },
-                  "mimeType": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "size": {
-                    "anyOf": [
-                      {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "intent",
-                  "id",
-                  "name",
-                  "url"
-                ],
-                "additionalProperties": {}
               }
             ]
           },

@@ -18,10 +18,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useMessageStore } from '@/src/store/messages';
-import {
-  loadUrlsWithOutcome,
-  loadVolumeUrls,
-} from '@/src/actions/loadUserFiles';
+import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
 
 type ResultFile = { url: string; name: string };
 
@@ -112,15 +109,6 @@ export async function applyIntent(
     switch (intent.intent) {
       case 'add-base-image': {
         return await openVolumeAsDatasetOutcome(intent);
-      }
-      case 'restore-state': {
-        const outcome = await loadUrlsWithOutcome({
-          urls: [intent.url],
-          names: [intent.name],
-        });
-        return outcome.hadErrors
-          ? { status: 'failed', error: new Error('Result did not load') }
-          : { status: 'applied' };
       }
       case 'add-layer': {
         if (!parentSelection) {
