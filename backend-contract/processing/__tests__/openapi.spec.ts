@@ -6,11 +6,9 @@ import { describe, expect, it } from 'vitest';
 import { buildOpenApiDocument, NEUTRAL_OPERATION_IDS } from '../openapi';
 import { JOB_STATES, RESULT_INTENTS } from '../wire';
 
-// The published OpenAPI is the backend's obligation surface.
-// These are its guards: it stays in sync with the single zod source, covers
-// exactly the neutral client-invoked endpoints, resolves every $ref, and — the
-// whole point — leaks NOTHING Girder-specific (AC1: a reviewer enumerates the
-// backend obligation without reading girder_volview source).
+// The published OpenAPI is the backend's obligation surface, so it must leak
+// NOTHING Girder-specific: a reader enumerates the backend obligation without
+// reading girder_volview source.
 
 const here = dirname(fileURLToPath(import.meta.url));
 const openapiPath = resolve(here, '..', '..', 'generated', 'openapi.json');
@@ -80,7 +78,7 @@ describe('published OpenAPI is in sync with the source', () => {
 
 describe('covers exactly the neutral client-invoked surface', () => {
   it('exposes every neutral operationId and no others', () => {
-    // The published surface is exactly the processing ops (Seams 1-3).
+    // The published surface is exactly the processing ops.
     const ids = operations()
       .map((o) => o.operationId)
       .sort();
@@ -99,6 +97,15 @@ describe('covers exactly the neutral client-invoked surface', () => {
     jobOps.forEach((o) => {
       expect(o.path.startsWith('/jobs/{jobId}')).toBe(true);
     });
+  });
+
+  it('requires a run request body containing values', () => {
+    const run = get(get(get(doc, 'paths'), '/tasks/{taskId}/run'), 'post');
+    const requestBody = get(run, 'requestBody');
+    expect(get(requestBody, 'required')).toBe(true);
+
+    const runTaskRequest = schemaComponents().RunTaskRequest;
+    expect(get(runTaskRequest, 'required')).toEqual(['values']);
   });
 });
 

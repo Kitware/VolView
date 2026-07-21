@@ -15,6 +15,7 @@ import {
   parseSegNrrdMetadata,
   overlaySegmentMetadata,
 } from '@/src/io/segNrrdMetadata';
+import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
 import {
   type DataSelection,
   getImage,
@@ -30,9 +31,7 @@ import {
   Manifest,
   SegmentGroupMetadata,
   SegmentGroup,
-  manifestDatasets,
 } from '../io/state-file/schema';
-import { leafStateId } from '@/src/io/import/dataSource';
 import { makeSegmentGroupArchivePath } from '../io/state-file/segmentGroupArchivePath';
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
@@ -55,12 +54,13 @@ export type SegmentGroupMetadata = {
     order: number[];
     byValue: Record<number, SegmentMask>;
   };
-  // Provenance of a job-produced segment group — display provenance only:
-  // nothing keys dedup or attach semantics off it. Optional +
+  // Provenance of a job-produced segment group. This is the durable
+  // idempotency key used to avoid reapplying a restored job output. Optional +
   // additive — hand-painted groups have none. Flows through addLabelmap and
   // round-trips the `.volview.zip` (see the matching `SegmentGroupSource` in
   // io/state-file/schema.ts).
   source?: {
+    providerId: string;
     jobId: string;
     outputId: string;
   };
@@ -272,13 +272,14 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   }
 
   // `imageId` may be undefined when the labelmap's bytes did not arrive
-  // through a loaded image dataset (a zip-restored group): the DICOM-SEG and
-  // embedded-metadata lookups have no source then, and the enumeration/default
-  // path below is the whole decode.
+  // through a loaded image dataset (a zip-restored group). DICOM-SEG decoding
+  // still requires a source image, while file-header metadata can be supplied
+  // directly for archive-backed images.
   async function decodeSegments(
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
-    component = 0
+    component = 0,
+    headerMetadata?: Map<string, string>
   ) {
     const dicomStore = useDICOMStore();
     if (
@@ -304,18 +305,19 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // produced by a backend CLI carries its real segment names/colors in the
     // NRRD header, captured onto the loaded image at import.
     //
-    // MERGE, not replace (issue #6): the distinct nonzero voxel values are the
-    // spine, so a labelled voxel with NO `Segment{N}_*` block still gets a
-    // default, visible, manageable segment instead of being dropped. Embedded
+    // MERGE, not replace: the distinct nonzero voxel values are the spine, so
+    // a labelled voxel with NO `Segment{N}_*` block still gets a default,
+    // visible, manageable segment instead of being dropped. Embedded
     // name/color/visibility are overlaid onto the matching `LabelValue == voxel
     // value`; undescribed values keep their default.
     const embedded =
-      imageId !== undefined
-        ? imageCacheStore.imageById[imageId]?.segmentMetadata
-        : undefined;
+      headerMetadata ??
+      (imageId !== undefined
+        ? imageCacheStore.imageById[imageId]?.headerMetadata
+        : undefined);
     const described = embedded ? parseSegNrrdMetadata(embedded) : undefined;
 
-    // Distinct nonzero voxel values, ascending — the segment spine (issue #6).
+    // Distinct nonzero voxel values, ascending — the segment spine.
     // Labelmap scalars are Uint8Array by construction (both callers pass a
     // `toLabelMap` result, which forces UInt8), so a fixed 256-slot presence map
     // gives one branch-free typed-array write per voxel on the hot path, and the
@@ -386,9 +388,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const images =
       componentCount === 1 ? [childImage] : extractEachComponent(childImage);
 
-    // Loaded-artifact provenance: a URI-loaded child (a job result
-    // opened via loadAsImport, an external URL load) hands its single verbatim
-    // URI to the created group(s) so a later save can point back at it.
     return Promise.all(
       images.map(async (image, component) => {
         const matchingParentSpace = await ensureSameSpace(
@@ -414,9 +413,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           name,
           parentImage: parentID,
           segments: { order, byValue: byKey },
-          // Job-produced groups carry a `source: {jobId, outputId}` provenance
-          // tag so they round-trip the
-          // .volview.zip; hand-painted / session-restore conversions pass none.
           ...(source ? { source } : {}),
         });
         return id;
@@ -571,15 +567,19 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     this: _This,
     manifest: Manifest,
     stateFiles: FileEntry[],
-    dataIDMap: Record<string, string>
+    dataIDMap: Record<string, string>,
+    // Per-group artifact source, resolved by the restore setup (see
+    // resolveArtifactRestoreSources in restoreStateFile.ts, the single owner
+    // of the synthesized-leaf and ownership policy). Mapped through dataIDMap
+    // here.
+    artifactSources: Record<string, ArtifactRestoreSource> = {}
   ) {
     const { segmentGroups } = manifest;
     const datasetStore = useDatasetStore();
 
     const segmentGroupIDMap: Record<string, string> = {};
     // Non-silent drops: every group left out of the restore is recorded here
-    // with a concrete reason so the caller can surface it (the drop LOGIC is
-    // unchanged — this only makes the omission visible).
+    // with a concrete reason so the caller can surface it.
     const skipped: Array<{ name: string; reason: string }> = [];
 
     if (!segmentGroups || segmentGroups.length === 0) {
@@ -599,7 +599,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // artifact's store id is resolved.
     // The temporary artifact dataset id (if any) is resolved by the CALLER
     // before the restore `try`, so its cleanup can run unconditionally in a
-    // `finally` even when this load throws. This function just yields the image.
+    // `finally` even when this load throws. This function yields the image and
+    // any file-header metadata needed to reconstruct segment descriptors.
     async function loadSegmentGroupImage(
       segmentGroup: SegmentGroup,
       storeId: string | undefined
@@ -618,44 +619,29 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           `Could not get image data for dataSourceId ${segmentGroup.dataSourceId}`
         );
       }
-      return image;
+      return {
+        image,
+        headerMetadata: imageCacheStore.imageById[storeId!]?.headerMetadata,
+      };
     }
 
-    // A path-less group's artifact resolves through the synthesized-leaf
-    // namespace when leaf preparation minted one, or through the DATASET that
-    // covers its source id when it did not (a covered artifact synthesizes no
-    // leaf) — the latter is how legacy manifests without `datasets` restore,
-    // where every uri source stands in for a dataset keyed by its stringified
-    // source id. Both lookups are deterministic; the bare `String(dataSourceId)`
-    // key of old shared the dataset-id string space and made the winner
-    // leaf-completion-order luck.
-    const datasetIdBySourceId = new Map(
-      manifestDatasets(manifest).map((ds) => [ds.dataSourceId, ds.id])
-    );
+    // A path-less group's artifact store id: the restore setup already
+    // resolved which STATE id carries each group's artifact (synthesized leaf
+    // or covering dataset — a policy owned entirely by restoreStateFile.ts);
+    // this only maps that id through dataIDMap.
     const artifactStoreId = (segmentGroup: SegmentGroup) => {
-      if (
-        segmentGroup.path !== undefined ||
-        segmentGroup.dataSourceId === undefined
-      ) {
-        return undefined;
-      }
-      const minted = dataIDMap[leafStateId(segmentGroup.dataSourceId)];
-      if (minted !== undefined) return minted;
-      const coveringDatasetId = datasetIdBySourceId.get(
-        segmentGroup.dataSourceId
-      );
-      return coveringDatasetId !== undefined
-        ? dataIDMap[coveringDatasetId]
-        : undefined;
+      if (segmentGroup.path !== undefined) return undefined;
+      const source = artifactSources[segmentGroup.id];
+      return source !== undefined ? dataIDMap[source.stateId] : undefined;
     };
 
     // Resilient restore. Skip BEFORE awaiting anything a
     // group whose base image is unresolved, or a path-less group whose artifact
     // datasource never materialized — `untilLoaded(undefined)` never times out
     // and would hang restore forever. A missing key is knowable up front, so
-    // this pre-await guard is the deterministic fix; the per-group settle below
-    // is the safety net for a fetch/parse failure. Skipped groups drop out of
-    // the id map so they are left out of the restore.
+    // the pre-await guard catches it; the per-group settle below is the safety
+    // net for a fetch/parse failure. Skipped groups drop out of the id map so
+    // they are left out of the restore.
     const attachable = segmentGroups.filter((segmentGroup) => {
       if (dataIDMap[segmentGroup.metadata.parentImage] === undefined) {
         skipped.push({
@@ -690,6 +676,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // re-serialize into every future save.
     const tempStoreIdsToRemove = new Set(
       segmentGroups
+        .filter(
+          (segmentGroup) => artifactSources[segmentGroup.id]?.temporary === true
+        )
         .map(artifactStoreId)
         .filter((storeId): storeId is string => storeId !== undefined)
     );
@@ -700,7 +689,10 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
         attachable.map(async (segmentGroup) => {
           const storeId = artifactStoreId(segmentGroup);
           try {
-            const image = await loadSegmentGroupImage(segmentGroup, storeId);
+            const { image, headerMetadata } = await loadSegmentGroupImage(
+              segmentGroup,
+              storeId
+            );
             const labelmapImage = toLabelMap(image);
 
             // Descriptor-less group: `segments` is optional on the wire. When absent,
@@ -711,7 +703,12 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
             const segments =
               segmentGroup.metadata.segments ??
               (await (async () => {
-                const decoded = await decodeSegments(storeId, labelmapImage);
+                const decoded = await decodeSegments(
+                  storeId,
+                  labelmapImage,
+                  0,
+                  headerMetadata
+                );
                 const { order, byKey } = normalizeForStore(decoded, 'value');
                 return { order, byValue: byKey };
               })());

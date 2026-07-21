@@ -15,6 +15,7 @@
     }
   ],
   "source": {
+    "providerId": "analysis-provider",
     "jobId": "job-abc123",
     "outputId": "outputLabelmap"
   }

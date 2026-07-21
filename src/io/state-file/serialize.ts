@@ -17,8 +17,28 @@ import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useMessageStore } from '@/src/store/messages';
+import {
+  collectManifestRefs,
+  declareManifestRefs,
+  type ManifestRefKind,
+} from '@/src/core/manifestRefs';
 import { debug } from '@/src/utils/loggers';
 import { isRecord } from '@/src/utils';
+
+// `primarySelection` is a legacy manifest field with no owning store — nothing
+// writes it at save time (only migrations and restore read it) — so the
+// serializer declares its reference itself.
+declareManifestRefs('primarySelection', (manifest) =>
+  typeof manifest.primarySelection === 'string'
+    ? [
+        {
+          kind: 'dataset' as const,
+          id: manifest.primarySelection,
+          where: 'primarySelection',
+        },
+      ]
+    : []
+);
 
 export const MANIFEST = 'manifest.json';
 export const MANIFEST_VERSION = '6.4.0';
@@ -174,57 +194,27 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
 
   // Dev-only cascade-gap backstop (DCE'd in prod by the NODE_ENV guard).
   // Referential integrity of these dataset/view/group-keyed sections is owned by
-  // the synchronous remove cascade — a load-bearing but UNENFORCED invariant. A
-  // store that keys manifest state off a dataset id and forgets an onImageDeleted
-  // registration would silently ship an orphan here; detect and REPORT that in
-  // dev/test without mutating output. (A cascade registry that tracks new stores
-  // automatically is the eventual fix; this hand-walked list is today's stopgap.)
+  // the synchronous remove cascade — a load-bearing but UNENFORCED invariant.
+  // Each cascade-owning store declares its manifest references next to its
+  // cascade registration (declareManifestRefs); walking those declarations here
+  // detects and REPORTS an orphan in dev/test without mutating output, and
+  // keeps the checker's coverage from drifting apart from the cascades.
   if (process.env.NODE_ENV !== 'production') {
-    const groupIds = new Set(validGroups.map((group) => group.id));
-    const dangling: string[] = [];
-    const flagDataset = (ref: unknown, where: string) => {
-      if (typeof ref === 'string' && !datasetIds.has(ref))
-        dangling.push(`${where} -> dataset ${ref}`);
+    const resolvable: Record<ManifestRefKind, Set<string>> = {
+      dataset: datasetIds,
+      segmentGroup: new Set(validGroups.map((group) => group.id)),
+      view: new Set(
+        isRecord(candidate.viewByID) ? Object.keys(candidate.viewByID) : []
+      ),
     };
-    const views = isRecord(candidate.viewByID) ? candidate.viewByID : {};
-    Object.entries(views).forEach(([id, raw]) => {
-      if (isRecord(raw)) flagDataset(raw.dataID, `viewByID[${id}].dataID`);
-    });
-    if (isRecord(candidate.tools)) {
-      const tools = candidate.tools;
-      (['rulers', 'rectangles', 'polygons'] as const).forEach((key) => {
-        const section = tools[key];
-        if (!isRecord(section) || !Array.isArray(section.tools)) return;
-        section.tools.forEach((entry, i) => {
-          if (isRecord(entry))
-            flagDataset(entry.imageID, `tools.${key}[${i}].imageID`);
-        });
-      });
-      if (isRecord(tools.crop))
-        Object.keys(tools.crop).forEach((id) =>
-          flagDataset(id, `tools.crop[${id}]`)
-        );
-      const paint = tools.paint;
-      if (
-        isRecord(paint) &&
-        typeof paint.activeSegmentGroupID === 'string' &&
-        !groupIds.has(paint.activeSegmentGroupID)
-      )
-        dangling.push(
-          `tools.paint.activeSegmentGroupID -> segment group ${paint.activeSegmentGroupID}`
-        );
-    }
-    flagDataset(candidate.primarySelection, 'primarySelection');
-    if (
-      typeof candidate.activeView === 'string' &&
-      !(candidate.activeView in views)
-    )
-      dangling.push(`activeView -> view ${candidate.activeView}`);
-    if (Array.isArray(candidate.layoutSlots))
-      candidate.layoutSlots.forEach((id) => {
-        if (typeof id === 'string' && !(id in views))
-          dangling.push(`layoutSlots -> view ${id}`);
-      });
+    const kindLabel: Record<ManifestRefKind, string> = {
+      dataset: 'dataset',
+      segmentGroup: 'segment group',
+      view: 'view',
+    };
+    const dangling = collectManifestRefs(candidate)
+      .filter((ref) => !resolvable[ref.kind].has(ref.id))
+      .map((ref) => `${ref.where} -> ${kindLabel[ref.kind]} ${ref.id}`);
     if (dangling.length > 0)
       debug.warn(
         'normalizeManifest: dangling reference(s) reached save without being ' +
@@ -233,10 +223,29 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       );
   }
 
-  // Each optional root is validated against ITS OWN field schema. ManifestSchema
-  // is a plain object with no cross-field refinement, so a field valid in
-  // isolation is valid in the full manifest — and the output is assembled from
-  // the parsed pieces, so nothing is validated (or deep-copied) twice.
+  // These fields jointly describe the view layout. In particular, layoutSlots
+  // and activeView only make sense when their IDs can be resolved through
+  // viewByID. If that root is invalid, omit the complete cluster rather than
+  // saving slots that cannot be restored.
+  const viewLayoutRoots = new Set([
+    'activeView',
+    'isActiveViewMaximized',
+    'viewByID',
+    'layout',
+    'layoutSlots',
+  ]);
+  const invalidViewByID =
+    candidate.viewByID !== undefined &&
+    !ManifestSchema.shape.viewByID.safeParse(candidate.viewByID).success;
+  if (invalidViewByID) {
+    omitted.push('view/layout: invalid viewByID state');
+  }
+
+  // Each remaining optional root is validated against its own field schema.
+  // ManifestSchema is a plain object with no cross-field refinement, so a
+  // field valid in isolation is valid in the full manifest — and the output
+  // is assembled from the parsed pieces, so nothing is validated (or
+  // deep-copied) twice.
   const optionalRoots = [
     'tools',
     'activeView',
@@ -247,6 +256,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'layoutSlots',
   ] as const;
   const optionalEntries = optionalRoots.flatMap((key) => {
+    if (invalidViewByID && viewLayoutRoots.has(key)) return [];
     if (candidate[key] === undefined) return [];
     const parsed = ManifestSchema.shape[key].safeParse(candidate[key]);
     if (!parsed.success) {

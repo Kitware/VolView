@@ -16,9 +16,7 @@ const { getImage, ensureSameSpace, untilLoaded, imageCache } = vi.hoisted(
       getImageMetadata: vi.fn(),
       addVTKImageData: vi.fn(),
       removeImage: vi.fn(),
-      // Read by the `onImageDeleted` watcher a store instantiates on the
-      // message-store error path (the failure case surfaces a toast).
-      imageById: {} as Record<string, unknown>,
+      onImageDeleted: vi.fn(() => () => {}),
     },
   })
 );
@@ -86,9 +84,8 @@ describe('useLayersStore.remove', () => {
   });
 
   it('removing a base image prunes and disposes the layers it owns', async () => {
-    // The delete-as-parent loop passed the layer SOURCE as parent, so the
-    // owner's entry never matched: parentToLayers kept the stale layer and the
-    // resampled image was never evicted from the cache.
+    // Removing a parent clears its parentToLayers entry and evicts each
+    // resampled image it owns from the cache.
     const store = useLayersStore();
     await store.addLayer('parent', 'source');
 

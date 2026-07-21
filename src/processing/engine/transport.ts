@@ -1,6 +1,7 @@
 // `$fetch` attaches the same-origin bearer that raw `fetch` would omit.
 
 import { z } from 'zod';
+import { pathSegmentIdSchema } from '@/backend-contract';
 import { $fetch } from '@/src/utils/fetch';
 import type {
   ProcessingProvider,
@@ -19,7 +20,7 @@ import {
 
 // One malformed task summary must not kill the whole picker.
 const taskSummarySchema = z.object({
-  id: z.string(),
+  id: pathSegmentIdSchema,
   title: z.string(),
 });
 
@@ -40,7 +41,8 @@ const parseTaskSummaries = (raw: unknown): TaskSummary[] => {
 const join = (base: string, path: string) =>
   `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 
-const id = (taskOrJobId: string) => encodeURIComponent(taskOrJobId);
+const id = (taskOrJobId: string) =>
+  encodeURIComponent(pathSegmentIdSchema.parse(taskOrJobId));
 
 // Status rides on the error so the poller can classify the failure.
 export type HttpError = Error & {
@@ -50,7 +52,10 @@ export type HttpError = Error & {
 };
 
 const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
-  const res = await $fetch(url, { credentials: 'same-origin', ...init });
+  const res = await $fetch(url, {
+    credentials: 'same-origin',
+    ...init,
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     let body: unknown;
@@ -74,7 +79,10 @@ const requestJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
 };
 
 const requestEmpty = async (url: string, init: RequestInit): Promise<void> => {
-  const res = await $fetch(url, { credentials: 'same-origin', ...init });
+  const res = await $fetch(url, {
+    credentials: 'same-origin',
+    ...init,
+  });
   if (!res.ok) {
     const err = new Error(
       `Request failed: ${res.status} ${res.statusText}`

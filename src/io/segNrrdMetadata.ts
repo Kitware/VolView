@@ -70,15 +70,19 @@ export type ParsedSegment = {
   visible: boolean;
 };
 
-// "0.905882 0.298039 0.235294" (RGB floats 0–1, the writer's format) → [231, 76, 60].
-// Each channel is clamped to [0, 255]: a foreign / hand-edited header carrying an
-// out-of-range float (e.g. "1.5 -0.2 0.5") must not leak a negative or >255 channel
-// downstream into `SegmentMask.color`.
+// Accept both Slicer's normalized RGB floats and the 0–255 integer convention
+// emitted by some other writers. Each channel is clamped so a hand-edited
+// header cannot leak a negative or >255 value into `SegmentMask.color`.
 const fromColorString = (raw: string): [number, number, number] | undefined => {
   const parts = raw.trim().split(/\s+/).map(Number);
   if (parts.length < 3 || parts.slice(0, 3).some((n) => !Number.isFinite(n)))
     return undefined;
-  const clamp255 = (n: number) => clampValue(Math.round(n * 255), 0, 255);
+  const channels = parts.slice(0, 3);
+  const usesByteScale =
+    channels.some((n) => n > 1) &&
+    channels.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
+  const clamp255 = (n: number) =>
+    clampValue(Math.round(n * (usesByteScale ? 1 : 255)), 0, 255);
   return [clamp255(parts[0]), clamp255(parts[1]), clamp255(parts[2])] as [
     number,
     number,
@@ -117,7 +121,7 @@ export const parseSegNrrdMetadata = (
     const name = metadata.get(`${prefix}_Name`);
     if (labelValue === undefined && name === undefined) return;
     const value = Number.parseInt(labelValue ?? '', 10);
-    if (!Number.isInteger(value)) return; // no usable label value → skip
+    if (!Number.isInteger(value)) return;
     const rgb = fromColorString(metadata.get(`${prefix}_Color`) ?? '');
     segments.push({
       value,
@@ -131,13 +135,13 @@ export const parseSegNrrdMetadata = (
 
 // A decoded segment as `decodeSegments` hands it to the store: a `ParsedSegment`
 // with the looser `number[]` color the default-numbering path already produces,
-// so overlaying the parser's stricter 4-tuple introduces no friction.
+// not the parser's stricter 4-tuple.
 export type DecodedSegment = Omit<ParsedSegment, 'color'> & { color: number[] };
 
 /**
  * Overlay embedded `.seg.nrrd` segment metadata onto the full voxel-value
- * enumeration (issue #6). The enumeration (`values`) is the SPINE: every
- * labelled voxel gets a segment, so a value with no `Segment{N}_*` block still
+ * enumeration. The enumeration (`values`) is the SPINE: every labelled voxel
+ * gets a segment, so a value with no `Segment{N}_*` block still
  * yields a default (via `makeDefault`) instead of being silently dropped —
  * dropping it would leave those voxels rendered but unnameable, unrecolorable,
  * and undeletable. A described value overrides its default's name / color /
@@ -158,10 +162,8 @@ export const overlaySegmentMetadata = (
   const describedByValue = new Map(
     (described ?? []).map((seg) => [seg.value, seg] as const)
   );
-  // A described segment is keyed by its own `value`, so it stands in for the
-  // enumeration entry directly (ParsedSegment widens to DecodedSegment). `described`
-  // is freshly parsed per decode and discarded, so passing it through by reference
-  // aliases nothing the caller keeps.
+  // `described` is freshly parsed per decode and discarded, so passing it
+  // through by reference aliases nothing the caller keeps.
   const merged: DecodedSegment[] = values.map(
     (value) => describedByValue.get(value) ?? makeDefault(value)
   );
@@ -175,37 +177,4 @@ export const overlaySegmentMetadata = (
     if (value !== 0 && !enumerated.has(value)) merged.push(seg);
   });
   return merged;
-};
-
-// Load-time carrier. `itkReader` produces a bare `vtkImageData` and
-// drops the itk metadata map at the itk→vtk conversion, so we stash the segment
-// metadata against the returned image for the single synchronous hop to
-// `importSingleFile`, which takes it and stores it on the loaded image. Keyed by
-// the raw image object (identity is intact before it is wrapped in a Vue ref),
-// and a `WeakMap` so a never-taken entry is garbage-collected.
-const pendingSegNrrdMetadata = new WeakMap<object, Map<string, string>>();
-
-export const rememberSegNrrdMetadata = (
-  image: object,
-  metadata: Map<string, string>
-): void => {
-  // Stash when the header carries ANY `Segment{N}_Name`/`_LabelValue`, not just
-  // Segment0 — a foreign header that starts at Segment1 still has real metadata
-  // worth carrying to parseSegNrrdMetadata.
-  const hasAnySegment = segmentIndices(metadata).some(
-    (index) =>
-      metadata.has(`Segment${index}_Name`) ||
-      metadata.has(`Segment${index}_LabelValue`)
-  );
-  if (hasAnySegment) {
-    pendingSegNrrdMetadata.set(image, metadata);
-  }
-};
-
-export const takeSegNrrdMetadata = (
-  image: object
-): Map<string, string> | undefined => {
-  const metadata = pendingSegNrrdMetadata.get(image);
-  if (metadata) pendingSegNrrdMetadata.delete(image);
-  return metadata;
 };

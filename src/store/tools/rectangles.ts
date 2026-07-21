@@ -4,7 +4,12 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { useAnnotationTool } from './useAnnotationTool';
+import {
+  declareAnnotationToolManifestRefs,
+  useAnnotationTool,
+} from './useAnnotationTool';
+
+declareAnnotationToolManifestRefs('rectangles');
 
 const rectangleDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,

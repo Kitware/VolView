@@ -45,7 +45,6 @@ describe('buildSegNrrdMetadata embeds segment names + colors', () => {
   it('writes a Name / Color / LabelValue entry per segment, in order', () => {
     const m = buildSegNrrdMetadata(metadata, dims);
 
-    // Segment 0 (label value 1) — pure red.
     expect(m.get('Segment0_Name')).toBe('Tumor');
     expect(m.get('Segment0_Color')).toBe('1.000000 0.000000 0.000000');
     expect(m.get('Segment0_LabelValue')).toBe('1');
@@ -107,6 +106,22 @@ describe('parseSegNrrdMetadata recovers segment descriptors from header metadata
       {
         value: 1,
         name: 'Region 1 (lowest)',
+        color: [231, 76, 60, 255],
+        visible: true,
+      },
+    ]);
+  });
+
+  it('accepts colors written as 0–255 integers', () => {
+    const m = new Map<string, string>([
+      ['Segment0_Name', 'Region 1'],
+      ['Segment0_Color', '231 76 60'],
+      ['Segment0_LabelValue', '1'],
+    ]);
+    expect(parseSegNrrdMetadata(m)).toEqual([
+      {
+        value: 1,
+        name: 'Region 1',
         color: [231, 76, 60, 255],
         visible: true,
       },
@@ -175,11 +190,9 @@ describe('parseSegNrrdMetadata recovers segment descriptors from header metadata
   });
 });
 
-// ---------------------------------------------------------------------------
-// overlaySegmentMetadata (issue #6): the full voxel enumeration is the spine so
-// a labelled voxel the header does NOT describe still gets a manageable segment,
-// with embedded names/colors overlaid on top.
-// ---------------------------------------------------------------------------
+// overlaySegmentMetadata: the full voxel enumeration is the spine so a labelled
+// voxel the header does NOT describe still gets a manageable segment, with
+// embedded names/colors overlaid on top.
 
 describe('overlaySegmentMetadata merges embedded metadata over the enumeration', () => {
   const mkDefault = (value: number): DecodedSegment => ({
@@ -223,7 +236,7 @@ describe('overlaySegmentMetadata merges embedded metadata over the enumeration',
       { value: 0, name: 'bg', color: [0, 0, 0, 255], visible: true },
     ];
     const merged = overlaySegmentMetadata([1], described, mkDefault);
-    expect(merged.map((s) => s.value)).toEqual([1, 7]); // 0 skipped, 7 appended
+    expect(merged.map((s) => s.value)).toEqual([1, 7]);
     expect(merged.find((s) => s.value === 7)?.name).toBe('outside');
   });
 
@@ -236,7 +249,7 @@ describe('overlaySegmentMetadata merges embedded metadata over the enumeration',
       { value: 200, name: 'second', color: [2, 2, 2, 255], visible: true },
     ];
     const merged = overlaySegmentMetadata([1, 2, 3], described, mkDefault);
-    expect(merged.map((s) => s.value)).toEqual([1, 2, 3, 200]); // 200 once
-    expect(merged.find((s) => s.value === 200)?.name).toBe('second'); // last wins
+    expect(merged.map((s) => s.value)).toEqual([1, 2, 3, 200]);
+    expect(merged.find((s) => s.value === 200)?.name).toBe('second');
   });
 });

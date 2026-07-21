@@ -1,5 +1,11 @@
 import { UrlParams } from '@vueuse/core';
+import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { logError } from '@/src/utils/loggers';
+
+// This module owns the tab's launch params (`urls=`, `names=`, `config=`,
+// `save=`): both READING them at boot (readLaunchParams) and REWRITING them
+// after a remote save (repointLaunchUrls). Keeping both sides here means the
+// stale-`names=` interaction below stays next to the parsing it protects.
 
 type ParsedUrlParams = {
   urls?: string[];
@@ -80,4 +86,31 @@ export const normalizeUrlParams = (rawParams: UrlParams): ParsedUrlParams => {
   }
 
   return normalized;
+};
+
+// The current tab's launch params. Unparseable params degrade to an empty
+// launch (logged), never a failed boot.
+export const readLaunchParams = (): ParsedUrlParams => {
+  try {
+    return normalizeUrlParams(
+      vtkURLExtract.extractURLParameters() as UrlParams
+    );
+  } catch (error) {
+    logError(new Error(`Failed to parse URL parameters: ${error}`));
+    return {};
+  }
+};
+
+// On a successful remote save the backend returns `resumeUrl` — the saved
+// session's load URL. Repoint ONLY the tab's `urls=` at it (so a future F5
+// reloads the just-made save instead of the fresh launch manifest), via
+// `history.replaceState` (no reload). `save=` and `config=` are untouched:
+// every save keeps going to the launch-provided target.
+export const repointLaunchUrls = (resumeUrl: string) => {
+  const url = new URL(window.location.toString());
+  url.searchParams.set('urls', resumeUrl);
+  // A stale names= would rename the session zip after the original data file,
+  // and filename-extension typing would then misparse the zip on reload.
+  url.searchParams.delete('names');
+  window.history.replaceState(null, '', url.toString());
 };

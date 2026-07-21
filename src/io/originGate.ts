@@ -1,15 +1,22 @@
 // ---------------------------------------------------------------------------
 // Runtime egress origin gate.
 //
-// Same-origin predicate for configured processing-provider targets, enforced
-// at their call site (processing/config.ts). A URL is allowed iff its origin
-// is SAME-ORIGIN as the deployment (its own server, deployment-controlled by
-// definition — zero config). This keeps a crafted config from pointing job
-// submissions at a third-party origin.
+// Same-origin predicate for configured egress targets, enforced at each call
+// site: processing-provider baseUrl/jobsBaseUrl (processing/config.ts) and the
+// remote-save target (store/remote-save-state.ts). A URL is allowed iff its
+// origin is SAME-ORIGIN as the deployment (its own server, deployment-
+// controlled by definition — zero config). This keeps a crafted config or
+// `?save=` link from pointing job submissions or the session zip at a
+// third-party origin.
 //
-// Remote-save (`save=`) targets and bearer headers are intentionally NOT
-// gated: any save target is accepted and $fetch attaches global headers
-// regardless of origin.
+// The gate covers EGRESS only. Data loading (`urls=`) is deliberately not
+// gated: reading public cross-origin datasets — IDC S3, TCIA GCS buckets — is
+// a supported flow, and reading third-party data is not the risk that sending
+// the user's session to a third party is.
+//
+// Bearer headers remain ungated: $fetch attaches global headers regardless of
+// origin, which is what the documented `token=` cross-origin data flow relies
+// on.
 // ---------------------------------------------------------------------------
 
 import { parseUrl } from '@/src/utils/url';

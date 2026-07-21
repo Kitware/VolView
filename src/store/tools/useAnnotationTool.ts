@@ -5,15 +5,39 @@ import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
 } from '@/src/config';
-import { removeFromArray } from '@/src/utils';
+import { isRecord, removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
 import { useLabels, type Labels } from './useLabels';
+
+// Shared manifest-ref declaration for the annotation-tool stores. Each store
+// calls this at module scope next to its serialize, pairing the dev-backstop
+// coverage with the onImageDeleted cascade this composable registers.
+export const declareAnnotationToolManifestRefs = (
+  key: 'rulers' | 'rectangles' | 'polygons'
+) =>
+  declareManifestRefs(`tools.${key}`, (manifest) => {
+    const tools = isRecord(manifest.tools) ? manifest.tools : {};
+    const section = tools[key];
+    if (!isRecord(section) || !Array.isArray(section.tools)) return [];
+    return section.tools.flatMap((entry, index) =>
+      isRecord(entry) && typeof entry.imageID === 'string'
+        ? [
+            {
+              kind: 'dataset' as const,
+              id: entry.imageID,
+              where: `tools.${key}[${index}].imageID`,
+            },
+          ]
+        : []
+    );
+  });
 
 const annotationToolLabelDefault = Object.freeze({
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,

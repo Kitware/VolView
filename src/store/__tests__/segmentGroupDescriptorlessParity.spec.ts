@@ -4,8 +4,8 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { rememberSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { leafStateId } from '@/src/io/import/dataSource';
+import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 
 // ---------------------------------------------------------------------------
@@ -73,8 +73,8 @@ function makeParentImage() {
   return image;
 }
 
-// A composed manifest exactly as the refined backend emits a parent-bound,
-// descriptor-less group: metadata carries name + parentImage, NO segments.
+// A parent-bound, descriptor-less group: metadata carries name + parentImage,
+// NO segments.
 const descriptorlessComposedManifest = (): Manifest =>
   ManifestSchema.parse({
     version: '6.4.0',
@@ -98,15 +98,26 @@ const descriptorlessComposedManifest = (): Manifest =>
     ],
   });
 
+const descriptorlessArchiveManifest = (): Manifest =>
+  ManifestSchema.parse({
+    version: '6.4.0',
+    dataSources: [{ id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' }],
+    datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
+    segmentGroups: [
+      {
+        id: 'sg-tumor',
+        path: 'segmentations/Tumor.seg.nrrd',
+        metadata: { name: 'Tumor', parentImage: 'ds-ct' },
+      },
+    ],
+  });
+
 const seat = (
   id: string,
   name: string,
   image: vtkImageData,
-  segmentMetadata?: Map<string, string>
-) => {
-  if (segmentMetadata) rememberSegNrrdMetadata(image, segmentMetadata);
-  return useImageCacheStore().addVTKImageData(image, name, { id });
-};
+  headerMetadata?: Map<string, string>
+) => useImageCacheStore().addVTKImageData(image, name, { id, headerMetadata });
 
 // The LIVE path: what convertImageToLabelmap builds for this labelmap.
 async function liveCatalog(segmentMetadata?: Map<string, string>) {
@@ -133,13 +144,15 @@ async function coldCatalog(segmentMetadata?: Map<string, string>) {
     segmentMetadata
   );
   const store = useSegmentGroupStore();
+  const manifest = descriptorlessComposedManifest();
   const { segmentGroupIDMap: idMap } = await store.deserialize(
-    descriptorlessComposedManifest(),
+    manifest,
     [],
     {
       'ds-ct': 'parent-store',
       [leafStateId(3)]: 'artifact-store',
-    }
+    },
+    resolveArtifactRestoreSources(manifest)
   );
   const groupId = idMap['sg-tumor'];
   expect(groupId).toBeDefined();
@@ -180,6 +193,39 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     expect(live.byValue[1].name).toBe('Segment 1');
 
     expect(cold).toEqual(live);
+  });
+
+  it('preserves embedded metadata from an archive-backed .seg.nrrd', async () => {
+    setActivePinia(createPinia());
+    seat('parent-store', 'CT Chest', makeParentImage());
+    ioMocks.readImage.mockResolvedValue({
+      image: makeLabelmapImage(),
+      headerMetadata: new Map<string, string>([
+        ['Segment0_LabelValue', '2'],
+        ['Segment0_Name', 'Tumor core'],
+        ['Segment0_Color', '1 0 0'],
+      ]),
+    });
+
+    const store = useSegmentGroupStore();
+    const { segmentGroupIDMap: idMap } = await store.deserialize(
+      descriptorlessArchiveManifest(),
+      [
+        {
+          archivePath: 'segmentations/Tumor.seg.nrrd',
+          file: new File([''], 'Tumor.seg.nrrd'),
+        },
+      ],
+      { 'ds-ct': 'parent-store' }
+    );
+
+    const segments = store.metadataByID[idMap['sg-tumor']].segments;
+    expect(segments.order).toEqual([1, 2]);
+    expect(segments.byValue[1].name).toBe('Segment 1');
+    expect(segments.byValue[2]).toMatchObject({
+      name: 'Tumor core',
+      color: [255, 0, 0, 255],
+    });
   });
 
   it('enumerates only distinct sparse voxel labels', async () => {

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { isOriginAllowed, resolveOrigin } from '@/src/io/originGate';
-import type { Config } from '@/src/io/import/configJson';
 import type { ProcessingProviderConfig } from '@/src/processing/types';
 
 // Non-strict so a version-skewed backend emitting unknown keys still registers.
@@ -14,23 +13,15 @@ const processingProviderConfig = z.object({
   jobsBaseUrl: z.string(),
 }) satisfies z.ZodType<ProcessingProviderConfig>;
 
-const processingSection = z
+// The `processing` top-level config section, registered with the config-section
+// registry from the feature entry point (see ./index.ts).
+export const processingSection = z
   .object({
     providers: z.array(processingProviderConfig).default([]),
   })
   .optional();
 
-const processingConfigShape = {
-  processing: processingSection,
-};
-
-type ConfigWithProcessing = Config & {
-  processing?: z.infer<typeof processingSection>;
-};
-
-export const withProcessingConfig = <Shape extends z.ZodRawShape>(
-  schema: z.ZodObject<Shape>
-) => schema.extend(processingConfigShape);
+export type ProcessingSection = z.output<typeof processingSection>;
 
 const isProviderOriginAllowed = (config: ProcessingProviderConfig): boolean => {
   // Both URLs carry the bearer token, so an ungated one would leak it off-origin.
@@ -56,10 +47,9 @@ const isProviderOriginAllowed = (config: ProcessingProviderConfig): boolean => {
 };
 
 export const selectAllowedProviders = (
-  manifest: Config
+  section: ProcessingSection
 ): ProcessingProviderConfig[] => {
-  const providersConfig = (manifest as ConfigWithProcessing).processing
-    ?.providers;
+  const providersConfig = section?.providers;
   if (!providersConfig?.length) return [];
   return providersConfig.filter(isProviderOriginAllowed);
 };

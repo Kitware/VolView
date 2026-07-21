@@ -1,10 +1,18 @@
 import { z } from 'zod';
-import { taskSpecSchema } from '@/backend-contract';
+import {
+  reportDuplicateTaskSpecIds,
+  SPEC_VERSION,
+  taskSpecStructuralSchema,
+} from '@/backend-contract';
 
 // Parameters stay raw so one unknown parameter kind hides a single param instead of rejecting the whole spec.
-export const taskSpecEnvelopeSchema = taskSpecSchema
-  .omit({ parameters: true })
-  .extend({ parameters: z.array(z.unknown()) });
+export const taskSpecEnvelopeSchema = taskSpecStructuralSchema
+  .omit({ specVersion: true, parameters: true })
+  .extend({
+    specVersion: z.literal(SPEC_VERSION),
+    parameters: z.array(z.unknown()),
+  })
+  .superRefine(reportDuplicateTaskSpecIds);
 
 export type TaskSpecEnvelope = z.infer<typeof taskSpecEnvelopeSchema>;
 

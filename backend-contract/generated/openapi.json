@@ -66,7 +66,9 @@
             "required": true,
             "description": "Opaque task identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
@@ -101,12 +103,14 @@
             "required": true,
             "description": "Opaque task identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -186,7 +190,9 @@
             "required": true,
             "description": "Opaque job identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
@@ -270,7 +276,9 @@
             "required": true,
             "description": "Opaque job identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
@@ -301,7 +309,9 @@
             "required": true,
             "description": "Opaque job identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
@@ -329,7 +339,9 @@
             "required": true,
             "description": "Opaque job identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
@@ -371,7 +383,9 @@
             "required": true,
             "description": "Opaque job identifier.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!\\.{1,2}$)"
             }
           }
         ],
@@ -393,6 +407,7 @@
   "components": {
     "schemas": {
       "TaskSpec": {
+        "$comment": "Structural validation only. Implement backend-contract validateTaskSpecSemantics after this schema and reject every fixtures/negative payload.",
         "type": "object",
         "properties": {
           "specVersion": {
@@ -401,7 +416,16 @@
             "maximum": 9007199254740991
           },
           "id": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "allOf": [
+              {
+                "pattern": "^(?!\\.{1,2}$)"
+              },
+              {
+                "pattern": "\\S"
+              }
+            ]
           },
           "title": {
             "type": "string"
@@ -421,7 +445,8 @@
                       "const": "int"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -476,7 +501,8 @@
                       "const": "float"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -523,7 +549,8 @@
                       "const": "string"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -561,7 +588,8 @@
                       "const": "bool"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -599,7 +627,8 @@
                       "const": "enum"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -659,7 +688,8 @@
                       "const": "sourceRef"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -702,7 +732,8 @@
                       "const": "bounds"
                     },
                     "id": {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "\\S"
                     },
                     "title": {
                       "type": "string"
@@ -763,7 +794,8 @@
               "type": "object",
               "properties": {
                 "id": {
-                  "type": "string"
+                  "type": "string",
+                  "pattern": "\\S"
                 },
                 "title": {
                   "type": "string"
@@ -866,7 +898,9 @@
             "type": "object",
             "properties": {
               "jobId": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)"
               },
               "progress": {
                 "type": "number"
@@ -894,7 +928,9 @@
             "type": "object",
             "properties": {
               "jobId": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)"
               },
               "progress": {
                 "type": "number"
@@ -922,7 +958,9 @@
             "type": "object",
             "properties": {
               "jobId": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)"
               },
               "progress": {
                 "type": "number"
@@ -953,7 +991,9 @@
             "type": "object",
             "properties": {
               "jobId": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)"
               },
               "progress": {
                 "type": "number"
@@ -981,7 +1021,9 @@
             "type": "object",
             "properties": {
               "jobId": {
-                "type": "string"
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)"
               },
               "progress": {
                 "type": "number"
@@ -1198,6 +1240,9 @@
                   "source": {
                     "type": "object",
                     "properties": {
+                      "providerId": {
+                        "type": "string"
+                      },
                       "jobId": {
                         "type": "string"
                       },
@@ -1206,6 +1251,7 @@
                       }
                     },
                     "required": [
+                      "providerId",
                       "jobId",
                       "outputId"
                     ],
@@ -1318,10 +1364,14 @@
         "type": "object",
         "properties": {
           "jobId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "taskId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "taskTitle": {
             "type": "string"
@@ -1437,7 +1487,9 @@
         "type": "object",
         "properties": {
           "jobId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "log": {
             "type": "array",
@@ -1558,7 +1610,9 @@
         "description": "Advisory display metadata for one task in the picker. Pass-through: the client renders it but validates only id/title; every other field is OPTIONAL advisory display metadata a backend MAY omit, and the client never dispatches on it.",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "title": {
             "type": "string"
@@ -1609,6 +1663,9 @@
             }
           }
         },
+        "required": [
+          "values"
+        ],
         "additionalProperties": false
       },
       "JobRef": {
@@ -1616,7 +1673,9 @@
         "description": "Handle to the submitted job. `jobId` is opaque. An optional terminal `status` is the born-terminal fast-path for a synchronous backend.",
         "properties": {
           "jobId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "status": {
             "$ref": "#/components/schemas/NeutralJobStatus"

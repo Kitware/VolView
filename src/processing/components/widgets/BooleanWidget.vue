@@ -2,6 +2,7 @@
   <!-- Neutral when on: the accent blue is reserved for tabs and links. -->
   <v-switch
     :model-value="modelValue === true"
+    :label="label"
     :hint="param.help"
     persistent-hint
     density="compact"
@@ -17,6 +18,7 @@ import type { VolViewTaskParameter } from '@/backend-contract';
 defineProps<{
   param: VolViewTaskParameter;
   modelValue: boolean | null | undefined;
+  label?: string;
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void;

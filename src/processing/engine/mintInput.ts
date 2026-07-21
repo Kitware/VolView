@@ -122,12 +122,11 @@ const EMPTY_BINDING: ImageBindingResult = {
   issues: [],
 };
 
-export const bindImageInputs = (
-  model: TaskFormModel,
-  activeDataSource: DataSource | undefined
+const bindImageFields = (
+  fields: SourceRefField[],
+  activeDataSource: DataSource | undefined,
+  value: InputValue | null
 ): ImageBindingResult => {
-  const fields = imageInputFields(model);
-
   if (fields.length === 0) return EMPTY_BINDING;
 
   // Explicit null, not `{}`: a stale merge could submit the previous image.
@@ -150,8 +149,6 @@ export const bindImageInputs = (
     };
   }
 
-  const value = mintInputValue(activeDataSource, TYPE_TAG_IMAGE);
-
   // Blocks regardless of required-ness: a volume is selected, it just cannot be
   // used as input.
   if (!value) {
@@ -172,4 +169,23 @@ export const bindImageInputs = (
     states: { [field.id]: 'bound' },
     issues: [],
   };
+};
+
+export const bindMintedImageInputs = (
+  model: TaskFormModel,
+  activeDataSource: DataSource | undefined,
+  value: InputValue | null
+): ImageBindingResult =>
+  bindImageFields(imageInputFields(model), activeDataSource, value);
+
+export const bindImageInputs = (
+  model: TaskFormModel,
+  activeDataSource: DataSource | undefined
+): ImageBindingResult => {
+  const fields = imageInputFields(model);
+  const value =
+    fields.length === 1 && activeDataSource
+      ? mintInputValue(activeDataSource, TYPE_TAG_IMAGE)
+      : null;
+  return bindImageFields(fields, activeDataSource, value);
 };

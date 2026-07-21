@@ -10,12 +10,32 @@ import { getWorker } from '@/src/io/itk/worker';
 import type { SegmentGroupMetadata } from '@/src/store/segmentGroups';
 import { maybeBuildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 
-export const readImage = async (file: File) => {
-  if (file.name.endsWith('.vti'))
-    return (await vtiReader(file)) as vtkImageData;
+export type ReadImageResult = {
+  image: vtkImageData;
+  headerMetadata?: Map<string, string>;
+};
+
+const getHeaderMetadata = (image: { metadata?: Map<string, unknown> }) => {
+  const metadata = image.metadata;
+  if (!(metadata instanceof Map) || !metadata.size) return undefined;
+
+  const headerMetadata = new Map<string, string>();
+  metadata.forEach((value, key) => {
+    headerMetadata.set(key, typeof value === 'string' ? value : String(value));
+  });
+  return headerMetadata;
+};
+
+export const readImage = async (file: File): Promise<ReadImageResult> => {
+  if (file.name.endsWith('.vti')) {
+    return { image: (await vtiReader(file)) as vtkImageData };
+  }
 
   const { image } = await readImageItk(file, { webWorker: getWorker() });
-  return vtkITKHelper.convertItkToVtkImage(image);
+  return {
+    image: vtkITKHelper.convertItkToVtkImage(image),
+    headerMetadata: getHeaderMetadata(image),
+  };
 };
 
 export const writeImage = async (

@@ -8,10 +8,14 @@
         "type": "object",
         "properties": {
           "jobId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "taskId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!\\.{1,2}$)"
           },
           "taskTitle": {
             "type": "string"

@@ -24,20 +24,20 @@
     <v-expand-transition>
       <div v-show="filtersOpen">
         <div class="filter-card mb-2">
-          <div class="filter-field-label">Job type</div>
           <v-select
             v-model="jobTypeFilter"
             :items="jobTypeItems"
+            label="Job type"
             variant="outlined"
             density="compact"
             hide-details
             class="mb-2"
           />
 
-          <div class="filter-field-label">Status</div>
           <v-select
             v-model="statusFilter"
             :items="statusFilterItems"
+            label="Status"
             variant="outlined"
             density="compact"
             hide-details
@@ -89,14 +89,6 @@
               {{ jobTooltipFor(job) }}
             </v-tooltip>
           </div>
-          <div
-            class="text-caption job-subtitle"
-            :class="
-              job.state === 'error' ? 'text-warning' : 'text-medium-emphasis'
-            "
-          >
-            {{ jobSubtitleFor(job) }}
-          </div>
         </div>
         <span class="job-trailing">
           <v-btn
@@ -123,11 +115,27 @@
             </v-tooltip>
           </v-btn>
           <v-btn
-            v-else
+            v-if="
+              job.state === 'success' &&
+              !resultsAppliedFor(job) &&
+              offersLoadFor(job)
+            "
+            size="small"
+            variant="tonal"
+            prepend-icon="mdi-tray-arrow-down"
+            :loading="resultsBusyFor(job)"
+            :disabled="resultsBusyFor(job) || deletingJobKeys.has(rowKey(job))"
+            @click="loadResults(job)"
+          >
+            Load
+          </v-btn>
+          <v-btn
+            v-if="isTerminal(job)"
             icon
             variant="text"
             size="small"
             :loading="deletingJobKeys.has(rowKey(job))"
+            :disabled="deletingJobKeys.has(rowKey(job)) || resultsBusyFor(job)"
             aria-label="Delete job"
             @click="pendingDelete = job"
           >
@@ -138,27 +146,6 @@
       </div>
 
       <div class="job-body">
-        <div
-          v-if="job.state === 'success' && !resultsLoadedFor(job)"
-          class="load-row"
-        >
-          <span class="text-caption text-medium-emphasis load-explainer">
-            Finished while VolView was closed, not in the scene yet.
-          </span>
-          <v-btn
-            size="small"
-            variant="tonal"
-            prepend-icon="mdi-tray-arrow-down"
-            :loading="resultsLoadingJobKeys.has(rowKey(job))"
-            @click="loadResults(job)"
-          >
-            Load
-          </v-btn>
-        </div>
-        <div v-if="missingFor(job) > 0" class="text-caption text-warning">
-          {{ missingFor(job) }} {{ plural(missingFor(job), 'output') }}
-          unavailable
-        </div>
         <div class="job-details">
           <v-btn
             size="x-small"
@@ -175,6 +162,9 @@
           </v-btn>
           <v-expand-transition>
             <div v-if="expandedJobKeys.has(rowKey(job))">
+              <div class="text-caption text-medium-emphasis job-subtitle">
+                {{ jobSubtitleFor(job) }}
+              </div>
               <div class="job-id-row">
                 <span class="text-caption text-medium-emphasis">Job ID</span>
                 <code class="job-id" :title="job.jobId">{{ job.jobId }}</code>
@@ -193,11 +183,70 @@
                   </v-tooltip>
                 </v-btn>
               </div>
+              <div
+                v-if="
+                  job.state === 'success' &&
+                  (!resultsFetchedFor(job) || fileResultsFor(job).length)
+                "
+                class="result-files"
+              >
+                <span class="text-caption text-medium-emphasis">Files</span>
+                <div
+                  v-if="!resultsFetchedFor(job)"
+                  class="text-caption text-medium-emphasis"
+                >
+                  Loading…
+                </div>
+                <template v-else>
+                  <template
+                    v-for="result in fileResultsFor(job)"
+                    :key="result.id"
+                  >
+                    <button
+                      v-if="canDownloadResult(result)"
+                      type="button"
+                      class="result-file"
+                      :title="`Download ${result.name}`"
+                      :disabled="
+                        downloadingResultKeys.has(resultKey(job, result))
+                      "
+                      @click="downloadResult(job, result)"
+                    >
+                      <v-progress-circular
+                        v-if="downloadingResultKeys.has(resultKey(job, result))"
+                        indeterminate
+                        size="14"
+                        width="2"
+                      />
+                      <v-icon v-else size="14">mdi-download</v-icon>
+                      <span class="result-file-name">{{ result.name }}</span>
+                      <span
+                        v-if="fileSizeFor(result)"
+                        class="text-caption text-medium-emphasis result-file-size"
+                      >
+                        {{ fileSizeFor(result) }}
+                      </span>
+                    </button>
+                    <span
+                      v-else
+                      class="result-file text-medium-emphasis"
+                      :title="`${result.name}: unsupported link`"
+                    >
+                      <v-icon size="14">mdi-file-alert-outline</v-icon>
+                      <span class="result-file-name">{{ result.name }}</span>
+                    </span>
+                  </template>
+                </template>
+              </div>
               <pre v-if="job.state === 'error'" class="error-log">{{
                 errorLogFor(job)
               }}</pre>
             </div>
           </v-expand-transition>
+        </div>
+        <div v-if="missingFor(job) > 0" class="text-caption text-warning">
+          {{ missingFor(job) }} {{ plural(missingFor(job), 'output') }}
+          unavailable
         </div>
       </div>
     </div>
@@ -230,7 +279,12 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="pendingDelete = null">Cancel</v-btn>
-          <v-btn color="error" variant="text" @click="confirmDelete">
+          <v-btn
+            color="error"
+            variant="text"
+            :disabled="pendingDelete ? resultsBusyFor(pendingDelete) : false"
+            @click="confirmDelete"
+          >
             Delete
           </v-btn>
         </v-card-actions>
@@ -242,7 +296,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useClipboard } from '@vueuse/core';
-import { plural } from '@/src/utils';
+import { saveAs } from 'file-saver';
+import { formatBytes, plural } from '@/src/utils';
+import { canFetchUrl } from '@/src/utils/fetch';
+import { useMessageStore } from '@/src/store/messages';
 
 import { useProcessingJobsStore } from '@/src/processing/store';
 import type {
@@ -260,9 +317,11 @@ import {
   filterJobHistory,
   type JobHistoryDisplayRow,
 } from '@/src/processing/engine/jobHistory';
-import { autoLoadProcessingResults } from '@/src/processing/applyResults';
+import { offersSceneLoad } from '@/src/processing/engine/resultFiles';
+import { fetchProcessingResult } from '@/src/processing/engine/resultDownload';
 
 const providers = useProcessingJobsStore();
+const messageStore = useMessageStore();
 
 const filtersOpen = ref(false);
 
@@ -370,8 +429,8 @@ const pendingDelete = ref<JobRow | null>(null);
 
 async function confirmDelete() {
   const job = pendingDelete.value;
+  if (!job || resultsBusyFor(job)) return;
   pendingDelete.value = null;
-  if (!job) return;
   const key = rowKey(job);
   deletingJobKeys.add(key);
   try {
@@ -385,6 +444,10 @@ function resultsFor(job: JobRow): ProcessingResult[] {
   return providers.jobResults.get(rowKey(job)) ?? [];
 }
 
+function fileResultsFor(job: JobRow): ProcessingResult[] {
+  return resultsFor(job).filter((result) => !result.intent);
+}
+
 function missingFor(job: JobRow): number {
   const key = rowKey(job);
   return (
@@ -394,12 +457,67 @@ function missingFor(job: JobRow): number {
   );
 }
 
-// `.has` distinguishes "not yet fetched" from "fetched, no outputs".
-function resultsLoadedFor(job: JobRow): boolean {
+function resultsAppliedFor(job: JobRow): boolean {
+  return providers.jobResultsApplied.has(rowKey(job));
+}
+
+function resultsFetchedFor(job: JobRow): boolean {
   return providers.jobResults.has(rowKey(job));
 }
 
+// Load is a scene action, so a job whose fetched outputs are all ordinary files
+// drops it; the Details file list is how those are retrieved. Undefined here
+// means unfetched, which keeps Load offered — see `offersSceneLoad`.
+function offersLoadFor(job: JobRow): boolean {
+  return offersSceneLoad(providers.jobResults.get(rowKey(job)));
+}
+
+// `size` is advisory file metadata the producer may omit; formatBytes reads a
+// missing one as zero, so absent stays absent rather than displaying "0 Bytes".
+function fileSizeFor(result: ProcessingResult): string | undefined {
+  return typeof result.size === 'number' ? formatBytes(result.size) : undefined;
+}
+
+// Provider-controlled; javascript:/data: would otherwise run in-page on click.
+function resultHrefFor(result: ProcessingResult): string | undefined {
+  return canFetchUrl(result.url) ? result.url : undefined;
+}
+
+// Results with an intent are handled by the scene-result pipeline (for example,
+// as images or label maps). Downloads are reserved for arbitrary file outputs.
+function canDownloadResult(result: ProcessingResult): boolean {
+  return !result.intent && Boolean(resultHrefFor(result));
+}
+
+const downloadingResultKeys = reactive(new Set<string>());
+
+function resultKey(job: JobRow, result: ProcessingResult): string {
+  return JSON.stringify([rowKey(job), result.id]);
+}
+
+async function downloadResult(job: JobRow, result: ProcessingResult) {
+  const key = resultKey(job, result);
+  if (downloadingResultKeys.has(key)) return;
+  downloadingResultKeys.add(key);
+  try {
+    saveAs(await fetchProcessingResult(result), result.name);
+  } catch (err) {
+    messageStore.addError(`Failed to download ${result.name}`, {
+      error: err instanceof Error ? err : new Error(String(err)),
+    });
+  } finally {
+    downloadingResultKeys.delete(key);
+  }
+}
+
 const resultsLoadingJobKeys = reactive(new Set<string>());
+
+function resultsBusyFor(job: JobRow): boolean {
+  const key = rowKey(job);
+  return (
+    resultsLoadingJobKeys.has(key) || providers.jobResultApplications.has(key)
+  );
+}
 
 // A labelmap whose parent image is gone from the scene falls back to opening as
 // a plain dataset.
@@ -410,11 +528,8 @@ async function loadResults(job: JobRow) {
   try {
     await providers.loadJobResults(rowRef(job));
     const results = providers.jobResults.get(key);
-    if (!results?.length) return;
-    await autoLoadProcessingResults(
-      results,
-      providers.contextForAutoLoad(contextFor(job))
-    );
+    if (!results) return;
+    await providers.applyJobResults(rowRef(job));
   } finally {
     resultsLoadingJobKeys.delete(key);
   }
@@ -500,11 +615,7 @@ function jobSubtitleFor(job: JobRow): string {
       .filter(Boolean)
       .join(' · ');
   }
-  const resultCount =
-    job.state === 'success' && resultsLoadedFor(job) && resultsFor(job).length
-      ? `${resultsFor(job).length} ${plural(resultsFor(job).length, 'result')}`
-      : undefined;
-  return [label, resultCount, formatInstant(finishedInstantFor(job))]
+  return [label, formatInstant(finishedInstantFor(job))]
     .filter(Boolean)
     .join(' · ');
 }
@@ -522,6 +633,10 @@ function toggleDetails(job: JobRow) {
   }
   expandedJobKeys.add(key);
   void providers.loadJobHistoryDetail(rowRef(job));
+  // The file list is the only way to reach a job's ordinary outputs, and a job
+  // that finished while VolView was closed has never fetched its results. Both
+  // calls no-op once their answer is cached.
+  if (job.state === 'success') void providers.loadJobResults(rowRef(job));
 }
 
 // `copied` auto-resets, so the tooltip reverts to "Copy" on its own; the key
@@ -560,12 +675,6 @@ function errorLogFor(job: JobRow): string {
   border-radius: 8px;
   padding: 8px 10px;
 }
-.filter-field-label {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  margin-bottom: 4px;
-}
 .job-row {
   padding: 6px 0;
   border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
@@ -584,8 +693,8 @@ function errorLogFor(job: JobRow): string {
   justify-content: center;
 }
 .status-dot {
-  width: 9px;
-  height: 9px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #4caf50;
 }
@@ -614,16 +723,6 @@ function errorLogFor(job: JobRow): string {
   margin-left: 26px;
   user-select: text;
 }
-.load-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0;
-}
-.load-explainer {
-  min-width: 0;
-  flex: 1 1 auto;
-}
 .details-btn {
   font-size: 0.65rem;
   letter-spacing: 1px;
@@ -642,6 +741,41 @@ function errorLogFor(job: JobRow): string {
   text-overflow: ellipsis;
   white-space: nowrap;
   user-select: all;
+}
+.result-files {
+  margin: 2px 0 4px;
+}
+.result-file {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.result-file:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.result-file:hover {
+  text-decoration: underline;
+}
+.result-file-name {
+  font-size: 0.78rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-file-size {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .error-log {
   white-space: pre-wrap;

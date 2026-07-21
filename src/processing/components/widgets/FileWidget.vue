@@ -27,18 +27,23 @@ import {
   bindingStateMessage,
   type SourceRefBindingState,
 } from '@/src/processing/engine/mintInput';
+import type { BoundSourceRefType } from '@/src/processing/engine/sourceRefs';
 
 const props = defineProps<{
   param: VolViewTaskParameter;
   modelValue: InputValue | null | undefined;
   binding?: SourceRefBindingState;
   boundName?: string;
+  boundType?: BoundSourceRefType;
 }>();
 
 const isLabelmap = computed(
   () =>
-    props.param.kind === 'sourceRef' &&
-    props.param.accepts.includes(TYPE_TAG_LABELMAP)
+    props.boundType === TYPE_TAG_LABELMAP ||
+    (props.boundType == null &&
+      props.param.kind === 'sourceRef' &&
+      props.param.accepts.length === 1 &&
+      props.param.accepts.includes(TYPE_TAG_LABELMAP))
 );
 
 const bindingMessage = computed(() =>

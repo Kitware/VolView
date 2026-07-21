@@ -4,6 +4,7 @@ import {
   SPEC_VERSION,
   taskSpecSchema,
   taskParameterSchema,
+  validateTaskSpecSemantics,
   type VolViewTaskSpec,
 } from '../task-spec';
 import { loadFixture, loadFixtureDir } from './loadFixtures';
@@ -38,6 +39,11 @@ describe('task-spec golden fixtures validate', () => {
       expect(Number.isInteger(spec.specVersion)).toBe(true);
       expect(spec.specVersion).toBe(SPEC_VERSION);
     });
+  });
+
+  it.each(['.', '..'])('rejects the dot-segment task id %j', (id) => {
+    const spec = taskSpecSchema.parse(fixtures[0].data);
+    expect(taskSpecSchema.safeParse({ ...spec, id }).success).toBe(false);
   });
 });
 
@@ -158,6 +164,7 @@ describe('task-spec negative fixtures fail validation', () => {
     const data = loadFixture('negative/constraint-violation.json');
     const result = taskSpecSchema.safeParse(data);
     expect(result.success).toBe(false);
+    expect(validateTaskSpecSemantics(data)).not.toHaveLength(0);
   });
 
   it('detects the unknown kind at the parameter level (fail-closed hide)', () => {
@@ -166,5 +173,46 @@ describe('task-spec negative fixtures fail validation', () => {
     // than reject the whole spec.
     const badParam = { kind: 'color', id: 'tint', default: '#ff0000' };
     expect(taskParameterSchema.safeParse(badParam).success).toBe(false);
+  });
+
+  it('rejects empty and duplicate parameter ids', () => {
+    const base = loadFixture('task-spec/synthetic-all-kinds.json') as Record<
+      string,
+      unknown
+    >;
+    const parameters = [
+      { kind: 'string', id: 'same' },
+      { kind: 'bool', id: 'same' },
+      { kind: 'int', id: '' },
+    ];
+    const result = taskSpecSchema.safeParse({ ...base, parameters });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        ['parameters', 1, 'id'],
+        ['parameters', 2, 'id'],
+      ])
+    );
+  });
+
+  it('rejects duplicate output ids', () => {
+    const base = loadFixture('task-spec/synthetic-all-kinds.json') as Record<
+      string,
+      unknown
+    >;
+    const result = taskSpecSchema.safeParse({
+      ...base,
+      outputs: [{ id: 'same' }, { id: 'same' }],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: ['outputs', 1, 'id'] }),
+      ])
+    );
   });
 });

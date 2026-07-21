@@ -1,6 +1,7 @@
 <template>
   <div v-if="slider" class="d-flex align-center">
     <v-slider
+      :label="label"
       :model-value="modelValue ?? slider.min"
       :min="slider.min"
       :max="slider.max"
@@ -19,6 +20,7 @@
   <v-text-field
     v-else
     :model-value="text"
+    :label="label"
     :hint="param.help"
     :min="numeric?.min"
     :max="numeric?.max"
@@ -36,11 +38,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { VolViewTaskParameter } from '@/backend-contract';
-import { sliderConfig } from '@/src/processing/engine/formModel';
+import { isStepAligned, sliderConfig } from '@/src/processing/engine/formModel';
 
 const props = defineProps<{
   param: VolViewTaskParameter;
   modelValue: number | null | undefined;
+  label?: string;
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number | null): void;
@@ -71,10 +74,11 @@ watch(
 // Reject instead of coercing, since coercing "1.9" for an int silently submits 1.
 function problemWith(parsed: number): string | null {
   if (!Number.isFinite(parsed)) return 'Enter a number';
-  if (props.param.kind !== 'int') return null;
-  if (!Number.isInteger(parsed)) return 'Enter a whole number';
+  if (props.param.kind === 'int' && !Number.isInteger(parsed)) {
+    return 'Enter a whole number';
+  }
   const step = numeric.value?.step;
-  if (step != null && (parsed - (numeric.value?.min ?? 0)) % step !== 0) {
+  if (step != null && !isStepAligned(parsed, step, numeric.value?.min ?? 0)) {
     const from = numeric.value?.min != null ? ` from ${numeric.value.min}` : '';
     return `Enter a value in steps of ${step}${from}`;
   }

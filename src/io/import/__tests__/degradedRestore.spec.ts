@@ -46,10 +46,8 @@ describe('importDataSources — degraded restore', () => {
       { type: 'file', file, fileType: 'application/json' },
     ]);
 
-    // The import survives: no rejection, no error results.
     expect(results.filter((result) => result.type === 'error')).toEqual([]);
 
-    // Exactly ONE consolidated notice, not an error loop.
     const { messages } = useMessageStore();
     expect(messages.length).toBe(1);
     expect(messages[0].type).toBe(MessageType.Warning);

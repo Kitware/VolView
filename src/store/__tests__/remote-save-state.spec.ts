@@ -33,26 +33,51 @@ describe('remote save target', () => {
     expect(store.saveUrl).toBe(url);
   });
 
-  it('accepts a cross-origin save URL (hosted deployments save to another origin)', async () => {
+  it('accepts a relative save URL (it resolves same-origin)', () => {
     const store = useRemoteSaveStateStore();
-    const url = 'https://data.example.org/api/session/save';
+
+    store.setSaveUrl('/api/v1/item/abc/volview');
+
+    expect(store.saveUrl).toBe('/api/v1/item/abc/volview');
+  });
+
+  it('refuses a cross-origin save URL and never POSTs the session to it', async () => {
+    // A crafted ?save=https://attacker.example/ would otherwise exfiltrate the
+    // whole serialized session (plus any bearer $fetch attaches).
+    const store = useRemoteSaveStateStore();
+
+    store.setSaveUrl('https://attacker.example/collect');
+
+    // Empty target inerts the save UI, which is gated on a non-empty saveUrl.
+    expect(store.saveUrl).toBe('');
+    await store.saveState();
+    expect($fetch).not.toHaveBeenCalled();
+    expect(
+      useMessageStore().messages.some((m) => m.title === 'Save Disabled')
+    ).toBe(true);
+  });
+
+  // A protocol-relative URL is the easy way to miss a naive `startsWith('http')`
+  // style check; javascript:/data: resolve to a null origin; a malformed URL
+  // fails to parse at all. All are off-origin and must be refused.
+  it.each([
+    ['//evil.example/collect', 'protocol-relative'],
+    ['javascript:alert(1)', 'null origin'],
+    ['data:text/plain,x', 'null origin'],
+    ['http://', 'unparseable'],
+  ])('refuses %s (%s)', (url) => {
+    const store = useRemoteSaveStateStore();
 
     store.setSaveUrl(url);
-    expect(store.saveUrl).toBe(url);
 
-    vi.mocked($fetch).mockResolvedValue(new Response('{}', { status: 200 }));
-    await store.saveState();
-    expect($fetch).toHaveBeenCalledWith(url, expect.anything());
+    expect(store.saveUrl).toBe('');
   });
 });
 
-// On a successful save the backend returns a single
-// `resumeUrl`; the client repoints ONLY the tab's `urls=` at it (a future F5
-// reloads the save) — no reload; `save=`, the in-memory save target, and
-// `config=` all untouched, so subsequent saves keep going to the
-// launch-provided target (a folder-scoped save mints a new session item per
-// save). A response without `resumeUrl` (or an unparseable body) leaves the
-// tab as-is.
+// A successful save repoints ONLY the tab's `urls=` at the returned
+// `resumeUrl` so a future F5 reloads the save — no reload, and `save=`, the
+// in-memory save target, and `config=` are all untouched. No `resumeUrl` (or
+// an unparseable body) leaves the tab as-is.
 describe('resume repoint on save', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -78,6 +103,11 @@ describe('resume repoint on save', () => {
 
     await store.saveState();
 
+    expect(vi.mocked($fetch)).toHaveBeenCalledWith(
+      launchSaveUrl,
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(vi.mocked($fetch).mock.calls[0][1]?.redirect).toBeUndefined();
     expect(replace).toHaveBeenCalledTimes(1);
     const nextUrl = new URL(replace.mock.calls[0][2] as string);
     expect(nextUrl.searchParams.get('urls')).toBe(resumeUrl);
@@ -115,7 +145,6 @@ describe('resume repoint on save', () => {
     const nextUrl = new URL(replace.mock.calls[0][2] as string);
     expect(nextUrl.searchParams.get('urls')).toBe(resumeUrl);
     expect(nextUrl.searchParams.get('names')).toBeNull();
-    // save= keeps pointing at the launch-provided target.
     expect(nextUrl.searchParams.get('save')).toBe('/api/save');
   });
 

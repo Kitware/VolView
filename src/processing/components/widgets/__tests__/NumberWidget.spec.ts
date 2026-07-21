@@ -68,6 +68,17 @@ describe('NumberWidget input parsing', () => {
     expect(fieldError(w)).toEqual([]);
   });
 
+  it('enforces step on a float param without rejecting precise decimals', async () => {
+    const w = mountWidget({ kind: 'float', min: 0.1, step: 0.2 });
+    await type(w, '0.4');
+    expect(lastEmitted(w)).toBeNull();
+    expect(fieldError(w)).toBe('Enter a value in steps of 0.2 from 0.1');
+
+    await type(w, '0.3');
+    expect(lastEmitted(w)).toBe(0.3);
+    expect(fieldError(w)).toEqual([]);
+  });
+
   it('rejects non-numeric input', async () => {
     const w = mountWidget({ kind: 'int' });
     await type(w, 'abc');

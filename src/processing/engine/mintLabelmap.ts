@@ -68,14 +68,10 @@ const EMPTY_BINDING: LabelmapBindingResult = {
   issues: [],
 };
 
-export const bindLabelmapInputs = (
-  model: TaskFormModel,
-  backgroundImageId: string | undefined,
-  activeSegmentGroupId: string | null | undefined,
-  view: SegmentGroupView
+const bindLabelmapFields = (
+  fields: SourceRefField[],
+  resolution: LabelmapResolution
 ): LabelmapBindingResult => {
-  const fields = labelmapInputFields(model);
-
   if (fields.length === 0) return EMPTY_BINDING;
 
   if (fields.length > 1) {
@@ -83,11 +79,6 @@ export const bindLabelmapInputs = (
   }
 
   const [field] = fields;
-  const resolution = resolveLabelmapGroup(
-    backgroundImageId,
-    activeSegmentGroupId,
-    view
-  );
 
   if (resolution.kind === 'unresolved') {
     return {
@@ -112,6 +103,26 @@ export const bindLabelmapInputs = (
     states: { [field.id]: 'bound' },
     issues: [],
   };
+};
+
+export const bindResolvedLabelmapInputs = (
+  model: TaskFormModel,
+  resolution: LabelmapResolution
+): LabelmapBindingResult =>
+  bindLabelmapFields(labelmapInputFields(model), resolution);
+
+export const bindLabelmapInputs = (
+  model: TaskFormModel,
+  backgroundImageId: string | undefined,
+  activeSegmentGroupId: string | null | undefined,
+  view: SegmentGroupView
+): LabelmapBindingResult => {
+  const fields = labelmapInputFields(model);
+  const resolution =
+    fields.length === 1
+      ? resolveLabelmapGroup(backgroundImageId, activeSegmentGroupId, view)
+      : { kind: 'unresolved' as const };
+  return bindLabelmapFields(fields, resolution);
 };
 
 // `format` is omitted: the staged uri already carries the extension.

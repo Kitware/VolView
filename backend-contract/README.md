@@ -48,6 +48,13 @@ The zod sources are the one normative definition. The golden JSON fixtures are
 the interchange format both sides pin, and the generated JSON Schemas are the
 backend's validator, codegen'd from the zod source so the two can't drift.
 
+Task specs require two validation passes. First validate the generated
+`task-spec.schema.json`, then enforce the cross-field rules implemented by
+`validateTaskSpecSemantics` (or an equivalent implementation in the backend's
+language). Standard JSON Schema cannot compare sibling values such as
+`default <= max`. Backend conformance tests must also assert that every payload
+under `fixtures/negative/` is rejected by the combined validation path.
+
 ## The neutral REST surface (OpenAPI)
 
 `generated/openapi.json` (built from `processing/openapi.ts`) describes exactly

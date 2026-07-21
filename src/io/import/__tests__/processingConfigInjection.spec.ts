@@ -106,7 +106,6 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
 
     await importDataSources([dataSource]);
 
-    // Cross-origin provider is inert; the non-processing section still applies.
     expect(useProcessingJobsStore().configs.size).toBe(0);
     expect(useWindowingStore().runtimeConfigWindowLevel).toEqual({
       level: 40,
@@ -147,6 +146,46 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     await importDataSources([dataSource]).catch(() => undefined);
 
     expect(useProcessingJobsStore().configs.size).toBe(0);
+  });
+
+  it('keeps config-shaped processing artifacts inert', async () => {
+    const [{ importVolumeDataSources }, { useProcessingJobsStore }] =
+      await Promise.all([
+        import('@/src/io/import/importDataSources'),
+        import('@/src/processing'),
+      ]);
+
+    const dataSource: DataSource = {
+      type: 'file',
+      file: jsonFile(
+        configWithProvider('/api/v1/folder/abc/volview_processing')
+      ),
+      fileType: 'application/json',
+    };
+
+    const results = await importVolumeDataSources([dataSource]);
+
+    expect(useProcessingJobsStore().configs.size).toBe(0);
+    expect(results).toHaveLength(1);
+    expect(results[0].type).toBe('error');
+  });
+
+  it('does not restore a state-file-shaped processing artifact', async () => {
+    const { importVolumeDataSources } =
+      await import('@/src/io/import/importDataSources');
+    const dataSource: DataSource = {
+      type: 'file',
+      file: jsonFile(
+        { version: '6.4.0', datasets: [], dataSources: [] },
+        'session.volview.json'
+      ),
+      fileType: 'application/json',
+    };
+
+    const results = await importVolumeDataSources([dataSource]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0].type).toBe('error');
   });
 });
 

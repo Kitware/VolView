@@ -90,6 +90,106 @@ function resolveToLeafSources(
 const dataSourcesById = (manifest: Manifest): Record<number, DataSourceType> =>
   Object.fromEntries(manifest.dataSources.map((ds) => [ds.id, ds]));
 
+const dataSourceDisplayNames = (
+  id: number,
+  byId: Record<number, DataSourceType>,
+  datasetFilePath: Record<string, string> | undefined,
+  visiting = new Set<number>()
+): string[] => {
+  if (visiting.has(id)) return [];
+  const src = byId[id];
+  if (!src) return [];
+
+  const nextVisiting = new Set(visiting).add(id);
+  if (src.type === 'uri') {
+    return [src.name ?? getURLBasename(src.uri) ?? src.uri];
+  }
+  if (src.type === 'file') {
+    const path = datasetFilePath?.[src.fileId];
+    return path ? [basename(path)] : [];
+  }
+  if (src.type === 'archive') return [basename(src.path)];
+  return src.sources.flatMap((sourceId) =>
+    dataSourceDisplayNames(sourceId, byId, datasetFilePath, nextVisiting)
+  );
+};
+
+const summarizeDataSource = (
+  id: number,
+  byId: Record<number, DataSourceType>,
+  datasetFilePath: Record<string, string> | undefined,
+  fallback: string
+): string => {
+  const names = [...new Set(dataSourceDisplayNames(id, byId, datasetFilePath))];
+  if (names.length === 0) return fallback;
+  if (names.length <= 3) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')}, … (${names.length} files)`;
+};
+
+// A composed manifest's `datasets` covers base images only; a segment group
+// wired to a uri entry via `dataSourceId` (and carrying no archive `path`)
+// still needs its artifact fetched, or the group's dataIDMap key never
+// materializes and restore hangs. The synthesized stateID is
+// `leafStateId(dataSourceId)`, never the bare numeral: dataset ids and
+// dataSourceIds are both small integers in real saves, and a shared key would
+// hand the restore to leaf completion order.
+const syntheticLeafSources = (manifest: Manifest): Map<number, string> => {
+  const byId = dataSourcesById(manifest);
+  const coveredSourceIds = new Set(
+    manifestDatasets(manifest).map((ds) => ds.dataSourceId)
+  );
+  const referencedLeafSourceIds = new Set(
+    (manifest.segmentGroups ?? [])
+      .filter((sg) => sg.path === undefined && sg.dataSourceId !== undefined)
+      .map((sg) => sg.dataSourceId!)
+  );
+  return new Map(
+    [...referencedLeafSourceIds]
+      .filter((id) => !coveredSourceIds.has(id) && byId[id]?.type === 'uri')
+      .map((id) => [id, leafStateId(id)])
+  );
+};
+
+export type ArtifactRestoreSource = {
+  stateId: string;
+  temporary: boolean;
+};
+
+// Each path-less segment group's artifact source: the synthesized temporary
+// leaf when one was minted, else the dataset covering that source. Explicitly
+// carry ownership so cleanup never removes a real dataset merely because a
+// group shares its dataSourceId. Legacy manifests have no dataset/artifact
+// distinction, so their path-less artifact datasets retain the consumed-temp
+// behavior used before `datasets` was added.
+export const resolveArtifactRestoreSources = (
+  manifest: Manifest
+): Record<string, ArtifactRestoreSource> => {
+  const minted = syntheticLeafSources(manifest);
+  const datasetIdBySourceId = new Map(
+    manifestDatasets(manifest).map((ds) => [ds.dataSourceId, ds.id])
+  );
+  return Object.fromEntries(
+    (manifest.segmentGroups ?? []).flatMap((sg) => {
+      if (sg.path !== undefined || sg.dataSourceId === undefined) return [];
+      const mintedStateId = minted.get(sg.dataSourceId);
+      const stateId = mintedStateId ?? datasetIdBySourceId.get(sg.dataSourceId);
+      return stateId !== undefined
+        ? [
+            [
+              sg.id,
+              {
+                stateId,
+                temporary:
+                  mintedStateId !== undefined ||
+                  manifest.datasets === undefined,
+              },
+            ] as const,
+          ]
+        : [];
+    })
+  );
+};
+
 function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
   const byId = dataSourcesById(manifest);
 
@@ -99,24 +199,9 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
 
   const datasets = manifestDatasets(manifest);
 
-  // A composed manifest's `datasets` covers base images only; a segment group
-  // wired to a uri entry via `dataSourceId` (and carrying no archive `path`)
-  // still needs its artifact fetched, or the group's dataIDMap key never
-  // materializes and restore hangs. Synthesize dataset entries for exactly
-  // those referenced uri sources — never for unreferenced uri entries, and
-  // never when the group's bytes ride in the zip under `path`. The synthesized
-  // stateID is `leafStateId(dataSourceId)`, never the bare numeral: dataset
-  // ids and dataSourceIds are both small integers in real saves, and a shared
-  // key would hand the restore to leaf completion order.
-  const coveredSourceIds = new Set(datasets.map((ds) => ds.dataSourceId));
-  const referencedLeafSourceIds = new Set(
-    (manifest.segmentGroups ?? [])
-      .filter((sg) => sg.path === undefined && sg.dataSourceId !== undefined)
-      .map((sg) => sg.dataSourceId!)
+  const segmentGroupLeaves = [...syntheticLeafSources(manifest).entries()].map(
+    ([dataSourceId, stateId]) => ({ id: stateId, dataSourceId })
   );
-  const segmentGroupLeaves = [...referencedLeafSourceIds]
-    .filter((id) => !coveredSourceIds.has(id) && byId[id]?.type === 'uri')
-    .map((id) => ({ id: leafStateId(id), dataSourceId: id }));
 
   const missingFiles: Array<{ stateID: string; path: string }> = [];
   const dataSources = [...datasets, ...segmentGroupLeaves].flatMap((ds) => {
@@ -196,31 +281,25 @@ export async function completeStateFileRestore(
 
   const segmentGroupStore = useSegmentGroupStore();
   const { segmentGroupIDMap, skipped: skippedSegmentGroups } =
-    await segmentGroupStore.deserialize(manifest, stateFiles, stateIDToStoreID);
+    await segmentGroupStore.deserialize(
+      manifest,
+      stateFiles,
+      stateIDToStoreID,
+      resolveArtifactRestoreSources(manifest)
+    );
 
   useLayersStore().deserialize(manifest, stateIDToStoreID);
 
   useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
 
-  // ONE consolidated missing-content notice: unresolved bases plus
-  // skipped segment groups, aggregated — never a per-item error loop.
-  const missingBases = unresolvedDatasets.map((ds) => {
-    const src = byId[ds.dataSourceId];
-    if (src?.type === 'uri') return src.name ?? src.uri;
-    // File/archive bases have a recorded filename too — name them by it rather
-    // than a bare numeric dataset id, preserving the diagnosability the removed
-    // per-file error carried.
-    if (src?.type === 'file') {
-      const path = manifest.datasetFilePath?.[src.fileId];
-      if (path) return basename(path);
-    }
-    if (src?.type === 'archive') return basename(src.path);
-    return String(ds.id);
-  });
-  // Segment-group skips carry a concrete reason from deserialize (parent image
-  // did not load / artifact source unavailable / could not read labelmap) so the
-  // notice tells the user WHY each segmentation was left out, not just that it
-  // was.
+  const missingBases = unresolvedDatasets.map((ds) =>
+    summarizeDataSource(
+      ds.dataSourceId,
+      byId,
+      manifest.datasetFilePath,
+      String(ds.id)
+    )
+  );
   // Members missing from a dataset that STILL resolved (from its surviving
   // files) — an unresolved dataset is already named whole above, but a partial
   // one restores truncated and must say which files it is missing.

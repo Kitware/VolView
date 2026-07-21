@@ -305,14 +305,16 @@ const SegmentMask = z.object({
   name: z.string(),
   color: RGBAColor,
   visible: z.boolean().default(true),
+  locked: z.boolean().optional(),
 });
 
-// Provenance of a segment group produced by a processing job — DISPLAY
-// PROVENANCE only (nothing keys dedup or attach semantics off it).
+// Provenance of a segment group produced by a processing job. This durable
+// idempotency key prevents a restored result from being applied twice.
 // Optional and additive — a hand-painted group has none. Round-trips the
-// `.volview.zip` as interchange. Structurally mirrors the
-// backend-contract `resultSource` wire tag.
+// `.volview.zip` as interchange. Structurally mirrors the backend-contract
+// `resultSource` wire tag.
 export const SegmentGroupSource = z.object({
+  providerId: z.string(),
   jobId: z.string(),
   outputId: z.string(),
 });

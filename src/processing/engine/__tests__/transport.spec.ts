@@ -124,6 +124,22 @@ describe('one required transport — fixed routes + $fetch', () => {
     expect(calls[0].url).toBe(`${JOBS_BASE}/jobs/a%2Fb`);
   });
 
+  it.each(['.', '..'])(
+    'rejects the dot-segment id %j before fetch',
+    async (id) => {
+      const calls = stubFetch();
+      const transport = makeTransport();
+
+      await expect(transport.getTaskSpec(id)).rejects.toThrow(
+        'id must not be a dot segment'
+      );
+      await expect(transport.deleteJob(id)).rejects.toThrow(
+        'id must not be a dot segment'
+      );
+      expect(calls).toHaveLength(0);
+    }
+  );
+
   it('carries the global bearer on every call (never raw fetch)', async () => {
     const calls = stubFetch();
     const t = makeTransport();
@@ -132,7 +148,10 @@ describe('one required transport — fixed routes + $fetch', () => {
     await t.getJob('j1');
     await t.getResults('j1');
     expect(calls.length).toBe(4);
-    calls.forEach((c) => expect(authOf(c)).toBe('Bearer test-token'));
+    calls.forEach((c) => {
+      expect(authOf(c)).toBe('Bearer test-token');
+      expect(c.init?.redirect).toBeUndefined();
+    });
   });
 
   it('POSTs the run body as { values } JSON', async () => {
@@ -153,6 +172,17 @@ describe('one required transport — fixed routes + $fetch', () => {
     stubFetch(() => [{ id: 'ok', title: 'OK' }, { id: 'bad-no-title' }]);
     const tasks = await makeTransport().listTasks();
     expect(tasks).toEqual([{ id: 'ok', title: 'OK' }]);
+  });
+
+  it('drops task summaries whose ids are dot segments', async () => {
+    stubFetch(() => [
+      { id: '.', title: 'Current' },
+      { id: '..', title: 'Parent' },
+      { id: 'safe', title: 'Safe' },
+    ]);
+    expect(await makeTransport().listTasks()).toEqual([
+      { id: 'safe', title: 'Safe' },
+    ]);
   });
 
   it('parses a non-array task payload as an empty list', async () => {

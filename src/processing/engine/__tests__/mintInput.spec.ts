@@ -157,7 +157,7 @@ describe('mintInputValue fails closed for no-provenance volumes', () => {
   });
 });
 
-describe('bindImageInputs auto-binds the active dataset (WI2/WI3)', () => {
+describe('bindImageInputs auto-binds the active dataset', () => {
   it('binds the sole image param to the active volume', () => {
     const result = bindImageInputs(
       imageParamModel(),

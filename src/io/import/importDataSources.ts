@@ -3,6 +3,7 @@ import {
   ImportResult,
   asErrorResult,
   asLoadableResult,
+  asOkayResult,
   ConfigResult,
   LoadableVolumeResult,
   LoadableResult,
@@ -119,8 +120,11 @@ async function importDicomChunkSources(sources: ChunkSource[]) {
   );
 }
 
-export async function importDataSources(
-  dataSources: DataSource[]
+type ImportPolicy = 'application' | 'volume-data';
+
+async function importDataSourcesWithPolicy(
+  dataSources: DataSource[],
+  policy: ImportPolicy
 ): Promise<ImportDataSourcesResult[]> {
   const cleanupHandlers: Array<() => void> = [];
   const onCleanup = (fn: () => void) => {
@@ -133,8 +137,14 @@ export async function importDataSources(
   const importContext = {
     fetchFileCache: new Map<string, File>(),
     onCleanup,
-    importDataSources,
+    importDataSources: (sources: DataSource[]) =>
+      importDataSourcesWithPolicy(sources, policy),
   };
+
+  const applicationHandlers =
+    policy === 'application'
+      ? [handleConfig, restoreStateFile, handleRemoteManifest]
+      : [];
 
   const handlers = [
     handleCollections,
@@ -144,11 +154,8 @@ export async function importDataSources(
     // updating the file/uri type should be first step in the pipeline
     updateFileMimeType,
     updateUriType,
-    handleConfig,
-
     // before extractArchive as .zip extension is part of state file check
-    restoreStateFile,
-    handleRemoteManifest,
+    ...applicationHandlers,
     handleGoogleCloudStorage,
     handleAmazonS3,
 
@@ -292,16 +299,31 @@ export async function importDataSources(
   }
 
   // A failed state-file leaf is already counted in the restore's consolidated
-  // missing-content notice, so flag it — a caller surfacing errors must not
-  // raise a second, generic notice for the same leaf.
+  // missing-content notice, so this layer owns its reporting: it returns as an
+  // accounted-for 'ok' result, never as an error. An 'error' result in the
+  // return value therefore ALWAYS means "not yet surfaced to the user" —
+  // callers own reporting exactly the errors they receive, and no failure is
+  // reported twice.
   return results.map((result) => {
     if (result.type !== 'error') return result;
     const leaves = findStateFileLeaves(result.dataSource);
     const covered =
       leaves.length > 0 &&
       leaves.every((leaf) => reportedStateIDs.has(leaf.stateID));
-    return covered ? { ...result, alreadyReported: true } : result;
+    return covered ? asOkayResult(result.dataSource) : result;
   });
+}
+
+export function importDataSources(
+  dataSources: DataSource[]
+): Promise<ImportDataSourcesResult[]> {
+  return importDataSourcesWithPolicy(dataSources, 'application');
+}
+
+export function importVolumeDataSources(
+  dataSources: DataSource[]
+): Promise<ImportDataSourcesResult[]> {
+  return importDataSourcesWithPolicy(dataSources, 'volume-data');
 }
 
 export function toDataSelection(loadable: LoadableVolumeResult) {

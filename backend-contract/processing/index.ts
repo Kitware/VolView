@@ -12,3 +12,4 @@
 
 export * from './task-spec';
 export * from './wire';
+export * from './ids';

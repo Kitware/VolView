@@ -13,6 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod';
+import { pathSegmentIdSchema } from './ids';
 
 // The integer spec version, present from day one so later additions are
 // negotiable. Bump only on a shape change; new optional fields do not need it.
@@ -30,6 +31,7 @@ export const SPEC_VERSION = 1;
 export const TYPE_TAG_IMAGE = 'image';
 export const TYPE_TAG_LABELMAP = 'labelmap';
 export const typeTagSchema = z.string();
+const identifierSchema = z.string().regex(/\S/, 'id must not be empty');
 
 // Axis-aligned world-space box in LPS: [xmin, xmax, ymin, ymax, zmin, zmax].
 // The value carried by a `bounds` parameter (bound from the crop tool).
@@ -68,7 +70,7 @@ export type ParameterKind = (typeof PARAMETER_KINDS)[number];
 // is an optional renderer override — the renderer picks a default widget from
 // `kind` when it is absent.
 const paramCommon = {
-  id: z.string(),
+  id: identifierSchema,
   title: z.string().optional(),
   help: z.string().optional(),
   section: z.string().optional(),
@@ -128,7 +130,6 @@ const sourceRefParam = z.object({
   accepts: z.array(typeTagSchema).min(1),
 });
 
-// Imaging-native field kind: an axis-aligned world-space box (LPS).
 const boundsParam = z.object({
   kind: z.literal('bounds'),
   ...paramCommon,
@@ -148,60 +149,118 @@ const parameterUnion = z.discriminatedUnion('kind', [
 const isNumericKind = (kind: ParameterKind) =>
   kind === 'int' || kind === 'float';
 
+export type TaskSpecSemanticIssue = {
+  message: string;
+  path: (string | number)[];
+};
+
+type StructuralTaskParameter = z.infer<typeof parameterUnion>;
+
+const parameterSemanticIssues = (
+  p: StructuralTaskParameter
+): TaskSpecSemanticIssue[] => {
+  const issues: TaskSpecSemanticIssue[] = [];
+  if (
+    isNumericKind(p.kind) &&
+    'min' in p &&
+    'max' in p &&
+    p.min != null &&
+    p.max != null &&
+    p.min > p.max
+  ) {
+    issues.push({ message: 'min must be <= max', path: ['min'] });
+  }
+  if (
+    isNumericKind(p.kind) &&
+    'default' in p &&
+    'min' in p &&
+    p.default != null &&
+    p.min != null &&
+    p.default < p.min
+  ) {
+    issues.push({ message: 'default must be >= min', path: ['default'] });
+  }
+  if (
+    isNumericKind(p.kind) &&
+    'default' in p &&
+    'max' in p &&
+    p.default != null &&
+    p.max != null &&
+    p.default > p.max
+  ) {
+    issues.push({ message: 'default must be <= max', path: ['default'] });
+  }
+  if (isNumericKind(p.kind) && 'step' in p && p.step != null && p.step <= 0) {
+    issues.push({ message: 'step must be > 0', path: ['step'] });
+  }
+  if (
+    p.kind === 'enum' &&
+    p.default != null &&
+    !p.options.includes(p.default)
+  ) {
+    issues.push({
+      message: 'default must be one of the enum options',
+      path: ['default'],
+    });
+  }
+  return issues;
+};
+
+// JSON Schema cannot compare sibling values such as `default` and `max`.
+// Backends must run this semantic pass after structural JSON-Schema validation.
+// The normative zod schema below calls the same implementation, preventing the
+// two validation paths from drifting.
+export const validateTaskSpecSemantics = (
+  spec: unknown
+): TaskSpecSemanticIssue[] => {
+  if (spec === null || typeof spec !== 'object') return [];
+  const record = spec as Record<string, unknown>;
+  const issues: TaskSpecSemanticIssue[] = [];
+
+  if (Array.isArray(record.parameters)) {
+    record.parameters.forEach((parameter, index) => {
+      const parsed = parameterUnion.safeParse(parameter);
+      if (!parsed.success) return;
+      parameterSemanticIssues(parsed.data).forEach((issue) =>
+        issues.push({ ...issue, path: ['parameters', index, ...issue.path] })
+      );
+    });
+  }
+
+  (['parameters', 'outputs'] as const).forEach((field) => {
+    const entries = record[field];
+    if (!Array.isArray(entries)) return;
+    const seen = new Set<string>();
+    entries.forEach((entry, index) => {
+      if (
+        entry === null ||
+        typeof entry !== 'object' ||
+        !('id' in entry) ||
+        typeof entry.id !== 'string'
+      ) {
+        return;
+      }
+      if (seen.has(entry.id)) {
+        issues.push({
+          message: `duplicate ${field === 'parameters' ? 'parameter' : 'output'} id: ${entry.id}`,
+          path: [field, index, 'id'],
+        });
+      }
+      seen.add(entry.id);
+    });
+  });
+
+  return issues;
+};
+
 // Cross-field constraint checks layered on top of the discriminated union.
-// JSON Schema cannot express them; they are the zod side's extra rigor over
-// the structural JSON-Schema view generated for the backend.
-export const taskParameterSchema = parameterUnion
-  .refine(
-    (p) =>
-      !(
-        isNumericKind(p.kind) &&
-        'min' in p &&
-        'max' in p &&
-        p.min != null &&
-        p.max != null &&
-        p.min > p.max
-      ),
-    { message: 'min must be <= max', path: ['min'] }
-  )
-  .refine(
-    (p) =>
-      !(
-        isNumericKind(p.kind) &&
-        'default' in p &&
-        'min' in p &&
-        p.default != null &&
-        p.min != null &&
-        p.default < p.min
-      ),
-    { message: 'default must be >= min', path: ['default'] }
-  )
-  .refine(
-    (p) =>
-      !(
-        isNumericKind(p.kind) &&
-        'default' in p &&
-        'max' in p &&
-        p.default != null &&
-        p.max != null &&
-        p.default > p.max
-      ),
-    { message: 'default must be <= max', path: ['default'] }
-  )
-  .refine(
-    (p) =>
-      !(isNumericKind(p.kind) && 'step' in p && p.step != null && p.step <= 0),
-    { message: 'step must be > 0', path: ['step'] }
-  )
-  .refine(
-    (p) =>
-      !(
-        p.kind === 'enum' &&
-        p.default != null &&
-        !p.options.includes(p.default)
-      ),
-    { message: 'default must be one of the enum options', path: ['default'] }
-  );
+export const taskParameterSchema = parameterUnion.superRefine(
+  (parameter, ctx) => {
+    parameterSemanticIssues(parameter).forEach((issue) =>
+      ctx.addIssue({ code: 'custom', ...issue })
+    );
+  }
+);
 
 export type VolViewTaskParameter = z.infer<typeof taskParameterSchema>;
 
@@ -214,7 +273,7 @@ export type VolViewTaskParameter = z.infer<typeof taskParameterSchema>;
 // (e.g. `.nii.gz`). The backend authors these; the client maps them to result
 // intents.
 export const taskOutputSchema = z.object({
-  id: z.string(),
+  id: identifierSchema,
   title: z.string().optional(),
   help: z.string().optional(),
   type: typeTagSchema.optional(),
@@ -227,13 +286,53 @@ export type VolViewTaskOutput = z.infer<typeof taskOutputSchema>;
 // The task spec
 // ---------------------------------------------------------------------------
 
-export const taskSpecSchema = z.object({
+const reportDuplicateIds = (
+  entries: unknown[],
+  path: 'parameters' | 'outputs',
+  ctx: z.RefinementCtx
+) => {
+  const seen = new Set<string>();
+  entries.forEach((entry, index) => {
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      !('id' in entry) ||
+      typeof entry.id !== 'string'
+    ) {
+      return;
+    }
+    const { id } = entry;
+    if (!seen.has(id)) {
+      seen.add(id);
+      return;
+    }
+    ctx.addIssue({
+      code: 'custom',
+      message: `duplicate ${path === 'parameters' ? 'parameter' : 'output'} id: ${id}`,
+      path: [path, index, 'id'],
+    });
+  });
+};
+
+export const taskSpecStructuralSchema = z.object({
   specVersion: z.number().int(),
-  id: z.string(),
+  id: pathSegmentIdSchema.regex(/\S/, 'id must not be empty'),
   title: z.string(),
   description: z.string().optional(),
   parameters: z.array(taskParameterSchema),
   outputs: z.array(taskOutputSchema),
 });
+
+export const reportDuplicateTaskSpecIds = (
+  spec: { parameters: unknown[]; outputs: unknown[] },
+  ctx: z.RefinementCtx
+) => {
+  reportDuplicateIds(spec.parameters, 'parameters', ctx);
+  reportDuplicateIds(spec.outputs, 'outputs', ctx);
+};
+
+export const taskSpecSchema = taskSpecStructuralSchema.superRefine(
+  reportDuplicateTaskSpecIds
+);
 
 export type VolViewTaskSpec = z.infer<typeof taskSpecSchema>;

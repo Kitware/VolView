@@ -98,8 +98,6 @@ describe('staged resource descriptor fixtures', () => {
 
 describe('neutral job status fixtures', () => {
   it('has exactly the five v1 states, cancelled included', () => {
-    // Runtime names: the backend projects and the
-    // client store consumes these; the canonical schema is named TO them.
     expect([...JOB_STATES]).toEqual([
       'pending',
       'running',
@@ -132,10 +130,20 @@ describe('neutral job status fixtures', () => {
   });
 
   it('rejects a state outside the five (e.g. the retired `queued`)', () => {
-    // `queued`/`succeeded`/`failed` are the pre-reconcile spellings and are now
-    // rejected; the runtime names (`pending`/`success`/`error`) are the valid five.
+    // `queued`/`succeeded`/`failed` are rejected; the runtime names
+    // (`pending`/`success`/`error`) are the valid five.
     expect(
       neutralJobStatusSchema.safeParse({ jobId: 'j', state: 'queued' }).success
+    ).toBe(false);
+  });
+
+  it.each(['.', '..'])('rejects the dot-segment job id %j', (jobId) => {
+    expect(
+      neutralJobStatusSchema.safeParse({
+        jobId,
+        state: 'running',
+        resultState: 'waiting',
+      }).success
     ).toBe(false);
   });
 });
@@ -174,6 +182,7 @@ describe('result intent fixtures', () => {
     expect(parsed.intent).toBe('add-segment-group');
     expect(Array.isArray(parsed.segments)).toBe(true);
     expect(parsed.source).toEqual({
+      providerId: 'analysis-provider',
       jobId: 'job-abc123',
       outputId: 'outputLabelmap',
     });
@@ -186,6 +195,14 @@ describe('result intent fixtures', () => {
     expect(parsed.intent).toBe('add-segment-group');
     expect(parsed.segments).toBeUndefined();
     expect(parsed.source).toMatchObject({ outputId: 'outputLabelmap' });
+  });
+
+  it('rejects a segment-group source without provider identity', () => {
+    const value = structuredClone(
+      wire['intent.add-segment-group.with-segments']
+    ) as { source: { providerId?: string } };
+    delete value.source.providerId;
+    expect(knownResultIntentSchema.safeParse(value).success).toBe(false);
   });
 
   it('accepts an unknown intent as an ordinary result with no state action', () => {

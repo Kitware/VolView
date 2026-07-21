@@ -6,6 +6,7 @@ import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
+import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
 
 // ---------------------------------------------------------------------------
 // Backward compatibility: manifests saved before `datasets` existed (and
@@ -87,7 +88,8 @@ describe('segmentGroups.deserialize — legacy manifests without `datasets`', ()
       legacyManifest,
       [],
       // Restore keys every fallback dataset by its stringified source id.
-      { '1': 'store-ct', '3': 'store-seg' }
+      { '1': 'store-ct', '3': 'store-seg' },
+      resolveArtifactRestoreSources(legacyManifest)
     );
 
     expect(skipped).toEqual([]);
@@ -95,7 +97,7 @@ describe('segmentGroups.deserialize — legacy manifests without `datasets`', ()
     expect(
       Object.values(store.metadataByID).some((m) => m.name === 'sg-tumor')
     ).toBe(true);
-    // The consumed artifact dataset is removed after conversion (main parity).
+    // The consumed artifact dataset is removed after conversion.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-seg');
   });

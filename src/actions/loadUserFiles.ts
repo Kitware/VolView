@@ -15,6 +15,7 @@ import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
 import {
   importDataSources,
+  importVolumeDataSources,
   toDataSelection,
 } from '@/src/io/import/importDataSources';
 import {
@@ -265,20 +266,33 @@ function loadSegmentations(
   });
 }
 
-export function loadDataSources(sources: DataSource[]) {
+type DataSourceImporter = (
+  sources: DataSource[]
+) => Promise<ImportDataSourcesResult[]>;
+
+type LoadDataSourcesOutcome = {
+  datasetIds: string[];
+  hadErrors: boolean;
+  completed: boolean;
+};
+
+function loadDataSourcesWithOutcome(
+  sources: DataSource[],
+  importer: DataSourceImporter
+): Promise<LoadDataSourcesOutcome> {
   const loadDataStore = useLoadDataStore();
   const viewStore = useViewStore();
 
   const load = async () => {
     let results: ImportDataSourcesResult[];
     try {
-      results = (await importDataSources(sources)).filter((result) =>
+      results = (await importer(sources)).filter((result) =>
         // only look at data and error results
         ['data', 'error'].includes(result.type)
       );
     } catch (error) {
       loadDataStore.setError(error as Error);
-      return;
+      return { datasetIds: [], hadErrors: true, completed: false };
     }
 
     const [succeeded, errored] = partition(
@@ -314,15 +328,12 @@ export function loadDataSources(sources: DataSource[]) {
       } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
 
-    // importDataSources flags failures it has already surfaced to the user
-    // (e.g. a failed state-file leaf, counted in the restore's consolidated
-    // notice) — only the rest get the generic load error here.
-    const unreportedErrored = (errored as ErrorResult[]).filter(
-      ({ alreadyReported }) => !alreadyReported
-    );
-
-    if (unreportedErrored.length) {
-      const errorMessages = unreportedErrored.map((errResult) => {
+    // Every error importDataSources returns is unreported by contract
+    // (failures it already surfaced itself — e.g. in the restore's
+    // consolidated notice — come back as 'ok' results), so all of them get
+    // the generic load error here.
+    if (errored.length) {
+      const errorMessages = (errored as ErrorResult[]).map((errResult) => {
         const { dataSource, error } = errResult;
         const name = getDataSourceName(dataSource);
         logError(error);
@@ -334,12 +345,20 @@ export function loadDataSources(sources: DataSource[]) {
 
       loadDataStore.setError(failedError);
     }
-    return filterLoadableDataSources(succeeded).map((result) => result.dataID);
+    return {
+      datasetIds: filterLoadableDataSources(succeeded).map(
+        (result) => result.dataID
+      ),
+      hadErrors: errored.length > 0,
+      completed: true,
+    };
   };
 
-  const wrapWithLoading = <T extends (...args: any[]) => void>(fn: T) => {
+  const wrapWithLoading = <Args extends unknown[], Result>(
+    fn: (...args: Args) => Promise<Result>
+  ) => {
     const { startLoading, stopLoading } = useLoadDataStore();
-    return async function wrapper(...args: any[]) {
+    return async function wrapper(...args: Args): Promise<Result> {
       try {
         startLoading();
         return await fn(...args);
@@ -350,6 +369,18 @@ export function loadDataSources(sources: DataSource[]) {
   };
 
   return wrapWithLoading(load)();
+}
+
+export function loadDataSources(sources: DataSource[]) {
+  return loadDataSourcesWithOutcome(sources, importDataSources).then(
+    ({ datasetIds, completed }) => (completed ? datasetIds : undefined)
+  );
+}
+
+export function loadVolumeDataSources(sources: DataSource[]) {
+  return loadDataSourcesWithOutcome(sources, importVolumeDataSources).then(
+    ({ datasetIds, completed }) => (completed ? datasetIds : undefined)
+  );
 }
 
 export function openFileDialog() {
@@ -391,18 +422,38 @@ type LoadUrlsParams = {
 };
 
 export async function loadUrls(params: UrlParams | LoadUrlsParams) {
-  const loadedIds: string[] = [];
+  return (await loadUrlsWithOutcome(params)).datasetIds;
+}
+
+export async function loadUrlsWithOutcome(
+  params: UrlParams | LoadUrlsParams
+): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
+  const outcomes: LoadDataSourcesOutcome[] = [];
   if (params.config) {
     const configUrls = wrapInArray(params.config);
     const configSources = urlsToDataSources(configUrls, []);
-    loadedIds.push(...((await loadDataSources(configSources)) ?? []));
+    outcomes.push(
+      await loadDataSourcesWithOutcome(configSources, importDataSources)
+    );
   }
 
   if (params.urls) {
     const urls = wrapInArray(params.urls);
     const names = wrapInArray(params.names ?? []);
     const sources = urlsToDataSources(urls, names);
-    loadedIds.push(...((await loadDataSources(sources)) ?? []));
+    outcomes.push(await loadDataSourcesWithOutcome(sources, importDataSources));
   }
-  return loadedIds;
+  return {
+    datasetIds: outcomes.flatMap(({ datasetIds }) => datasetIds),
+    hadErrors: outcomes.some(({ hadErrors }) => hadErrors),
+  };
+}
+
+export async function loadVolumeUrls(
+  params: Pick<LoadUrlsParams, 'urls' | 'names'>
+) {
+  if (!params.urls) return [];
+  const urls = wrapInArray(params.urls);
+  const names = wrapInArray(params.names ?? []);
+  return (await loadVolumeDataSources(urlsToDataSources(urls, names))) ?? [];
 }

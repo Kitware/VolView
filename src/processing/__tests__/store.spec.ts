@@ -5,6 +5,7 @@ import {
   useProcessingJobsStore,
   POLL_INTERVAL_MS,
   MAX_POLL_RETRIES,
+  MAX_JOB_HISTORY_PAGES,
 } from '@/src/processing/store';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import type {
@@ -16,6 +17,7 @@ import type {
   TrackedJobRef,
 } from '@/src/processing/types';
 import { jobKey } from '@/src/processing/types';
+import { defer } from '@/src/utils';
 import { makeFakeProvider } from './fakeProvider';
 
 const { datasetState } = vi.hoisted(() => ({
@@ -519,6 +521,27 @@ describe('Providers store — live-only durability + failure UX', () => {
     expect(getJob).toHaveBeenCalledTimes(1);
   });
 
+  it('retries HTTP 429 poll responses with backoff', async () => {
+    const store = useProcessingJobsStore();
+    const getJob = vi
+      .fn()
+      .mockRejectedValueOnce(httpError(429))
+      .mockResolvedValue(jobStatus('job-throttled', 'running'));
+    const runTask = vi
+      .fn()
+      .mockResolvedValue({ jobId: 'job-throttled' } as ProcessingJobRef);
+    store.instances.set('p1', makeProvider({ runTask, getJob }));
+
+    await store.submitJob('p1', 'task-1', {}, {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getJob).toHaveBeenCalledTimes(1);
+    expect(store.jobs.get(keyFor('job-throttled'))?.state).toBe('pending');
+
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    expect(getJob).toHaveBeenCalledTimes(2);
+    expect(store.jobs.get(keyFor('job-throttled'))?.state).toBe('running');
+  });
+
   it('surfaces a submit failure in the message center instead of swallowing it', async () => {
     const store = useProcessingJobsStore();
 
@@ -535,11 +558,14 @@ describe('Providers store — live-only durability + failure UX', () => {
     expect(errs[0].title).toMatch(/submit/i);
   });
 
-  it('treats a results-fetch error as an error, never empty results', async () => {
+  it('retries a transient results fetch without rewriting successful execution', async () => {
     const store = useProcessingJobsStore();
 
     const status = jobStatus('job-fetch-fail', 'success');
-    const getResults = vi.fn().mockRejectedValue(new Error('results 500'));
+    const getResults = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('results 500'))
+      .mockResolvedValue(resultsBundle(sampleResults));
     const runTask = vi.fn().mockResolvedValue({
       jobId: 'job-fetch-fail',
       status,
@@ -553,14 +579,182 @@ describe('Providers store — live-only durability + failure UX', () => {
     await store.submitJob('p1', 'task-1', {}, {});
 
     expect(getResults).toHaveBeenCalledTimes(1);
-    expect(store.jobs.get(keyFor('job-fetch-fail'))?.state).toBe('error');
+    expect(store.jobs.get(keyFor('job-fetch-fail'))?.state).toBe('success');
     expect(store.jobResults.get(keyFor('job-fetch-fail'))).toBeUndefined();
-    expect(errorMessages().some((m) => /result/i.test(m.title))).toBe(true);
+    expect(listener).not.toHaveBeenCalled();
 
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+
+    expect(getResults).toHaveBeenCalledTimes(2);
+    expect(store.jobs.get(keyFor('job-fetch-fail'))?.state).toBe('success');
+    expect(store.jobResults.get(keyFor('job-fetch-fail'))).toEqual(
+      sampleResults
+    );
     expect(listener).toHaveBeenCalledTimes(1);
     const completion = listener.mock.calls[0][0];
-    expect(completion.status.state).toBe('error');
-    expect(completion.results).toEqual([]);
+    expect(completion.status.state).toBe('success');
+    expect(completion.results).toEqual(sampleResults);
+  });
+
+  it('keeps success retryable after a permanent results-fetch failure', async () => {
+    const store = useProcessingJobsStore();
+    const status = jobStatus('job-results-denied', 'success');
+    const getResults = vi.fn().mockRejectedValue(httpError(403));
+    const runTask = vi.fn().mockResolvedValue({
+      jobId: 'job-results-denied',
+      status,
+    } as ProcessingJobRef);
+    store.instances.set(
+      'p1',
+      makeProvider({ runTask, getResults, getJob: vi.fn() })
+    );
+
+    await store.submitJob('p1', 'task-1', {}, {});
+
+    expect(store.jobs.get(keyFor('job-results-denied'))?.state).toBe('success');
+    expect(store.jobResults.has(keyFor('job-results-denied'))).toBe(false);
+    expect(errorMessages().some((m) => /result/i.test(m.title))).toBe(true);
+  });
+
+  it('retries only result applications that previously failed', () => {
+    const store = useProcessingJobsStore();
+    const jobRef = ref('job-apply');
+    store.recordSubmittedContext({
+      providerId: 'p1',
+      jobId: jobRef.jobId,
+      taskId: 'task-1',
+      submittedAt: new Date().toISOString(),
+    });
+    store.jobResults.set(keyFor(jobRef.jobId), [
+      { id: 'applied', name: 'applied.nrrd', url: '/applied.nrrd' },
+      { id: 'failed', name: 'failed.nrrd', url: '/failed.nrrd' },
+    ]);
+
+    store.recordJobResultApplication(jobRef, ['failed']);
+
+    expect(
+      store.resultsPendingApplication(jobRef).map((result) => result.id)
+    ).toEqual(['failed']);
+    expect(store.jobResultsApplied.has(keyFor(jobRef.jobId))).toBe(false);
+
+    store.recordJobResultApplication(jobRef, []);
+
+    expect(store.resultsPendingApplication(jobRef)).toHaveLength(0);
+    expect(store.jobResultsApplied.has(keyFor(jobRef.jobId))).toBe(true);
+  });
+
+  it('shares one in-flight result application for the same provider and job', async () => {
+    autoLoadMock.mockReset();
+    const gate = defer<{ failedResultIds: string[] }>();
+    autoLoadMock.mockReturnValue(gate.promise);
+    const store = useProcessingJobsStore();
+    const jobRef = ref('job-apply-once');
+    store.recordSubmittedContext({
+      providerId: jobRef.providerId,
+      jobId: jobRef.jobId,
+      taskId: 'task-1',
+      submittedAt: new Date().toISOString(),
+    });
+    store.jobResults.set(keyFor(jobRef.jobId), sampleResults);
+
+    const automatic = store.applyJobResults(jobRef);
+    const shared = store.jobResultApplications.get(keyFor(jobRef.jobId));
+    const manual = store.applyJobResults(jobRef);
+
+    expect(store.jobResultApplications.get(keyFor(jobRef.jobId))).toBe(shared);
+    await Promise.resolve();
+    expect(autoLoadMock).toHaveBeenCalledTimes(1);
+
+    gate.resolve({ failedResultIds: [] });
+    await Promise.all([automatic, manual]);
+
+    expect(store.jobResultsApplied.has(keyFor(jobRef.jobId))).toBe(true);
+    expect(store.jobResultApplications.has(keyFor(jobRef.jobId))).toBe(false);
+  });
+
+  it('keys concurrent result applications by provider and raw job id', async () => {
+    autoLoadMock.mockReset();
+    autoLoadMock.mockResolvedValue({ failedResultIds: [] });
+    const store = useProcessingJobsStore();
+    const jobA = ref('shared-id', 'A');
+    const jobB = ref('shared-id', 'B');
+    [jobA, jobB].forEach((jobRef) => {
+      store.recordSubmittedContext({
+        providerId: jobRef.providerId,
+        jobId: jobRef.jobId,
+        taskId: 'task-1',
+        submittedAt: new Date().toISOString(),
+      });
+      store.jobResults.set(jobKey(jobRef), sampleResults);
+    });
+
+    await Promise.all([
+      store.applyJobResults(jobA),
+      store.applyJobResults(jobB),
+    ]);
+
+    expect(autoLoadMock).toHaveBeenCalledTimes(2);
+    expect(store.jobResultsApplied.has(jobKey(jobA))).toBe(true);
+    expect(store.jobResultsApplied.has(jobKey(jobB))).toBe(true);
+  });
+
+  it('waits for result application before deleting the job', async () => {
+    autoLoadMock.mockReset();
+    const gate = defer<{ failedResultIds: string[] }>();
+    const events: string[] = [];
+    autoLoadMock.mockImplementation(async () => {
+      await gate.promise;
+      events.push('applied');
+      return { failedResultIds: [] };
+    });
+    const deleteJob = vi.fn().mockImplementation(async () => {
+      events.push('deleted');
+    });
+    const store = useProcessingJobsStore();
+    store.instances.set('p1', makeProvider({ deleteJob }));
+    const jobRef = ref('job-delete-after-apply');
+    store.recordSubmittedContext({
+      providerId: jobRef.providerId,
+      jobId: jobRef.jobId,
+      taskId: 'task-1',
+      submittedAt: new Date().toISOString(),
+    });
+    store.jobResults.set(keyFor(jobRef.jobId), sampleResults);
+
+    const applying = store.applyJobResults(jobRef);
+    const deleting = store.deleteJob(jobRef);
+    await Promise.resolve();
+
+    expect(deleteJob).not.toHaveBeenCalled();
+    gate.resolve({ failedResultIds: [] });
+    await Promise.all([applying, deleting]);
+
+    expect(events).toEqual(['applied', 'deleted']);
+  });
+
+  it('clears a rejected application so the job can be retried', async () => {
+    autoLoadMock.mockReset();
+    autoLoadMock
+      .mockRejectedValueOnce(new Error('application failed'))
+      .mockResolvedValueOnce({ failedResultIds: [] });
+    const store = useProcessingJobsStore();
+    const jobRef = ref('job-apply-retry');
+    store.recordSubmittedContext({
+      providerId: jobRef.providerId,
+      jobId: jobRef.jobId,
+      taskId: 'task-1',
+      submittedAt: new Date().toISOString(),
+    });
+    store.jobResults.set(keyFor(jobRef.jobId), sampleResults);
+
+    await expect(store.applyJobResults(jobRef)).rejects.toThrow(
+      'application failed'
+    );
+    expect(store.jobResultApplications.has(keyFor(jobRef.jobId))).toBe(false);
+
+    await store.applyJobResults(jobRef);
+    expect(autoLoadMock).toHaveBeenCalledTimes(2);
+    expect(store.jobResultsApplied.has(keyFor(jobRef.jobId))).toBe(true);
   });
 
   it('stops timers and drops job records on clear', async () => {
@@ -669,16 +863,12 @@ describe('Providers store — live-only durability + failure UX', () => {
     await store.submitJob('p1', 'task-1', {}, {});
     await vi.advanceTimersByTimeAsync(0);
 
-    // The denied job fails with an error status...
     expect(store.jobs.get(keyFor('job-403'))?.state).toBe('error');
-    // ...but the session is NOT declared expired and no persistent expiry
-    // error is posted.
     expect(store.sessionExpired).toBe(false);
     expect(
       errorMessages().some((m) => /session has expired/i.test(m.title))
     ).toBe(false);
 
-    // The other job's polling survives.
     const pollsBefore = getJob.mock.calls.filter(
       ([id]) => id === 'job-ok'
     ).length;
@@ -918,6 +1108,39 @@ describe('Providers store — re-discovered job history: slim observability adop
     ]);
   });
 
+  it('stops loading all history when a provider repeats its cursor', async () => {
+    const listJobHistory = vi
+      .fn()
+      .mockResolvedValueOnce({ jobs: [], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ jobs: [], nextCursor: 'page-2' });
+    const store = arrange(makeProvider({ listJobHistory }));
+
+    await store.adoptJobHistory();
+    await store.loadAllJobHistory();
+
+    expect(listJobHistory).toHaveBeenCalledTimes(2);
+    expect(store.jobHistoryComplete).toBe(false);
+    expect(store.jobHistoryError).toContain('did not advance');
+  });
+
+  it('caps loading all history when cursors advance without completing', async () => {
+    let cursorNumber = 0;
+    const listJobHistory = vi.fn().mockImplementation(async () => ({
+      jobs: [],
+      nextCursor: `page-${++cursorNumber}`,
+    }));
+    const store = arrange(makeProvider({ listJobHistory }));
+
+    await store.adoptJobHistory();
+    await store.loadAllJobHistory();
+
+    expect(listJobHistory).toHaveBeenCalledTimes(MAX_JOB_HISTORY_PAGES + 1);
+    expect(store.jobHistoryComplete).toBe(false);
+    expect(store.jobHistoryError).toContain(
+      `exceeded ${MAX_JOB_HISTORY_PAGES} pages`
+    );
+  });
+
   it('preserves a failed continuation for retry and never completes partial history', async () => {
     const second = handle({ jobId: 'jr-2', createdAt: '2026-06-01T00:00:00Z' });
     const listJobHistory = vi
@@ -1044,6 +1267,30 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(autoLoadMock).not.toHaveBeenCalled();
   });
 
+  it("retries a transient failure on a re-discovered job's first status read", async () => {
+    const getJob = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('network unavailable'))
+      .mockResolvedValueOnce(jobStatus('jr', 'running'));
+    const provider = makeProvider({
+      listJobHistory: vi.fn().mockResolvedValue({
+        jobs: [handle({ state: 'running', finishedAt: undefined })],
+        nextCursor: null,
+      }),
+      getJob,
+    });
+    const store = arrange(provider);
+
+    await store.adoptJobHistory();
+    expect(getJob).toHaveBeenCalledTimes(1);
+    expect(store.jobs.get(keyFor('jr'))).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+
+    expect(getJob).toHaveBeenCalledTimes(2);
+    expect(store.jobs.get(keyFor('jr'))?.state).toBe('running');
+  });
+
   it('an adopted running job that finishes while open fires the ordinary live path', async () => {
     const getJob = vi
       .fn()
@@ -1107,6 +1354,70 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(store.submittedContexts.get(keyFor('jr'))?.activeDatasetId).toBe(
       'ds1'
     );
+  });
+
+  it('reconstructs a parent when its provenance contains duplicate URIs', async () => {
+    const provider = makeProvider({
+      listJobHistory: vi.fn().mockResolvedValue({
+        jobs: [handle({ state: 'success' })],
+        nextCursor: null,
+      }),
+      getJobHistoryDetail: vi.fn().mockResolvedValue({
+        jobId: 'jr',
+        log: [],
+        parameters: { inputVolume: { type: 'image', uris: ['/f/a'] } },
+      }),
+      getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
+    });
+    const store = arrange(provider);
+    datasetState.sources.ds1 = {
+      type: 'collection',
+      sources: [
+        { type: 'uri', uri: '/f/a' },
+        { type: 'uri', uri: '/f/a' },
+      ],
+    };
+
+    await store.adoptJobHistory();
+    await store.loadJobResults(ref('jr'));
+
+    expect(store.submittedContexts.get(keyFor('jr'))?.activeDatasetId).toBe(
+      'ds1'
+    );
+  });
+
+  it('does not guess when multiple datasets have the same provenance set', async () => {
+    const provider = makeProvider({
+      listJobHistory: vi.fn().mockResolvedValue({
+        jobs: [handle({ state: 'success' })],
+        nextCursor: null,
+      }),
+      getJobHistoryDetail: vi.fn().mockResolvedValue({
+        jobId: 'jr',
+        log: [],
+        parameters: { inputVolume: { type: 'image', uris: ['/f/a'] } },
+      }),
+      getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
+    });
+    const store = arrange(provider);
+    datasetState.ids = ['ds1', 'ds2'];
+    datasetState.sources = {
+      ds1: { type: 'uri', uri: '/f/a' },
+      ds2: {
+        type: 'collection',
+        sources: [
+          { type: 'uri', uri: '/f/a' },
+          { type: 'uri', uri: '/f/a' },
+        ],
+      },
+    };
+
+    await store.adoptJobHistory();
+    await store.loadJobResults(ref('jr'));
+
+    expect(
+      store.submittedContexts.get(keyFor('jr'))?.activeDatasetId
+    ).toBeUndefined();
   });
 
   it('parent reconstruction never guesses on unmatched or ambiguous inputs', async () => {
@@ -1293,7 +1604,7 @@ describe('Providers store — re-discovered job history: slim observability adop
   });
 });
 
-describe('Providers store — P-02: immutable registration + provider-qualified job keys', () => {
+describe('Providers store — immutable registration + provider-qualified job keys', () => {
   const cfg = (
     overrides: Partial<ProcessingProviderConfig> = {}
   ): ProcessingProviderConfig => ({

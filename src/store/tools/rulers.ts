@@ -7,7 +7,12 @@ import { ToolID } from '@/src/types/annotation-tool';
 import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { useAnnotationTool } from './useAnnotationTool';
+import {
+  declareAnnotationToolManifestRefs,
+  useAnnotationTool,
+} from './useAnnotationTool';
+
+declareAnnotationToolManifestRefs('rulers');
 
 const rulerDefaults = () => ({
   firstPoint: [0, 0, 0] as Vector3,

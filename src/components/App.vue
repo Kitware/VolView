@@ -53,12 +53,13 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
-import { UrlParams } from '@vueuse/core';
-import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import useLoadDataStore from '@/src/store/load-data';
 import { useViewStore } from '@/src/store/views';
-import { useProcessingJobsStore } from '@/src/processing';
+// Side-effect import: registers processing's config section and
+// launch-load subscriber before any config or data loads.
+import '@/src/processing';
+import { signalLaunchLoadComplete } from '@/src/core/launchLoad';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
 import ControlsStrip from '@/src/components/ControlsStrip.vue';
@@ -86,7 +87,7 @@ import {
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import VtkRenderWindowParent from '@/src/components/vtk/VtkRenderWindowParent.vue';
 import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
-import { normalizeUrlParams } from '@/src/utils/urlParams';
+import { readLaunchParams } from '@/src/utils/urlParams';
 
 export default defineComponent({
   name: 'App',
@@ -145,32 +146,18 @@ export default defineComponent({
 
     // --- parse URL -- //
 
-    populateAuthorizationToken();
+    // A `tokenUrl=` bearer is fetched asynchronously; await it before loading so
+    // the first data requests carry the Authorization header.
+    const authReady = populateAuthorizationToken();
     stripTokenFromUrl();
 
-    let urlParams: ReturnType<typeof normalizeUrlParams>;
-    try {
-      urlParams = normalizeUrlParams(
-        vtkURLExtract.extractURLParameters() as UrlParams
-      );
-    } catch (error) {
-      console.error('Failed to parse URL parameters:', error);
-      urlParams = {};
-    }
+    const urlParams = readLaunchParams();
 
     onMounted(async () => {
+      await authReady;
       await loadUrls(urlParams);
-      // Job re-discovery after reload: once the launch data +
-      // providers are in, re-find THIS study's jobs for the Jobs panel —
-      // still-running jobs join the normal poller (finishing while open fires
-      // the ordinary in-session live path), terminal ones are observability
-      // rows only. Inert with no configured provider (the demo
-      // posture registers none) and never fatal to the load.
-      try {
-        await useProcessingJobsStore().adoptJobHistory();
-      } catch (err) {
-        console.error('Job re-discovery failed', err);
-      }
+      // Feature entry points subscribe to this (see launchLoad.ts).
+      await signalLaunchLoadComplete();
     });
 
     // --- remote save state URL --- //
