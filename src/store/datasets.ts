@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, shallowRef } from 'vue';
 import { isRegularImage } from '@/src/utils/dataSelection';
-import { DataSource } from '@/src/io/import/dataSource';
+import { DataSource, isRemoteDataSource } from '@/src/io/import/dataSource';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageStore } from '@/src/store/datasets-images';
 import * as Schema from '@/src/io/state-file/schema';
@@ -145,10 +145,12 @@ export const useDatasetStore = defineStore('dataset', () => {
   // parent chain records where every byte came from). The input mint
   // reads this to author a bound input's verbatim URIs; a volume with no URI
   // ancestor here is not bindable. Returns undefined for an unknown id.
+  const dataSourceByID = computed(
+    () => new Map(loadedData.value.map((d) => [d.dataID, d.dataSource]))
+  );
   const getDataSource = (
     id: string | null | undefined
-  ): DataSource | undefined =>
-    id ? loadedData.value.find((d) => d.dataID === id)?.dataSource : undefined;
+  ): DataSource | undefined => (id ? dataSourceByID.value.get(id) : undefined);
 
   // --- actions --- //
 
@@ -204,7 +206,24 @@ export const useDatasetStore = defineStore('dataset', () => {
   };
 
   function addDataSources(sources: Array<LoadedData>) {
-    loadedData.value.push(...sources);
+    // Re-importing the same data yields the same dataID (e.g. the same DICOM
+    // series dragged in twice). Keep one provenance entry per dataID — a
+    // duplicate dataset id would abort the next save. A re-import that adds
+    // remote provenance upgrades the kept entry, so a series first opened
+    // from local files becomes server-addressable (job inputs need a URI
+    // ancestor); it never downgrades an already-remote entry.
+    const byId = new Map(loadedData.value.map((d) => [d.dataID, d]));
+    sources.forEach((d) => {
+      const existing = byId.get(d.dataID);
+      if (
+        !existing ||
+        (isRemoteDataSource(d.dataSource) &&
+          !isRemoteDataSource(existing.dataSource))
+      ) {
+        byId.set(d.dataID, d);
+      }
+    });
+    loadedData.value = [...byId.values()];
   }
 
   return {

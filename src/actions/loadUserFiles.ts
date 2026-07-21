@@ -4,7 +4,6 @@ import {
   uriToDataSource,
   DataSource,
   getDataSourceName,
-  findStateFileLeaves,
 } from '@/src/io/import/dataSource';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
@@ -315,15 +314,15 @@ export function loadDataSources(sources: DataSource[]) {
       } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }
 
-    // ONE consolidated notice for degraded composed opens: a failed state-file
-    // leaf is already counted by the restore's consolidated missing-content
-    // warning — only genuinely standalone imports surface the generic error here.
-    const standaloneErrored = (errored as ErrorResult[]).filter(
-      ({ dataSource }) => findStateFileLeaves(dataSource).length === 0
+    // importDataSources flags failures it has already surfaced to the user
+    // (e.g. a failed state-file leaf, counted in the restore's consolidated
+    // notice) — only the rest get the generic load error here.
+    const unreportedErrored = (errored as ErrorResult[]).filter(
+      ({ alreadyReported }) => !alreadyReported
     );
 
-    if (standaloneErrored.length) {
-      const errorMessages = standaloneErrored.map((errResult) => {
+    if (unreportedErrored.length) {
+      const errorMessages = unreportedErrored.map((errResult) => {
         const { dataSource, error } = errResult;
         const name = getDataSourceName(dataSource);
         logError(error);
@@ -335,11 +334,7 @@ export function loadDataSources(sources: DataSource[]) {
 
       loadDataStore.setError(failedError);
     }
-    return succeeded.flatMap((result) =>
-      'dataID' in result && typeof result.dataID === 'string'
-        ? [result.dataID]
-        : []
-    );
+    return filterLoadableDataSources(succeeded).map((result) => result.dataID);
   };
 
   const wrapWithLoading = <T extends (...args: any[]) => void>(fn: T) => {

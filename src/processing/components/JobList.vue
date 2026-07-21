@@ -156,7 +156,7 @@
           </v-btn>
         </div>
         <div v-if="missingFor(job) > 0" class="text-caption text-warning">
-          {{ missingFor(job) }} output{{ missingFor(job) === 1 ? '' : 's' }}
+          {{ missingFor(job) }} {{ plural(missingFor(job), 'output') }}
           unavailable
         </div>
         <div class="job-details">
@@ -187,7 +187,9 @@
                 >
                   <v-icon size="14">mdi-content-copy</v-icon>
                   <v-tooltip activator="parent" location="top">
-                    {{ copiedJobKey === rowKey(job) ? 'Copied' : 'Copy' }}
+                    {{
+                      copied && copiedJobKey === rowKey(job) ? 'Copied' : 'Copy'
+                    }}
                   </v-tooltip>
                 </v-btn>
               </div>
@@ -239,6 +241,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { useClipboard } from '@vueuse/core';
+import { plural } from '@/src/utils';
 
 import { useProcessingJobsStore } from '@/src/processing/store';
 import type {
@@ -257,7 +261,6 @@ import {
   type JobHistoryDisplayRow,
 } from '@/src/processing/engine/jobHistory';
 import { autoLoadProcessingResults } from '@/src/processing/applyResults';
-import { useDatasetStore } from '@/src/store/datasets';
 
 const providers = useProcessingJobsStore();
 
@@ -294,9 +297,16 @@ const activeFilterCount = computed(
 );
 const hasFilters = computed(() => activeFilterCount.value > 0);
 
-watch(hasFilters, (active) => {
-  if (active) void providers.loadAllJobHistory();
-});
+// Also keyed on jobHistoryComplete: a provider registered after adoption
+// resets it to false having fetched only one page, and with filters active the
+// Load-more button is hidden — without re-firing here the filtered list would
+// stay empty behind the "loading complete history" caption forever.
+watch(
+  [hasFilters, () => providers.jobHistoryComplete],
+  ([active, complete]) => {
+    if (active && !complete) void providers.loadAllJobHistory();
+  }
+);
 
 function clearFilters() {
   jobTypeFilter.value = null;
@@ -401,15 +411,10 @@ async function loadResults(job: JobRow) {
     await providers.loadJobResults(rowRef(job));
     const results = providers.jobResults.get(key);
     if (!results?.length) return;
-    const context = contextFor(job);
-    const parentInScene =
-      context?.activeDatasetId != null &&
-      useDatasetStore().idsAsSelections.includes(context.activeDatasetId);
-    const applyContext =
-      context && !parentInScene
-        ? { ...context, activeDatasetId: undefined }
-        : context;
-    await autoLoadProcessingResults(results, applyContext);
+    await autoLoadProcessingResults(
+      results,
+      providers.contextForAutoLoad(contextFor(job))
+    );
   } finally {
     resultsLoadingJobKeys.delete(key);
   }
@@ -497,9 +502,7 @@ function jobSubtitleFor(job: JobRow): string {
   }
   const resultCount =
     job.state === 'success' && resultsLoadedFor(job) && resultsFor(job).length
-      ? `${resultsFor(job).length} result${
-          resultsFor(job).length === 1 ? '' : 's'
-        }`
+      ? `${resultsFor(job).length} ${plural(resultsFor(job).length, 'result')}`
       : undefined;
   return [label, resultCount, formatInstant(finishedInstantFor(job))]
     .filter(Boolean)
@@ -521,14 +524,22 @@ function toggleDetails(job: JobRow) {
   void providers.loadJobHistoryDetail(rowRef(job));
 }
 
+// `copied` auto-resets, so the tooltip reverts to "Copy" on its own; the key
+// scopes the flag to the row that was copied.
+const { copy: copyToClipboard, copied } = useClipboard();
 const copiedJobKey = ref<string | null>(null);
 async function copyJobId(job: JobRow) {
-  await navigator.clipboard.writeText(job.jobId);
+  await copyToClipboard(job.jobId);
   copiedJobKey.value = rowKey(job);
 }
 
 function errorLogFor(job: JobRow): string {
-  const detailLog = providers.jobHistoryDetails.get(rowKey(job))?.log.join('');
+  // Lines may or may not carry their own trailing newline (the wire contract
+  // does not require one) — normalize so neither doubles nor runs together.
+  const detailLog = providers.jobHistoryDetails
+    .get(rowKey(job))
+    ?.log.map((line) => line.replace(/\n$/, ''))
+    .join('\n');
   return (
     detailLog?.trim() ||
     job.errorTail?.trim() ||

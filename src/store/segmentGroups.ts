@@ -30,6 +30,7 @@ import {
   Manifest,
   SegmentGroupMetadata,
   SegmentGroup,
+  manifestDatasets,
 } from '../io/state-file/schema';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { makeSegmentGroupArchivePath } from '../io/state-file/segmentGroupArchivePath';
@@ -203,14 +204,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   }
 
   // Used for constructing labelmap names in newLabelmapFromImage.
+  // Cleared by the onImageDeleted cascade below.
   const nextDefaultIndex: Record<string, number> = Object.create(null);
-
-  // clear nextDefaultIndex
-  onImageDeleted((deleted) => {
-    deleted.forEach((id) => {
-      delete nextDefaultIndex[id];
-    });
-  });
 
   function pickUniqueName(
     formatName: (index: number) => string,
@@ -600,10 +595,8 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // path-carrying group could hang restore on a missing key, or worse,
     // build the group from an unrelated dataset's voxels and then delete that
     // dataset. The `dataSourceId` branch remains for composed manifests,
-    // whose groups carry no archive bytes — its lookups go through
-    // `leafStateId`, the namespace the synthesized leaves were minted under.
-    // A bare `String(dataSourceId)` key shares the dataset-id
-    // string space and made the winner leaf-completion-order luck.
+    // whose groups carry no archive bytes — see `artifactStoreId` for how the
+    // artifact's store id is resolved.
     // The temporary artifact dataset id (if any) is resolved by the CALLER
     // before the restore `try`, so its cleanup can run unconditionally in a
     // `finally` even when this load throws. This function just yields the image.
@@ -628,6 +621,34 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       return image;
     }
 
+    // A path-less group's artifact resolves through the synthesized-leaf
+    // namespace when leaf preparation minted one, or through the DATASET that
+    // covers its source id when it did not (a covered artifact synthesizes no
+    // leaf) — the latter is how legacy manifests without `datasets` restore,
+    // where every uri source stands in for a dataset keyed by its stringified
+    // source id. Both lookups are deterministic; the bare `String(dataSourceId)`
+    // key of old shared the dataset-id string space and made the winner
+    // leaf-completion-order luck.
+    const datasetIdBySourceId = new Map(
+      manifestDatasets(manifest).map((ds) => [ds.dataSourceId, ds.id])
+    );
+    const artifactStoreId = (segmentGroup: SegmentGroup) => {
+      if (
+        segmentGroup.path !== undefined ||
+        segmentGroup.dataSourceId === undefined
+      ) {
+        return undefined;
+      }
+      const minted = dataIDMap[leafStateId(segmentGroup.dataSourceId)];
+      if (minted !== undefined) return minted;
+      const coveringDatasetId = datasetIdBySourceId.get(
+        segmentGroup.dataSourceId
+      );
+      return coveringDatasetId !== undefined
+        ? dataIDMap[coveringDatasetId]
+        : undefined;
+    };
+
     // Resilient restore. Skip BEFORE awaiting anything a
     // group whose base image is unresolved, or a path-less group whose artifact
     // datasource never materialized — `untilLoaded(undefined)` never times out
@@ -644,16 +665,14 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
         return false;
       }
       if (segmentGroup.path !== undefined) return true;
-      const hasArtifactLeaf =
-        segmentGroup.dataSourceId !== undefined &&
-        dataIDMap[leafStateId(segmentGroup.dataSourceId)] !== undefined;
-      if (!hasArtifactLeaf) {
+      const hasArtifact = artifactStoreId(segmentGroup) !== undefined;
+      if (!hasArtifact) {
         skipped.push({
           name: segmentGroup.metadata.name,
           reason: 'artifact source unavailable',
         });
       }
-      return hasArtifactLeaf;
+      return hasArtifact;
     });
 
     // Every path-less group's temporary imported artifact must be removed
@@ -665,10 +684,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // unique ids here and remove them after the `Promise.all` — in a `finally`
     // so the cleanup runs even if a group throws unexpectedly. Archive-backed
     // groups (path !== undefined) own no temp dataset.
-    const artifactStoreId = (segmentGroup: SegmentGroup) =>
-      segmentGroup.path === undefined && segmentGroup.dataSourceId !== undefined
-        ? dataIDMap[leafStateId(segmentGroup.dataSourceId)]
-        : undefined;
     // Collected from EVERY group, not just the attachable ones: a group
     // skipped at the parent-image check may still have imported its artifact
     // leaf, and that orphan would otherwise sit in the dataset store and
@@ -765,6 +780,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentID) => {
+      delete nextDefaultIndex[parentID];
       // Iterate a COPY: removeGroup splices the same orderByParent array via
       // removeFromArray, so forEaching the live array skips every other group
       // when an image has 2+ groups (the normal case once job labelmaps and

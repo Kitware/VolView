@@ -36,6 +36,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { VolViewTaskParameter } from '@/backend-contract';
+import { sliderConfig } from '@/src/processing/engine/formModel';
 
 const props = defineProps<{
   param: VolViewTaskParameter;
@@ -43,6 +44,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number | null): void;
+  (e: 'update:error', v: string | null): void;
 }>();
 
 const numeric = computed(() =>
@@ -51,12 +53,7 @@ const numeric = computed(() =>
     : null
 );
 
-const slider = computed(() => {
-  const n = numeric.value;
-  return n && n.kind === 'float' && n.min != null && n.max != null
-    ? { min: n.min, max: n.max, step: n.step }
-    : null;
-});
+const slider = computed(() => sliderConfig(props.param));
 
 // Raw text is local so rejected input stays visible instead of being clobbered by the emitted null.
 const text = ref(props.modelValue == null ? '' : String(props.modelValue));
@@ -88,11 +85,15 @@ function onInput(value: string) {
   text.value = value ?? '';
   if (text.value === '') {
     error.value = null;
+    emit('update:error', null);
     emit('update:modelValue', null);
     return;
   }
   const parsed = Number(text.value);
   error.value = problemWith(parsed);
+  // The form must know about the rejection too, or an optional field with
+  // rejected text would leave Submit enabled while displaying an error.
+  emit('update:error', error.value);
   emit('update:modelValue', error.value == null ? parsed : null);
 }
 </script>

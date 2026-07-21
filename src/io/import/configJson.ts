@@ -128,16 +128,26 @@ export type ConfigRecognition =
   // when every top-level key was a known section).
   { kind: 'config'; config: Config; ignoredKeys: string[] } | { kind: 'data' };
 
+// The full schema (base sections + `processing`) defines the known top-level
+// keys. Imported lazily so the processing schema stays in its own chunk, and
+// built once — every candidate JSON shares the same schema and key set.
+const buildFullConfig = async () => {
+  const { withProcessingConfig } = await import('@/src/processing');
+  const fullConfig = withProcessingConfig(config);
+  return { fullConfig, knownKeys: new Set(Object.keys(fullConfig.shape)) };
+};
+let fullConfigOnce: ReturnType<typeof buildFullConfig> | null = null;
+const loadFullConfig = () => {
+  fullConfigOnce ??= buildFullConfig();
+  return fullConfigOnce;
+};
+
 export const recognizeConfig = async (
   raw: unknown
 ): Promise<ConfigRecognition> => {
   if (!isRecord(raw)) return { kind: 'data' };
 
-  // The full schema (base sections + `processing`) defines the known top-level
-  // keys. Imported lazily so the processing schema stays in its own chunk.
-  const { withProcessingConfig } = await import('@/src/processing');
-  const fullConfig = withProcessingConfig(config);
-  const knownKeys = new Set(Object.keys(fullConfig.shape));
+  const { fullConfig, knownKeys } = await loadFullConfig();
 
   const presentKeys = Object.keys(raw);
   const knownPresent = presentKeys.filter((key) => knownKeys.has(key));
@@ -158,10 +168,7 @@ export const recognizeConfig = async (
 export const recognizeConfigFile = async (
   file: File
 ): Promise<ConfigRecognition> => {
-  const text = new TextDecoder().decode(
-    new Uint8Array(await file.arrayBuffer())
-  );
-  return recognizeConfig(JSON.parse(text));
+  return recognizeConfig(JSON.parse(await file.text()));
 };
 
 const applyLabels = (manifest: Config) => {

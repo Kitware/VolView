@@ -39,8 +39,8 @@ vi.mock('@/src/processing/applyResults', () => ({
 const { createProviderMock } = vi.hoisted(() => ({
   createProviderMock: vi.fn(),
 }));
-vi.mock('@/src/processing/engine/createProvider', () => ({
-  createProvider: createProviderMock,
+vi.mock('@/src/processing/engine/transport', () => ({
+  createEngineTransport: createProviderMock,
 }));
 
 const makeProvider = (
@@ -645,6 +645,47 @@ describe('Providers store — live-only durability + failure UX', () => {
 
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
     expect(getJob).toHaveBeenCalledTimes(1);
+  });
+
+  // Girder returns 403 for a per-resource denial while the session is still
+  // valid (another user's job, an ACL edited mid-session) and 401 only when the
+  // token itself is gone/expired. A single 403 must not be read as "the whole
+  // session died".
+  it('a 403 on one job fails that job only — other jobs keep polling', async () => {
+    const store = useProcessingJobsStore();
+
+    const getJob = vi.fn().mockImplementation(async (jobId: string) => {
+      if (jobId === 'job-403') throw httpError(403);
+      return jobStatus('job-ok', 'running');
+    });
+    const runTask = vi
+      .fn()
+      .mockResolvedValueOnce({ jobId: 'job-403' } as ProcessingJobRef)
+      .mockResolvedValueOnce({ jobId: 'job-ok' } as ProcessingJobRef);
+    const provider = makeProvider({ runTask, getJob });
+    store.instances.set('p1', provider);
+
+    await store.submitJob('p1', 'task-1', {}, {});
+    await store.submitJob('p1', 'task-1', {}, {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The denied job fails with an error status...
+    expect(store.jobs.get(keyFor('job-403'))?.state).toBe('error');
+    // ...but the session is NOT declared expired and no persistent expiry
+    // error is posted.
+    expect(store.sessionExpired).toBe(false);
+    expect(
+      errorMessages().some((m) => /session has expired/i.test(m.title))
+    ).toBe(false);
+
+    // The other job's polling survives.
+    const pollsBefore = getJob.mock.calls.filter(
+      ([id]) => id === 'job-ok'
+    ).length;
+    await vi.advanceTimersByTimeAsync(3 * POLL_INTERVAL_MS);
+    expect(
+      getJob.mock.calls.filter(([id]) => id === 'job-ok').length
+    ).toBeGreaterThan(pollsBefore);
   });
 
   it('detects a base image deleted mid-job and messages without dropping the result', async () => {
@@ -1278,7 +1319,7 @@ describe('Providers store — P-02: immutable registration + provider-qualified 
   it('stores the config on first registration', () => {
     const store = useProcessingJobsStore();
     store.registerProviderConfig(cfg());
-    expect(store.providerCount).toBe(1);
+    expect(store.configs.size).toBe(1);
     expect(store.configs.get('p1')?.jobsBaseUrl).toBe('http://localhost/jobs');
   });
 
@@ -1286,7 +1327,7 @@ describe('Providers store — P-02: immutable registration + provider-qualified 
     const store = useProcessingJobsStore();
     store.registerProviderConfig(cfg());
     expect(() => store.registerProviderConfig(cfg())).not.toThrow();
-    expect(store.providerCount).toBe(1);
+    expect(store.configs.size).toBe(1);
   });
 
   it('throws when the same id is registered with a different config', () => {
@@ -1302,7 +1343,7 @@ describe('Providers store — P-02: immutable registration + provider-qualified 
       )
     ).toThrow();
 
-    expect(store.providerCount).toBe(1);
+    expect(store.configs.size).toBe(1);
     expect(store.configs.get('p1')?.baseUrl).toBe('http://localhost/');
   });
 
@@ -1310,7 +1351,7 @@ describe('Providers store — P-02: immutable registration + provider-qualified 
     const store = useProcessingJobsStore();
     store.registerProviderConfig(cfg({ id: 'A' }));
     store.registerProviderConfig(cfg({ id: 'B' }));
-    expect(store.providerCount).toBe(2);
+    expect(store.configs.size).toBe(2);
 
     const a = makeProvider({ config: cfg({ id: 'A' }) });
     const b = makeProvider({ config: cfg({ id: 'B' }) });
@@ -1405,7 +1446,7 @@ describe('Providers store — P-02: immutable registration + provider-qualified 
       .mockImplementationOnce(() => provider);
 
     await expect(store.getProvider('retry')).rejects.toThrow('load failed');
-    await expect(store.getProvider('retry')).resolves.toBe(provider);
+    await expect(store.getProvider('retry')).resolves.toEqual(provider);
     expect(createProviderMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -18,6 +18,7 @@
           :param="field"
           :model-value="values[field.id] as never"
           @update:model-value="(v: ProcessingValue) => update(field.id, v)"
+          @update:error="(err: string | null) => setWidgetError(field.id, err)"
         />
       </div>
     </template>
@@ -49,7 +50,7 @@
     <v-btn
       block
       variant="tonal"
-      :disabled="issues.length > 0 || submitting"
+      :disabled="issues.length > 0 || hasWidgetErrors || submitting"
       :loading="submitting"
       @click="onSubmit"
     >
@@ -91,9 +92,11 @@ import StringWidget from './widgets/StringWidget.vue';
 import EnumerationWidget from './widgets/EnumerationWidget.vue';
 import FileWidget from './widgets/FileWidget.vue';
 
+// Fully controlled: the parent owns the values; edits round-trip through
+// `update:values`.
 const props = defineProps<{
   model: TaskFormModel;
-  initialValues: Record<string, ProcessingValue>;
+  values: Record<string, ProcessingValue>;
   issues: FormValidationIssue[];
   sourceRefStates?: Record<string, SourceRefBindingState>;
   sourceRefNames?: Record<string, string>;
@@ -106,22 +109,32 @@ const emit = defineEmits<{
 
 const descriptionExpanded = ref(false);
 
-const values = ref<Record<string, ProcessingValue>>({ ...props.initialValues });
-watch(
-  () => props.initialValues,
-  (v) => {
-    values.value = { ...v };
-  },
-  { deep: true }
-);
-
 function update(id: string, v: ProcessingValue) {
-  values.value = { ...values.value, [id]: v };
-  emit('update:values', values.value);
+  emit('update:values', { ...props.values, [id]: v });
 }
 
+// Widget-local rejections (e.g. "1.9" in an int field) that form-level
+// validation cannot see — the widget emitted null, which is valid for an
+// optional parameter. They still must block Submit.
+const widgetErrors = ref<Record<string, string>>({});
+function setWidgetError(id: string, err: string | null) {
+  const next = { ...widgetErrors.value };
+  if (err == null) delete next[id];
+  else next[id] = err;
+  widgetErrors.value = next;
+}
+watch(
+  () => props.model,
+  () => {
+    widgetErrors.value = {};
+  }
+);
+const hasWidgetErrors = computed(
+  () => Object.keys(widgetErrors.value).length > 0
+);
+
 function onSubmit() {
-  emit('submit', values.value);
+  emit('submit', props.values);
 }
 
 // `bounds` has no widget: the crop-box binding authors its value at submit.

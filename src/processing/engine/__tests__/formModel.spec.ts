@@ -73,6 +73,23 @@ describe('form model renders every golden task-spec fixture', () => {
     expect(initialFormValues(model).method).toBe('otsu');
   });
 
+  it('seeds a slider-rendered float (min+max, no default) at min so display matches submission', () => {
+    // The slider widget renders `modelValue ?? min`; seeding null would show
+    // `min` while submitting null — a value the user never saw.
+    const model = buildTaskFormModel(
+      parseTaskSpecEnvelope({
+        specVersion: 1,
+        id: 'task',
+        title: 'Task',
+        parameters: [
+          { id: 'sigma', kind: 'float', title: 'Sigma', min: 2, max: 10 },
+        ],
+        outputs: [],
+      })
+    );
+    expect(initialFormValues(model).sigma).toBe(2);
+  });
+
   it('seeds a NUMERIC enum default with its number type intact', () => {
     const model = buildTaskFormModel(
       parseTaskSpecEnvelope(loadFixture('task-spec/synthetic-bounds-enum.json'))

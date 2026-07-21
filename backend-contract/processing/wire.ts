@@ -125,9 +125,6 @@ export const RESULT_INTENTS = [
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
 
-export const isKnownIntent = (intent: string): intent is ResultIntentName =>
-  (RESULT_INTENTS as readonly string[]).includes(intent);
-
 // Provenance tag stamped on an applied segment group: an idempotency key.
 // Structurally identical to the `source?` field on `SegmentGroupMetadata` so it
 // round-trips the `.volview.zip`.

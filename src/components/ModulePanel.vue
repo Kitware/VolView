@@ -111,7 +111,7 @@ export default defineComponent({
     // Jobs tab appears only after a provider registers.
     const providersStore = useProcessingJobsStore();
     const jobsModule = computed(() =>
-      providersStore.providerCount > 0
+      providersStore.configs.size > 0
         ? ({ name: 'Jobs', icon: 'creation', component: JobsModule } as Module)
         : null
     );

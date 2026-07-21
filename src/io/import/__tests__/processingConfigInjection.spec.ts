@@ -74,7 +74,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
 
     await importDataSources([dataSource]);
 
-    expect(useProcessingJobsStore().providerCount).toBe(1);
+    expect(useProcessingJobsStore().configs.size).toBe(1);
   });
 
   it('drops a cross-origin provider but still applies the rest of the config (demo posture)', async () => {
@@ -107,7 +107,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     await importDataSources([dataSource]);
 
     // Cross-origin provider is inert; the non-processing section still applies.
-    expect(useProcessingJobsStore().providerCount).toBe(0);
+    expect(useProcessingJobsStore().configs.size).toBe(0);
     expect(useWindowingStore().runtimeConfigWindowLevel).toEqual({
       level: 40,
       width: 400,
@@ -146,7 +146,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
 
     await importDataSources([dataSource]).catch(() => undefined);
 
-    expect(useProcessingJobsStore().providerCount).toBe(0);
+    expect(useProcessingJobsStore().configs.size).toBe(0);
   });
 });
 

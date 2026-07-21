@@ -15,8 +15,7 @@ export type JobHistoryFilters = {
   task?: string;
 };
 
-export type JobHistoryDisplayRow = JobHistorySummary & {
-  providerId: string;
+export type JobHistoryDisplayRow = TrackedJobHistorySummary & {
   errorTail?: string;
 };
 

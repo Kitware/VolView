@@ -465,6 +465,14 @@ export const ManifestSchema = z.object({
 
 export type Manifest = z.infer<typeof ManifestSchema>;
 
+// The manifest's base datasets; older manifests carry no `datasets`, so every
+// uri source stands in for one, keyed by its stringified source id.
+export const manifestDatasets = (manifest: Manifest) =>
+  manifest.datasets ??
+  manifest.dataSources
+    .filter((ds) => ds.type === 'uri')
+    .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
+
 export type StateFile = {
   zip: JSZip;
   manifest: Manifest;

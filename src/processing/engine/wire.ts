@@ -87,15 +87,14 @@ export const parseJobRef = (raw: unknown): ProcessingJobRef => {
 
 export const parseResults = (raw: unknown): JobResultsBundle => {
   const envelope = parseResultsEnvelope(raw);
-  // The wire allows null metadata; `ProcessingResult` uses `undefined`.
-  const results: ProcessingResult[] = envelope.intents.map((row) => {
-    const { mimeType, size, ...rest } = row as Record<string, unknown>;
-    return {
-      ...rest,
-      ...(mimeType != null ? { mimeType } : {}),
-      ...(size != null ? { size } : {}),
-    } as ProcessingResult;
-  });
+  // The wire allows null metadata (and any intent shape); `ProcessingResult`
+  // uses `undefined` and a string intent.
+  const results: ProcessingResult[] = envelope.intents.map((row) => ({
+    ...row,
+    intent: typeof row.intent === 'string' ? row.intent : undefined,
+    mimeType: row.mimeType ?? undefined,
+    size: row.size ?? undefined,
+  }));
   return {
     results,
     missing: envelope.missing,

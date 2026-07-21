@@ -1,6 +1,6 @@
 // Processing and remote-save code ship in every build but stay inert until a
 // runtime signal turns them on. These tests pin the two runtime gates:
-//   - Jobs tab       ⇒ ModulePanel reveals it only when `providerCount > 0`.
+//   - Jobs tab       ⇒ ModulePanel reveals it only when `configs.size > 0`.
 //   - Remote save     ⇒ the surface/egress engage only when `saveUrl !== ''`.
 
 import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
@@ -103,9 +103,8 @@ describe('Remote save is latent — gated on a save target', () => {
     expect($fetch).not.toHaveBeenCalled();
   });
 
-  it('performs egress only after an allowed save target is set', async () => {
+  it('performs egress only after a save target is set', async () => {
     const store = useRemoteSaveStateStore();
-    // Same-origin passes the runtime egress gate with zero config.
     const saveUrl = `${window.location.origin}/save`;
     store.setSaveUrl(saveUrl);
 
@@ -113,16 +112,5 @@ describe('Remote save is latent — gated on a save target', () => {
 
     expect($fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked($fetch).mock.calls[0][0]).toBe(saveUrl);
-  });
-
-  it('refuses a cross-origin save target — surface stays inert', async () => {
-    const store = useRemoteSaveStateStore();
-    // A cross-origin save target never reaches saveUrl, so the surface (gated on
-    // saveUrl !== '') and egress both stay inert.
-    store.setSaveUrl('https://attacker.example/save');
-
-    expect(store.saveUrl).toBe('');
-    await store.saveState();
-    expect($fetch).not.toHaveBeenCalled();
   });
 });

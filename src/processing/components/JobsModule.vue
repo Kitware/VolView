@@ -1,7 +1,7 @@
 <template>
   <div class="jobs-module">
     <div
-      v-if="providers.providerCount === 0"
+      v-if="providers.configs.size === 0"
       class="text-caption text-medium-emphasis pa-3"
     >
       No processing providers are configured for this dataset.
@@ -43,10 +43,9 @@
           <template v-if="provider">
             <TaskPicker
               v-if="tasks.length"
+              v-model="selectedTaskId"
               :tasks="tasks"
-              :model-value="selectedTaskId"
               :disabled="submitting"
-              @update:task-id="onTaskIdPicked"
               class="mb-3"
             />
             <div v-else class="text-caption text-medium-emphasis mb-3">
@@ -62,7 +61,7 @@
             <TaskForm
               v-else-if="taskModel"
               :model="taskModel"
-              :initial-values="initialValues"
+              :values="currentValues"
               :issues="issues"
               :source-ref-states="sourceRefStates"
               :source-ref-names="sourceRefNames"
@@ -95,7 +94,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import type { Ref } from 'vue';
 import { watchDebounced } from '@vueuse/core';
+
+import { getErrorDetail, ensureError } from '@/src/utils';
 
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -163,9 +165,8 @@ const providerItems = computed(() =>
 );
 const showProviderSelect = computed(() => providerItems.value.length > 1);
 
-const selectedProviderId = ref<string | null>(
-  providerItems.value[0]?.id ?? null
-);
+// Seeded by the immediate providerItems watcher below.
+const selectedProviderId = ref<string | null>(null);
 
 const provider = ref<ProcessingProvider | null>(null);
 const loadingProvider = ref(false);
@@ -177,7 +178,6 @@ const selectedTaskId = ref<string | null>(null);
 const taskModel = ref<TaskFormModel | null>(null);
 const loadingTask = ref(false);
 const taskError = ref<string | null>(null);
-const initialValues = ref<Record<string, ProcessingValue>>({});
 const currentValues = ref<Record<string, ProcessingValue>>({});
 const issues = ref<FormValidationIssue[]>([]);
 const sourceRefStates = ref<Record<string, SourceRefBindingState>>({});
@@ -200,8 +200,31 @@ watch(
   { immediate: true }
 );
 
-function onTaskIdPicked(id: string | null) {
-  selectedTaskId.value = id;
+// Shared supersede scaffolding for the two loader watchers: runs `body`,
+// committing loading/error state only while `current()` holds, so a superseded
+// request can neither clobber refs nor clear a successor's loading flag.
+async function loadWhileCurrent(
+  onCleanup: (fn: () => void) => void,
+  stillWanted: () => boolean,
+  state: { loading: Ref<boolean>; error: Ref<string | null> },
+  fallbackError: string,
+  body: (current: () => boolean) => Promise<void>
+) {
+  let active = true;
+  onCleanup(() => {
+    active = false;
+  });
+  const current = () => active && stillWanted();
+  state.loading.value = true;
+  state.error.value = null;
+  try {
+    await body(current);
+  } catch (err) {
+    if (!current()) return;
+    state.error.value = getErrorDetail(err, fallbackError);
+  } finally {
+    if (current()) state.loading.value = false;
+  }
 }
 
 watch(
@@ -215,29 +238,23 @@ watch(
     loadingProvider.value = false;
     providerError.value = null;
     if (!id) return;
-    let active = true;
-    onCleanup(() => {
-      active = false;
-    });
-    const current = () => active && selectedProviderId.value === id;
-    loadingProvider.value = true;
-    providerError.value = null;
-    try {
-      const p = await providers.getProvider(id);
-      if (!current()) return;
-      provider.value = p;
-      const loaded = await p.listTasks();
-      if (!current()) return;
-      tasks.value = loaded;
-      if (tasks.value.length > 0) {
-        selectedTaskId.value = tasks.value[0].id;
+    await loadWhileCurrent(
+      onCleanup,
+      () => selectedProviderId.value === id,
+      { loading: loadingProvider, error: providerError },
+      'Failed to load provider',
+      async (current) => {
+        const p = await providers.getProvider(id);
+        if (!current()) return;
+        provider.value = p;
+        const loaded = await p.listTasks();
+        if (!current()) return;
+        tasks.value = loaded;
+        if (loaded.length > 0) {
+          selectedTaskId.value = loaded[0].id;
+        }
       }
-    } catch (err) {
-      if (!current()) return;
-      providerError.value = (err as Error).message;
-    } finally {
-      if (current()) loadingProvider.value = false;
-    }
+    );
   },
   { immediate: true }
 );
@@ -247,37 +264,34 @@ watch(selectedTaskId, async (id, _old, onCleanup) => {
   loadingTask.value = false;
   taskError.value = null;
   if (!id || !provider.value) return;
-  let active = true;
-  onCleanup(() => {
-    active = false;
-  });
-  // A later provider change clears selectedTaskId and invalidates `active`.
+  // A later provider change clears selectedTaskId and invalidates the guard.
   const activeProvider = provider.value;
-  const current = () => active && selectedTaskId.value === id;
-  loadingTask.value = true;
-  taskError.value = null;
-  try {
-    const envelope = await activeProvider.getTaskSpec(id);
-    if (!current()) return;
-    const model = buildTaskFormModel(envelope);
-    taskModel.value = model;
-    const image = activeImageBinding(model);
-    const initial = applyActiveBindings(model, initialFormValues(model), image);
-    initialValues.value = initial;
-    currentValues.value = { ...initial };
-    issues.value = computeIssues(model, initial, image);
-  } catch (err) {
-    if (!current()) return;
-    taskError.value = (err as Error).message;
-  } finally {
-    if (current()) loadingTask.value = false;
-  }
+  await loadWhileCurrent(
+    onCleanup,
+    () => selectedTaskId.value === id,
+    { loading: loadingTask, error: taskError },
+    'Failed to load task spec',
+    async (current) => {
+      const envelope = await activeProvider.getTaskSpec(id);
+      if (!current()) return;
+      const model = buildTaskFormModel(envelope);
+      taskModel.value = model;
+      const image = activeImageBinding(model);
+      const initial = applyActiveBindings(
+        model,
+        initialFormValues(model),
+        image
+      );
+      currentValues.value = initial;
+      refreshValidation(model, initial, image);
+    }
+  );
 });
 
 function onValuesUpdate(values: Record<string, ProcessingValue>) {
   currentValues.value = values;
   if (!taskModel.value) return;
-  issues.value = computeIssues(taskModel.value, values);
+  refreshValidation(taskModel.value, values);
 }
 
 async function onSubmit(values: Record<string, ProcessingValue>) {
@@ -292,10 +306,9 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
 
   const image = activeImageBinding(model);
   const finalValues = applyActiveBindings(model, values, image);
-  const finalIssues = computeIssues(model, finalValues, image);
+  const finalIssues = refreshValidation(model, finalValues, image);
   if (finalIssues.length > 0) {
     currentValues.value = finalValues;
-    issues.value = finalIssues;
     return;
   }
   // Display formatting reads live active image and segment-group state, so it
@@ -314,7 +327,7 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
     );
   } catch (err) {
     messageStore.addError('Failed to stage segment group input', {
-      error: err instanceof Error ? err : undefined,
+      error: ensureError(err),
     });
     submitting.value = false;
     return;
@@ -399,8 +412,8 @@ function labelmapReferenceImage(segmentGroupId: string): InputValue | null {
   );
 }
 
-// Callable once per handler so `applyActiveBindings` and `computeIssues` can
-// share one provenance walk; crop-drag frames call both.
+// Callable once per handler so `applyActiveBindings` and `refreshValidation`
+// can share one provenance walk; crop-drag frames call both.
 function activeImageBinding(model: TaskFormModel): ImageBindingResult {
   return bindImageInputs(model, activeDataSource());
 }
@@ -418,11 +431,11 @@ function applyActiveBindings(
 
 // Binder-owned sourceRef params are excluded from the generic check so they do
 // not also report a duplicate "required" message.
-function computeIssues(
+function validateValues(
   model: TaskFormModel,
   values: Record<string, ProcessingValue>,
-  image: ImageBindingResult = activeImageBinding(model)
-): FormValidationIssue[] {
+  image: ImageBindingResult
+) {
   const labelmap = bindLabelmaps(model);
   const labelmapIssues = [...labelmap.issues];
   for (const [parameterId, segmentGroupId] of Object.entries(labelmap.groups)) {
@@ -435,7 +448,6 @@ function computeIssues(
       });
     }
   }
-  sourceRefStates.value = { ...image.states, ...labelmap.states };
   const boundParams = new Set([
     ...Object.keys(image.states),
     ...Object.keys(labelmap.states),
@@ -443,7 +455,23 @@ function computeIssues(
   const generic = validateFormValues(model, values).filter(
     (i) => !boundParams.has(i.parameter)
   );
-  return [...image.issues, ...labelmapIssues, ...generic];
+  return {
+    issues: [...image.issues, ...labelmapIssues, ...generic],
+    states: { ...image.states, ...labelmap.states },
+  };
+}
+
+// Sole writer of `issues` and `sourceRefStates`: FileWidget's `binding` prop
+// feeds from the states, so the two refs must move in lockstep.
+function refreshValidation(
+  model: TaskFormModel,
+  values: Record<string, ProcessingValue>,
+  image: ImageBindingResult = activeImageBinding(model)
+): FormValidationIssue[] {
+  const validation = validateValues(model, values, image);
+  sourceRefStates.value = validation.states;
+  issues.value = validation.issues;
+  return validation.issues;
 }
 
 // The literal 'seg.nrrd' name is required for segment names and colors to be
@@ -491,41 +519,53 @@ async function stageLabelmapInputs(
 
 // Binding can fall back to the current image's sole group, so reading
 // `paintStore.activeSegmentGroupID` directly would mislabel the job.
+type SourceRefContext = {
+  labelmapGroups: Record<string, string>;
+  imageName: string | undefined;
+};
+
+// Resolved once per display pass: each binding re-runs a full field scan and
+// group resolution, so per-field resolution would redo identical work.
+function sourceRefContext(model: TaskFormModel): SourceRefContext {
+  return {
+    labelmapGroups: bindLabelmaps(model).groups,
+    imageName: activeImageName(),
+  };
+}
+
 function boundLabelmapName(
-  model: TaskFormModel,
+  refs: SourceRefContext,
   parameterId: string
 ): string | undefined {
-  const groupId = bindLabelmaps(model).groups[parameterId];
+  const groupId = refs.labelmapGroups[parameterId];
   return groupId ? segmentGroupStore.metadataByID[groupId]?.name : undefined;
 }
 
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
   if (!model) return {};
+  const refs = sourceRefContext(model);
   const names: Record<string, string> = {};
   model.fields.forEach((field) => {
     if (field.kind !== 'sourceRef') return;
-    if (field.accepts.includes(TYPE_TAG_LABELMAP)) {
-      const name = boundLabelmapName(model, field.id);
-      if (name) names[field.id] = name;
-    } else {
-      const name = activeImageName();
-      if (name) names[field.id] = name;
-    }
+    const name = field.accepts.includes(TYPE_TAG_LABELMAP)
+      ? boundLabelmapName(refs, field.id)
+      : refs.imageName;
+    if (name) names[field.id] = name;
   });
   return names;
 });
 
 function formatProcessingValue(
-  model: TaskFormModel,
+  refs: SourceRefContext,
   field: VolViewTaskParameter,
   value: ProcessingValue
 ): string {
   if (field.kind === 'sourceRef') {
     if (field.accepts.includes(TYPE_TAG_LABELMAP)) {
-      return boundLabelmapName(model, field.id) ?? 'bound segment group';
+      return boundLabelmapName(refs, field.id) ?? 'bound segment group';
     }
-    return activeImageName() ?? 'active dataset';
+    return refs.imageName ?? 'active dataset';
   }
   if (field.kind === 'bounds') {
     return Array.isArray(value) && value.length > 0
@@ -556,6 +596,7 @@ function buildJobDisplay(
   model: TaskFormModel,
   values: Record<string, ProcessingValue>
 ): SubmittedJobDisplay {
+  const refs = sourceRefContext(model);
   let summaryCount = 0;
   const parameters: SubmittedJobParameterDisplay[] = model.fields.map(
     (field) => {
@@ -565,12 +606,12 @@ function buildJobDisplay(
       return {
         id: field.id,
         label: fieldLabel(field),
-        value: formatProcessingValue(model, field, value),
+        value: formatProcessingValue(refs, field, value),
         ...(summary ? { summary } : {}),
       };
     }
   );
-  const inputName = activeImageName();
+  const inputName = refs.imageName;
   return {
     taskTitle: model.title,
     ...(inputName ? { inputName } : {}),
@@ -595,9 +636,8 @@ watchDebounced(
     if (!model) return;
     const image = activeImageBinding(model);
     const rebound = applyActiveBindings(model, currentValues.value, image);
-    initialValues.value = rebound;
-    currentValues.value = { ...rebound };
-    issues.value = computeIssues(model, rebound, image);
+    currentValues.value = rebound;
+    refreshValidation(model, rebound, image);
   },
   { deep: true, debounce: 150 }
 );
@@ -610,11 +650,10 @@ onMounted(() => {
   unsubscribe = providers.onJobComplete(
     ({ status, results, context, baseImageMissing }) => {
       if (status.state === 'success') {
-        const autoContext =
-          baseImageMissing && context
-            ? { ...context, activeDatasetId: undefined }
-            : context;
-        autoLoadProcessingResults(results, autoContext).catch((err) => {
+        autoLoadProcessingResults(
+          results,
+          providers.contextForAutoLoad(context, baseImageMissing)
+        ).catch((err) => {
           console.error('Failed to auto-load results', err);
         });
       }

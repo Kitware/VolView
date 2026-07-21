@@ -159,11 +159,10 @@ const migrate610To620 = (inputManifest: any) => {
 // lacks it still validates — the bump only stamps the version (no data
 // transform). (There is intentionally no 6.2.0 -> 6.3.0 step; that gap predates
 // this change and an in-scope 6.2 manifest still validates unmodified.)
-const migrate630To640 = (inputManifest: any) => {
-  const manifest = JSON.parse(JSON.stringify(inputManifest));
-  manifest.version = '6.4.0';
-  return manifest;
-};
+const migrate630To640 = (inputManifest: any) => ({
+  ...inputManifest,
+  version: '6.4.0',
+});
 
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);

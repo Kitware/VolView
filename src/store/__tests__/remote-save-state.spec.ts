@@ -1,8 +1,3 @@
-// One gate for all configured egress: the remote-save target passes the SAME
-// runtime origin gate as processing providers. A cross-origin target never
-// reaches `saveUrl`, so the surface (gated on `saveUrl !== ''`) and its egress
-// both stay inert.
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
@@ -19,10 +14,9 @@ import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import { $fetch } from '@/src/utils/fetch';
 import { useMessageStore } from '@/src/store/messages';
 
-describe('remote save passes the shared origin gate', () => {
+describe('remote save target', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.mocked($fetch).mockClear();
   });
 
@@ -30,7 +24,7 @@ describe('remote save passes the shared origin gate', () => {
     vi.restoreAllMocks();
   });
 
-  it('accepts a same-origin save URL with zero config', () => {
+  it('accepts a same-origin save URL', () => {
     const store = useRemoteSaveStateStore();
     const url = `${window.location.origin}/api/session/save`;
 
@@ -39,32 +33,22 @@ describe('remote save passes the shared origin gate', () => {
     expect(store.saveUrl).toBe(url);
   });
 
-  it('refuses a cross-origin save URL', () => {
+  it('accepts a cross-origin save URL (hosted deployments save to another origin)', async () => {
     const store = useRemoteSaveStateStore();
+    const url = 'https://data.example.org/api/session/save';
 
-    store.setSaveUrl('https://attacker.example/save');
+    store.setSaveUrl(url);
+    expect(store.saveUrl).toBe(url);
 
-    expect(store.saveUrl).toBe('');
-    expect(
-      useMessageStore().messages.some(
-        (message) => message.title === 'Remote save unavailable'
-      )
-    ).toBe(true);
-  });
-
-  it('performs no egress to a refused save target', async () => {
-    const store = useRemoteSaveStateStore();
-
-    store.setSaveUrl('https://attacker.example/save');
+    vi.mocked($fetch).mockResolvedValue(new Response('{}', { status: 200 }));
     await store.saveState();
-
-    expect($fetch).not.toHaveBeenCalled();
+    expect($fetch).toHaveBeenCalledWith(url, expect.anything());
   });
 });
 
 // On a successful save the backend returns a single
 // `resumeUrl`; the client repoints ONLY the tab's `urls=` at it (a future F5
-// reloads the save) — no reload, `save=`, the in-memory save target, and
+// reloads the save) — no reload; `save=`, the in-memory save target, and
 // `config=` all untouched, so subsequent saves keep going to the
 // launch-provided target (a folder-scoped save mints a new session item per
 // save). A response without `resumeUrl` (or an unparseable body) leaves the
@@ -72,12 +56,12 @@ describe('remote save passes the shared origin gate', () => {
 describe('resume repoint on save', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.mocked($fetch).mockClear();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    window.history.replaceState(null, '', window.location.pathname);
   });
 
   it('repoints urls= to the resumeUrl and leaves the save target alone (save=/config= untouched)', async () => {
@@ -106,6 +90,35 @@ describe('resume repoint on save', () => {
     ).toBe(true);
   });
 
+  it('drops a stale names= when repointing urls= at the session zip', async () => {
+    // A launch of ?urls=<data file>&names=chest.nrrd that keeps names= after
+    // the repoint retypes the session zip by the stale filename extension on
+    // F5 — the NRRD reader chokes on zip bytes and the resume fails.
+    window.history.replaceState(
+      null,
+      '',
+      '?urls=%2Fchest.nrrd&names=chest.nrrd&save=%2Fapi%2Fsave'
+    );
+    const resumeUrl = '/api/v1/item/session-123/volview';
+    vi.mocked($fetch).mockResolvedValue(
+      new Response(JSON.stringify({ resumeUrl }), { status: 200 })
+    );
+    const replace = vi
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => {});
+    const store = useRemoteSaveStateStore();
+    store.setSaveUrl('/api/save');
+
+    await store.saveState();
+
+    expect(replace).toHaveBeenCalledTimes(1);
+    const nextUrl = new URL(replace.mock.calls[0][2] as string);
+    expect(nextUrl.searchParams.get('urls')).toBe(resumeUrl);
+    expect(nextUrl.searchParams.get('names')).toBeNull();
+    // save= keeps pointing at the launch-provided target.
+    expect(nextUrl.searchParams.get('save')).toBe('/api/save');
+  });
+
   it('leaves the tab as-is when the response carries no resumeUrl', async () => {
     vi.mocked($fetch).mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 })
@@ -122,40 +135,5 @@ describe('resume repoint on save', () => {
     expect(
       useMessageStore().messages.some((m) => m.title === 'Save Successful')
     ).toBe(true);
-  });
-
-  it('leaves the tab and save url as-is when the resumeUrl is cross-origin (fail-safe no-op)', async () => {
-    // A same-origin save succeeds, but the backend hands back a cross-origin
-    // resumeUrl. The repoint (the urls= stamp) is gated
-    // on the SAME origin gate as setSaveUrl, so it must be a fail-safe no-op:
-    // the ordinary save still succeeds, but nothing is repointed off-origin.
-    const saveUrl = `${window.location.origin}/api/session/save`;
-    const resumeUrl = 'https://evil.example.com/api/v1/item/x/volview';
-    vi.mocked($fetch).mockResolvedValue(
-      new Response(JSON.stringify({ resumeUrl }), { status: 200 })
-    );
-    const replace = vi
-      .spyOn(window.history, 'replaceState')
-      .mockImplementation(() => {});
-    const store = useRemoteSaveStateStore();
-    store.setSaveUrl(saveUrl);
-
-    await store.saveState();
-
-    // (d) address bar never stamped at the cross-origin resumeUrl.
-    expect(replace).not.toHaveBeenCalled();
-    // (c) in-memory save url unchanged — still the original same-origin item,
-    // not '' and not the cross-origin resumeUrl.
-    expect(store.saveUrl).toBe(saveUrl);
-    // (a) the ordinary save still succeeded.
-    expect(
-      useMessageStore().messages.some((m) => m.title === 'Save Successful')
-    ).toBe(true);
-    // (b) no persistent 'Remote save unavailable' warning surfaced.
-    expect(
-      useMessageStore().messages.some(
-        (m) => m.title === 'Remote save unavailable'
-      )
-    ).toBe(false);
   });
 });

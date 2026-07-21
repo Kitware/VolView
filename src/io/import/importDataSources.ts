@@ -15,6 +15,7 @@ import {
   DataSource,
   ChunkSource,
   findStateFileLeaves,
+  getDataSourceName,
 } from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import extractArchive from '@/src/io/import/processors/extractArchive';
@@ -243,20 +244,46 @@ export async function importDataSources(
 
   useDatasetStore().addDataSources(loadableResults);
 
+  // Failed leaves (e.g. a 404'd uri member of a multi-leaf dataset) feed the
+  // restore's consolidated notice: a dataset that still resolves from its
+  // surviving leaves restores truncated and must say which sources failed.
+  const failedLeaves = results
+    .filter((r): r is ErrorResult => r.type === 'error')
+    .flatMap((r) =>
+      findStateFileLeaves(r.dataSource).map((leaf) => ({
+        stateID: leaf.stateID,
+        name: getDataSourceName(r.dataSource) ?? leaf.stateID,
+      }))
+    );
+
+  const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
+  // Leaf stateIDs covered by a consolidated notice that actually ran — only
+  // their errors may be suppressed below.
+  const reportedStateIDs = new Set<string>();
   for (const setup of stateFileSetups) {
-    const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
     try {
       await completeStateFileRestore(
         setup.manifest,
         setup.stateFiles,
-        stateIDToStoreID
+        stateIDToStoreID,
+        setup.missingFiles,
+        failedLeaves
+      );
+      setup.dataSources.forEach((src) => {
+        findStateFileLeaves(src).forEach((leaf) =>
+          reportedStateIDs.add(leaf.stateID)
+        );
+      });
+      setup.missingFiles.forEach(({ stateID }) =>
+        reportedStateIDs.add(stateID)
       );
     } catch (err) {
-      // Auto-degrade to an ephemeral open: a mid-restore
-      // throw leaves the already-loaded bases as plain datasets — default
-      // views come from the ordinary load path — and the session's attached
-      // set stays empty, so a later save prunes every launch-composition
-      // entry. One notice, never an error loop.
+      // Auto-degrade to an ephemeral open: a mid-restore throw leaves the
+      // already-loaded bases as plain datasets and the session's attached set
+      // stays empty, so a later save prunes every launch-composition entry.
+      // Restore steps already applied (layout, view bindings) are not rolled
+      // back. One notice here; this setup's leaf errors stay unflagged so the
+      // generic load-error dialog still names them.
       useMessageStore().addWarning(
         'Could not restore the saved session; opened its images instead',
         { details: ensureError(err).message }
@@ -264,7 +291,17 @@ export async function importDataSources(
     }
   }
 
-  return results;
+  // A failed state-file leaf is already counted in the restore's consolidated
+  // missing-content notice, so flag it — a caller surfacing errors must not
+  // raise a second, generic notice for the same leaf.
+  return results.map((result) => {
+    if (result.type !== 'error') return result;
+    const leaves = findStateFileLeaves(result.dataSource);
+    const covered =
+      leaves.length > 0 &&
+      leaves.every((leaf) => reportedStateIDs.has(leaf.stateID));
+    return covered ? { ...result, alreadyReported: true } : result;
+  });
 }
 
 export function toDataSelection(loadable: LoadableVolumeResult) {

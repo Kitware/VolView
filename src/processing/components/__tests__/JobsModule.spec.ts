@@ -17,8 +17,8 @@ import {
 } from '@/src/processing/__tests__/fakeProvider';
 
 const registry = new Map<string, ProcessingProvider>();
-vi.mock('@/src/processing/engine/createProvider', () => ({
-  createProvider: (config: { id: string }) => registry.get(config.id),
+vi.mock('@/src/processing/engine/transport', () => ({
+  createEngineTransport: (config: { id: string }) => registry.get(config.id),
 }));
 
 import JobsModule from '@/src/processing/components/JobsModule.vue';
@@ -159,7 +159,7 @@ describe('JobsModule — P-06 race-free provider/task selection', () => {
     expect(vm.selectedProviderId).toBe('P');
     expect(p.getTaskSpec).toHaveBeenCalledWith('x');
 
-    wrapper.findComponent(TaskPicker).vm.$emit('update:taskId', 'y');
+    wrapper.findComponent(TaskPicker).vm.$emit('update:modelValue', 'y');
     await flushPromises();
     expect(p.getTaskSpec).toHaveBeenCalledWith('y');
 
@@ -202,7 +202,7 @@ describe('JobsModule — P-06 race-free provider/task selection', () => {
     expect(p.getTaskSpec).toHaveBeenCalledWith('y');
     p.getTaskSpec.mockClear();
 
-    wrapper.findComponent(TaskPicker).vm.$emit('update:taskId', 'x');
+    wrapper.findComponent(TaskPicker).vm.$emit('update:modelValue', 'x');
     await flushPromises();
 
     expect(p.getTaskSpec).toHaveBeenCalledTimes(1);
@@ -262,7 +262,7 @@ describe('JobsModule — P-06 race-free provider/task selection', () => {
     await flushPromises();
     const vm = wrapper.vm as unknown as JobsVm;
 
-    wrapper.findComponent(TaskPicker).vm.$emit('update:taskId', 'y');
+    wrapper.findComponent(TaskPicker).vm.$emit('update:modelValue', 'y');
     await flushPromises();
     expect(vm.loadingTask).toBe(true);
 
