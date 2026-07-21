@@ -2,6 +2,7 @@ import {
   DataSourceType,
   Manifest,
   ManifestSchema,
+  manifestDatasets,
 } from '@/src/io/state-file/schema';
 import {
   asErrorResult,
@@ -31,7 +32,8 @@ function resolveToLeafSources(
   id: number,
   byId: Record<number, DataSourceType>,
   datasetFilePath: Record<string, string> | undefined,
-  pathToFile: Record<string, File>
+  pathToFile: Record<string, File>,
+  onMissingFile?: (path: string) => void
 ): LeafSource[] {
   const src = byId[id];
   if (!src) return [];
@@ -53,9 +55,10 @@ function resolveToLeafSources(
       if (file) {
         return [{ type: 'file', file, fileType: src.fileType }];
       }
-      // A missing archive file surfaces through the consolidated
-      // missing-content notice (the dataset never resolves), not a
-      // per-file error here.
+      // Recorded for the consolidated missing-content notice — the dataset's
+      // SURVIVING files may still resolve it, and a partial restore must not
+      // pass silently.
+      onMissingFile?.(filePath ?? String(src.fileId));
       return [];
     }
 
@@ -64,12 +67,19 @@ function resolveToLeafSources(
         src.parent,
         byId,
         datasetFilePath,
-        pathToFile
+        pathToFile,
+        onMissingFile
       );
 
     case 'collection':
       return src.sources.flatMap((sourceId) =>
-        resolveToLeafSources(sourceId, byId, datasetFilePath, pathToFile)
+        resolveToLeafSources(
+          sourceId,
+          byId,
+          datasetFilePath,
+          pathToFile,
+          onMissingFile
+        )
       );
 
     default:
@@ -79,14 +89,6 @@ function resolveToLeafSources(
 
 const dataSourcesById = (manifest: Manifest): Record<number, DataSourceType> =>
   Object.fromEntries(manifest.dataSources.map((ds) => [ds.id, ds]));
-
-// The manifest's base datasets; older manifests carry no `datasets`, so every
-// uri source stands in for one (same fallback the leaf preparation fetches).
-const manifestDatasets = (manifest: Manifest) =>
-  manifest.datasets ??
-  manifest.dataSources
-    .filter((ds) => ds.type === 'uri')
-    .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
 
 function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
   const byId = dataSourcesById(manifest);
@@ -116,12 +118,14 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
     .filter((id) => !coveredSourceIds.has(id) && byId[id]?.type === 'uri')
     .map((id) => ({ id: leafStateId(id), dataSourceId: id }));
 
-  return [...datasets, ...segmentGroupLeaves].flatMap((ds) => {
+  const missingFiles: Array<{ stateID: string; path: string }> = [];
+  const dataSources = [...datasets, ...segmentGroupLeaves].flatMap((ds) => {
     const sources = resolveToLeafSources(
       ds.dataSourceId,
       byId,
       manifest.datasetFilePath,
-      pathToFile
+      pathToFile,
+      (path) => missingFiles.push({ stateID: ds.id, path })
     );
 
     const seen = new Set<string>();
@@ -137,12 +141,16 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
       stateFileLeaf: { stateID: ds.id },
     }));
   });
+
+  return { dataSources, missingFiles };
 }
 
 export async function completeStateFileRestore(
   manifest: Manifest,
   stateFiles: FileEntry[],
-  stateIDToStoreID: Record<string, string>
+  stateIDToStoreID: Record<string, string>,
+  missingFiles: Array<{ stateID: string; path: string }> = [],
+  failedLeaves: Array<{ stateID: string; name: string }> = []
 ) {
   const viewStore = useViewStore();
   const byId = dataSourcesById(manifest);
@@ -213,8 +221,36 @@ export async function completeStateFileRestore(
   // did not load / artifact source unavailable / could not read labelmap) so the
   // notice tells the user WHY each segmentation was left out, not just that it
   // was.
+  // Members missing from a dataset that STILL resolved (from its surviving
+  // files) — an unresolved dataset is already named whole above, but a partial
+  // one restores truncated and must say which files it is missing.
+  const missingMembers = missingFiles
+    .filter(({ stateID }) => stateID in stateIDToStoreID)
+    .map(
+      ({ path }) => `- file: ${basename(path)} (dataset restored without it)`
+    );
+  // Leaves that errored during load (e.g. a 404'd uri) while their dataset
+  // still resolved from surviving leaves — an unresolved dataset is already
+  // named whole in missingBases. Scoped to THIS manifest's datasets so one
+  // state file's failures never appear in another's notice.
+  const manifestStateIDs = new Set(datasets.map((ds) => ds.id));
+  const failedMembers = [
+    ...new Set(
+      failedLeaves
+        .filter(
+          ({ stateID }) =>
+            stateID in stateIDToStoreID && manifestStateIDs.has(stateID)
+        )
+        .map(
+          ({ name }) =>
+            `- file: ${name} (failed to load; dataset restored without it)`
+        )
+    ),
+  ];
   const missing = [
     ...missingBases.map((name) => `- image: ${name}`),
+    ...missingMembers,
+    ...failedMembers,
     ...skippedSegmentGroups.map(
       ({ name, reason }) => `- segment group: ${name} (${reason})`
     ),
@@ -270,11 +306,16 @@ export const restoreStateFile: ImportHandler = async (dataSource) => {
 
     useViewStore().deserializeLayout(manifest);
 
+    const { dataSources, missingFiles } = prepareLeafDataSources(
+      manifest,
+      stateFiles
+    );
     return {
       type: 'stateFileSetup',
-      dataSources: prepareLeafDataSources(manifest, stateFiles),
+      dataSources,
       manifest,
       stateFiles,
+      missingFiles,
     } as StateFileSetupResult;
   }
   return Skip;

@@ -6,7 +6,8 @@ import type {
   ProcessingResult,
   SubmittedJobContext,
 } from '@/src/processing/types';
-import { resultToIntent } from '@/src/processing/engine';
+import { resultToIntent } from '@/src/processing/engine/resultToIntent';
+import { ensureError } from '@/src/utils';
 import { uriToDataSource } from '@/src/io/import/dataSource';
 import {
   importDataSources,
@@ -157,7 +158,7 @@ export async function autoLoadProcessingResults(
     if (outcome.status === 'failed') {
       // The completion toast already promised results.
       useMessageStore().addError(`Failed to apply ${result.name}`, {
-        error: outcome.error instanceof Error ? outcome.error : undefined,
+        error: ensureError(outcome.error),
       });
       console.error(
         'Failed to auto-load processing result',

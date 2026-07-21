@@ -1,6 +1,5 @@
 import { serialize } from '@/src/io/state-file/serialize';
 import { useMessageStore } from '@/src/store/messages';
-import { isOriginAllowed } from '@/src/io/originGate';
 import { $fetch } from '@/src/utils/fetch';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
@@ -17,9 +16,10 @@ import { ref } from 'vue';
 // the tab as-is (fail-safe). `config=` is untouched.
 const repointToResumeUrl = (resumeUrl: string) => {
   const url = new URL(window.location.toString());
-  const params = new URLSearchParams(url.search);
-  params.set('urls', resumeUrl); // future F5 reloads the save
-  url.search = `?${params.toString()}`;
+  url.searchParams.set('urls', resumeUrl); // future F5 reloads the save
+  // A stale names= would rename the session zip after the original data file,
+  // and filename-extension typing would then misparse the zip on reload.
+  url.searchParams.delete('names');
   window.history.replaceState(null, '', url.toString());
 };
 
@@ -29,23 +29,8 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
 
   const messageStore = useMessageStore();
 
-  // The remote-save target passes the SAME runtime egress gate as processing
-  // providers — one gate for all configured egress. A cross-origin target never
-  // reaches `saveUrl`, so the remote-save surface (gated on `saveUrl !== ''`)
-  // and its egress both stay inert. Only a same-origin target is accepted.
   const setSaveUrl = (url: string) => {
-    if (isOriginAllowed(url)) {
-      saveUrl.value = url;
-    } else {
-      saveUrl.value = '';
-      messageStore.addWarning('Remote save unavailable', {
-        details: `The configured save target is not allowed: ${url}`,
-        persist: true,
-      });
-      console.warn(
-        `Ignoring remote-save URL because its origin is not allowed: ${url}`
-      );
-    }
+    saveUrl.value = url;
   };
 
   const saveState = async () => {
@@ -69,18 +54,9 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
         // fail-safe no-op — the ordinary save still succeeded.
         try {
           const body = await saveResult.json();
-          if (
-            body &&
-            typeof body.resumeUrl === 'string' &&
-            isOriginAllowed(body.resumeUrl)
-          ) {
-            // Same-origin resumeUrl only (matches the setSaveUrl egress gate):
-            // stamp urls= for an F5-stable resume. The save target is NOT
-            // repointed — saves keep going to the launch-provided target. A
-            // cross-origin resumeUrl is a fail-safe no-op — the tab is left
-            // as-is (no address-bar stamp, no persistent warning); the save
-            // still succeeded, but a later F5 will not repoint (acceptable
-            // under the same-origin policy).
+          if (body && typeof body.resumeUrl === 'string') {
+            // Stamp urls= for an F5-stable resume. The save target is NOT
+            // repointed — saves keep going to the launch-provided target.
             repointToResumeUrl(body.resumeUrl);
           }
         } catch {

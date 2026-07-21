@@ -4,15 +4,15 @@ import { setActivePinia, createPinia } from 'pinia';
 import { loadDataSources } from '@/src/actions/loadUserFiles';
 import useLoadDataStore from '@/src/store/load-data';
 import type { DataSource } from '@/src/io/import/dataSource';
-import { asErrorResult } from '@/src/io/import/common';
+import { asErrorResult, ErrorResult } from '@/src/io/import/common';
 
 // ---------------------------------------------------------------------------
-// ONE consolidated notice for degraded composed opens: a composed base whose
-// fetch fails is already
+// ONE consolidated notice for degraded composed opens: importDataSources flags
+// error results it has already surfaced (e.g. a failed state-file leaf,
 // counted by completeStateFileRestore's consolidated "Some scene content
-// could not be restored" warning — the generic error-styled "Some files
-// failed to load" must NOT fire for the same leaf. Only genuinely standalone
-// imports keep the generic error.
+// could not be restored" warning) — the generic error-styled "Some files
+// failed to load" must NOT fire again for those. Only unflagged failures keep
+// the generic error.
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +23,11 @@ vi.mock('@/src/io/import/importDataSources', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/src/io/import/importDataSources')>();
   return { ...actual, importDataSources: mocks.importDataSources };
+});
+
+const reportedError = (source: DataSource): ErrorResult => ({
+  ...asErrorResult(new Error('fetch failed'), source),
+  alreadyReported: true,
 });
 
 const composedLeaf = (stateID: string): DataSource => ({
@@ -38,17 +43,15 @@ const standaloneSource = (): DataSource => ({
   name: 'plain.nrrd',
 });
 
-describe('loadDataSources — notice exclusivity for composed leaves', () => {
+describe('loadDataSources — notice exclusivity for already-reported failures', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     mocks.importDataSources.mockReset();
   });
 
-  it('a failed state-file leaf does NOT raise the generic load error', async () => {
+  it('an already-reported failure does NOT raise the generic load error', async () => {
     const leaf = composedLeaf('ds-a');
-    mocks.importDataSources.mockResolvedValue([
-      asErrorResult(new Error('fetch failed'), leaf),
-    ]);
+    mocks.importDataSources.mockResolvedValue([reportedError(leaf)]);
     const spy = vi.spyOn(useLoadDataStore(), 'setError');
 
     await loadDataSources([leaf]);
@@ -56,25 +59,7 @@ describe('loadDataSources — notice exclusivity for composed leaves', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('a failed leaf nested under a download chain is still recognized', async () => {
-    const leaf = composedLeaf('ds-a');
-    const nested: DataSource = {
-      type: 'file',
-      file: new File([], 'ds-a.nrrd'),
-      fileType: 'application/octet-stream',
-      parent: leaf,
-    };
-    mocks.importDataSources.mockResolvedValue([
-      asErrorResult(new Error('parse failed'), nested),
-    ]);
-    const spy = vi.spyOn(useLoadDataStore(), 'setError');
-
-    await loadDataSources([leaf]);
-
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it('a standalone failed import still raises the generic load error', async () => {
+  it('an unflagged failed import still raises the generic load error', async () => {
     const source = standaloneSource();
     mocks.importDataSources.mockResolvedValue([
       asErrorResult(new Error('boom'), source),
@@ -87,11 +72,11 @@ describe('loadDataSources — notice exclusivity for composed leaves', () => {
     expect(String(spy.mock.calls[0][0])).toContain('plain.nrrd');
   });
 
-  it('a mixed failure reports ONLY the standalone entries', async () => {
+  it('a mixed failure reports ONLY the unflagged entries', async () => {
     const leaf = composedLeaf('ds-a');
     const source = standaloneSource();
     mocks.importDataSources.mockResolvedValue([
-      asErrorResult(new Error('fetch failed'), leaf),
+      reportedError(leaf),
       asErrorResult(new Error('boom'), source),
     ]);
     const spy = vi.spyOn(useLoadDataStore(), 'setError');

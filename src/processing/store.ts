@@ -25,6 +25,7 @@ import type { TrackedJobHistorySummary } from '@/src/processing/engine/jobHistor
 import { selectJobHistoryRows } from '@/src/processing/engine/jobHistory';
 import { useMessageStore } from '@/src/store/messages';
 import { useDatasetStore } from '@/src/store/datasets';
+import { ensureError, getErrorDetail, plural } from '@/src/utils';
 
 export const POLL_INTERVAL_MS = 2000;
 export const MAX_POLL_RETRIES = 4;
@@ -41,7 +42,11 @@ type PollErrorKind =
 
 const classifyError = (err: unknown): PollErrorKind => {
   const status = (err as { status?: number } | null | undefined)?.status;
-  if (status === 401 || status === 403) return 'session-expired';
+  // 401 means the session itself is gone (Girder answers 401 only for a
+  // missing/expired token). 403 is a per-resource denial on a still-valid
+  // session — another user's job, an ACL edited mid-session — so it fails just
+  // that request, never the whole session.
+  if (status === 401) return 'session-expired';
   if (status === 404 || status === 410) return 'resource-gone';
   if (typeof status === 'number' && status >= 400 && status < 500)
     return 'permanent';
@@ -49,15 +54,12 @@ const classifyError = (err: unknown): PollErrorKind => {
   return 'transient';
 };
 
-const errorMessage = (err: unknown, fallback?: string): string =>
-  err instanceof Error ? err.message : (fallback ?? String(err));
-
 // Unresolved outputs are a partial loss: warn without dropping the results that
 // did resolve.
 const warnMissingOutputs = (n: number): void => {
-  const plural = n === 1 ? '' : 's';
-  useMessageStore().addWarning(`${n} output${plural} could not be retrieved`, {
-    details: `${n} of this job's recorded output${plural} could not be retrieved (deleted or unreadable). The results that resolved are available in the Jobs panel.`,
+  const outputs = plural(n, 'output');
+  useMessageStore().addWarning(`${n} ${outputs} could not be retrieved`, {
+    details: `${n} of this job's recorded ${outputs} could not be retrieved (deleted or unreadable). The results that resolved are available in the Jobs panel.`,
   });
 };
 
@@ -76,9 +78,9 @@ const loadProvider = async (
   config: ProcessingProviderConfig
 ): Promise<ProcessingProvider> => {
   // Dynamic import keeps the engine chunk out of the boot bundle.
-  const { createProvider } =
-    await import('@/src/processing/engine/createProvider');
-  return createProvider(config);
+  const { createEngineTransport } =
+    await import('@/src/processing/engine/transport');
+  return { config, ...createEngineTransport(config) };
 };
 
 export const useProcessingJobsStore = defineStore('processingJobs', () => {
@@ -96,7 +98,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   const jobHistoryLoading = ref(false);
   const jobHistoryComplete = ref(false);
   const jobHistoryErrors = reactive(new Map<string, string>());
-  const jobHistoryError = computed<string | null>(
+  const jobHistoryError = computed(
     () => Array.from(jobHistoryErrors.values()).join('; ') || null
   );
   let jobHistoryRequest: Promise<void> | null = null;
@@ -130,8 +132,6 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   // fresh callback every mount, so a per-callback set would double-fire.
   const firedCompletions = new Set<string>();
   const inFlightCompletions = new Set<string>();
-
-  const providerCount = computed(() => configs.size);
 
   // Merged once here so every consumer (list, count, filter options) shares a
   // single durable+live merge per store change instead of re-merging.
@@ -308,7 +308,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       const count = results.length;
       messageStore.addSuccess(
         `Job complete: ${title}`,
-        `${count} result${count === 1 ? '' : 's'} available in the Jobs panel.`
+        `${count} ${plural(count, 'result')} available in the Jobs panel.`
       );
     } else if (status.state === 'error') {
       const failureTitle = /result/i.test(status.errorTail ?? '')
@@ -331,7 +331,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     detail?: string
   ): ProcessingJobStatus {
     stopPolling(jobKey(jobRef));
-    const message = errorMessage(err);
+    const message = ensureError(err).message;
     const errorTail = detail ? `${detail}: ${message}` : message;
     const status: ProcessingJobStatus = {
       jobId: jobRef.jobId,
@@ -351,8 +351,16 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     Array.from(pollTimers.keys()).forEach(stopPolling);
     useMessageStore().addError(
       'Your session has expired. Reload the page to continue.',
-      { error: err instanceof Error ? err : undefined, persist: true }
+      { error: ensureError(err), persist: true }
     );
+  }
+
+  // True when the error ended the whole session (now reported): callers bail
+  // with a plain guard instead of re-writing the classify+mark pair.
+  function expireSessionIf(err: unknown): boolean {
+    if (classifyError(err) !== 'session-expired') return false;
+    markSessionExpired(err);
+    return true;
   }
 
   function handlePollError(
@@ -399,6 +407,19 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     return !useDatasetStore().idsAsSelections.includes(id);
   }
 
+  // Shared by every results auto-load path: results must never attach to a base
+  // image that left the scene, so strip the binding and let labelmaps open as
+  // plain datasets. Pass `missing` to reuse a liveness check already made (e.g.
+  // the completion payload's snapshot); omit it to check live.
+  function contextForAutoLoad(
+    context?: SubmittedJobContext,
+    missing = baseImageMissing(context)
+  ): SubmittedJobContext | undefined {
+    return missing && context
+      ? { ...context, activeDatasetId: undefined }
+      : context;
+  }
+
   // An adopted job's persisted image input carries the parent's provenance URIs,
   // so the parent can be re-identified among the loaded datasets.
   function isImageInputValue(
@@ -410,14 +431,15 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
 
   // Order-insensitive: a re-loaded dataset's provenance walk need not enumerate
   // in submit order.
-  function sameUriSet(a: string[], b: string[]): boolean {
-    return a.length === b.length && a.every((uri) => b.includes(uri));
+  function sameUriSet(a: string[], b: ReadonlySet<string>): boolean {
+    return a.length === b.size && a.every((uri) => b.has(uri));
   }
 
   function datasetIdForUris(uris: string[]): string | undefined {
     const datasets = useDatasetStore();
+    const wanted = new Set(uris);
     return datasets.idsAsSelections.find((id) =>
-      sameUriSet(collectProvenanceUris(datasets.getDataSource(id)), uris)
+      sameUriSet(collectProvenanceUris(datasets.getDataSource(id)), wanted)
     );
   }
 
@@ -456,6 +478,29 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     return updated;
   }
 
+  // Shared by the live completion path and the reopened-session load: fetch
+  // the results and the adopted parent id concurrently (they are independent
+  // round trips), record them, and warn on unresolved outputs. Returns null
+  // when the generation went stale mid-fetch; errors propagate to the caller,
+  // whose recovery differs (fail the job vs. toast).
+  async function fetchAndRecordResults(
+    provider: ProcessingProvider,
+    jobId: string,
+    key: string,
+    gen: number | undefined,
+    context: SubmittedJobContext | undefined
+  ) {
+    const [bundle, updatedContext] = await Promise.all([
+      provider.getResults(jobId),
+      ensureAdoptedParentId(provider, key, gen, context),
+    ]);
+    if (!isCurrent(key, gen)) return null;
+    jobResults.set(key, bundle.results);
+    jobResultMissing.set(key, bundle.missing);
+    if (bundle.missing > 0) warnMissingOutputs(bundle.missing);
+    return { results: bundle.results, context: updatedContext };
+  }
+
   async function fireCompletion(
     provider: ProcessingProvider,
     status: ProcessingJobStatus
@@ -482,23 +527,17 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       }
 
       // A results-fetch error must never read as "succeeded, no outputs".
-      let results: ProcessingResult[];
-      let unresolvedOutputs: number;
+      let recorded: Awaited<ReturnType<typeof fetchAndRecordResults>>;
       try {
-        // The parent-id rebuild is independent of the results fetch, so the
-        // two round trips run concurrently.
-        const [bundle, updatedContext] = await Promise.all([
-          provider.getResults(jobId),
-          ensureAdoptedParentId(provider, key, gen, context),
-        ]);
-        context = updatedContext;
-        results = bundle.results;
-        unresolvedOutputs = bundle.missing;
+        recorded = await fetchAndRecordResults(
+          provider,
+          jobId,
+          key,
+          gen,
+          context
+        );
       } catch (err) {
-        if (classifyError(err) === 'session-expired') {
-          markSessionExpired(err);
-          return;
-        }
+        if (expireSessionIf(err)) return;
         // Deleted mid-fetch: recreating the job as an error row would resurrect
         // it.
         if (!isCurrent(key, gen)) return;
@@ -506,11 +545,9 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         deliverCompletion(jobRef, { status: errored, results: [], context });
         return;
       }
-      if (!isCurrent(key, gen)) return;
-      jobResults.set(key, results);
-      jobResultMissing.set(key, unresolvedOutputs);
-
-      if (unresolvedOutputs > 0) warnMissingOutputs(unresolvedOutputs);
+      if (recorded == null) return;
+      const { results } = recorded;
+      context = recorded.context;
 
       const missing = baseImageMissing(context);
       if (missing) {
@@ -518,7 +555,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         useMessageStore().addWarning(
           'Base image was closed before the job finished',
           {
-            details: `${count} result${count === 1 ? '' : 's'} for this job are available in the Jobs panel but were not attached automatically.`,
+            details: `${count} ${plural(count, 'result')} for this job are available in the Jobs panel but were not attached automatically.`,
           }
         );
       }
@@ -594,7 +631,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } catch (err) {
       // Re-thrown so the caller's form resets its submitting flag.
       useMessageStore().addError('Failed to submit job', {
-        error: err instanceof Error ? err : undefined,
+        error: ensureError(err),
       });
       throw err;
     }
@@ -612,12 +649,9 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } catch (err) {
       // Leave the poller running so a job that terminates on its own still
       // converges.
-      if (classifyError(err) === 'session-expired') {
-        markSessionExpired(err);
-        return false;
-      }
+      if (expireSessionIf(err)) return false;
       useMessageStore().addError('Failed to cancel job', {
-        error: err instanceof Error ? err : undefined,
+        error: ensureError(err),
       });
       return false;
     }
@@ -627,9 +661,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const key = jobKey(jobRef);
     const context = submittedContexts.get(key);
     if (!context) return;
-    // Re-minting rather than removing keeps the job tracked if the server delete
-    // fails below.
-    mintGeneration(key);
+    // stopPolling re-mints the generation rather than removing it, which keeps
+    // the job tracked if the server delete fails below.
     stopPolling(key);
     try {
       const provider = await getProvider(jobRef.providerId);
@@ -639,7 +672,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       perJobCollections.forEach((collection) => collection.delete(key));
     } catch (err) {
       useMessageStore().addError('Failed to delete job', {
-        error: err instanceof Error ? err : undefined,
+        error: ensureError(err),
       });
     }
   }
@@ -656,24 +689,12 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const gen = jobGenerations.get(key);
     try {
       const provider = await getProvider(jobRef.providerId);
-      // The parent-id rebuild is independent of the results fetch, so the two
-      // round trips run concurrently.
-      const [bundle] = await Promise.all([
-        provider.getResults(jobRef.jobId),
-        ensureAdoptedParentId(provider, key, gen, context),
-      ]);
-      if (!isCurrent(key, gen)) return;
-      jobResults.set(key, bundle.results);
-      jobResultMissing.set(key, bundle.missing);
-      if (bundle.missing > 0) warnMissingOutputs(bundle.missing);
+      await fetchAndRecordResults(provider, jobRef.jobId, key, gen, context);
     } catch (err) {
-      if (classifyError(err) === 'session-expired') {
-        markSessionExpired(err);
-        return;
-      }
+      if (expireSessionIf(err)) return;
       if (!isCurrent(key, gen)) return;
       useMessageStore().addError('Failed to load job results', {
-        error: err instanceof Error ? err : undefined,
+        error: ensureError(err),
       });
     }
   }
@@ -692,7 +713,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } catch (err) {
       if (!isCurrent(key, gen)) return;
       useMessageStore().addError('Failed to load job details', {
-        error: err instanceof Error ? err : undefined,
+        error: ensureError(err),
       });
     }
   }
@@ -735,7 +756,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     try {
       status = await provider.getJob(summary.jobId);
     } catch (err) {
-      if (classifyError(err) === 'session-expired') markSessionExpired(err);
+      expireSessionIf(err);
       return; // never fabricate a state for a re-discovered job
     }
     if (!isCurrent(key, gen)) return;
@@ -755,7 +776,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } catch (err) {
       jobHistoryErrors.set(
         providerId,
-        errorMessage(err, 'Failed to load job history')
+        getErrorDetail(err, 'Failed to load job history')
       );
       return;
     }
@@ -773,7 +794,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       console.error('Job re-discovery failed', err);
       jobHistoryErrors.set(
         providerId,
-        errorMessage(err, 'Failed to load job history')
+        getErrorDetail(err, 'Failed to load job history')
       );
     }
   }
@@ -826,7 +847,6 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     jobResults,
     jobResultMissing,
     submittedContexts,
-    providerCount,
     sessionExpired,
 
     registerProviderConfig,
@@ -839,6 +859,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     deleteJob,
     loadJobResults,
     loadJobHistoryDetail,
+    contextForAutoLoad,
     onJobComplete,
     stopPolling,
     adoptJobHistory,

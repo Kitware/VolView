@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { generateJsonSchemas, type GeneratedSchemaName } from './schema-json';
-import { INTENT_VOCABULARY_VERSION, RESULT_INTENTS, JOB_STATES } from './wire';
+import { INTENT_VOCABULARY_VERSION } from './wire';
 import { SPEC_VERSION } from './task-spec';
 
 // ---------------------------------------------------------------------------
@@ -519,11 +519,6 @@ export const buildOpenApiDocument = (): Record<string, unknown> => ({
     },
   },
 });
-
-// The neutral result-intent vocabulary + state names, re-exported so tests and
-// docs can assert the published document stays in lockstep with the source.
-export const OPENAPI_INTENT_VOCABULARY = RESULT_INTENTS;
-export const OPENAPI_JOB_STATES = JOB_STATES;
 
 // Every operationId the published surface must expose (enumerate the backend
 // obligation without reading girder_volview source).

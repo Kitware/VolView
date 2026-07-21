@@ -96,8 +96,6 @@ export type ProcessingJobRef = {
   status?: ProcessingJobStatus;
 };
 
-export type ProcessingSegmentDescriptor = SegmentDescriptor;
-
 export type ProcessingResult = {
   id: string;
   name: string;
@@ -107,7 +105,7 @@ export type ProcessingResult = {
   intent?: string;
   mimeType?: string;
   size?: number;
-  segments?: ProcessingSegmentDescriptor[];
+  segments?: SegmentDescriptor[];
   // Display provenance only; nothing keys dedup or attach semantics off it.
   source?: ResultSource;
 };

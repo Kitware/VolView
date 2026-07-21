@@ -32,13 +32,6 @@ const coreManifestSchema = ManifestSchema.pick({
   datasetFilePath: true,
 });
 
-// Validate one optional root against ITS OWN field schema. ManifestSchema is a
-// plain object with no cross-field refinement, so a field is valid in isolation
-// exactly when it is valid in the full manifest — this avoids re-parsing the
-// (already-validated) core graph once per optional root.
-const optionalValueValid = (key: keyof Manifest, value: unknown) =>
-  ManifestSchema.shape[key].safeParse(value).success;
-
 function validateCoreGraph(core: Manifest, zip: JSZip) {
   if (core.version !== MANIFEST_VERSION) {
     throw new Error(
@@ -125,7 +118,7 @@ function validateCoreGraph(core: Manifest, zip: JSZip) {
 // them. Segment groups stay here because an orphaned one leaves dead `.seg.nrrd`
 // bytes in the archive, which is a real cost the cascade does not address.
 export function normalizeManifest(manifest: Manifest, zip: JSZip) {
-  const candidate = JSON.parse(JSON.stringify(manifest)) as ManifestCandidate;
+  const candidate = manifest as unknown as ManifestCandidate;
   const core = coreManifestSchema.parse(candidate) as Manifest;
   const { sourceIds, datasetIds } = validateCoreGraph(core, zip);
   const omitted: string[] = [];
@@ -160,25 +153,23 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     }
     return [parsed.data];
   });
-  candidate.segmentGroups = validGroups;
 
+  let validLayers: ParentToLayers | undefined;
   if (Array.isArray(candidate.parentToLayers)) {
-    candidate.parentToLayers = candidate.parentToLayers.flatMap(
-      (raw, index) => {
-        const parsed = ParentToLayers.element.safeParse(raw);
-        if (
-          !parsed.success ||
-          !datasetIds.has(parsed.data.selectionKey) ||
-          parsed.data.sourceSelectionKeys.some((id) => !datasetIds.has(id))
-        ) {
-          omitted.push(
-            `layer relationship ${index}: missing or invalid dataset`
-          );
-          return [];
-        }
-        return [parsed.data];
+    validLayers = candidate.parentToLayers.flatMap((raw, index) => {
+      const parsed = ParentToLayers.element.safeParse(raw);
+      if (
+        !parsed.success ||
+        !datasetIds.has(parsed.data.selectionKey) ||
+        parsed.data.sourceSelectionKeys.some((id) => !datasetIds.has(id))
+      ) {
+        omitted.push(`layer relationship ${index}: missing or invalid dataset`);
+        return [];
       }
-    );
+      return [parsed.data];
+    });
+  } else if (candidate.parentToLayers !== undefined) {
+    omitted.push('parentToLayers: invalid optional state');
   }
 
   // Dev-only cascade-gap backstop (DCE'd in prod by the NODE_ENV guard).
@@ -242,7 +233,11 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       );
   }
 
-  const optionalRoots: Array<keyof Manifest> = [
+  // Each optional root is validated against ITS OWN field schema. ManifestSchema
+  // is a plain object with no cross-field refinement, so a field valid in
+  // isolation is valid in the full manifest — and the output is assembled from
+  // the parsed pieces, so nothing is validated (or deep-copied) twice.
+  const optionalRoots = [
     'tools',
     'activeView',
     'isActiveViewMaximized',
@@ -250,17 +245,24 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'primarySelection',
     'layout',
     'layoutSlots',
-    'parentToLayers',
-  ];
-  optionalRoots.forEach((key) => {
-    if (!(key in candidate)) return;
-    if (optionalValueValid(key, candidate[key])) return;
-    omitted.push(`${key}: invalid optional state`);
-    delete candidate[key];
+  ] as const;
+  const optionalEntries = optionalRoots.flatMap((key) => {
+    if (candidate[key] === undefined) return [];
+    const parsed = ManifestSchema.shape[key].safeParse(candidate[key]);
+    if (!parsed.success) {
+      omitted.push(`${key}: invalid optional state`);
+      return [];
+    }
+    return [[key, parsed.data] as const];
   });
 
-  const parsed = ManifestSchema.parse(candidate);
-  return { manifest: parsed, omitted };
+  const normalized = {
+    ...core,
+    segmentGroups: validGroups,
+    ...(validLayers ? { parentToLayers: validLayers } : {}),
+    ...Object.fromEntries(optionalEntries),
+  } as Manifest;
+  return { manifest: normalized, omitted };
 }
 
 export async function serialize() {

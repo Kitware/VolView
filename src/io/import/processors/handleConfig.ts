@@ -1,5 +1,5 @@
 import { ImportHandler, asConfigResult } from '@/src/io/import/common';
-import { ensureError } from '@/src/utils';
+import { ensureError, plural } from '@/src/utils';
 import { recognizeConfigFile } from '@/src/io/import/configJson';
 import { Skip } from '@/src/utils/evaluateChain';
 import { useMessageStore } from '@/src/store/messages';
@@ -9,7 +9,7 @@ import { useMessageStore } from '@/src/store/messages';
 // unknown keys are stripped during recognition and surfaced here (console +
 // user-visible notification naming them) so the skew is visible, not silent.
 const surfaceIgnoredConfigKeys = (ignoredKeys: string[]) => {
-  const label = ignoredKeys.length === 1 ? 'key' : 'keys';
+  const label = plural(ignoredKeys.length, 'key');
   const message = `Ignored unrecognized config ${label}: ${ignoredKeys.join(
     ', '
   )}.`;

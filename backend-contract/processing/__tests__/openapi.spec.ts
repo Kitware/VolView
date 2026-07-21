@@ -3,12 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  buildOpenApiDocument,
-  NEUTRAL_OPERATION_IDS,
-  OPENAPI_INTENT_VOCABULARY,
-} from '../openapi';
-import { JOB_STATES } from '../wire';
+import { buildOpenApiDocument, NEUTRAL_OPERATION_IDS } from '../openapi';
+import { JOB_STATES, RESULT_INTENTS } from '../wire';
 
 // The published OpenAPI is the backend's obligation surface.
 // These are its guards: it stays in sync with the single zod source, covers
@@ -139,7 +135,7 @@ describe('single source — published shapes track the source of truth', () => {
 
   it('publishes the full v1 result-intent vocabulary', () => {
     const serialized = JSON.stringify(schemaComponents().ResultIntent);
-    OPENAPI_INTENT_VOCABULARY.forEach((intent) => {
+    RESULT_INTENTS.forEach((intent) => {
       expect(serialized).toContain(intent);
     });
   });

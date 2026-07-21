@@ -4,7 +4,6 @@ import {
   JOB_STATES,
   RESULT_INTENTS,
   INTENT_VOCABULARY_VERSION,
-  isKnownIntent,
   inputValueSchema,
   stageInputDescriptorSchema,
   neutralJobStatusSchema,
@@ -195,7 +194,9 @@ describe('result intent fixtures', () => {
       unknown
     >;
     // It parses (fail-open), but is not one of the known state actions.
-    expect(isKnownIntent(parsed.intent as string)).toBe(false);
+    expect(
+      knownResultIntentSchema.safeParse(wire['intent.unknown']).success
+    ).toBe(false);
     expect(parsed.url).toBeTruthy();
     expect(parsed.name).toBeTruthy();
   });
@@ -248,12 +249,6 @@ describe('result intent fixtures', () => {
     ],
   ])('rejects a result row with %s', (_name, value) => {
     expect(resultIntentSchema.safeParse(value).success).toBe(false);
-  });
-
-  it('recognizes only the four state intents via isKnownIntent', () => {
-    expect(isKnownIntent('add-segment-group')).toBe(true);
-    expect(isKnownIntent('download')).toBe(false);
-    expect(isKnownIntent('attach-segment-group')).toBe(false);
   });
 
   it('still rejects a result that is not even a file reference', () => {

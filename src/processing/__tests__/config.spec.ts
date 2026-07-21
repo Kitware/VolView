@@ -40,7 +40,7 @@ describe('processing config provider origins', () => {
 
     await applyProcessingConfig(processingConfig('/volview_processing'));
 
-    expect(providers.providerCount).toBe(1);
+    expect(providers.configs.size).toBe(1);
     expect(providers.configs.get('analysis-provider')?.baseUrl).toBe(
       '/volview_processing'
     );
@@ -54,7 +54,7 @@ describe('processing config provider origins', () => {
       processingConfig('https://analysis.example/api')
     );
 
-    expect(providers.providerCount).toBe(0);
+    expect(providers.configs.size).toBe(0);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining(
         'origin "https://analysis.example" is not allowed'
@@ -69,7 +69,7 @@ describe('processing config provider origins', () => {
       processingConfig('https://analysis.example/api')
     );
 
-    expect(providers.providerCount).toBe(0);
+    expect(providers.configs.size).toBe(0);
   });
 
   it('registers a provider from a config block without protocol/auth', async () => {
@@ -78,7 +78,7 @@ describe('processing config provider origins', () => {
     await applyProcessingConfig(processingConfig('/volview_processing'));
 
     const registered = providers.configs.get('analysis-provider');
-    expect(providers.providerCount).toBe(1);
+    expect(providers.configs.size).toBe(1);
     expect(registered?.baseUrl).toBe('/volview_processing');
     expect(registered && 'protocol' in registered).toBe(false);
     expect(registered && 'auth' in registered).toBe(false);
@@ -104,7 +104,7 @@ describe('processing config provider origins', () => {
     await applyProcessingConfig(manifest);
 
     const registered = providers.configs.get('analysis-provider');
-    expect(providers.providerCount).toBe(1);
+    expect(providers.configs.size).toBe(1);
     expect(registered?.jobsBaseUrl).toBe('/api/v1/volview_processing');
     expect(warn).not.toHaveBeenCalled();
   });
@@ -128,7 +128,7 @@ describe('processing config provider origins', () => {
 
     await applyProcessingConfig(manifest);
 
-    expect(providers.providerCount).toBe(0);
+    expect(providers.configs.size).toBe(0);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining(
         'origin "https://analysis.example" is not allowed'
@@ -157,7 +157,7 @@ describe('processing config provider origins', () => {
     await applyProcessingConfig(manifest);
 
     const registered = providers.configs.get('analysis-provider');
-    expect(providers.providerCount).toBe(1);
+    expect(providers.configs.size).toBe(1);
     expect(registered?.baseUrl).toBe('/volview_processing');
     expect(registered && 'protocol' in registered).toBe(false);
     expect(registered && 'auth' in registered).toBe(false);
@@ -180,6 +180,6 @@ describe('processing config provider origins', () => {
     });
 
     expect(parsed.success).toBe(false);
-    expect(providers.providerCount).toBe(0);
+    expect(providers.configs.size).toBe(0);
   });
 });

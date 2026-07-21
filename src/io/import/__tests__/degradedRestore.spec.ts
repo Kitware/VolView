@@ -33,6 +33,7 @@ describe('importDataSources — degraded restore', () => {
       dataSources: [],
       manifest: { version: '6.4.0', dataSources: [] },
       stateFiles: [],
+      missingFiles: [],
     });
     processorMocks.completeStateFileRestore.mockRejectedValue(
       new Error('segment group deserialize exploded')
@@ -63,6 +64,7 @@ describe('importDataSources — degraded restore', () => {
       dataSources: [],
       manifest: { version: '6.4.0', dataSources: [] },
       stateFiles: [],
+      missingFiles: [],
     });
     processorMocks.completeStateFileRestore.mockResolvedValue(undefined);
 

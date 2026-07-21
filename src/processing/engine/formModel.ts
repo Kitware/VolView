@@ -30,22 +30,18 @@ const firstIssue = (error: { issues: { message: string }[] }): string =>
 
 export const fieldLabel = (f: FormField): string => f.title ?? f.id;
 
+// A min+max float renders as a slider showing `value ?? min`. Single source
+// of the predicate so seeded values stay in sync with what the widget paints.
+export const sliderConfig = (f: FormField) =>
+  f.kind === 'float' && f.min != null && f.max != null
+    ? { min: f.min, max: f.max, step: f.step }
+    : null;
+
 const isEmpty = (v: ProcessingValue | undefined): boolean =>
   v === null ||
   v === undefined ||
   (typeof v === 'string' && v.length === 0) ||
   (Array.isArray(v) && v.length === 0);
-
-const byOrder = (
-  a: FormField,
-  b: FormField,
-  ia: number,
-  ib: number
-): number => {
-  const oa = a.order ?? Number.POSITIVE_INFINITY;
-  const ob = b.order ?? Number.POSITIVE_INFINITY;
-  return oa === ob ? ia - ib : oa - ob;
-};
 
 export const buildTaskFormModel = (env: TaskSpecEnvelope): TaskFormModel => {
   const fields: FormField[] = [];
@@ -65,10 +61,13 @@ export const buildTaskFormModel = (env: TaskSpecEnvelope): TaskFormModel => {
     });
   });
 
-  const sorted = fields
-    .map((f, i) => [f, i] as const)
-    .sort(([a, ia], [b, ib]) => byOrder(a, b, ia, ib))
-    .map(([f]) => f);
+  // Array.prototype.sort is stable, so equal/missing orders keep spec order.
+  const orderOf = (f: FormField) => f.order ?? Number.POSITIVE_INFINITY;
+  const sorted = [...fields].sort((a, b) => {
+    const oa = orderOf(a);
+    const ob = orderOf(b);
+    return oa === ob ? 0 : oa - ob;
+  });
 
   return {
     id: env.id,
@@ -88,8 +87,10 @@ export const initialFormValues = (
   const values: Record<string, ProcessingValue> = {};
   model.fields.forEach((f) => {
     switch (f.kind) {
-      case 'int':
       case 'float':
+        values[f.id] = f.default ?? sliderConfig(f)?.min ?? null;
+        break;
+      case 'int':
       case 'string':
       case 'bounds':
         values[f.id] = f.default ?? null;

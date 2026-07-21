@@ -113,7 +113,7 @@ export const chunk = <T>(arr: T[], size: number) =>
   );
 
 export function plural(n: number, word: string, pluralWord?: string) {
-  return n > 1 ? (pluralWord ?? `${word}s`) : word;
+  return n === 1 ? word : (pluralWord ?? `${word}s`);
 }
 
 export const ensureDefault = <T>(

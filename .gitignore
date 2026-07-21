@@ -32,3 +32,8 @@ bundle-analysis.html
 reports
 *.log
 .tmp/
+
+# Local AI agent config
+.github/copilot
+CLAUDE.md
+.claude/

@@ -43,12 +43,20 @@ export type StateFileSetupResult = {
   dataSources: DataSource[];
   manifest: Manifest;
   stateFiles: FileEntry[];
+  // Archive members the state file recorded but does not contain, keyed by the
+  // dataset they belong to — a dataset that still resolves from its surviving
+  // files must report these, or it restores silently truncated.
+  missingFiles: Array<{ stateID: string; path: string }>;
 };
 
 export type ErrorResult = {
   type: 'error';
   error: Error;
   dataSource: DataSource;
+  // Set when the import has already surfaced this failure to the user (e.g.
+  // the restore's consolidated missing-content notice); callers must not
+  // report it a second time.
+  alreadyReported?: boolean;
 };
 
 export type ImportResult =
