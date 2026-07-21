@@ -18,7 +18,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(here, '..', 'generated');
 mkdirSync(outDir, { recursive: true });
 
-// Processing slice only.
 const schemas = { ...generateJsonSchemas() };
 Object.entries(schemas).forEach(([name, schema]) => {
   const path = resolve(outDir, `${name}.schema.json`);

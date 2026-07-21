@@ -2,16 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { importDataSources } from '@/src/io/import/importDataSources';
 import type { DataSource } from '@/src/io/import/dataSource';
-import type { ErrorResult } from '@/src/io/import/common';
+import type { ImportDataSourcesResult } from '@/src/io/import/common';
 import { Skip } from '@/src/utils/evaluateChain';
 
 // ---------------------------------------------------------------------------
-// importDataSources owns the "already reported" knowledge: a failed
-// state-file leaf is counted by the restore's consolidated missing-content
-// notice, so its error result comes back flagged `alreadyReported` — callers
-// suppress on the flag alone, without re-deriving restore internals. The flag
-// is set ONLY when the notice actually ran: a leaf error with no completed
-// restore behind it must surface through the generic load-error path.
+// importDataSources owns reporting for failures it has already surfaced: a
+// failed state-file leaf is counted by the restore's consolidated
+// missing-content notice, so its result comes back as an accounted-for 'ok'
+// result — NEVER as an error. An error result in the return value therefore
+// always means "unreported", and callers report exactly the errors they
+// receive without re-deriving restore internals. The demotion happens ONLY
+// when the notice actually ran: a leaf error with no completed restore behind
+// it must surface through the generic load-error path.
 // ---------------------------------------------------------------------------
 
 const processorMocks = vi.hoisted(() => ({
@@ -50,12 +52,12 @@ const mockSetupWith = (leafSources: DataSource[]) => {
   });
 };
 
-const failingErrors = async (sources: DataSource[]) => {
-  const results = await importDataSources(sources);
-  return results.filter((r): r is ErrorResult => r.type === 'error');
-};
+const resultsByType = (results: ImportDataSourcesResult[]) => ({
+  errors: results.filter((r) => r.type === 'error'),
+  okays: results.filter((r) => r.type === 'ok'),
+});
 
-describe('importDataSources — alreadyReported flag on error results', () => {
+describe('importDataSources — restore-covered failures return as ok, not error', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     processorMocks.restoreStateFile.mockReset();
@@ -63,7 +65,7 @@ describe('importDataSources — alreadyReported flag on error results', () => {
     processorMocks.restoreStateFile.mockReturnValue(Skip);
   });
 
-  it('flags a failed leaf covered by a completed restore notice', async () => {
+  it('demotes a failed leaf covered by a completed restore notice to ok', async () => {
     mockSetupWith([
       {
         type: 'file',
@@ -74,15 +76,17 @@ describe('importDataSources — alreadyReported flag on error results', () => {
     ]);
     processorMocks.completeStateFileRestore.mockResolvedValue(undefined);
 
-    const errors = await failingErrors([
-      { type: 'file', file: sessionFile(), fileType: 'application/json' },
-    ]);
+    const { errors, okays } = resultsByType(
+      await importDataSources([
+        { type: 'file', file: sessionFile(), fileType: 'application/json' },
+      ])
+    );
 
-    expect(errors).toHaveLength(1);
-    expect(errors[0].alreadyReported).toBe(true);
+    expect(errors).toHaveLength(0);
+    expect(okays).toHaveLength(1);
   });
 
-  it('flags a covered failure whose leaf sits higher up the source chain', async () => {
+  it('demotes a covered failure whose leaf sits higher up the source chain', async () => {
     const leafParent: DataSource = {
       type: 'uri',
       uri: 'https://girder.example/file/ds-a',
@@ -99,12 +103,14 @@ describe('importDataSources — alreadyReported flag on error results', () => {
     ]);
     processorMocks.completeStateFileRestore.mockResolvedValue(undefined);
 
-    const errors = await failingErrors([
-      { type: 'file', file: sessionFile(), fileType: 'application/json' },
-    ]);
+    const { errors, okays } = resultsByType(
+      await importDataSources([
+        { type: 'file', file: sessionFile(), fileType: 'application/json' },
+      ])
+    );
 
-    expect(errors).toHaveLength(1);
-    expect(errors[0].alreadyReported).toBe(true);
+    expect(errors).toHaveLength(0);
+    expect(okays).toHaveLength(1);
   });
 
   it('hands the restore the failed leaves for its consolidated notice', async () => {
@@ -127,7 +133,7 @@ describe('importDataSources — alreadyReported flag on error results', () => {
     expect(failedLeaves).toEqual([{ stateID: 'ds-a', name: 'ds-a.bin' }]);
   });
 
-  it('does not flag a leaf failure when the restore never completed', async () => {
+  it('keeps a leaf failure as an error when the restore never completed', async () => {
     mockSetupWith([
       {
         type: 'file',
@@ -140,34 +146,37 @@ describe('importDataSources — alreadyReported flag on error results', () => {
       new Error('deserialize exploded')
     );
 
-    const errors = await failingErrors([
-      { type: 'file', file: sessionFile(), fileType: 'application/json' },
-    ]);
+    const { errors } = resultsByType(
+      await importDataSources([
+        { type: 'file', file: sessionFile(), fileType: 'application/json' },
+      ])
+    );
 
     expect(errors).toHaveLength(1);
-    expect(errors[0].alreadyReported).toBeFalsy();
   });
 
-  it('does not flag a leaf-carrying failure with no restore behind it', async () => {
-    const errors = await failingErrors([
-      {
-        type: 'file',
-        file: unrecognizedFile('ds-a.bin'),
-        fileType: '',
-        stateFileLeaf: { stateID: 'ds-a' },
-      },
-    ]);
+  it('keeps a leaf-carrying failure with no restore behind it as an error', async () => {
+    const { errors } = resultsByType(
+      await importDataSources([
+        {
+          type: 'file',
+          file: unrecognizedFile('ds-a.bin'),
+          fileType: '',
+          stateFileLeaf: { stateID: 'ds-a' },
+        },
+      ])
+    );
 
     expect(errors).toHaveLength(1);
-    expect(errors[0].alreadyReported).toBeFalsy();
   });
 
-  it('does not flag a standalone failure', async () => {
-    const errors = await failingErrors([
-      { type: 'file', file: unrecognizedFile('plain.bin'), fileType: '' },
-    ]);
+  it('keeps a standalone failure as an error', async () => {
+    const { errors } = resultsByType(
+      await importDataSources([
+        { type: 'file', file: unrecognizedFile('plain.bin'), fileType: '' },
+      ])
+    );
 
     expect(errors).toHaveLength(1);
-    expect(errors[0].alreadyReported).toBeFalsy();
   });
 });

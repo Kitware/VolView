@@ -7,7 +7,7 @@ import {
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
-// The optional `source: {jobId, outputId}` provenance tag on
+// The optional `source: {providerId, jobId, outputId}` provenance tag on
 // SegmentGroupMetadata — the durable job-history idempotency key that must round-trip the
 // `.volview.zip`.
 
@@ -24,13 +24,18 @@ const baseMetadata = {
 
 const metadataWithSource = {
   ...baseMetadata,
-  source: { jobId: 'job-abc', outputId: 'outputLabelmap' },
+  source: {
+    providerId: 'analysis-provider',
+    jobId: 'job-abc',
+    outputId: 'outputLabelmap',
+  },
 };
 
 describe('SegmentGroupMetadata.source', () => {
   it('accepts and round-trips a source provenance tag', () => {
     const parsed = SegmentGroupMetadata.parse(metadataWithSource);
     expect(parsed.source).toEqual({
+      providerId: 'analysis-provider',
       jobId: 'job-abc',
       outputId: 'outputLabelmap',
     });
@@ -42,7 +47,18 @@ describe('SegmentGroupMetadata.source', () => {
   });
 
   it('rejects a malformed source (missing outputId)', () => {
-    const bad = { ...metadataWithSource, source: { jobId: 'job-abc' } };
+    const bad = {
+      ...metadataWithSource,
+      source: { providerId: 'analysis-provider', jobId: 'job-abc' },
+    };
+    expect(SegmentGroupMetadata.safeParse(bad).success).toBe(false);
+  });
+
+  it('rejects a source without provider identity', () => {
+    const bad = {
+      ...metadataWithSource,
+      source: { jobId: 'job-abc', outputId: 'outputLabelmap' },
+    };
     expect(SegmentGroupMetadata.safeParse(bad).success).toBe(false);
   });
 
@@ -56,6 +72,7 @@ describe('SegmentGroupMetadata.source', () => {
     };
     const parsed = ManifestSchema.parse(manifest);
     expect(parsed.segmentGroups?.[0].metadata.source).toEqual({
+      providerId: 'analysis-provider',
       jobId: 'job-abc',
       outputId: 'outputLabelmap',
     });

@@ -11,7 +11,12 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
-import { useAnnotationTool } from './useAnnotationTool';
+import {
+  declareAnnotationToolManifestRefs,
+  useAnnotationTool,
+} from './useAnnotationTool';
+
+declareAnnotationToolManifestRefs('polygons');
 
 const toolDefaults = () => ({
   points: [] as Array<Vector3>,

@@ -36,8 +36,20 @@
           <div v-if="loadingProvider" class="text-caption text-medium-emphasis">
             Loading provider…
           </div>
-          <div v-else-if="providerError" class="text-error text-caption">
-            {{ providerError }}
+          <div
+            v-else-if="providerError"
+            class="text-error text-caption d-flex align-center"
+          >
+            <span>{{ providerError }}</span>
+            <v-btn
+              data-testid="retry-provider"
+              size="x-small"
+              variant="text"
+              class="ml-1"
+              @click="retryProvider"
+            >
+              Retry
+            </v-btn>
           </div>
 
           <template v-if="provider">
@@ -55,8 +67,20 @@
             <div v-if="loadingTask" class="text-caption">
               Loading task spec…
             </div>
-            <div v-else-if="taskError" class="text-error text-caption">
-              {{ taskError }}
+            <div
+              v-else-if="taskError"
+              class="text-error text-caption d-flex align-center"
+            >
+              <span>{{ taskError }}</span>
+              <v-btn
+                data-testid="retry-task"
+                size="x-small"
+                variant="text"
+                class="ml-1"
+                @click="retryTask"
+              >
+                Retry
+              </v-btn>
             </div>
             <TaskForm
               v-else-if="taskModel"
@@ -65,6 +89,7 @@
               :issues="issues"
               :source-ref-states="sourceRefStates"
               :source-ref-names="sourceRefNames"
+              :source-ref-types="sourceRefTypes"
               :submitting="submitting"
               @update:values="onValuesUpdate"
               @submit="onSubmit"
@@ -76,13 +101,7 @@
       <v-expansion-panel value="jobs">
         <v-expansion-panel-title>
           <v-icon class="mr-2">mdi-history</v-icon>
-          <span>Jobs</span>
-          <span
-            v-if="historyCount > 0"
-            class="text-caption text-medium-emphasis ml-2"
-          >
-            {{ historyCount }} in history
-          </span>
+          <span>Job History</span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <JobList />
@@ -104,7 +123,6 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useCropStore } from '@/src/store/tools/crop';
-import { autoLoadProcessingResults } from '@/src/processing/applyResults';
 import type {
   ProcessingProvider,
   ProcessingValue,
@@ -120,17 +138,17 @@ import {
   type TaskFormModel,
   type FormValidationIssue,
 } from '@/src/processing/engine/formModel';
+import { type SourceRefBindingState } from '@/src/processing/engine/mintInput';
 import {
-  bindImageInputs,
-  type ImageBindingResult,
-  type SourceRefBindingState,
-} from '@/src/processing/engine/mintInput';
-import {
-  bindLabelmapInputs,
   mintLabelmapValue,
   mintLabelmapReferenceImage,
   type SegmentGroupView,
 } from '@/src/processing/engine/mintLabelmap';
+import {
+  bindSourceRefs,
+  type BoundSourceRefType,
+  type SourceRefBindings,
+} from '@/src/processing/engine/sourceRefs';
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
@@ -155,8 +173,6 @@ const messageStore = useMessageStore();
 
 const openPanels = ref<string[]>(['run', 'jobs']);
 
-const historyCount = computed(() => providers.jobHistoryRows.length);
-
 const providerItems = computed(() =>
   Array.from(providers.configs.values()).map((c) => ({
     id: c.id,
@@ -171,6 +187,7 @@ const selectedProviderId = ref<string | null>(null);
 const provider = ref<ProcessingProvider | null>(null);
 const loadingProvider = ref(false);
 const providerError = ref<string | null>(null);
+const providerLoadVersion = ref(0);
 
 const tasks = ref<TaskSummary[]>([]);
 const selectedTaskId = ref<string | null>(null);
@@ -178,9 +195,11 @@ const selectedTaskId = ref<string | null>(null);
 const taskModel = ref<TaskFormModel | null>(null);
 const loadingTask = ref(false);
 const taskError = ref<string | null>(null);
+const taskLoadVersion = ref(0);
 const currentValues = ref<Record<string, ProcessingValue>>({});
 const issues = ref<FormValidationIssue[]>([]);
 const sourceRefStates = ref<Record<string, SourceRefBindingState>>({});
+const sourceRefTypes = ref<Record<string, BoundSourceRefType>>({});
 const submitting = ref(false);
 
 watch(
@@ -228,8 +247,8 @@ async function loadWhileCurrent(
 }
 
 watch(
-  selectedProviderId,
-  async (id, _old, onCleanup) => {
+  [selectedProviderId, providerLoadVersion],
+  async ([id, version], _old, onCleanup) => {
     // Ungated reset: a superseded request's gated finally never runs.
     provider.value = null;
     tasks.value = [];
@@ -240,7 +259,9 @@ watch(
     if (!id) return;
     await loadWhileCurrent(
       onCleanup,
-      () => selectedProviderId.value === id,
+      () =>
+        selectedProviderId.value === id &&
+        providerLoadVersion.value === version,
       { loading: loadingProvider, error: providerError },
       'Failed to load provider',
       async (current) => {
@@ -259,34 +280,48 @@ watch(
   { immediate: true }
 );
 
-watch(selectedTaskId, async (id, _old, onCleanup) => {
-  taskModel.value = null;
-  loadingTask.value = false;
-  taskError.value = null;
-  if (!id || !provider.value) return;
-  // A later provider change clears selectedTaskId and invalidates the guard.
-  const activeProvider = provider.value;
-  await loadWhileCurrent(
-    onCleanup,
-    () => selectedTaskId.value === id,
-    { loading: loadingTask, error: taskError },
-    'Failed to load task spec',
-    async (current) => {
-      const envelope = await activeProvider.getTaskSpec(id);
-      if (!current()) return;
-      const model = buildTaskFormModel(envelope);
-      taskModel.value = model;
-      const image = activeImageBinding(model);
-      const initial = applyActiveBindings(
-        model,
-        initialFormValues(model),
-        image
-      );
-      currentValues.value = initial;
-      refreshValidation(model, initial, image);
-    }
-  );
-});
+function retryProvider() {
+  providerLoadVersion.value += 1;
+}
+
+watch(
+  [selectedTaskId, taskLoadVersion],
+  async ([id, version], _old, onCleanup) => {
+    taskModel.value = null;
+    loadingTask.value = false;
+    taskError.value = null;
+    if (!id || !provider.value) return;
+    // A later provider change clears selectedTaskId and invalidates the guard.
+    const activeProvider = provider.value;
+    await loadWhileCurrent(
+      onCleanup,
+      () =>
+        selectedTaskId.value === id &&
+        taskLoadVersion.value === version &&
+        provider.value === activeProvider,
+      { loading: loadingTask, error: taskError },
+      'Failed to load task spec',
+      async (current) => {
+        const envelope = await activeProvider.getTaskSpec(id);
+        if (!current()) return;
+        const model = buildTaskFormModel(envelope);
+        taskModel.value = model;
+        const bindings = activeSourceBindings(model);
+        const initial = applyActiveBindings(
+          model,
+          initialFormValues(model),
+          bindings
+        );
+        currentValues.value = initial;
+        refreshValidation(model, initial, bindings);
+      }
+    );
+  }
+);
+
+function retryTask() {
+  taskLoadVersion.value += 1;
+}
 
 function onValuesUpdate(values: Record<string, ProcessingValue>) {
   currentValues.value = values;
@@ -304,9 +339,9 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
   if (!submitProvider || !providerId || !taskId || !model) return;
   const activeDatasetId = currentImageID.value ?? undefined;
 
-  const image = activeImageBinding(model);
-  const finalValues = applyActiveBindings(model, values, image);
-  const finalIssues = refreshValidation(model, finalValues, image);
+  const bindings = activeSourceBindings(model);
+  const finalValues = applyActiveBindings(model, values, bindings);
+  const finalIssues = refreshValidation(model, finalValues, bindings);
   if (finalIssues.length > 0) {
     currentValues.value = finalValues;
     return;
@@ -323,7 +358,8 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
     stagedValues = await stageLabelmapInputs(
       submitProvider,
       model,
-      finalValues
+      finalValues,
+      bindings
     );
   } catch (err) {
     messageStore.addError('Failed to stage segment group input', {
@@ -395,15 +431,6 @@ function segmentGroupView(): SegmentGroupView {
   };
 }
 
-function bindLabelmaps(model: TaskFormModel) {
-  return bindLabelmapInputs(
-    model,
-    currentImageID.value ?? undefined,
-    paintStore.activeSegmentGroupID,
-    segmentGroupView()
-  );
-}
-
 function labelmapReferenceImage(segmentGroupId: string): InputValue | null {
   return mintLabelmapReferenceImage(
     segmentGroupId,
@@ -412,10 +439,14 @@ function labelmapReferenceImage(segmentGroupId: string): InputValue | null {
   );
 }
 
-// Callable once per handler so `applyActiveBindings` and `refreshValidation`
-// can share one provenance walk; crop-drag frames call both.
-function activeImageBinding(model: TaskFormModel): ImageBindingResult {
-  return bindImageInputs(model, activeDataSource());
+function activeSourceBindings(model: TaskFormModel): SourceRefBindings {
+  return bindSourceRefs(model, {
+    activeDataSource: activeDataSource(),
+    backgroundImageId: currentImageID.value ?? undefined,
+    activeSegmentGroupId: paintStore.activeSegmentGroupID,
+    segmentGroups: segmentGroupView(),
+    getDataSource: (imageId) => datasetStore.getDataSource(imageId),
+  });
 }
 
 // The labelmap value is not set here: a segment group has no server provenance,
@@ -423,10 +454,15 @@ function activeImageBinding(model: TaskFormModel): ImageBindingResult {
 function applyActiveBindings(
   model: TaskFormModel,
   base: Record<string, ProcessingValue>,
-  image: ImageBindingResult = activeImageBinding(model)
+  bindings: SourceRefBindings = activeSourceBindings(model)
 ): Record<string, ProcessingValue> {
   const withBounds = applyBoundsBindings(model, base);
-  return { ...withBounds, ...image.values };
+  const clearedSourceRefs = Object.fromEntries(
+    model.fields
+      .filter((field) => field.kind === 'sourceRef')
+      .map((field) => [field.id, null])
+  );
+  return { ...withBounds, ...clearedSourceRefs, ...bindings.image.values };
 }
 
 // Binder-owned sourceRef params are excluded from the generic check so they do
@@ -434,30 +470,16 @@ function applyActiveBindings(
 function validateValues(
   model: TaskFormModel,
   values: Record<string, ProcessingValue>,
-  image: ImageBindingResult
+  bindings: SourceRefBindings
 ) {
-  const labelmap = bindLabelmaps(model);
-  const labelmapIssues = [...labelmap.issues];
-  for (const [parameterId, segmentGroupId] of Object.entries(labelmap.groups)) {
-    if (!labelmapReferenceImage(segmentGroupId)) {
-      labelmap.states[parameterId] = 'no-provenance';
-      labelmapIssues.push({
-        parameter: parameterId,
-        message:
-          'The segment group reference image was not loaded from the server, so it cannot be used as an input.',
-      });
-    }
-  }
-  const boundParams = new Set([
-    ...Object.keys(image.states),
-    ...Object.keys(labelmap.states),
-  ]);
+  const boundParams = new Set(Object.keys(bindings.states));
   const generic = validateFormValues(model, values).filter(
     (i) => !boundParams.has(i.parameter)
   );
   return {
-    issues: [...image.issues, ...labelmapIssues, ...generic],
-    states: { ...image.states, ...labelmap.states },
+    issues: [...bindings.issues, ...generic],
+    states: bindings.states,
+    types: bindings.types,
   };
 }
 
@@ -466,10 +488,11 @@ function validateValues(
 function refreshValidation(
   model: TaskFormModel,
   values: Record<string, ProcessingValue>,
-  image: ImageBindingResult = activeImageBinding(model)
+  bindings: SourceRefBindings = activeSourceBindings(model)
 ): FormValidationIssue[] {
-  const validation = validateValues(model, values, image);
+  const validation = validateValues(model, values, bindings);
   sourceRefStates.value = validation.states;
+  sourceRefTypes.value = validation.types;
   issues.value = validation.issues;
   return validation.issues;
 }
@@ -479,9 +502,10 @@ function refreshValidation(
 async function stageLabelmapInputs(
   p: ProcessingProvider,
   model: TaskFormModel,
-  values: Record<string, ProcessingValue>
+  values: Record<string, ProcessingValue>,
+  bindings: SourceRefBindings = activeSourceBindings(model)
 ): Promise<Record<string, ProcessingValue>> {
-  const targets = Object.entries(bindLabelmaps(model).groups);
+  const targets = Object.entries(bindings.labelmap.groups);
   if (targets.length === 0) return values;
 
   const staged = await Promise.all(
@@ -521,14 +545,17 @@ async function stageLabelmapInputs(
 // `paintStore.activeSegmentGroupID` directly would mislabel the job.
 type SourceRefContext = {
   labelmapGroups: Record<string, string>;
+  types: Record<string, BoundSourceRefType>;
   imageName: string | undefined;
 };
 
 // Resolved once per display pass: each binding re-runs a full field scan and
 // group resolution, so per-field resolution would redo identical work.
 function sourceRefContext(model: TaskFormModel): SourceRefContext {
+  const bindings = activeSourceBindings(model);
   return {
-    labelmapGroups: bindLabelmaps(model).groups,
+    labelmapGroups: bindings.labelmap.groups,
+    types: bindings.types,
     imageName: activeImageName(),
   };
 }
@@ -548,9 +575,10 @@ const sourceRefNames = computed(() => {
   const names: Record<string, string> = {};
   model.fields.forEach((field) => {
     if (field.kind !== 'sourceRef') return;
-    const name = field.accepts.includes(TYPE_TAG_LABELMAP)
-      ? boundLabelmapName(refs, field.id)
-      : refs.imageName;
+    const name =
+      refs.types[field.id] === TYPE_TAG_LABELMAP
+        ? boundLabelmapName(refs, field.id)
+        : refs.imageName;
     if (name) names[field.id] = name;
   });
   return names;
@@ -562,7 +590,7 @@ function formatProcessingValue(
   value: ProcessingValue
 ): string {
   if (field.kind === 'sourceRef') {
-    if (field.accepts.includes(TYPE_TAG_LABELMAP)) {
+    if (refs.types[field.id] === TYPE_TAG_LABELMAP) {
       return boundLabelmapName(refs, field.id) ?? 'bound segment group';
     }
     return refs.imageName ?? 'active dataset';
@@ -634,10 +662,10 @@ watchDebounced(
   () => {
     const model = taskModel.value;
     if (!model) return;
-    const image = activeImageBinding(model);
-    const rebound = applyActiveBindings(model, currentValues.value, image);
+    const bindings = activeSourceBindings(model);
+    const rebound = applyActiveBindings(model, currentValues.value, bindings);
     currentValues.value = rebound;
-    refreshValidation(model, rebound, image);
+    refreshValidation(model, rebound, bindings);
   },
   { deep: true, debounce: 150 }
 );
@@ -647,18 +675,18 @@ watchDebounced(
 let unsubscribe: (() => void) | null = null;
 
 onMounted(() => {
-  unsubscribe = providers.onJobComplete(
-    ({ status, results, context, baseImageMissing }) => {
-      if (status.state === 'success') {
-        autoLoadProcessingResults(
-          results,
-          providers.contextForAutoLoad(context, baseImageMissing)
-        ).catch((err) => {
+  unsubscribe = providers.onJobComplete(({ status, context }) => {
+    if (status.state === 'success' && context) {
+      providers
+        .applyJobResults({
+          providerId: context.providerId,
+          jobId: status.jobId,
+        })
+        .catch((err) => {
           console.error('Failed to auto-load results', err);
         });
-      }
     }
-  );
+  });
 });
 
 onBeforeUnmount(() => {

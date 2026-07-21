@@ -9,6 +9,7 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useModelStore } from '@/src/store/datasets-models';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
+import { Tags } from '@/src/core/dicomTags';
 
 export const DataType = {
   Image: 'Image',
@@ -18,6 +19,75 @@ export const DataType = {
 interface LoadedData {
   dataID: string;
   dataSource: DataSource;
+}
+
+function sourceIdentity(dataSource: DataSource): string | undefined {
+  if (dataSource.type === 'chunk') {
+    const sopInstanceUID = dataSource.chunk.metadata
+      ?.find(([tag]) => tag === Tags.SOPInstanceUID)?.[1]
+      ?.trim();
+    if (sopInstanceUID) return `dicom:${sopInstanceUID}`;
+  }
+
+  if (dataSource.type === 'uri') return `uri:${dataSource.uri}`;
+  if (dataSource.type === 'archive') {
+    const parent = sourceIdentity(dataSource.parent);
+    return parent ? `archive:${parent}:${dataSource.path}` : undefined;
+  }
+  if (dataSource.type === 'file') {
+    if (dataSource.parent) return sourceIdentity(dataSource.parent);
+    const relativePath = dataSource.file.webkitRelativePath || '';
+    return [
+      'file',
+      relativePath,
+      dataSource.file.name,
+      dataSource.file.size,
+      dataSource.file.lastModified,
+      dataSource.file.type,
+    ].join(':');
+  }
+  if (dataSource.parent) return sourceIdentity(dataSource.parent);
+  return undefined;
+}
+
+function mergeCollectionSources(
+  existing: DataSource,
+  incoming: DataSource
+): DataSource {
+  if (existing.type !== 'collection' || incoming.type !== 'collection') {
+    return isRemoteDataSource(incoming) && !isRemoteDataSource(existing)
+      ? incoming
+      : existing;
+  }
+
+  const merged: DataSource[] = [];
+  const indexByIdentity = new Map<string, number>();
+  const seenByReference = new Set<DataSource>();
+
+  [...existing.sources, ...incoming.sources].forEach((source) => {
+    const identity = sourceIdentity(source);
+    if (identity === undefined) {
+      if (!seenByReference.has(source)) {
+        seenByReference.add(source);
+        merged.push(source);
+      }
+      return;
+    }
+
+    const existingIndex = indexByIdentity.get(identity);
+    if (existingIndex === undefined) {
+      indexByIdentity.set(identity, merged.length);
+      merged.push(source);
+      return;
+    }
+
+    const kept = merged[existingIndex];
+    if (isRemoteDataSource(source) && !isRemoteDataSource(kept)) {
+      merged[existingIndex] = source;
+    }
+  });
+
+  return { type: 'collection', sources: merged };
 }
 
 function createIdGenerator() {
@@ -207,21 +277,21 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   function addDataSources(sources: Array<LoadedData>) {
     // Re-importing the same data yields the same dataID (e.g. the same DICOM
-    // series dragged in twice). Keep one provenance entry per dataID — a
-    // duplicate dataset id would abort the next save. A re-import that adds
-    // remote provenance upgrades the kept entry, so a series first opened
-    // from local files becomes server-addressable (job inputs need a URI
-    // ancestor); it never downgrades an already-remote entry.
+    // series dragged in twice). Keep one dataset entry while merging distinct
+    // collection members so incremental imports retain every slice. Duplicate
+    // DICOM instances are keyed by SOP Instance UID, preferring remote
+    // provenance when both local and remote forms are available.
     const byId = new Map(loadedData.value.map((d) => [d.dataID, d]));
     sources.forEach((d) => {
       const existing = byId.get(d.dataID);
-      if (
-        !existing ||
-        (isRemoteDataSource(d.dataSource) &&
-          !isRemoteDataSource(existing.dataSource))
-      ) {
+      if (!existing) {
         byId.set(d.dataID, d);
+        return;
       }
+      byId.set(d.dataID, {
+        dataID: d.dataID,
+        dataSource: mergeCollectionSources(existing.dataSource, d.dataSource),
+      });
     });
     loadedData.value = [...byId.values()];
   }

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { nextTick } from 'vue';
+import { effectScope, nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
@@ -81,6 +81,24 @@ describe('onImageDeleted — fires on image-cache deletion', () => {
     await nextTick();
 
     expect(seen).toEqual([]);
+  });
+
+  it('keeps later subscribers alive when the first scope is disposed', () => {
+    seatImage('img-1', 'CT');
+    const first = effectScope();
+    const second = effectScope();
+    const firstCallback = vi.fn();
+    const secondCallback = vi.fn();
+
+    first.run(() => onImageDeleted(firstCallback));
+    second.run(() => onImageDeleted(secondCallback));
+    first.stop();
+
+    useImageCacheStore().removeImage('img-1');
+
+    expect(firstCallback).not.toHaveBeenCalled();
+    expect(secondCallback).toHaveBeenCalledWith(['img-1']);
+    second.stop();
   });
 });
 

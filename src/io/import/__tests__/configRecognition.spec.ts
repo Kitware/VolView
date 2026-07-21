@@ -8,6 +8,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { recognizeConfig } from '@/src/io/import/configJson';
+// Registers the `processing` config section (a module-evaluation side effect of
+// the feature entry point, mirroring the app's boot-time import).
+import '@/src/processing';
 
 describe('config-by-shape recognition', () => {
   it('recognizes a JSON with only known top-level keys as config', async () => {
@@ -17,7 +20,6 @@ describe('config-by-shape recognition', () => {
     expect(result.kind).toBe('config');
     if (result.kind === 'config') {
       expect(result.config.windowing).toEqual({ level: 40, width: 400 });
-      // No unknown keys to strip.
       expect(result.ignoredKeys).toEqual([]);
     }
   });
@@ -45,11 +47,8 @@ describe('config-by-shape recognition', () => {
     });
     expect(result.kind).toBe('config');
     if (result.kind === 'config') {
-      // Known section is validated + applied...
       expect(result.config.windowing).toEqual({ level: 40, width: 400 });
-      // ...the unknown top-level key is stripped and reported...
       expect(result.ignoredKeys).toEqual(['futureSection']);
-      // ...and never leaks into the parsed config.
       expect('futureSection' in result.config).toBe(false);
     }
   });
@@ -59,7 +58,7 @@ describe('config-by-shape recognition', () => {
     // error — the value trust boundary is unchanged.
     await expect(
       recognizeConfig({
-        windowing: { level: 'not-a-number' }, // malformed known section
+        windowing: { level: 'not-a-number' },
         futureSection: { enabled: true },
       })
     ).rejects.toThrow();
@@ -81,12 +80,10 @@ describe('config-by-shape recognition', () => {
     expect((await recognizeConfig({})).kind).toBe('data');
   });
 
-  // Forward-compat over a mixed JSON: a file carrying a valid `labels` config
-  // subset alongside unknown top-level keys applies the known `labels` section
-  // and strips the unknowns (reported via ignoredKeys). This is the deliberate
-  // forward-compat tradeoff — a top-level known section wins recognition even
-  // amid unknown keys, so any unknown top-level keys are stripped, not the whole
-  // config dropped.
+  // A mesh-shaped JSON carrying a `labels` key is classified as config. This is
+  // the deliberate forward-compat tradeoff: a known top-level section wins
+  // recognition even amid unknown keys, so the unknown keys are stripped rather
+  // than the whole config being dropped.
   it('mixed JSON: applies the known section and strips the unknown top-level keys', async () => {
     const result = await recognizeConfig({
       labels: { defaultLabels: { tumor: { color: '#ff0000' } } },
@@ -124,7 +121,6 @@ describe('config-by-shape recognition', () => {
     });
     expect(result.kind).toBe('config');
     if (result.kind === 'config') {
-      // The smuggled allow-list is stripped, not carried into the config.
       expect(result.ignoredKeys).toEqual(['allowedOrigins']);
       expect('allowedOrigins' in result.config).toBe(false);
     }

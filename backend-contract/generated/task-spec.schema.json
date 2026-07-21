@@ -1,4 +1,5 @@
 {
+  "$comment": "Structural validation only. Implement backend-contract validateTaskSpecSemantics after this schema and reject every fixtures/negative payload.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
@@ -8,7 +9,16 @@
       "maximum": 9007199254740991
     },
     "id": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        {
+          "pattern": "^(?!\\.{1,2}$)"
+        },
+        {
+          "pattern": "\\S"
+        }
+      ]
     },
     "title": {
       "type": "string"
@@ -28,7 +38,8 @@
                 "const": "int"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -83,7 +94,8 @@
                 "const": "float"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -130,7 +142,8 @@
                 "const": "string"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -168,7 +181,8 @@
                 "const": "bool"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -206,7 +220,8 @@
                 "const": "enum"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -266,7 +281,8 @@
                 "const": "sourceRef"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -309,7 +325,8 @@
                 "const": "bounds"
               },
               "id": {
-                "type": "string"
+                "type": "string",
+                "pattern": "\\S"
               },
               "title": {
                 "type": "string"
@@ -370,7 +387,8 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "pattern": "\\S"
           },
           "title": {
             "type": "string"

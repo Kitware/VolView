@@ -12,10 +12,10 @@
 
     <template v-if="parameterFields.length > 0">
       <div v-for="field in parameterFields" :key="field.id" class="mb-3">
-        <div class="field-label">{{ fieldLabel(field) }}</div>
         <component
           :is="widgetFor(field.kind)"
           :param="field"
+          :label="fieldLabel(field)"
           :model-value="values[field.id] as never"
           @update:model-value="(v: ProcessingValue) => update(field.id, v)"
           @update:error="(err: string | null) => setWidgetError(field.id, err)"
@@ -30,6 +30,7 @@
           :model-value="values[field.id] as never"
           :binding="sourceRefStates?.[field.id]"
           :bound-name="sourceRefNames?.[field.id]"
+          :bound-type="sourceRefTypes?.[field.id]"
           @update:model-value="(v: ProcessingValue) => update(field.id, v)"
         />
       </div>
@@ -85,6 +86,7 @@ import {
   type FormValidationIssue,
 } from '@/src/processing/engine/formModel';
 import type { SourceRefBindingState } from '@/src/processing/engine/mintInput';
+import type { BoundSourceRefType } from '@/src/processing/engine/sourceRefs';
 
 import BooleanWidget from './widgets/BooleanWidget.vue';
 import NumberWidget from './widgets/NumberWidget.vue';
@@ -100,6 +102,7 @@ const props = defineProps<{
   issues: FormValidationIssue[];
   sourceRefStates?: Record<string, SourceRefBindingState>;
   sourceRefNames?: Record<string, string>;
+  sourceRefTypes?: Record<string, BoundSourceRefType>;
   submitting?: boolean;
 }>();
 const emit = defineEmits<{
@@ -177,11 +180,5 @@ function widgetFor(kind: FormField['kind']) {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.field-label {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  margin-bottom: 6px;
 }
 </style>

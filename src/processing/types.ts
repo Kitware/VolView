@@ -106,7 +106,7 @@ export type ProcessingResult = {
   mimeType?: string;
   size?: number;
   segments?: SegmentDescriptor[];
-  // Display provenance only; nothing keys dedup or attach semantics off it.
+  // Durable idempotency key for segment-group result application.
   source?: ResultSource;
 };
 

@@ -23,6 +23,7 @@ import {
 } from '@/src/processing/types';
 import type { TrackedJobHistorySummary } from '@/src/processing/engine/jobHistory';
 import { selectJobHistoryRows } from '@/src/processing/engine/jobHistory';
+import { autoLoadProcessingResults } from '@/src/processing/applyResults';
 import { useMessageStore } from '@/src/store/messages';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ensureError, getErrorDetail, plural } from '@/src/utils';
@@ -30,6 +31,7 @@ import { ensureError, getErrorDetail, plural } from '@/src/utils';
 export const POLL_INTERVAL_MS = 2000;
 export const MAX_POLL_RETRIES = 4;
 export const MAX_POLL_BACKOFF_MS = 30000;
+export const MAX_JOB_HISTORY_PAGES = 1000;
 
 const completionReady = (status: ProcessingJobStatus): boolean =>
   isTerminalJobState(status.state);
@@ -48,6 +50,7 @@ const classifyError = (err: unknown): PollErrorKind => {
   // that request, never the whole session.
   if (status === 401) return 'session-expired';
   if (status === 404 || status === 410) return 'resource-gone';
+  if (status === 429) return 'transient';
   if (typeof status === 'number' && status >= 400 && status < 500)
     return 'permanent';
   // No HTTP status means the fetch itself rejected: offline, DNS, or CORS.
@@ -105,8 +108,12 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   const submittedContexts = reactive(new Map<string, SubmittedJobContext>());
   const jobResults = reactive(new Map<string, ProcessingResult[]>());
   const jobResultMissing = reactive(new Map<string, number>());
+  const jobResultsApplied = reactive(new Set<string>());
+  const jobResultApplicationFailures = reactive(new Map<string, Set<string>>());
+  const jobResultApplications = reactive(new Map<string, Promise<void>>());
   const pollTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const pollRetries = new Map<string, number>();
+  const resultFetchRetries = new Map<string, number>();
 
   // Generation guards stop a late response from resurrecting a deleted job.
   let generationCounter = 0;
@@ -180,6 +187,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     submittedContexts,
     jobResults,
     jobResultMissing,
+    jobResultsApplied,
+    jobResultApplicationFailures,
     jobGenerations,
     terminalCompletions,
     firedCompletions,
@@ -274,6 +283,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     if (timer) clearTimeout(timer);
     pollTimers.delete(key);
     pollRetries.delete(key);
+    resultFetchRetries.delete(key);
     // The polling epoch is over: advance the generation so a late getJob
     // continuation drops instead of re-recording over the terminal status.
     if (jobGenerations.has(key)) mintGeneration(key);
@@ -290,6 +300,21 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const existing = pollTimers.get(key);
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => pollOnce(provider, jobId), delay);
+    pollTimers.set(key, timer);
+  }
+
+  function scheduleResultFetchRetry(
+    provider: ProcessingProvider,
+    status: ProcessingJobStatus,
+    delay: number
+  ) {
+    const key = jobKey({ providerId: provider.config.id, jobId: status.jobId });
+    const existing = pollTimers.get(key);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      pollTimers.delete(key);
+      void fireCompletion(provider, status);
+    }, delay);
     pollTimers.set(key, timer);
   }
 
@@ -432,15 +457,17 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   // Order-insensitive: a re-loaded dataset's provenance walk need not enumerate
   // in submit order.
   function sameUriSet(a: string[], b: ReadonlySet<string>): boolean {
-    return a.length === b.size && a.every((uri) => b.has(uri));
+    const unique = new Set(a);
+    return unique.size === b.size && a.every((uri) => b.has(uri));
   }
 
   function datasetIdForUris(uris: string[]): string | undefined {
     const datasets = useDatasetStore();
     const wanted = new Set(uris);
-    return datasets.idsAsSelections.find((id) =>
+    const matches = datasets.idsAsSelections.filter((id) =>
       sameUriSet(collectProvenanceUris(datasets.getDataSource(id)), wanted)
     );
+    return matches.length === 1 ? matches[0] : undefined;
   }
 
   async function reconstructAdoptedParentId(
@@ -538,14 +565,28 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         );
       } catch (err) {
         if (expireSessionIf(err)) return;
-        // Deleted mid-fetch: recreating the job as an error row would resurrect
-        // it.
         if (!isCurrent(key, gen)) return;
-        const errored = failJob(jobRef, err, 'failed to fetch job results');
-        deliverCompletion(jobRef, { status: errored, results: [], context });
+        const kind = classifyError(err);
+        if (kind === 'transient') {
+          const attempts = (resultFetchRetries.get(key) ?? 0) + 1;
+          if (attempts <= MAX_POLL_RETRIES) {
+            resultFetchRetries.set(key, attempts);
+            scheduleResultFetchRetry(
+              provider,
+              status,
+              Math.min(POLL_INTERVAL_MS * 2 ** attempts, MAX_POLL_BACKOFF_MS)
+            );
+            return;
+          }
+        }
+        resultFetchRetries.delete(key);
+        useMessageStore().addError('Failed to fetch job results', {
+          error: ensureError(err),
+        });
         return;
       }
       if (recorded == null) return;
+      resultFetchRetries.delete(key);
       const { results } = recorded;
       context = recorded.context;
 
@@ -659,6 +700,9 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
 
   async function deleteJob(jobRef: TrackedJobRef) {
     const key = jobKey(jobRef);
+    // Result application mutates the scene and cannot be cancelled midway.
+    // Serialize deletion behind it so the scene never changes after deletion.
+    await jobResultApplications.get(key)?.catch(() => {});
     const context = submittedContexts.get(key);
     if (!context) return;
     // stopPolling re-mints the generation rather than removing it, which keeps
@@ -697,6 +741,70 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         error: ensureError(err),
       });
     }
+  }
+
+  function recordJobResultApplication(
+    jobRef: TrackedJobRef,
+    failedResultIds: string[]
+  ) {
+    const key = jobKey(jobRef);
+    if (!submittedContexts.has(key)) return;
+    if (failedResultIds.length === 0) {
+      jobResultsApplied.add(key);
+      jobResultApplicationFailures.delete(key);
+      return;
+    }
+    jobResultsApplied.delete(key);
+    jobResultApplicationFailures.set(key, new Set(failedResultIds));
+  }
+
+  function resultsPendingApplication(
+    jobRef: TrackedJobRef
+  ): ProcessingResult[] {
+    const key = jobKey(jobRef);
+    if (jobResultsApplied.has(key)) return [];
+    const results = jobResults.get(key) ?? [];
+    const failures = jobResultApplicationFailures.get(key);
+    return failures
+      ? results.filter((result) => failures.has(result.id))
+      : results;
+  }
+
+  function applyJobResults(jobRef: TrackedJobRef): Promise<void> {
+    const key = jobKey(jobRef);
+    const existing = jobResultApplications.get(key);
+    if (existing) return existing;
+
+    const gen = jobGenerations.get(key);
+    if (
+      gen === undefined ||
+      !submittedContexts.has(key) ||
+      !jobResults.has(key)
+    )
+      return Promise.resolve();
+
+    // Start on the next microtask so the promise is registered before any
+    // result loader can yield and admit a second caller.
+    const application = Promise.resolve().then(async () => {
+      if (!isCurrent(key, gen)) return;
+      const context = contextForAutoLoad(submittedContexts.get(key));
+      const pending = resultsPendingApplication(jobRef);
+      const { failedResultIds } = await autoLoadProcessingResults(
+        pending,
+        context
+      );
+      if (!isCurrent(key, gen)) return;
+      recordJobResultApplication(jobRef, failedResultIds);
+    });
+    jobResultApplications.set(key, application);
+
+    const cleanup = () => {
+      if (jobResultApplications.get(key) === application) {
+        jobResultApplications.delete(key);
+      }
+    };
+    void application.then(cleanup, cleanup);
+    return application;
   }
 
   async function loadJobHistoryDetail(jobRef: TrackedJobRef) {
@@ -756,8 +864,9 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     try {
       status = await provider.getJob(summary.jobId);
     } catch (err) {
-      expireSessionIf(err);
-      return; // never fabricate a state for a re-discovered job
+      if (!isCurrent(key, gen)) return;
+      handlePollError(provider, summary.jobId, err);
+      return;
     }
     if (!isCurrent(key, gen)) return;
     recordJob(providerId, status);
@@ -783,13 +892,22 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const cursor = jobHistoryCursors.get(providerId) ?? undefined;
     try {
       const page = await provider.listJobHistory(cursor);
-      jobHistoryCursors.set(providerId, page.nextCursor);
-      jobHistoryErrors.delete(providerId);
+      const stalled = page.nextCursor !== null && page.nextCursor === cursor;
+      if (!stalled) {
+        jobHistoryCursors.set(providerId, page.nextCursor);
+        jobHistoryErrors.delete(providerId);
+      }
       await Promise.all(
         page.jobs.map((summary) =>
           adoptDiscoveredJob(provider, providerId, summary)
         )
       );
+      if (stalled) {
+        jobHistoryErrors.set(
+          providerId,
+          'Job history pagination did not advance'
+        );
+      }
     } catch (err) {
       console.error('Job re-discovery failed', err);
       jobHistoryErrors.set(
@@ -822,9 +940,30 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
 
   // The leading fetch doubles as the retry after an error.
   async function loadAllJobHistory() {
+    let pageCount = 0;
     do {
       await loadMoreJobHistory();
-    } while (!jobHistoryComplete.value && jobHistoryError.value == null);
+      pageCount += 1;
+    } while (
+      pageCount < MAX_JOB_HISTORY_PAGES &&
+      !jobHistoryComplete.value &&
+      jobHistoryError.value == null
+    );
+
+    if (
+      pageCount >= MAX_JOB_HISTORY_PAGES &&
+      !jobHistoryComplete.value &&
+      jobHistoryError.value == null
+    ) {
+      Array.from(configs.keys())
+        .filter((providerId) => jobHistoryCursors.get(providerId) !== null)
+        .forEach((providerId) =>
+          jobHistoryErrors.set(
+            providerId,
+            `Job history exceeded ${MAX_JOB_HISTORY_PAGES} pages`
+          )
+        );
+    }
   }
 
   async function adoptJobHistory() {
@@ -846,6 +985,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     jobHistoryError,
     jobResults,
     jobResultMissing,
+    jobResultsApplied,
+    jobResultApplications,
     submittedContexts,
     sessionExpired,
 
@@ -858,6 +999,9 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     cancelJob,
     deleteJob,
     loadJobResults,
+    applyJobResults,
+    recordJobResultApplication,
+    resultsPendingApplication,
     loadJobHistoryDetail,
     contextForAutoLoad,
     onJobComplete,

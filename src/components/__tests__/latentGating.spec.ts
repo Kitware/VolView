@@ -13,7 +13,7 @@ vi.mock('@/src/processing/components/JobsModule.vue', () => ({
 }));
 
 // Observe remote-save egress without a network round-trip or the heavy
-// serialize path — both are mocked at the module seam.
+// serialize path.
 vi.mock('@/src/utils/fetch', () => ({
   $fetch: vi.fn().mockResolvedValue({ ok: true }),
 }));
@@ -26,6 +26,7 @@ vi.mock('@/src/io/state-file/serialize', () => ({
 import ModulePanel from '@/src/components/ModulePanel.vue';
 import { useProcessingJobsStore } from '@/src/processing';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
+import { ConnectionState, useServerStore } from '@/src/store/server';
 import { $fetch } from '@/src/utils/fetch';
 import type { ProcessingProviderConfig } from '@/src/processing';
 
@@ -82,6 +83,29 @@ describe('Jobs tab is latent — gated on provider presence', () => {
     await flushPromises();
 
     expect(moduleNames(wrapper)).toContain('Jobs');
+  });
+
+  it('keeps the selected module when the Jobs tab is inserted before it', async () => {
+    const server = useServerStore();
+    server.setUrl('http://localhost:9999');
+    server.connState = ConnectionState.Connected;
+    wrapper = mountModulePanel();
+    await flushPromises();
+
+    const vm = wrapper.vm as unknown as { selectedModule: string };
+    vm.selectedModule = 'Remote';
+
+    useProcessingJobsStore().registerProviderConfig(sampleProvider);
+    await flushPromises();
+
+    expect(moduleNames(wrapper)).toEqual([
+      'Data',
+      'Annotations',
+      'Rendering',
+      'Jobs',
+      'Remote',
+    ]);
+    expect(vm.selectedModule).toBe('Remote');
   });
 });
 

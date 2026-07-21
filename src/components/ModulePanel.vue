@@ -3,7 +3,7 @@
     <div id="module-switcher">
       <v-tabs
         id="module-switcher-tabs"
-        v-model="selectedModuleIndex"
+        v-model="selectedModule"
         grow
         icons-and-text
         show-arrows
@@ -11,6 +11,7 @@
         <v-tab
           v-for="item in modules"
           :key="item.name"
+          :value="item.name"
           :data-testid="`module-tab-${item.name}`"
           :disabled="item.disabled"
         >
@@ -22,15 +23,16 @@
       </v-tabs>
     </div>
     <div id="module-container">
-      <v-window v-model="selectedModuleIndex" touchless class="module-window">
+      <v-window v-model="selectedModule" touchless class="module-window">
         <v-window-item
           v-for="mod in modules"
           :key="mod.name"
+          :value="mod.name"
           class="module-window-item"
         >
           <component
             :key="mod.name"
-            v-show="modules[selectedModuleIndex] === mod"
+            v-show="selectedModule === mod.name"
             :is="mod.component"
           />
         </v-window-item>
@@ -95,14 +97,14 @@ export default defineComponent({
   name: 'ModulePanel',
   components: { ProbeView },
   setup() {
-    const selectedModuleIndex = ref(0);
+    const selectedModule = ref(CoreModules[0].name);
 
     const toolStore = useToolStore();
     watch(
       () => toolStore.currentTool,
       (newTool) => {
         if (autoSwitchToAnnotationsTools.includes(newTool))
-          selectedModuleIndex.value = 1;
+          selectedModule.value = 'Annotations';
       }
     );
 
@@ -139,8 +141,23 @@ export default defineComponent({
       });
     });
 
+    watch(
+      modules,
+      (available) => {
+        const selected = available.find(
+          (item) => item.name === selectedModule.value
+        );
+        if (!selected || selected.disabled) {
+          selectedModule.value =
+            available.find((item) => !item.disabled)?.name ??
+            CoreModules[0].name;
+        }
+      },
+      { immediate: true }
+    );
+
     return {
-      selectedModuleIndex,
+      selectedModule,
       modules,
     };
   },

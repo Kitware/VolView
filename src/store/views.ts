@@ -12,6 +12,44 @@ import {
 } from '@/src/utils/layoutParsing';
 import type { Manifest, StateFile } from '../io/state-file/schema';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
+import { isRecord } from '@/src/utils';
+
+// The manifest references this store's remove cascade keeps clean (see the
+// onImageDeleted registration below), declared for the dev-only save backstop.
+declareManifestRefs('views', (manifest) => {
+  const views = isRecord(manifest.viewByID) ? manifest.viewByID : {};
+  return [
+    ...Object.entries(views).flatMap(([id, raw]) =>
+      isRecord(raw) && typeof raw.dataID === 'string'
+        ? [
+            {
+              kind: 'dataset' as const,
+              id: raw.dataID,
+              where: `viewByID[${id}].dataID`,
+            },
+          ]
+        : []
+    ),
+    ...(typeof manifest.activeView === 'string'
+      ? [
+          {
+            kind: 'view' as const,
+            id: manifest.activeView,
+            where: 'activeView',
+          },
+        ]
+      : []),
+    ...(Array.isArray(manifest.layoutSlots)
+      ? manifest.layoutSlots
+      : []
+    ).flatMap((id) =>
+      typeof id === 'string'
+        ? [{ kind: 'view' as const, id, where: 'layoutSlots' }]
+        : []
+    ),
+  ];
+});
 
 const DEFAULT_VIEW_INIT: ViewInfoInit = {
   type: '2D',
@@ -370,9 +408,6 @@ export const useViewStore = defineStore('view', () => {
     applyDisabledViewTypesFilter();
   });
 
-  // Delete-base cleanup: a removed dataset must not linger as a view's `dataID`
-  // (an orphaned binding the next save manifest would carry). Mirrors the
-  // segment-group / annotation-tool cascade.
   onImageDeleted((deletedIDs) => {
     deletedIDs.forEach((id) => removeDataFromViews(id));
   });

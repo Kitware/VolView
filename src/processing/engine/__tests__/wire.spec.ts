@@ -125,6 +125,8 @@ describe('parseJobRef', () => {
   it.each([
     ['a missing job id', { status: { state: 'success' } }],
     ['an empty job id', { jobId: '' }],
+    ['a current-directory job id', { jobId: '.' }],
+    ['a parent-directory job id', { jobId: '..' }],
     ['a non-string job id', { jobId: 42 }],
   ])('throws on a ref with %s', (_label, input) => {
     expect(() => parseJobRef(input)).toThrow(/Malformed job ref/);

@@ -37,6 +37,16 @@ export const sliderConfig = (f: FormField) =>
     ? { min: f.min, max: f.max, step: f.step }
     : null;
 
+export const isStepAligned = (
+  value: number,
+  step: number,
+  base = 0
+): boolean => {
+  const offset = (value - base) / step;
+  const tolerance = Number.EPSILON * 16 * Math.max(1, Math.abs(offset));
+  return Math.abs(offset - Math.round(offset)) <= tolerance;
+};
+
 const isEmpty = (v: ProcessingValue | undefined): boolean =>
   v === null ||
   v === undefined ||
@@ -136,6 +146,12 @@ export const validateFormValues = (
       return;
     }
     if ((f.kind === 'int' || f.kind === 'float') && typeof v === 'number') {
+      if (f.kind === 'int' && !Number.isInteger(v)) {
+        issues.push({
+          parameter: f.id,
+          message: `${fieldLabel(f)} must be a whole number`,
+        });
+      }
       if (f.min != null && v < f.min) {
         issues.push({
           parameter: f.id,
@@ -146,6 +162,13 @@ export const validateFormValues = (
         issues.push({
           parameter: f.id,
           message: `${fieldLabel(f)} must be ≤ ${f.max}`,
+        });
+      }
+      if (f.step != null && !isStepAligned(v, f.step, f.min ?? 0)) {
+        const from = f.min != null ? ` from ${f.min}` : '';
+        issues.push({
+          parameter: f.id,
+          message: `${fieldLabel(f)} must be in steps of ${f.step}${from}`,
         });
       }
     }

@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
+import {
+  restoreStateFile,
+  resolveArtifactRestoreSources,
+} from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -17,9 +20,10 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 // Both loadables then write the SAME `stateIDToStoreID` key and the winner is
 // leaf completion order: the restore either builds the labelmap from the
 // base's voxels and DELETES the base, or parents the group on the temp
-// dataset it is about to remove. The fix namespaces synthesized leaf ids so
-// the collision is impossible by construction, while scene-recorded dataset
-// ids stay verbatim (existing saved scenes restore unchanged).
+// dataset it is about to remove. Synthesized leaf ids therefore live in their
+// own namespace, making the collision impossible by construction, while
+// scene-recorded dataset ids stay verbatim (existing saved scenes restore
+// unchanged).
 // ---------------------------------------------------------------------------
 
 // `writeSegmentation` spawns a real Worker; keep the IO module out of the test.
@@ -164,7 +168,8 @@ describe('restore stateID namespaces (collision)', () => {
       const { segmentGroupIDMap: idMap } = await store.deserialize(
         setup.manifest,
         [],
-        stateIDToStoreID
+        stateIDToStoreID,
+        resolveArtifactRestoreSources(setup.manifest)
       );
 
       // The group attached, parented on the BASE dataset's store id.
@@ -191,7 +196,7 @@ describe('restore stateID namespaces (collision)', () => {
     // Those keys must keep working with no prefix (wire compat with every
     // existing saved scene).
     seatImage(BASE_STORE_ID, 'CT Chest', 0);
-    ioMocks.readImage.mockResolvedValue(makeImage(7));
+    ioMocks.readImage.mockResolvedValue({ image: makeImage(7) });
 
     const setup = await prepareLeaves({
       version: '6.4.0',
@@ -215,7 +220,8 @@ describe('restore stateID namespaces (collision)', () => {
           file: new File([''], 'Tumor.seg.nrrd'),
         },
       ],
-      { '2': BASE_STORE_ID }
+      { '2': BASE_STORE_ID },
+      resolveArtifactRestoreSources(setup.manifest)
     );
 
     const groupId = idMap['sg-tumor'];

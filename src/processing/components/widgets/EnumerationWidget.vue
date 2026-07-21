@@ -1,6 +1,7 @@
 <template>
   <v-select
     :model-value="modelValue ?? null"
+    :label="label"
     :items="items"
     :hint="param.help"
     variant="outlined"
@@ -18,6 +19,7 @@ import type { VolViewTaskParameter } from '@/backend-contract';
 const props = defineProps<{
   param: VolViewTaskParameter;
   modelValue: string | number | null | undefined;
+  label?: string;
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string | number | null): void;

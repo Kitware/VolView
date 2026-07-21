@@ -4,6 +4,7 @@ import {
   jobHistoryPageSchema,
   jobHistoryDetailSchema,
   jobResultsSchema,
+  pathSegmentIdSchema,
   type JobHistoryPage,
   type JobHistoryDetail,
 } from '@/backend-contract';
@@ -15,13 +16,13 @@ import type {
 } from '@/src/processing/types';
 
 const jobStatusSchema = neutralJobStatusSchema.and(
-  z.object({ jobId: z.string().min(1) }).passthrough()
+  z.object({ jobId: pathSegmentIdSchema }).passthrough()
 ) satisfies z.ZodType<ProcessingJobStatus>;
 
 // The initial status is validated separately so a malformed born-terminal
 // status becomes a terminal error instead of failing the whole ref.
 const jobRefEnvelopeSchema = z.object({
-  jobId: z.string().min(1),
+  jobId: pathSegmentIdSchema,
   status: z.unknown().optional(),
 });
 

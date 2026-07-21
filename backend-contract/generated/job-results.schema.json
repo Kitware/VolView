@@ -202,6 +202,9 @@
                   "source": {
                     "type": "object",
                     "properties": {
+                      "providerId": {
+                        "type": "string"
+                      },
                       "jobId": {
                         "type": "string"
                       },
@@ -210,6 +213,7 @@
                       }
                     },
                     "required": [
+                      "providerId",
                       "jobId",
                       "outputId"
                     ],

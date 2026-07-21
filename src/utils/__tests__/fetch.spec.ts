@@ -47,9 +47,7 @@ describe('$fetch global-header merging', () => {
     });
     await $fetch(request, { headers: { 'X-Foo': 'from-init' } });
     const headers = capturedHeaders();
-    // RequestInit.headers wins over the Request's own headers.
     expect(headers.get('X-Foo')).toBe('from-init');
-    // The Request's Authorization overrides the global bearer.
     expect(headers.get('Authorization')).toBe('Bearer request');
   });
 });

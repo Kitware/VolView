@@ -7,7 +7,10 @@ import { leafStateId } from '@/src/io/import/dataSource';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import {
+  completeStateFileRestore,
+  resolveArtifactRestoreSources,
+} from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
 
 // ---------------------------------------------------------------------------
@@ -99,6 +102,21 @@ function makeEmptyScalarsImage() {
   return image;
 }
 
+// Mirrors production: the restore setup resolves each group's artifact state
+// source from the manifest (resolveArtifactRestoreSources, the single-owner
+// policy) and hands it to deserialize alongside the dataIDMap.
+const restoreGroups = (
+  manifest: Manifest,
+  stateFiles: { archivePath: string; file: File }[],
+  dataIDMap: Record<string, string>
+) =>
+  useSegmentGroupStore().deserialize(
+    manifest,
+    stateFiles,
+    dataIDMap,
+    resolveArtifactRestoreSources(manifest)
+  );
+
 describe('segmentGroups.deserialize — resilient restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -112,8 +130,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     seatImage('store-ct', 'CT Chest');
     seatImage('store-liver', 'Liver.seg.nrrd');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
       manifestWith([
         group('sg-tumor', { dataSourceId: 3 }),
         group('sg-liver', { dataSourceId: 4 }),
@@ -123,9 +140,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     );
 
     expect(idMap['sg-tumor']).toBeUndefined();
-    // The survivor still attaches.
     expect(idMap['sg-liver']).toBeDefined();
-    // The drop is reported with a concrete reason, not silent.
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'artifact source unavailable' },
     ]);
@@ -134,16 +149,14 @@ describe('segmentGroups.deserialize — resilient restore', () => {
   it('skips a group whose parent base never resolved', async () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
       manifestWith([group('sg-tumor', { dataSourceId: 3 }, 'ds-missing')]),
       [],
       { [leafStateId(3)]: 'store-seg' }
     );
 
     expect(idMap).toEqual({});
-    expect(Object.keys(store.metadataByID)).toEqual([]);
-    // Reported with the unresolved-parent reason.
+    expect(Object.keys(useSegmentGroupStore().metadataByID)).toEqual([]);
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'parent image did not load' },
     ]);
@@ -154,8 +167,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     seatImage('store-liver', 'Liver.seg.nrrd');
     ioMocks.readImage.mockRejectedValue(new Error('corrupt bytes'));
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
       manifestWith([
         group('sg-tumor', { path: 'segmentations/Tumor.seg.nrrd' }),
         group('sg-liver', { dataSourceId: 4 }),
@@ -171,7 +183,6 @@ describe('segmentGroups.deserialize — resilient restore', () => {
 
     expect(idMap['sg-tumor']).toBeUndefined();
     expect(idMap['sg-liver']).toBeDefined();
-    // The read failure is reported with the parse/read reason.
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'could not read/parse labelmap' },
     ]);
@@ -189,7 +200,6 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     const warning = useMessageStore().messages.find(
       (message) => message.title === 'Some scene content could not be restored'
     );
-    // The notice names the group AND why it was left out.
     expect(warning?.options.details).toContain(
       'segment group: sg-tumor (artifact source unavailable)'
     );
@@ -210,16 +220,13 @@ describe('segmentGroups.deserialize — resilient restore', () => {
       { 'ds-ct': 'store-ct', [leafStateId(4)]: 'store-liver' }
     );
 
-    // Survivor attaches...
     expect(
       Object.values(store.metadataByID).some((m) => m.name === 'sg-liver')
     ).toBe(true);
-    // ...and the dropped group is not restored.
     expect(
       Object.values(store.metadataByID).some((m) => m.name === 'sg-tumor')
     ).toBe(false);
 
-    // ...and the user is told WHY the tumor group was left out.
     const warning = useMessageStore().messages.find(
       (message) => message.title === 'Some scene content could not be restored'
     );
@@ -229,7 +236,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Temporary artifact cleanup (P-08): a path-less group's imported artifact
+  // Temporary artifact cleanup: a path-less group's imported artifact
   // dataset must be removed exactly once, whether the restore succeeds or fails.
   // -------------------------------------------------------------------------
 
@@ -244,8 +251,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     );
     expect(useImageCacheStore().imageById).toHaveProperty('store-tumor');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
       manifestWith([group('sg-tumor', { dataSourceId: 3 })]),
       [],
       { 'ds-ct': 'store-ct', [leafStateId(3)]: 'store-tumor' }
@@ -255,7 +261,6 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'could not read/parse labelmap' },
     ]);
-    // Before P-08 the failure path leaked the artifact; now it is cleaned up.
     expect(useImageCacheStore().imageById).not.toHaveProperty('store-tumor');
   });
 
@@ -264,15 +269,13 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     seatImage('store-tumor', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap } = await store.deserialize(
+    const { segmentGroupIDMap: idMap } = await restoreGroups(
       manifestWith([group('sg-tumor', { dataSourceId: 3 })]),
       [],
       { 'ds-ct': 'store-ct', [leafStateId(3)]: 'store-tumor' }
     );
 
     expect(idMap['sg-tumor']).toBeDefined();
-    // Exactly one cleanup call for the failed group.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-tumor');
     expect(useImageCacheStore().imageById).not.toHaveProperty('store-tumor');
@@ -289,8 +292,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     seatImage('store-tumor', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
       manifestWith([
         group('sg-a', { dataSourceId: 3 }),
         group('sg-b', { dataSourceId: 3 }),
@@ -302,7 +304,6 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     expect(idMap['sg-a']).toBeDefined();
     expect(idMap['sg-b']).toBeDefined();
     expect(skipped).toEqual([]);
-    // The shared temp dataset is removed exactly once, after both groups read it.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-tumor');
     expect(useImageCacheStore().imageById).not.toHaveProperty('store-tumor');
@@ -316,8 +317,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
       manifestWith([group('sg-tumor', { dataSourceId: 3 }, 'ds-missing')]),
       [],
       { [leafStateId(3)]: 'store-seg' }
@@ -335,11 +335,10 @@ describe('segmentGroups.deserialize — resilient restore', () => {
   it('does not remove any dataset for an archive-backed (path) group', async () => {
     seatImage('store-ct', 'CT Chest');
     seatImage('bystander', 'Unrelated');
-    ioMocks.readImage.mockResolvedValue(makeImage());
+    ioMocks.readImage.mockResolvedValue({ image: makeImage() });
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap } = await store.deserialize(
+    const { segmentGroupIDMap: idMap } = await restoreGroups(
       manifestWith([
         group('sg-tumor', { path: 'segmentations/Tumor.seg.nrrd' }),
       ]),
@@ -356,5 +355,22 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     // Archive-backed groups own no temp artifact — nothing must be removed.
     expect(removeSpy).not.toHaveBeenCalled();
     expect(useImageCacheStore().imageById).toHaveProperty('bystander');
+  });
+
+  it('does not remove an explicit dataset shared with a path-less group', async () => {
+    seatImage('store-ct', 'CT Chest');
+    const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
+    const manifest = manifestWith([group('sg-shared', { dataSourceId: 1 })]);
+
+    const { segmentGroupIDMap: idMap, skipped } = await restoreGroups(
+      manifest,
+      [],
+      { 'ds-ct': 'store-ct' }
+    );
+
+    expect(idMap['sg-shared']).toBeDefined();
+    expect(skipped).toEqual([]);
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(useImageCacheStore().imageById).toHaveProperty('store-ct');
   });
 });

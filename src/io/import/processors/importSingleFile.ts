@@ -22,12 +22,13 @@ const importSingleFile: ImportHandler = async (dataSource) => {
   }
 
   const reader = FILE_READERS.get(dataSource.fileType)!;
-  const dataObject = await reader(dataSource.file);
+  const { dataObject, headerMetadata } = await reader(dataSource.file);
 
   if (dataObject.isA('vtkImageData')) {
     const dataID = useImageStore().addVTKImageData(
       dataSource.file.name,
-      dataObject as vtkImageData
+      dataObject as vtkImageData,
+      { headerMetadata }
     );
 
     return asLoadableResult(dataID, dataSource, 'image');

@@ -71,7 +71,7 @@ type JobsVm = {
   loadingTask: boolean;
 };
 
-describe('JobsModule — P-06 race-free provider/task selection', () => {
+describe('JobsModule — race-free provider/task selection', () => {
   let pinia: ReturnType<typeof createPinia>;
 
   beforeEach(() => {
@@ -277,5 +277,54 @@ describe('JobsModule — P-06 race-free provider/task selection', () => {
     expect(vm.loadingTask).toBe(false);
     expect(vm.taskError).toBeNull();
     expect(vm.taskModel?.id).toBe('y');
+  });
+
+  it('retries provider task discovery after a load failure', async () => {
+    const p = makeProvider('P');
+    p.listTasks = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('provider unavailable'))
+      .mockResolvedValueOnce([{ id: 'x', title: 'X' }]);
+    p.getTaskSpec = vi.fn().mockResolvedValue(envelope('x', 'X'));
+
+    const store = useProcessingJobsStore();
+    registerFake(store, p);
+    const wrapper = mount();
+    await flushPromises();
+
+    const vm = wrapper.vm as unknown as JobsVm;
+    expect(vm.providerError).toContain('provider unavailable');
+
+    await wrapper.get('[data-testid="retry-provider"]').trigger('click');
+    await flushPromises();
+
+    expect(p.listTasks).toHaveBeenCalledTimes(2);
+    expect(vm.providerError).toBeNull();
+    expect(vm.tasks).toEqual([{ id: 'x', title: 'X' }]);
+  });
+
+  it('retries a failed task spec without reloading the provider', async () => {
+    const p = makeProvider('P');
+    p.listTasks = vi.fn().mockResolvedValue([{ id: 'x', title: 'X' }]);
+    p.getTaskSpec = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('spec unavailable'))
+      .mockResolvedValueOnce(envelope('x', 'X'));
+
+    const store = useProcessingJobsStore();
+    registerFake(store, p);
+    const wrapper = mount();
+    await flushPromises();
+
+    const vm = wrapper.vm as unknown as JobsVm;
+    expect(vm.taskError).toContain('spec unavailable');
+
+    await wrapper.get('[data-testid="retry-task"]').trigger('click');
+    await flushPromises();
+
+    expect(p.listTasks).toHaveBeenCalledTimes(1);
+    expect(p.getTaskSpec).toHaveBeenCalledTimes(2);
+    expect(vm.taskError).toBeNull();
+    expect(vm.taskModel?.id).toBe('x');
   });
 });

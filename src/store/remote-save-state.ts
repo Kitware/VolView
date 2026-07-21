@@ -1,27 +1,10 @@
+import { isOriginAllowed } from '@/src/io/originGate';
 import { serialize } from '@/src/io/state-file/serialize';
 import { useMessageStore } from '@/src/store/messages';
 import { $fetch } from '@/src/utils/fetch';
+import { repointLaunchUrls } from '@/src/utils/urlParams';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-
-// On a successful save the backend returns a single field, `resumeUrl` — the
-// saved session's load URL. The client repoints ONLY the tab's `urls=` at it
-// (so a future F5 reloads the just-made save instead of the fresh launch
-// manifest), via `history.replaceState` (no reload). `save=` and the in-memory
-// save target are left alone: every save keeps going to the launch-provided
-// target, so a folder-scoped save mints a new session zip item per save and F5
-// follows the newest via the repointed `urls=`. VolView constructs no Girder
-// route and never learns the item id; it only knows "point future refreshes at
-// `resumeUrl`." A response without `resumeUrl` (or an unparseable body) leaves
-// the tab as-is (fail-safe). `config=` is untouched.
-const repointToResumeUrl = (resumeUrl: string) => {
-  const url = new URL(window.location.toString());
-  url.searchParams.set('urls', resumeUrl); // future F5 reloads the save
-  // A stale names= would rename the session zip after the original data file,
-  // and filename-extension typing would then misparse the zip on reload.
-  url.searchParams.delete('names');
-  window.history.replaceState(null, '', url.toString());
-};
 
 const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
   const saveUrl = ref('');
@@ -29,7 +12,20 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
 
   const messageStore = useMessageStore();
 
+  // A save target is accepted only if it is same-origin with the served client.
+  // Refusing leaves `saveUrl` empty, which inerts the save UI (it is gated on a
+  // non-empty target) — so a deployment that serves no save endpoint of its own,
+  // such as the public demo, simply has no save, with nothing to configure and
+  // no build flag to forget. This is what keeps a crafted `?save=` link from
+  // POSTing the session to a third-party origin.
   const setSaveUrl = (url: string) => {
+    if (!isOriginAllowed(url)) {
+      saveUrl.value = '';
+      messageStore.addError('Save Disabled', {
+        details: `Refused a cross-origin save target: ${url}`,
+      });
+      return;
+    }
     saveUrl.value = url;
   };
 
@@ -50,14 +46,16 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
 
       if (saveResult.ok) {
         // Repoint future refreshes at the saved session when the backend
-        // returns one. A non-JSON / bodyless / `resumeUrl`-less response is a
+        // returns a `resumeUrl` (see repointLaunchUrls): a folder-scoped save
+        // mints a new session zip item per save and F5 follows the newest,
+        // while the in-memory save target stays on the launch-provided
+        // `save=`. VolView constructs no Girder route and never learns the
+        // item id. A non-JSON / bodyless / `resumeUrl`-less response is a
         // fail-safe no-op — the ordinary save still succeeded.
         try {
           const body = await saveResult.json();
           if (body && typeof body.resumeUrl === 'string') {
-            // Stamp urls= for an F5-stable resume. The save target is NOT
-            // repointed — saves keep going to the launch-provided target.
-            repointToResumeUrl(body.resumeUrl);
+            repointLaunchUrls(body.resumeUrl);
           }
         } catch {
           // leave the tab as-is

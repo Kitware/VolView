@@ -12,6 +12,7 @@
 
 import { z } from 'zod';
 import { typeTagSchema } from './task-spec';
+import { pathSegmentIdSchema } from './ids';
 
 // Bump when the intent vocabulary's shape changes so producers and the applier
 // can negotiate compatibility.
@@ -82,7 +83,7 @@ export type ResultState = (typeof RESULT_STATES)[number];
 export const resultStateSchema = z.enum(RESULT_STATES);
 
 const neutralJobStatusBaseSchema = z.object({
-  jobId: z.string(),
+  jobId: pathSegmentIdSchema,
   progress: z.number().optional(),
   errorTail: z.string().optional(),
 });
@@ -129,12 +130,12 @@ export type ResultIntentName = (typeof RESULT_INTENTS)[number];
 // Structurally identical to the `source?` field on `SegmentGroupMetadata` so it
 // round-trips the `.volview.zip`.
 export const resultSourceSchema = z.object({
+  providerId: z.string(),
   jobId: z.string(),
   outputId: z.string(),
 });
 export type ResultSource = z.infer<typeof resultSourceSchema>;
 
-// A single RGBA channel: an integer in [0, 255].
 const colorChannel = z.number().int().min(0).max(255);
 
 // A segment descriptor: `value` is a label index >= 1 (0 is reserved
@@ -216,8 +217,6 @@ const unknownIntent = z
   })
   .catchall(z.unknown());
 
-// One canonical result-row union — every row is a resultListItem that either
-// matched a known intent or fell through to the ordinary branch.
 export const resultIntentSchema = z.union([
   knownResultIntentSchema,
   unknownIntent,
@@ -231,8 +230,8 @@ export type ResultIntent = z.infer<typeof resultIntentSchema>;
 
 export const jobHistorySummarySchema = z
   .object({
-    jobId: z.string(),
-    taskId: z.string(),
+    jobId: pathSegmentIdSchema,
+    taskId: pathSegmentIdSchema,
     taskTitle: z.string(),
     createdBy: z.object({ id: z.string(), name: z.string() }),
     createdAt: z.string(),
@@ -273,7 +272,7 @@ export const jobHistoryPageSchema = z.object({
 export type JobHistoryPage = z.infer<typeof jobHistoryPageSchema>;
 
 export const jobHistoryDetailSchema = z.object({
-  jobId: z.string(),
+  jobId: pathSegmentIdSchema,
   log: z.array(z.string()),
   parameters: z.record(z.string(), z.unknown()),
 });

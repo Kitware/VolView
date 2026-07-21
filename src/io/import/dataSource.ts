@@ -149,6 +149,12 @@ export const remoteFileToDataSource = (
  */
 export function isRemoteDataSource(ds: DataSource | undefined): boolean {
   if (!ds) return false;
+  if (ds.type === 'collection') {
+    return (
+      (ds.sources.length > 0 && ds.sources.every(isRemoteDataSource)) ||
+      isRemoteDataSource(ds.parent)
+    );
+  }
   return ds.type === 'uri' || isRemoteDataSource(ds.parent);
 }
 

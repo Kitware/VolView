@@ -129,6 +129,37 @@ describe('state-file serialization resilience', () => {
     );
   });
 
+  it('omits the complete view layout when viewByID is invalid', () => {
+    const manifest = {
+      ...manifestWithSelection('dataset-1'),
+      activeView: 'view-1',
+      isActiveViewMaximized: true,
+      layout: {
+        direction: 'column',
+        items: [{ type: 'slot', slotIndex: 0 }],
+      },
+      layoutSlots: ['view-1'],
+      viewByID: {
+        'view-1': {
+          id: 'view-1',
+          type: '2D',
+          dataID: 'dataset-1',
+          name: 'Axial',
+          options: { orientation: 1 },
+        },
+      },
+    } as unknown as Manifest;
+
+    const normalized = normalizeManifest(manifest, new JSZip());
+
+    expect(normalized.manifest).not.toHaveProperty('viewByID');
+    expect(normalized.manifest).not.toHaveProperty('activeView');
+    expect(normalized.manifest).not.toHaveProperty('isActiveViewMaximized');
+    expect(normalized.manifest).not.toHaveProperty('layout');
+    expect(normalized.manifest).not.toHaveProperty('layoutSlots');
+    expect(normalized.omitted).toContain('view/layout: invalid viewByID state');
+  });
+
   it('does NOT re-walk cascade-owned optional references', () => {
     // Referential integrity of view / tool / crop / paint / selection ids is
     // owned by the synchronous remove cascade (datasetRemoveCascade.spec.ts),
@@ -147,7 +178,7 @@ describe('state-file serialization resilience', () => {
     // The dev/test cascade-gap backstop should FLAG a dangling reference the
     // remove cascade was supposed to have cleaned — a store missing an
     // onImageDeleted registration — but it is warn-only: it must not mutate the
-    // manifest. Same ghost primarySelection as the re-walk pin above.
+    // manifest.
     const warnSpy = vi.spyOn(debug, 'warn').mockImplementation(() => {});
     const manifest = manifestWithSelection('ghost-dataset');
 
@@ -155,8 +186,6 @@ describe('state-file serialization resilience', () => {
 
     expect(warnSpy).toHaveBeenCalled();
     expect(warnSpy.mock.calls[0][0]).toMatch(/ghost-dataset/);
-    // Warn-only: the dangling reference passes through untouched, exactly like
-    // the re-walk pin above.
     expect(normalized.manifest.primarySelection).toBe('ghost-dataset');
     expect(normalized.omitted).toEqual([]);
 
@@ -175,5 +204,41 @@ describe('state-file serialization resilience', () => {
     expect(normalized.omitted).toEqual([]);
 
     warnSpy.mockRestore();
+  });
+
+  it('round-trips a locked segment mask', () => {
+    const manifest: Manifest = {
+      version: MANIFEST_VERSION,
+      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
+      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
+      segmentGroups: [
+        {
+          id: 'group-1',
+          dataSourceId: 1,
+          metadata: {
+            name: 'Group',
+            parentImage: 'dataset-1',
+            segments: {
+              order: [1],
+              byValue: {
+                '1': {
+                  value: 1,
+                  name: 'Segment 1',
+                  color: [255, 0, 0, 255],
+                  visible: true,
+                  locked: true,
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+
+    const normalized = normalizeManifest(manifest, new JSZip());
+    expect(
+      normalized.manifest.segmentGroups?.[0].metadata.segments?.byValue['1']
+        .locked
+    ).toBe(true);
   });
 });

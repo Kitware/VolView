@@ -28,8 +28,7 @@ const bindFirstViewTo = (dataID: string) => {
 // applying a job "Open" result does) can never snapshot a dangling reference.
 //
 // Note the absence of `await nextTick()` in these tests: the whole cascade is
-// synchronous, so a same-tick serialize never sees orphaned ids. This
-// exercises the real `datasetStore.remove` entrypoint.
+// synchronous, so a same-tick serialize never sees orphaned ids.
 // ---------------------------------------------------------------------------
 
 const seatImage = (id: string, name: string) => {
@@ -161,5 +160,52 @@ describe('dataset remove — synchronous reference cascade', () => {
 
     expect(rulerStore.serializeTools().tools).toHaveLength(1);
     expect(viewStore.getViewsForData('img-2')).toHaveLength(1);
+  });
+});
+
+// Production wiring of the dev-only save backstop: each cascade-owning store
+// module declares its manifest references (declareManifestRefs) next to its
+// cascade. This walks the REAL declarations — loaded by the store imports
+// above — over a manifest where every reference dangles, pinning that the
+// backstop's coverage includes each cascade-owned section.
+describe('manifest-ref declarations (cascade-owned save backstop coverage)', () => {
+  it('covers every cascade-owned manifest section', async () => {
+    // Side-effect imports for the declaring modules the tests above don't use.
+    await import('@/src/store/tools/rectangles');
+    await import('@/src/store/tools/polygons');
+    const { collectManifestRefs } = await import('@/src/core/manifestRefs');
+
+    const refs = collectManifestRefs({
+      viewByID: { 'view-1': { dataID: 'ghost-img' } },
+      activeView: 'ghost-view',
+      layoutSlots: ['ghost-slot'],
+      tools: {
+        rulers: { tools: [{ imageID: 'ghost-ruler-img' }] },
+        rectangles: { tools: [{ imageID: 'ghost-rect-img' }] },
+        polygons: { tools: [{ imageID: 'ghost-poly-img' }] },
+        crop: { 'ghost-crop-img': {} },
+        paint: { activeSegmentGroupID: 'ghost-group' },
+      },
+    });
+
+    const found = refs.map((ref) => `${ref.where} -> ${ref.kind} ${ref.id}`);
+    expect(found).toContain('viewByID[view-1].dataID -> dataset ghost-img');
+    expect(found).toContain('activeView -> view ghost-view');
+    expect(found).toContain('layoutSlots -> view ghost-slot');
+    expect(found).toContain(
+      'tools.rulers[0].imageID -> dataset ghost-ruler-img'
+    );
+    expect(found).toContain(
+      'tools.rectangles[0].imageID -> dataset ghost-rect-img'
+    );
+    expect(found).toContain(
+      'tools.polygons[0].imageID -> dataset ghost-poly-img'
+    );
+    expect(found).toContain(
+      'tools.crop[ghost-crop-img] -> dataset ghost-crop-img'
+    );
+    expect(found).toContain(
+      'tools.paint.activeSegmentGroupID -> segmentGroup ghost-group'
+    );
   });
 });

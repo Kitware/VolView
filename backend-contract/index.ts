@@ -1,7 +1,6 @@
 // ---------------------------------------------------------------------------
 // backend-contract — the neutral VolView backend contract, published as an
-// artifact. This release ships the PROCESSING slice only (task discovery,
-// inputs, job lifecycle, results). Contract stays draft 0.x.
+// artifact.
 //
 // The zod sources in this package are the single normative definition of the
 // wire shapes. The golden JSON fixtures under `fixtures/` are the interchange

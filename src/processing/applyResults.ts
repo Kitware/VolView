@@ -10,7 +10,7 @@ import { resultToIntent } from '@/src/processing/engine/resultToIntent';
 import { ensureError } from '@/src/utils';
 import { uriToDataSource } from '@/src/io/import/dataSource';
 import {
-  importDataSources,
+  importVolumeDataSources,
   toDataSelection,
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
@@ -18,7 +18,10 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useMessageStore } from '@/src/store/messages';
-import { loadUrls } from '@/src/actions/loadUserFiles';
+import {
+  loadUrlsWithOutcome,
+  loadVolumeUrls,
+} from '@/src/actions/loadUserFiles';
 
 type ResultFile = { url: string; name: string };
 
@@ -30,9 +33,20 @@ export type ApplyIntentOutcome =
   | { status: 'applied' }
   | { status: 'failed'; error: unknown };
 
+function segmentGroupResultInScene(intent: SegmentGroupIntent): boolean {
+  const target = intent.source;
+  if (!target) return false;
+  return Object.values(useSegmentGroupStore().metadataByID).some(
+    ({ source }) =>
+      source?.providerId === target.providerId &&
+      source.jobId === target.jobId &&
+      source.outputId === target.outputId
+  );
+}
+
 async function loadAsImport(file: ResultFile) {
   const ds = uriToDataSource(file.url, file.name);
-  const importResults = await importDataSources([ds]);
+  const importResults = await importVolumeDataSources([ds]);
   const loaded = importResults
     .filter((r) => r.type === 'data')
     .filter(isVolumeResult);
@@ -82,10 +96,13 @@ export async function applyIntent(
   context: SubmittedJobContext | undefined
 ): Promise<ApplyIntentOutcome> {
   const parentSelection = context?.activeDatasetId;
-  const openAsDatasetOutcome = async (
+  const openVolumeAsDatasetOutcome = async (
     file: ResultFile
   ): Promise<ApplyIntentOutcome> => {
-    const datasetIds = await loadUrls({ urls: [file.url], names: [file.name] });
+    const datasetIds = await loadVolumeUrls({
+      urls: [file.url],
+      names: [file.name],
+    });
     if (datasetIds.length === 0)
       return { status: 'failed', error: new Error('Result did not load') };
     return { status: 'applied' };
@@ -93,13 +110,21 @@ export async function applyIntent(
 
   try {
     switch (intent.intent) {
-      case 'add-base-image':
+      case 'add-base-image': {
+        return await openVolumeAsDatasetOutcome(intent);
+      }
       case 'restore-state': {
-        return await openAsDatasetOutcome(intent);
+        const outcome = await loadUrlsWithOutcome({
+          urls: [intent.url],
+          names: [intent.name],
+        });
+        return outcome.hadErrors
+          ? { status: 'failed', error: new Error('Result did not load') }
+          : { status: 'applied' };
       }
       case 'add-layer': {
         if (!parentSelection) {
-          return await openAsDatasetOutcome(intent);
+          return await openVolumeAsDatasetOutcome(intent);
         }
         const childSelection = await loadAsImport(intent);
         if (!childSelection)
@@ -119,8 +144,12 @@ export async function applyIntent(
         return { status: 'applied' };
       }
       case 'add-segment-group': {
+        // Session-restored groups retain their result source. Treat that
+        // durable provenance as an application receipt so retrying Load is
+        // idempotent instead of creating a duplicate group.
+        if (segmentGroupResultInScene(intent)) return { status: 'applied' };
         if (!parentSelection) {
-          return await openAsDatasetOutcome(intent);
+          return await openVolumeAsDatasetOutcome(intent);
         }
         const childSelection = await loadAsImport(intent);
         if (!childSelection)
@@ -150,12 +179,14 @@ export async function applyIntent(
 export async function autoLoadProcessingResults(
   results: ProcessingResult[],
   context: SubmittedJobContext | undefined
-): Promise<void> {
+): Promise<{ failedResultIds: string[] }> {
+  const failedResultIds: string[] = [];
   for (const result of results) {
     const intent = resultToIntent(result);
     if (!intent) continue;
     const outcome = await applyIntent(intent, context);
     if (outcome.status === 'failed') {
+      failedResultIds.push(result.id);
       // The completion toast already promised results.
       useMessageStore().addError(`Failed to apply ${result.name}`, {
         error: ensureError(outcome.error),
@@ -167,4 +198,5 @@ export async function autoLoadProcessingResults(
       );
     }
   }
+  return { failedResultIds };
 }

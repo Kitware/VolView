@@ -49,9 +49,10 @@ export type ProgressiveImage = {
   vtkImageData: Ref<vtkImageData>;
   imageMetadata: Ref<ImageMetadata>;
   name: Ref<string>;
-  // `Segment{N}_*` header fields from a Slicer-convention `.seg.nrrd`, read by
-  // `decodeSegments`; undefined for non-labelmap images.
-  segmentMetadata?: Map<string, string>;
+  // File-format header fields (e.g. NRRD key/value pairs) carried from the
+  // reader; undefined when the source format has none. Consumers that know a
+  // convention parse them (see `parseSegNrrdMetadata`).
+  headerMetadata?: Map<string, string>;
 };
 
 export const defaultImageMetadata = (): ImageMetadata => ({
@@ -116,7 +117,7 @@ export abstract class BaseProgressiveImage implements ProgressiveImage {
   public vtkImageData: Ref<vtkImageData>;
   public imageMetadata: Ref<ImageMetadata>;
   public name: Ref<string>;
-  public segmentMetadata?: Map<string, string>;
+  public headerMetadata?: Map<string, string>;
   private cleanupListeners: () => void;
 
   constructor() {

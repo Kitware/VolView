@@ -10,7 +10,11 @@ export function stripTokenFromUrl() {
   window.history.replaceState(null, '', url.toString());
 }
 
-export function populateAuthorizationToken() {
+// Awaited by the caller before any data request goes out: a `tokenUrl=` token
+// that lands after loading has started would leave the first requests
+// unauthenticated. A failure is non-fatal — the app continues without a bearer
+// and the data requests fail on their own terms.
+export async function populateAuthorizationToken() {
   const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
 
   if (urlParams.token) {
@@ -18,20 +22,16 @@ export function populateAuthorizationToken() {
   }
 
   if (urlParams.tokenUrl) {
-    fetch(String(urlParams.tokenUrl), {
-      method: String(urlParams.tokenUrlMethod || 'GET'),
-    })
-      .then((response) => {
-        if (response.status % 100 !== 2) {
-          throw new Error('received non-200 response');
-        }
-        return response.text();
-      })
-      .then((text) => {
-        setGlobalHeader('Authorization', `Bearer ${text}`);
-      })
-      .catch((err) => {
-        console.error('error while fetching token from tokenUrl:', err);
+    try {
+      const response = await fetch(String(urlParams.tokenUrl), {
+        method: String(urlParams.tokenUrlMethod || 'GET'),
       });
+      if (!response.ok) {
+        throw new Error(`received ${response.status} response`);
+      }
+      setGlobalHeader('Authorization', `Bearer ${await response.text()}`);
+    } catch (err) {
+      console.error('error while fetching token from tokenUrl:', err);
+    }
   }
 }

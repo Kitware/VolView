@@ -22,6 +22,15 @@ const KNOWN_KINDS = [
 ];
 
 describe('form model renders every golden task-spec fixture', () => {
+  it('rejects task specs from unsupported contract versions', () => {
+    const raw = loadFixture('task-spec/synthetic-all-kinds.json') as Record<
+      string,
+      unknown
+    >;
+
+    expect(() => parseTaskSpecEnvelope({ ...raw, specVersion: 2 })).toThrow();
+  });
+
   const fixtures = loadFixtureDir('task-spec');
 
   it('loads the golden fixtures', () => {
@@ -164,6 +173,25 @@ describe('value validation gates submit', () => {
       radius: 99,
     });
     expect(issues.some((i) => i.parameter === 'radius')).toBe(true);
+  });
+
+  it('enforces float steps for values set outside the number widget', () => {
+    const floatModel = buildTaskFormModel(
+      parseTaskSpecEnvelope({
+        specVersion: 1,
+        id: 'x',
+        title: 'X',
+        parameters: [{ kind: 'float', id: 'threshold', min: 0.1, step: 0.2 }],
+        outputs: [],
+      })
+    );
+
+    expect(
+      validateFormValues(floatModel, { threshold: 0.4 }).map(
+        (issue) => issue.parameter
+      )
+    ).toContain('threshold');
+    expect(validateFormValues(floatModel, { threshold: 0.3 })).toHaveLength(0);
   });
 
   it('passes a fully valid value set', () => {

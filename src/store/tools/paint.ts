@@ -16,6 +16,24 @@ import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
 import { useViewCameraStore } from '../view-configs/camera';
 import { useImageCacheStore } from '../image-cache';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
+import { isRecord } from '@/src/utils';
+
+// The manifest reference this store's sync orphan-watch keeps clean (see the
+// activeSegmentGroupID watch below), declared for the dev-only save backstop.
+declareManifestRefs('tools.paint', (manifest) => {
+  const tools = isRecord(manifest.tools) ? manifest.tools : {};
+  const paint = isRecord(tools.paint) ? tools.paint : {};
+  return typeof paint.activeSegmentGroupID === 'string'
+    ? [
+        {
+          kind: 'segmentGroup' as const,
+          id: paint.activeSegmentGroupID,
+          where: 'tools.paint.activeSegmentGroupID',
+        },
+      ]
+    : [];
+});
 
 const DEFAULT_BRUSH_SIZE = 4;
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [

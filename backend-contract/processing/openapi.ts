@@ -19,9 +19,11 @@
 // — they are the engine's transport, not the contract vocabulary).
 // ---------------------------------------------------------------------------
 
+import { z } from 'zod';
 import { generateJsonSchemas, type GeneratedSchemaName } from './schema-json';
 import { INTENT_VOCABULARY_VERSION } from './wire';
 import { SPEC_VERSION } from './task-spec';
+import { pathSegmentIdSchema } from './ids';
 
 // ---------------------------------------------------------------------------
 // Wire component schemas — injected from the single zod source
@@ -51,6 +53,9 @@ const stripDialect = (schema: unknown): Record<string, unknown> => {
   void $schema;
   return rest;
 };
+
+const pathSegmentIdJsonSchema = () =>
+  stripDialect(z.toJSONSchema(pathSegmentIdSchema));
 
 const wireComponentSchemas = (): Record<string, unknown> => {
   const generated = generateJsonSchemas();
@@ -108,9 +113,6 @@ const ref = (component: string) => ({
 });
 
 const envelopeComponentSchemas = (): Record<string, unknown> => ({
-  // Advisory display metadata for the task picker. The backend emits it and the
-  // engine passes it through with no schema, so only `id`/`title` are required
-  // and additional advisory hints (e.g. a category or image label) are allowed.
   TaskSummary: {
     type: 'object',
     description:
@@ -119,7 +121,7 @@ const envelopeComponentSchemas = (): Record<string, unknown> => ({
       'OPTIONAL advisory display metadata a backend MAY omit, and the client ' +
       'never dispatches on it.',
     properties: {
-      id: { type: 'string' },
+      id: pathSegmentIdJsonSchema(),
       title: { type: 'string' },
       description: { type: 'string' },
       category: { type: 'array', items: { type: 'string' } },
@@ -128,8 +130,6 @@ const envelopeComponentSchemas = (): Record<string, unknown> => ({
     additionalProperties: true,
   },
 
-  // The submit body. Each bound value is either an input value
-  // (`{ type, format?, uris }`) or a plain scalar/list parameter.
   RunTaskRequest: {
     type: 'object',
     description:
@@ -151,28 +151,23 @@ const envelopeComponentSchemas = (): Record<string, unknown> => ({
         },
       },
     },
+    required: ['values'],
     additionalProperties: false,
   },
 
-  // The submit response: an opaque job id the client polls. `status` is the
-  // optional born-terminal fast-path (a synchronous backend may return an
-  // already-terminal status; the client applies it without ever polling).
   JobRef: {
     type: 'object',
     description:
       'Handle to the submitted job. `jobId` is opaque. An optional terminal ' +
       '`status` is the born-terminal fast-path for a synchronous backend.',
     properties: {
-      jobId: { type: 'string' },
+      jobId: pathSegmentIdJsonSchema(),
       status: ref('NeutralJobStatus'),
     },
     required: ['jobId'],
     additionalProperties: false,
   },
 
-  // The staging response: the backend-minted download URIs for the client-held
-  // bytes it POSTed. At least one URI — the client constructs none itself, so an
-  // empty response fails closed.
   StageResponse: {
     type: 'object',
     description:
@@ -219,7 +214,7 @@ const taskIdParam = {
   in: 'path',
   required: true,
   description: 'Opaque task identifier.',
-  schema: { type: 'string' },
+  schema: pathSegmentIdJsonSchema(),
 } as const;
 
 const jobIdParam = {
@@ -227,7 +222,7 @@ const jobIdParam = {
   in: 'path',
   required: true,
   description: 'Opaque job identifier.',
-  schema: { type: 'string' },
+  schema: pathSegmentIdJsonSchema(),
 } as const;
 
 const paths = (): Record<string, unknown> => ({
@@ -270,7 +265,7 @@ const paths = (): Record<string, unknown> => ({
       summary: 'Submit a task; returns an opaque job handle to poll.',
       parameters: [taskIdParam],
       requestBody: {
-        required: false,
+        required: true,
         content: json(ref('RunTaskRequest')),
       },
       responses: {
@@ -471,8 +466,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> => ({
     // stability promise, DISTINCT from the shape versions (INTENT_VOCABULARY_
     // VERSION / specVersion) below. It is deliberately literal, not derived from
     // the shape-version constants — the artifact and the shapes version on
-    // separate clocks. 1.0 is stamped only when a second backend's shim passes
-    // the conformance kit.
+    // separate clocks.
     version: '0.1.0',
     description:
       'DRAFT 0.x — shapes may change until a second backend passes the ' +

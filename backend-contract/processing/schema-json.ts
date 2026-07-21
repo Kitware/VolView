@@ -9,9 +9,10 @@
 // here exist only so the backend tests can validate the shared fixtures.
 //
 // zod's cross-field refinements (min<=max, default-in-range, enum default) are
-// NOT representable in JSON Schema; `unrepresentable: 'any'` drops them from the
-// generated structural schema. Those constraints stay the zod side's extra
-// rigor (exercised by the negative constraint-violation fixture in vitest).
+// NOT representable in standard JSON Schema; `unrepresentable: 'any'` drops
+// them from the generated structural schema. A backend MUST follow task-spec
+// JSON-Schema validation with `validateTaskSpecSemantics` (or an equivalent
+// implementation) and run every negative fixture as a conformance suite.
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod';
@@ -42,6 +43,7 @@ const schemas = {
 } as const;
 
 export type GeneratedSchemaName = keyof typeof schemas;
+type JsonSchema = z.core.JSONSchema.JSONSchema;
 
 // z.toJSONSchema renders a fixed-length z.tuple (color RGBA, bounds) as bare
 // `prefixItems`, which JSON Schema treats as a prefix constraint only — a
@@ -65,13 +67,24 @@ const closeTupleLengths = (node: unknown): unknown => {
   };
 };
 
-export const generateJsonSchemas = (): Record<GeneratedSchemaName, unknown> =>
+export const generateJsonSchemas = (): Record<
+  GeneratedSchemaName,
+  JsonSchema
+> =>
   Object.fromEntries(
     Object.entries(schemas).map(([name, schema]) => [
       name,
-      closeTupleLengths(z.toJSONSchema(schema, { unrepresentable: 'any' })),
+      name === 'task-spec'
+        ? {
+            $comment:
+              'Structural validation only. Implement backend-contract validateTaskSpecSemantics after this schema and reject every fixtures/negative payload.',
+            ...(closeTupleLengths(
+              z.toJSONSchema(schema, { unrepresentable: 'any' })
+            ) as JsonSchema),
+          }
+        : closeTupleLengths(z.toJSONSchema(schema, { unrepresentable: 'any' })),
     ])
-  ) as Record<GeneratedSchemaName, unknown>;
+  ) as Record<GeneratedSchemaName, JsonSchema>;
 
 export const GENERATED_SCHEMA_NAMES = Object.keys(
   schemas

@@ -3,7 +3,6 @@ import {
   ProgressiveImage,
   ProgressiveImageStatus,
 } from '@/src/core/progressiveImage';
-import { takeSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { useIdStore } from '@/src/store/id';
 import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
@@ -24,6 +23,12 @@ export const useImageCacheStore = defineStore('image-cache', () => {
   const imageLoading = reactive<Record<string, boolean>>({});
   const imageErrors = reactive<Record<string, Error[]>>({});
   const imageListenerCleanup: Record<string, () => void> = {};
+  const deletionCallbacks = new Set<(deletedIDs: string[]) => void>();
+
+  function onImageDeleted(callback: (deletedIDs: string[]) => void) {
+    deletionCallbacks.add(callback);
+    return () => deletionCallbacks.delete(callback);
+  }
 
   function getVtkImageData(id: Maybe<string>): Maybe<vtkImageData> {
     if (!id) return null;
@@ -102,16 +107,11 @@ export const useImageCacheStore = defineStore('image-cache', () => {
   function addVTKImageData(
     imageData: vtkImageData,
     name: string,
-    options: { id?: string } = {}
+    options: { id?: string; headerMetadata?: Map<string, string> } = {}
   ) {
     const image = new LoadedVtkImage(imageData, name);
-    // Embedded `.seg.nrrd` segment metadata the reader stashed against this
-    // vtkImageData, read back by `decodeSegments` — the non-DICOM analogue of
-    // `segBuildInfo`. Consumed here so every reader-produced image gets it
-    // without threading an option through the callers.
-    const segmentMetadata = takeSegNrrdMetadata(imageData);
-    if (segmentMetadata) image.segmentMetadata = segmentMetadata;
-    return addProgressiveImage(image, options);
+    if (options.headerMetadata) image.headerMetadata = options.headerMetadata;
+    return addProgressiveImage(image, { id: options.id });
   }
 
   function removeImage(id: string) {
@@ -129,6 +129,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     delete imageStatus[id];
     delete imageLoading[id];
     delete imageErrors[id];
+    [...deletionCallbacks].forEach((callback) => callback([id]));
   }
 
   /**
@@ -155,6 +156,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     imageErrors,
     getVtkImageData,
     getImageMetadata,
+    onImageDeleted,
     addProgressiveImage,
     addVTKImageData,
     updateVTKImageData,

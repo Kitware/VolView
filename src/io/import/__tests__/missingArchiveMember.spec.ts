@@ -72,4 +72,14 @@ describe('restore with a partially missing dataset archive', () => {
     );
     expect(warning?.options.details).toContain('b.dcm');
   });
+
+  it('names the files in a collection that failed to resolve entirely', async () => {
+    await completeStateFileRestore(ManifestSchema.parse(manifest), [], {});
+
+    const warning = useMessageStore().messages.find(
+      (message) => message.title === 'Some scene content could not be restored'
+    );
+    expect(warning?.options.details).toContain('image: a.dcm, b.dcm');
+    expect(warning?.options.details).not.toContain('image: ds-ct');
+  });
 });

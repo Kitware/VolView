@@ -1,26 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { config as baseConfig } from '@/src/io/import/configJson';
-import { withProcessingConfig } from '@/src/processing/config';
-import { applyProcessingConfig } from '@/src/processing';
+import {
+  processingSection,
+  type ProcessingSection,
+} from '@/src/processing/config';
+import { processingConfigSection } from '@/src/processing';
 import { useProcessingJobsStore } from '@/src/processing/store';
-import type { Config } from '@/src/io/import/configJson';
 
-function processingConfig(baseUrl: string, id = 'analysis-provider'): Config {
-  return withProcessingConfig(baseConfig).parse({
-    processing: {
-      providers: [
-        {
-          id,
-          label: 'Analysis',
-          baseUrl,
-          // Relative so foreign-origin fixtures fail on baseUrl, not this field.
-          jobsBaseUrl: '/api/v1/volview_processing',
-        },
-      ],
-    },
-  }) as Config;
+function providerSection(
+  baseUrl: string,
+  id = 'analysis-provider'
+): ProcessingSection {
+  return processingSection.parse({
+    providers: [
+      {
+        id,
+        label: 'Analysis',
+        baseUrl,
+        // Relative so foreign-origin fixtures fail on baseUrl, not this field.
+        jobsBaseUrl: '/api/v1/volview_processing',
+      },
+    ],
+  });
 }
 
 describe('processing config provider origins', () => {
@@ -38,7 +40,7 @@ describe('processing config provider origins', () => {
   it('accepts same-origin providers with zero config', async () => {
     const providers = useProcessingJobsStore();
 
-    await applyProcessingConfig(processingConfig('/volview_processing'));
+    await processingConfigSection.apply(providerSection('/volview_processing'));
 
     expect(providers.configs.size).toBe(1);
     expect(providers.configs.get('analysis-provider')?.baseUrl).toBe(
@@ -50,8 +52,8 @@ describe('processing config provider origins', () => {
   it('rejects foreign-origin providers', async () => {
     const providers = useProcessingJobsStore();
 
-    await applyProcessingConfig(
-      processingConfig('https://analysis.example/api')
+    await processingConfigSection.apply(
+      providerSection('https://analysis.example/api')
     );
 
     expect(providers.configs.size).toBe(0);
@@ -65,8 +67,8 @@ describe('processing config provider origins', () => {
   it('never lets a config point egress at a foreign origin (self-extension invariant)', async () => {
     const providers = useProcessingJobsStore();
 
-    await applyProcessingConfig(
-      processingConfig('https://analysis.example/api')
+    await processingConfigSection.apply(
+      providerSection('https://analysis.example/api')
     );
 
     expect(providers.configs.size).toBe(0);
@@ -75,7 +77,7 @@ describe('processing config provider origins', () => {
   it('registers a provider from a config block without protocol/auth', async () => {
     const providers = useProcessingJobsStore();
 
-    await applyProcessingConfig(processingConfig('/volview_processing'));
+    await processingConfigSection.apply(providerSection('/volview_processing'));
 
     const registered = providers.configs.get('analysis-provider');
     expect(providers.configs.size).toBe(1);
@@ -88,20 +90,18 @@ describe('processing config provider origins', () => {
   it('preserves an explicit jobsBaseUrl through the config schema (not stripped)', async () => {
     const providers = useProcessingJobsStore();
 
-    const manifest = withProcessingConfig(baseConfig).parse({
-      processing: {
-        providers: [
-          {
-            id: 'analysis-provider',
-            label: 'Analysis',
-            baseUrl: '/api/v1/folder/abc/volview_processing',
-            jobsBaseUrl: '/api/v1/volview_processing',
-          },
-        ],
-      },
-    }) as Config;
+    const section = processingSection.parse({
+      providers: [
+        {
+          id: 'analysis-provider',
+          label: 'Analysis',
+          baseUrl: '/api/v1/folder/abc/volview_processing',
+          jobsBaseUrl: '/api/v1/volview_processing',
+        },
+      ],
+    });
 
-    await applyProcessingConfig(manifest);
+    await processingConfigSection.apply(section);
 
     const registered = providers.configs.get('analysis-provider');
     expect(providers.configs.size).toBe(1);
@@ -113,20 +113,18 @@ describe('processing config provider origins', () => {
   it('rejects a provider whose jobsBaseUrl is cross-origin (gate covers both bases)', async () => {
     const providers = useProcessingJobsStore();
 
-    const manifest = withProcessingConfig(baseConfig).parse({
-      processing: {
-        providers: [
-          {
-            id: 'analysis-provider',
-            label: 'Analysis',
-            baseUrl: '/api/v1/folder/abc/volview_processing',
-            jobsBaseUrl: 'https://analysis.example/jobs',
-          },
-        ],
-      },
-    }) as Config;
+    const section = processingSection.parse({
+      providers: [
+        {
+          id: 'analysis-provider',
+          label: 'Analysis',
+          baseUrl: '/api/v1/folder/abc/volview_processing',
+          jobsBaseUrl: 'https://analysis.example/jobs',
+        },
+      ],
+    });
 
-    await applyProcessingConfig(manifest);
+    await processingConfigSection.apply(section);
 
     expect(providers.configs.size).toBe(0);
     expect(warn).toHaveBeenCalledWith(
@@ -139,22 +137,20 @@ describe('processing config provider origins', () => {
   it('strips unknown provider keys (e.g. retired protocol/auth) instead of rejecting the provider', async () => {
     const providers = useProcessingJobsStore();
 
-    const manifest = withProcessingConfig(baseConfig).parse({
-      processing: {
-        providers: [
-          {
-            id: 'analysis-provider',
-            label: 'Analysis',
-            baseUrl: '/volview_processing',
-            jobsBaseUrl: '/api/v1/volview_processing',
-            protocol: 'slicer-cli',
-            auth: 'same-origin',
-          },
-        ],
-      },
-    }) as Config;
+    const section = processingSection.parse({
+      providers: [
+        {
+          id: 'analysis-provider',
+          label: 'Analysis',
+          baseUrl: '/volview_processing',
+          jobsBaseUrl: '/api/v1/volview_processing',
+          protocol: 'slicer-cli',
+          auth: 'same-origin',
+        },
+      ],
+    });
 
-    await applyProcessingConfig(manifest);
+    await processingConfigSection.apply(section);
 
     const registered = providers.configs.get('analysis-provider');
     expect(providers.configs.size).toBe(1);
@@ -167,16 +163,14 @@ describe('processing config provider origins', () => {
   it('rejects a provider config that omits the required jobsBaseUrl (fails to parse, not registered)', async () => {
     const providers = useProcessingJobsStore();
 
-    const parsed = withProcessingConfig(baseConfig).safeParse({
-      processing: {
-        providers: [
-          {
-            id: 'analysis-provider',
-            label: 'Analysis',
-            baseUrl: '/volview_processing',
-          },
-        ],
-      },
+    const parsed = processingSection.safeParse({
+      providers: [
+        {
+          id: 'analysis-provider',
+          label: 'Analysis',
+          baseUrl: '/volview_processing',
+        },
+      ],
     });
 
     expect(parsed.success).toBe(false);
