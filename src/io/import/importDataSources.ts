@@ -11,7 +11,11 @@ import {
   asIntermediateResult,
   StateFileSetupResult,
 } from '@/src/io/import/common';
-import { DataSource, ChunkSource } from '@/src/io/import/dataSource';
+import {
+  DataSource,
+  ChunkSource,
+  findStateFileLeaves,
+} from '@/src/io/import/dataSource';
 import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
@@ -40,6 +44,7 @@ import { ensureError, partition } from '@/src/utils';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useMessageStore } from '@/src/store/messages';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -73,16 +78,19 @@ const applyConfigsPostState = (
     }
   });
 
-function findStateFileLeaf(dataSource: DataSource) {
-  let current: DataSource | undefined = dataSource;
-  while (current) {
-    if (current.stateFileLeaf) return current.stateFileLeaf;
-    current = current.parent;
-  }
-  if (dataSource.type === 'collection' && dataSource.sources.length > 0) {
-    return findStateFileLeaf(dataSource.sources[0]);
-  }
-  return undefined;
+// The restore-time stateID -> storeID map: every state-file leaf a loadable
+// covers maps to its ONE store id. Many-to-one is the normal shape — a merged
+// multi-file DICOM volume covers every member file's per-file dataset id.
+export function buildStateIDToStoreID(
+  loadables: readonly LoadableResult[]
+): Record<string, string> {
+  const stateIDToStoreID: Record<string, string> = {};
+  loadables.forEach((loadable) => {
+    findStateFileLeaves(loadable.dataSource).forEach((leaf) => {
+      stateIDToStoreID[leaf.stateID] = loadable.dataID;
+    });
+  });
+  return stateIDToStoreID;
 }
 
 async function importDicomChunkSources(sources: ChunkSource[]) {
@@ -194,7 +202,7 @@ export async function importDataSources(
       case 'config':
         configResults.push(result);
         try {
-          applyPreStateConfig(result.config);
+          await applyPreStateConfig(result.config);
         } catch (err) {
           results.push(asErrorResult(ensureError(err), result.dataSource));
         }
@@ -236,18 +244,24 @@ export async function importDataSources(
   useDatasetStore().addDataSources(loadableResults);
 
   for (const setup of stateFileSetups) {
-    const stateIDToStoreID: Record<string, string> = {};
-    for (const loadable of loadableResults) {
-      const leaf = findStateFileLeaf(loadable.dataSource);
-      if (leaf) {
-        stateIDToStoreID[leaf.stateID] = loadable.dataID;
-      }
+    const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
+    try {
+      await completeStateFileRestore(
+        setup.manifest,
+        setup.stateFiles,
+        stateIDToStoreID
+      );
+    } catch (err) {
+      // Auto-degrade to an ephemeral open: a mid-restore
+      // throw leaves the already-loaded bases as plain datasets — default
+      // views come from the ordinary load path — and the session's attached
+      // set stays empty, so a later save prunes every launch-composition
+      // entry. One notice, never an error loop.
+      useMessageStore().addWarning(
+        'Could not restore the saved session; opened its images instead',
+        { details: ensureError(err).message }
+      );
     }
-    await completeStateFileRestore(
-      setup.manifest,
-      setup.stateFiles,
-      stateIDToStoreID
-    );
   }
 
   return results;

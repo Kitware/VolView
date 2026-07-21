@@ -1,0 +1,86 @@
+{
+  "specVersion": 1,
+  "id": "SyntheticAllKinds",
+  "title": "Synthetic All Field Kinds",
+  "description": "Synthetic spec (not a real tool) exercising every scalar parameter kind plus an image input, a labelmap input, and both an image and a labelmap output.",
+  "parameters": [
+    {
+      "kind": "sourceRef",
+      "id": "inputVolume",
+      "title": "Input Volume",
+      "help": "Background volume to process.",
+      "section": "IO",
+      "order": 0,
+      "required": true,
+      "accepts": [
+        "image"
+      ]
+    },
+    {
+      "kind": "sourceRef",
+      "id": "inputLabelmap",
+      "title": "Mask Labelmap",
+      "help": "Optional labelmap selecting where to process.",
+      "section": "IO",
+      "order": 1,
+      "accepts": [
+        "labelmap"
+      ]
+    },
+    {
+      "kind": "int",
+      "id": "radius",
+      "title": "Radius",
+      "help": "An integer with numeric constraints and a default.",
+      "section": "Parameters",
+      "order": 2,
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "kind": "float",
+      "id": "threshold",
+      "title": "Threshold",
+      "help": "A floating-point value with a default.",
+      "section": "Parameters",
+      "order": 3,
+      "default": 50
+    },
+    {
+      "kind": "bool",
+      "id": "smooth",
+      "title": "Smooth",
+      "help": "A boolean toggle.",
+      "section": "Parameters",
+      "order": 4,
+      "default": true
+    },
+    {
+      "kind": "string",
+      "id": "label",
+      "title": "Label",
+      "help": "A free-text string.",
+      "section": "Parameters",
+      "order": 5,
+      "default": "result"
+    }
+  ],
+  "outputs": [
+    {
+      "id": "outputVolume",
+      "title": "Output Volume",
+      "help": "Processed image output.",
+      "type": "image",
+      "format": ".nii.gz"
+    },
+    {
+      "id": "outputLabelmap",
+      "title": "Output Labelmap",
+      "help": "Segmentation output.",
+      "type": "labelmap",
+      "format": ".nii.gz"
+    }
+  ]
+}

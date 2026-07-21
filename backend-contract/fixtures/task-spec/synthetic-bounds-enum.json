@@ -1,0 +1,65 @@
+{
+  "specVersion": 1,
+  "id": "SyntheticRegionEnum",
+  "title": "Synthetic Region and Enum",
+  "description": "Synthetic CLI (not a real radiology tool) exercising a region-derived bounds field, an enum, and UI hints for the translator conformance test.",
+  "parameters": [
+    {
+      "kind": "sourceRef",
+      "id": "inputVolume",
+      "title": "Input Volume",
+      "help": "Input volume (DICOM, NIfTI, NRRD, MHA, etc.)",
+      "section": "IO",
+      "order": 0,
+      "required": true,
+      "accepts": [
+        "image"
+      ]
+    },
+    {
+      "kind": "bounds",
+      "id": "roi",
+      "title": "Region of Interest",
+      "help": "World-space box (LPS) to restrict processing.",
+      "section": "Region and options",
+      "order": 1
+    },
+    {
+      "kind": "enum",
+      "id": "method",
+      "title": "Method",
+      "help": "Which algorithm variant to run.",
+      "section": "Region and options",
+      "order": 2,
+      "options": [
+        "otsu",
+        "kmeans",
+        "manual"
+      ],
+      "default": "otsu"
+    },
+    {
+      "kind": "enum",
+      "id": "iterations",
+      "title": "Iterations",
+      "help": "Number of refinement iterations.",
+      "section": "Region and options",
+      "order": 3,
+      "options": [
+        1,
+        2,
+        4
+      ],
+      "default": 2
+    }
+  ],
+  "outputs": [
+    {
+      "id": "outputLabelmap",
+      "title": "Output Labelmap",
+      "help": "Segmentation output.",
+      "type": "labelmap",
+      "format": ".nii.gz"
+    }
+  ]
+}

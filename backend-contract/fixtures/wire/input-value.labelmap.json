@@ -1,0 +1,7 @@
+{
+  "type": "labelmap",
+  "format": "nrrd",
+  "uris": [
+    "/api/v1/file/6600000000000000000000c1/proxiable/segmentation.seg.nrrd"
+  ]
+}

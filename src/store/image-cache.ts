@@ -101,9 +101,14 @@ export const useImageCacheStore = defineStore('image-cache', () => {
   function addVTKImageData(
     imageData: vtkImageData,
     name: string,
-    options: { id?: string } = {}
+    options: { id?: string; segmentMetadata?: Map<string, string> } = {}
   ) {
-    return addProgressiveImage(new LoadedVtkImage(imageData, name), options);
+    const image = new LoadedVtkImage(imageData, name);
+    // Embedded `.seg.nrrd` segment metadata, read back by
+    // `decodeSegments` — the non-DICOM analogue of `segBuildInfo`.
+    if (options.segmentMetadata)
+      image.segmentMetadata = options.segmentMetadata;
+    return addProgressiveImage(image, options);
   }
 
   function removeImage(id: string) {

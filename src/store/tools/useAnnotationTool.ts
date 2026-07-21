@@ -7,6 +7,7 @@ import {
 } from '@/src/config';
 import { removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
@@ -114,6 +115,17 @@ export const useAnnotationTool = <
 
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
+
+  // Delete-base cleanup: a removed image's tools
+  // must not linger — they are invisible in the UI (tool lists filter to the
+  // current image) and an orphaned imageID in the next save manifest is the
+  // backend's intentional fail-closed 400. Mirrors the segment-group cascade.
+  onImageDeleted((deletedIDs) => {
+    const deleted = new Set(deletedIDs);
+    toolIDs.value
+      .filter((id) => deleted.has(toolByID.value[id].imageID))
+      .forEach((id) => removeTool(id));
+  });
 
   // updates props controlled by labels
   watch(labels.labels, () => {

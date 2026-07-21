@@ -61,12 +61,18 @@ export const useLayersStore = defineStore('layer', () => {
 
     const name = imageCacheStore.getImageMetadata(source)?.name ?? NO_NAME;
     imageCacheStore.addVTKImageData(image, name, { id });
+    // Return the built layer id so callers can distinguish success from the
+    // `undefined` the useErrorMessage wrapper resolves to when _addLayer throws.
+    return id;
   }
 
   async function addLayer(parent: DataSelection, source: DataSelection) {
     return useErrorMessage('Failed to build layer', async () => {
       try {
-        await _addLayer(parent, source);
+        // Return the built layer id so the public wrapper resolves to it on
+        // success (and to `undefined` only when useErrorMessage swallows a
+        // throw) — callers distinguish a real build from a swallowed failure.
+        return await _addLayer(parent, source);
       } catch (error) {
         // remove failed layer from parent's layer list
         parentToLayers[parent] = parentToLayers[parent]?.filter(

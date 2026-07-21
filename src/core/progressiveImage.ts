@@ -49,6 +49,9 @@ export type ProgressiveImage = {
   vtkImageData: Ref<vtkImageData>;
   imageMetadata: Ref<ImageMetadata>;
   name: Ref<string>;
+  // Embedded Slicer-convention `.seg.nrrd` segment metadata captured at load,
+  // read by `decodeSegments`; undefined for non-labelmap images.
+  segmentMetadata?: Map<string, string>;
 };
 
 export const defaultImageMetadata = (): ImageMetadata => ({
@@ -113,6 +116,11 @@ export abstract class BaseProgressiveImage implements ProgressiveImage {
   public vtkImageData: Ref<vtkImageData>;
   public imageMetadata: Ref<ImageMetadata>;
   public name: Ref<string>;
+  // Slicer-convention `.seg.nrrd` segment metadata captured at load,
+  // the non-DICOM analogue of `DicomChunkImage.segBuildInfo`: when a labelmap is
+  // loaded from a `.seg.nrrd` its embedded `Segment{N}_*` header fields land
+  // here so `decodeSegments` can recover the real segment names/colors.
+  public segmentMetadata?: Map<string, string>;
   private cleanupListeners: () => void;
 
   constructor() {

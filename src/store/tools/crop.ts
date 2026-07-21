@@ -11,6 +11,7 @@ import { defineStore } from 'pinia';
 import { arrayEqualsWithComparator } from '@/src/utils';
 import { Maybe } from '@/src/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { LPSCroppingPlanes } from '../../types/crop';
 import { ImageMetadata } from '../../types/image';
 import { StateFile, Manifest } from '../../io/state-file/schema';
@@ -130,6 +131,14 @@ export const useCropStore = defineStore('crop', () => {
   const setCropping = (imageID: string, planes: LPSCroppingPlanes) => {
     state.croppingByImageID[imageID] = clampCroppingPlanes(imageID, planes);
   };
+
+  // Delete-base cleanup: crop state is keyed by dataset id, so a removed image
+  // must drop its entry or `serialize` carries an orphaned crop key.
+  onImageDeleted((deletedIDs) => {
+    deletedIDs.forEach((id) => {
+      delete state.croppingByImageID[id];
+    });
+  });
 
   const setCroppingForAxis = (
     imageID: string,

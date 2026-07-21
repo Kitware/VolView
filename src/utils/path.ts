@@ -11,11 +11,14 @@ export function dirname(path: string) {
 
 /**
  * Returns the base name of a path.
+ *
+ * Splits on both forward and backslashes so a Windows-style path or zip entry
+ * name yields its final segment too.
  * @param path
  * @returns
  */
 export function basename(path: string) {
-  return path.split(/\/+/g).at(-1) ?? path;
+  return path.split(/[\\/]+/g).at(-1) ?? path;
 }
 
 /**

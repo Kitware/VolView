@@ -1,0 +1,6 @@
+{
+  "jobId": "job-abc123",
+  "state": "running",
+  "resultState": "waiting",
+  "progress": 0.42
+}

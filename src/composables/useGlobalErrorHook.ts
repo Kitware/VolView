@@ -6,6 +6,14 @@ export function useGlobalErrorHook() {
   const messageStore = useMessageStore();
 
   const onError = (event: ErrorEvent) => {
+    // Benign per the ResizeObserver spec: the observer delivered late, nothing
+    // failed. Browsers surface it as a window error; never toast it.
+    if (
+      typeof event.message === 'string' &&
+      event.message.includes('ResizeObserver loop')
+    ) {
+      return;
+    }
     console.error(event);
     const error = event.error ?? event.message ?? 'Unknown global error';
 

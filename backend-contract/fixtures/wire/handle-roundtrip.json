@@ -1,0 +1,50 @@
+{
+  "$comment": "Handle mint/parse round-trip corpus (WORKORDER-4 Chunk 54; F4/F18). A backend whose opaque handles embed a backend file name MUST percent-encode the name segment at mint (RFC 3986; `escaped` is the exact expected segment — JS encodeURIComponent(name), matching Python urllib.parse.quote(name, safe=\"\") on this corpus) and unescape at parse, so parse(mint(fileId, name)) round-trips to the identical parts for every case here and the emitted handle carries no raw fragment/query delimiters. The client never parses a handle: it carries the minted string byte-for-byte (exemplarHandles are Girder-shaped samples the client-side suite pins as opaque).",
+  "cases": [
+    {
+      "name": "brain.nrrd",
+      "escaped": "brain.nrrd"
+    },
+    {
+      "name": "Lesion #1.seg.nrrd",
+      "escaped": "Lesion%20%231.seg.nrrd"
+    },
+    {
+      "name": "flow ?phase.nrrd",
+      "escaped": "flow%20%3Fphase.nrrd"
+    },
+    {
+      "name": "coverage 50%.seg.nrrd",
+      "escaped": "coverage%2050%25.seg.nrrd"
+    },
+    {
+      "name": "left lung mask.seg.nrrd",
+      "escaped": "left%20lung%20mask.seg.nrrd"
+    },
+    {
+      "name": "肿瘤分割.seg.nrrd",
+      "escaped": "%E8%82%BF%E7%98%A4%E5%88%86%E5%89%B2.seg.nrrd"
+    },
+    {
+      "name": "café-lésion.seg.nrrd",
+      "escaped": "caf%C3%A9-l%C3%A9sion.seg.nrrd"
+    },
+    {
+      "name": "#leading.nrrd",
+      "escaped": "%23leading.nrrd"
+    },
+    {
+      "name": "trailing?.nrrd",
+      "escaped": "trailing%3F.nrrd"
+    },
+    {
+      "name": "a#b?c%d e.nrrd",
+      "escaped": "a%23b%3Fc%25d%20e.nrrd"
+    }
+  ],
+  "exemplarHandles": [
+    "/api/v1/file/6600000000000000000000a1/proxiable/Lesion%20%231.seg.nrrd",
+    "/api/v1/file/6600000000000000000000a2/proxiable/%E8%82%BF%E7%98%A4%E5%88%86%E5%89%B2.seg.nrrd",
+    "/api/v1/file/6600000000000000000000a3/proxiable/a%23b%3Fc%25d%20e.nrrd"
+  ]
+}

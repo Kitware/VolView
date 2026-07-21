@@ -58,6 +58,7 @@ import vtkURLExtract from '@kitware/vtk.js/Common/Core/URLExtract';
 import { useDisplay } from 'vuetify';
 import useLoadDataStore from '@/src/store/load-data';
 import { useViewStore } from '@/src/store/views';
+import { useProcessingJobsStore } from '@/src/processing';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';
 import ControlsStrip from '@/src/components/ControlsStrip.vue';
@@ -157,13 +158,24 @@ export default defineComponent({
       urlParams = {};
     }
 
-    onMounted(() => {
-      loadUrls(urlParams);
+    onMounted(async () => {
+      await loadUrls(urlParams);
+      // Job re-discovery after reload: once the launch data +
+      // providers are in, re-find THIS study's jobs for the Jobs panel —
+      // still-running jobs join the normal poller (finishing while open fires
+      // the ordinary in-session live path), terminal ones are observability
+      // rows only. Inert with no configured provider (the demo
+      // posture registers none) and never fatal to the load.
+      try {
+        await useProcessingJobsStore().adoptJobHistory();
+      } catch (err) {
+        console.error('Job re-discovery failed', err);
+      }
     });
 
     // --- remote save state URL --- //
 
-    if (import.meta.env.VITE_ENABLE_REMOTE_SAVE && urlParams.save) {
+    if (urlParams.save) {
       const url = Array.isArray(urlParams.save)
         ? urlParams.save[0]
         : urlParams.save;

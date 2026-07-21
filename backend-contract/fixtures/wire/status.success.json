@@ -1,0 +1,6 @@
+{
+  "jobId": "job-abc123",
+  "state": "success",
+  "resultState": "ready",
+  "progress": 1
+}
