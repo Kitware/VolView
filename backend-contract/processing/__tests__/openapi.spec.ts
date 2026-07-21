@@ -154,8 +154,10 @@ const FORBIDDEN = [
   { label: 'girder api mount /api/v1', re: /\/api\/v1/ },
   { label: 'proxiable url shape', re: /proxiable/i },
   { label: 'girder mention', re: /girder/i },
+  { label: 'girder folder vocabulary', re: /folder/i },
   { label: 'slicer mention', re: /slicer/i },
   { label: 'backend task xml', re: /\bxml\b/i },
+  { label: 'container tech mention', re: /docker/i },
   // The girder `JobStatus` enum name — but NOT our own neutral `NeutralJobStatus`
   // component, which deliberately carries the `Neutral` prefix.
   { label: 'JobStatus enum name', re: /(?<!Neutral)JobStatus/ },

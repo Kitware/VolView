@@ -41,14 +41,7 @@
 </template>
 
 <script lang="ts">
-import {
-  Component,
-  computed,
-  defineComponent,
-  onBeforeUnmount,
-  ref,
-  watch,
-} from 'vue';
+import { Component, computed, defineComponent, ref, watch } from 'vue';
 
 import { ConnectionState, useServerStore } from '@/src/store/server';
 import { JobsModule, useProcessingJobsStore } from '@/src/processing';
@@ -114,31 +107,14 @@ export default defineComponent({
     );
 
     const serverStore = useServerStore();
-    const jobsModule = ref<Module | null>(null);
 
-    // Processing ships in every build; the Jobs tab stays latent until a
-    // provider registers. `providerCount > 0` is the sole runtime gate — with
-    // no provider configured the tab never appears (latent = inert). JobsModule
-    // is the feature's lazily-loaded panel export (its chunk loads on mount).
+    // Jobs tab appears only after a provider registers.
     const providersStore = useProcessingJobsStore();
-    const stopProviderCountWatch = watch(
-      () => providersStore.providerCount,
-      (providerCount) => {
-        jobsModule.value =
-          providerCount > 0
-            ? {
-                name: 'Jobs',
-                icon: 'creation',
-                component: JobsModule,
-              }
-            : null;
-      },
-      { immediate: true }
+    const jobsModule = computed(() =>
+      providersStore.providerCount > 0
+        ? ({ name: 'Jobs', icon: 'creation', component: JobsModule } as Module)
+        : null
     );
-
-    onBeforeUnmount(() => {
-      stopProviderCountWatch();
-    });
 
     const modules = computed(() => {
       const filtered = [

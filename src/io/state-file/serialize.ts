@@ -18,14 +18,12 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useMessageStore } from '@/src/store/messages';
 import { debug } from '@/src/utils/loggers';
+import { isRecord } from '@/src/utils';
 
 export const MANIFEST = 'manifest.json';
 export const MANIFEST_VERSION = '6.4.0';
 
 type ManifestCandidate = Record<string, unknown>;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const coreManifestSchema = ManifestSchema.pick({
   version: true,
@@ -123,7 +121,7 @@ function validateCoreGraph(core: Manifest, zip: JSZip) {
 // owned by the synchronous remove cascade — see `datasetStore.remove` and
 // `datasetRemoveCascade.spec.ts`. Those ids are kept live-clean at the source,
 // and a stale one is harmless on restore anyway (deserialize remaps every id
-// through its id-map and ignores misses), so this function no longer re-walks
+// through its id-map and ignores misses), so this function does not re-walk
 // them. Segment groups stay here because an orphaned one leaves dead `.seg.nrrd`
 // bytes in the archive, which is a real cost the cascade does not address.
 export function normalizeManifest(manifest: Manifest, zip: JSZip) {

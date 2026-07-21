@@ -22,8 +22,6 @@
 import { computed } from 'vue';
 import type { VolViewTaskParameter } from '@/backend-contract';
 
-// Renders a `bounds` input. Its value is a world-space LPS 6-tuple bound from
-// the crop tool by the engine host (JobsModule); this widget displays it.
 const props = defineProps<{
   param: VolViewTaskParameter;
   modelValue: number[] | null | undefined;

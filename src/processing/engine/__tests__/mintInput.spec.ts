@@ -14,21 +14,13 @@ import { parseTaskSpecEnvelope } from '../taskSpec';
 import { loadFixture } from '@/backend-contract/processing/__tests__/loadFixtures';
 import type { FormField } from '../formModel';
 
-// ---------------------------------------------------------------------------
-// DataSource fixtures — the provenance shapes VolView's import pipeline builds.
-// A remote DICOM volume is a `collection` of DICOM `chunk`s, each parented to a
-// `uri`; a remote single file is a `file` parented to a `uri`. No-provenance
-// volumes bottom out in a local `File` / `stateFileLeaf` with no `uri` ancestor.
-// ---------------------------------------------------------------------------
-
 const uriSource = (uri: string): DataSource => ({
   type: 'uri',
   uri,
   name: uri.split('/').pop() ?? uri,
 });
 
-// A DICOM chunk whose only meaningful provenance is its parent URI. `chunk` is
-// never read by the mint, so a placeholder is cast in.
+// `chunk` is never read by the mint, so a placeholder is cast in.
 const dicomChunk = (uri: string): DataSource =>
   ({
     type: 'chunk',
@@ -42,9 +34,6 @@ const dicomVolume = (uris: string[]): DataSource => ({
   sources: uris.map(dicomChunk),
 });
 
-// A DICOM chunk with NO uri ancestor — a locally-dropped file's chunk. Mixed
-// into a collection alongside remote chunks, it models the reconstructed
-// mixed-provenance volume that must not bind.
 const localChunk = (): DataSource =>
   ({
     type: 'chunk',
@@ -101,10 +90,6 @@ const imageParamModel = (
   hidden: [],
 });
 
-// ---------------------------------------------------------------------------
-// AC1 — the minted value matches the Appendix B golden fixtures byte-for-byte.
-// ---------------------------------------------------------------------------
-
 describe('mintInputValue matches the input-value golden fixtures', () => {
   it('mints a dicom-series image from a remote DICOM collection', () => {
     const fixture = loadFixture('wire/input-value.dicom-series.json');
@@ -121,10 +106,6 @@ describe('mintInputValue matches the input-value golden fixtures', () => {
     expect(value).toEqual(fixture);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Provenance collection is verbatim + in constituent order.
-// ---------------------------------------------------------------------------
 
 describe('collectProvenanceUris', () => {
   it('returns the collection URIs verbatim, in slice order', () => {
@@ -146,9 +127,7 @@ describe('collectProvenanceUris', () => {
   });
 
   it('yields nothing for a mixed-provenance collection (no partial volume)', () => {
-    // Some chunks remote, one local: minting only the remote subset would have
-    // the backend process an incomplete volume — every constituent must
-    // resolve, or the whole collection is not bindable.
+    // Minting only the remote subset would process an incomplete volume.
     expect(
       collectProvenanceUris(mixedProvenanceVolume(['a/1.dcm', 'a/2.dcm']))
     ).toEqual([]);
@@ -166,10 +145,6 @@ describe('deriveFormat (advisory)', () => {
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// AC2 — no-provenance volumes are not bindable: fail closed (inline + refuse).
-// ---------------------------------------------------------------------------
 
 describe('mintInputValue fails closed for no-provenance volumes', () => {
   it.each([
@@ -200,8 +175,6 @@ describe('bindImageInputs auto-binds the active dataset (WI2/WI3)', () => {
   it('fails closed (no-provenance) + refuses submit for a local-drop volume', () => {
     const result = bindImageInputs(imageParamModel(), localFile('local.nrrd'));
     expect(result.states.inputVolume).toBe('no-provenance');
-    // The binder AUTHORS its field on failure (explicit null, never absent) so
-    // a rebind can never leave a previous image's minted URI in place.
     expect(result.values.inputVolume).toBeNull();
     expect(result.issues).toHaveLength(1);
     expect(result.issues[0].parameter).toBe('inputVolume');
@@ -234,7 +207,6 @@ describe('bindImageInputs auto-binds the active dataset (WI2/WI3)', () => {
     );
     expect(result.states.ct).toBe('ambiguous');
     expect(result.states.pet).toBe('ambiguous');
-    // Fail-closed branches still author every owned field (explicit null).
     expect(result.values).toEqual({ ct: null, pet: null });
     expect(result.issues).toHaveLength(1);
   });
@@ -271,10 +243,6 @@ describe('bindImageInputs auto-binds the active dataset (WI2/WI3)', () => {
     expect(result.issues).toHaveLength(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Integration — through the real spec → form-model path.
-// ---------------------------------------------------------------------------
 
 describe('bindImageInputs over a real task-spec fixture', () => {
   it('finds and binds the image inputVolume from provenance', () => {

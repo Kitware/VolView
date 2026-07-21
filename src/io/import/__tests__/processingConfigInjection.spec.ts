@@ -1,6 +1,6 @@
-// Config-by-shape + origin gate, exercised through the real import pipeline
-// (chunk 2). There is no channel distinction any more: a provider config
-// registers iff its origin passes the runtime gate, no matter how it arrived
+// Config-by-shape + origin gate, exercised through the real import pipeline.
+// There is no channel distinction: a provider config registers iff its origin
+// passes the runtime gate, no matter how it arrived
 // (a `config`-role uri, a plain `urls=` file, or a dropped file).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -59,7 +59,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
       import('@/src/processing'),
     ]);
 
-    // No 'config' role on the parent — the channel that was previously refused.
+    // No 'config' role on the parent: registration is by shape, not channel.
     const dataSource: DataSource = {
       type: 'file',
       file: jsonFile(

@@ -96,8 +96,6 @@ describe('parseJobRef', () => {
   });
 
   it('treats an explicit status:null as absent (poll path), not a terminal error', () => {
-    // `null` is a common JSON serialization of an omitted optional field; it
-    // must poll, not surface as a born-terminal malformed status.
     expect(parseJobRef({ jobId: 'job-1', status: null })).toEqual({
       jobId: 'job-1',
     });
@@ -124,7 +122,6 @@ describe('parseJobRef', () => {
     expect(ref.status?.state).toBe('error');
   });
 
-  // Nothing can be tracked without a usable job id, so every unusable form throws.
   it.each([
     ['a missing job id', { status: { state: 'success' } }],
     ['an empty job id', { jobId: '' }],
@@ -172,12 +169,6 @@ describe('parseResults', () => {
   });
 
   it('keeps an out-of-range segment descriptor as an ordinary result (no whole-list rejection)', () => {
-    // A descriptor the contract rejects (0-background value, a >255 channel) no
-    // longer needs a loosened client schema: the canonical `resultIntentSchema`
-    // union simply demotes this row from the strict `add-segment-group` member to
-    // the fail-open ordinary branch, so it survives (catchall preserves
-    // `segments`) as a visible result carrying no state action — one bad
-    // descriptor never throws away the whole list.
     const intents = [
       {
         id: 'r1',
@@ -193,9 +184,6 @@ describe('parseResults', () => {
   });
 
   it('keeps a numeric/malformed intent as an ordinary result (never throws the list away)', () => {
-    // A non-string intent (17) fails every known member and falls to the ordinary
-    // branch — the old private `z.string().optional()` intent field would have
-    // rejected the whole envelope and silently loaded nothing.
     const intents = [
       {
         id: 'r1',
@@ -232,8 +220,6 @@ describe('parseResults', () => {
         size: null,
       },
     ];
-    // Null is accepted (not thrown) and normalized to absent so the output
-    // still matches `ProcessingResult` (mimeType?: string, size?: number).
     const { results } = parseResults({
       resultState: 'ready',
       intents,
@@ -245,10 +231,6 @@ describe('parseResults', () => {
   });
 
   it('exercises the job-results.missing.json wire fixture', () => {
-    // The golden fixture pins the {intents, missing} envelope with PURE-intent
-    // items (the contract vocabulary floor). The real backend ENRICHES each intent
-    // with the id/name the JobList reads (exactly `_collectJobResults`' merge), so
-    // simulate that enrichment before feeding the transport parser.
     const fixture = loadFixture('wire/job-results.missing.json') as {
       intents: Array<Record<string, unknown>>;
       missing: number;

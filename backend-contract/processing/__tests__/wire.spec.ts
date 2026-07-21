@@ -9,13 +9,14 @@ import {
   stageInputDescriptorSchema,
   neutralJobStatusSchema,
   resultIntentSchema,
+  knownResultIntentSchema,
   jobHistoryPageSchema,
   jobHistorySummarySchema,
   jobHistoryDetailSchema,
   jobResultsSchema,
   jobResultsErrorSchema,
 } from '../wire';
-import { loadFixtureDir } from './loadFixtures';
+import { loadFixture, loadFixtureDir } from './loadFixtures';
 
 const wire = Object.fromEntries(
   loadFixtureDir('wire').map((f) => [f.name, f.data])
@@ -49,6 +50,11 @@ describe('input value fixtures', () => {
     expect(() =>
       inputValueSchema.parse({ type: 'pet', uris: ['/x'] })
     ).not.toThrow();
+  });
+
+  it('rejects a bound input with no uris (negative fixture)', () => {
+    const empty = loadFixture('negative/empty-uris.json');
+    expect(inputValueSchema.safeParse(empty).success).toBe(false);
   });
 });
 
@@ -254,6 +260,25 @@ describe('result intent fixtures', () => {
     expect(
       resultIntentSchema.safeParse({ id: 'r1', intent: 'add-polygon' }).success
     ).toBe(false);
+  });
+
+  it('rejects a wrong-length segment color (the tuple-length parity pin)', () => {
+    // The negative fixture carries a 3-element color. The STRICT union must
+    // reject it — and the generated JSON Schema must agree (backend side:
+    // test_contract_fixtures.py), so both validators close fixed-length
+    // tuples identically. The full union still accepts the row, demoted to an
+    // ordinary result with no state action (the designed fail-open).
+    const short = loadFixture('negative/wrong-length-color.json');
+    expect(knownResultIntentSchema.safeParse(short).success).toBe(false);
+    expect(resultIntentSchema.safeParse(short).success).toBe(true);
+
+    const good = wire['intent.add-segment-group.with-segments'] as {
+      segments: { color: number[] }[];
+    };
+    const long = structuredClone(good);
+    long.segments[0].color = [255, 0, 0, 255, 255];
+    expect(knownResultIntentSchema.safeParse(long).success).toBe(false);
+    expect(knownResultIntentSchema.safeParse(good).success).toBe(true);
   });
 });
 

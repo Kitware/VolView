@@ -9,9 +9,6 @@ import type {
   SubmittedJobContext,
 } from '@/src/processing/types';
 
-// Mock every store / import boundary the applier touches so each test can
-// assert exactly which store call an intent maps to. `vi.hoisted` lets the
-// (hoisted) `vi.mock` factories share these spies.
 const mocks = vi.hoisted(() => ({
   uriToDataSource: vi.fn(),
   importDataSources: vi.fn(),
@@ -19,22 +16,13 @@ const mocks = vi.hoisted(() => ({
   isVolumeResult: vi.fn(),
   loadUrls: vi.fn(),
   addLayer: vi.fn(),
-  // Dataset-store removal of the temporary imported child (add-segment-group
-  // must not leave its conversion vehicle in the Data panel).
   removeDataset: vi.fn(),
   convertImageToLabelmap: vi.fn(),
   updateSegment: vi.fn(),
-  // The live-only "new job result" badge.
-  markNew: vi.fn(),
-  // Scene segment-group metadata, read by the durable job-history idempotency
-  // guard. Keyed by group id; only `source` matters here.
   metadataByID: {} as Record<
     string,
     { source?: { jobId: string; outputId: string } }
   >,
-  // Message center. applyIntent reports failure via its return value; callers own
-  // any user-facing message, so these tests assert the applier never calls
-  // addError.
   addError: vi.fn(),
 }));
 
@@ -63,9 +51,6 @@ vi.mock('@/src/store/segmentGroups', () => ({
     updateSegment: mocks.updateSegment,
     metadataByID: mocks.metadataByID,
   }),
-}));
-vi.mock('@/src/processing/jobResultReview', () => ({
-  useJobResultReviewStore: () => ({ markNew: mocks.markNew }),
 }));
 vi.mock('@/src/store/messages', () => ({
   useMessageStore: () => ({ addError: mocks.addError }),
@@ -102,11 +87,7 @@ beforeEach(() => {
   mocks.isVolumeResult.mockReturnValue(true);
   mocks.toDataSelection.mockReturnValue('child-selection');
   mocks.loadUrls.mockResolvedValue(['dataset-live']);
-  // convertImageToLabelmap now returns the created group id(s); descriptors +
-  // the badge key off the returned ids.
   mocks.convertImageToLabelmap.mockResolvedValue(['seg-group']);
-  // addLayer resolves the built layer id on success; `undefined` means the
-  // useErrorMessage wrapper swallowed a build failure.
   mocks.addLayer.mockResolvedValue('layer-1');
 });
 
@@ -157,8 +138,6 @@ describe('applyIntent', () => {
   });
 
   it('add-segment-group converts the labelmap and applies descriptors to the created group', async () => {
-    // Descriptors key off the id convertImageToLabelmap returns, not a racing
-    // read of orderByParent.
     mocks.convertImageToLabelmap.mockResolvedValue(['group-1']);
     const segments = [
       { value: 1, name: 'liver', color: rgba(255, 0, 0, 255) },
@@ -187,17 +166,12 @@ describe('applyIntent', () => {
   });
 
   it('add-segment-group removes the temporarily imported child dataset', async () => {
-    // The import is only the conversion vehicle — the created group owns its
-    // own derived labelmap image. Leaving the import behind would surface the
-    // result BOTH as the segment group and as a Data-panel dataset, and
-    // duplicate it into saved state (M-02).
     const outcome = await applyIntent(
       { intent: 'add-segment-group', ...file },
       context('parent')
     );
     expect(outcome.status).toBe('applied');
     expect(mocks.removeDataset).toHaveBeenCalledWith('child-selection');
-    // Removal happens after the conversion consumed the child.
     expect(mocks.removeDataset.mock.invocationCallOrder[0]).toBeGreaterThan(
       mocks.convertImageToLabelmap.mock.invocationCallOrder[0]
     );
@@ -234,7 +208,6 @@ describe('applyIntent', () => {
       'parent',
       undefined
     );
-    // No folded sidecar -> the group keeps its own decoded segments.
     expect(mocks.updateSegment).not.toHaveBeenCalled();
   });
 
@@ -244,8 +217,6 @@ describe('applyIntent', () => {
       { intent: 'add-segment-group', ...file, source },
       context('parent')
     );
-    // The tag threads through convertImageToLabelmap -> addLabelmap so it
-    // round-trips the .volview.zip (stamp + idempotency).
     expect(mocks.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
@@ -266,9 +237,6 @@ describe('applyIntent', () => {
   });
 
   it('add-segment-group reports an explicit failure when the result fails to load (#7)', async () => {
-    // loadAsImport returns null (404/corrupt/non-volume). applyIntent reports the
-    // failure via its return value rather than messaging; JobList.dispatch owns
-    // the toast so the same site also covers a THROWN apply failure.
     mocks.importDataSources.mockResolvedValue([]);
     const applied = await applyIntent(
       { intent: 'add-segment-group', ...file },
@@ -291,9 +259,6 @@ describe('applyIntent', () => {
   });
 
   it('resolves to failed (never rejects) when the fallback open throws', async () => {
-    // The openAsDataset fallback is `return await`ed inside applyIntent's try:
-    // a rejected load (malformed URL, importer throw) must resolve to the
-    // 'failed' outcome, not reject — JobList's dispatch has no catch.
     mocks.loadUrls.mockRejectedValue(new Error('bad result url'));
     const applied = await applyIntent(
       { intent: 'add-base-image', ...file },
@@ -303,9 +268,6 @@ describe('applyIntent', () => {
   });
 
   it('add-layer reports failure when the layer fails to build (addLayer swallows the throw)', async () => {
-    // addLayer wraps _addLayer in useErrorMessage: a non-intersecting-bounds
-    // build shows its own toast and resolves to `undefined`. The applier must
-    // surface that as 'failed', not a false 'applied'.
     mocks.addLayer.mockResolvedValue(undefined);
     const applied = await applyIntent(
       { intent: 'add-layer', ...file },
@@ -313,17 +275,11 @@ describe('applyIntent', () => {
     );
     expect(mocks.addLayer).toHaveBeenCalledWith('parent', 'child-selection');
     expect(applied.status).toBe('failed');
-    // With no layer referencing it, the imported child must not linger as an
-    // unintended dataset (it would persist into saved state).
     expect(mocks.removeDataset).toHaveBeenCalledWith('child-selection');
-    // The applier still owns no user message — addLayer already toasted.
     expect(mocks.addError).not.toHaveBeenCalled();
   });
 
   it('is additive-only: writes into the NEW group, never a pre-existing one', async () => {
-    // A pre-existing group is present for the parent. Applying a segment-group
-    // result must create a NEW group (convertImageToLabelmap) and apply
-    // descriptors to it — never merge into the existing group.
     mocks.metadataByID = { 'existing-group': {} };
     mocks.convertImageToLabelmap.mockResolvedValue(['new-group']);
     await applyIntent(
@@ -335,7 +291,6 @@ describe('applyIntent', () => {
       context('parent')
     );
     expect(mocks.convertImageToLabelmap).toHaveBeenCalledTimes(1);
-    // Descriptors land on the freshly-created group, not the existing one.
     expect(mocks.updateSegment).toHaveBeenCalledWith(
       'new-group',
       1,
@@ -372,9 +327,6 @@ describe('autoLoadProcessingResults', () => {
       { jobId: 'j1', outputId: 'seg' }
     );
     expect(mocks.updateSegment).toHaveBeenCalledTimes(1);
-    // The created group is badged as a new job result (born-persistent).
-    expect(mocks.markNew).toHaveBeenCalledTimes(1);
-    expect(mocks.markNew).toHaveBeenCalledWith('seg-group');
     expect(mocks.loadUrls).toHaveBeenCalledTimes(1);
     expect(mocks.loadUrls).toHaveBeenCalledWith({
       urls: [file.url],
@@ -389,7 +341,6 @@ describe('autoLoadProcessingResults', () => {
       context('parent')
     );
     expect(mocks.convertImageToLabelmap).not.toHaveBeenCalled();
-    expect(mocks.markNew).not.toHaveBeenCalled();
     expect(mocks.loadUrls).not.toHaveBeenCalled();
   });
 
@@ -403,7 +354,6 @@ describe('autoLoadProcessingResults', () => {
       names: [file.name],
     });
     expect(mocks.convertImageToLabelmap).not.toHaveBeenCalled();
-    expect(mocks.markNew).not.toHaveBeenCalled();
   });
 
   it('opens a parentless segment-group result as an ordinary dataset', async () => {
@@ -412,7 +362,6 @@ describe('autoLoadProcessingResults', () => {
       context(undefined)
     );
     expect(mocks.convertImageToLabelmap).not.toHaveBeenCalled();
-    expect(mocks.markNew).not.toHaveBeenCalled();
     expect(mocks.loadUrls).toHaveBeenCalledWith({
       urls: [file.url],
       names: [file.name],
@@ -440,11 +389,10 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
   const segResult = (overrides: Partial<ProcessingResult> = {}) =>
     result({ id: 'seg', intent: 'add-segment-group', ...overrides });
 
-  it('auto-applies an importable labelmap and badges it new', async () => {
+  it('auto-applies an importable labelmap', async () => {
     mocks.convertImageToLabelmap.mockResolvedValue(['seg-group']);
     await autoLoadProcessingResults([segResult()], context('parent'));
     expect(mocks.convertImageToLabelmap).toHaveBeenCalledTimes(1);
-    expect(mocks.markNew).toHaveBeenCalledWith('seg-group');
   });
 
   it('lets the conversion path decide whether an imported labelmap can attach', async () => {
@@ -457,41 +405,25 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
   });
 
   it('does not auto-apply a result that fails to decode, and surfaces the failure', async () => {
-    // No importable volume -> loadAsImport returns null.
     mocks.importDataSources.mockResolvedValue([]);
     await autoLoadProcessingResults([segResult()], context('parent'));
     expect(mocks.convertImageToLabelmap).not.toHaveBeenCalled();
-    expect(mocks.markNew).not.toHaveBeenCalled();
-    // The completion toast said results were ready, so an auto-apply failure
-    // must be surfaced, not swallowed to the console.
     expect(mocks.addError).toHaveBeenCalled();
   });
 });
 
-// ---------------------------------------------------------------------------
-// Born-persistent review model ("Review UX"): a
-// validated result is a NORMAL, deletable segment group — no confirm/reject
-// gate, no promotion state machine. The ONLY review surface is the live-only
-// badge (markNew) + the existing visibility/delete UI.
-// ---------------------------------------------------------------------------
-
 describe('autoLoadProcessingResults — born-persistent (no confirm gate)', () => {
-  it('applies the group immediately and its only review surface is the badge', async () => {
+  it('applies the group immediately with no confirm gate', async () => {
     const source = { jobId: 'j1', outputId: 'seg' };
     mocks.convertImageToLabelmap.mockResolvedValue(['seg-group']);
     await autoLoadProcessingResults(
       [result({ id: 'seg', intent: 'add-segment-group', source })],
       context('parent')
     );
-    // The group is created straight away (born-persistent), stamped with source.
     expect(mocks.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
       source
     );
-    // The badge is the whole review surface — there is no confirm/promotion call
-    // the applier could make beyond marking the group new.
-    expect(mocks.markNew).toHaveBeenCalledTimes(1);
-    expect(mocks.markNew).toHaveBeenCalledWith('seg-group');
   });
 });

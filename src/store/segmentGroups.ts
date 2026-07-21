@@ -666,11 +666,15 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     // so the cleanup runs even if a group throws unexpectedly. Archive-backed
     // groups (path !== undefined) own no temp dataset.
     const artifactStoreId = (segmentGroup: SegmentGroup) =>
-      segmentGroup.path === undefined
-        ? dataIDMap[leafStateId(segmentGroup.dataSourceId!)]
+      segmentGroup.path === undefined && segmentGroup.dataSourceId !== undefined
+        ? dataIDMap[leafStateId(segmentGroup.dataSourceId)]
         : undefined;
+    // Collected from EVERY group, not just the attachable ones: a group
+    // skipped at the parent-image check may still have imported its artifact
+    // leaf, and that orphan would otherwise sit in the dataset store and
+    // re-serialize into every future save.
     const tempStoreIdsToRemove = new Set(
-      attachable
+      segmentGroups
         .map(artifactStoreId)
         .filter((storeId): storeId is string => storeId !== undefined)
     );

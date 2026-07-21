@@ -2,8 +2,8 @@
   <v-select
     :model-value="modelValue ?? null"
     :items="items"
-    :label="param.title || param.id"
     :hint="param.help"
+    variant="outlined"
     density="compact"
     hide-details="auto"
     persistent-hint
@@ -23,8 +23,6 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: string | number | null): void;
 }>();
 
-// The enum options live only on the `enum` kind. Options may be numeric
-// (Slicer integer/float enumerations); the selected value keeps its type.
 const items = computed(() =>
   props.param.kind === 'enum' ? props.param.options : []
 );

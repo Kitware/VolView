@@ -3,7 +3,6 @@ import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
 import { FILE_READERS } from '@/src/io';
-import { takeSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { ImportHandler, asLoadableResult } from '@/src/io/import/common';
 import { useMessageStore } from '@/src/store/messages';
 import { Skip } from '@/src/utils/evaluateChain';
@@ -26,13 +25,9 @@ const importSingleFile: ImportHandler = async (dataSource) => {
   const dataObject = await reader(dataSource.file);
 
   if (dataObject.isA('vtkImageData')) {
-    // Embedded `.seg.nrrd` segment metadata the itk reader stashed,
-    // carried onto the loaded image for `decodeSegments` to recover names/colors.
-    const segmentMetadata = takeSegNrrdMetadata(dataObject);
     const dataID = useImageStore().addVTKImageData(
       dataSource.file.name,
-      dataObject as vtkImageData,
-      { segmentMetadata }
+      dataObject as vtkImageData
     );
 
     return asLoadableResult(dataID, dataSource, 'image');

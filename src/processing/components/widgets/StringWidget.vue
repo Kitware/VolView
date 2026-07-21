@@ -1,8 +1,8 @@
 <template>
   <v-text-field
     :model-value="modelValue ?? ''"
-    :label="param.title || param.id"
     :hint="param.help"
+    variant="outlined"
     density="compact"
     hide-details="auto"
     persistent-hint

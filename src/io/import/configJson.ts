@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { zodEnumFromObjKeys } from '@/src/utils';
+import { isRecord, zodEnumFromObjKeys } from '@/src/utils';
 import { ACTIONS } from '@/src/constants';
 
 import { useRectangleStore } from '@/src/store/tools/rectangles';
@@ -128,13 +128,10 @@ export type ConfigRecognition =
   // when every top-level key was a known section).
   { kind: 'config'; config: Config; ignoredKeys: string[] } | { kind: 'data' };
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
 export const recognizeConfig = async (
   raw: unknown
 ): Promise<ConfigRecognition> => {
-  if (!isPlainObject(raw)) return { kind: 'data' };
+  if (!isRecord(raw)) return { kind: 'data' };
 
   // The full schema (base sections + `processing`) defines the known top-level
   // keys. Imported lazily so the processing schema stays in its own chunk.

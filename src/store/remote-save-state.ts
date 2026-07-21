@@ -6,19 +6,19 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
 // On a successful save the backend returns a single field, `resumeUrl` — the
-// session's save/load URL. The client repoints BOTH the tab's `urls=` (so a
-// future F5 reloads the just-made save instead of the fresh launch manifest) AND
-// its `save=` (so subsequent saves target the SAME session item — item-scoped —
-// instead of minting a new session zip each time) at it, via
-// `history.replaceState` (no reload). VolView constructs no Girder route and
-// never learns the item id; it only knows "point future refreshes and saves at
+// saved session's load URL. The client repoints ONLY the tab's `urls=` at it
+// (so a future F5 reloads the just-made save instead of the fresh launch
+// manifest), via `history.replaceState` (no reload). `save=` and the in-memory
+// save target are left alone: every save keeps going to the launch-provided
+// target, so a folder-scoped save mints a new session zip item per save and F5
+// follows the newest via the repointed `urls=`. VolView constructs no Girder
+// route and never learns the item id; it only knows "point future refreshes at
 // `resumeUrl`." A response without `resumeUrl` (or an unparseable body) leaves
 // the tab as-is (fail-safe). `config=` is untouched.
 const repointToResumeUrl = (resumeUrl: string) => {
   const url = new URL(window.location.toString());
   const params = new URLSearchParams(url.search);
   params.set('urls', resumeUrl); // future F5 reloads the save
-  params.set('save', resumeUrl); // future saves go item-scoped into the same item
   url.search = `?${params.toString()}`;
   window.history.replaceState(null, '', url.toString());
 };
@@ -75,13 +75,13 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
             isOriginAllowed(body.resumeUrl)
           ) {
             // Same-origin resumeUrl only (matches the setSaveUrl egress gate):
-            // stamp urls=/save= for an F5-stable resume AND re-target in-session
-            // saves at the same item. A cross-origin resumeUrl is a fail-safe
-            // no-op — the tab is left as-is (no address-bar stamp, saveUrl
-            // unchanged, no persistent warning); the save still succeeded, but a
-            // later F5 will not repoint (acceptable under the same-origin policy).
+            // stamp urls= for an F5-stable resume. The save target is NOT
+            // repointed — saves keep going to the launch-provided target. A
+            // cross-origin resumeUrl is a fail-safe no-op — the tab is left
+            // as-is (no address-bar stamp, no persistent warning); the save
+            // still succeeded, but a later F5 will not repoint (acceptable
+            // under the same-origin policy).
             repointToResumeUrl(body.resumeUrl);
-            setSaveUrl(body.resumeUrl);
           }
         } catch {
           // leave the tab as-is

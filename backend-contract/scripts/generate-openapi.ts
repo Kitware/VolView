@@ -7,8 +7,8 @@
 // Single source: the wire component schemas are injected from the SAME
 // zod-generated JSON Schemas the backend validates against, so the OpenAPI can
 // never drift from the normative zod definition. `processing/__tests__/openapi.spec.ts`
-// guards the checked-in output against drift; `scripts/sync-backend.sh` vendors
-// it (alongside the fixtures + generated schemas) into girder_volview.
+// guards the checked-in output against drift; it ships in the `volview` package
+// (alongside the fixtures + generated schemas), where girder_volview reads it.
 // ---------------------------------------------------------------------------
 
 import { writeFileSync, mkdirSync } from 'node:fs';

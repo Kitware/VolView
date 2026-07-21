@@ -35,7 +35,7 @@ export const useImageStore = defineStore('images', () => {
   function addVTKImageData(
     name: string,
     imageData: vtkImageData,
-    options: { id?: string; segmentMetadata?: Map<string, string> } = {}
+    options: { id?: string } = {}
   ) {
     if (options.id && idList.value.includes(options.id)) {
       throw new Error('ID already exists');
@@ -44,10 +44,7 @@ export const useImageStore = defineStore('images', () => {
     const id = options.id ?? useIdStore().nextId();
     idList.value.push(id);
 
-    return useImageCacheStore().addVTKImageData(imageData, name, {
-      id,
-      segmentMetadata: options.segmentMetadata,
-    });
+    return useImageCacheStore().addVTKImageData(imageData, name, { id });
   }
 
   function deleteData(id: string) {

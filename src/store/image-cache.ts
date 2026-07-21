@@ -3,6 +3,7 @@ import {
   ProgressiveImage,
   ProgressiveImageStatus,
 } from '@/src/core/progressiveImage';
+import { takeSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { useIdStore } from '@/src/store/id';
 import { useMessageStore } from '@/src/store/messages';
 import { Maybe } from '@/src/types';
@@ -101,13 +102,15 @@ export const useImageCacheStore = defineStore('image-cache', () => {
   function addVTKImageData(
     imageData: vtkImageData,
     name: string,
-    options: { id?: string; segmentMetadata?: Map<string, string> } = {}
+    options: { id?: string } = {}
   ) {
     const image = new LoadedVtkImage(imageData, name);
-    // Embedded `.seg.nrrd` segment metadata, read back by
-    // `decodeSegments` — the non-DICOM analogue of `segBuildInfo`.
-    if (options.segmentMetadata)
-      image.segmentMetadata = options.segmentMetadata;
+    // Embedded `.seg.nrrd` segment metadata the reader stashed against this
+    // vtkImageData, read back by `decodeSegments` — the non-DICOM analogue of
+    // `segBuildInfo`. Consumed here so every reader-produced image gets it
+    // without threading an option through the callers.
+    const segmentMetadata = takeSegNrrdMetadata(imageData);
+    if (segmentMetadata) image.segmentMetadata = segmentMetadata;
     return addProgressiveImage(image, options);
   }
 

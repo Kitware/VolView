@@ -4,6 +4,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { rememberSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 
@@ -102,11 +103,10 @@ const seat = (
   name: string,
   image: vtkImageData,
   segmentMetadata?: Map<string, string>
-) =>
-  useImageCacheStore().addVTKImageData(image, name, {
-    id,
-    ...(segmentMetadata ? { segmentMetadata } : {}),
-  });
+) => {
+  if (segmentMetadata) rememberSegNrrdMetadata(image, segmentMetadata);
+  return useImageCacheStore().addVTKImageData(image, name, { id });
+};
 
 // The LIVE path: what convertImageToLabelmap builds for this labelmap.
 async function liveCatalog(segmentMetadata?: Map<string, string>) {

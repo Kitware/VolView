@@ -8,13 +8,8 @@
 // fixtures under `fixtures/` are the interchange format both the client (zod)
 // and the backend (a JSON-Schema generated from this source) validate against.
 //
-// JSON Schema is deliberately NOT the wire contract: it describes validity
-// but not rendering, and there is exactly one producer (our backend) and one
-// consumer (our renderer).
-//
-// House rules: functional style; `type`, not `interface`. Additive-only —
-// new fields (guidance / interactive semantics, future extensions) must
-// extend this schema AGAINST `specVersion`, never mutate it.
+// Additive-only: new fields must extend this schema AGAINST `specVersion`,
+// never mutate it.
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod';
@@ -37,8 +32,7 @@ export const TYPE_TAG_LABELMAP = 'labelmap';
 export const typeTagSchema = z.string();
 
 // Axis-aligned world-space box in LPS: [xmin, xmax, ymin, ymax, zmin, zmax].
-// The value carried by a `bounds` parameter (bound from the crop tool; maps
-// from Slicer XML `<region>`).
+// The value carried by a `bounds` parameter (bound from the crop tool).
 export const boundsSchema = z.tuple([
   z.number(),
   z.number(),
@@ -51,10 +45,9 @@ export type Bounds = z.infer<typeof boundsSchema>;
 
 // The known parameter kinds. An unknown kind is DETECTABLE: the whole-spec
 // schema below is a discriminated union over `kind`, so a spec carrying an
-// unknown kind fails validation (the negative fixture exercises this). The
-// engine reuses the per-kind pieces to hide an unknown param and refuse
-// submit if it was required — a graceful per-param fail-closed, NOT a
-// whole-spec reject.
+// unknown kind fails validation. The engine reuses the per-kind pieces to hide
+// an unknown param and refuse submit if it was required — a graceful per-param
+// fail-closed, NOT a whole-spec reject.
 export const PARAMETER_KINDS = [
   'int',
   'float',
@@ -72,8 +65,8 @@ export type ParameterKind = (typeof PARAMETER_KINDS)[number];
 
 // Fields common to every parameter kind: identity, the advisory UI hints
 // (`section` / `order` / `help` / `widget`), and the `required` flag. `widget`
-// is an optional renderer override with no Slicer-XML source — the renderer
-// picks a default widget from `kind` when it is absent.
+// is an optional renderer override — the renderer picks a default widget from
+// `kind` when it is absent.
 const paramCommon = {
   id: z.string(),
   title: z.string().optional(),
@@ -114,9 +107,9 @@ const boolParam = z.object({
   default: z.boolean().optional(),
 });
 
-// Enum options are string OR number: Slicer integer/float enumerations emit
-// numeric members (`<integer-enumeration>` etc.), and coercing them to strings
-// at the boundary would lose the type the CLI expects back at submit.
+// Enum options are string OR number: some backend task formats declare numeric
+// enumerations (e.g. Slicer integer/float enumerations), and coercing them to
+// strings at the boundary would lose the type the task expects back at submit.
 const enumOptionSchema = z.union([z.string(), z.number()]);
 
 const enumParam = z.object({
@@ -126,9 +119,9 @@ const enumParam = z.object({
   default: enumOptionSchema.optional(),
 });
 
-// Imaging-native field kind: the input. `accepts` is a list of the open
-// type tags this input binds (absent/`scalar` `<image>` → `["image"]`,
-// `<image type="label">` → `["labelmap"]`; the backend authors the mapping).
+// Imaging-native field kind: the input. `accepts` is a list of the open type
+// tags this input binds (e.g. `["image"]`, `["labelmap"]`); the backend authors
+// the mapping from its native format.
 const sourceRefParam = z.object({
   kind: z.literal('sourceRef'),
   ...paramCommon,
@@ -156,9 +149,8 @@ const isNumericKind = (kind: ParameterKind) =>
   kind === 'int' || kind === 'float';
 
 // Cross-field constraint checks layered on top of the discriminated union.
-// These are the constraints the negative "constraint-violation" fixture
-// exercises. JSON Schema cannot express them; they are the zod side's extra
-// rigor over the structural JSON-Schema view generated for the backend.
+// JSON Schema cannot express them; they are the zod side's extra rigor over
+// the structural JSON-Schema view generated for the backend.
 export const taskParameterSchema = parameterUnion
   .refine(
     (p) =>

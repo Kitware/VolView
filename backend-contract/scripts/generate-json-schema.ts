@@ -5,8 +5,8 @@
 //   npx tsx backend-contract/scripts/generate-json-schema.ts
 //
 // The checked-in output is guarded against drift from the zod source by
-// `processing/__tests__/generated-schema.spec.ts`. `scripts/sync-backend.sh` copies the
-// fixtures + generated schemas into girder_volview.
+// `processing/__tests__/generated-schema.spec.ts`; it ships in the `volview`
+// package, where girder_volview's conformance tests read it.
 // ---------------------------------------------------------------------------
 
 import { writeFileSync, mkdirSync } from 'node:fs';

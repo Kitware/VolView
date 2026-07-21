@@ -1,36 +1,12 @@
-// ---------------------------------------------------------------------------
-// The one required processing transport.
-//
-// There is exactly ONE backend interaction model: the paired Girder backend's
-// fixed routes, `{ values }` JSON run body, poll lifecycle, and canonical wire
-// parsers. This module implements them directly — there is no swappable
-// descriptor, no capability-gating, and no unbuilt lifecycle branch. Every
-// operation is required and always present.
-//
-// The launch-context routes (tasks / spec / run / stage / history) are addressed
-// off the folder-scoped `baseUrl`; the job-addressed routes (status / results /
-// cancel / delete / detail) off the folder-free `jobsBaseUrl`.
-//
-// All engine HTTP goes through `$fetch` (src/utils/fetch.ts), the origin-aware
-// authenticated wrapper that attaches the same-origin bearer. Raw `fetch` would
-// bypass that header, so it is never used here.
-//
-// House rules: functional style; `type`, not `interface`.
-// ---------------------------------------------------------------------------
+// `$fetch` attaches the same-origin bearer that raw `fetch` would omit.
 
 import { z } from 'zod';
 import { $fetch } from '@/src/utils/fetch';
-import type { JobHistoryDetail, JobHistoryPage } from '@/backend-contract';
 import type {
-  ProcessingJobRef,
-  ProcessingJobStatus,
-  JobResultsBundle,
-  ProcessingValue,
-  StageInputRequest,
-  TaskSummary,
+  ProcessingProvider,
   ProcessingProviderConfig,
+  TaskSummary,
 } from '@/src/processing/types';
-import type { TaskSpecEnvelope } from './taskSpec';
 import { parseTaskSpecEnvelope } from './taskSpec';
 import {
   parseJobHistoryPage,
@@ -41,18 +17,7 @@ import {
   parseStageResponse,
 } from './wire';
 
-// ---------------------------------------------------------------------------
-// Task-summary parsing — advisory pass-through, fail SOFT
-//
-// Task summaries are advisory display metadata for the picker, not contract
-// vocabulary, so this is a LIGHT, lenient guard — not the wire validators. It
-// requires only the two fields the picker cannot render without (id/title) and
-// keeps every other advisory hint (description/dockerImage/category) verbatim. A
-// malformed entry is DROPPED WITH A WARNING, never thrown on: one bad summary
-// must never kill the whole picker. A non-array payload degrades to an empty
-// list. Deliberately VolView's own light zod schema, NOT one derived from the
-// contract wire schemas.
-// ---------------------------------------------------------------------------
+// One malformed task summary must not kill the whole picker.
 const taskSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -72,21 +37,12 @@ const parseTaskSummaries = (raw: unknown): TaskSummary[] => {
   });
 };
 
-// Route helpers. Every template is a plain join — no route-root string surgery.
 const join = (base: string, path: string) =>
   `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 
 const id = (taskOrJobId: string) => encodeURIComponent(taskOrJobId);
 
-// ---------------------------------------------------------------------------
-// $fetch helpers — bearer-aware, never raw fetch
-// ---------------------------------------------------------------------------
-
-// The HTTP status rides on the thrown error so the job poller can classify it
-// (transient vs permanent vs session-expiry vs resource-gone; store/providers.ts
-// `classifyError`). A rejected `$fetch` (offline / DNS) carries no status and is
-// treated as transient. Functional style: a plain `Error` with a `status` field,
-// not an Error subclass.
+// Status rides on the error so the poller can classify the failure.
 export type HttpError = Error & {
   status: number;
   code?: string;
@@ -128,38 +84,11 @@ const requestEmpty = async (url: string, init: RequestInit): Promise<void> => {
   }
 };
 
-// ---------------------------------------------------------------------------
-// The transport — every operation required and always present
-// ---------------------------------------------------------------------------
-
-export type EngineTransport = {
-  listTasks: () => Promise<TaskSummary[]>;
-  getTaskSpec: (taskId: string) => Promise<TaskSpecEnvelope>;
-  runTask: (
-    taskId: string,
-    values: Record<string, ProcessingValue>
-  ) => Promise<ProcessingJobRef>;
-  getJob: (jobId: string) => Promise<ProcessingJobStatus>;
-  getResults: (jobId: string) => Promise<JobResultsBundle>;
-  // Best-effort cancel. POSTs to the cancel route and validates the projected
-  // status through the SAME neutral status parser as polling, so a best-effort
-  // backend that already finished honestly reports its real terminal state
-  // (never a fabricated `cancelled`).
-  cancelJob: (jobId: string) => Promise<ProcessingJobStatus>;
-  deleteJob: (jobId: string) => Promise<void>;
-  // Stage a parent-bound labelmap as a transient input, returning the
-  // backend-minted URIs.
-  stageInput: (request: StageInputRequest) => Promise<string[]>;
-  // Durable job re-discovery. Context-scoped (folder-scoped baseUrl).
-  listJobHistory: (cursor?: string) => Promise<JobHistoryPage>;
-  getJobHistoryDetail: (jobId: string) => Promise<JobHistoryDetail>;
-};
+export type EngineTransport = Omit<ProcessingProvider, 'config'>;
 
 export const createEngineTransport = (
   config: ProcessingProviderConfig
 ): EngineTransport => {
-  // Launch-context routes ride the folder-scoped baseUrl; job-addressed routes
-  // ride the folder-free jobsBaseUrl (both required on the config — no fallback).
   const { baseUrl, jobsBaseUrl } = config;
   return {
     listTasks: async () =>

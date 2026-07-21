@@ -12,8 +12,7 @@ import { useMessageStore } from '@/src/store/messages';
 
 // ---------------------------------------------------------------------------
 // Resilient segment-group restore:
-// deserialize must never hang on a missing dataIDMap key — the old code
-// awaited `untilLoaded(undefined)`, which has no timeout — and one group's
+// deserialize must never hang on a missing dataIDMap key, and one group's
 // failure must never reject the whole restore. Skips are NON-silent: deserialize
 // returns `{ segmentGroupIDMap, skipped }` where each skip carries a concrete
 // reason, and the caller aggregates those (with reasons) into the consolidated
@@ -273,7 +272,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     );
 
     expect(idMap['sg-tumor']).toBeDefined();
-    // Exactly one cleanup — the old code had two potential cleanup sites.
+    // Exactly one cleanup call for the failed group.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-tumor');
     expect(useImageCacheStore().imageById).not.toHaveProperty('store-tumor');
@@ -307,6 +306,30 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-tumor');
     expect(useImageCacheStore().imageById).not.toHaveProperty('store-tumor');
+  });
+
+  it('removes the temp artifact of a group skipped at the parent check', async () => {
+    // The base image never resolved but the artifact leaf DID import — with
+    // the cleanup set built from attachable groups only, the orphaned labelmap
+    // stayed in the dataset store as a stray volume and re-serialized into
+    // every future save.
+    seatImage('store-seg', 'Tumor.seg.nrrd');
+    const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
+
+    const store = useSegmentGroupStore();
+    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+      manifestWith([group('sg-tumor', { dataSourceId: 3 }, 'ds-missing')]),
+      [],
+      { [leafStateId(3)]: 'store-seg' }
+    );
+
+    expect(idMap).toEqual({});
+    expect(skipped).toEqual([
+      { name: 'sg-tumor', reason: 'parent image did not load' },
+    ]);
+    expect(removeSpy).toHaveBeenCalledTimes(1);
+    expect(removeSpy).toHaveBeenCalledWith('store-seg');
+    expect(useImageCacheStore().imageById).not.toHaveProperty('store-seg');
   });
 
   it('does not remove any dataset for an archive-backed (path) group', async () => {

@@ -63,10 +63,11 @@ describe('remote save passes the shared origin gate', () => {
 });
 
 // On a successful save the backend returns a single
-// `resumeUrl`; the client repoints BOTH the tab's `urls=` (a future F5 reloads
-// the save) AND `save=` (subsequent saves go item-scoped into the same session
-// item) at it, and re-targets its in-memory save URL — no reload, `config=`
-// untouched. A response without `resumeUrl` (or an unparseable body) leaves the
+// `resumeUrl`; the client repoints ONLY the tab's `urls=` at it (a future F5
+// reloads the save) — no reload, `save=`, the in-memory save target, and
+// `config=` all untouched, so subsequent saves keep going to the
+// launch-provided target (a folder-scoped save mints a new session item per
+// save). A response without `resumeUrl` (or an unparseable body) leaves the
 // tab as-is.
 describe('resume repoint on save', () => {
   beforeEach(() => {
@@ -79,7 +80,7 @@ describe('resume repoint on save', () => {
     vi.restoreAllMocks();
   });
 
-  it('repoints urls= AND save= to the resumeUrl and re-targets the save url (config= untouched)', async () => {
+  it('repoints urls= to the resumeUrl and leaves the save target alone (save=/config= untouched)', async () => {
     const resumeUrl = '/api/v1/item/session-123/volview';
     vi.mocked($fetch).mockResolvedValue(
       new Response(JSON.stringify({ resumeUrl }), { status: 200 })
@@ -88,16 +89,18 @@ describe('resume repoint on save', () => {
       .spyOn(window.history, 'replaceState')
       .mockImplementation(() => {});
     const store = useRemoteSaveStateStore();
-    store.setSaveUrl(`${window.location.origin}/api/session/save`);
+    const launchSaveUrl = `${window.location.origin}/api/session/save`;
+    store.setSaveUrl(launchSaveUrl);
 
     await store.saveState();
 
     expect(replace).toHaveBeenCalledTimes(1);
     const nextUrl = new URL(replace.mock.calls[0][2] as string);
     expect(nextUrl.searchParams.get('urls')).toBe(resumeUrl);
-    expect(nextUrl.searchParams.get('save')).toBe(resumeUrl);
-    // Subsequent in-session saves now target the same session item.
-    expect(store.saveUrl).toBe(resumeUrl);
+    // save= is never stamped: subsequent saves keep going to the
+    // launch-provided target, so folder saves mint a new session item each time.
+    expect(nextUrl.searchParams.get('save')).toBeNull();
+    expect(store.saveUrl).toBe(launchSaveUrl);
     expect(
       useMessageStore().messages.some((m) => m.title === 'Save Successful')
     ).toBe(true);
@@ -123,7 +126,7 @@ describe('resume repoint on save', () => {
 
   it('leaves the tab and save url as-is when the resumeUrl is cross-origin (fail-safe no-op)', async () => {
     // A same-origin save succeeds, but the backend hands back a cross-origin
-    // resumeUrl. The repoint (urls=/save= stamp + in-memory re-target) is gated
+    // resumeUrl. The repoint (the urls= stamp) is gated
     // on the SAME origin gate as setSaveUrl, so it must be a fail-safe no-op:
     // the ordinary save still succeeds, but nothing is repointed off-origin.
     const saveUrl = `${window.location.origin}/api/session/save`;

@@ -43,11 +43,33 @@ const schemas = {
 
 export type GeneratedSchemaName = keyof typeof schemas;
 
+// z.toJSONSchema renders a fixed-length z.tuple (color RGBA, bounds) as bare
+// `prefixItems`, which JSON Schema treats as a prefix constraint only — a
+// wrong-length array still validates, while the normative zod rejects it.
+// Close every tuple to its exact length so both validators agree. A tuple
+// with a rest element would carry `items`; leave its maxItems open.
+const closeTupleLengths = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map(closeTupleLengths);
+  if (node === null || typeof node !== 'object') return node;
+  const walked = Object.fromEntries(
+    Object.entries(node as Record<string, unknown>).map(([key, value]) => [
+      key,
+      closeTupleLengths(value),
+    ])
+  );
+  if (!Array.isArray(walked.prefixItems)) return walked;
+  return {
+    minItems: walked.prefixItems.length,
+    ...('items' in walked ? {} : { maxItems: walked.prefixItems.length }),
+    ...walked,
+  };
+};
+
 export const generateJsonSchemas = (): Record<GeneratedSchemaName, unknown> =>
   Object.fromEntries(
     Object.entries(schemas).map(([name, schema]) => [
       name,
-      z.toJSONSchema(schema, { unrepresentable: 'any' }),
+      closeTupleLengths(z.toJSONSchema(schema, { unrepresentable: 'any' })),
     ])
   ) as Record<GeneratedSchemaName, unknown>;
 

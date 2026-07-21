@@ -3,9 +3,6 @@ import { describe, it, expect } from 'vitest';
 import { createProvider } from '../createProvider';
 import type { ProcessingProviderConfig } from '@/src/processing/types';
 
-// The production provider composes from the one required transport, so EVERY
-// operation is present unconditionally — there is no capability-gated optional
-// method left (no spread-based presence).
 const config: ProcessingProviderConfig = {
   id: 'girder-slicer-cli:folder-1',
   label: 'Analysis — Folder',
