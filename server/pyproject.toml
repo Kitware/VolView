@@ -15,7 +15,7 @@ numpy = "^2.3.3"
 aiohttp = "^3.12.14"
 python-socketio = "^5.8.0"
 charset-normalizer = "^3.1.0"
-setuptools = "^78.1.1"
+setuptools = ">=78.1.1,<84.0.0"
 
 [tool.poetry.group.dev.dependencies]
 uvicorn = {extras = ["standard"], version = "^0.22.0"}
