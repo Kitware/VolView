@@ -64,7 +64,7 @@
     "@wdio/static-server-service": "^9.20.0",
     "@wdio/visual-service": "9.0.2",
     "comlink": "^4.4.2",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.4",
     "core-js": "3.47.0",
     "cors": "^2.8.5",
     "cross-env": "^10.1.0",
