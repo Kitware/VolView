@@ -4,10 +4,9 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { COMPOUND_EXTENSIONS } from '@/src/utils/path';
 
 const MAX_ERROR_LENGTH = 4000;
-
-const COMPOUND_EXTENSIONS = ['nii.gz', 'iwi.cbor', 'seg.nrrd'];
 
 const getBrowserInfo = (): string =>
   typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown';

@@ -3,7 +3,7 @@ import { AnnotationTool } from './annotation-tool';
 
 export type Polygon = {
   /**
-   * Points is in image index space.
+   * Points are in world LPS millimeters.
    */
   points: Array<Vector3>;
 } & AnnotationTool;

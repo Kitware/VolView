@@ -1356,6 +1356,47 @@ describe('Providers store — re-discovered job history: slim observability adop
     );
   });
 
+  it.each(['labelmap', 'annotations'] as const)(
+    'ignores a staged %s input when reconstructing the parent image',
+    async (stagedType) => {
+      const getJob = vi
+        .fn()
+        .mockResolvedValueOnce(jobStatus('jr', 'running'))
+        .mockResolvedValueOnce(jobStatus('jr', 'success'));
+      const provider = makeProvider({
+        listJobHistory: vi.fn().mockResolvedValue({
+          jobs: [handle({ state: 'running', finishedAt: undefined })],
+          nextCursor: null,
+        }),
+        getJob,
+        getJobHistoryDetail: vi.fn().mockResolvedValue({
+          jobId: 'jr',
+          log: [],
+          // Staged inputs derive FROM the scene, so they are not parent
+          // candidates: counting one would make this pair ambiguous and the
+          // result would open as a top-level dataset instead of attaching.
+          parameters: {
+            inputVolume: { type: 'image', uris: ['/f/a'] },
+            inputTools: { type: stagedType, uris: ['/f/staged'] },
+          },
+        }),
+        getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
+      });
+      const store = arrange(provider);
+      const listener = vi.fn();
+      store.onJobComplete(listener);
+
+      await store.adoptJobHistory();
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+      expect(store.submittedContexts.get(keyFor('jr'))?.activeDatasetId).toBe(
+        'ds1'
+      );
+      // The reloaded image is what the results attach to.
+      expect(listener.mock.calls[0][0].context?.activeDatasetId).toBe('ds1');
+    }
+  );
+
   it('reconstructs a parent when its provenance contains duplicate URIs', async () => {
     const provider = makeProvider({
       listJobHistory: vi.fn().mockResolvedValue({
@@ -1448,6 +1489,40 @@ describe('Providers store — re-discovered job history: slim observability adop
 
     const completion = listener.mock.calls[0][0];
     expect(completion.context?.activeDatasetId).toBeUndefined();
+  });
+
+  it('an annotations-only job has no reconstructible parent', async () => {
+    // The staged annotations value is excluded from parent candidates, so a
+    // task without an image input leaves nothing to re-identify. The form
+    // binder blocks this shape at submit time (no-reference-input); this
+    // documents why.
+    const getJob = vi
+      .fn()
+      .mockResolvedValueOnce(jobStatus('jr', 'running'))
+      .mockResolvedValueOnce(jobStatus('jr', 'success'));
+    const provider = makeProvider({
+      listJobHistory: vi.fn().mockResolvedValue({
+        jobs: [handle({ state: 'running', finishedAt: undefined })],
+        nextCursor: null,
+      }),
+      getJob,
+      getJobHistoryDetail: vi.fn().mockResolvedValue({
+        jobId: 'jr',
+        log: [],
+        parameters: {
+          inputTools: { type: 'annotations', uris: ['/f/staged'] },
+        },
+      }),
+      getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
+    });
+    const store = arrange(provider);
+    const listener = vi.fn();
+    store.onJobComplete(listener);
+
+    await store.adoptJobHistory();
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+    expect(listener.mock.calls[0][0].context?.activeDatasetId).toBeUndefined();
   });
 
   it('loadJobResults on an adopted terminal job reconstructs its parent', async () => {

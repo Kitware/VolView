@@ -3,11 +3,11 @@ import { AnnotationTool } from './annotation-tool';
 
 export type Ruler = {
   /**
-   * Point is in image index space.
+   * Point is in world LPS millimeters.
    */
   firstPoint: Vector3;
   /**
-   * Point is in image index space.
+   * Point is in world LPS millimeters.
    */
   secondPoint: Vector3;
 } & AnnotationTool;
