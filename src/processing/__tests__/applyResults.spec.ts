@@ -8,6 +8,7 @@ import type {
   ProcessingResult,
   SubmittedJobContext,
 } from '@/src/processing/types';
+import type { ProcessingResultSource } from '@/src/types';
 
 const mocks = vi.hoisted(() => ({
   uriToDataSource: vi.fn(),
@@ -19,10 +20,7 @@ const mocks = vi.hoisted(() => ({
   removeDataset: vi.fn(),
   convertImageToLabelmap: vi.fn(),
   updateSegment: vi.fn(),
-  metadataByID: {} as Record<
-    string,
-    { source?: { providerId: string; jobId: string; outputId: string } }
-  >,
+  metadataByID: {} as Record<string, { source?: ProcessingResultSource }>,
   addError: vi.fn(),
 }));
 
@@ -206,7 +204,7 @@ describe('applyIntent', () => {
     expect(mocks.updateSegment).not.toHaveBeenCalled();
   });
 
-  it('stamps the provider-qualified source tag on the created group', async () => {
+  it('stamps structured provider-qualified provenance on the created group', async () => {
     const source = {
       providerId: 'p1',
       jobId: 'job-abc123',
@@ -229,7 +227,9 @@ describe('applyIntent', () => {
       jobId: 'job-abc123',
       outputId: 'outputLabelmap',
     };
-    mocks.metadataByID = { restored: { source } };
+    mocks.metadataByID = {
+      restored: { source },
+    };
 
     const outcome = await applyIntent(
       { intent: 'add-segment-group', ...file, source },
@@ -274,11 +274,7 @@ describe('applyIntent', () => {
   it('applies matching raw job and output ids from a different provider', async () => {
     mocks.metadataByID = {
       restored: {
-        source: {
-          providerId: 'provider-a',
-          jobId: '1',
-          outputId: 'seg',
-        },
+        source: { providerId: 'provider-a', jobId: '1', outputId: 'seg' },
       },
     };
     const source = {

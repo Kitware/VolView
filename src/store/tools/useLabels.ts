@@ -22,7 +22,9 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
   const labels = ref<ToolLabels>({});
 
   const activeLabel = ref<string | undefined>();
-  const setActiveLabel = (id: string) => {
+  // Accepts undefined so a caller that must not disturb the picker — applying a
+  // job's annotations result — can put back an activeLabel that was never set.
+  const setActiveLabel = (id: string | undefined) => {
     activeLabel.value = id;
   };
 
@@ -115,6 +117,9 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
     addLabel,
     deleteLabel,
     updateLabel,
+    // Exposed for callers that need the merged label's id back — applying a
+    // job's annotations result maps wire label NAMES to store label ids.
+    mergeLabel,
     mergeLabels,
     findLabel,
     clearDefaultLabels,

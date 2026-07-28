@@ -140,7 +140,7 @@ describe('single source — published shapes track the source of truth', () => {
     expect(states).toEqual([...JOB_STATES]);
   });
 
-  it('publishes the full v1 result-intent vocabulary', () => {
+  it('publishes the full result-intent vocabulary', () => {
     const serialized = JSON.stringify(schemaComponents().ResultIntent);
     RESULT_INTENTS.forEach((intent) => {
       expect(serialized).toContain(intent);

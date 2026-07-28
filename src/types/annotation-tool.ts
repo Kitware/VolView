@@ -1,4 +1,5 @@
 import { FrameOfReference } from '../utils/frameOfReference';
+import type { ProcessingResultSource } from './index';
 
 export type ToolID = string & { __type: 'ToolID' };
 
@@ -36,4 +37,7 @@ export type AnnotationTool = {
    * Arbitrary key-value pairs associated with the annotation.
    */
   metadata?: Record<string, string>;
+
+  // Provenance of a job-produced tool; absent on hand-placed ones.
+  source?: ProcessingResultSource;
 };

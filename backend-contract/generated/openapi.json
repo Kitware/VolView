@@ -4,7 +4,7 @@
   "info": {
     "title": "VolView neutral backend contract",
     "version": "0.1.0",
-    "description": "DRAFT 0.x — shapes may change until a second backend passes the conformance kit (the pinned 1.0 criterion). The neutral REST surface the VolView client calls to run processing tasks against a backend. A conforming server-side BACKEND implements these endpoints and the referenced wire schemas — no VolView client change is needed to bring a new backend online. Everything here is neutral: no backend routes, ids, status enums, or URL shapes leak. The artifact version is the draft artifact version, distinct from the shape versions: the result-intent vocabulary is at version 1 (INTENT_VOCABULARY_VERSION); the task-spec shape at version 1 (specVersion)."
+    "description": "DRAFT 0.x — shapes may change until a second backend passes the conformance kit (the pinned 1.0 criterion). The neutral REST surface the VolView client calls to run processing tasks against a backend. A conforming server-side BACKEND implements these endpoints and the referenced wire schemas — no VolView client change is needed to bring a new backend online. Everything here is neutral: no backend routes, ids, status enums, or URL shapes leak. The artifact version is the draft artifact version, distinct from the shape versions: the result-intent vocabulary is at version 2 (INTENT_VOCABULARY_VERSION); the task-spec shape at version 1 (specVersion)."
   },
   "servers": [
     {
@@ -1283,6 +1283,73 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "providerId": {
+                        "type": "string"
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "outputId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "providerId",
+                      "jobId",
+                      "outputId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "intent",
+                  "id",
+                  "name",
+                  "url"
+                ],
+                "additionalProperties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "const": "add-annotations"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "size": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "source": {
                     "type": "object",

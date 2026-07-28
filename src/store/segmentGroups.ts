@@ -9,6 +9,7 @@ import { useIdStore } from '@/src/store/id';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { normalizeForStore, removeFromArray } from '@/src/utils';
 import { SegmentMask } from '@/src/types/segment';
+import type { ProcessingResultSource } from '@/src/types';
 import { DEFAULT_SEGMENT_MASKS, CATEGORICAL_COLORS } from '@/src/config';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import {
@@ -54,16 +55,8 @@ export type SegmentGroupMetadata = {
     order: number[];
     byValue: Record<number, SegmentMask>;
   };
-  // Provenance of a job-produced segment group. This is the durable
-  // idempotency key used to avoid reapplying a restored job output. Optional +
-  // additive — hand-painted groups have none. Flows through addLabelmap and
-  // round-trips the `.volview.zip` (see the matching `SegmentGroupSource` in
-  // io/state-file/schema.ts).
-  source?: {
-    providerId: string;
-    jobId: string;
-    outputId: string;
-  };
+  // Provenance of a job-produced group; absent on hand-painted ones.
+  source?: ProcessingResultSource;
 };
 
 export function createLabelmapFromImage(imageData: vtkImageData) {

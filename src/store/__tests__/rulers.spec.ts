@@ -16,6 +16,7 @@ function createRuler(): RequiredWithPartial<
   | 'hidden'
   | 'metadata'
   | 'frame'
+  | 'source'
 > {
   return {
     firstPoint: [1, 1, 1],

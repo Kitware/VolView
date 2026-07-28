@@ -42,6 +42,7 @@ const makeRuler = (
   | 'hidden'
   | 'metadata'
   | 'frame'
+  | 'source'
 > => ({
   firstPoint: [1, 1, 1],
   secondPoint: [2, 2, 2],

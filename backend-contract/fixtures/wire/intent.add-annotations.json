@@ -1,0 +1,11 @@
+{
+  "id": "6600000000000000000000e4",
+  "intent": "add-annotations",
+  "url": "/api/v1/file/6600000000000000000000e4/proxiable/rois.annotations.json",
+  "name": "rois.annotations.json",
+  "source": {
+    "providerId": "analysis-provider",
+    "jobId": "job-abc123",
+    "outputId": "outputAnnotations"
+  }
+}
