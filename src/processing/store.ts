@@ -5,7 +5,11 @@ import { computed, reactive, ref } from 'vue';
 import deepEqual from 'fast-deep-equal';
 
 import type { JobHistoryDetail, JobHistorySummary } from '@/backend-contract';
-import { inputValueSchema, TYPE_TAG_LABELMAP } from '@/backend-contract';
+import {
+  inputValueSchema,
+  TYPE_TAG_ANNOTATIONS,
+  TYPE_TAG_LABELMAP,
+} from '@/backend-contract';
 import { collectProvenanceUris } from '@/src/processing/engine/mintInput';
 import type {
   ProcessingJobStatus,
@@ -32,6 +36,14 @@ export const POLL_INTERVAL_MS = 2000;
 export const MAX_POLL_RETRIES = 4;
 export const MAX_POLL_BACKOFF_MS = 30000;
 export const MAX_JOB_HISTORY_PAGES = 1000;
+
+// Staged inputs derive FROM the scene rather than naming a dataset, so they are
+// never parent-image candidates. Excluding them by tag keeps the open image
+// vocabulary open: anything else that carries provenance URIs counts.
+const STAGED_INPUT_TYPES: ReadonlySet<string> = new Set([
+  TYPE_TAG_LABELMAP,
+  TYPE_TAG_ANNOTATIONS,
+]);
 
 const completionReady = (status: ProcessingJobStatus): boolean =>
   isTerminalJobState(status.state);
@@ -451,7 +463,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     v: unknown
   ): v is { type: string; uris: string[] } {
     const parsed = inputValueSchema.safeParse(v);
-    return parsed.success && parsed.data.type !== TYPE_TAG_LABELMAP;
+    return parsed.success && !STAGED_INPUT_TYPES.has(parsed.data.type);
   }
 
   // Order-insensitive: a re-loaded dataset's provenance walk need not enumerate

@@ -22,6 +22,28 @@ export function basename(path: string) {
 }
 
 /**
+ * Extensions whose meaning spans more than one dotted segment.
+ */
+export const COMPOUND_EXTENSIONS = ['nii.gz', 'iwi.cbor', 'seg.nrrd'];
+
+/**
+ * Returns the base name of a path without its extension.
+ *
+ * Compound-aware, so "scan.nii.gz" yields "scan" rather than "scan.nii". A
+ * leading dot is kept: ".nrrd" is a name, not an extension.
+ * @param path
+ * @returns
+ */
+export function stripExtension(path: string) {
+  const base = basename(path);
+  const lower = base.toLowerCase();
+  const compound = COMPOUND_EXTENSIONS.find((ext) => lower.endsWith(`.${ext}`));
+  if (compound) return base.slice(0, -(compound.length + 1));
+  const dot = base.lastIndexOf('.');
+  return dot > 0 ? base.slice(0, dot) : base;
+}
+
+/**
  * Normalizes a string.
  *
  * "a//b" and "a/b/" become "a/b".

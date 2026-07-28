@@ -25,6 +25,9 @@ import JobsModule from '@/src/processing/components/JobsModule.vue';
 import TaskPicker from '@/src/processing/components/TaskPicker.vue';
 import TaskForm from '@/src/processing/components/TaskForm.vue';
 import { useProcessingJobsStore } from '@/src/processing/store';
+import { useDatasetStore } from '@/src/store/datasets';
+import { useRulerStore } from '@/src/store/tools/rulers';
+import { useViewStore } from '@/src/store/views';
 
 const cfg = (id: string): ProcessingProviderConfig => ({
   id,
@@ -326,5 +329,81 @@ describe('JobsModule — race-free provider/task selection', () => {
     expect(p.getTaskSpec).toHaveBeenCalledTimes(2);
     expect(vm.taskError).toBeNull();
     expect(vm.taskModel?.id).toBe('x');
+  });
+
+  it('rebinds an annotations input after the first ruler is finished', async () => {
+    const p = makeProvider('P');
+    p.listTasks = vi
+      .fn()
+      .mockResolvedValue([
+        { id: 'RulerToRectangle', title: 'Ruler to Rectangle' },
+      ]);
+    p.getTaskSpec = vi.fn().mockResolvedValue({
+      specVersion: 1,
+      id: 'RulerToRectangle',
+      title: 'Ruler to Rectangle',
+      parameters: [
+        {
+          kind: 'sourceRef',
+          id: 'inputVolume',
+          accepts: ['image'],
+          required: true,
+        },
+        {
+          kind: 'sourceRef',
+          id: 'inputAnnotations',
+          title: 'Input Annotations',
+          accepts: ['annotations'],
+          required: true,
+        },
+      ],
+      outputs: [],
+    });
+
+    const store = useProcessingJobsStore();
+    registerFake(store, p);
+    useDatasetStore().addDataSources([
+      {
+        dataID: 'image-1',
+        dataSource: {
+          type: 'uri',
+          uri: 'girder://file/image-1',
+          name: 'image.nrrd',
+        },
+      },
+    ]);
+    useViewStore().setDataForAllViews('image-1');
+
+    const wrapper = mount();
+    await flushPromises();
+    expect(wrapper.findComponent(TaskForm).props('issues')).toEqual([
+      expect.objectContaining({
+        parameter: 'inputAnnotations',
+        message: expect.stringMatching(/place a ruler/i),
+      }),
+    ]);
+
+    useRulerStore().addRuler({
+      imageID: 'image-1',
+      name: 'Ruler',
+      firstPoint: [0, 0, 0],
+      secondPoint: [1, 1, 0],
+      frameOfReference: {
+        planeNormal: [0, 0, 1],
+        planeOrigin: [0, 0, 0],
+      },
+      slice: 0,
+      placing: false,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await flushPromises();
+
+    const form = wrapper.findComponent(TaskForm);
+    expect(form.props('issues')).toEqual([]);
+    expect(form.props('sourceRefStates')).toMatchObject({
+      inputVolume: 'bound',
+      inputAnnotations: 'bound',
+    });
   });
 });

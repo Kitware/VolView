@@ -5,9 +5,9 @@ import type { FormValidationIssue, TaskFormModel } from './formModel';
 import type { SourceRefBindingState, SourceRefField } from './mintInput';
 import {
   ambiguousBinding,
-  bindingStateMessage,
   mintInputValue,
   sourceRefFields,
+  unboundBinding,
 } from './mintInput';
 
 export const labelmapInputFields = (model: TaskFormModel): SourceRefField[] =>
@@ -83,18 +83,7 @@ const bindLabelmapFields = (
   if (resolution.kind === 'unresolved') {
     return {
       groups: {},
-      states: { [field.id]: 'no-segment-group' },
-      issues: field.required
-        ? [
-            {
-              parameter: field.id,
-              message: bindingStateMessage(
-                'no-segment-group',
-                'segment group'
-              )!,
-            },
-          ]
-        : [],
+      ...unboundBinding(field, 'no-segment-group', 'segment group'),
     };
   }
 

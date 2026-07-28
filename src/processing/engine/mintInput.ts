@@ -60,7 +60,13 @@ export type SourceRefBindingState =
   | 'unbound'
   | 'no-provenance'
   | 'no-segment-group'
+  | 'no-annotations'
+  | 'no-reference-input'
   | 'ambiguous';
+
+// What a binder calls the thing it could not bind, in the user-facing
+// sentences below.
+export type SourceRefNoun = 'image' | 'segment group' | 'annotation';
 
 export type SourceRefField = Extract<FormField, { kind: 'sourceRef' }>;
 
@@ -80,12 +86,16 @@ export const imageInputFields = (model: TaskFormModel): SourceRefField[] =>
 // validation issues and FileWidget renders the same text in the form body.
 export const bindingStateMessage = (
   state: SourceRefBindingState,
-  noun: 'image' | 'segment group'
+  noun: SourceRefNoun
 ): string | undefined => {
   if (state === 'no-provenance')
     return 'The active volume was not loaded from the server, so it cannot be used as an input.';
   if (state === 'no-segment-group')
     return 'Paint or select a segment group first.';
+  if (state === 'no-annotations')
+    return 'Place a ruler, rectangle, or polygon on the current image first.';
+  if (state === 'no-reference-input')
+    return 'This task does not declare the reference image as an input, so its results could not be loaded in a later session.';
   if (state === 'ambiguous')
     return `This task needs more than one ${noun} input, which this version cannot bind automatically.`;
   return undefined;
@@ -95,7 +105,7 @@ export const bindingStateMessage = (
 // rather than guess.
 export const ambiguousBinding = (
   fields: SourceRefField[],
-  noun: 'image' | 'segment group'
+  noun: SourceRefNoun
 ): {
   states: Record<string, SourceRefBindingState>;
   issues: FormValidationIssue[];
@@ -108,6 +118,30 @@ export const ambiguousBinding = (
     },
   ],
 });
+
+// The other half of every binder's shape: the field could not bind, so it
+// carries its state and the sentence explaining it. `alwaysBlocks` separates
+// the two reasons — a selected resource that cannot be an input blocks
+// regardless of required-ness, while a missing one only blocks a required
+// field.
+export const unboundBinding = (
+  field: SourceRefField,
+  state: SourceRefBindingState,
+  noun: SourceRefNoun,
+  alwaysBlocks = false
+): {
+  states: Record<string, SourceRefBindingState>;
+  issues: FormValidationIssue[];
+} => {
+  const message = bindingStateMessage(state, noun);
+  return {
+    states: { [field.id]: state },
+    issues:
+      message && (alwaysBlocks || field.required)
+        ? [{ parameter: field.id, message }]
+        : [],
+  };
+};
 
 export type ImageBindingResult = {
   values: Record<string, ProcessingValue>;
@@ -154,13 +188,7 @@ const bindImageFields = (
   if (!value) {
     return {
       values: nullValues(),
-      states: { [field.id]: 'no-provenance' },
-      issues: [
-        {
-          parameter: field.id,
-          message: bindingStateMessage('no-provenance', 'image')!,
-        },
-      ],
+      ...unboundBinding(field, 'no-provenance', 'image', true),
     };
   }
 

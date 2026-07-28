@@ -5,15 +5,11 @@
     </div>
     <template v-else>
       <div class="bound-name text-body-2">
-        <v-icon size="16" class="mr-2">
-          {{ isLabelmap ? 'mdi-brush-outline' : 'mdi-image-outline' }}
-        </v-icon>
-        {{
-          boundName ?? (isLabelmap ? 'Active segment group' : 'Active dataset')
-        }}
+        <v-icon size="16" class="mr-2">{{ kind.icon }}</v-icon>
+        {{ boundName ?? kind.caption }}
       </div>
       <div class="text-caption text-medium-emphasis bound-caption">
-        {{ isLabelmap ? 'Active segment group' : 'Active dataset' }}
+        {{ kind.caption }}
       </div>
     </template>
   </div>
@@ -22,10 +18,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { VolViewTaskParameter, InputValue } from '@/backend-contract';
-import { TYPE_TAG_LABELMAP } from '@/backend-contract';
+import { TYPE_TAG_ANNOTATIONS, TYPE_TAG_LABELMAP } from '@/backend-contract';
 import {
   bindingStateMessage,
   type SourceRefBindingState,
+  type SourceRefNoun,
 } from '@/src/processing/engine/mintInput';
 import type { BoundSourceRefType } from '@/src/processing/engine/sourceRefs';
 
@@ -37,21 +34,44 @@ const props = defineProps<{
   boundType?: BoundSourceRefType;
 }>();
 
-const isLabelmap = computed(
-  () =>
-    props.boundType === TYPE_TAG_LABELMAP ||
-    (props.boundType == null &&
-      props.param.kind === 'sourceRef' &&
-      props.param.accepts.length === 1 &&
-      props.param.accepts.includes(TYPE_TAG_LABELMAP))
-);
+// How each bound kind names itself: the icon, the caption under the bound name,
+// and the noun the binding sentences use.
+const KINDS: Record<
+  string,
+  { icon: string; caption: string; noun: SourceRefNoun }
+> = {
+  [TYPE_TAG_LABELMAP]: {
+    icon: 'mdi-brush-outline',
+    caption: 'Active segment group',
+    noun: 'segment group',
+  },
+  [TYPE_TAG_ANNOTATIONS]: {
+    icon: 'mdi-ruler',
+    caption: 'Annotations on the active dataset',
+    noun: 'annotation',
+  },
+};
+
+const IMAGE_KIND = {
+  icon: 'mdi-image-outline',
+  caption: 'Active dataset',
+  noun: 'image' as SourceRefNoun,
+};
+
+// Before the binder has run, a param accepting exactly one type already names
+// its kind.
+const kind = computed(() => {
+  const declared =
+    props.param.kind === 'sourceRef' && props.param.accepts.length === 1
+      ? props.param.accepts[0]
+      : undefined;
+  const type = props.boundType ?? declared;
+  return (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
+});
 
 const bindingMessage = computed(() =>
   props.binding
-    ? bindingStateMessage(
-        props.binding,
-        isLabelmap.value ? 'segment group' : 'image'
-      )
+    ? bindingStateMessage(props.binding, kind.value.noun)
     : undefined
 );
 </script>

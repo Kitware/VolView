@@ -223,13 +223,10 @@ export function getErrorDetail(error: unknown, fallback: string): string {
 }
 
 // remove undefined properties
-export function cleanUndefined(obj: Object) {
-  return Object.entries(obj).reduce(
-    (cleaned, [key, value]) =>
-      value === undefined ? cleaned : { ...cleaned, [key]: value },
-    {}
-  );
-}
+export const cleanUndefined = <T extends object>(record: T): Partial<T> =>
+  Object.fromEntries(
+    Object.entries(record).filter(([, value]) => value !== undefined)
+  ) as Partial<T>;
 
 // converts named colors (red, antiquewhite, etc) to hex
 export function standardizeColor(color: Maybe<string>) {

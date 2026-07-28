@@ -144,6 +144,20 @@ import {
   mintLabelmapReferenceImage,
   type SegmentGroupView,
 } from '@/src/processing/engine/mintLabelmap';
+import { mintInputValue } from '@/src/processing/engine/mintInput';
+import { mintAnnotationsValue } from '@/src/processing/engine/mintAnnotations';
+import {
+  annotationToolsViewCount,
+  annotationsFileCount,
+  encodeAnnotationsFile,
+  hasTwoPoints,
+  isEncodablePolygon,
+  type AnnotationKindView,
+  type AnnotationToolsView,
+  type PolygonToolView,
+  type TwoPointToolView,
+} from '@/src/processing/engine/annotationsWire';
+import { annotationToolStore } from '@/src/processing/annotationKinds';
 import {
   bindSourceRefs,
   type BoundSourceRefType,
@@ -155,8 +169,19 @@ import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useMessageStore } from '@/src/store/messages';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import { getDataSourceName } from '@/src/io/import/dataSource';
-import type { InputValue, VolViewTaskParameter } from '@/backend-contract';
-import { TYPE_TAG_LABELMAP } from '@/backend-contract';
+import type {
+  AnnotationToolKind,
+  AnnotationsFile,
+  InputValue,
+  VolViewTaskParameter,
+} from '@/backend-contract';
+import {
+  ANNOTATIONS_FILE_EXTENSION,
+  TYPE_TAG_ANNOTATIONS,
+  TYPE_TAG_LABELMAP,
+} from '@/backend-contract';
+import type { AnnotationTool } from '@/src/types/annotation-tool';
+import { stripExtension } from '@/src/utils/path';
 
 import TaskPicker from './TaskPicker.vue';
 import TaskForm from './TaskForm.vue';
@@ -349,25 +374,48 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
   // Display formatting reads live active image and segment-group state, so it
   // must render before the staging await.
   const display = buildJobDisplay(model, finalValues);
+  // Same reason, and it also outlives the staging awaits below: the annotations
+  // file, its name, and its reference image all come from the active image,
+  // which the user may switch while an upload is in flight. Only encoded when
+  // something is actually bound to it.
+  const annotations =
+    bindings.annotations.parameters.length > 0
+      ? captureAnnotationsPayload()
+      : null;
 
   submitting.value = true;
 
-  // The store does not surface staging failures, so report them here.
-  let stagedValues: Record<string, ProcessingValue>;
+  // The store does not surface staging failures, so report them here, each
+  // under its own message.
+  const stage = async (
+    message: string,
+    run: () => Promise<Record<string, ProcessingValue>>
+  ): Promise<Record<string, ProcessingValue>> => {
+    try {
+      return await run();
+    } catch (err) {
+      messageStore.addError(message, { error: ensureError(err) });
+      throw err;
+    }
+  };
+
+  // Concurrent: the two stages write disjoint parameter keys, and the
+  // annotations payload was snapshotted above.
+  let staged: Record<string, ProcessingValue>[];
   try {
-    stagedValues = await stageLabelmapInputs(
-      submitProvider,
-      model,
-      finalValues,
-      bindings
-    );
-  } catch (err) {
-    messageStore.addError('Failed to stage segment group input', {
-      error: ensureError(err),
-    });
+    staged = await Promise.all([
+      stage('Failed to stage segment group input', () =>
+        stageLabelmapInputs(submitProvider, model, bindings)
+      ),
+      stage('Failed to stage annotations input', () =>
+        stageAnnotationInputs(submitProvider, bindings, annotations)
+      ),
+    ]);
+  } catch {
     submitting.value = false;
     return;
   }
+  const stagedValues = { ...finalValues, ...staged[0], ...staged[1] };
 
   try {
     await providers.submitJob(providerId, taskId, stagedValues, {
@@ -439,18 +487,55 @@ function labelmapReferenceImage(segmentGroupId: string): InputValue | null {
   );
 }
 
+// Tool lists are per image, and so is the staged annotations file: only the
+// active image's finished tools are ever an input.
+function onActiveImage<T extends { imageID: string }>(
+  tools: readonly T[]
+): T[] {
+  const id = currentImageID.value;
+  return id ? tools.filter((tool) => tool.imageID === id) : [];
+}
+
+// The three stores are independent, so each keeps its own label namespace; the
+// encoder prunes and re-keys them by name.
+const annotationToolsView = computed<AnnotationToolsView>(() => {
+  const kindView = <T extends object>(
+    kind: AnnotationToolKind,
+    hasGeometry: <U extends AnnotationTool>(tool: U) => tool is U & T
+  ): AnnotationKindView<AnnotationTool & T> => {
+    const store = annotationToolStore(kind);
+    return {
+      tools: onActiveImage(store.finishedTools).filter(hasGeometry),
+      labels: store.labels,
+    };
+  };
+  return {
+    rulers: kindView<TwoPointToolView>('rulers', hasTwoPoints),
+    rectangles: kindView<TwoPointToolView>('rectangles', hasTwoPoints),
+    polygons: kindView<PolygonToolView>('polygons', isEncodablePolygon),
+  };
+});
+
+// Computed, not a function call: placing a tool churns the stores every drag
+// frame, and an unchanged count stops the invalidation there.
+const finishedAnnotationCount = computed(() =>
+  annotationToolsViewCount(annotationToolsView.value)
+);
+
 function activeSourceBindings(model: TaskFormModel): SourceRefBindings {
   return bindSourceRefs(model, {
     activeDataSource: activeDataSource(),
     backgroundImageId: currentImageID.value ?? undefined,
     activeSegmentGroupId: paintStore.activeSegmentGroupID,
     segmentGroups: segmentGroupView(),
+    hasFinishedAnnotations: finishedAnnotationCount.value > 0,
     getDataSource: (imageId) => datasetStore.getDataSource(imageId),
   });
 }
 
-// The labelmap value is not set here: a segment group has no server provenance,
-// so it earns URIs only at Run via `stageLabelmapInputs`.
+// Neither the labelmap nor the annotations value is set here: neither has
+// server provenance of its own, so both earn URIs only at Run via the staging
+// helpers below.
 function applyActiveBindings(
   model: TaskFormModel,
   base: Record<string, ProcessingValue>,
@@ -497,16 +582,17 @@ function refreshValidation(
   return validation.issues;
 }
 
+// Returns only the parameters it staged, so the caller owns the merge.
+//
 // The literal 'seg.nrrd' name is required for segment names and colors to be
 // embedded in the serialized output.
 async function stageLabelmapInputs(
   p: ProcessingProvider,
   model: TaskFormModel,
-  values: Record<string, ProcessingValue>,
   bindings: SourceRefBindings = activeSourceBindings(model)
 ): Promise<Record<string, ProcessingValue>> {
   const targets = Object.entries(bindings.labelmap.groups);
-  if (targets.length === 0) return values;
+  if (targets.length === 0) return {};
 
   const staged = await Promise.all(
     targets.map(async ([parameterId, segmentGroupId]) => {
@@ -538,7 +624,68 @@ async function stageLabelmapInputs(
       return [parameterId, mintLabelmapValue(uris)] as const;
     })
   );
-  return { ...values, ...Object.fromEntries(staged) };
+  return Object.fromEntries(staged);
+}
+
+// The extension is what the CLI spec and the backend both match on, so the base
+// name is the active image's without its own — compound extensions included, so
+// `scan.nii.gz` stages as `scan.annotations.json`.
+function annotationsFileName(): string {
+  const name = activeImageName() ?? 'image';
+  return `${stripExtension(name)}${ANNOTATIONS_FILE_EXTENSION}`;
+}
+
+// Everything the annotations file is made of, read off the stores in one
+// synchronous pass so staging never mixes two images' state.
+type AnnotationsPayload = {
+  file: AnnotationsFile;
+  name: string;
+  referenceImage: InputValue | null;
+};
+
+function captureAnnotationsPayload(): AnnotationsPayload {
+  return {
+    file: encodeAnnotationsFile(annotationToolsView.value),
+    name: annotationsFileName(),
+    referenceImage: mintInputValue(activeDataSource()),
+  };
+}
+
+// One file per bound parameter, holding every finished tool the active image
+// had at Run. The image is its own reference image, so a volume without server
+// provenance never gets here — the binder already refused it.
+async function stageAnnotationInputs(
+  p: ProcessingProvider,
+  bindings: SourceRefBindings,
+  payload: AnnotationsPayload | null
+): Promise<Record<string, ProcessingValue>> {
+  const [parameterId] = bindings.annotations.parameters;
+  if (!parameterId || !payload) return {};
+  const { file, name, referenceImage } = payload;
+
+  if (!referenceImage) {
+    throw new Error('The active image has no server provenance');
+  }
+  // The binder validated a live count; this is the encoded file's own count, so
+  // a tool deleted between validation and Run cannot stage an empty file.
+  if (annotationsFileCount(file) === 0) {
+    throw new Error('The active image has no finished annotations');
+  }
+
+  const uris = await p.stageInput({
+    file: new Blob([JSON.stringify(file)], { type: 'application/json' }),
+    descriptor: {
+      type: TYPE_TAG_ANNOTATIONS,
+      name,
+      referenceImage: {
+        ...referenceImage,
+        type: 'image',
+      },
+    },
+  });
+  return {
+    [parameterId]: mintAnnotationsValue(uris),
+  };
 }
 
 // Binding can fall back to the current image's sole group, so reading
@@ -547,6 +694,7 @@ type SourceRefContext = {
   labelmapGroups: Record<string, string>;
   types: Record<string, BoundSourceRefType>;
   imageName: string | undefined;
+  annotationCount: number;
 };
 
 // Resolved once per display pass: each binding re-runs a full field scan and
@@ -557,6 +705,7 @@ function sourceRefContext(model: TaskFormModel): SourceRefContext {
     labelmapGroups: bindings.labelmap.groups,
     types: bindings.types,
     imageName: activeImageName(),
+    annotationCount: finishedAnnotationCount.value,
   };
 }
 
@@ -568,6 +717,24 @@ function boundLabelmapName(
   return groupId ? segmentGroupStore.metadataByID[groupId]?.name : undefined;
 }
 
+// The bound value is a whole set of tools rather than one named resource, so
+// the count is the identifying part.
+function boundAnnotationsName(refs: SourceRefContext): string {
+  const noun = refs.annotationCount === 1 ? 'annotation' : 'annotations';
+  const count = `${refs.annotationCount} ${noun}`;
+  return refs.imageName ? `${count} on ${refs.imageName}` : count;
+}
+
+function boundSourceRefName(
+  refs: SourceRefContext,
+  parameterId: string
+): string | undefined {
+  const type = refs.types[parameterId];
+  if (type === TYPE_TAG_LABELMAP) return boundLabelmapName(refs, parameterId);
+  if (type === TYPE_TAG_ANNOTATIONS) return boundAnnotationsName(refs);
+  return refs.imageName;
+}
+
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
   if (!model) return {};
@@ -575,10 +742,7 @@ const sourceRefNames = computed(() => {
   const names: Record<string, string> = {};
   model.fields.forEach((field) => {
     if (field.kind !== 'sourceRef') return;
-    const name =
-      refs.types[field.id] === TYPE_TAG_LABELMAP
-        ? boundLabelmapName(refs, field.id)
-        : refs.imageName;
+    const name = boundSourceRefName(refs, field.id);
     if (name) names[field.id] = name;
   });
   return names;
@@ -592,6 +756,9 @@ function formatProcessingValue(
   if (field.kind === 'sourceRef') {
     if (refs.types[field.id] === TYPE_TAG_LABELMAP) {
       return boundLabelmapName(refs, field.id) ?? 'bound segment group';
+    }
+    if (refs.types[field.id] === TYPE_TAG_ANNOTATIONS) {
+      return boundAnnotationsName(refs);
     }
     return refs.imageName ?? 'active dataset';
   }
@@ -657,6 +824,9 @@ watchDebounced(
       crop: id ? cropStore.croppingByImageID[id] : undefined,
       activeSegmentGroup: paintStore.activeSegmentGroupID,
       groupCount: id ? (segmentGroupStore.orderByParent[id]?.length ?? 0) : 0,
+      // Placing the first (or removing the last) tool flips the annotations
+      // binding, so the form must revalidate.
+      annotationCount: finishedAnnotationCount.value,
     };
   },
   () => {
