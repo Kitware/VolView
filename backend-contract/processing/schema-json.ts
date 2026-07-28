@@ -18,6 +18,11 @@
 import { z } from 'zod';
 import { taskSpecSchema } from './task-spec';
 import {
+  ANNOTATIONS_RESERVED_RECORD_KEY,
+  ANNOTATION_TOOL_KINDS,
+  annotationsFileSchema,
+} from './annotations';
+import {
   inputValueSchema,
   stageInputDescriptorSchema,
   neutralJobStatusSchema,
@@ -40,6 +45,7 @@ const schemas = {
   'job-history-detail': jobHistoryDetailSchema,
   'job-results': jobResultsSchema,
   'job-results-error': jobResultsErrorSchema,
+  'annotations-file': annotationsFileSchema,
 } as const;
 
 export type GeneratedSchemaName = keyof typeof schemas;
@@ -67,23 +73,67 @@ const closeTupleLengths = (node: unknown): unknown => {
   };
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value as Record<string, unknown>;
+
+const descend = (
+  root: Record<string, unknown>,
+  path: readonly string[]
+): Record<string, unknown> =>
+  path.reduce((node, key) => asRecord(node[key]), root);
+
+// Zod cannot preserve `__proto__` long enough for record-key validation, so
+// the runtime schema checks the raw input. Carry the same rule explicitly in
+// the generated structural artifact.
+const reserveAnnotationsRecordKey = (schema: JsonSchema): JsonSchema => {
+  ANNOTATION_TOOL_KINDS.forEach((kind) => {
+    const records = [
+      descend(asRecord(schema), ['properties', 'labels', 'properties', kind]),
+      descend(asRecord(schema), [
+        'properties',
+        'tools',
+        'properties',
+        kind,
+        'items',
+        'properties',
+        'metadata',
+      ]),
+    ];
+    records.forEach((record) => {
+      record.propertyNames = {
+        ...asRecord(record.propertyNames),
+        pattern: `^(?!${ANNOTATIONS_RESERVED_RECORD_KEY}$)`,
+      };
+    });
+  });
+  return schema;
+};
+
+// Schemas whose zod source carries cross-field rules JSON Schema cannot state.
+// Each names the semantic pass a backend MUST run after structural validation,
+// in the generated artifact itself so the obligation travels with the schema.
+const SEMANTIC_PASS_COMMENTS: Partial<Record<GeneratedSchemaName, string>> = {
+  'task-spec':
+    'Structural validation only. Implement backend-contract validateTaskSpecSemantics after this schema and reject every fixtures/negative payload.',
+  'annotations-file':
+    'Structural validation only. Implement backend-contract validateAnnotationsFileSemantics after this schema: every planeNormal must be nonzero, and every nonempty labelName must be declared in its own tool-kind label namespace.',
+};
+
 export const generateJsonSchemas = (): Record<
   GeneratedSchemaName,
   JsonSchema
 > =>
   Object.fromEntries(
-    Object.entries(schemas).map(([name, schema]) => [
-      name,
-      name === 'task-spec'
-        ? {
-            $comment:
-              'Structural validation only. Implement backend-contract validateTaskSpecSemantics after this schema and reject every fixtures/negative payload.',
-            ...(closeTupleLengths(
-              z.toJSONSchema(schema, { unrepresentable: 'any' })
-            ) as JsonSchema),
-          }
-        : closeTupleLengths(z.toJSONSchema(schema, { unrepresentable: 'any' })),
-    ])
+    Object.entries(schemas).map(([name, schema]) => {
+      let structural = closeTupleLengths(
+        z.toJSONSchema(schema, { unrepresentable: 'any' })
+      ) as JsonSchema;
+      if (name === 'annotations-file') {
+        structural = reserveAnnotationsRecordKey(structural);
+      }
+      const $comment = SEMANTIC_PASS_COMMENTS[name as GeneratedSchemaName];
+      return [name, $comment ? { $comment, ...structural } : structural];
+    })
   ) as Record<GeneratedSchemaName, JsonSchema>;
 
 export const GENERATED_SCHEMA_NAMES = Object.keys(

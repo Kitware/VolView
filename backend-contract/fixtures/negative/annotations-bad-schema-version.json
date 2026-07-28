@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "space": "LPS",
+  "tools": {
+    "rulers": [
+      {
+        "firstPoint": [0, 0, 0],
+        "secondPoint": [1, 1, 0],
+        "frameOfReference": {
+          "planeNormal": [0, 0, 1],
+          "planeOrigin": [0, 0, 0]
+        }
+      }
+    ]
+  }
+}
