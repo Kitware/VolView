@@ -7,9 +7,8 @@ import {
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
-// The optional `source: {providerId, jobId, outputId}` provenance tag on
-// SegmentGroupMetadata — the durable job-history idempotency key that must round-trip the
-// `.volview.zip`.
+// The optional structured `source` on SegmentGroupMetadata is the durable
+// idempotency identity that must round-trip the `.volview.zip`.
 
 const baseMetadata = {
   name: 'Otsu result',
@@ -32,13 +31,9 @@ const metadataWithSource = {
 };
 
 describe('SegmentGroupMetadata.source', () => {
-  it('accepts and round-trips a source provenance tag', () => {
+  it('accepts and round-trips structured provenance', () => {
     const parsed = SegmentGroupMetadata.parse(metadataWithSource);
-    expect(parsed.source).toEqual({
-      providerId: 'analysis-provider',
-      jobId: 'job-abc',
-      outputId: 'outputLabelmap',
-    });
+    expect(parsed.source).toEqual(metadataWithSource.source);
   });
 
   it('is optional — a hand-painted group without source still validates', () => {
@@ -46,18 +41,13 @@ describe('SegmentGroupMetadata.source', () => {
     expect(SegmentGroupMetadata.parse(baseMetadata).source).toBeUndefined();
   });
 
-  it('rejects a malformed source (missing outputId)', () => {
+  it('rejects a source missing one identity component', () => {
     const bad = {
       ...metadataWithSource,
-      source: { providerId: 'analysis-provider', jobId: 'job-abc' },
-    };
-    expect(SegmentGroupMetadata.safeParse(bad).success).toBe(false);
-  });
-
-  it('rejects a source without provider identity', () => {
-    const bad = {
-      ...metadataWithSource,
-      source: { jobId: 'job-abc', outputId: 'outputLabelmap' },
+      source: {
+        providerId: 'analysis-provider',
+        jobId: 'job-abc',
+      },
     };
     expect(SegmentGroupMetadata.safeParse(bad).success).toBe(false);
   });
@@ -71,20 +61,20 @@ describe('SegmentGroupMetadata.source', () => {
       ],
     };
     const parsed = ManifestSchema.parse(manifest);
-    expect(parsed.segmentGroups?.[0].metadata.source).toEqual({
-      providerId: 'analysis-provider',
-      jobId: 'job-abc',
-      outputId: 'outputLabelmap',
-    });
+    expect(parsed.segmentGroups?.[0].metadata.source).toEqual(
+      metadataWithSource.source
+    );
   });
 });
 
 describe('manifest version / migration bump', () => {
-  it('pins MANIFEST_VERSION at 6.4.0', () => {
+  // Annotation provenance is additive to the structured segment-group source
+  // already covered by 6.4.0, so it needs no stamp-only version bump.
+  it('keeps MANIFEST_VERSION at 6.4.0', () => {
     expect(MANIFEST_VERSION).toBe('6.4.0');
   });
 
-  it('migrates a 6.3.0 manifest to 6.4.0, preserving segment groups', () => {
+  it('migrates a 6.3.0 manifest to the current version, preserving segment groups', () => {
     const old = JSON.stringify({
       version: '6.3.0',
       dataSources: [],
@@ -101,7 +91,7 @@ describe('manifest version / migration bump', () => {
       ],
     });
     const migrated = migrateManifest(old);
-    expect(migrated.version).toBe('6.4.0');
+    expect(migrated.version).toBe(MANIFEST_VERSION);
     expect(migrated.segmentGroups).toHaveLength(1);
     // An old manifest lacking `source` still validates (additive-optional).
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();

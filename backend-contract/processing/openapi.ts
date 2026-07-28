@@ -44,8 +44,9 @@ const WIRE_COMPONENTS: Record<GeneratedSchemaName, string> = {
   'job-results': 'JobResults',
   'job-results-error': 'JobResultsError',
   // Not a request/response body: the interchange FILE format a staged
-  // `annotations` input carries. Published as a component so a backend author
-  // sees the whole vocabulary, including the file formats, in one document.
+  // `annotations` input carries and an `add-annotations` result points at.
+  // Published as a component so a backend author sees the whole vocabulary,
+  // including the file formats, in one document.
   'annotations-file': 'AnnotationsFile',
 };
 

@@ -8,6 +8,20 @@ export type NullableValues<T> = {
   [K in keyof T]: T[K] | null;
 };
 
+/**
+ * Provenance of session state produced by a processing job: the durable
+ * idempotency identity that keeps a restored job output from being applied
+ * twice. Optional wherever it is used; hand-made state has none.
+ *
+ * Structurally mirrors the backend contract's ResultSource without making the
+ * core scene types depend on the processing contract.
+ */
+export type ProcessingResultSource = {
+  providerId: string;
+  jobId: string;
+  outputId: string;
+};
+
 export type SampleDataset = {
   name: string;
   filename: string;

@@ -215,6 +215,73 @@
             "url"
           ],
           "additionalProperties": {}
+        },
+        {
+          "type": "object",
+          "properties": {
+            "intent": {
+              "type": "string",
+              "const": "add-annotations"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "mimeType": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "size": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "providerId": {
+                  "type": "string"
+                },
+                "jobId": {
+                  "type": "string"
+                },
+                "outputId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "providerId",
+                "jobId",
+                "outputId"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "intent",
+            "id",
+            "name",
+            "url"
+          ],
+          "additionalProperties": {}
         }
       ]
     },

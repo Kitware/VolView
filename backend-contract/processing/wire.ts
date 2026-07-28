@@ -19,8 +19,9 @@ import {
 import { pathSegmentIdSchema } from './ids';
 
 // Bump when the intent vocabulary's shape changes so producers and the applier
-// can negotiate compatibility.
-export const INTENT_VOCABULARY_VERSION = 1;
+// can negotiate compatibility. Adding an intent is a compatible bump: an older
+// client demotes the unknown intent through the fail-open branch above.
+export const INTENT_VOCABULARY_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // Input value: what the client sends at submit
@@ -158,12 +159,12 @@ export const RESULT_INTENTS = [
   'add-base-image',
   'add-layer',
   'add-segment-group',
+  'add-annotations',
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
 
-// Provenance tag stamped on an applied segment group: an idempotency key.
-// Structurally identical to the `source?` field on `SegmentGroupMetadata` so it
-// round-trips the `.volview.zip`.
+// Provenance tag on a result: the durable idempotency identity the client
+// preserves on generated scene state so restored results can be recognized.
 export const resultSourceSchema = z.object({
   providerId: z.string(),
   jobId: z.string(),
@@ -224,6 +225,18 @@ const addSegmentGroup = z
   })
   .passthrough();
 
+// `add-annotations` points at an `annotations.ts` interchange file: the vector
+// annotations to add to the referenced image. It carries NO `segments`
+// equivalent — the label namespaces ride inside the file itself — plus the same
+// optional `source` provenance tag used as the idempotency key.
+const addAnnotations = z
+  .object({
+    intent: z.literal('add-annotations'),
+    ...resultListItemSchema.shape,
+    source: resultSourceSchema.optional(),
+  })
+  .passthrough();
+
 // The STRICT half of the vocabulary: every declared state directive with its
 // declared shape. Exported so the single applier can gate on which union member
 // strictly matched — a name-known-but-shape-invalid result (e.g. a broken
@@ -232,6 +245,7 @@ export const knownResultIntentSchema = z.discriminatedUnion('intent', [
   addBaseImage,
   addLayer,
   addSegmentGroup,
+  addAnnotations,
 ]);
 
 export type KnownResultIntent = z.infer<typeof knownResultIntentSchema>;

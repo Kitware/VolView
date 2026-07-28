@@ -308,12 +308,11 @@ const SegmentMask = z.object({
   locked: z.boolean().optional(),
 });
 
-// Provenance of a segment group produced by a processing job. This durable
-// idempotency key prevents a restored result from being applied twice.
-// Optional and additive — a hand-painted group has none. Round-trips the
-// `.volview.zip` as interchange. Structurally mirrors the backend-contract
-// `resultSource` wire tag.
-export const SegmentGroupSource = z.object({
+// Provenance of a scene object produced by a processing job. This durable
+// identity prevents a restored result from being applied twice. Optional and
+// additive wherever it is used; hand-made state has none. The shape mirrors the
+// backend contract's result source and is shared by groups and annotation tools.
+export const ProcessingResultSource = z.object({
   providerId: z.string(),
   jobId: z.string(),
   outputId: z.string(),
@@ -335,7 +334,7 @@ export const SegmentGroupMetadata = z.object({
       byValue: z.record(z.string(), SegmentMask),
     })
     .optional(),
-  source: SegmentGroupSource.optional(),
+  source: ProcessingResultSource.optional(),
 });
 
 export const SegmentGroup = z
@@ -377,6 +376,10 @@ const annotationTool = z.object({
   label: z.string().optional(),
   labelName: z.string().optional(),
   metadata: z.record(z.string(), z.string()).optional(),
+  // Job provenance, present only on a tool applied from a result. Unknown keys
+  // are stripped on parse, so restore would silently drop the idempotency key
+  // without this declaration.
+  source: ProcessingResultSource.optional(),
 });
 
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
