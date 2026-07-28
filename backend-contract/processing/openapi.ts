@@ -43,6 +43,10 @@ const WIRE_COMPONENTS: Record<GeneratedSchemaName, string> = {
   'job-history-detail': 'JobHistoryDetail',
   'job-results': 'JobResults',
   'job-results-error': 'JobResultsError',
+  // Not a request/response body: the interchange FILE format a staged
+  // `annotations` input carries. Published as a component so a backend author
+  // sees the whole vocabulary, including the file formats, in one document.
+  'annotations-file': 'AnnotationsFile',
 };
 
 // The generated schemas carry a per-schema `$schema` dialect marker; OpenAPI 3.1
@@ -327,13 +331,15 @@ const paths = (): Record<string, unknown> => ({
       operationId: 'stageInput',
       tags: ['context'],
       summary:
-        'Stage a parent-bound labelmap as a transient input; returns ' +
-        'backend-minted URIs the client round-trips as an InputValue at submit.',
+        'Stage a parent-bound labelmap or annotations file as a transient ' +
+        'input; returns backend-minted URIs the client round-trips as an ' +
+        'InputValue at submit.',
       requestBody: {
         required: true,
         description:
-          'A typed staged resource: the labelmap bytes plus its durable ' +
-          'reference-image relationship.',
+          'A typed staged resource: the bytes plus their durable ' +
+          'reference-image relationship. The descriptor `type` selects which ' +
+          'stageable resource the bytes are; an unknown type is rejected.',
         content: {
           'multipart/form-data': {
             schema: {

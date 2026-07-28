@@ -1,44 +1,91 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "type": {
-      "type": "string",
-      "const": "labelmap"
-    },
-    "name": {
-      "type": "string",
-      "minLength": 1
-    },
-    "referenceImage": {
+  "oneOf": [
+    {
       "type": "object",
       "properties": {
         "type": {
           "type": "string",
-          "const": "image"
+          "const": "labelmap"
         },
-        "format": {
-          "type": "string"
+        "name": {
+          "type": "string",
+          "minLength": 1
         },
-        "uris": {
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "referenceImage": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "image"
+            },
+            "format": {
+              "type": "string"
+            },
+            "uris": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "uris"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
         "type",
-        "uris"
+        "name",
+        "referenceImage"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "annotations"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "referenceImage": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "image"
+            },
+            "format": {
+              "type": "string"
+            },
+            "uris": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "uris"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "referenceImage"
       ],
       "additionalProperties": false
     }
-  },
-  "required": [
-    "type",
-    "name",
-    "referenceImage"
-  ],
-  "additionalProperties": false
+  ]
 }

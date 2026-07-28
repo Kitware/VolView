@@ -4,6 +4,7 @@ import {
   JOB_STATES,
   RESULT_INTENTS,
   INTENT_VOCABULARY_VERSION,
+  STAGEABLE_TYPES,
   inputValueSchema,
   stageInputDescriptorSchema,
   neutralJobStatusSchema,
@@ -65,6 +66,46 @@ describe('staged resource descriptor fixtures', () => {
     expect(descriptor.type).toBe('labelmap');
     expect(descriptor.referenceImage.type).toBe('image');
     expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('binds staged annotations bytes to a durable reference image', () => {
+    const descriptor = stageInputDescriptorSchema.parse(
+      wire['stage-input.annotations']
+    );
+    expect(descriptor.type).toBe('annotations');
+    expect(descriptor.name).toBe('chest-ct.annotations.json');
+    expect(descriptor.referenceImage.type).toBe('image');
+    expect(descriptor.referenceImage.uris).toHaveLength(2);
+  });
+
+  it('pins the stageable types and their identical key set', () => {
+    // A new stageable type adds a union member and nothing else: the descriptor
+    // key set is the same for every type, so the backend runs ONE code path.
+    expect([...STAGEABLE_TYPES]).toEqual(['labelmap', 'annotations']);
+    const keys = (name: string) =>
+      Object.keys(
+        stageInputDescriptorSchema.parse(wire[name]) as Record<string, unknown>
+      ).sort();
+    expect(keys('stage-input.annotations')).toEqual(
+      keys('stage-input.labelmap')
+    );
+  });
+
+  it('rejects an unknown staged resource type (staging is fail-closed)', () => {
+    const unknownType = loadFixture('negative/stage-input-unknown-type.json');
+    expect(stageInputDescriptorSchema.safeParse(unknownType).success).toBe(
+      false
+    );
+  });
+
+  it('rejects an annotations descriptor without reference provenance', () => {
+    expect(
+      stageInputDescriptorSchema.safeParse({
+        type: 'annotations',
+        name: 'rois.annotations.json',
+        referenceImage: { type: 'image', uris: [] },
+      }).success
+    ).toBe(false);
   });
 
   it('rejects a labelmap descriptor without reference provenance', () => {

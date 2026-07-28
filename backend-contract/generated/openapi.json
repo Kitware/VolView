@@ -216,10 +216,10 @@
         "tags": [
           "context"
         ],
-        "summary": "Stage a parent-bound labelmap as a transient input; returns backend-minted URIs the client round-trips as an InputValue at submit.",
+        "summary": "Stage a parent-bound labelmap or annotations file as a transient input; returns backend-minted URIs the client round-trips as an InputValue at submit.",
         "requestBody": {
           "required": true,
-          "description": "A typed staged resource: the labelmap bytes plus its durable reference-image relationship.",
+          "description": "A typed staged resource: the bytes plus their durable reference-image relationship. The descriptor `type` selects which stageable resource the bytes are; an unknown type is rejected.",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -850,47 +850,94 @@
         "additionalProperties": false
       },
       "StageInputDescriptor": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "labelmap"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "referenceImage": {
+        "oneOf": [
+          {
             "type": "object",
             "properties": {
               "type": {
                 "type": "string",
-                "const": "image"
+                "const": "labelmap"
               },
-              "format": {
-                "type": "string"
+              "name": {
+                "type": "string",
+                "minLength": 1
               },
-              "uris": {
-                "minItems": 1,
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
+              "referenceImage": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "image"
+                  },
+                  "format": {
+                    "type": "string"
+                  },
+                  "uris": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "uris"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
               "type",
-              "uris"
+              "name",
+              "referenceImage"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "annotations"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "referenceImage": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "image"
+                  },
+                  "format": {
+                    "type": "string"
+                  },
+                  "uris": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "uris"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "referenceImage"
             ],
             "additionalProperties": false
           }
-        },
-        "required": [
-          "type",
-          "name",
-          "referenceImage"
-        ],
-        "additionalProperties": false
+        ]
       },
       "NeutralJobStatus": {
         "oneOf": [
@@ -1557,6 +1604,427 @@
             "additionalProperties": false
           }
         ]
+      },
+      "AnnotationsFile": {
+        "$comment": "Structural validation only. Implement backend-contract validateAnnotationsFileSemantics after this schema: every planeNormal must be nonzero, and every nonempty labelName must be declared in its own tool-kind label namespace.",
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "space": {
+            "type": "string",
+            "const": "LPS"
+          },
+          "labels": {
+            "type": "object",
+            "properties": {
+              "rulers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^(?!__proto__$)"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "strokeWidth": {
+                      "type": "number"
+                    },
+                    "fillColor": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "rectangles": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^(?!__proto__$)"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "strokeWidth": {
+                      "type": "number"
+                    },
+                    "fillColor": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "polygons": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^(?!__proto__$)"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "strokeWidth": {
+                      "type": "number"
+                    },
+                    "fillColor": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "tools": {
+            "type": "object",
+            "properties": {
+              "rulers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "firstPoint": {
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "secondPoint": {
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "frameOfReference": {
+                      "type": "object",
+                      "properties": {
+                        "planeNormal": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        "planeOrigin": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "planeNormal",
+                        "planeOrigin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "slice": {
+                      "type": "number"
+                    },
+                    "frame": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "labelName": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^(?!__proto__$)"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "firstPoint",
+                    "secondPoint",
+                    "frameOfReference"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "rectangles": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "firstPoint": {
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "secondPoint": {
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "frameOfReference": {
+                      "type": "object",
+                      "properties": {
+                        "planeNormal": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        "planeOrigin": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "planeNormal",
+                        "planeOrigin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "slice": {
+                      "type": "number"
+                    },
+                    "frame": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "labelName": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^(?!__proto__$)"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "firstPoint",
+                    "secondPoint",
+                    "frameOfReference"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "polygons": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "points": {
+                      "minItems": 3,
+                      "type": "array",
+                      "items": {
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    },
+                    "frameOfReference": {
+                      "type": "object",
+                      "properties": {
+                        "planeNormal": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        "planeOrigin": {
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "planeNormal",
+                        "planeOrigin"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "slice": {
+                      "type": "number"
+                    },
+                    "frame": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "labelName": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "pattern": "^(?!__proto__$)"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "points",
+                    "frameOfReference"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "space",
+          "tools"
+        ],
+        "additionalProperties": {}
       },
       "TaskSummary": {
         "type": "object",

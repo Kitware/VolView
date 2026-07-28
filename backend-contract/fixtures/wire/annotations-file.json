@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "space": "LPS",
+  "labels": {
+    "rulers": {
+      "lesion": {
+        "color": "#ff0000",
+        "strokeWidth": 2
+      }
+    },
+    "rectangles": {
+      "lesion": {
+        "color": "#00ff00",
+        "strokeWidth": 1,
+        "fillColor": "#00ff0033"
+      }
+    },
+    "polygons": {
+      "roi": {
+        "color": "#0000ff"
+      }
+    }
+  },
+  "tools": {
+    "rulers": [
+      {
+        "firstPoint": [-30.5, 12.25, -12.5],
+        "secondPoint": [18.75, 44, -12.5],
+        "frameOfReference": {
+          "planeNormal": [0, 0, 1],
+          "planeOrigin": [0, 0, -12.5]
+        },
+        "slice": 42,
+        "labelName": "lesion",
+        "name": "Ruler",
+        "metadata": {
+          "measuredBy": "reader-1"
+        }
+      }
+    ],
+    "rectangles": [
+      {
+        "firstPoint": [-30.5, 12.25, -12.5],
+        "secondPoint": [18.75, 44, -12.5],
+        "frameOfReference": {
+          "planeNormal": [0, 0, 1],
+          "planeOrigin": [0, 0, -12.5]
+        },
+        "slice": 42,
+        "labelName": "lesion",
+        "name": "Rectangle"
+      }
+    ],
+    "polygons": [
+      {
+        "points": [
+          [-20, 0, -12.5],
+          [10, 0, -12.5],
+          [10, 30, -12.5],
+          [-20, 30, -12.5]
+        ],
+        "frameOfReference": {
+          "planeNormal": [0, 0, 1],
+          "planeOrigin": [0, 0, -12.5]
+        },
+        "slice": 42,
+        "labelName": "roi",
+        "name": "Polygon"
+      }
+    ]
+  }
+}

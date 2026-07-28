@@ -22,8 +22,11 @@ backend-contract/
   index.ts            top-level barrel; re-exports ./processing
   processing/
     task-spec.ts      VolView's zod task-spec schema
-    wire.ts           neutral wire shapes: input value, job status, job history,
-                      result-intent vocabulary
+    wire.ts           neutral wire shapes: input value, staged-input
+                      descriptor, job status, job history, result-intent
+                      vocabulary
+    annotations.ts    the annotations interchange FILE format (rulers,
+                      rectangles, polygons) in world LPS mm
     openapi.ts        the REST surface as an OpenAPI 3.1 document (wire schemas
                       injected from the zod codegen)
     schema-json.ts    zod -> JSON Schema codegen
@@ -52,8 +55,12 @@ Task specs require two validation passes. First validate the generated
 `task-spec.schema.json`, then enforce the cross-field rules implemented by
 `validateTaskSpecSemantics` (or an equivalent implementation in the backend's
 language). Standard JSON Schema cannot compare sibling values such as
-`default <= max`. Backend conformance tests must also assert that every payload
-under `fixtures/negative/` is rejected by the combined validation path.
+`default <= max`. The annotations interchange file needs the same two passes:
+validate `annotations-file.schema.json`, then enforce
+`validateAnnotationsFileSemantics` — every nonempty `labelName` must be declared
+in its own tool-kind label namespace, which JSON Schema cannot express either.
+Backend conformance tests must also assert that every payload under
+`fixtures/negative/` is rejected by the combined validation path.
 
 ## The neutral REST surface (OpenAPI)
 
@@ -69,7 +76,7 @@ enums.
 | `listJobHistory`      | `GET /jobs`                  | → paged `JobHistorySummary[]` (optional)                                              |
 | `getJobHistoryDetail` | `GET /jobs/{jobId}/detail`   | → logs + submitted parameters on demand                                               |
 | `deleteJob`           | `DELETE /jobs/{jobId}`       | → cascading deletion: execution record, results, staged inputs (terminal jobs only; 409 otherwise) |
-| `stageInput`          | `POST /stage`                | parent-bound labelmap multipart → `StageResponse` (optional)                          |
+| `stageInput`          | `POST /stage`                | parent-bound labelmap or annotations multipart → `StageResponse` (optional)            |
 | `getJob`              | `GET /jobs/{jobId}`          | → `NeutralJobStatus`                                                                  |
 | `getJobResults`       | `GET /jobs/{jobId}/results`  | → result intents, or explicit error                                                   |
 | `cancelJob`           | `POST /jobs/{jobId}/cancel`  | → `NeutralJobStatus`                                                                  |

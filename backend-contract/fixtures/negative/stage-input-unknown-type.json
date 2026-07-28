@@ -1,0 +1,10 @@
+{
+  "type": "pointset",
+  "name": "landmarks.json",
+  "referenceImage": {
+    "type": "image",
+    "uris": [
+      "/api/v1/file/aaaaaaaaaaaaaaaaaaaaaaaa/proxiable/001.dcm"
+    ]
+  }
+}

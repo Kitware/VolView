@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "space": "LPS",
+  "tools": {
+    "polygons": [
+      {
+        "points": [
+          [0, 0, 0],
+          [10, 0, 0]
+        ],
+        "frameOfReference": {
+          "planeNormal": [0, 0, 1],
+          "planeOrigin": [0, 0, 0]
+        }
+      }
+    ]
+  }
+}
