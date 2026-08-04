@@ -16,7 +16,7 @@
       <v-expansion-panel value="run">
         <v-expansion-panel-title>
           <v-icon class="mr-2">mdi-console-line</v-icon>
-          <span>Run a job</span>
+          <span>Run Jobs</span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <v-select

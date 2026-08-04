@@ -1,17 +1,17 @@
 <template>
   <div class="file-widget">
-    <div v-if="bindingMessage" class="text-caption text-error">
-      {{ bindingMessage }}
+    <div class="input-key text-caption text-medium-emphasis">
+      <v-icon size="16">{{ kind.icon }}</v-icon>
+      <span class="key-text">
+        {{ kind.caption }}{{ param.required ? '' : ' (optional)' }}
+      </span>
     </div>
-    <template v-else>
-      <div class="bound-name text-body-2">
-        <v-icon size="16" class="mr-2">{{ kind.icon }}</v-icon>
-        {{ boundName ?? kind.caption }}
-      </div>
-      <div class="text-caption text-medium-emphasis bound-caption">
-        {{ kind.caption }}
-      </div>
-    </template>
+    <div
+      class="input-value text-body-2"
+      :class="{ 'text-error': bindingMessage }"
+    >
+      <span class="value-text">{{ bindingMessage ?? boundDisplayName }}</span>
+    </div>
   </div>
 </template>
 
@@ -34,8 +34,8 @@ const props = defineProps<{
   boundType?: BoundSourceRefType;
 }>();
 
-// How each bound kind names itself: the icon, the caption under the bound name,
-// and the noun the binding sentences use.
+// How each bound kind names itself in the key column and the noun the binding
+// sentences use.
 const KINDS: Record<
   string,
   { icon: string; caption: string; noun: SourceRefNoun }
@@ -47,7 +47,7 @@ const KINDS: Record<
   },
   [TYPE_TAG_ANNOTATIONS]: {
     icon: 'mdi-ruler',
-    caption: 'Annotations on the active dataset',
+    caption: 'Annotations',
     noun: 'annotation',
   },
 };
@@ -69,26 +69,61 @@ const kind = computed(() => {
   return (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
 });
 
+const OPTIONAL_UNBOUND_STATES = new Set<SourceRefBindingState>([
+  'unbound',
+  'no-segment-group',
+  'no-annotations',
+  'no-reference-input',
+]);
+
+// Missing optional inputs are an intentional task state, not an instruction
+// the user must satisfy. Provenance failures and ambiguous bindings still show
+// as errors because those states block even optional source refs.
+const optionalUnbound = computed(
+  () =>
+    !props.param.required &&
+    props.binding != null &&
+    OPTIONAL_UNBOUND_STATES.has(props.binding)
+);
+
 const bindingMessage = computed(() =>
-  props.binding
+  props.binding && !optionalUnbound.value
     ? bindingStateMessage(props.binding, kind.value.noun)
     : undefined
+);
+
+const boundDisplayName = computed(() =>
+  optionalUnbound.value
+    ? 'Not provided'
+    : (props.boundName ?? kind.value.caption)
 );
 </script>
 
 <style scoped>
 .file-widget {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 20px;
+  align-items: start;
   padding: 2px 0;
 }
-.bound-name {
+.input-key {
   display: flex;
   align-items: center;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 6px;
+  line-height: 20px;
 }
-.bound-caption {
-  margin-left: 24px;
+.input-key :deep(.v-icon) {
+  flex: 0 0 auto;
+}
+.input-value {
+  min-width: 0;
+  line-height: 20px;
+  text-align: left;
+}
+.value-text {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 </style>
