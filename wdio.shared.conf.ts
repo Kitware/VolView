@@ -41,7 +41,7 @@ export const applyTestViewport = (browser: any) =>
 export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
-export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 20000);
+export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 30000);
 
 const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
 
@@ -68,7 +68,9 @@ export const config: Options.Testrunner = {
   // ============
   // Capabilities
   // ============
-  maxInstances: IS_CI ? 1 : 6,
+  // WebGL rendering is resource-intensive enough that six local Chrome
+  // instances can starve one another and exceed view-rendering timeouts.
+  maxInstances: IS_CI ? 1 : 3,
   //
   // ===================
   // Test Configurations

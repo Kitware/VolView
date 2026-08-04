@@ -46,14 +46,28 @@ describe('Layers and Rendering', () => {
       }
     );
 
-    const menus = await volViewPage.datasetMenuButtons;
-    const menuCount = await menus.length;
-    if (menuCount < 2) {
-      throw new Error(
-        `Expected at least 2 dataset menu buttons, but found ${menuCount}`
-      );
-    }
-    await menus[1].click();
+    const inactiveMenuSelector =
+      '.volume-card:not(.volume-card-active) button[data-testid="dataset-menu-button"]';
+
+    await browser.waitUntil(
+      async () => {
+        const activeMenus = await $$(
+          '.volume-card-active button[data-testid="dataset-menu-button"]'
+        );
+        const inactiveMenus = await $$(inactiveMenuSelector);
+        return (
+          (await activeMenus.length) >= 1 && (await inactiveMenus.length) >= 1
+        );
+      },
+      {
+        timeout: DOWNLOAD_TIMEOUT,
+        timeoutMsg:
+          'Expected active and inactive datasets to be available for layering',
+      }
+    );
+
+    const inactiveMenus = await $$(inactiveMenuSelector);
+    await inactiveMenus[0].click();
 
     await browser.waitUntil(
       async () => {
@@ -62,7 +76,10 @@ describe('Layers and Rendering', () => {
         );
         return addLayerButton.isClickable();
       },
-      { timeoutMsg: 'Expected clickable Add Layer button' }
+      {
+        timeout: DOWNLOAD_TIMEOUT,
+        timeoutMsg: 'Expected clickable Add Layer button',
+      }
     );
 
     const addLayerButton = await $(
