@@ -4,6 +4,24 @@ The VolView server extends the VolView viewer with remote processing
 capabilities. It integrates with your Python-based code and exposes that
 functionality directly into the viewer.
 
+## Processing Jobs
+
+The server described here exposes Python functions as RPCs the viewer calls
+directly. For longer-running work, VolView also ships a Jobs panel that talks to
+a processing backend over the neutral API defined in the `backend-contract`
+package: the backend advertises its tasks, VolView builds the submission form
+from each task specification, and completed outputs load back into the scene as
+images, layers, or segment groups. Any service that implements the contract
+works, since VolView knows only the shared vocabulary and never a backend's
+native task format.
+
+[girder_volview](https://github.com/DigitalSlideArchive/girder_volview) is a
+working implementation that runs tasks as
+[Slicer CLI Web](https://github.com/girder/slicer_cli_web) images. See its
+[job processing design](https://github.com/DigitalSlideArchive/girder_volview/blob/main/docs/job-processing.md)
+for the execution flow, and the schemas in `backend-contract/` for the API
+itself.
+
 ## Quick Start
 
 There are two parts to getting started with this VolView server example: the
