@@ -58,13 +58,18 @@ describe('normalizeUrlParams', () => {
     ]);
   });
 
-  it('handles config and names parameters', () => {
+  it('handles names parameters', () => {
     const result = normalizeUrlParams({
-      config: 'https://example.com/config.json',
       names: ['Image 1', 'Image 2'],
     });
-    expect(result.config).toEqual(['https://example.com/config.json']);
     expect(result.names).toEqual(['Image 1', 'Image 2']);
+  });
+
+  it('ignores unsupported URL parameters', () => {
+    const result = normalizeUrlParams({
+      config: 'https://example.com/config.json',
+    });
+    expect(result).toEqual({});
   });
 
   it('treats relative paths as valid URLs', () => {

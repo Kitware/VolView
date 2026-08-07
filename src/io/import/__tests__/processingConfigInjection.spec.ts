@@ -1,7 +1,7 @@
 // Config-by-shape + origin gate, exercised through the real import pipeline.
 // There is no channel distinction: a provider config registers iff its origin
 // passes the runtime gate, no matter how it arrived
-// (a `config`-role uri, a plain `urls=` file, or a dropped file).
+// (a plain `urls=` file, a manifest resource, or a dropped file).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
@@ -48,7 +48,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     vi.restoreAllMocks();
   });
 
-  it('registers a same-origin provider from a plain urls= file (no config role)', async () => {
+  it('registers a same-origin provider from a plain urls= file alongside ordinary data', async () => {
     const [
       { importDataSources },
       { uriToDataSource },
@@ -59,8 +59,12 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
       import('@/src/processing'),
     ]);
 
-    // No 'config' role on the parent: registration is by shape, not channel.
-    const dataSource: DataSource = {
+    const ordinaryDataSource: DataSource = {
+      type: 'file',
+      file: jsonFile({ vertices: [[0, 0, 0]] }, 'data.json'),
+      fileType: 'application/json',
+    };
+    const configDataSource: DataSource = {
       type: 'file',
       file: jsonFile(
         configWithProvider('/api/v1/folder/abc/volview_processing')
@@ -72,7 +76,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
       ),
     };
 
-    await importDataSources([dataSource]);
+    await importDataSources([ordinaryDataSource, configDataSource]);
 
     expect(useProcessingJobsStore().configs.size).toBe(1);
   });

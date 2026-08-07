@@ -61,7 +61,7 @@ async function openCineDatasetWithConfig(config: unknown, configName: string) {
   const configFileName = `${configName}-${Date.now()}.json`;
   await writeManifestToFile(config, configFileName);
   await volViewPage.open(
-    `?config=[tmp/${configFileName}]&urls=[tmp/${CINE_US_DATASET.name}]`
+    `?urls=[tmp/${CINE_US_DATASET.name},tmp/${configFileName}]`
   );
   await volViewPage.waitForViews();
   const notifications = await volViewPage.getNotificationsCount();

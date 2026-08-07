@@ -418,7 +418,6 @@ function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
 type LoadUrlsParams = {
   urls?: string[];
   names?: string[];
-  config?: string[];
 };
 
 export async function loadUrls(params: UrlParams | LoadUrlsParams) {
@@ -428,24 +427,17 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams) {
 export async function loadUrlsWithOutcome(
   params: UrlParams | LoadUrlsParams
 ): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
-  const outcomes: LoadDataSourcesOutcome[] = [];
-  if (params.config) {
-    const configUrls = wrapInArray(params.config);
-    const configSources = urlsToDataSources(configUrls, []);
-    outcomes.push(
-      await loadDataSourcesWithOutcome(configSources, importDataSources)
-    );
+  if (!params.urls) {
+    return { datasetIds: [], hadErrors: false };
   }
 
-  if (params.urls) {
-    const urls = wrapInArray(params.urls);
-    const names = wrapInArray(params.names ?? []);
-    const sources = urlsToDataSources(urls, names);
-    outcomes.push(await loadDataSourcesWithOutcome(sources, importDataSources));
-  }
+  const urls = wrapInArray(params.urls);
+  const names = wrapInArray(params.names ?? []);
+  const sources = urlsToDataSources(urls, names);
+  const outcome = await loadDataSourcesWithOutcome(sources, importDataSources);
   return {
-    datasetIds: outcomes.flatMap(({ datasetIds }) => datasetIds),
-    hadErrors: outcomes.some(({ hadErrors }) => hadErrors),
+    datasetIds: outcome.datasetIds,
+    hadErrors: outcome.hadErrors,
   };
 }
 

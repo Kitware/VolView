@@ -10,10 +10,12 @@ By loading a JSON file, you can set VolView's configuration:
 
 ## Loading Configuration Files
 
-Use the `config` URL parameter to load configuration before data files:
+Include configuration files in the `urls` URL parameter. VolView recognizes
+configuration JSON by its contents and applies it before displaying imported
+data:
 
 ```
-https://volview.kitware.com/?config=https://example.com/config.json&urls=https://example.com/data.nrrd
+https://volview.kitware.com/?urls=[https://example.com/data.nrrd,https://example.com/config.json]
 ```
 
 ## View Layouts
