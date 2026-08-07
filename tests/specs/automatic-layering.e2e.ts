@@ -15,7 +15,7 @@ describe('Automatic Layering by File Name', () => {
     await writeManifestToFile(config, configFileName);
 
     await volViewPage.open(
-      `?config=[tmp/${configFileName}]&urls=[${FETUS_DATASET.url},${FETUS_DATASET.url}]&names=[base-image.mha,base-image.layer.mha]`
+      `?urls=[${FETUS_DATASET.url},${FETUS_DATASET.url},tmp/${configFileName}]&names=[base-image.mha,base-image.layer.mha,${configFileName}]`
     );
     await volViewPage.waitForViews();
 

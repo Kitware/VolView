@@ -41,7 +41,7 @@ describe('Labelmap with different direction matrix', () => {
       fs.unlinkSync(configFilePath);
     });
 
-    const urlParams = `?urls=[tmp/${manifestFileName}]&config=[tmp/${configFileName}]`;
+    const urlParams = `?urls=[tmp/${manifestFileName},tmp/${configFileName}]`;
     await volViewPage.open(urlParams);
     await volViewPage.waitForViews();
     const notifications = await volViewPage.getNotificationsCount();

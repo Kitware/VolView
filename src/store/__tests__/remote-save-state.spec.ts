@@ -75,9 +75,9 @@ describe('remote save target', () => {
 });
 
 // A successful save repoints ONLY the tab's `urls=` at the returned
-// `resumeUrl` so a future F5 reloads the save — no reload, and `save=`, the
-// in-memory save target, and `config=` are all untouched. No `resumeUrl` (or
-// an unparseable body) leaves the tab as-is.
+// `resumeUrl` so a future F5 reloads the save — no reload, and `save=` plus the
+// in-memory save target are untouched. No `resumeUrl` (or an unparseable body)
+// leaves the tab as-is.
 describe('resume repoint on save', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -89,7 +89,7 @@ describe('resume repoint on save', () => {
     window.history.replaceState(null, '', window.location.pathname);
   });
 
-  it('repoints urls= to the resumeUrl and leaves the save target alone (save=/config= untouched)', async () => {
+  it('repoints urls= to the resumeUrl and leaves the save target alone', async () => {
     const resumeUrl = '/api/v1/item/session-123/volview';
     vi.mocked($fetch).mockResolvedValue(
       new Response(JSON.stringify({ resumeUrl }), { status: 200 })

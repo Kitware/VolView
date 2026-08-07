@@ -109,9 +109,9 @@ export const openConfigAndDataset = async (
   await writeManifestToFile(config, configFileName);
 
   await volViewPage.open(
-    `?config=[tmp/${configFileName}]&urls=${dataset.url}&names=${
+    `?urls=[${dataset.url},tmp/${configFileName}]&names=[${
       dataset.name ?? ''
-    }`
+    },${configFileName}]`
   );
   await volViewPage.waitForViews();
 };
