@@ -132,6 +132,12 @@ const sourceRefParam = z.object({
   kind: z.literal('sourceRef'),
   ...paramCommon,
   accepts: z.array(typeTagSchema).min(1),
+  multiple: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, the parameter receives every segment group whose parent is the active dataset, serialized one file per group in store order. When absent or false, it receives only the actively selected group.'
+    ),
 });
 
 const boundsParam = z.object({

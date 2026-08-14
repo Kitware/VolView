@@ -58,6 +58,10 @@ const IMAGE_KIND = {
   noun: 'image' as SourceRefNoun,
 };
 
+const multiple = computed(
+  () => props.param.kind === 'sourceRef' && props.param.multiple === true
+);
+
 // Before the binder has run, a param accepting exactly one type already names
 // its kind.
 const kind = computed(() => {
@@ -66,7 +70,10 @@ const kind = computed(() => {
       ? props.param.accepts[0]
       : undefined;
   const type = props.boundType ?? declared;
-  return (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
+  const resolved = (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
+  return type === TYPE_TAG_LABELMAP && multiple.value
+    ? { ...resolved, caption: 'Segment groups on active dataset' }
+    : resolved;
 });
 
 const OPTIONAL_UNBOUND_STATES = new Set<SourceRefBindingState>([
@@ -88,7 +95,7 @@ const optionalUnbound = computed(
 
 const bindingMessage = computed(() =>
   props.binding && !optionalUnbound.value
-    ? bindingStateMessage(props.binding, kind.value.noun)
+    ? bindingStateMessage(props.binding, kind.value.noun, multiple.value)
     : undefined
 );
 

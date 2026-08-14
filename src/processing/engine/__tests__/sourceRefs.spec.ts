@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DataSource } from '@/src/io/import/dataSource';
 import type { TaskFormModel } from '../formModel';
 import { bindSourceRefs, type SourceRefBindingContext } from '../sourceRefs';
+import { createSourceRefBindingContext } from './sourceRefBindingContext';
 
 const remoteImage: DataSource = {
   type: 'uri',
@@ -18,19 +19,15 @@ const model = (fields: TaskFormModel['fields']): TaskFormModel => ({
 
 const context = (
   overrides: Partial<SourceRefBindingContext> = {}
-): SourceRefBindingContext => ({
-  activeDataSource: remoteImage,
-  backgroundImageId: 'image-1',
-  activeSegmentGroupId: null,
-  segmentGroups: { orderByParent: {}, metadataByID: {} },
-  hasFinishedAnnotations: false,
-  getDataSource: () => remoteImage,
-  ...overrides,
-});
+): SourceRefBindingContext =>
+  createSourceRefBindingContext({
+    activeDataSource: remoteImage,
+    getDataSource: () => remoteImage,
+    ...overrides,
+  });
 
 // The single-group arrangement the labelmap resolver binds without a picker.
 const oneSegmentGroup = {
-  activeSegmentGroupId: 'group-1',
   segmentGroups: {
     orderByParent: { 'image-1': ['group-1'] },
     metadataByID: { 'group-1': { parentImage: 'image-1' } },
@@ -56,7 +53,7 @@ describe('bindSourceRefs', () => {
     expect(bindings.issues).toEqual([]);
   });
 
-  it('honors accepted-type order when both alternatives are available', () => {
+  it('binds every group when a multiple labelmap is accepted', () => {
     const bindings = bindSourceRefs(
       model([
         {
@@ -64,19 +61,84 @@ describe('bindSourceRefs', () => {
           id: 'input',
           accepts: ['labelmap', 'image'],
           required: true,
+          multiple: true,
         },
       ]),
       context({
-        activeSegmentGroupId: 'group-1',
         segmentGroups: {
-          orderByParent: { 'image-1': ['group-1'] },
-          metadataByID: { 'group-1': { parentImage: 'image-1' } },
+          orderByParent: { 'image-1': ['group-1', 'group-2'] },
+          metadataByID: {
+            'group-1': { parentImage: 'image-1' },
+            'group-2': { parentImage: 'image-1' },
+          },
         },
       })
     );
 
     expect(bindings.types.input).toBe('labelmap');
-    expect(bindings.labelmap.groups.input).toBe('group-1');
+    expect(bindings.labelmap.groups.input).toEqual(['group-1', 'group-2']);
+    expect(bindings.issues).toEqual([]);
+  });
+
+  it('keeps a multiple labelmap plural when a union sibling takes the image', () => {
+    const bindings = bindSourceRefs(
+      model([
+        {
+          kind: 'sourceRef',
+          id: 'segs',
+          accepts: ['labelmap'],
+          required: true,
+          multiple: true,
+        },
+        {
+          kind: 'sourceRef',
+          id: 'either',
+          accepts: ['image', 'labelmap'],
+          required: true,
+        },
+      ]),
+      context({
+        segmentGroups: {
+          orderByParent: { 'image-1': ['group-1', 'group-2'] },
+          metadataByID: {
+            'group-1': { parentImage: 'image-1' },
+            'group-2': { parentImage: 'image-1' },
+          },
+        },
+      })
+    );
+
+    // The union has no active group to fall back on, so it takes the image and
+    // leaves the plural field to bind every group.
+    expect(bindings.types).toEqual({ segs: 'labelmap', either: 'image' });
+    expect(bindings.labelmap.groups.segs).toEqual(['group-1', 'group-2']);
+    expect(bindings.states.segs).toBe('bound');
+    expect(bindings.issues).toEqual([]);
+  });
+
+  it('binds only the selected group for a singular labelmap', () => {
+    const bindings = bindSourceRefs(
+      model([
+        {
+          kind: 'sourceRef',
+          id: 'input',
+          accepts: ['labelmap'],
+          required: true,
+        },
+      ]),
+      context({
+        activeSegmentGroupId: 'group-2',
+        segmentGroups: {
+          orderByParent: { 'image-1': ['group-1', 'group-2'] },
+          metadataByID: {
+            'group-1': { parentImage: 'image-1' },
+            'group-2': { parentImage: 'image-1' },
+          },
+        },
+      })
+    );
+
+    expect(bindings.labelmap.groups.input).toEqual(['group-2']);
     expect(bindings.issues).toEqual([]);
   });
 
@@ -97,7 +159,6 @@ describe('bindSourceRefs', () => {
         },
       ]),
       context({
-        activeSegmentGroupId: 'group-1',
         segmentGroups: {
           orderByParent: { 'image-1': ['group-1'] },
           metadataByID: { 'group-1': { parentImage: 'image-1' } },
@@ -120,7 +181,6 @@ describe('bindSourceRefs', () => {
         },
       ]),
       context({
-        activeSegmentGroupId: 'group-1',
         segmentGroups: {
           orderByParent: { 'image-1': ['group-1'] },
           metadataByID: { 'group-1': { parentImage: 'image-1' } },
@@ -131,6 +191,36 @@ describe('bindSourceRefs', () => {
 
     expect(bindings.types.input).toBe('image');
     expect(bindings.issues).toEqual([]);
+  });
+
+  // Staging mints a reference per group, so no group set may reach it without
+  // one; the parent is the background image, which is the same for every group.
+  it('refuses a plural labelmap whose parent image lacks provenance', () => {
+    const bindings = bindSourceRefs(
+      model([
+        {
+          kind: 'sourceRef',
+          id: 'segs',
+          accepts: ['labelmap'],
+          required: true,
+          multiple: true,
+        },
+      ]),
+      context({
+        segmentGroups: {
+          orderByParent: { 'image-1': ['group-1', 'group-2'] },
+          metadataByID: {
+            'group-1': { parentImage: 'image-1' },
+            'group-2': { parentImage: 'image-1' },
+          },
+        },
+        getDataSource: () => undefined,
+      })
+    );
+
+    expect(bindings.states.segs).toBe('no-provenance');
+    expect(bindings.issues).toHaveLength(1);
+    expect(bindings.issues[0].message).toMatch(/not loaded from the server/i);
   });
 
   it('walks image provenance only once', () => {
@@ -172,7 +262,6 @@ describe('bindSourceRefs', () => {
         },
       ]),
       context({
-        activeSegmentGroupId: 'group-1',
         segmentGroups: {
           orderByParent: { 'image-1': ['group-1'] },
           metadataByID: { 'group-1': { parentImage: 'image-1' } },
@@ -373,7 +462,7 @@ describe('bindSourceRefs — annotations', () => {
       seg: 'labelmap',
       annotations: 'annotations',
     });
-    expect(bindings.labelmap.groups.seg).toBe('group-1');
+    expect(bindings.labelmap.groups.seg).toEqual(['group-1']);
     expect(bindings.annotations.parameters).toEqual(['annotations']);
     expect(bindings.issues).toEqual([]);
   });

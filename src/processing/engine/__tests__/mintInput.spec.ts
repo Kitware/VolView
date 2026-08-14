@@ -6,13 +6,14 @@ import {
   collectProvenanceUris,
   deriveFormat,
   mintInputValue,
-  bindImageInputs,
   imageInputFields,
 } from '../mintInput';
+import { bindSourceRefs, type SourceRefBindingContext } from '../sourceRefs';
 import { buildTaskFormModel, type TaskFormModel } from '../formModel';
 import { parseTaskSpecEnvelope } from '../taskSpec';
 import { loadFixture } from '@/backend-contract/processing/__tests__/loadFixtures';
 import type { FormField } from '../formModel';
+import { createSourceRefBindingContext } from './sourceRefBindingContext';
 
 const uriSource = (uri: string): DataSource => ({
   type: 'uri',
@@ -90,6 +91,14 @@ const imageParamModel = (
   hidden: [],
 });
 
+const context = (
+  activeDataSource: DataSource | undefined
+): SourceRefBindingContext =>
+  createSourceRefBindingContext({
+    activeDataSource,
+    getDataSource: () => undefined,
+  });
+
 describe('mintInputValue matches the input-value golden fixtures', () => {
   it('mints a dicom-series image from a remote DICOM collection', () => {
     const fixture = loadFixture('wire/input-value.dicom-series.json');
@@ -157,15 +166,15 @@ describe('mintInputValue fails closed for no-provenance volumes', () => {
   });
 });
 
-describe('bindImageInputs auto-binds the active dataset', () => {
+describe('image binding auto-binds the active dataset', () => {
   it('binds the sole image param to the active volume', () => {
-    const result = bindImageInputs(
+    const bindings = bindSourceRefs(
       imageParamModel(),
-      remoteFile('/api/x/scan.nrrd', 'scan.nrrd')
+      context(remoteFile('/api/x/scan.nrrd', 'scan.nrrd'))
     );
-    expect(result.states.inputVolume).toBe('bound');
-    expect(result.issues).toHaveLength(0);
-    expect(result.values.inputVolume).toEqual({
+    expect(bindings.states.inputVolume).toBe('bound');
+    expect(bindings.issues).toHaveLength(0);
+    expect(bindings.image.values.inputVolume).toEqual({
       type: 'image',
       format: 'nrrd',
       uris: ['/api/x/scan.nrrd'],
@@ -173,22 +182,25 @@ describe('bindImageInputs auto-binds the active dataset', () => {
   });
 
   it('fails closed (no-provenance) + refuses submit for a local-drop volume', () => {
-    const result = bindImageInputs(imageParamModel(), localFile('local.nrrd'));
-    expect(result.states.inputVolume).toBe('no-provenance');
-    expect(result.values.inputVolume).toBeNull();
-    expect(result.issues).toHaveLength(1);
-    expect(result.issues[0].parameter).toBe('inputVolume');
-    expect(result.issues[0].message).toMatch(/not loaded from the server/i);
+    const bindings = bindSourceRefs(
+      imageParamModel(),
+      context(localFile('local.nrrd'))
+    );
+    expect(bindings.states.inputVolume).toBe('no-provenance');
+    expect(bindings.image.values.inputVolume).toBeNull();
+    expect(bindings.issues).toHaveLength(1);
+    expect(bindings.issues[0].parameter).toBe('inputVolume');
+    expect(bindings.issues[0].message).toMatch(/not loaded from the server/i);
   });
 
   it('fails closed (no-provenance) for a mixed remote/local collection', () => {
-    const result = bindImageInputs(
+    const bindings = bindSourceRefs(
       imageParamModel(),
-      mixedProvenanceVolume(['a/1.dcm', 'a/2.dcm'])
+      context(mixedProvenanceVolume(['a/1.dcm', 'a/2.dcm']))
     );
-    expect(result.states.inputVolume).toBe('no-provenance');
-    expect(result.values.inputVolume).toBeNull();
-    expect(result.issues).toHaveLength(1);
+    expect(bindings.states.inputVolume).toBe('no-provenance');
+    expect(bindings.image.values.inputVolume).toBeNull();
+    expect(bindings.issues).toHaveLength(1);
   });
 
   it('fails closed (ambiguous) when more than one image param is present', () => {
@@ -201,14 +213,14 @@ describe('bindImageInputs auto-binds the active dataset', () => {
       ],
       hidden: [],
     };
-    const result = bindImageInputs(
+    const bindings = bindSourceRefs(
       model,
-      remoteFile('/api/x/scan.nrrd', 'scan.nrrd')
+      context(remoteFile('/api/x/scan.nrrd', 'scan.nrrd'))
     );
-    expect(result.states.ct).toBe('ambiguous');
-    expect(result.states.pet).toBe('ambiguous');
-    expect(result.values).toEqual({ ct: null, pet: null });
-    expect(result.issues).toHaveLength(1);
+    expect(bindings.states.ct).toBe('ambiguous');
+    expect(bindings.states.pet).toBe('ambiguous');
+    expect(bindings.image.values).toEqual({ ct: null, pet: null });
+    expect(bindings.issues).toHaveLength(1);
   });
 
   it('is a no-op when the task has no image input', () => {
@@ -218,9 +230,11 @@ describe('bindImageInputs auto-binds the active dataset', () => {
       fields: [{ kind: 'int', id: 'radius', default: 1 }],
       hidden: [],
     };
-    expect(
-      bindImageInputs(model, remoteFile('/api/x/scan.nrrd', 'scan.nrrd'))
-    ).toEqual({
+    const bindings = bindSourceRefs(
+      model,
+      context(remoteFile('/api/x/scan.nrrd', 'scan.nrrd'))
+    );
+    expect(bindings.image).toEqual({
       values: {},
       states: {},
       issues: [],
@@ -228,23 +242,23 @@ describe('bindImageInputs auto-binds the active dataset', () => {
   });
 
   it('refuses submit for a required image input with no active dataset', () => {
-    const result = bindImageInputs(imageParamModel(), undefined);
-    expect(result.states.inputVolume).toBe('unbound');
-    expect(result.issues).toHaveLength(1);
-    expect(result.issues[0].message).toMatch(/required/i);
+    const bindings = bindSourceRefs(imageParamModel(), context(undefined));
+    expect(bindings.states.inputVolume).toBe('unbound');
+    expect(bindings.issues).toHaveLength(1);
+    expect(bindings.issues[0].message).toMatch(/required/i);
   });
 
   it('does not block an OPTIONAL image input with no active dataset', () => {
-    const result = bindImageInputs(
+    const bindings = bindSourceRefs(
       imageParamModel({ required: false }),
-      undefined
+      context(undefined)
     );
-    expect(result.states.inputVolume).toBe('unbound');
-    expect(result.issues).toHaveLength(0);
+    expect(bindings.states.inputVolume).toBe('unbound');
+    expect(bindings.issues).toHaveLength(0);
   });
 });
 
-describe('bindImageInputs over a real task-spec fixture', () => {
+describe('image binding over a real task-spec fixture', () => {
   it('finds and binds the image inputVolume from provenance', () => {
     const model = buildTaskFormModel(
       parseTaskSpecEnvelope(loadFixture('task-spec/synthetic-all-kinds.json'))
@@ -254,9 +268,9 @@ describe('bindImageInputs over a real task-spec fixture', () => {
     const uris = (
       loadFixture('wire/input-value.dicom-series.json') as { uris: string[] }
     ).uris;
-    const result = bindImageInputs(model, dicomVolume(uris));
-    expect(result.states.inputVolume).toBe('bound');
-    expect(result.values.inputVolume).toEqual({
+    const bindings = bindSourceRefs(model, context(dicomVolume(uris)));
+    expect(bindings.states.inputVolume).toBe('bound');
+    expect(bindings.image.values.inputVolume).toEqual({
       type: 'image',
       format: 'dicom-series',
       uris,
