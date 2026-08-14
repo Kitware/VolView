@@ -86,12 +86,17 @@ export const imageInputFields = (model: TaskFormModel): SourceRefField[] =>
 // validation issues and FileWidget renders the same text in the form body.
 export const bindingStateMessage = (
   state: SourceRefBindingState,
-  noun: SourceRefNoun
+  noun: SourceRefNoun,
+  // A plural input takes every group on the active dataset, so selecting one is
+  // not a remedy.
+  multiple = false
 ): string | undefined => {
   if (state === 'no-provenance')
     return 'The active volume was not loaded from the server, so it cannot be used as an input.';
   if (state === 'no-segment-group')
-    return 'Paint or select a segment group first.';
+    return multiple
+      ? 'Paint a segment group on the active dataset first.'
+      : 'Paint or select a segment group first.';
   if (state === 'no-annotations')
     return 'Place a ruler, rectangle, or polygon on the current image first.';
   if (state === 'no-reference-input')
@@ -133,7 +138,7 @@ export const unboundBinding = (
   states: Record<string, SourceRefBindingState>;
   issues: FormValidationIssue[];
 } => {
-  const message = bindingStateMessage(state, noun);
+  const message = bindingStateMessage(state, noun, field.multiple === true);
   return {
     states: { [field.id]: state },
     issues:
@@ -205,15 +210,3 @@ export const bindMintedImageInputs = (
   value: InputValue | null
 ): ImageBindingResult =>
   bindImageFields(imageInputFields(model), activeDataSource, value);
-
-export const bindImageInputs = (
-  model: TaskFormModel,
-  activeDataSource: DataSource | undefined
-): ImageBindingResult => {
-  const fields = imageInputFields(model);
-  const value =
-    fields.length === 1 && activeDataSource
-      ? mintInputValue(activeDataSource, TYPE_TAG_IMAGE)
-      : null;
-  return bindImageFields(fields, activeDataSource, value);
-};

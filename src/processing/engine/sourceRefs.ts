@@ -15,7 +15,7 @@ import {
 import {
   bindResolvedLabelmapInputs,
   mintLabelmapReferenceImage,
-  resolveLabelmapGroup,
+  resolveLabelmapGroups,
   type LabelmapBindingResult,
   type SegmentGroupView,
 } from './mintLabelmap';
@@ -63,6 +63,11 @@ const acceptedTypes = (field: SourceRefField): BoundSourceRefType[] =>
     )
   );
 
+const once = <T>(compute: () => T): (() => T) => {
+  let cached: { value: T } | undefined;
+  return () => (cached ??= { value: compute() }).value;
+};
+
 const modelForType = (
   model: TaskFormModel,
   types: Record<string, BoundSourceRefType>,
@@ -93,31 +98,51 @@ export const bindSourceRefs = (
     acceptsImage || acceptsAnnotations
       ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
       : null;
-  const labelmapResolution = acceptsLabelmap
-    ? resolveLabelmapGroup(
-        context.backgroundImageId,
-        context.activeSegmentGroupId,
-        context.segmentGroups
-      )
-    : { kind: 'unresolved' as const };
-  const labelmapReference =
-    labelmapResolution.kind === 'resolved'
+  // Plurality belongs to the field that binds as labelmap, which is only known
+  // after type resolution — and type resolution needs to know what a field
+  // could bind to. Both candidates are resolved up front so each step reads the
+  // one matching the field it is asking about.
+  const resolveFor = (multiple: boolean) =>
+    acceptsLabelmap
+      ? resolveLabelmapGroups(
+          context.backgroundImageId,
+          context.activeSegmentGroupId,
+          multiple,
+          context.segmentGroups
+        )
+      : { kind: 'unresolved' as const };
+  const singularResolution = once(() => resolveFor(false));
+  const pluralResolution = once(() => resolveFor(true));
+  const resolutionFor = (field: SourceRefField) =>
+    field.multiple === true ? pluralResolution() : singularResolution();
+  // Every resolvable group has the background image as its parent, so one
+  // minted reference serves both pluralities; the plural resolution resolves
+  // whenever the singular one does. Minting walks provenance, so it is deferred
+  // until a caller needs it and kept for the rest of this bind.
+  const labelmapReference = once(() => {
+    const plural = pluralResolution();
+    return plural.kind === 'resolved'
       ? mintLabelmapReferenceImage(
-          labelmapResolution.groupId,
+          plural.groupIds[0],
           context.segmentGroups,
           context.getDataSource
         )
       : null;
+  });
   const available = new Set<BoundSourceRefType>();
   if (imageValue) {
     available.add(TYPE_TAG_IMAGE);
   }
-  if (labelmapResolution.kind === 'resolved' && labelmapReference) {
-    available.add(TYPE_TAG_LABELMAP);
-  }
   if (context.hasFinishedAnnotations && imageValue) {
     available.add(TYPE_TAG_ANNOTATIONS);
   }
+  const isAvailable = (
+    field: SourceRefField,
+    type: BoundSourceRefType
+  ): boolean =>
+    type === TYPE_TAG_LABELMAP
+      ? resolutionFor(field).kind === 'resolved' && Boolean(labelmapReference())
+      : available.has(type);
 
   const types: Record<string, BoundSourceRefType> = {};
   const dedicated = new Set<BoundSourceRefType>();
@@ -130,7 +155,7 @@ export const bindSourceRefs = (
   fields.forEach((field) => {
     const accepts = acceptedTypes(field);
     if (accepts.length <= 1) return;
-    const availableTypes = accepts.filter((type) => available.has(type));
+    const availableTypes = accepts.filter((type) => isAvailable(field, type));
     const selected =
       availableTypes.find((type) => !dedicated.has(type)) ??
       availableTypes[0] ??
@@ -138,6 +163,15 @@ export const bindSourceRefs = (
       accepts[0];
     if (selected) types[field.id] = selected;
   });
+
+  const boundLabelmapFields = fields.filter(
+    (field) => types[field.id] === TYPE_TAG_LABELMAP
+  );
+  // More than one bound field binds ambiguously whatever the resolution is.
+  const labelmapResolution =
+    boundLabelmapFields.length === 1
+      ? resolutionFor(boundLabelmapFields[0])
+      : singularResolution();
 
   const image = bindMintedImageInputs(
     modelForType(model, types, TYPE_TAG_IMAGE),
@@ -149,20 +183,19 @@ export const bindSourceRefs = (
     labelmapResolution
   );
   const labelmapIssues = [...labelmap.issues];
-  Object.entries(labelmap.groups).forEach(([parameterId, groupId]) => {
-    const reference =
-      labelmapResolution.kind === 'resolved' &&
-      labelmapResolution.groupId === groupId
-        ? labelmapReference
-        : null;
-    if (reference) return;
-    labelmap.states[parameterId] = 'no-provenance';
-    labelmapIssues.push({
-      parameter: parameterId,
-      message:
-        'The segment group reference image was not loaded from the server, so it cannot be used as an input.',
+  // A param carries groups only when its resolution resolved, so the reference
+  // is minted here exactly when there is something to bind it to.
+  const boundLabelmapParams = Object.keys(labelmap.groups);
+  if (boundLabelmapParams.length > 0 && !labelmapReference()) {
+    boundLabelmapParams.forEach((parameterId) => {
+      labelmap.states[parameterId] = 'no-provenance';
+      labelmapIssues.push({
+        parameter: parameterId,
+        message:
+          'The segment group reference image was not loaded from the server, so it cannot be used as an input.',
+      });
     });
-  });
+  }
 
   const annotations = bindAnnotationsInputs(
     modelForType(model, types, TYPE_TAG_ANNOTATIONS),

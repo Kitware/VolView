@@ -79,6 +79,17 @@ describe('task-spec field kinds', () => {
     );
   });
 
+  it('preserves sourceRef multiplicity when a backend declares it', () => {
+    expect(
+      taskParameterSchema.parse({
+        kind: 'sourceRef',
+        id: 'segmentations',
+        accepts: ['labelmap'],
+        multiple: true,
+      })
+    ).toMatchObject({ multiple: true });
+  });
+
   it('carries numeric constraints + default on an int param', () => {
     expect(paramById('synthetic-all-kinds', 'radius')).toMatchObject({
       kind: 'int',

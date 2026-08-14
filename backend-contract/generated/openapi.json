@@ -3,7 +3,7 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "VolView neutral backend contract",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "DRAFT 0.x — shapes may change until a second backend passes the conformance kit (the pinned 1.0 criterion). The neutral REST surface the VolView client calls to run processing tasks against a backend. A conforming server-side BACKEND implements these endpoints and the referenced wire schemas — no VolView client change is needed to bring a new backend online. Everything here is neutral: no backend routes, ids, status enums, or URL shapes leak. The artifact version is the draft artifact version, distinct from the shape versions: the result-intent vocabulary is at version 2 (INTENT_VOCABULARY_VERSION); the task-spec shape at version 1 (specVersion)."
   },
   "servers": [
@@ -715,6 +715,10 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "multiple": {
+                      "description": "When true, the parameter receives every segment group whose parent is the active dataset, serialized one file per group in store order. When absent or false, it receives only the actively selected group.",
+                      "type": "boolean"
                     }
                   },
                   "required": [

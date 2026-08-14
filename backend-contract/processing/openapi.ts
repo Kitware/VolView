@@ -474,7 +474,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> => ({
     // VERSION / specVersion) below. It is deliberately literal, not derived from
     // the shape-version constants — the artifact and the shapes version on
     // separate clocks.
-    version: '0.1.0',
+    version: '0.2.0',
     description:
       'DRAFT 0.x — shapes may change until a second backend passes the ' +
       'conformance kit (the pinned 1.0 criterion). ' +

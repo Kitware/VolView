@@ -586,6 +586,34 @@ function refreshValidation(
 //
 // The literal 'seg.nrrd' name is required for segment names and colors to be
 // embedded in the serialized output.
+async function stageSegmentGroupInput(
+  p: ProcessingProvider,
+  segmentGroupId: string,
+  // Group names are not unique, so a plural parameter numbers its files to keep
+  // them distinguishable in the job folder.
+  ordinal?: number
+): Promise<string[]> {
+  const metadata = segmentGroupStore.metadataByID[segmentGroupId];
+  const labelmap = segmentGroupStore.dataIndex[segmentGroupId];
+  const referenceImage = labelmapReferenceImage(segmentGroupId);
+  if (!referenceImage) {
+    throw new Error('Segment group reference image has no server provenance');
+  }
+  const serialized = await writeSegmentation('seg.nrrd', labelmap, metadata);
+  const suffix = ordinal === undefined ? '' : `-${ordinal}`;
+  return p.stageInput({
+    file: new Blob([serialized]),
+    descriptor: {
+      type: TYPE_TAG_LABELMAP,
+      name: `${metadata.name}${suffix}.seg.nrrd`,
+      referenceImage: {
+        ...referenceImage,
+        type: 'image',
+      },
+    },
+  });
+}
+
 async function stageLabelmapInputs(
   p: ProcessingProvider,
   model: TaskFormModel,
@@ -595,32 +623,18 @@ async function stageLabelmapInputs(
   if (targets.length === 0) return {};
 
   const staged = await Promise.all(
-    targets.map(async ([parameterId, segmentGroupId]) => {
-      const metadata = segmentGroupStore.metadataByID[segmentGroupId];
-      const labelmap = segmentGroupStore.dataIndex[segmentGroupId];
-      const referenceImage = labelmapReferenceImage(segmentGroupId);
-      if (!referenceImage) {
-        throw new Error(
-          'Segment group reference image has no server provenance'
-        );
-      }
-      const serialized = await writeSegmentation(
-        'seg.nrrd',
-        labelmap,
-        metadata
-      );
-      const name = `${metadata.name}.seg.nrrd`;
-      const uris = await p.stageInput({
-        file: new Blob([serialized]),
-        descriptor: {
-          type: TYPE_TAG_LABELMAP,
-          name,
-          referenceImage: {
-            ...referenceImage,
-            type: 'image',
-          },
-        },
-      });
+    targets.map(async ([parameterId, segmentGroupIds]) => {
+      const uris = (
+        await Promise.all(
+          segmentGroupIds.map((groupId, index) =>
+            stageSegmentGroupInput(
+              p,
+              groupId,
+              segmentGroupIds.length > 1 ? index + 1 : undefined
+            )
+          )
+        )
+      ).flat();
       return [parameterId, mintLabelmapValue(uris)] as const;
     })
   );
@@ -688,10 +702,8 @@ async function stageAnnotationInputs(
   };
 }
 
-// Binding can fall back to the current image's sole group, so reading
-// `paintStore.activeSegmentGroupID` directly would mislabel the job.
 type SourceRefContext = {
-  labelmapGroups: Record<string, string>;
+  labelmapGroups: Record<string, string[]>;
   types: Record<string, BoundSourceRefType>;
   imageName: string | undefined;
   annotationCount: number;
@@ -713,8 +725,12 @@ function boundLabelmapName(
   refs: SourceRefContext,
   parameterId: string
 ): string | undefined {
-  const groupId = refs.labelmapGroups[parameterId];
-  return groupId ? segmentGroupStore.metadataByID[groupId]?.name : undefined;
+  const groupIds = refs.labelmapGroups[parameterId] ?? [];
+  const names = groupIds.map(
+    (groupId) =>
+      segmentGroupStore.metadataByID[groupId]?.name ?? 'unnamed segment group'
+  );
+  return names.length > 0 ? names.join(', ') : undefined;
 }
 
 // The bound value is a whole set of tools rather than one named resource, so
@@ -755,7 +771,9 @@ function formatProcessingValue(
 ): string {
   if (field.kind === 'sourceRef') {
     if (refs.types[field.id] === TYPE_TAG_LABELMAP) {
-      return boundLabelmapName(refs, field.id) ?? 'bound segment group';
+      // A bound param always names its groups, so the fallback is the optional
+      // param that bound nothing.
+      return boundLabelmapName(refs, field.id) ?? 'not provided';
     }
     if (refs.types[field.id] === TYPE_TAG_ANNOTATIONS) {
       return boundAnnotationsName(refs);

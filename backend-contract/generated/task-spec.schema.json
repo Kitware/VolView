@@ -308,6 +308,10 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "multiple": {
+                "description": "When true, the parameter receives every segment group whose parent is the active dataset, serialized one file per group in store order. When absent or false, it receives only the actively selected group.",
+                "type": "boolean"
               }
             },
             "required": [
