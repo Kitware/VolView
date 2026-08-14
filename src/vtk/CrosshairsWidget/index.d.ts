@@ -1,5 +1,5 @@
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
-import vtkAbstractWidgetFactory from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
+import { vtkAbstractWidgetFactory } from '@kitware/vtk.js/Widgets/Core/AbstractWidgetFactory';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { mat4, vec3 } from 'gl-matrix';
 import { CrosshairsWidgetState } from './state';
@@ -9,7 +9,7 @@ export interface vtkCrosshairsViewWidget extends vtkAbstractWidget {
   getManipulator(): vtkPlaneManipulator;
 }
 
-export interface vtkCrosshairsWidget extends vtkAbstractWidgetFactory {
+export interface vtkCrosshairsWidget extends vtkAbstractWidgetFactory<vtkCrosshairsViewWidget> {
   getWidgetState(): CrosshairsWidgetState;
   getManipulator(): vtkPlaneManipulator;
 }
