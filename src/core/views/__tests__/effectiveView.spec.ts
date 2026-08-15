@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { computeEffectiveView } from '@/src/core/views/effectiveView';
+import {
+  computeEffectiveView,
+  volume2DViewsOfImage,
+} from '@/src/core/views/effectiveView';
 import type {
+  ViewInfo,
   ViewInfo2D,
   ViewInfo3D,
   ViewInfoOblique,
@@ -68,5 +72,64 @@ describe('computeEffectiveView', () => {
   it('returns cine when a 3D slot is bound to a cine image (data wins)', () => {
     const eff = computeEffectiveView(view3D, 'cine-image');
     expect(eff.kind).toBe('cine');
+  });
+});
+
+const slotFor = (id: string, orientation: string, dataID: string | null) =>
+  ({
+    id,
+    type: '2D',
+    dataID,
+    name: orientation,
+    options: { orientation },
+  }) as ViewInfo;
+
+describe('volume2DViewsOfImage', () => {
+  it('keeps every 2D view of the image, with its axis', () => {
+    const views = [
+      slotFor('axial', 'Axial', 'image-1'),
+      slotFor('sagittal', 'Sagittal', 'image-1'),
+      slotFor('coronal', 'Coronal', 'image-1'),
+    ];
+
+    expect(volume2DViewsOfImage('image-1', views)).toEqual([
+      { viewId: 'axial', axis: 'Axial' },
+      { viewId: 'sagittal', axis: 'Sagittal' },
+      { viewId: 'coronal', axis: 'Coronal' },
+    ]);
+  });
+
+  it('keeps two views sharing an axis', () => {
+    const views = [
+      slotFor('axial-1', 'Axial', 'image-1'),
+      slotFor('axial-2', 'Axial', 'image-1'),
+    ];
+
+    expect(volume2DViewsOfImage('image-1', views)).toEqual([
+      { viewId: 'axial-1', axis: 'Axial' },
+      { viewId: 'axial-2', axis: 'Axial' },
+    ]);
+  });
+
+  it('drops views showing a different image', () => {
+    const views = [
+      slotFor('axial', 'Axial', 'image-1'),
+      slotFor('sagittal', 'Sagittal', 'image-2'),
+    ];
+
+    expect(volume2DViewsOfImage('image-1', views)).toEqual([
+      { viewId: 'axial', axis: 'Axial' },
+    ]);
+  });
+
+  it('drops empty, 3D, oblique and cine views', () => {
+    const views = [
+      slotFor('empty', 'Sagittal', null),
+      { ...view3D, dataID: 'image-1' },
+      { ...viewOblique, dataID: 'image-1' },
+      slotFor('cine', 'Coronal', 'cine-image'),
+    ];
+
+    expect(volume2DViewsOfImage('image-1', views)).toEqual([]);
   });
 });

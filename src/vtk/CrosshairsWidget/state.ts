@@ -1,7 +1,6 @@
-import type { Bounds, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import vtkStateBuilder from '@kitware/vtk.js/Widgets/Core/StateBuilder';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
-import { mat4 } from 'gl-matrix';
 
 export interface CrosshairsHandleWidgetState extends vtkWidgetState {
   setOrigin(origin: Vector3 | null): boolean;
@@ -10,17 +9,11 @@ export interface CrosshairsHandleWidgetState extends vtkWidgetState {
   getScale1(): number;
   setVisible(visible: boolean): boolean;
   getVisible(): boolean;
-  setBounds(bounds: Bounds): boolean;
-  getBounds(): Bounds;
 }
 
 export interface CrosshairsWidgetState extends vtkWidgetState {
   setDragging(dragging: boolean): boolean;
   getDragging(): boolean;
-  setIndexToWorld(indexToWorld: mat4): boolean;
-  getIndexToWorld(): mat4;
-  setWorldToIndex(worldToIndex: mat4): boolean;
-  getWorldToIndex(): mat4;
   getHandle(): CrosshairsHandleWidgetState;
 }
 
@@ -31,17 +24,9 @@ export default function generateState() {
       name: 'dragging',
       initialValue: false,
     })
-    .addField({
-      name: 'indexToWorld',
-      initialValue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    })
-    .addField({
-      name: 'worldToIndex',
-      initialValue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    })
     .addStateFromMixin({
       labels: ['handle'],
-      mixins: ['origin', 'bounds'],
+      mixins: ['origin'],
       name: 'handle',
       initialValues: {
         origin: null,

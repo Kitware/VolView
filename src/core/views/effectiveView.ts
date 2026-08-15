@@ -41,6 +41,19 @@ export function computeEffectiveView(
   return { kind: 'oblique', viewInfo, renderDataID: dataID };
 }
 
+/**
+ * The slicing (volume2D) views among `views` that render `imageID`, with
+ * their slicing axes.
+ */
+export function volume2DViewsOfImage(imageID: string, views: ViewInfo[]) {
+  return views.flatMap((view) => {
+    const effective = computeEffectiveView(view, view.dataID);
+    if (effective.kind !== 'volume2D') return [];
+    if (effective.renderDataID !== imageID) return [];
+    return [{ viewId: view.id, axis: effective.axis }];
+  });
+}
+
 export function getEffectiveView(viewID: Maybe<string>): EffectiveView | null {
   if (!viewID) return null;
   const view = useViewStore().getView(viewID);

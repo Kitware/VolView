@@ -116,7 +116,13 @@
             ></vtk-layer-slice-representation>
           </template>
           <crop-tool :view-id="viewId" :image-id="currentImageID" />
-          <crosshairs-tool
+          <reference-lines
+            v-if="referenceLinesVisible"
+            :view-id="viewId"
+            :image-id="currentImageID"
+          />
+          <CrosshairsWidget2D
+            v-if="currentTool === Tools.Crosshairs"
             :view-id="viewId"
             :image-id="currentImageID"
             :view-direction="viewDirection"
@@ -170,7 +176,8 @@ import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
-import CrosshairsTool from '@/src/components/tools/crosshairs/CrosshairsTool.vue';
+import { ReferenceLines, useReferenceLinesStore } from '@/src/referenceLines';
+import CrosshairsWidget2D from '@/src/components/tools/crosshairs/CrosshairsWidget2D.vue';
 import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
 import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
 import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
@@ -239,6 +246,10 @@ useViewAnimationListener(vtkView, viewId, '2D');
 
 // active tool
 const { currentTool } = storeToRefs(useToolStore());
+
+const { visible: referenceLinesVisible } = storeToRefs(
+  useReferenceLinesStore()
+);
 
 const { slice: currentSlice, range: sliceRange } = useSliceConfig(
   viewId,

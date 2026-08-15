@@ -10,6 +10,9 @@ export const DarkTheme = 'kw-dark';
 export const LightTheme = 'kw-light';
 export const DefaultTheme = DarkTheme;
 
+// The slice rendering inflates the image box by half a voxel on every face.
+export const IMAGE_BOX_INFLATION = 0.5;
+
 export const Messages = {
   WebGLLost: {
     title: 'Viewer Error',

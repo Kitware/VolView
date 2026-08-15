@@ -90,3 +90,47 @@ describe('View store', () => {
     expect(store.viewByID['view-1'].dataID).toBe('loaded-image');
   });
 });
+
+describe('View store layoutViews', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it('lists every layout slot view, in slot order', () => {
+    const store = useViewStore();
+
+    expect(store.layoutViews.map((view) => view.name)).toEqual([
+      'Axial',
+      'Coronal',
+      'Sagittal',
+      'Volume',
+    ]);
+  });
+
+  it('drops views the layout no longer has a slot for', () => {
+    const store = useViewStore();
+    const allIds = store.layoutViews.map((view) => view.id);
+
+    store.setLayoutFromGrid([1, 1]);
+
+    expect(store.layoutViews.map((view) => view.id)).toEqual([allIds[0]]);
+    // The orphaned views survive so a later layout switch can reuse them.
+    expect(store.viewIDs).toEqual(expect.arrayContaining(allIds));
+
+    store.setLayoutFromGrid([2, 2]);
+
+    expect(store.layoutViews.map((view) => view.id)).toEqual(allIds);
+  });
+
+  it('keeps hidden layout peers while a view is maximized', () => {
+    const store = useViewStore();
+    const allIds = store.layoutViews.map((view) => view.id);
+    expect(allIds.length).toBeGreaterThan(1);
+
+    store.setActiveView(allIds[0]);
+    store.toggleActiveViewMaximized();
+
+    expect(store.visibleViews).toHaveLength(1);
+    expect(store.layoutViews.map((view) => view.id)).toEqual(allIds);
+  });
+});

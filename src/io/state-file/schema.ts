@@ -407,12 +407,6 @@ const Polygon = annotationTool.extend({
 
 const Polygons = makeToolEntry(Polygon);
 
-const Crosshairs = z.object({
-  position: Vector3.optional(),
-});
-
-export type Crosshairs = z.infer<typeof Crosshairs>;
-
 const ToolsEnumNative = z.nativeEnum(ToolsEnum);
 
 const Paint = z.object({
@@ -435,7 +429,6 @@ const Tools = z.object({
   rulers: Rulers.optional(),
   rectangles: Rectangles.optional(),
   polygons: Polygons.optional(),
-  crosshairs: Crosshairs.optional(),
   paint: Paint.optional(),
   crop: Cropping.optional(),
   current: ToolsEnumNative.optional(),
