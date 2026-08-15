@@ -25,6 +25,7 @@ import type {
 import {
   mintLabelmapValue,
   mintLabelmapReferenceImage,
+  stagedLabelmapFileNames,
   type SegmentGroupView,
 } from '@/src/processing/engine/mintLabelmap';
 import { mintInputValue } from '@/src/processing/engine/mintInput';
@@ -41,7 +42,11 @@ import {
   type TwoPointToolView,
 } from '@/src/processing/engine/annotationsWire';
 import { annotationToolStore } from '@/src/processing/annotationKinds';
-import type { SourceRefBindings } from '@/src/processing/engine/sourceRefs';
+import type {
+  SourceRefBindingContext,
+  SourceRefBindings,
+} from '@/src/processing/engine/sourceRefs';
+import { usePaintToolStore } from '@/src/store/tools/paint';
 
 // Everything the annotations file is made of, read off the stores in one
 // synchronous pass so staging never mixes two images' state.
@@ -59,6 +64,7 @@ export function useInputStaging() {
   const imageCache = useImageCacheStore();
   const datasetStore = useDatasetStore();
   const segmentGroupStore = useSegmentGroupStore();
+  const paintStore = usePaintToolStore();
 
   const activeDataSource = () =>
     datasetStore.getDataSource(currentImageID.value);
@@ -117,16 +123,23 @@ export function useInputStaging() {
     annotationToolsViewCount(annotationToolsView.value)
   );
 
-  // Returns only the parameters it staged, so the caller owns the merge.
-  //
+  // The stores this composable already holds are exactly what the binder reads,
+  // so the context is assembled here rather than re-wiring them at the caller.
+  const sourceRefContext = (): SourceRefBindingContext => ({
+    activeDataSource: activeDataSource(),
+    backgroundImageId: currentImageID.value ?? undefined,
+    activeSegmentGroupId: paintStore.activeSegmentGroupID,
+    segmentGroups: segmentGroupView(),
+    hasFinishedAnnotations: finishedAnnotationCount.value > 0,
+    getDataSource: (imageId) => datasetStore.getDataSource(imageId),
+  });
+
   // The literal 'seg.nrrd' name is required for segment names and colors to be
   // embedded in the serialized output.
   const stageSegmentGroupInput = async (
     p: ProcessingProvider,
     segmentGroupId: string,
-    // Group names are not unique, so a plural parameter numbers its files to
-    // keep them distinguishable in the job folder.
-    ordinal?: number
+    fileName: string
   ): Promise<string[]> => {
     const metadata = segmentGroupStore.metadataByID[segmentGroupId];
     const labelmap = segmentGroupStore.dataIndex[segmentGroupId];
@@ -135,12 +148,11 @@ export function useInputStaging() {
       throw new Error('Segment group reference image has no server provenance');
     }
     const serialized = await writeSegmentation('seg.nrrd', labelmap, metadata);
-    const suffix = ordinal === undefined ? '' : `-${ordinal}`;
     return p.stageInput({
       file: new Blob([serialized]),
       descriptor: {
         type: TYPE_TAG_LABELMAP,
-        name: `${metadata.name}${suffix}.seg.nrrd`,
+        name: fileName,
         referenceImage: {
           ...referenceImage,
           type: 'image',
@@ -149,30 +161,33 @@ export function useInputStaging() {
     });
   };
 
+  // Returns only the parameters it staged, so the caller owns the merge.
+  //
+  // Staged one at a time rather than fanned out: serialization deep-copies the
+  // whole voxel buffer, so a concurrent map would hold every group's copy at
+  // once, and itk-wasm queues the writes on a single shared worker regardless.
   const stageLabelmapInputs = async (
     p: ProcessingProvider,
     bindings: SourceRefBindings
   ): Promise<Record<string, ProcessingValue>> => {
-    const targets = Object.entries(bindings.labelmap.groups);
-    if (targets.length === 0) return {};
-
-    const staged = await Promise.all(
-      targets.map(async ([parameterId, segmentGroupIds]) => {
-        const uris = (
-          await Promise.all(
-            segmentGroupIds.map((groupId, index) =>
-              stageSegmentGroupInput(
-                p,
-                groupId,
-                segmentGroupIds.length > 1 ? index + 1 : undefined
-              )
-            )
-          )
-        ).flat();
-        return [parameterId, mintLabelmapValue(uris)] as const;
-      })
-    );
-    return Object.fromEntries(staged);
+    const staged: Record<string, ProcessingValue> = {};
+    for (const [parameterId, segmentGroupIds] of Object.entries(
+      bindings.labelmap.groups
+    )) {
+      const fileNames = stagedLabelmapFileNames(
+        segmentGroupIds.map(
+          (groupId) => segmentGroupStore.metadataByID[groupId].name
+        )
+      );
+      const uris: string[] = [];
+      for (const [index, groupId] of segmentGroupIds.entries()) {
+        uris.push(
+          ...(await stageSegmentGroupInput(p, groupId, fileNames[index]))
+        );
+      }
+      staged[parameterId] = mintLabelmapValue(uris);
+    }
+    return staged;
   };
 
   // The extension is what the CLI spec and the backend both match on, so the
@@ -227,10 +242,9 @@ export function useInputStaging() {
   };
 
   return {
-    activeDataSource,
     activeImageName,
-    segmentGroupView,
     finishedAnnotationCount,
+    sourceRefContext,
     captureAnnotationsPayload,
     stageLabelmapInputs,
     stageAnnotationInputs,

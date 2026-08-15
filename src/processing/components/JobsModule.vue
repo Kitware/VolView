@@ -121,7 +121,6 @@ import { getErrorDetail, ensureError } from '@/src/utils';
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useDatasetStore } from '@/src/store/datasets';
 import { useCropStore } from '@/src/store/tools/crop';
 import type {
   ProcessingProvider,
@@ -159,17 +158,15 @@ import JobList from './JobList.vue';
 const providers = useProcessingJobsStore();
 const { currentImageID } = useCurrentImage('global');
 const imageCache = useImageCacheStore();
-const datasetStore = useDatasetStore();
 const cropStore = useCropStore();
 const paintStore = usePaintToolStore();
 const segmentGroupStore = useSegmentGroupStore();
 const messageStore = useMessageStore();
 
 const {
-  activeDataSource,
   activeImageName,
-  segmentGroupView,
   finishedAnnotationCount,
+  sourceRefContext,
   captureAnnotationsPayload,
   stageLabelmapInputs,
   stageAnnotationInputs,
@@ -443,14 +440,7 @@ function applyBoundsBindings(
 }
 
 function activeSourceBindings(model: TaskFormModel): SourceRefBindings {
-  return bindSourceRefs(model, {
-    activeDataSource: activeDataSource(),
-    backgroundImageId: currentImageID.value ?? undefined,
-    activeSegmentGroupId: paintStore.activeSegmentGroupID,
-    segmentGroups: segmentGroupView(),
-    hasFinishedAnnotations: finishedAnnotationCount.value > 0,
-    getDataSource: (imageId) => datasetStore.getDataSource(imageId),
-  });
+  return bindSourceRefs(model, sourceRefContext());
 }
 
 // Neither the labelmap nor the annotations value is set here: neither has
@@ -508,11 +498,7 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   const labelmapNames = Object.fromEntries(
     Object.entries(bindings.labelmap.groups).map(([parameterId, groupIds]) => [
       parameterId,
-      groupIds.map(
-        (groupId) =>
-          segmentGroupStore.metadataByID[groupId]?.name ??
-          'unnamed segment group'
-      ),
+      groupIds.map((groupId) => segmentGroupStore.metadataByID[groupId].name),
     ])
   );
   return {

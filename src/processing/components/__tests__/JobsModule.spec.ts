@@ -77,6 +77,24 @@ const registerFake = (
   store.registerProviderConfig(provider.config);
 };
 
+// Auto-stubs drop slot content, hiding the panel children.
+const slotStub = { template: '<div><slot /></div>' };
+
+const mountJobsModule = (pinia: ReturnType<typeof createPinia>) =>
+  shallowMount(JobsModule, {
+    // v-select's auto-stub warns on getter-only props.
+    global: {
+      plugins: [pinia],
+      stubs: {
+        'v-select': true,
+        'v-expansion-panels': slotStub,
+        'v-expansion-panel': slotStub,
+        'v-expansion-panel-title': slotStub,
+        'v-expansion-panel-text': slotStub,
+      },
+    },
+  });
+
 type JobsVm = {
   selectedProviderId: string | null;
   tasks: TaskSummary[];
@@ -98,23 +116,7 @@ describe('JobsModule — race-free provider/task selection', () => {
     setActivePinia(pinia);
   });
 
-  // Auto-stubs drop slot content, hiding the panel children.
-  const slotStub = { template: '<div><slot /></div>' };
-
-  const mount = () =>
-    shallowMount(JobsModule, {
-      // v-select's auto-stub warns on getter-only props.
-      global: {
-        plugins: [pinia],
-        stubs: {
-          'v-select': true,
-          'v-expansion-panels': slotStub,
-          'v-expansion-panel': slotStub,
-          'v-expansion-panel-title': slotStub,
-          'v-expansion-panel-text': slotStub,
-        },
-      },
-    });
+  const mount = () => mountJobsModule(pinia);
 
   it('commits only the winning provider’s tasks when the stale one resolves last', async () => {
     const a = makeProvider('A');
@@ -432,21 +434,7 @@ describe('JobsModule — segment group staging', () => {
     setActivePinia(pinia);
   });
 
-  const slotStub = { template: '<div><slot /></div>' };
-
-  const mount = () =>
-    shallowMount(JobsModule, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          'v-select': true,
-          'v-expansion-panels': slotStub,
-          'v-expansion-panel': slotStub,
-          'v-expansion-panel-title': slotStub,
-          'v-expansion-panel-text': slotStub,
-        },
-      },
-    });
+  const mount = () => mountJobsModule(pinia);
 
   const labelmapSpec = (multiple: boolean): TaskSpecEnvelope => ({
     specVersion: 1,

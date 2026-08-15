@@ -136,7 +136,7 @@ const sourceRefParam = z.object({
     .boolean()
     .optional()
     .describe(
-      'When true, the parameter receives every segment group whose parent is the active dataset, serialized one file per group in store order. When absent or false, it receives only the actively selected group.'
+      'When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. Only labelmap source refs bind plurally today — every group whose parent is the active dataset, in store order; on other type tags the flag has no effect yet.'
     ),
 });
 

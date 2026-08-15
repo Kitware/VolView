@@ -63,11 +63,6 @@ const acceptedTypes = (field: SourceRefField): BoundSourceRefType[] =>
     )
   );
 
-const once = <T>(compute: () => T): (() => T) => {
-  let cached: { value: T } | undefined;
-  return () => (cached ??= { value: compute() }).value;
-};
-
 const modelForType = (
   model: TaskFormModel,
   types: Record<string, BoundSourceRefType>,
@@ -111,24 +106,21 @@ export const bindSourceRefs = (
           context.segmentGroups
         )
       : { kind: 'unresolved' as const };
-  const singularResolution = once(() => resolveFor(false));
-  const pluralResolution = once(() => resolveFor(true));
+  const singularResolution = resolveFor(false);
+  const pluralResolution = resolveFor(true);
   const resolutionFor = (field: SourceRefField) =>
-    field.multiple === true ? pluralResolution() : singularResolution();
+    field.multiple === true ? pluralResolution : singularResolution;
   // Every resolvable group has the background image as its parent, so one
   // minted reference serves both pluralities; the plural resolution resolves
-  // whenever the singular one does. Minting walks provenance, so it is deferred
-  // until a caller needs it and kept for the rest of this bind.
-  const labelmapReference = once(() => {
-    const plural = pluralResolution();
-    return plural.kind === 'resolved'
+  // whenever the singular one does.
+  const labelmapReference =
+    pluralResolution.kind === 'resolved'
       ? mintLabelmapReferenceImage(
-          plural.groupIds[0],
+          pluralResolution.groupIds[0],
           context.segmentGroups,
           context.getDataSource
         )
       : null;
-  });
   const available = new Set<BoundSourceRefType>();
   if (imageValue) {
     available.add(TYPE_TAG_IMAGE);
@@ -141,7 +133,7 @@ export const bindSourceRefs = (
     type: BoundSourceRefType
   ): boolean =>
     type === TYPE_TAG_LABELMAP
-      ? resolutionFor(field).kind === 'resolved' && Boolean(labelmapReference())
+      ? resolutionFor(field).kind === 'resolved' && Boolean(labelmapReference)
       : available.has(type);
 
   const types: Record<string, BoundSourceRefType> = {};
@@ -167,11 +159,12 @@ export const bindSourceRefs = (
   const boundLabelmapFields = fields.filter(
     (field) => types[field.id] === TYPE_TAG_LABELMAP
   );
-  // More than one bound field binds ambiguously whatever the resolution is.
+  // More than one bound field binds ambiguously whatever the resolution is, so
+  // the binder discards it there.
   const labelmapResolution =
     boundLabelmapFields.length === 1
       ? resolutionFor(boundLabelmapFields[0])
-      : singularResolution();
+      : { kind: 'unresolved' as const };
 
   const image = bindMintedImageInputs(
     modelForType(model, types, TYPE_TAG_IMAGE),
@@ -183,10 +176,10 @@ export const bindSourceRefs = (
     labelmapResolution
   );
   const labelmapIssues = [...labelmap.issues];
-  // A param carries groups only when its resolution resolved, so the reference
-  // is minted here exactly when there is something to bind it to.
+  // A param carries groups only when its resolution resolved, so a missing
+  // reference here means the groups themselves cannot be staged.
   const boundLabelmapParams = Object.keys(labelmap.groups);
-  if (boundLabelmapParams.length > 0 && !labelmapReference()) {
+  if (boundLabelmapParams.length > 0 && !labelmapReference) {
     boundLabelmapParams.forEach((parameterId) => {
       labelmap.states[parameterId] = 'no-provenance';
       labelmapIssues.push({

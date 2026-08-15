@@ -5,6 +5,7 @@ import type {
   SubmittedJobDisplay,
   SubmittedJobParameterDisplay,
 } from '@/src/processing/types';
+import { plural } from '@/src/utils';
 import { fieldLabel, type TaskFormModel } from './formModel';
 import type { BoundSourceRefType } from './sourceRefs';
 
@@ -18,19 +19,17 @@ export type JobDisplayContext = {
   annotationCount: number;
 };
 
+// A parameter carries groups only when its resolution resolved, and a resolved
+// resolution always names at least one group.
 const boundLabelmapName = (
   ctx: JobDisplayContext,
   parameterId: string
-): string | undefined => {
-  const names = ctx.labelmapNames[parameterId] ?? [];
-  return names.length > 0 ? names.join(', ') : undefined;
-};
+): string | undefined => ctx.labelmapNames[parameterId]?.join(', ');
 
 // The bound value is a whole set of tools rather than one named resource, so
 // the count is the identifying part.
 const boundAnnotationsName = (ctx: JobDisplayContext): string => {
-  const noun = ctx.annotationCount === 1 ? 'annotation' : 'annotations';
-  const count = `${ctx.annotationCount} ${noun}`;
+  const count = `${ctx.annotationCount} ${plural(ctx.annotationCount, 'annotation')}`;
   return ctx.imageName ? `${count} on ${ctx.imageName}` : count;
 };
 
