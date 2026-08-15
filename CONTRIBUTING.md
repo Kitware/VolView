@@ -85,7 +85,11 @@ npm run test
 npm run test:e2e:chrome
 ```
 
-When running end-to-end tests, baseline images are saved to `tests/baseline`. Baseline diffs and actual snapshots are saved to `.tmp`.
+When running end-to-end tests, baseline images are saved to `tests/baseline`. Baseline diffs and actual snapshots are saved to `.tmp/runs/<port>`, where `<port>` is the static server port this checkout uses. Locally, a passing run deletes that directory on the way out, so the snapshots stay around only after a failure. CI always keeps it, so the artifacts below are there whether the run passed or not.
+
+Downloaded test datasets are cached in `.tmp/datasets` and shared by every run, so deleting a run directory does not force a re-download.
+
+Two checkouts get different ports and different run directories, so their suites can run at the same time. Two suites out of one checkout cannot: they would share `dist/` and `tests/baseline`. Set `VOLVIEW_E2E_PORT` and `VOLVIEW_E2E_AUX_PORT` if something else already holds the ports a checkout picked.
 
 When adding a new baseline image and test, the image should be pulled from GitHub Actions. Every test run will upload artifacts containing the snapshots taken, and those should be used when verifying and committing the baseline images.
 

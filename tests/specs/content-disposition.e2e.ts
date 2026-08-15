@@ -1,13 +1,12 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { downloadFile } from './utils';
 import { startServer, stopServer } from '../server/content-disposition-server';
+import { AUX_PORT as SERVER_PORT } from '../e2ePorts';
 
 const CT_ELECTRODES = {
   url: 'https://raw.githubusercontent.com/neurolabusc/niivue-images/main/CT_Electrodes.nii.gz',
   name: 'CT_Electrodes.nii.gz',
 };
-
-const SERVER_PORT = 4568;
 
 describe('Content-Disposition header handling', () => {
   let server: ReturnType<typeof startServer>;

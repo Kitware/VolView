@@ -3,13 +3,17 @@ import * as fs from 'fs';
 import { z } from 'zod';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import {
+  DATASET_CACHE,
+  TEMP_DIR,
+  linkCachedDataset,
+} from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { RemoteResource } from '../../src/io/manifest';
 
-// File is not automatically deleted
+// Cached across runs, and not automatically deleted
 export const downloadFile = async (url: string, fileName: string) => {
-  const savePath = path.join(TEMP_DIR, fileName);
+  const savePath = path.join(DATASET_CACHE, fileName);
   if (!fs.existsSync(savePath)) {
     // Download to a temporary file first to avoid race conditions
     const tempPath = `${savePath}.${process.pid}.${Date.now()}.tmp`;
@@ -34,7 +38,7 @@ export const downloadFile = async (url: string, fileName: string) => {
       }
     }
   }
-  return savePath;
+  return linkCachedDataset(fileName);
 };
 
 export async function writeManifestToFile(manifest: unknown, fileName: string) {
