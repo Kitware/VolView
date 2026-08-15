@@ -106,3 +106,12 @@ export const mintLabelmapValue = (uris: string[]): InputValue => ({
   type: TYPE_TAG_LABELMAP,
   uris,
 });
+
+// The `.seg.nrrd` extension is what makes the writer embed segment names and
+// colors. Group names are not unique, so a parameter taking more than one
+// numbers its files (1-based) to keep them distinguishable in the job folder.
+export const stagedLabelmapFileNames = (groupNames: string[]): string[] =>
+  groupNames.map(
+    (name, index) =>
+      `${name}${groupNames.length > 1 ? `-${index + 1}` : ''}.seg.nrrd`
+  );

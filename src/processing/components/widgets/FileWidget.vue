@@ -35,14 +35,20 @@ const props = defineProps<{
 }>();
 
 // How each bound kind names itself in the key column and the noun the binding
-// sentences use.
-const KINDS: Record<
-  string,
-  { icon: string; caption: string; noun: SourceRefNoun }
-> = {
+// sentences use. `pluralCaption` is how a parameter taking more than one value
+// names itself; kinds without one do not bind plurally.
+type KindVocabulary = {
+  icon: string;
+  caption: string;
+  pluralCaption?: string;
+  noun: SourceRefNoun;
+};
+
+const KINDS: Record<string, KindVocabulary> = {
   [TYPE_TAG_LABELMAP]: {
     icon: 'mdi-brush-outline',
     caption: 'Active segment group',
+    pluralCaption: 'Segment groups on active dataset',
     noun: 'segment group',
   },
   [TYPE_TAG_ANNOTATIONS]: {
@@ -52,10 +58,10 @@ const KINDS: Record<
   },
 };
 
-const IMAGE_KIND = {
+const IMAGE_KIND: KindVocabulary = {
   icon: 'mdi-image-outline',
   caption: 'Active dataset',
-  noun: 'image' as SourceRefNoun,
+  noun: 'image',
 };
 
 const multiple = computed(
@@ -71,9 +77,9 @@ const kind = computed(() => {
       : undefined;
   const type = props.boundType ?? declared;
   const resolved = (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
-  return type === TYPE_TAG_LABELMAP && multiple.value
-    ? { ...resolved, caption: 'Segment groups on active dataset' }
-    : resolved;
+  const caption =
+    (multiple.value ? resolved.pluralCaption : undefined) ?? resolved.caption;
+  return { ...resolved, caption };
 });
 
 const OPTIONAL_UNBOUND_STATES = new Set<SourceRefBindingState>([

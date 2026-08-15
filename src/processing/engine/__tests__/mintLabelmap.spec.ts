@@ -61,10 +61,8 @@ const context = (
   overrides: Partial<SourceRefBindingContext> = {}
 ): SourceRefBindingContext =>
   createSourceRefBindingContext({
-    activeDataSource: remoteFile('/api/x/scan.nrrd'),
     backgroundImageId: 'bg',
     segmentGroups: viewOf({}),
-    getDataSource: () => remoteFile('/api/x/scan.nrrd'),
     ...overrides,
   });
 
