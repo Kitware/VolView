@@ -27,6 +27,15 @@
       ></v-switch>
 
       <v-switch
+        :label="`Reference Lines (${referenceLinesEnabled ? 'On' : 'Off'})`"
+        v-model="referenceLinesEnabled"
+        color="secondary"
+        density="compact"
+        hide-details
+        data-testid="reference-lines-switch"
+      ></v-switch>
+
+      <v-switch
         v-if="errorReportingConfigured"
         :label="`Error Reporting (${reportingEnabled ? 'On' : 'Off'})`"
         v-model="reportingEnabled"
@@ -52,6 +61,7 @@ import { useLocalStorage } from '@vueuse/core';
 
 import { useKeyboardShortcutsStore } from '@/src/store/keyboard-shortcuts';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
+import { useReferenceLinesStore } from '@/src/referenceLines';
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 import ServerSettings from './ServerSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';
@@ -78,6 +88,9 @@ export default defineComponent({
     });
 
     const { disableCameraAutoReset } = storeToRefs(useViewCameraStore());
+    const { enabled: referenceLinesEnabled } = storeToRefs(
+      useReferenceLinesStore()
+    );
 
     const keyboardStore = useKeyboardShortcutsStore();
     const openKeyboardShortcuts = () => {
@@ -90,6 +103,7 @@ export default defineComponent({
       errorReportingConfigured,
       openKeyboardShortcuts,
       disableCameraAutoReset,
+      referenceLinesEnabled,
     };
   },
   components: {

@@ -290,9 +290,6 @@ export async function serialize() {
     datasetFilePath: {},
     segmentGroups: [],
     tools: {
-      crosshairs: {
-        position: [0, 0, 0],
-      },
       paint: {
         activeSegmentGroupID: null,
         activeSegment: null,

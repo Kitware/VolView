@@ -18,6 +18,7 @@ import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 
 export default defineComponent({
   name: 'CrosshairsWidget2D',
@@ -51,6 +52,16 @@ export default defineComponent({
 
     onUnmounted(() => {
       view.widgetManager.removeWidget(factory);
+    });
+
+    // --- interaction --- //
+
+    // Only the widget the drag happened in fires this, which is what tells the
+    // store which image the picked point belongs to.
+    const handle = factory.getWidgetState().getHandle();
+    onVTKEvent(widget, 'onInteractionEvent', () => {
+      const origin = handle.getOrigin();
+      if (origin) crosshairsStore.setPosition(origin, viewId.value);
     });
 
     // --- manipulator --- //

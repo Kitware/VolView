@@ -1,12 +1,4 @@
 import macro from '@kitware/vtk.js/macro';
-import type { Bounds } from '@kitware/vtk.js/types';
-import { vec3 } from 'gl-matrix';
-
-function clampPointToBounds(bounds: Bounds, point: vec3) {
-  return point.map((p, i) =>
-    Math.max(bounds[i * 2], Math.min(bounds[i * 2 + 1], p))
-  ) as vec3;
-}
 
 export default function widgetBehavior(publicAPI: any, model: any) {
   model.classHierarchy.push('vtkCrosshairsWidgetProp');
@@ -50,29 +42,16 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.pickable &&
       model.manipulator
     ) {
-      const { worldCoords: worldCoordsOfPointer } =
-        model.manipulator.handleEvent(callData, model._apiSpecificRenderWindow);
+      const { worldCoords } = model.manipulator.handleEvent(
+        callData,
+        model._apiSpecificRenderWindow
+      );
 
-      const handle = model.widgetState.getHandle();
-      const worldToIndex = model.widgetState.getWorldToIndex();
-      const indexToWorld = model.widgetState.getIndexToWorld();
-      if (worldToIndex.length && indexToWorld.length) {
-        const indexCoordsOfPointer = vec3.create();
-        const worldOrigin = vec3.create();
-        const bounds = handle.getBounds();
-
-        vec3.transformMat4(
-          indexCoordsOfPointer,
-          worldCoordsOfPointer,
-          worldToIndex
-        );
-        const indexOrigin = clampPointToBounds(bounds, indexCoordsOfPointer);
-        vec3.transformMat4(worldOrigin, indexOrigin, indexToWorld);
-
-        handle.setOrigin(worldOrigin);
-        publicAPI.invokeInteractionEvent();
-        return macro.EVENT_ABORT;
-      }
+      // The point is left unclamped here: only the view this widget belongs to
+      // knows which image it should be confined to.
+      model.widgetState.getHandle().setOrigin(worldCoords);
+      publicAPI.invokeInteractionEvent();
+      return macro.EVENT_ABORT;
     }
 
     return macro.VOID;
