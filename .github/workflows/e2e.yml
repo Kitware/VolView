@@ -48,5 +48,5 @@ jobs:
         continue-on-error: true
         with:
           name: image_comparison_results_${{ matrix.os }}
-          path: .tmp
+          path: .tmp/runs
           retention-days: 5

@@ -1,7 +1,10 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import { createServer } from 'net';
 import type { Options, Capabilities } from '@wdio/types';
+import { SevereServiceError } from 'webdriverio';
 import { projectRoot } from './tests/e2eTestUtils';
+import { AUX_PORT, BASE_URL, TEST_PORT } from './tests/e2ePorts';
 
 const TEST_DATASETS = [
   {
@@ -38,7 +41,6 @@ export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
 export const applyTestViewport = (browser: any) =>
   browser.setViewport({ ...CONTENT_VIEWPORT, devicePixelRatio: 1 });
 
-export const TEST_PORT = 4567;
 // for slow connections try:
 // DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
 export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 30000);
@@ -47,13 +49,81 @@ const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
 
 const ROOT = projectRoot();
 const TMP = '.tmp/';
-// TEMP_DIR is also browser downloads directory
-export const TEMP_DIR = path.resolve(ROOT, TMP);
+// Fixtures are downloaded once and shared by every run.
+export const DATASET_CACHE = path.resolve(ROOT, TMP, 'datasets');
+// Everything a run generates or downloads through the browser, including the
+// fixture links it serves. Also the browser downloads directory. Keyed by port
+// so a checkout, or an overridden port, gets scratch space of its own.
+export const TEMP_DIR = path.resolve(ROOT, TMP, 'runs', String(TEST_PORT));
 const FIXTURES_DIR = 'tests/fixtures/';
 export const FIXTURES = path.resolve(ROOT, FIXTURES_DIR);
 
+// The static server and the browser's download directory both point into
+// TEMP_DIR, and Windows refuses to unlink a file while a handle is open, so give
+// their teardown a moment to catch up.
+const removeDir = (dir: string) =>
+  fs.rmSync(dir, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 200,
+  });
+
+/**
+ * Exposes a cached fixture under this run's directory, so specs can reach it at
+ * `/tmp/<name>` without every run holding its own copy.
+ */
+export function linkCachedDataset(name: string) {
+  const runPath = path.join(TEMP_DIR, name);
+  if (fs.existsSync(runPath)) return runPath;
+
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+  try {
+    fs.linkSync(path.join(DATASET_CACHE, name), runPath);
+  } catch {
+    // A hard link needs one filesystem; a copy always works.
+    fs.copyFileSync(path.join(DATASET_CACHE, name), runPath);
+  }
+  return runPath;
+}
+
+const inUse = (port: number) =>
+  new Promise<boolean>((resolve) => {
+    const server = createServer()
+      .once('error', (err: NodeJS.ErrnoException) =>
+        resolve(err.code === 'EADDRINUSE')
+      )
+      .once('listening', () => server.close(() => resolve(false)));
+    server.listen(port);
+  });
+
+const NAMED_PORTS = [
+  ['VOLVIEW_E2E_PORT', TEST_PORT],
+  ['VOLVIEW_E2E_AUX_PORT', AUX_PORT],
+] as const;
+
+/**
+ * These ports are stable, not reserved, so a suite already running out of this
+ * checkout, a checkout that hashed the same way, or an unrelated process can be
+ * holding one.
+ */
+async function assertPortsAvailable() {
+  const checks = await Promise.all(
+    NAMED_PORTS.map(async ([name, port]) =>
+      (await inUse(port)) ? `${port} (${name})` : null
+    )
+  );
+  const taken = checks.filter(Boolean);
+  if (taken.length) {
+    // Anything less severe is logged and the run carries on without a server.
+    throw new SevereServiceError(
+      `E2E ports already in use: ${taken.join(', ')}. Set the named variables to free ports to run anyway.`
+    );
+  }
+}
+
 export const config: Options.Testrunner = {
-  baseUrl: `http://localhost:${TEST_PORT}`,
+  baseUrl: BASE_URL,
   // ====================
   // Runner Configuration
   // ====================
@@ -89,7 +159,7 @@ export const config: Options.Testrunner = {
             mount: '/',
             path: './dist',
           },
-          { mount: '/tmp', path: `./${TMP}` },
+          { mount: '/tmp', path: TEMP_DIR },
         ],
         port: TEST_PORT,
       },
@@ -118,6 +188,13 @@ export const config: Options.Testrunner = {
   //
 
   async onPrepare() {
+    // Bail before the wipe below, which would otherwise take out the scratch
+    // directory of whichever suite is already holding the port.
+    await assertPortsAvailable();
+
+    fs.mkdirSync(DATASET_CACHE, { recursive: true });
+    // Start empty, so whatever is in here afterwards came from this run.
+    removeDir(TEMP_DIR);
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
     const RETRIES = 3;
@@ -140,27 +217,38 @@ export const config: Options.Testrunner = {
     };
 
     const downloads = TEST_DATASETS.map(async ({ url, name }) => {
-      const savePath = path.join(TEMP_DIR, name);
-      if (fs.existsSync(savePath)) {
-        return;
-      }
-      for (let attempt = 1; attempt <= RETRIES; attempt += 1) {
-        try {
-          await downloadOnce(url, savePath);
-          return;
-        } catch (err) {
-          if (attempt === RETRIES) {
-            throw new Error(
-              `Failed to download ${name} after ${RETRIES} attempts: ${
-                (err as Error).message
-              }`
-            );
+      const savePath = path.join(DATASET_CACHE, name);
+      if (!fs.existsSync(savePath)) {
+        for (let attempt = 1; attempt <= RETRIES; attempt += 1) {
+          try {
+            await downloadOnce(url, savePath);
+            break;
+          } catch (err) {
+            if (attempt === RETRIES) {
+              throw new Error(
+                `Failed to download ${name} after ${RETRIES} attempts: ${
+                  (err as Error).message
+                }`
+              );
+            }
+            await delay(RETRY_DELAY_MS);
           }
-          await delay(RETRY_DELAY_MS);
         }
       }
+      linkCachedDataset(name);
     });
     await Promise.all(downloads);
+  },
+
+  async onComplete(exitCode, completedConfig) {
+    // A failed run keeps its directory: the screenshots and downloads in it are
+    // what there is to look at. Watch mode reports 0 whatever the tests did,
+    // since quitting it is not a failure. CI keeps its directory either way,
+    // because a passing run is exactly where a new baseline image gets picked
+    // up from the uploaded artifact.
+    if (exitCode === 0 && !completedConfig.watch && !IS_CI) {
+      removeDir(TEMP_DIR);
+    }
   },
 
   async before(

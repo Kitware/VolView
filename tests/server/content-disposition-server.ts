@@ -2,9 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-
-const PORT = 4568;
-const TEMP_DIR = '.tmp';
+import { TEMP_DIR } from '../../wdio.shared.conf';
+import { AUX_PORT } from '../e2ePorts';
 
 export function createContentDispositionServer() {
   const app = express();
@@ -33,8 +32,8 @@ export function createContentDispositionServer() {
 
 export function startServer() {
   const app = createContentDispositionServer();
-  return app.listen(PORT, () => {
-    console.log(`Content-Disposition test server running on port ${PORT}`);
+  return app.listen(AUX_PORT, () => {
+    console.log(`Content-Disposition test server running on port ${AUX_PORT}`);
   });
 }
 

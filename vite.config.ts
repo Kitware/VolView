@@ -12,7 +12,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
 
-import { config } from './wdio.shared.conf';
+import { BASE_URL } from './tests/e2ePorts';
 
 function resolveNodeModulePath(moduleName: string) {
   const require = createRequire(import.meta.url);
@@ -224,7 +224,7 @@ export default defineConfig({
   server: {
     // so `npm run test:e2e:dev` can access the webdriver static server temp directory
     proxy: {
-      '/tmp': config.baseUrl!,
+      '/tmp': BASE_URL,
       // Local Girder stack, so girder-launched sessions (urls=/api/v1/...)
       // work same-origin against the dev server.
       '/api': 'http://localhost:8080',
