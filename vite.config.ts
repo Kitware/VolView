@@ -30,6 +30,8 @@ function resolvePath(...args: string[]) {
   return normalizePath(path.resolve(...args));
 }
 
+const PLACEHOLDER_VERSION = '0.0.0';
+
 function getPackageInfo() {
   const mainPkgPath = path.resolve(__dirname, 'package.json');
   const mainPkg = JSON.parse(fs.readFileSync(mainPkgPath, 'utf-8'));
@@ -48,11 +50,30 @@ function getPackageInfo() {
 
   return {
     versions: {
-      volview: mainPkg.version,
+      volview: getVolViewVersion(mainPkg.version),
       'vtk.js': vtkJsPkg.version,
       'itk-wasm': itkWasmPkg.version,
     },
   };
+}
+
+// package.json carries the placeholder 0.0.0 on main; the release workflow
+// stamps the real version from the pushed tag before it builds. Builds that
+// skip that step (Netlify, local dev) fall back to describing the tag directly.
+function getVolViewVersion(pkgVersion: string) {
+  if (pkgVersion !== PLACEHOLDER_VERSION) return pkgVersion;
+  return getGitDescribe() ?? pkgVersion;
+}
+
+function getGitDescribe() {
+  try {
+    const described = execSync('git describe --tags --always')
+      .toString()
+      .trim();
+    return described.replace(/^v/, '');
+  } catch {
+    return undefined;
+  }
 }
 
 function getGitShortSha() {
