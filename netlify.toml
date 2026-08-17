@@ -9,7 +9,9 @@
   VITE_SHOW_SAMPLE_DATA= "true"
 
 [build]
-command = "sed -i \"s|DICOM_WEB_API_KEY|${DICOM_WEB_API_KEY}|g; s|DICOM_WEB_ADDRESS|${DICOM_WEB_ADDRESS}|g\" netlify.toml && npm run build"
+# The version shown in the About box comes from `git describe`, which needs tags
+# and enough history to count from them. Netlify clones neither by default.
+command = "{ git fetch --tags --unshallow || git fetch --tags; } 2>/dev/null; sed -i \"s|DICOM_WEB_API_KEY|${DICOM_WEB_API_KEY}|g; s|DICOM_WEB_ADDRESS|${DICOM_WEB_ADDRESS}|g\" netlify.toml && npm run build"
 
 [dev]
 targetPort = 8080
