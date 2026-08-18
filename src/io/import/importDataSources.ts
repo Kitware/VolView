@@ -42,7 +42,7 @@ import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
-import { ensureError, partition } from '@/src/utils';
+import { ensureError, nonNullable, partition } from '@/src/utils';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
@@ -83,16 +83,26 @@ const applyConfigsPostState = (
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
 // covers maps to its ONE store id. Many-to-one is the normal shape — a merged
 // multi-file DICOM volume covers every member file's per-file dataset id.
+// A dataset whose leaves now load as SEVERAL volumes (a series since split
+// into acquisitions) has no single owner for its saved state; it is left
+// unmapped so restore reports it instead of binding annotations, layers, and
+// views to an arbitrary one of the volumes.
 export function buildStateIDToStoreID(
   loadables: readonly LoadableResult[]
 ): Record<string, string> {
-  const stateIDToStoreID: Record<string, string> = {};
+  const storeIDsByState = new Map<string, Set<string>>();
   loadables.forEach((loadable) => {
     findStateFileLeaves(loadable.dataSource).forEach((leaf) => {
-      stateIDToStoreID[leaf.stateID] = loadable.dataID;
+      const storeIDs = storeIDsByState.get(leaf.stateID) ?? new Set();
+      storeIDs.add(loadable.dataID);
+      storeIDsByState.set(leaf.stateID, storeIDs);
     });
   });
-  return stateIDToStoreID;
+  return Object.fromEntries(
+    [...storeIDsByState.entries()]
+      .filter(([, storeIDs]) => storeIDs.size === 1)
+      .map(([stateID, storeIDs]) => [stateID, [...storeIDs][0]])
+  );
 }
 
 async function importDicomChunkSources(sources: ChunkSource[]) {
@@ -108,16 +118,22 @@ async function importDicomChunkSources(sources: ChunkSource[]) {
     chunkToDataSource.set(src.chunk, src);
   });
 
-  return Object.entries(volumeChunks).map(([id, chunks]) =>
-    asLoadableResult(
-      id,
-      {
-        type: 'collection',
-        sources: chunks.map((chunk) => chunkToDataSource.get(chunk)!),
-      },
-      'image'
-    )
-  );
+  // A volume can hold chunks imported by an earlier call (the store re-splits
+  // a series over everything imported so far); this call's loadables cover
+  // only the chunks it carried in.
+  return Object.entries(volumeChunks).flatMap(([id, chunks]) => {
+    const volumeSources = chunks
+      .map((chunk) => chunkToDataSource.get(chunk))
+      .filter(nonNullable);
+    if (volumeSources.length === 0) return [];
+    return [
+      asLoadableResult(
+        id,
+        { type: 'collection', sources: volumeSources },
+        'image'
+      ),
+    ];
+  });
 }
 
 type ImportPolicy = 'application' | 'volume-data';
