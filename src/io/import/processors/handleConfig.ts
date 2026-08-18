@@ -2,7 +2,7 @@ import { ImportHandler, asConfigResult } from '@/src/io/import/common';
 import { ensureError, plural } from '@/src/utils';
 import { recognizeConfigFile } from '@/src/io/import/configJson';
 import { Skip } from '@/src/utils/evaluateChain';
-import { useMessageStore } from '@/src/store/messages';
+import { surfaceWarning } from '@/src/store/messages';
 
 // Forward-compat: a config that carries unknown top-level keys (e.g. a newer
 // config opened on an older client) still applies its known sections; the
@@ -13,8 +13,7 @@ const surfaceIgnoredConfigKeys = (ignoredKeys: string[]) => {
   const message = `Ignored unrecognized config ${label}: ${ignoredKeys.join(
     ', '
   )}.`;
-  console.warn(message);
-  useMessageStore().addWarning('Unrecognized configuration', message);
+  surfaceWarning('Unrecognized configuration', message);
 };
 
 /**

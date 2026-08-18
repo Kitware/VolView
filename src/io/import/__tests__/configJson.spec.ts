@@ -28,6 +28,32 @@ describe('config schema', () => {
       expect(result.success).to.be.false;
     });
 
+    it('should accept a list of keys for one action', () => {
+      const result = config.safeParse({
+        shortcuts: {
+          deleteSelectedAnnotations: ['delete', 'backspace'],
+        },
+      });
+
+      expect(result.success).to.be.true;
+      expect(result.data?.shortcuts?.deleteSelectedAnnotations).to.deep.equal([
+        'delete',
+        'backspace',
+      ]);
+    });
+
+    // + - and _ separate the keys of a chord, so a binding with one in key
+    // position can never fire. It is dropped on apply, not rejected here,
+    // so the rest of the config still loads.
+    it.each(['ctrl+-', '-', 'shift+_'])(
+      'should still parse a config carrying the unbindable %s',
+      (binding) => {
+        const result = config.safeParse({ shortcuts: { polygon: binding } });
+
+        expect(result.success).to.be.true;
+      }
+    );
+
     it('should accept empty shortcuts', () => {
       const result = config.safeParse({
         shortcuts: {},

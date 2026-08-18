@@ -8,10 +8,10 @@ import { LPSAxisDir } from '@/src/types/lps';
 import vtkGatedMouseRangeManipulator from '@/src/vtk/GatedMouseRangeManipulator';
 import { IMouseRangeManipulatorInitialValues } from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
-import { syncRef, useMagicKeys } from '@vueuse/core';
+import { syncRef } from '@vueuse/core';
 import { inject, toRefs, unref, watch, computed } from 'vue';
 import { useViewStore } from '@/src/store/views';
-import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 
 type Props = {
   viewId: string;
@@ -49,8 +49,7 @@ const { instance: rangeManipulator } = useVtkInteractionManipulator(
 
 rangeManipulator.value.setupMouseMove(view.interactor);
 
-const keys = useMagicKeys();
-const enableGrabSlice = computed(() => keys[actionToKey.value.grabSlice].value);
+const enableGrabSlice = useActionHeld('grabSlice');
 watch(
   enableGrabSlice,
   (value) => {

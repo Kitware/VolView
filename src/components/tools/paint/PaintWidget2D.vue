@@ -9,7 +9,6 @@ import {
   watchEffect,
   inject,
 } from 'vue';
-import { useMagicKeys } from '@vueuse/core';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { vec3 } from 'gl-matrix';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -24,7 +23,7 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
-import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 
 export default defineComponent({
   name: 'PaintWidget2D',
@@ -172,10 +171,7 @@ export default defineComponent({
     });
 
     // Brush size scroll wheel control with customizable modifier key
-    const keys = useMagicKeys();
-    const enableBrushSizeAdjustment = computed(
-      () => keys[actionToKey.value.brushSizeModifier].value
-    );
+    const enableBrushSizeAdjustment = useActionHeld('brushSizeModifier');
 
     const handleWheelEvent = (event: WheelEvent) => {
       if (!enableBrushSizeAdjustment.value) return;

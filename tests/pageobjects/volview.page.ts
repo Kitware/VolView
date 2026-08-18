@@ -96,22 +96,18 @@ class VolViewPage extends Page {
     );
   }
 
-  get rectangleButton() {
-    return $('button span i[class~=mdi-vector-square]');
+  async selectTool(icon: string) {
+    const button = $(`button span i[class~=${icon}]`);
+    await button.waitForClickable();
+    await button.click();
   }
 
   async activateRectangle() {
-    const button = this.rectangleButton;
-    await button.click();
-  }
-
-  get paintButton() {
-    return $('button span i[class~=mdi-brush]');
+    await this.selectTool('mdi-vector-square');
   }
 
   async activatePaint() {
-    const button = this.paintButton;
-    await button.click();
+    await this.selectTool('mdi-brush');
   }
 
   // Paint "Process" mode and the Fill Holes process workflow.

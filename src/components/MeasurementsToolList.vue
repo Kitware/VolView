@@ -4,7 +4,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { nonNullable } from '@/src/utils/index';
 import { AnnotationToolType } from '@/src/store/tools/types';
-import { useAnnotationToolStore } from '@/src/store/tools';
+import { removeSelectedTools, useAnnotationToolStore } from '@/src/store/tools';
 import {
   useMultipleToolSelection,
   MultipleSelectionState,
@@ -89,13 +89,6 @@ const toggleSelectAll = (shouldSelectAll: Maybe<boolean>) => {
   }
 };
 
-function removeAll() {
-  selectionStore.selection.forEach((sel) => {
-    const store = useAnnotationToolStore(sel.type);
-    store.removeTool(sel.id);
-  });
-}
-
 // If all selected tools are already hidden, it should be "show".
 // If at least one selected tool is visible, it should be "hide".
 const allHidden = computed(() => {
@@ -156,7 +149,7 @@ function toggleGlobalHidden() {
         icon
         variant="text"
         :disabled="selectionState === MultipleSelectionState.None"
-        @click.stop="removeAll"
+        @click.stop="removeSelectedTools"
       >
         <v-icon>mdi-delete</v-icon>
         <v-tooltip

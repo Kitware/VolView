@@ -8,7 +8,7 @@ import { SegmentMask } from '@/src/types/segment';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
-import { Action } from './constants';
+import { Action, Binding } from './constants';
 
 /**
  * These are the initial view IDs.
@@ -222,11 +222,14 @@ export const ACTION_TO_KEY = {
   decrementLabel: 'q',
   incrementLabel: 'w',
 
+  // the main delete key reports Backspace on macOS
+  deleteSelectedAnnotations: ['delete', 'backspace'],
+
   deleteCurrentImage: 'ctrl+.',
   clearScene: 'ctrl+/',
 
   showKeyboardShortcuts: '?',
-} satisfies Record<Action, string>;
+} satisfies Record<Action, Binding>;
 
 export const DEFAULT_SEGMENT_MASKS: SegmentMask[] = [
   {

@@ -101,11 +101,11 @@ import {
 } from '@/src/composables/annotationTool';
 import AnnotationContextMenu from '@/src/components/tools/AnnotationContextMenu.vue';
 import AnnotationInfo from '@/src/components/tools/AnnotationInfo.vue';
-import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 import { Maybe } from '@/src/types';
 import { useViewLocator } from '@/src/composables/useViewLocator';
 import { locatorPatch } from '@/src/core/annotations/locator';
-import { useMagicKeys, watchImmediate } from '@vueuse/core';
+import { watchImmediate } from '@vueuse/core';
 import { fillPoly } from '@thi.ng/rasterize';
 import type { IGrid2D } from '@thi.ng/api';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -211,10 +211,7 @@ export default defineComponent({
       placingTool.remove();
     });
 
-    const keys = useMagicKeys();
-    const mergeKey = computed(
-      () => keys[actionToKey.value.mergeNewPolygon].value
-    );
+    const mergeKey = useActionHeld('mergeNewPolygon');
 
     const onToolPlaced = () => {
       if (imageId.value) {
