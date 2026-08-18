@@ -68,7 +68,7 @@ export function intersectMouseEventWithPlane(
   const position = normalizeMouseEventPosition(ev, view);
   if (!position) return null;
 
-  return intersectDisplayWithPlane(
+  const point = intersectDisplayWithPlane(
     position[0],
     position[1],
     origin,
@@ -76,6 +76,9 @@ export function intersectMouseEventWithPlane(
     renderer,
     view
   );
+  // vtkPlane.intersectWithLine yields an empty array when the line is parallel
+  // to the plane, so an empty result is a miss rather than a point at the origin.
+  return point.length === 3 ? point : null;
 }
 
 /**
