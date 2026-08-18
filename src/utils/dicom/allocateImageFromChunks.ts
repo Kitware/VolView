@@ -1,6 +1,10 @@
 import { Chunk } from '@/src/core/streaming/chunk';
-import { Maybe } from '@/src/types';
 import { NAME_TO_TAG } from '@/src/core/dicomTags';
+import {
+  getChunkMetadata,
+  getSliceNormal,
+  toVec,
+} from '@/src/utils/dicom/dicomChunks';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { mat3, vec3 } from 'gl-matrix';
@@ -18,11 +22,6 @@ const SamplesPerPixelTag = NAME_TO_TAG.get('SamplesPerPixel')!;
 const RescaleIntercept = NAME_TO_TAG.get('RescaleIntercept')!;
 const RescaleSlope = NAME_TO_TAG.get('RescaleSlope')!;
 const NumberOfFrames = NAME_TO_TAG.get('NumberOfFrames')!;
-
-function toVec(s: Maybe<string>): number[] | null {
-  if (!s?.length) return null;
-  return s.split('\\').map((a) => Number(a)) as number[];
-}
 
 function isPositiveFiniteNumber(value: number) {
   return Number.isFinite(value) && value > 0;
@@ -79,7 +78,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   }
 
   // use the first chunk as the source of metadata
-  const meta = new Map(sortedChunks[0].metadata!);
+  const meta = getChunkMetadata(sortedChunks[0]);
   const imagePositionPatient = toVec(meta.get(ImagePositionPatientTag));
   const imageOrientationPatient = toVec(meta.get(ImageOrientationPatientTag));
   const pixelSpacing = toVec(meta.get(PixelSpacingTag));
@@ -138,7 +137,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   }
 
   if (imagePositionPatient && sortedChunks.length > 1) {
-    const lastMeta = new Map(sortedChunks[sortedChunks.length - 1].metadata);
+    const lastMeta = getChunkMetadata(sortedChunks[sortedChunks.length - 1]);
     const lastIPP = toVec(lastMeta.get(ImagePositionPatientTag));
     if (lastIPP) {
       // assumption: uniform Z spacing
@@ -152,12 +151,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   image.setSpacing(spacing);
 
   if (imageOrientationPatient) {
-    const zDir = vec3.create() as Vector3;
-    vec3.cross(
-      zDir,
-      imageOrientationPatient.slice(0, 3) as vec3,
-      imageOrientationPatient.slice(3, 6) as vec3
-    );
+    const zDir = getSliceNormal(imageOrientationPatient);
     image.setDirection([...imageOrientationPatient, ...zDir] as mat3);
   }
 
