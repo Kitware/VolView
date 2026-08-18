@@ -1,13 +1,25 @@
 import { z } from 'zod';
-import { isRecord, zodEnumFromObjKeys } from '@/src/utils';
+import {
+  getEntries,
+  isRecord,
+  partition,
+  plural,
+  zodEnumFromObjKeys,
+} from '@/src/utils';
 import { ACTIONS } from '@/src/constants';
+import type { Action, Binding } from '@/src/constants';
 
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
-import { actionToKey } from '@/src/composables/useKeyboardShortcuts';
+import {
+  actionToKey,
+  bindingsOf,
+  isDispatchable,
+} from '@/src/composables/useKeyboardShortcuts';
+import { surfaceWarning } from '@/src/store/messages';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
@@ -21,8 +33,10 @@ const layouts = z.record(z.string(), layoutConfig).optional();
 // --------------------------------------------------------------------------
 // Keyboard shortcuts
 
+const bindingSchema = z.union([z.string(), z.array(z.string())]);
+
 const shortcuts = z
-  .partialRecord(zodEnumFromObjKeys(ACTIONS), z.string())
+  .partialRecord(zodEnumFromObjKeys(ACTIONS), bindingSchema)
   .optional();
 
 // --------------------------------------------------------------------------
@@ -213,12 +227,42 @@ const applyLayout = (manifest: Config) => {
   viewStore.switchToNamedLayout(firstLayoutName);
 };
 
+/**
+ * Drops the bindings that could never fire, keeping the rest of the config.
+ * A shortcut that does nothing is worth a warning, not a rejected file.
+ */
+const dispatchableShortcuts = (
+  configured: NonNullable<Config['shortcuts']>
+) => {
+  const perAction = getEntries(configured).flatMap(([action, binding]) =>
+    binding
+      ? [[action, partition(isDispatchable, bindingsOf(binding))] as const]
+      : []
+  );
+
+  const undispatchable = perAction.flatMap(([, [, rejected]]) => rejected);
+  if (undispatchable.length) {
+    const noun = plural(undispatchable.length, 'shortcut');
+    surfaceWarning(
+      'Unbindable shortcut',
+      `Ignored unbindable ${noun}: ${undispatchable.join(', ')}. ` +
+        'The characters + - and _ separate the keys of a chord.'
+    );
+  }
+
+  return Object.fromEntries(
+    perAction
+      .filter(([, [usable]]) => usable.length)
+      .map(([action, [usable]]) => [action, usable])
+  ) as Partial<Record<Action, Binding>>;
+};
+
 const applyShortcuts = (manifest: Config) => {
   if (!manifest.shortcuts) return;
 
   actionToKey.value = {
     ...actionToKey.value,
-    ...manifest.shortcuts,
+    ...dispatchableShortcuts(manifest.shortcuts),
   };
 };
 

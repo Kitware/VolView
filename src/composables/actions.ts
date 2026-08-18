@@ -1,4 +1,4 @@
-import { useToolStore } from '../store/tools';
+import { removeSelectedTools, useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
 import { useRectangleStore } from '../store/tools/rectangles';
 import { useRulerStore } from '../store/tools/rulers';
@@ -111,6 +111,8 @@ export const ACTION_TO_FUNC = {
 
   decrementLabel: applyLabelOffset(-1),
   incrementLabel: applyLabelOffset(1),
+
+  deleteSelectedAnnotations: removeSelectedTools,
 
   deleteCurrentImage: deleteCurrentImage(),
   clearScene: clearScene(),

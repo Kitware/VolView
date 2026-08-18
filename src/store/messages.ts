@@ -139,3 +139,12 @@ export const useMessageStore = defineStore('message', {
     },
   },
 });
+
+/**
+ * Reports a warning both to the console and to the user. addWarning does not
+ * log on its own, unlike addError, so the two go together.
+ */
+export const surfaceWarning = (title: string, message: string) => {
+  console.warn(message);
+  useMessageStore().addWarning(title, message);
+};

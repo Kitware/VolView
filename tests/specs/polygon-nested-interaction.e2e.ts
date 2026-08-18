@@ -1,61 +1,16 @@
 import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
-import { MINIMAL_DICOM } from './configTestUtils';
+import {
+  clickAt,
+  getCircleCount,
+  moveTo,
+  rightClickAt,
+  setupTest,
+  waitForCircleCount,
+} from './annotationTestUtils';
 
-// Low-level mouse helpers
-const clickAt = async (x: number, y: number) => {
-  await browser
-    .action('pointer')
-    .move({ x: Math.round(x), y: Math.round(y) })
-    .down()
-    .up()
-    .perform();
-};
-
-const rightClickAt = async (x: number, y: number) => {
-  await browser
-    .action('pointer')
-    .move({ x: Math.round(x), y: Math.round(y) })
-    .down({ button: 2 })
-    .up({ button: 2 })
-    .perform();
-};
-
-const moveTo = async (x: number, y: number) => {
-  await browser
-    .action('pointer')
-    .move({ x: Math.round(x), y: Math.round(y) })
-    .perform();
-};
-
-// Test setup
-const setupTest = async () => {
-  await AppPage.open(`?urls=${MINIMAL_DICOM.url}&names=${MINIMAL_DICOM.name}`);
-  await AppPage.waitForViews();
-
-  const views2D = await AppPage.getViews2D();
-  const axialView = views2D[0];
-  const canvas = await axialView.$('canvas');
-  const location = await canvas.getLocation();
-  const size = await canvas.getSize();
-
-  return {
-    axialView,
-    centerX: location.x + size.width / 2,
-    centerY: location.y + size.height / 2,
-  };
-};
-
-// Tool selection
-const selectPolygonTool = async () => {
-  const btn = await $('button span i[class~=mdi-pentagon-outline]');
-  await btn.click();
-};
-
-const selectRectangleTool = async () => {
-  const btn = await $('button span i[class~=mdi-vector-square]');
-  await btn.click();
-};
+const selectPolygonTool = () => AppPage.selectTool('mdi-pentagon-outline');
+const selectRectangleTool = () => AppPage.selectTool('mdi-vector-square');
 
 // High-level shape creation
 const createSquarePolygon = async (
@@ -102,22 +57,6 @@ const createRectangle = async (
 };
 
 // Assertions
-const getCircleCount = async (axialView: ChainablePromiseElement) => {
-  const circles = await axialView.$$('svg circle');
-  return circles.length;
-};
-
-const waitForPointRemoved = async (
-  axialView: ChainablePromiseElement,
-  countBefore: number,
-  msg: string
-) => {
-  await browser.waitUntil(
-    async () => (await getCircleCount(axialView)) === countBefore - 1,
-    { timeout: 5000, timeoutMsg: msg }
-  );
-};
-
 const getVisibleCircleCount = async (axialView: ChainablePromiseElement) => {
   const circles = await axialView.$$('svg circle');
   let count = 0;
@@ -169,9 +108,9 @@ describe('Polygon tool nested interaction', () => {
 
     const countBefore = await getCircleCount(axialView);
     await rightClickAt(centerX + 40, centerY + 40);
-    await waitForPointRemoved(
+    await waitForCircleCount(
       axialView,
-      countBefore,
+      countBefore - 1,
       'Right-click should remove one point from the third polygon'
     );
   });
@@ -189,9 +128,9 @@ describe('Polygon tool nested interaction', () => {
 
     const countBefore = await getCircleCount(axialView);
     await rightClickAt(centerX, centerY);
-    await waitForPointRemoved(
+    await waitForCircleCount(
       axialView,
-      countBefore,
+      countBefore - 1,
       'Right-click should remove exactly one point from the placing polygon'
     );
   });
@@ -211,9 +150,9 @@ describe('Polygon tool nested interaction', () => {
 
     const countBefore = await getCircleCount(axialView);
     await rightClickAt(centerX, centerY);
-    await waitForPointRemoved(
+    await waitForCircleCount(
       axialView,
-      countBefore,
+      countBefore - 1,
       'Right-click should remove one point from the polygon when placing inside a rectangle'
     );
   });

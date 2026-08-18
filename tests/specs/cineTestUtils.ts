@@ -47,10 +47,4 @@ export const getCineCanvasCenter = async () => {
   };
 };
 
-export const clickAt = (x: number, y: number) =>
-  browser
-    .action('pointer')
-    .move({ x: Math.round(x), y: Math.round(y) })
-    .down()
-    .up()
-    .perform();
+export { clickAt } from './annotationTestUtils';
