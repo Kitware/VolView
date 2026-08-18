@@ -2,7 +2,8 @@ import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
 import {
   clickAt,
-  moveTo,
+  hoverUntilPicked,
+  pressAtPointer,
   setupTest,
   waitForCircleCount,
 } from './annotationTestUtils';
@@ -19,17 +20,13 @@ const clickToSelect = async (
   y: number
 ) => {
   await AppPage.selectTool('mdi-cursor-default');
-  // The widget manager resolves what is under the cursor from a render pass
-  // driven by mouse move, so hover first and retry until the click picks it up.
-  await moveTo(x, y);
+  await hoverUntilPicked(axialView, x, y);
+  await pressAtPointer();
+
   await browser.waitUntil(
-    async () => {
-      await clickAt(x, y);
-      return (await getSelectionRectCount(axialView)) === 1;
-    },
+    async () => (await getSelectionRectCount(axialView)) === 1,
     {
-      timeout: 10000,
-      interval: 500,
+      timeout: 5000,
       timeoutMsg: 'Clicking the annotation should draw a selection rectangle',
     }
   );
