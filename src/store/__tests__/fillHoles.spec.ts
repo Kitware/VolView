@@ -13,14 +13,11 @@ import { useViewStore } from '@/src/store/views';
 
 const fillHolesWorkerMock = vi.hoisted(() => vi.fn(async (input) => input));
 
+// eslint-disable-next-line no-restricted-syntax -- the fill-holes worker has no counterpart in the node test environment
 vi.mock('comlink', () => ({
   wrap: () => ({
     fillHolesWorker: fillHolesWorkerMock,
   }),
-}));
-
-vi.mock('@/src/store/image-stats', () => ({
-  useImageStatsStore: () => ({ stats: {} }),
 }));
 
 function addScalars(image: vtkImageData, values: Uint8Array) {

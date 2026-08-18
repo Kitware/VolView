@@ -6,6 +6,17 @@ import { repointLaunchUrls } from '@/src/utils/urlParams';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
+/** The serialize and network edges, so a save can be driven without either. */
+export type SaveDependencies = {
+  serializeSession: typeof serialize;
+  post: typeof $fetch;
+};
+
+export const appSaveDependencies = (): SaveDependencies => ({
+  serializeSession: serialize,
+  post: $fetch,
+});
+
 const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
   const saveUrl = ref('');
   const isSaving = ref(false);
@@ -29,13 +40,15 @@ const useRemoteSaveStateStore = defineStore('remoteSaveState', () => {
     saveUrl.value = url;
   };
 
-  const saveState = async () => {
+  const saveState = async (
+    dependencies: SaveDependencies = appSaveDependencies()
+  ) => {
     if (!saveUrl.value || isSaving.value) return;
     try {
       isSaving.value = true;
 
-      const blob = await serialize();
-      const saveResult = await $fetch(saveUrl.value, {
+      const blob = await dependencies.serializeSession();
+      const saveResult = await dependencies.post(saveUrl.value, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/zip',

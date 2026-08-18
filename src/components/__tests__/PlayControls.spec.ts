@@ -1,42 +1,22 @@
 import { mount, VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ComponentPublicInstance, nextTick, ref } from 'vue';
+import { ComponentPublicInstance, nextTick } from 'vue';
 import PlayControls from '@/src/components/PlayControls.vue';
+import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
 
 type PlayControlsProps = { viewId: string; imageId: string | null };
 type PlayControlsWrapper = VueWrapper<
   ComponentPublicInstance<PlayControlsProps>
 >;
 
-vi.mock('@/src/core/cine/isCineImage', () => ({
-  getCineImage: (imageId: string | null) => {
-    const frameTimesByImageId: Record<string, number> = {
-      'image-1': 50,
-      'image-2': 25,
-    };
-
-    return imageId
-      ? {
-          header: {
-            frameTimeMs: frameTimesByImageId[imageId] ?? 40,
-          },
-        }
-      : null;
-  },
-}));
-
-vi.mock('@/src/composables/useSliceConfig', () => ({
-  useSliceConfig: () => ({
-    slice: ref(0),
-    range: ref([0, 2]),
-  }),
-}));
-
 describe('PlayControls', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
+    // Frame time drives the default FPS: 50ms is 20fps, 25ms is 40fps.
+    seatCineImage('image-1', { frameTimeMs: 50 });
+    seatCineImage('image-2', { frameTimeMs: 25 });
   });
 
   afterEach(() => {

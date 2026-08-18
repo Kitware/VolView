@@ -3,31 +3,17 @@
 //   - Jobs tab       ⇒ ModulePanel reveals it only when `configs.size > 0`.
 //   - Remote save     ⇒ the surface/egress engage only when `saveUrl !== ''`.
 
-import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
+import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { shallowMount, flushPromises, VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 
 // Keep the Jobs async-component cheap and DOM-safe if it ever renders.
-vi.mock('@/src/processing/components/JobsModule.vue', () => ({
-  default: { name: 'JobsModule', template: '<div />' },
-}));
-
-// Observe remote-save egress without a network round-trip or the heavy
-// serialize path.
-vi.mock('@/src/utils/fetch', () => ({
-  $fetch: vi.fn().mockResolvedValue({ ok: true }),
-}));
-vi.mock('@/src/io/state-file/serialize', () => ({
-  serialize: vi
-    .fn()
-    .mockResolvedValue(new Blob(['x'], { type: 'application/zip' })),
-}));
 
 import ModulePanel from '@/src/components/ModulePanel.vue';
 import { useProcessingJobsStore } from '@/src/processing';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import { ConnectionState, useServerStore } from '@/src/store/server';
-import { $fetch } from '@/src/utils/fetch';
+import { savePost, saveDependencies } from '@/src/store/__tests__/saveFixtures';
 import type { ProcessingProviderConfig } from '@/src/processing';
 
 // Stub the Vuetify shell so mounting ModulePanel exercises only its own gating
@@ -110,9 +96,11 @@ describe('Jobs tab is latent — gated on provider presence', () => {
 });
 
 describe('Remote save is latent — gated on a save target', () => {
+  let post = savePost();
+
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked($fetch).mockClear();
+    post = savePost();
   });
 
   it('exposes no save target and performs no egress when unconfigured', async () => {
@@ -122,9 +110,9 @@ describe('Remote save is latent — gated on a save target', () => {
     // hidden (ControlsStrip/WelcomePage gate on `saveUrl !== ''`).
     expect(store.saveUrl).toBe('');
 
-    await store.saveState();
+    await store.saveState(saveDependencies(post));
 
-    expect($fetch).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
   });
 
   it('performs egress only after a save target is set', async () => {
@@ -132,9 +120,9 @@ describe('Remote save is latent — gated on a save target', () => {
     const saveUrl = `${window.location.origin}/save`;
     store.setSaveUrl(saveUrl);
 
-    await store.saveState();
+    await store.saveState(saveDependencies(post));
 
-    expect($fetch).toHaveBeenCalledTimes(1);
-    expect(vi.mocked($fetch).mock.calls[0][0]).toBe(saveUrl);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post.mock.calls[0][0]).toBe(saveUrl);
   });
 });
