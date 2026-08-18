@@ -7,7 +7,7 @@ import {
 import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
 import { Image, JsonCompatible, readImage } from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
-import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
+import { allocateImageFromChunks } from '@/src/utils/dicom/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
 import { Tags } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
