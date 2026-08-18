@@ -1,6 +1,7 @@
 // Minimal synthetic DICOM (Explicit VR Little Endian) for tests.
 // Emits just enough tags for ITK/GDCM to categorize and load a series:
-// SOP Class/Instance UIDs, Study/SeriesInstanceUID, SeriesNumber, Modality,
+// SOP Class/Instance UIDs, Study/SeriesInstanceUID, SeriesNumber,
+// AcquisitionNumber, Modality,
 // Patient identifiers, ImageOrientationPatient, ImagePositionPatient,
 // PixelSpacing, SliceThickness, image geometry, and zeroed PixelData.
 
@@ -115,6 +116,7 @@ export type SyntheticSliceOptions = {
   patientName?: string;
   patientId?: string;
   seriesNumber?: number;
+  acquisitionNumber?: number;
   studyDate?: string;
 };
 
@@ -135,6 +137,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     patientName = 'TEST',
     patientId = 'TEST001',
     seriesNumber = 1,
+    acquisitionNumber,
     studyDate = '20260101',
   } = opts;
 
@@ -156,6 +159,9 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     ui(0x0020, 0x000e, seriesUid),
     sh(0x0020, 0x0010, '1'),
     is(0x0020, 0x0011, String(seriesNumber)),
+    ...(acquisitionNumber == null
+      ? []
+      : [is(0x0020, 0x0012, String(acquisitionNumber))]),
     is(0x0020, 0x0013, String(instanceNumber)),
     ds(
       0x0020,
