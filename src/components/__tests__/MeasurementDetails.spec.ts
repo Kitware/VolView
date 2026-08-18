@@ -1,14 +1,14 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { beforeEach, describe, expect, it } from 'vitest';
 import MeasurementToolDetails from '@/src/components/MeasurementToolDetails.vue';
 import MeasurementRulerDetails from '@/src/components/MeasurementRulerDetails.vue';
+import { useRulerStore } from '@/src/store/tools/rulers';
 import { ToolID } from '@/src/types/annotation-tool';
 
-vi.mock('@/src/store/tools/rulers', () => ({
-  useRulerStore: () => ({
-    lengthByID: { 'tool-1': 12.345 },
-  }),
-}));
+beforeEach(() => {
+  setActivePinia(createPinia());
+});
 
 const stubs = {
   'v-row': { template: '<div><slot /></div>' },
@@ -48,18 +48,27 @@ describe('MeasurementToolDetails', () => {
 });
 
 describe('MeasurementRulerDetails', () => {
+  // The component reads the length off the ruler store, so the ruler has to
+  // exist there: a 3-4-5 triangle gives a length of 5.00mm.
+  const seatRuler = () =>
+    useRulerStore().addRuler({
+      firstPoint: [0, 0, 0],
+      secondPoint: [3, 4, 0],
+    });
+
   it('shows slice number for a volume ruler', () => {
     const wrapper = mount(MeasurementRulerDetails, {
-      props: { tool: { ...baseTool, slice: 9 } },
+      props: { tool: { ...baseTool, id: seatRuler(), slice: 9 } },
       global: { stubs },
     });
     expect(wrapper.text()).toContain('Slice: 10');
+    expect(wrapper.text()).toContain('5.00mm');
     expect(wrapper.text()).not.toContain('Frame:');
   });
 
   it('shows frame number for a cine ruler', () => {
     const wrapper = mount(MeasurementRulerDetails, {
-      props: { tool: { ...baseTool, slice: 0, frame: 2 } },
+      props: { tool: { ...baseTool, id: seatRuler(), slice: 0, frame: 2 } },
       global: { stubs },
     });
     expect(wrapper.text()).toContain('Frame: 3');

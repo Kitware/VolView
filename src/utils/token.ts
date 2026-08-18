@@ -14,9 +14,9 @@ export function stripTokenFromUrl() {
 // that lands after loading has started would leave the first requests
 // unauthenticated. A failure is non-fatal — the app continues without a bearer
 // and the data requests fail on their own terms.
-export async function populateAuthorizationToken() {
-  const urlParams = vtkURLExtract.extractURLParameters() as UrlParams;
-
+export async function populateAuthorizationToken(
+  urlParams: UrlParams = vtkURLExtract.extractURLParameters() as UrlParams
+) {
   if (urlParams.token) {
     setGlobalHeader('Authorization', `Bearer ${urlParams.token}`);
   }

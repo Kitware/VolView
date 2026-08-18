@@ -4,10 +4,15 @@ import { setActivePinia, createPinia } from 'pinia';
 import {
   loadDataSources,
   loadUrlsWithOutcome,
+  type DataSourceImporter,
 } from '@/src/actions/loadUserFiles';
 import useLoadDataStore from '@/src/store/load-data';
 import type { DataSource } from '@/src/io/import/dataSource';
-import { asErrorResult, asOkayResult } from '@/src/io/import/common';
+import {
+  asErrorResult,
+  asOkayResult,
+  type ImportDataSourcesResult,
+} from '@/src/io/import/common';
 
 // ---------------------------------------------------------------------------
 // ONE consolidated notice for degraded composed opens: importDataSources owns
@@ -18,15 +23,13 @@ import { asErrorResult, asOkayResult } from '@/src/io/import/common';
 // the error results loadDataSources receives, no more and no less.
 // ---------------------------------------------------------------------------
 
-const mocks = vi.hoisted(() => ({
-  importDataSources: vi.fn(),
-}));
-
-vi.mock('@/src/io/import/importDataSources', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/src/io/import/importDataSources')>();
-  return { ...actual, importDataSources: mocks.importDataSources };
-});
+// Returns whatever the test lined up, one queued batch per call.
+const importerServing = (
+  ...batches: Array<ImportDataSourcesResult[]>
+): DataSourceImporter => {
+  const queue = [...batches];
+  return async () => queue.shift() ?? [];
+};
 
 // What importDataSources returns for a failure it already surfaced itself.
 const coveredFailure = (source: DataSource) => asOkayResult(source);
@@ -47,27 +50,25 @@ const standaloneSource = (): DataSource => ({
 describe('loadDataSources — notice exclusivity for restore-covered failures', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    mocks.importDataSources.mockReset();
   });
 
   it('a restore-covered failure does NOT raise the generic load error', async () => {
     const leaf = composedLeaf('ds-a');
-    mocks.importDataSources.mockResolvedValue([coveredFailure(leaf)]);
     const spy = vi.spyOn(useLoadDataStore(), 'setError');
 
-    await loadDataSources([leaf]);
+    await loadDataSources([leaf], importerServing([coveredFailure(leaf)]));
 
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('a returned error result still raises the generic load error', async () => {
     const source = standaloneSource();
-    mocks.importDataSources.mockResolvedValue([
-      asErrorResult(new Error('boom'), source),
-    ]);
     const spy = vi.spyOn(useLoadDataStore(), 'setError');
 
-    await loadDataSources([source]);
+    await loadDataSources(
+      [source],
+      importerServing([asErrorResult(new Error('boom'), source)])
+    );
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(String(spy.mock.calls[0][0])).toContain('plain.nrrd');
@@ -76,13 +77,15 @@ describe('loadDataSources — notice exclusivity for restore-covered failures', 
   it('a mixed result reports ONLY the error entries', async () => {
     const leaf = composedLeaf('ds-a');
     const source = standaloneSource();
-    mocks.importDataSources.mockResolvedValue([
-      coveredFailure(leaf),
-      asErrorResult(new Error('boom'), source),
-    ]);
     const spy = vi.spyOn(useLoadDataStore(), 'setError');
 
-    await loadDataSources([leaf, source]);
+    await loadDataSources(
+      [leaf, source],
+      importerServing([
+        coveredFailure(leaf),
+        asErrorResult(new Error('boom'), source),
+      ])
+    );
 
     expect(spy).toHaveBeenCalledTimes(1);
     const message = String(spy.mock.calls[0][0]);
@@ -92,21 +95,20 @@ describe('loadDataSources — notice exclusivity for restore-covered failures', 
 
   it('distinguishes a successful zero-dataset restore from an uncovered error', async () => {
     const leaf = composedLeaf('ds-a');
-    mocks.importDataSources.mockResolvedValueOnce([coveredFailure(leaf)]);
-
     await expect(
-      loadUrlsWithOutcome({
-        urls: ['https://example.com/session.volview.json'],
-      })
+      loadUrlsWithOutcome(
+        { urls: ['https://example.com/session.volview.json'] },
+        importerServing([coveredFailure(leaf)])
+      )
     ).resolves.toEqual({ datasetIds: [], hadErrors: false });
 
-    mocks.importDataSources.mockResolvedValueOnce([
-      asErrorResult(new Error('not found'), standaloneSource()),
-    ]);
     await expect(
-      loadUrlsWithOutcome({
-        urls: ['https://example.com/missing.volview.json'],
-      })
+      loadUrlsWithOutcome(
+        { urls: ['https://example.com/missing.volview.json'] },
+        importerServing([
+          asErrorResult(new Error('not found'), standaloneSource()),
+        ])
+      )
     ).resolves.toEqual({ datasetIds: [], hadErrors: true });
   });
 });

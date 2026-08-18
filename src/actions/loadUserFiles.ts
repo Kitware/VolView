@@ -266,7 +266,7 @@ function loadSegmentations(
   });
 }
 
-type DataSourceImporter = (
+export type DataSourceImporter = (
   sources: DataSource[]
 ) => Promise<ImportDataSourcesResult[]>;
 
@@ -371,8 +371,11 @@ function loadDataSourcesWithOutcome(
   return wrapWithLoading(load)();
 }
 
-export function loadDataSources(sources: DataSource[]) {
-  return loadDataSourcesWithOutcome(sources, importDataSources).then(
+export function loadDataSources(
+  sources: DataSource[],
+  importer: DataSourceImporter = importDataSources
+) {
+  return loadDataSourcesWithOutcome(sources, importer).then(
     ({ datasetIds, completed }) => (completed ? datasetIds : undefined)
   );
 }
@@ -425,7 +428,8 @@ export async function loadUrls(params: UrlParams | LoadUrlsParams) {
 }
 
 export async function loadUrlsWithOutcome(
-  params: UrlParams | LoadUrlsParams
+  params: UrlParams | LoadUrlsParams,
+  importer: DataSourceImporter = importDataSources
 ): Promise<Pick<LoadDataSourcesOutcome, 'datasetIds' | 'hadErrors'>> {
   if (!params.urls) {
     return { datasetIds: [], hadErrors: false };
@@ -434,7 +438,7 @@ export async function loadUrlsWithOutcome(
   const urls = wrapInArray(params.urls);
   const names = wrapInArray(params.names ?? []);
   const sources = urlsToDataSources(urls, names);
-  const outcome = await loadDataSourcesWithOutcome(sources, importDataSources);
+  const outcome = await loadDataSourcesWithOutcome(sources, importer);
   return {
     datasetIds: outcome.datasetIds,
     hadErrors: outcome.hadErrors,

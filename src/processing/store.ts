@@ -225,14 +225,17 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     clearJobs();
   }
 
-  async function getProvider(id: string): Promise<ProcessingProvider> {
+  async function getProvider(
+    id: string,
+    load: typeof loadProvider = loadProvider
+  ): Promise<ProcessingProvider> {
     const existing = instances.get(id);
     if (existing) return existing;
     const inflight = loading.get(id);
     if (inflight) return inflight;
     const config = configs.get(id);
     if (!config) throw new Error(`Unknown provider id: ${id}`);
-    const promise = loadProvider(config).then((provider) => {
+    const promise = load(config).then((provider) => {
       instances.set(id, provider);
       if (loading.get(id) === promise) loading.delete(id);
       return provider;
@@ -782,7 +785,10 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       : results;
   }
 
-  function applyJobResults(jobRef: TrackedJobRef): Promise<void> {
+  function applyJobResults(
+    jobRef: TrackedJobRef,
+    autoLoad: typeof autoLoadProcessingResults = autoLoadProcessingResults
+  ): Promise<void> {
     const key = jobKey(jobRef);
     const existing = jobResultApplications.get(key);
     if (existing) return existing;
@@ -801,10 +807,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       if (!isCurrent(key, gen)) return;
       const context = contextForAutoLoad(submittedContexts.get(key));
       const pending = resultsPendingApplication(jobRef);
-      const { failedResultIds } = await autoLoadProcessingResults(
-        pending,
-        context
-      );
+      const { failedResultIds } = await autoLoad(pending, context);
       if (!isCurrent(key, gen)) return;
       recordJobResultApplication(jobRef, failedResultIds);
     });

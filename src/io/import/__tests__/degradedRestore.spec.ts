@@ -1,7 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { importDataSources } from '@/src/io/import/importDataSources';
 import { useMessageStore, MessageType } from '@/src/store/messages';
+import {
+  recordingRestoreProcessors,
+  yields,
+} from '@/src/io/import/__tests__/restoreProcessorFixtures';
 
 // ---------------------------------------------------------------------------
 // Auto-degrade-to-ephemeral: a scene
@@ -10,41 +14,34 @@ import { useMessageStore, MessageType } from '@/src/store/messages';
 // import NEVER becomes an error loop or a rejected promise.
 // ---------------------------------------------------------------------------
 
-const processorMocks = vi.hoisted(() => ({
-  restoreStateFile: vi.fn(),
-  completeStateFileRestore: vi.fn(),
-}));
+const aSetup = yields({
+  type: 'stateFileSetup',
+  dataSources: [],
+  manifest: { version: '6.4.0', dataSources: [] },
+  stateFiles: [],
+  missingFiles: [],
+});
 
-vi.mock('@/src/io/import/processors/restoreStateFile', () => ({
-  restoreStateFile: processorMocks.restoreStateFile,
-  completeStateFileRestore: processorMocks.completeStateFileRestore,
-}));
+const sessionFile = () =>
+  new File(['{}'], 'session.volview.json', { type: 'application/json' });
 
 describe('importDataSources — degraded restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    processorMocks.restoreStateFile.mockReset();
-    processorMocks.completeStateFileRestore.mockReset();
   });
 
   it('a mid-restore throw degrades to an ephemeral open with ONE notice', async () => {
-    processorMocks.restoreStateFile.mockResolvedValue({
-      type: 'stateFileSetup',
-      dataSources: [],
-      manifest: { version: '6.4.0', dataSources: [] },
-      stateFiles: [],
-      missingFiles: [],
+    const restore = recordingRestoreProcessors({
+      setup: aSetup,
+      completion: async () => {
+        throw new Error('segment group deserialize exploded');
+      },
     });
-    processorMocks.completeStateFileRestore.mockRejectedValue(
-      new Error('segment group deserialize exploded')
-    );
 
-    const file = new File(['{}'], 'session.volview.json', {
-      type: 'application/json',
-    });
-    const results = await importDataSources([
-      { type: 'file', file, fileType: 'application/json' },
-    ]);
+    const results = await importDataSources(
+      [{ type: 'file', file: sessionFile(), fileType: 'application/json' }],
+      restore.processors
+    );
 
     expect(results.filter((result) => result.type === 'error')).toEqual([]);
 
@@ -57,23 +54,14 @@ describe('importDataSources — degraded restore', () => {
   });
 
   it('a clean restore fires no degrade notice', async () => {
-    processorMocks.restoreStateFile.mockResolvedValue({
-      type: 'stateFileSetup',
-      dataSources: [],
-      manifest: { version: '6.4.0', dataSources: [] },
-      stateFiles: [],
-      missingFiles: [],
-    });
-    processorMocks.completeStateFileRestore.mockResolvedValue(undefined);
+    const restore = recordingRestoreProcessors({ setup: aSetup });
 
-    const file = new File(['{}'], 'session.volview.json', {
-      type: 'application/json',
-    });
-    await importDataSources([
-      { type: 'file', file, fileType: 'application/json' },
-    ]);
+    await importDataSources(
+      [{ type: 'file', file: sessionFile(), fileType: 'application/json' }],
+      restore.processors
+    );
 
-    expect(processorMocks.completeStateFileRestore).toHaveBeenCalledTimes(1);
+    expect(restore.completions).toHaveLength(1);
     expect(useMessageStore().messages).toEqual([]);
   });
 });

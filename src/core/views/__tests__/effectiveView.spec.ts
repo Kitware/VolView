@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, beforeEach, expect } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
 import {
   computeEffectiveView,
   volume2DViewsOfImage,
 } from '@/src/core/views/effectiveView';
+import { markCine } from '@/src/core/cine/__tests__/cineFixtures';
 import type {
   ViewInfo,
   ViewInfo2D,
@@ -10,10 +12,10 @@ import type {
   ViewInfoOblique,
 } from '@/src/types/views';
 
-vi.mock('@/src/core/cine/isCineImage', () => ({
-  isCineImage: (id: string | null | undefined) => id === 'cine-image',
-  getCineImage: () => null,
-}));
+beforeEach(() => {
+  setActivePinia(createPinia());
+  markCine('cine-image');
+});
 
 const view2D: ViewInfo2D = {
   id: 'v-2d',

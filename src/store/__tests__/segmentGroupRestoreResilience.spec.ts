@@ -27,6 +27,7 @@ const ioMocks = vi.hoisted(() => ({
   writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
 }));
 
+// eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
 vi.mock('@/src/io/readWriteImage', () => ({
   readImage: ioMocks.readImage,
   writeSegmentation: ioMocks.writeSegmentation,

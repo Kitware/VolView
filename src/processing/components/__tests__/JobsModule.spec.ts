@@ -16,16 +16,12 @@ import {
   type FakeProvider,
 } from '@/src/processing/__tests__/fakeProvider';
 
-const registry = new Map<string, ProcessingProvider>();
-vi.mock('@/src/processing/engine/transport', () => ({
-  createEngineTransport: (config: { id: string }) => registry.get(config.id),
-}));
-
 // `writeSegmentation` spawns a real Worker; keep the IO module out of the test.
 const ioMocks = vi.hoisted(() => ({
   readImage: vi.fn(),
   writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
 }));
+// eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
 vi.mock('@/src/io/readWriteImage', () => ({
   readImage: ioMocks.readImage,
   writeSegmentation: ioMocks.writeSegmentation,
@@ -73,8 +69,12 @@ const registerFake = (
   store: ReturnType<typeof useProcessingJobsStore>,
   provider: FakeProvider
 ) => {
-  registry.set(provider.config.id, provider as unknown as ProcessingProvider);
   store.registerProviderConfig(provider.config);
+  // Seating the instance is what a transport load would have produced.
+  store.instances.set(
+    provider.config.id,
+    provider as unknown as ProcessingProvider
+  );
 };
 
 // Auto-stubs drop slot content, hiding the panel children.
@@ -109,7 +109,6 @@ describe('JobsModule — race-free provider/task selection', () => {
   let pinia: ReturnType<typeof createPinia>;
 
   beforeEach(() => {
-    registry.clear();
     pinia = createPinia().use(CorePiniaProviderPlugin());
     // Core stores read injected tool singletons, which need an app to install onto.
     createApp({}).use(pinia);
@@ -427,7 +426,6 @@ describe('JobsModule — segment group staging', () => {
   let pinia: ReturnType<typeof createPinia>;
 
   beforeEach(() => {
-    registry.clear();
     ioMocks.writeSegmentation.mockClear();
     pinia = createPinia().use(CorePiniaProviderPlugin());
     createApp({}).use(pinia);

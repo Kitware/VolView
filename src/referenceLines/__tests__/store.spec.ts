@@ -1,14 +1,9 @@
-import { describe, it, beforeEach, expect, vi } from 'vitest';
+import { describe, it, beforeEach, expect } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 import { useReferenceLinesStore } from '../store';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
-
-vi.mock('@/src/core/cine/isCineImage', () => ({
-  isCineImage: () => false,
-  getCineImage: () => null,
-}));
 
 describe('Reference lines store', () => {
   beforeEach(() => {

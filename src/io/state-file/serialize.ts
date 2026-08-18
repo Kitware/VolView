@@ -10,13 +10,14 @@ import {
   ManifestSchema,
   ParentToLayers,
   SegmentGroup,
+  StateFile,
 } from '@/src/io/state-file/schema';
 
 import { retypeFile } from '@/src/io';
 import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useViewConfigStore } from '@/src/store/view-configs';
-import { useMessageStore } from '@/src/store/messages';
+import { useMessageStore, type MessageOptions } from '@/src/store/messages';
 import {
   collectManifestRefs,
   declareManifestRefs,
@@ -275,13 +276,31 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   return { manifest: normalized, omitted };
 }
 
-export async function serialize() {
-  const datasetStore = useDatasetStore();
-  const viewStore = useViewStore();
-  const labelStore = useSegmentGroupStore();
-  const toolStore = useToolStore();
-  const layersStore = useLayersStore();
+/**
+ * Everything `serialize` reaches outside itself: the writers that each
+ * contribute their slice of the manifest, in order, and the sink that reports
+ * content the normalizer had to drop.
+ */
+export type SerializeDependencies = {
+  writers: Array<(stateFile: StateFile) => void | Promise<void>>;
+  addWarning: (title: string, options: MessageOptions) => void;
+};
 
+export const appSerializeDependencies = (): SerializeDependencies => ({
+  writers: [
+    (stateFile) => useDatasetStore().serialize(stateFile),
+    (stateFile) => useViewStore().serialize(stateFile),
+    (stateFile) => useViewConfigStore().serialize(stateFile),
+    (stateFile) => useSegmentGroupStore().serialize(stateFile),
+    (stateFile) => useToolStore().serialize(stateFile),
+    (stateFile) => useLayersStore().serialize(stateFile),
+  ],
+  addWarning: (title, options) => useMessageStore().addWarning(title, options),
+});
+
+export async function serialize(
+  dependencies: SerializeDependencies = appSerializeDependencies()
+) {
   const zip = new JSZip();
   const manifest: Manifest = {
     version: MANIFEST_VERSION,
@@ -314,15 +333,14 @@ export async function serialize() {
     manifest,
   };
 
-  await datasetStore.serialize(stateFile);
-  viewStore.serialize(stateFile);
-  await useViewConfigStore().serialize(stateFile);
-  await labelStore.serialize(stateFile);
-  toolStore.serialize(stateFile);
-  await layersStore.serialize(stateFile);
+  // Writers run in order: later ones read manifest entries the earlier ones
+  // wrote.
+  for (const write of dependencies.writers) {
+    await write(stateFile);
+  }
   const repaired = normalizeManifest(manifest, zip);
   if (repaired.omitted.length > 0) {
-    useMessageStore().addWarning('Some session content could not be saved', {
+    dependencies.addWarning('Some session content could not be saved', {
       details: `Invalid entries were omitted: ${repaired.omitted.join(', ')}`,
       persist: true,
     });

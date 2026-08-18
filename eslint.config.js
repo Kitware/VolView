@@ -152,6 +152,29 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-expressions': 'off',
     },
   },
+  // -------------------------------------------------------------------------
+  // Unit tests wire collaborators in, they do not replace modules.
+  //
+  // Expressed with the built-in `no-restricted-syntax` for the same reason the
+  // feature boundaries use `no-restricted-imports`: no new plugin dependency.
+  // `vi.hoisted` is deliberately not listed: it exists to hoist values used by
+  // `vi.mock`, so flagging it as well would only double the report on a site
+  // the `vi.mock` selector already catches.
+  // -------------------------------------------------------------------------
+  {
+    files: ['**/__tests__/**/*.{js,ts}', '**/tests/unit/**/*.spec.{js,ts}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.object.name='vi'][callee.property.name=/^(mock|doMock)$/]",
+          message:
+            'Do not replace a module with vi.mock. Give the unit under test a parameter for the collaborator with the real one as its default (`useThing(dep = realDep)`), then hand a real object in from the spec. vi.fn and vi.spyOn on a real object are still fine.',
+        },
+      ],
+    },
+  },
   {
     files: ['src/vtk/**/*.{js,ts}'],
     rules: {
