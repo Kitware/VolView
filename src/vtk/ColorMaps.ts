@@ -1,9 +1,10 @@
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
+import { ColorMapPreset } from '@/src/types/color-map-preset';
 import MedicalPresets from '@/src/vtk/MedicalColorPresets.json';
 
 function registerPresets(presets: typeof MedicalPresets) {
   for (let i = 0; i < presets.length; i += 1) {
-    vtkColorMaps.addPreset(presets[i]);
+    vtkColorMaps.addPreset(presets[i] as ColorMapPreset);
   }
 }
 
@@ -14,7 +15,7 @@ const twoHotOpaque = {
   Name: '2hot-opaque',
   OpacityPoints: [0, 1],
 };
-vtkColorMaps.addPreset(twoHotOpaque);
+vtkColorMaps.addPreset(twoHotOpaque as ColorMapPreset);
 
 /* prettier-ignore */
 const GroupedPresets = [

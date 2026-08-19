@@ -1,6 +1,8 @@
 import { IBrushStencil } from '@/src/core/tools/paint/brush';
 import type { Vector3 } from '@kitware/vtk.js/types';
-import vtkStateBuilder from '@kitware/vtk.js/Widgets/Core/StateBuilder';
+import vtkStateBuilder, {
+  vtkRootWidgetState,
+} from '@kitware/vtk.js/Widgets/Core/StateBuilder';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 
 export interface PaintPointWidgetState extends vtkWidgetState {
@@ -14,7 +16,7 @@ export interface PaintPointWidgetState extends vtkWidgetState {
   getColor(): number;
 }
 
-export interface PaintWidgetState extends vtkWidgetState {
+export interface PaintWidgetState extends vtkRootWidgetState {
   getBrush(): PaintPointWidgetState;
   getStencil(): IBrushStencil;
   setStencil(stencil: IBrushStencil): boolean;

@@ -1,6 +1,6 @@
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
-import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
+import { getPresetByName } from '@/src/types/color-map-preset';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
@@ -68,7 +68,7 @@ export function intersectMouseEventWithPlane(
   const position = normalizeMouseEventPosition(ev, view);
   if (!position) return null;
 
-  return intersectDisplayWithPlane(
+  const point = intersectDisplayWithPlane(
     position[0],
     position[1],
     origin,
@@ -76,6 +76,9 @@ export function intersectMouseEventWithPlane(
     renderer,
     view
   );
+  // vtkPlane.intersectWithLine yields an empty array when the line is parallel
+  // to the plane, so an empty result is a miss rather than a point at the origin.
+  return point.length === 3 ? point : null;
 }
 
 /**
@@ -127,7 +130,7 @@ export function getShiftedOpacityFromPreset(
   shift: number,
   shiftAlpha: number
 ) {
-  const preset = vtkColorMaps.getPresetByName(presetName);
+  const preset = getPresetByName(presetName);
   if (preset.OpacityPoints) {
     const opacityPoints = preset.OpacityPoints as number[];
     const points = [];
@@ -160,7 +163,7 @@ type OpacityFunctionWithoutRange =
 export function getOpacityFunctionFromPreset(
   presetName: string
 ): OpacityFunctionWithoutRange {
-  const preset = vtkColorMaps.getPresetByName(presetName);
+  const preset = getPresetByName(presetName);
 
   if (preset.OpacityPoints) {
     return {
@@ -203,7 +206,7 @@ export function inflateAxisBounds(bounds: number[], delta: number) {
 export function getColorFunctionRangeFromPreset(
   presetName: string
 ): [number, number] | null {
-  const preset = vtkColorMaps.getPresetByName(presetName);
+  const preset = getPresetByName(presetName);
   if (!preset) return null;
 
   const { AbsoluteRange, RGBPoints } = preset;
@@ -228,7 +231,7 @@ export function getColorFunctionRangeFromPreset(
  * @returns
  */
 export function getOpacityRangeFromPreset(presetName: string) {
-  const preset = vtkColorMaps.getPresetByName(presetName);
+  const preset = getPresetByName(presetName);
   if (preset.EffectiveRange) {
     return [...preset.EffectiveRange] as [number, number];
   }

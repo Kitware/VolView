@@ -3,7 +3,7 @@ import { ImageMetadata } from '@/src/types/image';
 import { LPSAxis } from '@/src/types/lps';
 import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants';
 import vtkResliceCursorWidget, {
-  ResliceCursorWidgetState,
+  vtkResliceCursorWidgetState,
 } from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
@@ -23,7 +23,7 @@ export function mapAxisToViewType(axis: LPSAxis) {
 }
 
 function resetReslicePlanes(
-  resliceCursorState: ResliceCursorWidgetState,
+  resliceCursorState: vtkResliceCursorWidgetState,
   imageMetadata: ImageMetadata
 ) {
   const { Inferior, Anterior, Superior, Left } = toRaw(
@@ -49,7 +49,7 @@ function resetReslicePlanes(
 
 function useResliceInit(
   resliceCursor: vtkResliceCursorWidget,
-  resliceCursorState: ResliceCursorWidgetState
+  resliceCursorState: vtkResliceCursorWidgetState
 ) {
   const { currentImageData, currentImageMetadata } = useCurrentImage('global');
 
@@ -69,7 +69,7 @@ const useResliceCursorStore = defineStore('resliceCursor', () => {
   }) as vtkResliceCursorWidget;
 
   const widgetState =
-    resliceCursor.getWidgetState() as ResliceCursorWidgetState;
+    resliceCursor.getWidgetState() as vtkResliceCursorWidgetState;
 
   useResliceInit(resliceCursor, widgetState);
 
