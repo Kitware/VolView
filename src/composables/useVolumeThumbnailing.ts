@@ -13,6 +13,7 @@ import {
   getOpacityRangeFromPreset,
 } from '../utils/vtk-helpers';
 import { PresetNameList } from '../vtk/ColorMaps';
+import { logError } from '../utils/loggers';
 
 function resetOpacityFunction(
   pwfProxy: vtkPiecewiseFunctionProxy,
@@ -42,9 +43,12 @@ function resetOpacityFunction(
   }
 }
 
-export function useVolumeThumbnailing(thumbnailSize: number) {
+export function useVolumeThumbnailing(
+  thumbnailSize: number,
+  createThumbnailer = createVolumeThumbnailer
+) {
   const thumbnails = reactive<Record<string, Record<string, string>>>({});
-  const thumbnailer = createVolumeThumbnailer(thumbnailSize);
+  const thumbnailer = createThumbnailer(thumbnailSize);
   const currentThumbnails = ref<Record<string, string>>({});
 
   const { currentImageMetadata, currentImageID, currentImageData } =
@@ -135,6 +139,13 @@ export function useVolumeThumbnailing(thumbnailSize: number) {
   // force thumbnailing to stop
   onBeforeUnmount(() => {
     interruptSentinel = Symbol('unmount');
+    // the thumbnailer owns a WebGL context and this composable remounts with
+    // the rendering panel, so a failed teardown must not abort the unmount
+    try {
+      thumbnailer.delete();
+    } catch (err) {
+      logError(err);
+    }
   });
 
   // trigger thumbnailing
