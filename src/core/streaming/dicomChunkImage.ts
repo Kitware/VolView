@@ -407,8 +407,36 @@ export default class DicomChunkImage
     const pixelData = scalars.getData() as TypedArray;
 
     const dims = this.vtkImageData.value.getDimensions();
-    const offset =
-      dims[0] * dims[1] * scalars.getNumberOfComponents() * chunkIndex;
+    const components = scalars.getNumberOfComponents();
+
+    // The volume buffer is sized from the first chunk's metadata, so each
+    // chunk gets a fixed slot: one frame per chunk in a multi-file volume,
+    // the whole volume when a single multi-frame chunk fills it.
+    const framesPerChunk = this.chunks.length > 1 ? 1 : dims[2];
+    const [chunkWidth, chunkHeight] = result.image.size;
+    const chunkFrames = result.image.size[2] ?? 1;
+    const chunkComponents = result.image.imageType.components;
+    if (
+      chunkWidth !== dims[0] ||
+      chunkHeight !== dims[1] ||
+      chunkFrames !== framesPerChunk ||
+      chunkComponents !== components
+    ) {
+      // A lone chunk defines the volume it fails to fit, so advice about
+      // agreeing with the other files only makes sense for a multi-file volume.
+      const advice =
+        this.chunks.length > 1
+          ? ' Every file in a volume must have the same Rows, Columns, and SamplesPerPixel.'
+          : '';
+      throw new Error(
+        `File ${chunkId} (chunk ${chunkIndex}) does not fit the volume it belongs to. ` +
+          `It decoded to ${chunkWidth}x${chunkHeight}x${chunkFrames} with ${chunkComponents} component(s), ` +
+          `but the volume has room for ${dims[0]}x${dims[1]}x${framesPerChunk} with ${components} component(s).` +
+          advice
+      );
+    }
+
+    const offset = dims[0] * dims[1] * components * chunkIndex;
     pixelData.set(result.image.data as TypedArray, offset);
 
     const rangeAlreadyInitialized = this.chunkStatus.some(
@@ -455,17 +483,27 @@ export default class DicomChunkImage
     this.onChunksUpdated();
   }
 
+  // Errored is terminal: a rejected chunk never loads, so waiting on it would
+  // keep the image loading forever.
+  private isSettled() {
+    return this.chunkStatus.every(
+      (status) =>
+        status === ChunkStatus.Loaded || status === ChunkStatus.Errored
+    );
+  }
+
   private computeStatus(): ProgressiveImageStatus {
-    for (let i = 0; i < this.chunkStatus.length; i++) {
-      if (this.chunkStatus[i] !== ChunkStatus.Loaded) return 'incomplete';
-    }
-    return 'complete';
+    const anyLoaded = this.chunkStatus.some(
+      (status) => status === ChunkStatus.Loaded
+    );
+    // An image where every chunk errored holds no pixel data, so it is settled
+    // but never complete.
+    return this.isSettled() && anyLoaded ? 'complete' : 'incomplete';
   }
 
   private onChunksUpdated() {
-    const status = this.computeStatus();
-    this.events.emit('status', status);
-    if (status === 'complete') {
+    this.events.emit('status', this.computeStatus());
+    if (this.isSettled()) {
       this.events.emit('loading', false);
     }
   }
