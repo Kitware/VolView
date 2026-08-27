@@ -4,8 +4,10 @@ import { mount } from '@vue/test-utils';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
+import { releaseWidgetManager } from '@/src/core/vtk/releaseWidgetManager';
 import { useVtkView, useWebGLRenderWindow } from '@/src/core/vtk/useVtkView';
 
 function createParent() {
@@ -103,5 +105,52 @@ describe('useVtkView teardown', () => {
     wrapper.unmount();
 
     expect(calls).toEqual(['removeRenderWindow', 'removeNode']);
+  });
+
+  function createSelectorStubs(released: Array<string>) {
+    const depthTexture = {} as WebGLRenderbuffer;
+    const context = {
+      deleteRenderbuffer: (renderbuffer: WebGLRenderbuffer) => {
+        released.push(
+          renderbuffer === depthTexture ? 'depthRenderbuffer' : 'unexpected'
+        );
+      },
+    } as unknown as WebGLRenderingContext;
+    const framebuffer = {
+      isDeleted: () => false,
+      releaseGraphicsResources: () => {
+        released.push('framebuffer');
+      },
+      getColorTexture: () => ({
+        releaseGraphicsResources: () => {
+          released.push('colorTexture');
+        },
+      }),
+      get: () => ({ context, depthTexture }),
+    };
+    return {
+      get: () => ({
+        _selector: { isDeleted: () => false, get: () => ({ framebuffer }) },
+      }),
+      delete: () => {
+        released.push('managerDeleted');
+      },
+    } as unknown as vtkWidgetManager;
+  }
+
+  it('hands back the selector framebuffer, color texture and depth renderbuffer', () => {
+    const released: Array<string> = [];
+    const rootView = {
+      isDeleted: () => false,
+    } as unknown as vtkOpenGLRenderWindow;
+
+    releaseWidgetManager(createSelectorStubs(released), rootView);
+
+    expect(released).toEqual([
+      'colorTexture',
+      'depthRenderbuffer',
+      'framebuffer',
+      'managerDeleted',
+    ]);
   });
 });
