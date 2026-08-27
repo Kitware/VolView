@@ -1,82 +1,82 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 import type { Chunk } from '@/src/core/streaming/chunk';
 import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore, getDisplayName } from '@/src/store/datasets-dicom';
+import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useDatasetStore } from '@/src/store/datasets';
 import { uriToDataSource, type DataSource } from '@/src/io/import/dataSource';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
-const mocks = vi.hoisted(() => {
-  class MockDicomChunkImage {
-    chunks: Chunk[] = [];
+class FakeDicomChunkImage {
+  chunks: Chunk[] = [];
 
-    name = '';
+  name = '';
 
-    loading = { value: false };
+  loading = { value: false };
 
-    async addChunks(chunks: Chunk[]) {
-      this.chunks = chunks;
-    }
-
-    getDicomMetadata() {
-      return this.chunks[0].metadata;
-    }
-
-    getChunks() {
-      return this.chunks.slice();
-    }
-
-    setName(name: string) {
-      this.name = name;
-    }
-
-    getStatus() {
-      return 'complete';
-    }
-
-    getVtkImageData() {
-      return {
-        getPointData: () => ({ getScalars: () => null }),
-      };
-    }
-
-    isLoading() {
-      return false;
-    }
-
-    isLoaded() {
-      return true;
-    }
-
-    getImageMetadata() {
-      return null;
-    }
-
-    addEventListener() {}
-
-    removeEventListener() {}
-
-    startLoad() {}
-
-    dispose() {}
+  async addChunks(chunks: Chunk[]) {
+    this.chunks = chunks;
   }
 
-  return {
-    splitAndSort: vi.fn(),
-    MockDicomChunkImage,
-  };
-});
+  getDicomMetadata() {
+    return this.chunks[0].metadata;
+  }
 
-vi.mock('@/src/io/dicom', () => ({
-  splitAndSort: mocks.splitAndSort,
-}));
+  getChunks() {
+    return this.chunks.slice();
+  }
 
-vi.mock('@/src/core/streaming/dicomChunkImage', () => ({
-  default: mocks.MockDicomChunkImage,
-}));
+  setName(name: string) {
+    this.name = name;
+  }
+
+  getStatus() {
+    return 'complete';
+  }
+
+  getVtkImageData() {
+    return {
+      getPointData: () => ({ getScalars: () => null }),
+    };
+  }
+
+  isLoading() {
+    return false;
+  }
+
+  isLoaded() {
+    return true;
+  }
+
+  getImageMetadata() {
+    return null;
+  }
+
+  addEventListener() {}
+
+  removeEventListener() {}
+
+  startLoad() {}
+
+  dispose() {}
+}
+
+// The store only constructs the class and tests cached images against it, so a
+// stand-in that holds chunks is enough. The real one decodes pixels through ITK.
+const ChunkImage = FakeDicomChunkImage as unknown as typeof DicomChunkImage;
+
+// The store's own grouping is what these tests exercise, so splitAndSort is
+// handed a fixed answer rather than parsing the fixture blobs.
+function importInto(
+  store: ReturnType<typeof useDICOMStore>,
+  chunks: Chunk[],
+  groups: Record<string, Chunk[]>
+) {
+  return store.importChunks(chunks, async () => groups, ChunkImage);
+}
 
 function chunk(sopUid: string, z: number, acquisition?: string) {
   return {
@@ -144,7 +144,6 @@ function sourceSopUids(source?: DataSource) {
 describe('DICOM store acquisition split across imports', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    mocks.splitAndSort.mockReset();
   });
 
   it('re-splits a series imported one acquisition at a time', async () => {
@@ -155,16 +154,14 @@ describe('DICOM store acquisition split across imports', () => {
     const acq1 = [0, 2.5, 5].map((z, i) => chunk(`acq1-${i}`, z, '1'));
     const acq2 = [0.75, 3.25, 5.75].map((z, i) => chunk(`acq2-${i}`, z, '2'));
 
-    mocks.splitAndSort.mockResolvedValueOnce({ S: acq1 });
-    await store.importChunks(acq1);
+    await importInto(store, acq1, { S: acq1 });
     datasetStore.addDataSources([
       { dataID: 'S', dataSource: dataSource(acq1) },
     ]);
 
     expect(Object.keys(store.volumeInfo)).toEqual(['S']);
 
-    mocks.splitAndSort.mockResolvedValueOnce({ S: acq2 });
-    const volumes = await store.importChunks(acq2);
+    const volumes = await importInto(store, acq2, { S: acq2 });
 
     expect(Object.keys(volumes).sort()).toEqual(['S.1', 'S.2']);
     expect(Object.keys(store.volumeInfo).sort()).toEqual(['S.1', 'S.2']);
@@ -206,16 +203,14 @@ describe('DICOM store acquisition split across imports', () => {
     const acq1 = [0, 2.5, 5].map((z, i) => chunk(`acq1-${i}`, z, '1'));
     const acq2 = [0.75, 3.25, 5.75].map((z, i) => chunk(`acq2-${i}`, z, '2'));
 
-    mocks.splitAndSort.mockResolvedValueOnce({ S: [...acq1, ...acq2] });
-    await store.importChunks([...acq1, ...acq2]);
+    await importInto(store, [...acq1, ...acq2], { S: [...acq1, ...acq2] });
 
     expect(Object.keys(store.volumeInfo).sort()).toEqual(['S.1', 'S.2']);
 
     // Re-import only acquisition 1 with fresh chunk objects carrying the same
     // SOPInstanceUIDs, as a second drag of the same files produces.
     const acq1Again = [0, 2.5, 5].map((z, i) => chunk(`acq1-${i}`, z, '1'));
-    mocks.splitAndSort.mockResolvedValueOnce({ S: acq1Again });
-    const volumes = await store.importChunks(acq1Again);
+    const volumes = await importInto(store, acq1Again, { S: acq1Again });
 
     expect(Object.keys(store.volumeInfo).sort()).toEqual(['S.1', 'S.2']);
     expect(imageCacheStore.imageById.S).toBeUndefined();
@@ -229,8 +224,7 @@ describe('DICOM store acquisition split across imports', () => {
     const acq1 = [0, 2.5, 5].map((z, i) => chunk(`acq1-${i}`, z, '1'));
     const acq2 = [0.75, 3.25, 5.75].map((z, i) => chunk(`acq2-${i}`, z, '2'));
 
-    mocks.splitAndSort.mockResolvedValueOnce({ S: [...acq1, ...acq2] });
-    await store.importChunks([...acq1, ...acq2]);
+    await importInto(store, [...acq1, ...acq2], { S: [...acq1, ...acq2] });
 
     expect(Object.keys(store.volumeInfo).sort()).toEqual(['S.1', 'S.2']);
 
@@ -238,8 +232,7 @@ describe('DICOM store acquisition split across imports', () => {
     // unjudgeable. The split volumes must survive; the batch lands in its
     // own base volume instead of collapsing the series back together.
     const untagged = [chunk('untagged-0', 7.5)];
-    mocks.splitAndSort.mockResolvedValueOnce({ S: untagged });
-    await store.importChunks(untagged);
+    await importInto(store, untagged, { S: untagged });
 
     expect(Object.keys(store.volumeInfo).sort()).toEqual(['S', 'S.1', 'S.2']);
     expect(store.volumeKeysByBase.S.sort()).toEqual(['S', 'S.1', 'S.2']);
@@ -251,8 +244,7 @@ describe('DICOM store acquisition split across imports', () => {
     const acq1 = [0, 2.5, 5].map((z, i) => chunk(`acq1-${i}`, z, '1'));
     const acq2 = [0.75, 3.25, 5.75].map((z, i) => chunk(`acq2-${i}`, z, '2'));
 
-    mocks.splitAndSort.mockResolvedValueOnce({ S: [...acq1, ...acq2] });
-    await store.importChunks([...acq1, ...acq2]);
+    await importInto(store, [...acq1, ...acq2], { S: [...acq1, ...acq2] });
 
     expect(Object.keys(store.volumeInfo).sort()).toEqual(['S.1', 'S.2']);
 
@@ -260,8 +252,7 @@ describe('DICOM store acquisition split across imports', () => {
     // split without silently dropping chunks, so the whole series must
     // converge to the single base volume, not re-split batch-only.
     const colliding = [chunk('plus-0', 10, '+1'), chunk('minus-0', 10.5, '-1')];
-    mocks.splitAndSort.mockResolvedValueOnce({ S: colliding });
-    const volumes = await store.importChunks(colliding);
+    const volumes = await importInto(store, colliding, { S: colliding });
 
     expect(Object.keys(volumes)).toEqual(['S']);
     expect(Object.keys(store.volumeInfo)).toEqual(['S']);

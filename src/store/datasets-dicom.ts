@@ -145,6 +145,11 @@ export const getWindowLevels = (info: VolumeInfo) => {
   return widths.map((width, i) => ({ width, level: levels[i] }));
 };
 
+type SplitAndSortChunks = (
+  chunks: Chunk[],
+  mapToBlob: (chunk: Chunk, index: number) => Blob
+) => Promise<Record<string, Chunk[]>>;
+
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
     sliceData: {},
@@ -159,12 +164,16 @@ export const useDICOMStore = defineStore('dicom', {
     volumeKeysByBase: {},
   }),
   actions: {
-    async importChunks(chunks: Chunk[]) {
+    async importChunks(
+      chunks: Chunk[],
+      splitAndSort: SplitAndSortChunks = DICOM.splitAndSort,
+      ChunkImage = DicomChunkImage
+    ) {
       const messageStore = useMessageStore();
       const datasetStore = useDatasetStore();
 
       // split into groups
-      const categorized = await DICOM.splitAndSort(
+      const categorized = await splitAndSort(
         chunks,
         (chunk) => chunk.metaBlob!
       );
@@ -181,7 +190,7 @@ export const useDICOMStore = defineStore('dicom', {
             retainedIds,
             staleIds,
             changed,
-          } = this._resolveVolumes(baseId, batchChunks);
+          } = this._resolveVolumes(baseId, batchChunks, ChunkImage);
           if (changed) anyChange = true;
 
           datasetStore.replaceDicomDataSources(staleIds, volumes);
@@ -205,7 +214,12 @@ export const useDICOMStore = defineStore('dicom', {
 
           await Promise.all(
             Object.entries(volumes).map(async ([id, sortedChunks]) => {
-              await this._importVolume(id, sortedChunks, labels[id]);
+              await this._importVolume(
+                id,
+                sortedChunks,
+                labels[id],
+                ChunkImage
+              );
               imported[id] = sortedChunks;
             })
           );
@@ -224,7 +238,11 @@ export const useDICOMStore = defineStore('dicom', {
      * chunk already imported for the same group, so a series loaded across
      * several imports converges on the same volumes as one loaded at once.
      */
-    _resolveVolumes(baseId: string, batchChunks: Chunk[]) {
+    _resolveVolumes(
+      baseId: string,
+      batchChunks: Chunk[],
+      ChunkImage = DicomChunkImage
+    ) {
       const imageCacheStore = useImageCacheStore();
 
       const priorIds =
@@ -233,7 +251,7 @@ export const useDICOMStore = defineStore('dicom', {
       const cachedChunks = priorIds
         .map((id) => imageCacheStore.imageById[id])
         .filter(
-          (image): image is DicomChunkImage => image instanceof DicomChunkImage
+          (image): image is DicomChunkImage => image instanceof ChunkImage
         )
         .flatMap((image) => image.getChunks());
 
@@ -285,7 +303,12 @@ export const useDICOMStore = defineStore('dicom', {
       };
     },
 
-    async _importVolume(id: string, sortedChunks: Chunk[], label?: string) {
+    async _importVolume(
+      id: string,
+      sortedChunks: Chunk[],
+      label?: string,
+      ChunkImage = DicomChunkImage
+    ) {
       const imageCacheStore = useImageCacheStore();
 
       if (isCineChunkGroup(sortedChunks)) {
@@ -294,12 +317,12 @@ export const useDICOMStore = defineStore('dicom', {
       }
 
       const cachedImage = imageCacheStore.imageById[id];
-      if (cachedImage && !(cachedImage instanceof DicomChunkImage)) {
+      if (cachedImage && !(cachedImage instanceof ChunkImage)) {
         throw new Error(
           `Volume ${id} is already loaded as a non-chunk progressive image; cannot re-import as a chunk volume.`
         );
       }
-      const image = cachedImage ?? new DicomChunkImage();
+      const image = cachedImage ?? new ChunkImage();
 
       await image.addChunks(sortedChunks);
       imageCacheStore.addProgressiveImage(image, { id });
