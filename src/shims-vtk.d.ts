@@ -107,7 +107,7 @@ declare module '@kitware/vtk.js/Widgets/Core/WidgetManager' {
     ): vtkAbstractWidget | null;
     removeWidgets(): void;
     removeWidget(widget: vtkAbstractWidget | vtkAbstractWidgetFactory): void;
-    getSelectedDataForXY(x: number, y: number): Promise<SelectedData>;
+    getSelectedDataForXY(x: number, y: number): Promise<SelectedData | {}>;
     updateSelectionFromXY(x: number, y: number): void;
     updateSelectionFromMouseEvent(event: MouseEvent): void;
     getSelectedData(): SelectedData | {};
