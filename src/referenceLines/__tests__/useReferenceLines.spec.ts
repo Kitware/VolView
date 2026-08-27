@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, expect, vi } from 'vitest';
+import { describe, it, beforeEach, expect } from 'vitest';
 import { ref } from 'vue';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -9,11 +9,6 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import type { ViewInfo2D } from '@/src/types/views';
 import type { LPSAxis } from '@/src/types/lps';
 import { useReferenceLines } from '../useReferenceLines';
-
-vi.mock('@/src/core/cine/isCineImage', () => ({
-  isCineImage: () => false,
-  getCineImage: () => null,
-}));
 
 const DIMS: [number, number, number] = [10, 20, 30];
 

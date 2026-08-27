@@ -1,23 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-vi.mock('@/src/utils/fetch', () => ({
-  $fetch: vi.fn().mockResolvedValue({ ok: true }),
-}));
-vi.mock('@/src/io/state-file/serialize', () => ({
-  serialize: vi
-    .fn()
-    .mockResolvedValue(new Blob(['x'], { type: 'application/zip' })),
-}));
-
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
-import { $fetch } from '@/src/utils/fetch';
 import { useMessageStore } from '@/src/store/messages';
+import { savePost, saveDependencies } from '@/src/store/__tests__/saveFixtures';
+
+let post = savePost();
 
 describe('remote save target', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked($fetch).mockClear();
+    post = savePost();
   });
 
   afterEach(() => {
@@ -50,8 +43,8 @@ describe('remote save target', () => {
 
     // Empty target inerts the save UI, which is gated on a non-empty saveUrl.
     expect(store.saveUrl).toBe('');
-    await store.saveState();
-    expect($fetch).not.toHaveBeenCalled();
+    await store.saveState(saveDependencies(post));
+    expect(post).not.toHaveBeenCalled();
     expect(
       useMessageStore().messages.some((m) => m.title === 'Save Disabled')
     ).toBe(true);
@@ -81,7 +74,7 @@ describe('remote save target', () => {
 describe('resume repoint on save', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked($fetch).mockClear();
+    post = savePost();
   });
 
   afterEach(() => {
@@ -91,7 +84,7 @@ describe('resume repoint on save', () => {
 
   it('repoints urls= to the resumeUrl and leaves the save target alone', async () => {
     const resumeUrl = '/api/v1/item/session-123/volview';
-    vi.mocked($fetch).mockResolvedValue(
+    post.mockResolvedValue(
       new Response(JSON.stringify({ resumeUrl }), { status: 200 })
     );
     const replace = vi
@@ -101,13 +94,13 @@ describe('resume repoint on save', () => {
     const launchSaveUrl = `${window.location.origin}/api/session/save`;
     store.setSaveUrl(launchSaveUrl);
 
-    await store.saveState();
+    await store.saveState(saveDependencies(post));
 
-    expect(vi.mocked($fetch)).toHaveBeenCalledWith(
+    expect(post).toHaveBeenCalledWith(
       launchSaveUrl,
       expect.objectContaining({ method: 'POST' })
     );
-    expect(vi.mocked($fetch).mock.calls[0][1]?.redirect).toBeUndefined();
+    expect(post.mock.calls[0][1]?.redirect).toBeUndefined();
     expect(replace).toHaveBeenCalledTimes(1);
     const nextUrl = new URL(replace.mock.calls[0][2] as string);
     expect(nextUrl.searchParams.get('urls')).toBe(resumeUrl);
@@ -130,7 +123,7 @@ describe('resume repoint on save', () => {
       '?urls=%2Fchest.nrrd&names=chest.nrrd&save=%2Fapi%2Fsave'
     );
     const resumeUrl = '/api/v1/item/session-123/volview';
-    vi.mocked($fetch).mockResolvedValue(
+    post.mockResolvedValue(
       new Response(JSON.stringify({ resumeUrl }), { status: 200 })
     );
     const replace = vi
@@ -139,7 +132,7 @@ describe('resume repoint on save', () => {
     const store = useRemoteSaveStateStore();
     store.setSaveUrl('/api/save');
 
-    await store.saveState();
+    await store.saveState(saveDependencies(post));
 
     expect(replace).toHaveBeenCalledTimes(1);
     const nextUrl = new URL(replace.mock.calls[0][2] as string);
@@ -149,7 +142,7 @@ describe('resume repoint on save', () => {
   });
 
   it('leaves the tab as-is when the response carries no resumeUrl', async () => {
-    vi.mocked($fetch).mockResolvedValue(
+    post.mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 })
     );
     const replace = vi
@@ -158,7 +151,7 @@ describe('resume repoint on save', () => {
     const store = useRemoteSaveStateStore();
     store.setSaveUrl(`${window.location.origin}/api/session/save`);
 
-    await store.saveState();
+    await store.saveState(saveDependencies(post));
 
     expect(replace).not.toHaveBeenCalled();
     expect(

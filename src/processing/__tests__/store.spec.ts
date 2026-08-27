@@ -19,31 +19,21 @@ import type {
 import { jobKey } from '@/src/processing/types';
 import { defer } from '@/src/utils';
 import { makeFakeProvider } from './fakeProvider';
+import {
+  seatDataSource,
+  seatVolume,
+} from '@/src/store/__tests__/datasetFixtures';
 
-const { datasetState } = vi.hoisted(() => ({
-  datasetState: {
-    ids: [] as string[],
-    sources: {} as Record<string, unknown>,
-  },
-}));
-vi.mock('@/src/store/datasets', () => ({
-  useDatasetStore: () => ({
-    idsAsSelections: datasetState.ids,
-    getDataSource: (id: string) => datasetState.sources[id],
-  }),
-}));
+// Records what the store hands the result applier, standing in for the apply
+// pass the store itself never reaches into.
+const recordingAutoLoad = (failedResultIds: string[] = []) =>
+  vi.fn(async () => ({ failedResultIds }));
 
-const { autoLoadMock } = vi.hoisted(() => ({ autoLoadMock: vi.fn() }));
-vi.mock('@/src/processing/applyResults', () => ({
-  autoLoadProcessingResults: autoLoadMock,
-}));
+let autoLoad = recordingAutoLoad();
 
-const { createProviderMock } = vi.hoisted(() => ({
-  createProviderMock: vi.fn(),
-}));
-vi.mock('@/src/processing/engine/transport', () => ({
-  createEngineTransport: createProviderMock,
-}));
+beforeEach(() => {
+  autoLoad = recordingAutoLoad();
+});
 
 const makeProvider = (
   overrides: Partial<ProcessingProvider>
@@ -121,7 +111,6 @@ describe('Providers store — job lifecycle (async with sync fast-path)', () => 
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
-    datasetState.ids = [];
   });
 
   afterEach(() => {
@@ -419,7 +408,6 @@ describe('Providers store — live-only durability + failure UX', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
-    datasetState.ids = [];
   });
 
   afterEach(() => {
@@ -644,9 +632,8 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('shares one in-flight result application for the same provider and job', async () => {
-    autoLoadMock.mockReset();
     const gate = defer<{ failedResultIds: string[] }>();
-    autoLoadMock.mockReturnValue(gate.promise);
+    autoLoad.mockReturnValue(gate.promise);
     const store = useProcessingJobsStore();
     const jobRef = ref('job-apply-once');
     store.recordSubmittedContext({
@@ -657,13 +644,13 @@ describe('Providers store — live-only durability + failure UX', () => {
     });
     store.jobResults.set(keyFor(jobRef.jobId), sampleResults);
 
-    const automatic = store.applyJobResults(jobRef);
+    const automatic = store.applyJobResults(jobRef, autoLoad);
     const shared = store.jobResultApplications.get(keyFor(jobRef.jobId));
-    const manual = store.applyJobResults(jobRef);
+    const manual = store.applyJobResults(jobRef, autoLoad);
 
     expect(store.jobResultApplications.get(keyFor(jobRef.jobId))).toBe(shared);
     await Promise.resolve();
-    expect(autoLoadMock).toHaveBeenCalledTimes(1);
+    expect(autoLoad).toHaveBeenCalledTimes(1);
 
     gate.resolve({ failedResultIds: [] });
     await Promise.all([automatic, manual]);
@@ -673,8 +660,7 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('keys concurrent result applications by provider and raw job id', async () => {
-    autoLoadMock.mockReset();
-    autoLoadMock.mockResolvedValue({ failedResultIds: [] });
+    autoLoad.mockResolvedValue({ failedResultIds: [] });
     const store = useProcessingJobsStore();
     const jobA = ref('shared-id', 'A');
     const jobB = ref('shared-id', 'B');
@@ -689,20 +675,19 @@ describe('Providers store — live-only durability + failure UX', () => {
     });
 
     await Promise.all([
-      store.applyJobResults(jobA),
-      store.applyJobResults(jobB),
+      store.applyJobResults(jobA, autoLoad),
+      store.applyJobResults(jobB, autoLoad),
     ]);
 
-    expect(autoLoadMock).toHaveBeenCalledTimes(2);
+    expect(autoLoad).toHaveBeenCalledTimes(2);
     expect(store.jobResultsApplied.has(jobKey(jobA))).toBe(true);
     expect(store.jobResultsApplied.has(jobKey(jobB))).toBe(true);
   });
 
   it('waits for result application before deleting the job', async () => {
-    autoLoadMock.mockReset();
     const gate = defer<{ failedResultIds: string[] }>();
     const events: string[] = [];
-    autoLoadMock.mockImplementation(async () => {
+    autoLoad.mockImplementation(async () => {
       await gate.promise;
       events.push('applied');
       return { failedResultIds: [] };
@@ -721,7 +706,7 @@ describe('Providers store — live-only durability + failure UX', () => {
     });
     store.jobResults.set(keyFor(jobRef.jobId), sampleResults);
 
-    const applying = store.applyJobResults(jobRef);
+    const applying = store.applyJobResults(jobRef, autoLoad);
     const deleting = store.deleteJob(jobRef);
     await Promise.resolve();
 
@@ -733,8 +718,7 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('clears a rejected application so the job can be retried', async () => {
-    autoLoadMock.mockReset();
-    autoLoadMock
+    autoLoad
       .mockRejectedValueOnce(new Error('application failed'))
       .mockResolvedValueOnce({ failedResultIds: [] });
     const store = useProcessingJobsStore();
@@ -747,13 +731,13 @@ describe('Providers store — live-only durability + failure UX', () => {
     });
     store.jobResults.set(keyFor(jobRef.jobId), sampleResults);
 
-    await expect(store.applyJobResults(jobRef)).rejects.toThrow(
+    await expect(store.applyJobResults(jobRef, autoLoad)).rejects.toThrow(
       'application failed'
     );
     expect(store.jobResultApplications.has(keyFor(jobRef.jobId))).toBe(false);
 
-    await store.applyJobResults(jobRef);
-    expect(autoLoadMock).toHaveBeenCalledTimes(2);
+    await store.applyJobResults(jobRef, autoLoad);
+    expect(autoLoad).toHaveBeenCalledTimes(2);
     expect(store.jobResultsApplied.has(keyFor(jobRef.jobId))).toBe(true);
   });
 
@@ -879,7 +863,6 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('detects a base image deleted mid-job and messages without dropping the result', async () => {
-    datasetState.ids = [];
     const store = useProcessingJobsStore();
 
     const status = jobStatus('job-orphan', 'success');
@@ -911,7 +894,7 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('does not flag a missing base image when the originating dataset is still loaded', async () => {
-    datasetState.ids = ['ds-present'];
+    seatVolume('ds-present');
     const store = useProcessingJobsStore();
 
     const status = jobStatus('job-ok', 'success');
@@ -941,7 +924,7 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('surfaces a partial-loss warning on a non-zero missing count, still applying the results', async () => {
-    datasetState.ids = ['ds-present'];
+    seatVolume('ds-present');
     const store = useProcessingJobsStore();
 
     const status = jobStatus('job-miss', 'success', {
@@ -977,7 +960,7 @@ describe('Providers store — live-only durability + failure UX', () => {
   });
 
   it('surfaces no partial-loss warning when nothing is missing', async () => {
-    datasetState.ids = ['ds-present'];
+    seatVolume('ds-present');
     const store = useProcessingJobsStore();
 
     const status = jobStatus('job-clean', 'success');
@@ -1033,17 +1016,14 @@ describe('Providers store — re-discovered job history: slim observability adop
     const store = useProcessingJobsStore();
     store.registerProviderConfig(config);
     store.instances.set('p1', provider);
-    datasetState.ids = ['ds1'];
-    datasetState.sources = { ds1: { type: 'uri', uri: '/f/a' } };
+    seatVolume('ds1');
+    seatDataSource('ds1', { type: 'uri', uri: '/f/a', name: 'a.nrrd' });
     return store;
   };
 
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
-    datasetState.ids = [];
-    datasetState.sources = {};
-    autoLoadMock.mockReset();
   });
 
   afterEach(() => {
@@ -1081,7 +1061,7 @@ describe('Providers store — re-discovered job history: slim observability adop
     await store.adoptJobHistory();
 
     expect(provider.getJob).not.toHaveBeenCalled();
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
     expect(store.submittedContexts.size).toBe(0);
   });
 
@@ -1201,7 +1181,7 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(store.submittedContexts.get(keyFor('jr'))?.taskId).toBe('t1');
     expect(provider.getJob).not.toHaveBeenCalled();
     expect(provider.getResults).not.toHaveBeenCalled();
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
   });
 
   it.each(['error', 'cancelled'] as const)(
@@ -1220,7 +1200,7 @@ describe('Providers store — re-discovered job history: slim observability adop
 
       expect(provider.getJob).not.toHaveBeenCalled();
       expect(provider.getResults).not.toHaveBeenCalled();
-      expect(autoLoadMock).not.toHaveBeenCalled();
+      expect(store.jobResultsApplied.size).toBe(0);
       expect(store.jobs.get(keyFor('jr'))?.state).toBe(state);
       expect(store.submittedContexts.get(keyFor('jr'))?.taskId).toBe('t1');
     }
@@ -1241,7 +1221,7 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(provider.getJob).not.toHaveBeenCalled();
     expect(store.jobs.get(keyFor('jr'))?.state).toBe('success');
     expect(provider.getResults).not.toHaveBeenCalled();
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
   });
 
   it('a still-running re-discovered job is tracked for polling, not applied', async () => {
@@ -1264,7 +1244,7 @@ describe('Providers store — re-discovered job history: slim observability adop
       store.submittedContexts.get(keyFor('jr'))?.activeDatasetId
     ).toBeUndefined();
     expect(provider.getResults).not.toHaveBeenCalled();
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
   });
 
   it("retries a transient failure on a re-discovered job's first status read", async () => {
@@ -1411,13 +1391,13 @@ describe('Providers store — re-discovered job history: slim observability adop
       getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
     });
     const store = arrange(provider);
-    datasetState.sources.ds1 = {
+    seatDataSource('ds1', {
       type: 'collection',
       sources: [
-        { type: 'uri', uri: '/f/a' },
-        { type: 'uri', uri: '/f/a' },
+        { type: 'uri', uri: '/f/a', name: 'a.nrrd' },
+        { type: 'uri', uri: '/f/a', name: 'a.nrrd' },
       ],
-    };
+    });
 
     await store.adoptJobHistory();
     await store.loadJobResults(ref('jr'));
@@ -1441,17 +1421,15 @@ describe('Providers store — re-discovered job history: slim observability adop
       getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
     });
     const store = arrange(provider);
-    datasetState.ids = ['ds1', 'ds2'];
-    datasetState.sources = {
-      ds1: { type: 'uri', uri: '/f/a' },
-      ds2: {
-        type: 'collection',
-        sources: [
-          { type: 'uri', uri: '/f/a' },
-          { type: 'uri', uri: '/f/a' },
-        ],
-      },
-    };
+    seatVolume('ds2');
+    seatDataSource('ds1', { type: 'uri', uri: '/f/a', name: 'a.nrrd' });
+    seatDataSource('ds2', {
+      type: 'collection',
+      sources: [
+        { type: 'uri', uri: '/f/a', name: 'a.nrrd' },
+        { type: 'uri', uri: '/f/a', name: 'a.nrrd' },
+      ],
+    });
 
     await store.adoptJobHistory();
     await store.loadJobResults(ref('jr'));
@@ -1551,7 +1529,7 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(store.submittedContexts.get(keyFor('jr'))?.activeDatasetId).toBe(
       'ds1'
     );
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
   });
 
   it('a job that settles between listing and the first poll completes once', async () => {
@@ -1580,7 +1558,7 @@ describe('Providers store — re-discovered job history: slim observability adop
     const store = arrange(provider);
 
     await expect(store.adoptJobHistory()).resolves.toBeUndefined();
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
     expect(err).toHaveBeenCalled();
   });
 
@@ -1603,7 +1581,7 @@ describe('Providers store — re-discovered job history: slim observability adop
     await store.adoptJobHistory();
 
     expect(provider.getJob).not.toHaveBeenCalled();
-    expect(autoLoadMock).not.toHaveBeenCalled();
+    expect(store.jobResultsApplied.size).toBe(0);
   });
 
   // Boot adoption can race an in-flight submit of the same job, so both paths start a poll loop.
@@ -1693,9 +1671,6 @@ describe('Providers store — immutable registration + provider-qualified job ke
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
-    datasetState.ids = [];
-    datasetState.sources = {};
-    createProviderMock.mockReset();
   });
 
   afterEach(() => {
@@ -1825,15 +1800,16 @@ describe('Providers store — immutable registration + provider-qualified job ke
     store.registerProviderConfig(cfg({ id: 'retry' }));
 
     const provider = makeProvider({ config: cfg({ id: 'retry' }) });
-    createProviderMock
-      .mockImplementationOnce(() => {
-        throw new Error('load failed');
-      })
-      .mockImplementationOnce(() => provider);
+    const load = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('load failed'))
+      .mockResolvedValueOnce(provider);
 
-    await expect(store.getProvider('retry')).rejects.toThrow('load failed');
-    await expect(store.getProvider('retry')).resolves.toEqual(provider);
-    expect(createProviderMock).toHaveBeenCalledTimes(2);
+    await expect(store.getProvider('retry', load)).rejects.toThrow(
+      'load failed'
+    );
+    await expect(store.getProvider('retry', load)).resolves.toEqual(provider);
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -1841,7 +1817,6 @@ describe('Providers store — generation-guarded continuations', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
-    datasetState.ids = [];
   });
 
   afterEach(() => {

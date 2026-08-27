@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 import { reactive } from 'vue';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { MessageOptions } from '@/src/store/messages';
 import { debug } from '@/src/utils/loggers';
 
-const mocks = vi.hoisted(() => ({
-  addWarning: vi.fn(),
-  writeSegmentGroups: vi.fn(),
-}));
+const writeDatasets = (stateFile: StateFile) => {
+  stateFile.manifest.datasets = [{ id: 'dataset-1', dataSourceId: 1 }];
+  stateFile.manifest.dataSources = [{ id: 1, type: 'uri', uri: '/dataset-1' }];
+};
 
 const writeOneInvalidGroup = async (stateFile: StateFile) => {
   stateFile.manifest.segmentGroups = reactive([
@@ -31,34 +32,15 @@ const writeOneInvalidGroup = async (stateFile: StateFile) => {
   ]) as never;
 };
 
-vi.mock('@/src/store/datasets', () => ({
-  useDatasetStore: () => ({
-    serialize: vi.fn((stateFile: StateFile) => {
-      stateFile.manifest.datasets = [{ id: 'dataset-1', dataSourceId: 1 }];
-      stateFile.manifest.dataSources = [
-        { id: 1, type: 'uri', uri: '/dataset-1' },
-      ];
-    }),
-  }),
-}));
-vi.mock('@/src/store/views', () => ({
-  useViewStore: () => ({ serialize: vi.fn() }),
-}));
-vi.mock('@/src/store/view-configs', () => ({
-  useViewConfigStore: () => ({ serialize: vi.fn() }),
-}));
-vi.mock('@/src/store/segmentGroups', () => ({
-  useSegmentGroupStore: () => ({ serialize: mocks.writeSegmentGroups }),
-}));
-vi.mock('@/src/store/tools', () => ({
-  useToolStore: () => ({ serialize: vi.fn() }),
-}));
-vi.mock('@/src/store/datasets-layers', () => ({
-  useLayersStore: () => ({ serialize: vi.fn() }),
-}));
-vi.mock('@/src/store/messages', () => ({
-  useMessageStore: () => ({ addWarning: mocks.addWarning }),
-}));
+const recordWarnings = () => {
+  const warnings: Array<{ title: string; options: MessageOptions }> = [];
+  return {
+    warnings,
+    addWarning: (title: string, options: MessageOptions) => {
+      warnings.push({ title, options });
+    },
+  };
+};
 
 import {
   MANIFEST,
@@ -76,17 +58,22 @@ const manifestWithSelection = (primarySelection: string): Manifest => ({
 
 describe('state-file serialization resilience', () => {
   it('writes a restorable zip when one manifest entry is malformed', async () => {
-    mocks.writeSegmentGroups.mockImplementation(writeOneInvalidGroup);
-    const blob = await serialize();
+    const sink = recordWarnings();
+    const blob = await serialize({
+      writers: [writeDatasets, writeOneInvalidGroup],
+      addWarning: sink.addWarning,
+    });
     const zip = await JSZip.loadAsync(blob);
     const manifest = JSON.parse(await zip.file(MANIFEST)!.async('string'));
 
     expect(manifest.segmentGroups).toHaveLength(1);
     expect(manifest.segmentGroups[0].id).toBe('valid-group');
-    expect(mocks.addWarning).toHaveBeenCalledWith(
-      'Some session content could not be saved',
-      expect.objectContaining({ persist: true })
-    );
+    expect(sink.warnings).toEqual([
+      {
+        title: 'Some session content could not be saved',
+        options: expect.objectContaining({ persist: true }),
+      },
+    ]);
   });
 
   it('aborts when the core dataset graph is incoherent', () => {
