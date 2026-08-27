@@ -65,6 +65,10 @@ export function useVolumeThumbnailing(
   // doThumbnailing is called again
   let interruptSentinel = Symbol('interrupt');
 
+  // captureImages() finishes its render on a timer, so the render window has to
+  // outlive every in-flight capture; this chain tracks them for unmount
+  let activeThumbnailing = Promise.resolve();
+
   async function doThumbnailing(imageID: string, image: vtkImageData) {
     const localSentinel = Symbol('interrupt');
     interruptSentinel = localSentinel;
@@ -118,10 +122,12 @@ export function useVolumeThumbnailing(
       }
     }
 
-    PresetNameList.reduce(
+    // chaining off the previous cycle keeps a capture it still has in flight
+    // covered by the tracking promise; its presets bail out through the sentinel
+    activeThumbnailing = PresetNameList.reduce(
       (promise, presetName) => promise.then(() => helper(presetName)),
-      Promise.resolve()
-    );
+      activeThumbnailing
+    ).catch(logError);
   }
 
   // workaround for computed not properly working on deeply reactive objects
@@ -139,13 +145,7 @@ export function useVolumeThumbnailing(
   // force thumbnailing to stop
   onBeforeUnmount(() => {
     interruptSentinel = Symbol('unmount');
-    // the thumbnailer owns a WebGL context and this composable remounts with
-    // the rendering panel, so a failed teardown must not abort the unmount
-    try {
-      thumbnailer.delete();
-    } catch (err) {
-      logError(err);
-    }
+    activeThumbnailing.finally(() => thumbnailer.delete()).catch(logError);
   });
 
   // trigger thumbnailing
