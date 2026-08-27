@@ -28,6 +28,7 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
+import type { SegmentMask } from '@/src/types/segment';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
@@ -58,12 +59,15 @@ const sameResultSource = (
   source.jobId === target.jobId &&
   source.outputId === target.outputId;
 
-function segmentGroupResultInScene(intent: SegmentGroupIntent): boolean {
+function segmentGroupResultInScene(
+  intent: SegmentGroupIntent,
+  segmentGroups: SegmentGroupWriter
+): boolean {
   const target = intent.source;
   if (!target) return false;
-  return Object.values(useSegmentGroupStore().metadataByID).some(({ source }) =>
-    sameResultSource(source, target)
-  );
+  return segmentGroups
+    .resultSourcesInScene()
+    .some((source) => sameResultSource(source, target));
 }
 
 async function loadAsImport(file: ResultFile) {
@@ -77,12 +81,12 @@ async function loadAsImport(file: ResultFile) {
 
 function applySegmentDescriptors(
   segmentGroupID: string,
-  segments: SegmentDescriptor[]
+  segments: SegmentDescriptor[],
+  segmentGroups: SegmentGroupWriter
 ) {
-  const segmentGroupStore = useSegmentGroupStore();
   segments.forEach((seg) => {
     try {
-      segmentGroupStore.updateSegment(segmentGroupID, seg.value, {
+      segmentGroups.updateSegment(segmentGroupID, seg.value, {
         name: seg.name,
         color: seg.color,
         ...(seg.visible == null ? {} : { visible: seg.visible }),
@@ -98,17 +102,19 @@ function applySegmentDescriptors(
 async function convertAndDescribe(
   childSelection: string,
   parentSelection: string,
-  intent: SegmentGroupIntent
+  intent: SegmentGroupIntent,
+  segmentGroups: SegmentGroupWriter
 ): Promise<string[]> {
-  const segmentGroupStore = useSegmentGroupStore();
-  const ids = await segmentGroupStore.convertImageToLabelmap(
+  const ids = await segmentGroups.convertImageToLabelmap(
     childSelection,
     parentSelection,
     intent.source
   );
   // A seg.nrrd with embedded metadata carries no descriptors.
   if (intent.segments?.length) {
-    ids.forEach((id) => applySegmentDescriptors(id, intent.segments!));
+    ids.forEach((id) =>
+      applySegmentDescriptors(id, intent.segments!, segmentGroups)
+    );
   }
   return ids;
 }
@@ -292,7 +298,8 @@ const toolPayload = (
 
 async function applyAnnotations(
   intent: AnnotationsIntent,
-  parentSelection: string | undefined
+  parentSelection: string | undefined,
+  fetchResult: FetchProcessingResult
 ): Promise<ApplyIntentOutcome> {
   if (annotationResultInScene(intent)) return { status: 'applied' };
 
@@ -311,7 +318,7 @@ async function applyAnnotations(
     };
   }
 
-  const file = await fetchProcessingResult({
+  const file = await fetchResult({
     id: intent.id,
     name: intent.name,
     url: intent.url,
@@ -354,15 +361,76 @@ async function applyAnnotations(
   return { status: 'applied' };
 }
 
+type FetchProcessingResult = typeof fetchProcessingResult;
+
+type SegmentGroupWriter = {
+  /** Result provenance of every segment group in the scene, in scene order. */
+  resultSourcesInScene: () => Array<ResultSource | undefined>;
+  convertImageToLabelmap: (
+    childSelection: string,
+    parentSelection: string,
+    source: ResultSource | undefined
+  ) => Promise<string[]>;
+  updateSegment: (
+    segmentGroupID: string,
+    segmentValue: number,
+    segmentUpdate: Partial<Omit<SegmentMask, 'value'>>
+  ) => void;
+};
+
+/**
+ * The download, import and scene-mutation edges, so a caller can drive the
+ * intent routing without a loaded scene behind it.
+ */
+export type ApplyDependencies = {
+  fetchResult: FetchProcessingResult;
+  openVolumeUrls: typeof loadVolumeUrls;
+  importVolume: (file: ResultFile) => Promise<string | null>;
+  removeDataset: (selection: string) => void;
+  addLayer: (
+    parentSelection: string,
+    childSelection: string
+  ) => Promise<string | undefined>;
+  segmentGroups: SegmentGroupWriter;
+};
+
+export const appApplyDependencies = (): ApplyDependencies => ({
+  fetchResult: fetchProcessingResult,
+  openVolumeUrls: loadVolumeUrls,
+  importVolume: loadAsImport,
+  removeDataset: (selection) => useDatasetStore().remove(selection),
+  addLayer: (parentSelection, childSelection) =>
+    useLayersStore().addLayer(parentSelection, childSelection),
+  segmentGroups: {
+    resultSourcesInScene: () =>
+      Object.values(useSegmentGroupStore().metadataByID).map(
+        ({ source }) => source
+      ),
+    convertImageToLabelmap: (childSelection, parentSelection, source) =>
+      useSegmentGroupStore().convertImageToLabelmap(
+        childSelection,
+        parentSelection,
+        source
+      ),
+    updateSegment: (segmentGroupID, segmentValue, segmentUpdate) =>
+      useSegmentGroupStore().updateSegment(
+        segmentGroupID,
+        segmentValue,
+        segmentUpdate
+      ),
+  },
+});
+
 export async function applyIntent(
   intent: KnownResultIntent,
-  context: SubmittedJobContext | undefined
+  context: SubmittedJobContext | undefined,
+  dependencies: ApplyDependencies = appApplyDependencies()
 ): Promise<ApplyIntentOutcome> {
   const parentSelection = context?.activeDatasetId;
   const openVolumeAsDatasetOutcome = async (
     file: ResultFile
   ): Promise<ApplyIntentOutcome> => {
-    const datasetIds = await loadVolumeUrls({
+    const datasetIds = await dependencies.openVolumeUrls({
       urls: [file.url],
       names: [file.name],
     });
@@ -380,16 +448,16 @@ export async function applyIntent(
         if (!parentSelection) {
           return await openVolumeAsDatasetOutcome(intent);
         }
-        const childSelection = await loadAsImport(intent);
+        const childSelection = await dependencies.importVolume(intent);
         if (!childSelection)
           return { status: 'failed', error: new Error('Result did not load') };
         // addLayer swallows build failures and resolves undefined, so the id is the only failure signal.
-        const layerId = await useLayersStore().addLayer(
+        const layerId = await dependencies.addLayer(
           parentSelection,
           childSelection
         );
         if (!layerId) {
-          useDatasetStore().remove(childSelection);
+          dependencies.removeDataset(childSelection);
           return {
             status: 'failed',
             error: new Error('Failed to attach layer'),
@@ -401,23 +469,33 @@ export async function applyIntent(
         // Session-restored groups retain their result source. Treat that
         // durable provenance as an application receipt so retrying Load is
         // idempotent instead of creating a duplicate group.
-        if (segmentGroupResultInScene(intent)) return { status: 'applied' };
+        if (segmentGroupResultInScene(intent, dependencies.segmentGroups))
+          return { status: 'applied' };
         if (!parentSelection) {
           return await openVolumeAsDatasetOutcome(intent);
         }
-        const childSelection = await loadAsImport(intent);
+        const childSelection = await dependencies.importVolume(intent);
         if (!childSelection)
           return { status: 'failed', error: new Error('Result did not load') };
         try {
-          await convertAndDescribe(childSelection, parentSelection, intent);
+          await convertAndDescribe(
+            childSelection,
+            parentSelection,
+            intent,
+            dependencies.segmentGroups
+          );
           return { status: 'applied' };
         } finally {
           // The group owns its own labelmap image; the import was only a vehicle.
-          useDatasetStore().remove(childSelection);
+          dependencies.removeDataset(childSelection);
         }
       }
       case 'add-annotations': {
-        return await applyAnnotations(intent, parentSelection);
+        return await applyAnnotations(
+          intent,
+          parentSelection,
+          dependencies.fetchResult
+        );
       }
       default: {
         const exhaustive: never = intent;
@@ -435,13 +513,14 @@ export async function applyIntent(
 
 export async function autoLoadProcessingResults(
   results: ProcessingResult[],
-  context: SubmittedJobContext | undefined
+  context: SubmittedJobContext | undefined,
+  dependencies: ApplyDependencies = appApplyDependencies()
 ): Promise<{ failedResultIds: string[] }> {
   const failedResultIds: string[] = [];
   for (const result of results) {
     const intent = resultToIntent(result);
     if (!intent) continue;
-    const outcome = await applyIntent(intent, context);
+    const outcome = await applyIntent(intent, context, dependencies);
     if (outcome.status === 'failed') {
       failedResultIds.push(result.id);
       // The completion toast already promised results.

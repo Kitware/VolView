@@ -1,17 +1,14 @@
-import { describe, it, beforeEach, expect, vi } from 'vitest';
+import { describe, it, beforeEach, expect } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useViewStore } from '@/src/store/views';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
+import { markCine } from '@/src/core/cine/__tests__/cineFixtures';
 import type { Manifest } from '@/src/io/state-file/schema';
-
-vi.mock('@/src/core/cine/isCineImage', () => ({
-  isCineImage: (imageID: string | null) => imageID === 'cine-image',
-  getCineImage: () => null,
-}));
 
 describe('View store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    markCine('cine-image');
   });
 
   it('selects the first initial visible view', () => {

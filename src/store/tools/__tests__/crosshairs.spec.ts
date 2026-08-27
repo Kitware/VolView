@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, expect, vi } from 'vitest';
+import { describe, it, beforeEach, expect } from 'vitest';
 import { nextTick } from 'vue';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -9,11 +9,6 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import type { ViewInfo2D } from '@/src/types/views';
 import type { LPSAxis } from '@/src/types/lps';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
-
-vi.mock('@/src/core/cine/isCineImage', () => ({
-  isCineImage: () => false,
-  getCineImage: () => null,
-}));
 
 const SMALL: [number, number, number] = [10, 20, 30];
 const LARGE: [number, number, number] = [40, 50, 60];

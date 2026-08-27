@@ -1,57 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import DicomCineImage from '../DicomCineImage';
-import type { CineHeader, CineParseResult } from '../parseCineDicom';
+import { cineHeader, cineParseResult as parseResult } from './cineFixtures';
 
-const TS_EXPLICIT_VR_LE = '1.2.840.10008.1.2.1';
 const TS_JPEG_BASELINE = '1.2.840.10008.1.2.4.50';
 const TS_JPEG_EXTENDED = '1.2.840.10008.1.2.4.51';
 const TS_UNSUPPORTED = '1.2.840.10008.1.2.5';
-
-function cineHeader(overrides: Partial<CineHeader> = {}): CineHeader {
-  return {
-    transferSyntaxUID: TS_EXPLICIT_VR_LE,
-    rows: 2,
-    cols: 2,
-    numberOfFrames: 2,
-    samplesPerPixel: 1,
-    bitsAllocated: 8,
-    planarConfiguration: 0,
-    photometricInterpretation: 'MONOCHROME2',
-    pixelSpacing: null,
-    frameTimeMs: null,
-    patient: {
-      PatientID: 'patient-1',
-      PatientName: 'Test Patient',
-      PatientBirthDate: '',
-      PatientSex: '',
-    },
-    study: {
-      StudyID: 'study-1',
-      StudyInstanceUID: 'study-uid',
-      StudyDate: '',
-      StudyTime: '',
-      AccessionNumber: '',
-      StudyDescription: '',
-    },
-    series: {
-      SeriesInstanceUID: 'series-uid',
-      SeriesNumber: '1',
-      SeriesDescription: 'Cine',
-      Modality: 'US',
-    },
-    regions: [],
-    ...overrides,
-  };
-}
-
-function parseResult(header: CineHeader): CineParseResult {
-  return {
-    header,
-    frames: [new Uint8Array(4), new Uint8Array(4)],
-    encapsulated: false,
-  };
-}
 
 describe('DicomCineImage.isSupported', () => {
   it('accepts only MONOCHROME2 for native one-sample 8-bit pixels', () => {

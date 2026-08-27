@@ -1,10 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-const extractURLParameters = vi.fn();
-vi.mock('@kitware/vtk.js/Common/Core/URLExtract', () => ({
-  default: { extractURLParameters: () => extractURLParameters() },
-}));
-
 import { populateAuthorizationToken } from '@/src/utils/token';
 import { globalHeaders, deleteGlobalHeader } from '@/src/utils/fetch';
 
@@ -26,9 +20,9 @@ describe('populateAuthorizationToken', () => {
   const bearer = () => globalHeaders.get('Authorization');
 
   it('sets the bearer synchronously from token=', async () => {
-    extractURLParameters.mockReturnValue({ token: 'abc' });
+    const urlParams = { token: 'abc' };
 
-    await populateAuthorizationToken();
+    await populateAuthorizationToken(urlParams);
 
     expect(bearer()).toBe('Bearer abc');
     expect(fetchStub).not.toHaveBeenCalled();
@@ -37,23 +31,23 @@ describe('populateAuthorizationToken', () => {
   // Regression: the 2xx check was `status % 100 !== 2`, which takes the last
   // two digits — it rejected every ordinary 200 and accepted 202/302/502.
   it.each([200, 201, 204])('accepts a %i token response', async (status) => {
-    extractURLParameters.mockReturnValue({
+    const urlParams = {
       tokenUrl: 'https://example.com/userToken',
-    });
+    };
     fetchStub.mockResolvedValue(new Response('tok', { status }));
 
-    await populateAuthorizationToken();
+    await populateAuthorizationToken(urlParams);
 
     expect(bearer()).toBe('Bearer tok');
   });
 
   it.each([302, 404, 502])('rejects a %i token response', async (status) => {
-    extractURLParameters.mockReturnValue({
+    const urlParams = {
       tokenUrl: 'https://example.com/userToken',
-    });
+    };
     fetchStub.mockResolvedValue(new Response('nope', { status }));
 
-    await populateAuthorizationToken();
+    await populateAuthorizationToken(urlParams);
 
     expect(bearer()).toBeNull();
   });
@@ -61,9 +55,9 @@ describe('populateAuthorizationToken', () => {
   it('resolves only after the tokenUrl bearer is set', async () => {
     // The caller awaits this before loading, so the first data request carries
     // the header rather than racing an un-awaited fetch.
-    extractURLParameters.mockReturnValue({
+    const urlParams = {
       tokenUrl: 'https://example.com/userToken',
-    });
+    };
     let release: (r: Response) => void = () => {};
     fetchStub.mockReturnValue(
       new Promise<Response>((resolve) => {
@@ -71,7 +65,7 @@ describe('populateAuthorizationToken', () => {
       })
     );
 
-    const pending = populateAuthorizationToken();
+    const pending = populateAuthorizationToken(urlParams);
     expect(bearer()).toBeNull();
 
     release(new Response('late', { status: 200 }));
@@ -81,13 +75,13 @@ describe('populateAuthorizationToken', () => {
   });
 
   it('uses tokenUrlMethod when given', async () => {
-    extractURLParameters.mockReturnValue({
+    const urlParams = {
       tokenUrl: 'https://example.com/userToken',
       tokenUrlMethod: 'POST',
-    });
+    };
     fetchStub.mockResolvedValue(new Response('tok', { status: 200 }));
 
-    await populateAuthorizationToken();
+    await populateAuthorizationToken(urlParams);
 
     expect(fetchStub).toHaveBeenCalledWith('https://example.com/userToken', {
       method: 'POST',
@@ -95,12 +89,14 @@ describe('populateAuthorizationToken', () => {
   });
 
   it('continues without a bearer when the token fetch fails', async () => {
-    extractURLParameters.mockReturnValue({
+    const urlParams = {
       tokenUrl: 'https://example.com/userToken',
-    });
+    };
     fetchStub.mockRejectedValue(new Error('network down'));
 
-    await expect(populateAuthorizationToken()).resolves.toBeUndefined();
+    await expect(
+      populateAuthorizationToken(urlParams)
+    ).resolves.toBeUndefined();
 
     expect(bearer()).toBeNull();
   });

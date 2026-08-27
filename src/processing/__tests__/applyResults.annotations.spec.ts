@@ -1,11 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
-import { applyIntent } from '@/src/processing/applyResults';
-import type { SubmittedJobContext } from '@/src/processing/types';
+import {
+  appApplyDependencies,
+  applyIntent,
+} from '@/src/processing/applyResults';
+import type {
+  ProcessingResult,
+  SubmittedJobContext,
+} from '@/src/processing/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -21,20 +27,26 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 // tell the truth about. Only the heavy import/download edges are mocked.
 // ---------------------------------------------------------------------------
 
-const mocks = vi.hoisted(() => ({
-  fetchProcessingResult: vi.fn(),
-}));
+// Stands in for the download edge: records what was asked for and hands back
+// whatever the test last served.
+const resultServer = () => {
+  const downloads: ProcessingResult[] = [];
+  let body = '';
+  return {
+    downloads,
+    serve: (next: unknown) => {
+      body = typeof next === 'string' ? next : JSON.stringify(next);
+    },
+    fetchResult: async (result: ProcessingResult) => {
+      downloads.push(result);
+      return new File([body], 'out.annotations.json', {
+        type: 'application/json',
+      });
+    },
+  };
+};
 
-vi.mock('@/src/processing/engine/resultDownload', () => ({
-  fetchProcessingResult: mocks.fetchProcessingResult,
-}));
-vi.mock('@/src/io/import/dataSource', () => ({ uriToDataSource: vi.fn() }));
-vi.mock('@/src/io/import/importDataSources', () => ({
-  importVolumeDataSources: vi.fn(),
-  toDataSelection: vi.fn(),
-}));
-vi.mock('@/src/io/import/common', () => ({ isVolumeResult: vi.fn() }));
-vi.mock('@/src/actions/loadUserFiles', () => ({ loadVolumeUrls: vi.fn() }));
+let results = resultServer();
 
 const IMAGE_ID = 'img-1';
 
@@ -142,12 +154,16 @@ const annotationsFile = (): WireFile => ({
   },
 });
 
-const serveFile = (body: unknown) => {
-  const text = typeof body === 'string' ? body : JSON.stringify(body);
-  mocks.fetchProcessingResult.mockResolvedValue(
-    new File([text], 'out.annotations.json', { type: 'application/json' })
-  );
-};
+const serveFile = (body: unknown) => results.serve(body);
+
+const apply = (
+  resultIntent: Parameters<typeof applyIntent>[0],
+  jobContext: Parameters<typeof applyIntent>[1]
+) =>
+  applyIntent(resultIntent, jobContext, {
+    ...appApplyDependencies(),
+    fetchResult: results.fetchResult,
+  });
 
 const toolCounts = () => ({
   rulers: useRulerStore().toolIDs.length,
@@ -161,7 +177,7 @@ const onlyTool = (store: {
 }) => store.toolByID[store.toolIDs[0]];
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  results = resultServer();
   setActivePinia(createPinia());
   seatImage();
   serveFile(annotationsFile());
@@ -169,7 +185,7 @@ beforeEach(() => {
 
 describe('applyIntent — add-annotations', () => {
   it('adds every tool kind to the job image, deriving the slice from the frame', async () => {
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
     expect(outcome.status).toBe('applied');
     expect(toolCounts()).toEqual({ rulers: 1, rectangles: 1, polygons: 1 });
 
@@ -226,7 +242,7 @@ describe('applyIntent — add-annotations', () => {
     ];
     serveFile(file);
 
-    const outcome = await applyIntent(intent(), context(imageID));
+    const outcome = await apply(intent(), context(imageID));
 
     expect(
       outcome.status,
@@ -263,7 +279,7 @@ describe('applyIntent — add-annotations', () => {
       };
       serveFile(file);
 
-      const outcome = await applyIntent(intent(), context(IMAGE_ID));
+      const outcome = await apply(intent(), context(IMAGE_ID));
 
       expect(outcome.status).toBe('applied');
       expect(onlyTool(useRulerStore()).frameOfReference.planeNormal).toEqual(
@@ -280,7 +296,7 @@ describe('applyIntent — add-annotations', () => {
     };
     serveFile(file);
 
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
 
     expect(outcome.status).toBe('failed');
     expect(String((outcome as { error: Error }).error)).toContain(
@@ -290,7 +306,7 @@ describe('applyIntent — add-annotations', () => {
   });
 
   it('keeps a label name that repeats across kinds independent per store', async () => {
-    await applyIntent(intent(), context(IMAGE_ID));
+    await apply(intent(), context(IMAGE_ID));
 
     const ruler = onlyTool(useRulerStore());
     const rectangle = onlyTool(useRectangleStore());
@@ -320,9 +336,7 @@ describe('applyIntent — add-annotations', () => {
     file.tools.polygons = [];
     serveFile(file);
 
-    expect((await applyIntent(intent(), context(IMAGE_ID))).status).toBe(
-      'applied'
-    );
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     expect(Object.keys(rulerStore.labels)).toHaveLength(before);
     expect(rulerStore.labels[existingId].color).toBe('#123456');
     expect(onlyTool(rulerStore).label).toBe(existingId);
@@ -340,9 +354,7 @@ describe('applyIntent — add-annotations', () => {
     file.tools.rulers[0].labelName = 'fresh';
     serveFile(file);
 
-    expect((await applyIntent(intent(), context(IMAGE_ID))).status).toBe(
-      'applied'
-    );
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     expect(rulerStore.activeLabel).toBe(activeBefore);
     // The label still landed; only the picker was left alone.
     expect(onlyTool(rulerStore).labelName).toBe('fresh');
@@ -362,60 +374,56 @@ describe('applyIntent — add-annotations', () => {
     file.tools.polygons = [];
     serveFile(file);
 
-    expect((await applyIntent(intent(), context(IMAGE_ID))).status).toBe(
-      'applied'
-    );
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     const ruler = onlyTool(useRulerStore());
     expect(ruler.label).toBe('');
     expect(ruler.labelName).toBe('');
   });
 
   it('is a no-op when a tool already carries the same source', async () => {
-    expect((await applyIntent(intent(), context(IMAGE_ID))).status).toBe(
-      'applied'
-    );
-    mocks.fetchProcessingResult.mockClear();
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
+    results.downloads.length = 0;
 
-    const second = await applyIntent(intent(), context(IMAGE_ID));
+    const second = await apply(intent(), context(IMAGE_ID));
     expect(second.status).toBe('applied');
     expect(toolCounts()).toEqual({ rulers: 1, rectangles: 1, polygons: 1 });
     // The receipt short-circuits before the download.
-    expect(mocks.fetchProcessingResult).not.toHaveBeenCalled();
+    expect(results.downloads).toEqual([]);
   });
 
   it('re-applies a result from a different job even at the same output id', async () => {
-    await applyIntent(intent(), context(IMAGE_ID));
+    await apply(intent(), context(IMAGE_ID));
     const other = { ...source, jobId: 'job-2' };
-    await applyIntent(intent({ source: other }), context(IMAGE_ID));
+    await apply(intent({ source: other }), context(IMAGE_ID));
     expect(toolCounts()).toEqual({ rulers: 2, rectangles: 2, polygons: 2 });
   });
 
   it('applies an empty result as a no-op', async () => {
     serveFile({ schemaVersion: 1, space: 'LPS', tools: {} });
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
     expect(outcome.status).toBe('applied');
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 
   it('fails without ever downloading when no image is bound', async () => {
-    const outcome = await applyIntent(intent(), context(undefined));
+    const outcome = await apply(intent(), context(undefined));
     expect(outcome.status).toBe('failed');
     expect(String((outcome as { error: Error }).error)).toContain(
       "Load the job's input image"
     );
-    expect(mocks.fetchProcessingResult).not.toHaveBeenCalled();
+    expect(results.downloads).toEqual([]);
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 
   it('fails when the bound image is no longer in the cache', async () => {
-    const outcome = await applyIntent(intent(), context('img-gone'));
+    const outcome = await apply(intent(), context('img-gone'));
     expect(outcome.status).toBe('failed');
-    expect(mocks.fetchProcessingResult).not.toHaveBeenCalled();
+    expect(results.downloads).toEqual([]);
   });
 
   it('fails on a malformed result body without touching the stores', async () => {
     serveFile('not json at all');
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
     expect(outcome.status).toBe('failed');
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
@@ -432,7 +440,7 @@ describe('applyIntent — add-annotations', () => {
     };
     serveFile(file);
 
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
     expect(outcome.status).toBe('failed');
     expect(String((outcome as { error: Error }).error)).toContain(
       'not aligned'
@@ -450,7 +458,7 @@ describe('applyIntent — add-annotations', () => {
     file.tools.rulers[0].frameOfReference = axialAt(500);
     serveFile(file);
 
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
 
     expect(outcome.status).toBe('applied');
     expect(onlyTool(useRulerStore()).slice).toBe(500);
@@ -461,7 +469,7 @@ describe('applyIntent — add-annotations', () => {
     file.tools.rulers[0].frameOfReference = axialAt(5.5);
     serveFile(file);
 
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
 
     expect(outcome.status).toBe('failed');
     expect(String((outcome as { error: Error }).error)).toContain(
@@ -474,9 +482,7 @@ describe('applyIntent — add-annotations', () => {
     const file = annotationsFile();
     file.tools.rulers[0].labelName = 'undeclared';
     serveFile(file);
-    expect((await applyIntent(intent(), context(IMAGE_ID))).status).toBe(
-      'failed'
-    );
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('failed');
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 
@@ -491,13 +497,13 @@ describe('applyIntent — add-annotations', () => {
     });
     serveFile(file);
 
-    const outcome = await applyIntent(intent(), context(IMAGE_ID));
+    const outcome = await apply(intent(), context(IMAGE_ID));
     expect(outcome.status).toBe('failed');
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 
   it('applies without a source when the producer omitted one', async () => {
-    const outcome = await applyIntent(
+    const outcome = await apply(
       intent({ source: undefined }),
       context(IMAGE_ID)
     );
@@ -540,7 +546,7 @@ describe('applyIntent — add-annotations', () => {
 
     it('drops a stray frame when the target is a static volume', async () => {
       rulerOnlyFile(3);
-      const outcome = await applyIntent(intent(), context(IMAGE_ID));
+      const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
       expect(onlyTool(useRulerStore()).frame).toBeUndefined();
     });
@@ -548,7 +554,7 @@ describe('applyIntent — add-annotations', () => {
     it('keeps an in-range integral frame on a cine target', async () => {
       markCine(8);
       rulerOnlyFile(7);
-      const outcome = await applyIntent(intent(), context(IMAGE_ID));
+      const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
       expect(onlyTool(useRulerStore()).frame).toBe(7);
     });
@@ -556,7 +562,7 @@ describe('applyIntent — add-annotations', () => {
     it('applies a frameless tool to a cine target (every frame)', async () => {
       markCine(8);
       rulerOnlyFile();
-      const outcome = await applyIntent(intent(), context(IMAGE_ID));
+      const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
       expect(onlyTool(useRulerStore()).frame).toBeUndefined();
     });
@@ -571,7 +577,7 @@ describe('applyIntent — add-annotations', () => {
       async (_label, frame) => {
         markCine(8);
         rulerOnlyFile(frame);
-        const outcome = await applyIntent(intent(), context(IMAGE_ID));
+        const outcome = await apply(intent(), context(IMAGE_ID));
         expect(outcome.status).toBe('failed');
         // All-or-nothing: nothing may land.
         expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
@@ -583,7 +589,7 @@ describe('applyIntent — add-annotations', () => {
     it('drops an out-of-range frame on a cine target', async () => {
       markCine(8);
       rulerOnlyFile(8);
-      const outcome = await applyIntent(intent(), context(IMAGE_ID));
+      const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
       expect(onlyTool(useRulerStore()).frame).toBeUndefined();
     });
