@@ -63,13 +63,15 @@ export function useVolumeThumbnailing(
 
   // used to interrupt a thumbnailing cycle if
   // doThumbnailing is called again
+  const UNMOUNTED = Symbol('unmount');
   let interruptSentinel = Symbol('interrupt');
 
-  // captureImages() finishes its render on a timer, so the render window has to
-  // outlive every in-flight capture; this chain tracks them for unmount
-  let activeThumbnailing = Promise.resolve();
+  // captures finish on a timer, so deletion waits for the in-flight ones
+  const inFlightCaptures = new Set<Promise<string>>();
 
   async function doThumbnailing(imageID: string, image: vtkImageData) {
+    if (interruptSentinel === UNMOUNTED) return;
+
     const localSentinel = Symbol('interrupt');
     interruptSentinel = localSentinel;
 
@@ -116,17 +118,24 @@ export function useVolumeThumbnailing(
 
       const renWin = thumbnailer.scene.getRenderWindow();
       renWin.render();
-      const imageURL = await renWin.captureImages()[0];
+      const capture = renWin.captureImages()[0];
+      inFlightCaptures.add(capture);
+      const imageURL = await capture.finally(() => {
+        inFlightCaptures.delete(capture);
+      });
+
+      // the capture spans a render, so the cycle may have been superseded
+      if (interruptSentinel !== localSentinel) return;
+      if (imageID !== currentImageID.value) return;
+
       if (imageURL) {
         thumbnails[imageID][presetName] = imageURL;
       }
     }
 
-    // chaining off the previous cycle keeps a capture it still has in flight
-    // covered by the tracking promise; its presets bail out through the sentinel
-    activeThumbnailing = PresetNameList.reduce(
+    PresetNameList.reduce(
       (promise, presetName) => promise.then(() => helper(presetName)),
-      activeThumbnailing
+      Promise.resolve()
     ).catch(logError);
   }
 
@@ -144,8 +153,10 @@ export function useVolumeThumbnailing(
 
   // force thumbnailing to stop
   onBeforeUnmount(() => {
-    interruptSentinel = Symbol('unmount');
-    activeThumbnailing.finally(() => thumbnailer.delete()).catch(logError);
+    interruptSentinel = UNMOUNTED;
+    Promise.allSettled([...inFlightCaptures])
+      .then(() => thumbnailer.delete())
+      .catch(logError);
   });
 
   // trigger thumbnailing
