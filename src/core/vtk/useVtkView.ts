@@ -6,6 +6,7 @@ import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
 import { releaseOpenGLRenderWindow } from '@/src/core/vtk/releaseRenderWindow';
 import { releaseWidgetManager } from '@/src/core/vtk/releaseWidgetManager';
 import { deleteInteractor } from '@/src/core/vtk/deleteInteractor';
+import { NOOP } from '@/src/constants';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
@@ -88,11 +89,14 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
   renderWindow.addRenderer(renderer);
 
   let disposed = false;
+  let releaseWidgets = NOOP;
 
-  // the parent rebuilds its scene graph from its own child render window list,
-  // so a child comes off that list before its view node goes
+  // registered first so it runs before the teardown below: picking resources go
+  // back through the root view, and the parent rebuilds its scene graph from
+  // its own child render window list
   onScopeDispose(() => {
     disposed = true;
+    releaseWidgets();
     parent?.renderWindow.removeRenderWindow(renderWindow);
   });
 
@@ -123,6 +127,11 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
 
   // widget manager
   const widgetManager = useWidgetManager(renderer);
+  releaseWidgets = () =>
+    releaseWidgetManager(
+      widgetManager,
+      parent?.renderWindowView ?? renderWindowView
+    );
 
   // render API
   const deferredRender = batchForNextTask(() => {
@@ -172,20 +181,14 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
   });
 
   // cleanup
-  const rootRenderWindowView = parent?.renderWindowView ?? renderWindowView;
-
   onScopeDispose(() => {
     deferredRender.cancel();
 
-    try {
-      releaseWidgetManager(widgetManager, rootRenderWindowView);
-    } finally {
-      renderWindow.removeRenderer(renderer);
+    renderWindow.removeRenderer(renderer);
 
-      renderer.delete();
-      renderWindow.delete();
-      deleteInteractor(interactor);
-    }
+    renderer.delete();
+    renderWindow.delete();
+    deleteInteractor(interactor);
   });
 
   return {

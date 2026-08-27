@@ -45,6 +45,8 @@ onVTKEvent(
     // position or, mid capture, nothing at all.
     const { x, y } = event.position;
     const selectedData = await view.widgetManager.getSelectedDataForXY(x, y);
+    // the pick spans a capture, which the view teardown can outrun
+    if (view.widgetManager.isDeleted()) return;
     if ('widget' in selectedData) {
       const widget =
         selectedData.widget as Partial<vtkAnnotationToolWidget> | null;

@@ -153,4 +153,15 @@ describe('useVtkView teardown', () => {
       'managerDeleted',
     ]);
   });
+
+  it('still deletes the manager when the root view is already gone', () => {
+    const released: Array<string> = [];
+    const rootView = {
+      isDeleted: () => true,
+    } as unknown as vtkOpenGLRenderWindow;
+
+    releaseWidgetManager(createSelectorStubs(released), rootView);
+
+    expect(released).toEqual(['managerDeleted']);
+  });
 });
