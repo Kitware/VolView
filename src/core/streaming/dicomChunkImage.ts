@@ -107,6 +107,8 @@ export default class DicomChunkImage
   private thumbnailCache: WeakMap<Chunk, Promise<string>>;
   private events: Emitter<ChunkImageEvents>;
   private chunkStatus: ChunkStatus[];
+  private allocationGeneration: number;
+  private chunkAdditionQueue: Promise<void>;
 
   public segBuildInfo:
     | (JsonCompatible & ReadOverlappingSegmentationMeta)
@@ -128,6 +130,8 @@ export default class DicomChunkImage
     this.chunkStatus = [];
     this.thumbnailCache = new WeakMap();
     this.events = mitt();
+    this.allocationGeneration = 0;
+    this.chunkAdditionQueue = Promise.resolve();
     this.segBuildInfo = null;
 
     this.addEventListener('loading', (loading) => {
@@ -174,6 +178,7 @@ export default class DicomChunkImage
   }
 
   dispose() {
+    this.allocationGeneration += 1;
     super.dispose();
     this.unregisterChunkListeners();
     this.events.all.clear();
@@ -197,7 +202,16 @@ export default class DicomChunkImage
     this.events.emit('loading', false);
   }
 
-  async addChunks(chunks: Chunk[]) {
+  addChunks(chunks: Chunk[]) {
+    const chunksToAdd = chunks.slice();
+    const addition = this.chunkAdditionQueue.then(() =>
+      this.addChunksInOrder(chunksToAdd)
+    );
+    this.chunkAdditionQueue = addition.catch(() => {});
+    return addition;
+  }
+
+  private async addChunksInOrder(chunks: Chunk[]) {
     this.unregisterChunkListeners();
 
     const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
@@ -217,7 +231,8 @@ export default class DicomChunkImage
     if (volumes.length !== 1)
       throw new Error('Did not get just a single volume!');
 
-    // save the newly sorted chunk order
+    // Invalidate decodes targeting the previous buffer and chunk order.
+    this.allocationGeneration += 1;
     this.chunks = volumes[0];
 
     this.chunkStatus = this.chunks.map((chunk) => {
@@ -228,8 +243,9 @@ export default class DicomChunkImage
           return ChunkStatus.NotLoaded;
         case ChunkState.DataLoading:
           return ChunkStatus.Loading;
+        // Loaded pixels belong to the previous allocation.
         case ChunkState.Loaded:
-          return ChunkStatus.Loaded;
+          return ChunkStatus.Loading;
         default:
           throw new Error('Chunk is in an invalid state');
       }
@@ -241,7 +257,7 @@ export default class DicomChunkImage
     }
 
     this.registerChunkListeners();
-    this.processNewChunks(newChunks);
+    this.processLoadedChunks();
 
     // Update data range with already loaded chunks after reallocating image
     if (this.getModality() !== 'SEG') {
@@ -266,27 +282,31 @@ export default class DicomChunkImage
     return this.thumbnailCache.get(chunk)!;
   }
 
-  private processNewChunks(chunks: Chunk[]) {
-    chunks.forEach((chunk, idx) => {
+  // Reallocation clears the buffer, so restore every available slice.
+  private processLoadedChunks() {
+    this.chunks.forEach((chunk) => {
       if (chunk.state !== ChunkState.Loaded) return;
+      this.decodeChunk(chunk);
+    });
+  }
 
-      this.onChunkHasData(idx).catch((err) => {
-        this.onChunkErrored(idx, err);
-      });
+  private decodeChunk(chunk: Chunk) {
+    const generation = this.allocationGeneration;
+    this.onChunkHasData(chunk, generation).catch((err) => {
+      if (generation !== this.allocationGeneration) return;
+      this.onChunkErrored(chunk, err);
     });
   }
 
   private registerChunkListeners() {
     this.chunkListeners = [
-      ...this.chunks.map((chunk, index) => {
+      ...this.chunks.map((chunk) => {
         const stopDoneData = chunk.addEventListener('doneData', () => {
-          this.onChunkHasData(index).catch((err) => {
-            this.onChunkErrored(index, err);
-          });
+          this.decodeChunk(chunk);
         });
 
         const stopError = chunk.addEventListener('error', (err) => {
-          this.onChunkErrored(index, err);
+          this.onChunkErrored(chunk, err);
         });
 
         return () => {
@@ -381,24 +401,25 @@ export default class DicomChunkImage
     return outputRanges;
   }
 
-  private async onChunkHasData(chunkIndex: number) {
+  private async onChunkHasData(chunk: Chunk, generation: number) {
     if (this.getModality() === 'SEG') {
-      await this.onSegChunkHasData(chunkIndex);
+      await this.onSegChunkHasData(chunk, generation);
     } else {
-      await this.onRegularChunkHasData(chunkIndex);
+      await this.onRegularChunkHasData(chunk, generation);
     }
   }
 
-  private async onSegChunkHasData(chunkIndex: number) {
-    if (this.chunks.length !== 1 || chunkIndex !== 0)
+  private async onSegChunkHasData(chunk: Chunk, generation: number) {
+    if (this.chunks.length !== 1 || this.chunks[0] !== chunk)
       throw new Error(
-        `Cannot handle multiple SEG files. Expected 1 chunk at index 0, got ${this.chunks.length} chunks with current index ${chunkIndex}`
+        `Cannot handle multiple SEG files. Expected 1 chunk at index 0, got ${this.chunks.length} chunks with current index ${this.chunks.indexOf(chunk)}`
       );
 
-    const [chunk] = this.chunks;
     const results = await buildSegmentGroups(
       new File([chunk.dataBlob!], 'seg.dcm')
     );
+    if (generation !== this.allocationGeneration) return;
+
     const image = vtkITKHelper.convertItkToVtkImage(results.outputImage);
     this.vtkImageData.value.delete();
     this.vtkImageData.value = image;
@@ -409,8 +430,8 @@ export default class DicomChunkImage
     this.onChunksUpdated();
   }
 
-  private async onRegularChunkHasData(chunkIndex: number) {
-    const chunk = this.chunks[chunkIndex];
+  private async onRegularChunkHasData(chunk: Chunk, generation: number) {
+    const chunkIndex = this.chunks.indexOf(chunk);
     if (!chunk.dataBlob)
       throw new Error(`Chunk ${chunkIndex} does not have data`);
 
@@ -422,11 +443,18 @@ export default class DicomChunkImage
     if (!result.image.data)
       throw new Error(`No data read from chunk ${chunkId}`);
 
+    // Only the decode started for the current allocation may update it.
+    if (generation !== this.allocationGeneration) return;
+
+    // Sorting may have changed across the await; resolve the slot now.
+    const sliceIndex = this.chunks.indexOf(chunk);
+    if (sliceIndex === -1) return;
+
     if (result.image.size[2] > 1 && this.chunks.length > 1) {
       // we're trying to load multiple chunks where individual chunks have multiple frames
       throw new Error(
         `Loading a single volume from multiple DICOM files where individual files contain multiple frames is not supported. ` +
-          `File ${chunkId} (chunk ${chunkIndex}) contains ${result.image.size[2]} frames.`
+          `File ${chunkId} (chunk ${sliceIndex}) contains ${result.image.size[2]} frames.`
       );
     }
 
@@ -455,7 +483,7 @@ export default class DicomChunkImage
           ? ' Every file in a volume must have the same Rows, Columns, and SamplesPerPixel.'
           : '';
       throw new Error(
-        `File ${chunkId} (chunk ${chunkIndex}) does not fit the volume it belongs to. ` +
+        `File ${chunkId} (chunk ${sliceIndex}) does not fit the volume it belongs to. ` +
           `It decoded to ${chunkWidth}x${chunkHeight}x${chunkFrames} with ${chunkComponents} component(s), ` +
           `but the volume has room for ${dims[0]}x${dims[1]}x${framesPerChunk} with ${componentCount} component(s).` +
           advice
@@ -482,7 +510,7 @@ export default class DicomChunkImage
     if (!valuesFitBuffer({ min: chunkMin, max: chunkMax }, pixelData)) {
       const bufferRange = getBufferValueRange(pixelData)!;
       throw new Error(
-        `File ${chunkId} (chunk ${chunkIndex}) has pixel values the volume it belongs to cannot represent. ` +
+        `File ${chunkId} (chunk ${sliceIndex}) has pixel values the volume it belongs to cannot represent. ` +
           `Its pixel values run from ${chunkMin} to ${chunkMax}, but the volume's buffer is ` +
           `${pixelData.constructor.name}, holding values from ${bufferRange.min} to ${bufferRange.max}. ` +
           `Every file in a volume must decode to values its buffer can hold without conversion.`
@@ -490,14 +518,14 @@ export default class DicomChunkImage
     }
     if (!samplesAreIntegral(decoded, pixelData)) {
       throw new Error(
-        `File ${chunkId} (chunk ${chunkIndex}) has fractional pixel values the volume it belongs to cannot represent. ` +
+        `File ${chunkId} (chunk ${sliceIndex}) has fractional pixel values the volume it belongs to cannot represent. ` +
           `Its pixel values run from ${chunkMin} to ${chunkMax}, but the volume's buffer is ` +
           `${pixelData.constructor.name}, which holds only whole numbers. ` +
           `Every file in a volume must decode to values its buffer can hold without conversion.`
       );
     }
 
-    const offset = dims[0] * dims[1] * componentCount * chunkIndex;
+    const offset = dims[0] * dims[1] * componentCount * sliceIndex;
     pixelData.set(result.image.data as TypedArray, offset);
 
     const rangeAlreadyInitialized = this.chunkStatus.some(
@@ -515,20 +543,24 @@ export default class DicomChunkImage
 
     chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);
 
-    this.chunkStatus[chunkIndex] = ChunkStatus.Loaded;
+    this.chunkStatus[sliceIndex] = ChunkStatus.Loaded;
     this.events.emit('chunkLoad', {
       chunk,
-      updatedExtent: [0, dims[0] - 1, 0, dims[1] - 1, chunkIndex, chunkIndex],
+      updatedExtent: [0, dims[0] - 1, 0, dims[1] - 1, sliceIndex, sliceIndex],
     });
     this.onChunksUpdated();
 
     this.vtkImageData.value.modified();
   }
 
-  private onChunkErrored(chunkIndex: number, err: unknown) {
-    this.chunkStatus[chunkIndex] = ChunkStatus.Errored;
+  private onChunkErrored(chunk: Chunk, err: unknown) {
+    // Sorting may have changed since the operation started.
+    const sliceIndex = this.chunks.indexOf(chunk);
+    if (sliceIndex === -1) return;
+
+    this.chunkStatus[sliceIndex] = ChunkStatus.Errored;
     this.events.emit('chunkError', {
-      chunk: this.chunks[chunkIndex],
+      chunk,
       error: err,
     });
     this.events.emit('error', ensureError(err));
