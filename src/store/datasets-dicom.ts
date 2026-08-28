@@ -176,7 +176,9 @@ export const useDICOMStore = defineStore('dicom', {
           const image = cachedImage ?? new DicomChunkImage();
 
           await image.addChunks(sortedChunks);
-          imageCacheStore.addProgressiveImage(image, { id });
+          // Registration starts the first load; a re-import starts its own.
+          if (cachedImage) image.startLoad();
+          else imageCacheStore.addProgressiveImage(image, { id });
 
           // update database
           const metaPairs = image.getDicomMetadata();
