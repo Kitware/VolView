@@ -10,26 +10,21 @@ const writeDatasets = (stateFile: StateFile) => {
   stateFile.manifest.dataSources = [{ id: 1, type: 'uri', uri: '/dataset-1' }];
 };
 
-const writeOneInvalidGroup = async (stateFile: StateFile) => {
-  stateFile.manifest.segmentGroups = reactive([
+const writeOneInvalidArtifact = async (stateFile: StateFile) => {
+  (stateFile.manifest as any).segmentationArtifacts = reactive([
     {
-      id: 'valid-group',
+      id: 'valid-artifact',
       dataSourceId: 1,
-      metadata: {
-        name: 'Valid group',
-        parentImage: 'dataset-1',
-        segments: { order: [], byValue: {} },
-      },
+      parentImage: 'dataset-1',
+      name: 'Valid artifact',
     },
+    // Neither `path` nor `dataSourceId`: nothing resolves its bytes.
     {
-      id: 'invalid-group',
-      metadata: {
-        name: 'Invalid group',
-        parentImage: 'dataset-1',
-        segments: { order: [], byValue: {} },
-      },
-    } as never,
-  ]) as never;
+      id: 'invalid-artifact',
+      parentImage: 'dataset-1',
+      name: 'Invalid artifact',
+    },
+  ]);
 };
 
 const recordWarnings = () => {
@@ -60,14 +55,14 @@ describe('state-file serialization resilience', () => {
   it('writes a restorable zip when one manifest entry is malformed', async () => {
     const sink = recordWarnings();
     const blob = await serialize({
-      writers: [writeDatasets, writeOneInvalidGroup],
+      writers: [writeDatasets, writeOneInvalidArtifact],
       addWarning: sink.addWarning,
     });
     const zip = await JSZip.loadAsync(blob);
     const manifest = JSON.parse(await zip.file(MANIFEST)!.async('string'));
 
-    expect(manifest.segmentGroups).toHaveLength(1);
-    expect(manifest.segmentGroups[0].id).toBe('valid-group');
+    expect(manifest.segmentationArtifacts).toHaveLength(1);
+    expect(manifest.segmentationArtifacts[0].id).toBe('valid-artifact');
     expect(sink.warnings).toEqual([
       {
         title: 'Some session content could not be saved',
@@ -91,29 +86,80 @@ describe('state-file serialization resilience', () => {
   it('omits invalid optional dependents and their archive members', () => {
     const zip = new JSZip();
     zip.file('segmentations/orphan.vti', 'bytes');
-    const manifest: Manifest = {
+    const manifest = {
       version: MANIFEST_VERSION,
       datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
       dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentGroups: [
+      segmentationArtifacts: [
         {
           id: 'orphan',
           path: 'segmentations/orphan.vti',
-          metadata: { name: 'Orphan', parentImage: 'missing-dataset' },
+          parentImage: 'missing-dataset',
+          name: 'Orphan',
+        },
+      ],
+      segmentations: [
+        {
+          id: 'orphan-segmentation',
+          name: 'Orphan',
+          parentImage: 'missing-dataset',
+          segments: [],
+          order: [],
         },
       ],
       parentToLayers: [
         { selectionKey: 'dataset-1', sourceSelectionKeys: ['missing-layer'] },
       ],
-    };
+    } as unknown as Manifest;
 
-    const normalized = normalizeManifest(manifest, zip);
-    expect(normalized.manifest.segmentGroups).toEqual([]);
+    const normalized = normalizeManifest(manifest, zip) as any;
+    expect(normalized.manifest.segmentationArtifacts).toEqual([]);
+    expect(normalized.manifest.segmentations).toEqual([]);
     expect(normalized.manifest.parentToLayers).toEqual([]);
     expect(zip.file('segmentations/orphan.vti')).toBeNull();
     expect(normalized.omitted.join('\n')).toMatch(
       /parent dataset|layer relationship/
     );
+  });
+
+  it('omits an artifact whose archive member is missing', () => {
+    const manifest = {
+      version: MANIFEST_VERSION,
+      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
+      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
+      segmentationArtifacts: [
+        {
+          id: 'artifact-1',
+          path: 'segmentations/gone.vti',
+          parentImage: 'dataset-1',
+          name: 'Gone',
+        },
+      ],
+    } as unknown as Manifest;
+
+    const normalized = normalizeManifest(manifest, new JSZip()) as any;
+    expect(normalized.manifest.segmentationArtifacts).toEqual([]);
+    expect(normalized.omitted.join('\n')).toMatch(/archive member/);
+  });
+
+  it('omits an artifact whose data source is missing', () => {
+    const manifest = {
+      version: MANIFEST_VERSION,
+      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
+      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
+      segmentationArtifacts: [
+        {
+          id: 'artifact-1',
+          dataSourceId: 99,
+          parentImage: 'dataset-1',
+          name: 'Dangling',
+        },
+      ],
+    } as unknown as Manifest;
+
+    const normalized = normalizeManifest(manifest, new JSZip()) as any;
+    expect(normalized.manifest.segmentationArtifacts).toEqual([]);
+    expect(normalized.omitted.join('\n')).toMatch(/data source 99 is missing/);
   });
 
   it('omits the complete view layout when viewByID is invalid', () => {
@@ -193,39 +239,54 @@ describe('state-file serialization resilience', () => {
     warnSpy.mockRestore();
   });
 
-  it('round-trips a locked segment mask', () => {
-    const manifest: Manifest = {
+  it('round-trips a locked segment and the active segment', () => {
+    const manifest = {
       version: MANIFEST_VERSION,
       datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
       dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentGroups: [
+      segmentationArtifacts: [
         {
-          id: 'group-1',
+          id: 'artifact-1',
           dataSourceId: 1,
-          metadata: {
-            name: 'Group',
-            parentImage: 'dataset-1',
-            segments: {
-              order: [1],
-              byValue: {
-                '1': {
-                  value: 1,
-                  name: 'Segment 1',
-                  color: [255, 0, 0, 255],
-                  visible: true,
-                  locked: true,
+          parentImage: 'dataset-1',
+          name: 'Artifact',
+        },
+      ],
+      segmentations: [
+        {
+          id: 'segmentation-1',
+          name: 'CT',
+          parentImage: 'dataset-1',
+          segments: [
+            {
+              id: 'segment-1',
+              name: 'Segment 1',
+              color: [255, 0, 0, 255],
+              visible: true,
+              locked: true,
+              representations: {
+                labelmap: {
+                  artifactId: 'artifact-1',
+                  labelValue: 1,
+                  extent: [0, 3, 0, 3, 0, 3],
                 },
               },
             },
-          },
+          ],
+          order: ['segment-1'],
+          activeSegment: 'segment-1',
         },
       ],
-    };
+    } as unknown as Manifest;
 
-    const normalized = normalizeManifest(manifest, new JSZip());
-    expect(
-      normalized.manifest.segmentGroups?.[0].metadata.segments?.byValue['1']
-        .locked
-    ).toBe(true);
+    const normalized = normalizeManifest(manifest, new JSZip()) as any;
+    const segmentation = normalized.manifest.segmentations[0];
+    expect(segmentation.segments[0].locked).toBe(true);
+    expect(segmentation.segments[0].representations.labelmap).toEqual({
+      artifactId: 'artifact-1',
+      labelValue: 1,
+      extent: [0, 3, 0, 3, 0, 3],
+    });
+    expect(segmentation.activeSegment).toBe('segment-1');
   });
 });

@@ -1,9 +1,21 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, shallowRef, toRaw, watch } from 'vue';
+import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { untilLoaded } from '@/src/composables/untilLoaded';
+import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
+import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
+import type {
+  Manifest,
+  SegmentationArtifact,
+  StateFile,
+} from '@/src/io/state-file/schema';
+import { makeSegmentGroupArchivePath } from '@/src/io/state-file/segmentGroupArchivePath';
+import type { FileEntry } from '@/src/io/types';
+import { useDatasetStore } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
@@ -11,6 +23,8 @@ import {
   LABELMAP_BACKGROUND_VALUE,
   makeDefaultSegmentGroupName,
   makeDefaultSegmentName,
+  toLabelMap,
+  useSegmentGroupStore,
 } from '@/src/store/segmentGroups';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import type {
@@ -23,6 +37,7 @@ import type {
   Segmentation,
 } from '@/src/types/segmentation';
 import { removeFromArray } from '@/src/utils';
+import { normalize } from '@/src/utils/path';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 export type ArtifactMetadata = {
@@ -37,6 +52,24 @@ export type SegmentInit = {
 };
 
 export type SegmentPatch = Partial<Omit<Segment, 'id' | 'representations'>>;
+
+/**
+ * The labelmap codec the state file writes through. Injected because itk-wasm
+ * and the vti worker have no node counterpart.
+ */
+export type SegmentationArtifactIO = {
+  write: (
+    format: string,
+    labelmap: vtkLabelMap,
+    segments: LabelmapSegment[]
+  ) => Promise<string | Uint8Array>;
+  read: (file: File) => Promise<{ image: vtkImageData }>;
+};
+
+const defaultArtifactIO: SegmentationArtifactIO = {
+  write: writeSegmentation,
+  read: readImage,
+};
 
 const NO_NAME = '(no name)';
 
@@ -468,6 +501,251 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     { immediate: true }
   );
 
+  // --- state file --- //
+
+  async function serialize(
+    state: StateFile,
+    io: SegmentationArtifactIO = defaultArtifactIO
+  ) {
+    const { zip, manifest } = state;
+    const format = useSegmentGroupStore().saveFormat;
+    const usedArchivePaths = new Set<string>();
+
+    // Artifact order per parent image is implicitly preserved by the order of
+    // the serialized entries.
+    const entries = Object.keys(artifactOrderByParent).flatMap(
+      (parentImageId) =>
+        artifactsForImage(parentImageId).map((artifactId) => ({
+          artifactId,
+          meta: artifactMeta[artifactId],
+          path: makeSegmentGroupArchivePath(
+            artifactMeta[artifactId].name,
+            format,
+            usedArchivePaths
+          ),
+        }))
+    );
+
+    manifest.segmentationArtifacts = entries.map(
+      ({ artifactId, meta, path }) => ({
+        id: artifactId,
+        parentImage: meta.parentImage,
+        name: meta.name,
+        path,
+        ...(meta.source ? { source: meta.source } : {}),
+      })
+    );
+
+    const target = activeTarget.value;
+    manifest.segmentations = Object.values(segmentations).map(
+      (segmentation) => ({
+        id: segmentation.id,
+        name: segmentation.name,
+        parentImage: segmentation.parentImageId,
+        segments: listSegments(segmentation).map((segment) => {
+          const binding = segment.representations.labelmap;
+          return {
+            id: segment.id,
+            name: segment.name,
+            color: [...segment.color] as RGBAColor,
+            visible: segment.visible,
+            locked: segment.locked,
+            representations: binding
+              ? {
+                  labelmap: {
+                    artifactId: binding.artifactId,
+                    labelValue: binding.labelValue,
+                    extent: [...binding.extent] as Extent3D,
+                  },
+                }
+              : {},
+          };
+        }),
+        order: [...segmentation.order],
+        ...(target?.segmentationId === segmentation.id
+          ? { activeSegment: target.segmentId }
+          : {}),
+      })
+    );
+
+    await Promise.all(
+      entries.map(async ({ artifactId, path }) => {
+        zip.file(
+          path,
+          await io.write(
+            format,
+            artifactIndex[artifactId],
+            labelmapSegmentsByArtifact.value[artifactId] ?? []
+          )
+        );
+      })
+    );
+  }
+
+  async function deserialize(
+    manifest: Manifest,
+    stateFiles: FileEntry[],
+    dataIDMap: Record<string, string>,
+    // Per-artifact restore source, resolved by the restore setup (see
+    // resolveArtifactRestoreSources in restoreStateFile.ts, the single owner of
+    // the synthesized-leaf and ownership policy). Mapped through dataIDMap here.
+    artifactSources: Record<string, ArtifactRestoreSource> = {},
+    io: SegmentationArtifactIO = defaultArtifactIO
+  ) {
+    const wireArtifacts = manifest.segmentationArtifacts ?? [];
+    const artifactIdMap: Record<string, string> = {};
+    const segmentIdMap: Record<string, string> = {};
+    // Non-silent drops: every artifact left out of the restore is recorded with
+    // a concrete reason so the caller can surface it.
+    const skipped: Array<{ name: string; reason: string }> = [];
+
+    // A path-less artifact's store id: the restore setup already resolved which
+    // STATE id carries its bytes; this only maps that id through dataIDMap.
+    const artifactStoreId = (artifact: SegmentationArtifact) => {
+      if (artifact.path !== undefined) return undefined;
+      const source = artifactSources[artifact.id];
+      return source !== undefined ? dataIDMap[source.stateId] : undefined;
+    };
+
+    // `path` is authoritative for bytes when present: a re-saved zip carries the
+    // archive bytes AND the provenance `dataSourceId`, but `dataIDMap` is keyed
+    // by save-time DATASET ids.
+    async function loadArtifactImage(
+      artifact: SegmentationArtifact,
+      storeId: string | undefined
+    ) {
+      if (artifact.path !== undefined) {
+        const file = stateFiles.find(
+          (entry) => entry.archivePath === normalize(artifact.path!)
+        )?.file;
+        return io.read(file!);
+      }
+
+      await untilLoaded(storeId!);
+      const image = imageCacheStore.getVtkImageData(storeId!);
+      if (!image) {
+        throw new Error(
+          `Could not get image data for dataSourceId ${artifact.dataSourceId}`
+        );
+      }
+      return { image };
+    }
+
+    // Skip BEFORE awaiting anything an artifact whose parent image is
+    // unresolved, or a path-less one whose datasource never materialized —
+    // `untilLoaded(undefined)` never times out and would hang restore forever.
+    const attachable = wireArtifacts.filter((artifact) => {
+      if (dataIDMap[artifact.parentImage] === undefined) {
+        skipped.push({
+          name: artifact.name,
+          reason: 'parent image did not load',
+        });
+        return false;
+      }
+      if (artifact.path !== undefined) return true;
+      const hasArtifact = artifactStoreId(artifact) !== undefined;
+      if (!hasArtifact) {
+        skipped.push({
+          name: artifact.name,
+          reason: 'artifact source unavailable',
+        });
+      }
+      return hasArtifact;
+    });
+
+    // Every path-less artifact's temporary imported dataset must be removed
+    // exactly ONCE, and only AFTER every artifact that reads it has settled;
+    // two artifacts sharing a dataSourceId share one temp dataset id. Collected
+    // from EVERY artifact, not just the attachable ones: one skipped at the
+    // parent-image check may still have imported its leaf.
+    const tempStoreIdsToRemove = new Set(
+      wireArtifacts
+        .filter((artifact) => artifactSources[artifact.id]?.temporary === true)
+        .map(artifactStoreId)
+        .filter((storeId): storeId is string => storeId !== undefined)
+    );
+
+    let loaded;
+    try {
+      loaded = await Promise.all(
+        attachable.map(async (artifact) => {
+          try {
+            const { image } = await loadArtifactImage(
+              artifact,
+              artifactStoreId(artifact)
+            );
+            return { artifact, labelmap: toLabelMap(image) };
+          } catch {
+            // A parse/read failure skips just this artifact — never rejects the
+            // whole restore; the survivors still attach.
+            skipped.push({
+              name: artifact.name,
+              reason: 'could not read/parse labelmap',
+            });
+            return undefined;
+          }
+        })
+      );
+    } finally {
+      const datasetStore = useDatasetStore();
+      tempStoreIdsToRemove.forEach((storeId) => datasetStore.remove(storeId));
+    }
+
+    loaded.forEach((result) => {
+      if (!result) return;
+      const { artifact, labelmap } = result;
+      artifactIdMap[artifact.id] = registerArtifact(labelmap, {
+        parentImage: dataIDMap[artifact.parentImage],
+        name: artifact.name,
+        ...(artifact.source ? { source: artifact.source } : {}),
+      });
+    });
+
+    (manifest.segmentations ?? []).forEach((wire) => {
+      const parentImageId = dataIDMap[wire.parentImage];
+      if (parentImageId === undefined) return;
+
+      const segmentation = ensureSegmentationForImage(parentImageId);
+      segmentation.name = wire.name;
+
+      const wireById = new Map(
+        wire.segments.map((segment) => [segment.id, segment])
+      );
+      wire.order.forEach((wireSegmentId) => {
+        const wireSegment = wireById.get(wireSegmentId);
+        if (!wireSegment) return;
+
+        const segment = createSegment(segmentation.id, {
+          name: wireSegment.name,
+          color: [...wireSegment.color] as RGBAColor,
+        });
+        segment.visible = wireSegment.visible;
+        segment.locked = wireSegment.locked;
+
+        const binding = wireSegment.representations.labelmap;
+        const artifactId = binding
+          ? artifactIdMap[binding.artifactId]
+          : undefined;
+        if (binding && artifactId !== undefined) {
+          segment.representations.labelmap = {
+            artifactId,
+            labelValue: binding.labelValue,
+            extent: [...binding.extent] as Extent3D,
+          };
+        }
+        segmentIdMap[wireSegmentId] = segment.id;
+      });
+
+      const activeSegmentId = wire.activeSegment
+        ? segmentIdMap[wire.activeSegment]
+        : undefined;
+      if (activeSegmentId !== undefined)
+        setActiveSegment(segmentation.id, activeSegmentId);
+    });
+
+    return { artifactIdMap, segmentIdMap, skipped };
+  }
+
   // --- handle deletions --- //
 
   onImageDeleted((deleted) => {
@@ -512,5 +790,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     setArtifactSegments,
     removeArtifact,
     pickUniqueArtifactName,
+    serialize,
+    deserialize,
   };
 });

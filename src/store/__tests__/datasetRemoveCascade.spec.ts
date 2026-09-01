@@ -230,7 +230,6 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
     // Side-effect imports for the declaring modules the tests above don't use.
     await import('@/src/store/tools/rectangles');
     await import('@/src/store/tools/polygons');
-    await import('@/src/store/tools/paint');
     const { collectManifestRefs } = await import('@/src/core/manifestRefs');
 
     const refs = collectManifestRefs({
@@ -242,7 +241,6 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
         rectangles: { tools: [{ imageID: 'ghost-rect-img' }] },
         polygons: { tools: [{ imageID: 'ghost-poly-img' }] },
         crop: { 'ghost-crop-img': {} },
-        paint: { activeSegmentGroupID: 'ghost-group' },
       },
     });
 
@@ -261,9 +259,6 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
     );
     expect(found).toContain(
       'tools.crop[ghost-crop-img] -> dataset ghost-crop-img'
-    );
-    expect(found).toContain(
-      'tools.paint.activeSegmentGroupID -> segmentGroup ghost-group'
     );
   });
 });

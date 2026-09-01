@@ -14,8 +14,7 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
-import type { ToolSegmentRegistry } from './segmentRegistry';
-import type { Labels } from './useLabels';
+import type { ToolSegmentRegistry, ToolWireIdentity } from './segmentRegistry';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
@@ -174,7 +173,7 @@ export const useAnnotationTool = <
 
     return {
       tools: toolsSerialized,
-      labels: registry.serializeLabels(
+      ...registry.serializeIdentity(
         toolsSerialized.flatMap((tool) => (tool.label ? [tool.label] : []))
       ),
     };
@@ -182,15 +181,16 @@ export const useAnnotationTool = <
 
   type Serialized = {
     tools: PartialWithRequired<Tool, 'imageID'>[];
-    labels: Labels<Tool>;
-  };
+  } & ToolWireIdentity<Tool>;
   function deserializeTools(
     serialized: Maybe<Serialized>,
-    dataIDMap: Record<string, string>
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
   ) {
-    const resolveLabel = serialized?.labels
-      ? registry.adoptLabels(serialized.labels as Labels<LabelProps>)
-      : () => '';
+    const resolveLabel = registry.adoptIdentity(
+      serialized as Maybe<ToolWireIdentity<LabelProps>>,
+      segmentIdMap
+    );
 
     serialized?.tools
       .map(({ imageID, label, ...rest }) => {

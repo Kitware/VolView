@@ -27,7 +27,13 @@ export interface IActivatableTool {
 
 export interface ISerializableTool {
   serialize: (state: StateFile) => void;
-  deserialize: (manifest: Manifest, dataIDMap: Record<string, string>) => void;
+  deserialize: (
+    manifest: Manifest,
+    dataIDMap: Record<string, string>,
+    // Save-time segment id -> restored segment id, for the tools that point at
+    // segments rather than owning their own labels.
+    segmentIdMap?: Record<string, string>
+  ) => void;
 }
 
 export interface IToolStore

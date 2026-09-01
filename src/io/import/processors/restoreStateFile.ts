@@ -13,7 +13,7 @@ import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
 import { partition, getURLBasename } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { leafStateId } from '@/src/io/import/dataSource';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
@@ -126,9 +126,9 @@ const summarizeDataSource = (
   return `${names.slice(0, 2).join(', ')}, … (${names.length} files)`;
 };
 
-// A composed manifest's `datasets` covers base images only; a segment group
-// wired to a uri entry via `dataSourceId` (and carrying no archive `path`)
-// still needs its artifact fetched, or the group's dataIDMap key never
+// A composed manifest's `datasets` covers base images only; a segmentation
+// artifact wired to a uri entry via `dataSourceId` (and carrying no archive
+// `path`) still needs its bytes fetched, or the artifact's dataIDMap key never
 // materializes and restore hangs. The synthesized stateID is
 // `leafStateId(dataSourceId)`, never the bare numeral: dataset ids and
 // dataSourceIds are both small integers in real saves, and a shared key would
@@ -139,9 +139,12 @@ const syntheticLeafSources = (manifest: Manifest): Map<number, string> => {
     manifestDatasets(manifest).map((ds) => ds.dataSourceId)
   );
   const referencedLeafSourceIds = new Set(
-    (manifest.segmentGroups ?? [])
-      .filter((sg) => sg.path === undefined && sg.dataSourceId !== undefined)
-      .map((sg) => sg.dataSourceId!)
+    (manifest.segmentationArtifacts ?? [])
+      .filter(
+        (artifact) =>
+          artifact.path === undefined && artifact.dataSourceId !== undefined
+      )
+      .map((artifact) => artifact.dataSourceId!)
   );
   return new Map(
     [...referencedLeafSourceIds]
@@ -155,10 +158,10 @@ export type ArtifactRestoreSource = {
   temporary: boolean;
 };
 
-// Each path-less segment group's artifact source: the synthesized temporary
-// leaf when one was minted, else the dataset covering that source. Explicitly
-// carry ownership so cleanup never removes a real dataset merely because a
-// group shares its dataSourceId. Legacy manifests have no dataset/artifact
+// Each path-less artifact's restore source: the synthesized temporary leaf when
+// one was minted, else the dataset covering that source. Explicitly carry
+// ownership so cleanup never removes a real dataset merely because an artifact
+// shares its dataSourceId. Legacy manifests have no dataset/artifact
 // distinction, so their path-less artifact datasets retain the consumed-temp
 // behavior used before `datasets` was added.
 export const resolveArtifactRestoreSources = (
@@ -169,14 +172,16 @@ export const resolveArtifactRestoreSources = (
     manifestDatasets(manifest).map((ds) => [ds.dataSourceId, ds.id])
   );
   return Object.fromEntries(
-    (manifest.segmentGroups ?? []).flatMap((sg) => {
-      if (sg.path !== undefined || sg.dataSourceId === undefined) return [];
-      const mintedStateId = minted.get(sg.dataSourceId);
-      const stateId = mintedStateId ?? datasetIdBySourceId.get(sg.dataSourceId);
+    (manifest.segmentationArtifacts ?? []).flatMap((artifact) => {
+      if (artifact.path !== undefined || artifact.dataSourceId === undefined)
+        return [];
+      const mintedStateId = minted.get(artifact.dataSourceId);
+      const stateId =
+        mintedStateId ?? datasetIdBySourceId.get(artifact.dataSourceId);
       return stateId !== undefined
         ? [
             [
-              sg.id,
+              artifact.id,
               {
                 stateId,
                 temporary:
@@ -199,12 +204,12 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
 
   const datasets = manifestDatasets(manifest);
 
-  const segmentGroupLeaves = [...syntheticLeafSources(manifest).entries()].map(
+  const artifactLeaves = [...syntheticLeafSources(manifest).entries()].map(
     ([dataSourceId, stateId]) => ({ id: stateId, dataSourceId })
   );
 
   const missingFiles: Array<{ stateID: string; path: string }> = [];
-  const dataSources = [...datasets, ...segmentGroupLeaves].flatMap((ds) => {
+  const dataSources = [...datasets, ...artifactLeaves].flatMap((ds) => {
     const sources = resolveToLeafSources(
       ds.dataSourceId,
       byId,
@@ -279,9 +284,8 @@ export async function completeStateFileRestore(
 
   useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
 
-  const segmentGroupStore = useSegmentGroupStore();
-  const { segmentGroupIDMap, skipped: skippedSegmentGroups } =
-    await segmentGroupStore.deserialize(
+  const { segmentIdMap, skipped: skippedArtifacts } =
+    await useSegmentationStore().deserialize(
       manifest,
       stateFiles,
       stateIDToStoreID,
@@ -290,7 +294,7 @@ export async function completeStateFileRestore(
 
   useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-  useToolStore().deserialize(manifest, segmentGroupIDMap, stateIDToStoreID);
+  useToolStore().deserialize(manifest, segmentIdMap, stateIDToStoreID);
 
   const missingBases = unresolvedDatasets.map((ds) =>
     summarizeDataSource(
@@ -330,7 +334,7 @@ export async function completeStateFileRestore(
     ...missingBases.map((name) => `- image: ${name}`),
     ...missingMembers,
     ...failedMembers,
-    ...skippedSegmentGroups.map(
+    ...skippedArtifacts.map(
       ({ name, reason }) => `- segment group: ${name} (${reason})`
     ),
   ];

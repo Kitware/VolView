@@ -40,14 +40,22 @@ export type SegmentLabelApi<Props> = {
   mergeLabels: (labels: Maybe<Labels<Props>>) => void;
   findLabel: (name: Maybe<string>) => [string, Label<Props>] | undefined;
   clearDefaultLabels: () => void;
-  // wire-format shim, replaced in C7/C8
   mergeLabelForImage: (imageId: Maybe<string>, label: Label<Props>) => string;
-  // wire-format shim, replaced in C7/C8
-  adoptLabels: (
-    labels: Labels<Props>
+  serializeIdentity: (referenced: string[]) => ToolWireIdentity<Props>;
+  adoptIdentity: (
+    serialized: Maybe<ToolWireIdentity<Props>>,
+    segmentIdMap: Record<string, string>
   ) => (labelId: Maybe<string>, imageId: Maybe<string>) => string;
-  // wire-format shim, replaced in C7/C8
-  serializeLabels: (referenced: string[]) => Labels<Props>;
+};
+
+/**
+ * The identity half of a tool's manifest entry: a shared registry's segments
+ * already serialize on their segmentation, so only their per-tool props go on
+ * the wire; a local registry still carries its whole label record.
+ */
+export type ToolWireIdentity<Props> = {
+  labels?: Labels<Props>;
+  segmentProps?: Labels<Props>;
 };
 
 export type ToolSegmentRegistry<Props> = SegmentRegistry &
@@ -264,29 +272,30 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   // Segments are never seeded, so there is nothing default to clear.
   const clearDefaultLabels = () => {};
 
-  const adoptLabels = (serialized: Labels<Props>) => {
-    const adopted = new Map<string, string>();
-    return (labelId: Maybe<string>, imageId: Maybe<string>) => {
-      if (!labelId || !imageId) return '';
-      // A label the manifest never carried is a deleted one; restore unlabeled.
-      if (!(labelId in serialized)) return '';
-      const key = `${labelId}|${imageId}`;
-      const existing = adopted.get(key);
-      if (existing !== undefined) return existing;
-      const id = addLabelForImage(imageId, serialized[labelId] as ToolLabel);
-      adopted.set(key, id);
-      return id;
-    };
+  // The segments themselves restore with their segmentation; only the props
+  // this tool store owns are re-attached, keyed by the restored segment id.
+  const adoptIdentity = (
+    serialized: Maybe<ToolWireIdentity<Props>>,
+    segmentIdMap: Record<string, string>
+  ) => {
+    Object.entries(serialized?.segmentProps ?? {}).forEach(
+      ([wireId, props]) => {
+        const segmentId = segmentIdMap[wireId];
+        if (segmentId) setProps(segmentId, props as ToolLabel);
+      }
+    );
+    // A segment the restore did not recreate is a deleted one; leave the tool
+    // unlabeled.
+    return (labelId: Maybe<string>) => (labelId && segmentIdMap[labelId]) || '';
   };
 
-  const serializeLabels = (referenced: string[]) => {
-    const all = allLabels.value;
-    return Object.fromEntries(
+  const serializeIdentity = (referenced: string[]) => ({
+    segmentProps: Object.fromEntries(
       [...new Set(referenced)]
-        .filter((id) => id in all)
-        .map((id) => [id, all[id]])
-    ) as Labels<Props>;
-  };
+        .filter((id) => id in propsBySegment.value)
+        .map((id) => [id, propsBySegment.value[id]])
+    ) as Labels<Props>,
+  });
 
   return {
     segments,
@@ -310,8 +319,8 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     findLabel,
     clearDefaultLabels,
     mergeLabelForImage,
-    adoptLabels,
-    serializeLabels,
+    serializeIdentity,
+    adoptIdentity,
   };
 };
 
@@ -358,16 +367,18 @@ export const createLocalSegmentRegistry = <Props extends object = object>(
     allLabels: labels.labels,
     mergeLabelForImage: (_imageId: Maybe<string>, label: ToolLabel) =>
       labels.mergeLabel(label),
-    adoptLabels: (serialized: Labels<Props>) => {
+    adoptIdentity: (serialized: Maybe<ToolWireIdentity<Props>>) => {
+      const serializedLabels = serialized?.labels;
+      if (!serializedLabels) return () => '';
       labels.clearDefaultLabels();
       const idMap = Object.fromEntries(
-        Object.entries(serialized).map(([id, label]) => [
+        Object.entries(serializedLabels).map(([id, label]) => [
           id,
           labels.addLabel(label as ToolLabel), // side effect in Array.map
         ])
       );
       return (labelId: Maybe<string>) => (labelId && idMap[labelId]) || '';
     },
-    serializeLabels: () => labels.labels.value,
+    serializeIdentity: () => ({ labels: labels.labels.value }),
   };
 };

@@ -318,6 +318,63 @@ export const ProcessingResultSource = z.object({
   outputId: z.string(),
 });
 
+const Extent3D = z.tuple([
+  z.number(),
+  z.number(),
+  z.number(),
+  z.number(),
+  z.number(),
+  z.number(),
+]);
+
+const LabelmapBinding = z.object({
+  artifactId: z.string(),
+  labelValue: z.number(),
+  extent: Extent3D,
+});
+
+const Segment = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: RGBAColor,
+  visible: z.boolean().default(true),
+  locked: z.boolean().default(false),
+  representations: z.object({ labelmap: LabelmapBinding.optional() }),
+});
+
+export const Segmentation = z.object({
+  id: z.string(),
+  name: z.string(),
+  parentImage: z.string(),
+  segments: Segment.array(),
+  order: z.string().array(),
+  activeSegment: z.string().optional(),
+});
+
+export type Segmentation = z.infer<typeof Segmentation>;
+
+// Persistent labelmap identity, separate from the runtime artifact index:
+// segment bindings reference `id`, and `path`/`dataSourceId` resolve the bytes.
+export const SegmentationArtifact = z
+  .object({
+    id: z.string(),
+    parentImage: z.string(),
+    name: z.string(),
+    path: z.string().optional(),
+    dataSourceId: z.number().optional(),
+    source: ProcessingResultSource.optional(),
+  })
+  .refine(
+    (data) => data.path !== undefined || data.dataSourceId !== undefined,
+    {
+      message: 'Either path or dataSourceId is required',
+    }
+  );
+
+export type SegmentationArtifact = z.infer<typeof SegmentationArtifact>;
+
+// Legacy 6.x wire shape. No current manifest root carries it; the 6.4.0
+// migration DTO is its only reader.
 export const SegmentGroupMetadata = z.object({
   name: z.string(),
   // The explicit parent binding stays REQUIRED: a segment group entry without
@@ -382,10 +439,19 @@ const annotationTool = z.object({
   source: ProcessingResultSource.optional(),
 });
 
-const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
+// Rulers own their labels, so identity rides on the tool entry.
+const makeLabelledToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({
     tools: z.array(tool),
-    labels: z.record(z.string(), tool.partial()),
+    labels: z.record(z.string(), tool.partial()).optional(),
+  });
+
+// Polygons and rectangles point at segments: identity lives on the
+// segmentation, and only the per-tool props are keyed by segment id here.
+const makeSegmentToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
+  z.object({
+    tools: z.array(tool),
+    segmentProps: z.record(z.string(), tool.partial()).optional(),
   });
 
 const Ruler = annotationTool.extend({
@@ -393,25 +459,23 @@ const Ruler = annotationTool.extend({
   secondPoint: Vector3,
 });
 
-const Rulers = makeToolEntry(Ruler);
+const Rulers = makeLabelledToolEntry(Ruler);
 
 const Rectangle = Ruler.extend({
   fillColor: z.string().optional(),
 });
 
-const Rectangles = makeToolEntry(Rectangle);
+const Rectangles = makeSegmentToolEntry(Rectangle);
 
 const Polygon = annotationTool.extend({
   points: z.array(Vector3),
 });
 
-const Polygons = makeToolEntry(Polygon);
+const Polygons = makeSegmentToolEntry(Polygon);
 
 const ToolsEnumNative = z.nativeEnum(ToolsEnum);
 
 const Paint = z.object({
-  activeSegmentGroupID: z.string().nullable().optional(),
-  activeSegment: z.number().nullish(),
   brushSize: z.number().optional(),
   crossPlaneSync: z.boolean().optional(),
   labelmapOpacity: z.number().optional(),
@@ -450,7 +514,8 @@ export const ManifestSchema = z.object({
   datasets: Dataset.array().optional(),
   dataSources: DataSource.array(),
   datasetFilePath: z.record(z.string(), z.string()).optional(),
-  segmentGroups: SegmentGroup.array().optional(),
+  segmentations: Segmentation.array().optional(),
+  segmentationArtifacts: SegmentationArtifact.array().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),

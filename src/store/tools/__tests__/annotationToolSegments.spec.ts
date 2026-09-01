@@ -152,7 +152,7 @@ describe('shared segment identity for polygons and rectangles', () => {
 
     const serialized = JSON.parse(JSON.stringify(store.serializeTools()));
     expect(serialized.tools[0].label).toBe(segment.id);
-    expect(serialized.labels).toEqual({});
+    expect(serialized.segmentProps).toEqual({});
 
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);

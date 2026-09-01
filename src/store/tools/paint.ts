@@ -16,23 +16,6 @@ import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
 import { useViewCameraStore } from '../view-configs/camera';
 import { useImageCacheStore } from '../image-cache';
-import { declareManifestRefs } from '@/src/core/manifestRefs';
-import { isRecord } from '@/src/utils';
-
-// wire-format shim, replaced in C7
-declareManifestRefs('tools.paint', (manifest) => {
-  const tools = isRecord(manifest.tools) ? manifest.tools : {};
-  const paint = isRecord(tools.paint) ? tools.paint : {};
-  return typeof paint.activeSegmentGroupID === 'string'
-    ? [
-        {
-          kind: 'segmentGroup' as const,
-          id: paint.activeSegmentGroupID,
-          where: 'tools.paint.activeSegmentGroupID',
-        },
-      ]
-    : [];
-});
 
 const DEFAULT_BRUSH_SIZE = 4;
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [
@@ -351,33 +334,17 @@ export const usePaintToolStore = defineStore('paint', () => {
     activePaintViewID.value = activeViewID;
   }
 
-  // wire-format shim, replaced in C7
-  const activeBinding = () => {
-    const target = segmentationStore.activeTarget;
-    if (!target) return undefined;
-    return segmentationStore.resolveLabelmapBinding(
-      target.segmentationId,
-      target.segmentId
-    );
-  };
-
   function serialize(state: StateFile) {
     const paint = state.manifest.tools?.paint;
     if (!paint) return;
 
-    // wire-format shim, replaced in C7
-    const binding = activeBinding();
-    paint.activeSegmentGroupID = binding?.artifactId ?? null;
-    paint.activeSegment = binding?.labelValue ?? null;
     paint.brushSize = brushSize.value;
     paint.crossPlaneSync = crossPlaneSync.value;
   }
 
-  function deserialize(
-    this: _This,
-    manifest: Manifest,
-    segmentGroupIDMap: Record<string, string>
-  ) {
+  // The active segment rides on its segmentation, restored by the segmentation
+  // store before any tool deserializes.
+  function deserialize(this: _This, manifest: Manifest) {
     const paint = manifest.tools?.paint;
     if (!paint) return;
 
@@ -385,24 +352,6 @@ export const usePaintToolStore = defineStore('paint', () => {
       setBrushSize.call(this, paint.brushSize);
     }
     isActive.value = manifest.tools?.current === Tools.Paint;
-
-    // wire-format shim, replaced in C7
-    const artifactId = paint.activeSegmentGroupID
-      ? segmentGroupIDMap[paint.activeSegmentGroupID]
-      : undefined;
-    const segmentation = artifactId
-      ? segmentationStore.getSegmentationForArtifact(artifactId)
-      : undefined;
-    const segment =
-      artifactId && paint.activeSegment != null
-        ? segmentationStore.findSegmentByLabelValue(
-            artifactId,
-            paint.activeSegment
-          )
-        : undefined;
-    if (segmentation && segment) {
-      segmentationStore.setActiveSegment(segmentation.id, segment.id);
-    }
     setCrossPlaneSync(paint.crossPlaneSync ?? false);
   }
 

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -74,7 +73,9 @@ function makeImage() {
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(makeImage(), name, { id });
 
-describe('segmentGroups.deserialize — legacy manifests without `datasets`', () => {
+// Deferred to C8, which restores legacy `segmentGroups` manifests through
+// `migrate640To700`; the 7.0.0 wire has no segment-group root.
+describe.skip('segmentGroups.deserialize — legacy manifests without `datasets`', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     ioMocks.readImage.mockReset();
@@ -85,8 +86,8 @@ describe('segmentGroups.deserialize — legacy manifests without `datasets`', ()
     seatImage('store-seg', 'Tumor');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
+    const store = useSegmentationStore();
+    const { artifactIdMap: idMap, skipped } = await store.deserialize(
       legacyManifest,
       [],
       // Restore keys every fallback dataset by its stringified source id.
