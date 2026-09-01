@@ -139,6 +139,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     return id;
   }
 
+  // Store-scoped on purpose, so it resets with the pinia instance: a
+  // descriptor-less labelmap must decode to the same catalog whether it came
+  // from a cold restore or a live conversion.
   let nextColorIndex = 0;
   function getNextColor() {
     const color = CATEGORICAL_COLORS[nextColorIndex];
