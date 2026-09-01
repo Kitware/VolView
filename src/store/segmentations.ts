@@ -5,6 +5,7 @@ import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
@@ -37,7 +38,7 @@ import {
   type Segment,
   type Segmentation,
 } from '@/src/types/segmentation';
-import { removeFromArray } from '@/src/utils';
+import { isRecord, removeFromArray } from '@/src/utils';
 import { normalize } from '@/src/utils/path';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
@@ -91,6 +92,62 @@ const pickUniqueSegmentName = (taken: Iterable<string>) => {
   while (existing.has(makeDefaultSegmentName(index))) index += 1;
   return makeDefaultSegmentName(index);
 };
+
+// The manifest references this store's remove cascade keeps clean (see the
+// onImageDeleted registration below), declared for the dev-only save backstop.
+declareManifestRefs('segmentations', (manifest) => {
+  const segmentations = Array.isArray(manifest.segmentations)
+    ? manifest.segmentations
+    : [];
+  const artifacts = Array.isArray(manifest.segmentationArtifacts)
+    ? manifest.segmentationArtifacts
+    : [];
+
+  return [
+    ...segmentations.flatMap((raw, index) => {
+      if (!isRecord(raw)) return [];
+      const where = `segmentations[${index}]`;
+      const segments = Array.isArray(raw.segments) ? raw.segments : [];
+      return [
+        ...(typeof raw.parentImage === 'string'
+          ? [
+              {
+                kind: 'dataset' as const,
+                id: raw.parentImage,
+                where: `${where}.parentImage`,
+              },
+            ]
+          : []),
+        ...segments.flatMap((segment, segmentIndex) => {
+          const binding = isRecord(segment)
+            ? (segment.representations as Record<string, unknown> | undefined)
+                ?.labelmap
+            : undefined;
+          return isRecord(binding) && typeof binding.artifactId === 'string'
+            ? [
+                {
+                  kind: 'segmentationArtifact' as const,
+                  id: binding.artifactId,
+                  where: `${where}.segments[${segmentIndex}].representations.labelmap.artifactId`,
+                },
+              ]
+            : [];
+        }),
+      ];
+    }),
+    ...artifacts.flatMap((raw, index) =>
+      isRecord(raw) && typeof raw.parentImage === 'string'
+        ? [
+            {
+              kind: 'dataset' as const,
+              id: raw.parentImage,
+              where: `segmentationArtifacts[${index}].parentImage`,
+            },
+          ]
+        : []
+    ),
+  ];
+});
 
 export const useSegmentationStore = defineStore('segmentation', () => {
   const imageCacheStore = useImageCacheStore();

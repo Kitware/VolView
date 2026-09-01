@@ -240,6 +240,19 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
         polygons: { tools: [{ imageID: 'ghost-poly-img' }] },
         crop: { 'ghost-crop-img': {} },
       },
+      segmentations: [
+        {
+          parentImage: 'ghost-seg-img',
+          segments: [
+            {
+              representations: {
+                labelmap: { artifactId: 'ghost-artifact' },
+              },
+            },
+          ],
+        },
+      ],
+      segmentationArtifacts: [{ parentImage: 'ghost-artifact-img' }],
     });
 
     const found = refs.map((ref) => `${ref.where} -> ${ref.kind} ${ref.id}`);
@@ -257,6 +270,15 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
     );
     expect(found).toContain(
       'tools.crop[ghost-crop-img] -> dataset ghost-crop-img'
+    );
+    expect(found).toContain(
+      'segmentations[0].parentImage -> dataset ghost-seg-img'
+    );
+    expect(found).toContain(
+      'segmentations[0].segments[0].representations.labelmap.artifactId -> segmentationArtifact ghost-artifact'
+    );
+    expect(found).toContain(
+      'segmentationArtifacts[0].parentImage -> dataset ghost-artifact-img'
     );
   });
 });
