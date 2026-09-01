@@ -161,8 +161,9 @@ describe('paint wire block', () => {
 
 describe('manifest version', () => {
   // The segment model replaces `segmentGroups` with `segmentations` plus
-  // `segmentationArtifacts`, a breaking wire change.
-  it('pins MANIFEST_VERSION at 7.0.0', () => {
-    expect(MANIFEST_VERSION).toBe('7.0.0');
+  // `segmentationArtifacts`, a breaking wire change. 7.1.0 adds display state
+  // to segments and segmentations, additively.
+  it('pins MANIFEST_VERSION at 7.1.0', () => {
+    expect(MANIFEST_VERSION).toBe('7.1.0');
   });
 });

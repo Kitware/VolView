@@ -43,7 +43,7 @@ declareManifestRefs('primarySelection', (manifest) =>
 );
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '7.0.0';
+export const MANIFEST_VERSION = '7.1.0';
 
 type ManifestCandidate = Record<string, unknown>;
 

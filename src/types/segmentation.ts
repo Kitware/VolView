@@ -17,6 +17,8 @@ export type Segment = {
   color: RGBAColor;
   visible: boolean;
   locked: boolean;
+  fillOpacity: number;
+  outlineOpacity: number;
   representations: {
     // absent until voxels are allocated
     labelmap?: LabelmapBinding;
@@ -42,6 +44,9 @@ export type Segmentation = {
   parentImageId: string;
   segments: Record<string, Segment>;
   order: string[];
+  fillOpacity: number;
+  outlineOpacity: number;
+  outlineThickness: number;
 };
 
 /** Segments in display order. `order` is the authority, `segments` the store. */

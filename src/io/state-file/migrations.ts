@@ -350,6 +350,15 @@ const migrate640To700 = (inputManifest: any) => {
   return manifest;
 };
 
+// 7.0.0 -> 7.1.0 adds display state (fill/outline opacity, outline thickness)
+// to segments and segmentations. Fields are optional with zod defaults, so
+// this step only stamps the version.
+const migrate700To710 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  manifest.version = '7.1.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
@@ -359,6 +368,7 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
-    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700)
+    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
+    migrateOrPass(['7.0.0'], migrate700To710)
   );
 };

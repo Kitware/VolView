@@ -100,6 +100,8 @@ describe('segment model', () => {
       color: [255, 0, 0, 255],
       visible: true,
       locked: false,
+      fillOpacity: 1,
+      outlineOpacity: 1,
       representations: {},
     };
 
@@ -118,6 +120,8 @@ describe('segment model', () => {
       color: [255, 0, 0, 255],
       visible: true,
       locked: false,
+      fillOpacity: 1,
+      outlineOpacity: 1,
       representations: { labelmap: binding },
     };
 
@@ -136,6 +140,8 @@ describe('segment model', () => {
       color: [0, 0, 0, 255],
       visible: true,
       locked: false,
+      fillOpacity: 1,
+      outlineOpacity: 1,
       representations: {},
     });
     const segmentation: Segmentation = {
@@ -147,6 +153,9 @@ describe('segment model', () => {
         'segment-2': makeSegment('segment-2', 'Tumor'),
       },
       order: ['segment-2', 'segment-1'],
+      fillOpacity: 1,
+      outlineOpacity: 1,
+      outlineThickness: 2,
     };
 
     expect(segmentation.order).toEqual(['segment-2', 'segment-1']);

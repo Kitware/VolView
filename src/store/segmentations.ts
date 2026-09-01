@@ -211,6 +211,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       parentImageId,
       segments: {},
       order: [],
+      fillOpacity: 1,
+      outlineOpacity: 1,
+      outlineThickness: 2,
     };
     byParentImage[parentImageId] = id;
     return segmentations[id];
@@ -238,6 +241,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       color: init?.color ? ([...init.color] as RGBAColor) : getNextColor(),
       visible: true,
       locked: false,
+      fillOpacity: 1,
+      outlineOpacity: 1,
       representations: {},
     };
     segmentation.order.push(id);
@@ -623,6 +628,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         id: segmentation.id,
         name: segmentation.name,
         parentImage: segmentation.parentImageId,
+        fillOpacity: segmentation.fillOpacity,
+        outlineOpacity: segmentation.outlineOpacity,
+        outlineThickness: segmentation.outlineThickness,
         segments: listSegments(segmentation).map((segment) => {
           const binding = segment.representations.labelmap;
           return {
@@ -631,6 +639,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
             color: [...segment.color] as RGBAColor,
             visible: segment.visible,
             locked: segment.locked,
+            fillOpacity: segment.fillOpacity,
+            outlineOpacity: segment.outlineOpacity,
             representations: binding
               ? {
                   labelmap: {
@@ -804,6 +814,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
       const segmentation = ensureSegmentationForImage(parentImageId);
       segmentation.name = wire.name;
+      segmentation.fillOpacity = wire.fillOpacity;
+      segmentation.outlineOpacity = wire.outlineOpacity;
+      segmentation.outlineThickness = wire.outlineThickness;
 
       const wireById = new Map(
         wire.segments.map((segment) => [segment.id, segment])
@@ -818,6 +831,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         });
         segment.visible = wireSegment.visible;
         segment.locked = wireSegment.locked;
+        segment.fillOpacity = wireSegment.fillOpacity;
+        segment.outlineOpacity = wireSegment.outlineOpacity;
 
         const binding = wireSegment.representations.labelmap;
         const artifactId = binding

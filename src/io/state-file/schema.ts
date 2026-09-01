@@ -331,6 +331,8 @@ const Segment = z.object({
   color: RGBAColor,
   visible: z.boolean().default(true),
   locked: z.boolean().default(false),
+  fillOpacity: z.number().default(1),
+  outlineOpacity: z.number().default(1),
   representations: z.object({ labelmap: LabelmapBinding.optional() }),
 });
 
@@ -341,6 +343,9 @@ export const Segmentation = z.object({
   segments: Segment.array(),
   order: z.string().array(),
   activeSegment: z.string().optional(),
+  fillOpacity: z.number().default(1),
+  outlineOpacity: z.number().default(1),
+  outlineThickness: z.number().default(2),
 });
 
 export type Segmentation = z.infer<typeof Segmentation>;

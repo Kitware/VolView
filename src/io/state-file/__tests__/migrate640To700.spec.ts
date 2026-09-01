@@ -187,7 +187,21 @@ describe('migrate640To700 — structural stage', () => {
     );
 
     const parsed = ManifestSchema.parse(migrated);
-    expect(parsed.segmentations).toEqual(migrated.segmentations);
+    // Parse fills the 7.1.0 display-state defaults the raw migration output
+    // does not carry; add those to the raw output before checking the
+    // migration itself is otherwise lossless.
+    const expectedSegmentations = migrated.segmentations.map((wire: any) => ({
+      ...wire,
+      fillOpacity: 1,
+      outlineOpacity: 1,
+      outlineThickness: 2,
+      segments: wire.segments.map((segment: any) => ({
+        ...segment,
+        fillOpacity: 1,
+        outlineOpacity: 1,
+      })),
+    }));
+    expect(parsed.segmentations).toEqual(expectedSegmentations);
     expect(parsed.segmentationArtifacts![0]).toMatchObject({ id: 'sg-1' });
   });
 
