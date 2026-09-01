@@ -105,6 +105,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     activeProcessType.value = processType;
   }
 
+  function existingTargetForImage(imageId: string) {
+    const segmentation = segmentationStore.getSegmentationForImage(imageId);
+    if (!segmentation) return undefined;
+    const active = segmentationStore.activeTarget;
+    if (active?.segmentationId === segmentation.id) return active;
+    const segmentId = segmentation.order[0];
+    return segmentId
+      ? { segmentationId: segmentation.id, segmentId }
+      : undefined;
+  }
+
   async function startProcess(
     algorithm: ProcessAlgorithm,
     options?: { requiresActiveSegment?: boolean }
@@ -118,8 +129,18 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError('No image to process');
       return;
     }
-    const { segmentationId, segmentId } =
-      segmentationStore.resolveEditTarget(imageId);
+
+    // resolveEditTarget is the one call that creates segments, so an
+    // all-segments process reads an existing target instead of minting a
+    // default segment or cloning the active one onto a merely viewed image.
+    const target = requiresActiveSegment
+      ? segmentationStore.resolveEditTarget(imageId)
+      : existingTargetForImage(imageId);
+    if (!target) {
+      messageStore.addError('No segment to process');
+      return;
+    }
+    const { segmentationId, segmentId } = target;
 
     if (
       requiresActiveSegment &&

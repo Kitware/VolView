@@ -247,4 +247,37 @@ describe('Paint process store', () => {
     expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([0, 0]);
   });
+
+  it('does not create a segment for an all-segments process on a bare image', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+
+    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
+      requiresActiveSegment: false,
+    });
+
+    expect(
+      segmentationStore.getSegmentationForImage('image-1')
+    ).toBeUndefined();
+    expect(processStore.processState.step).toBe('start');
+    expect(
+      messageStore.messages.some((m) => m.title === 'No segment to process')
+    ).toBe(true);
+  });
+
+  it('does not clone the active segment onto a merely viewed image', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    addTestSegment();
+    await viewImage('image-2');
+
+    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
+      requiresActiveSegment: false,
+    });
+
+    expect(
+      segmentationStore.getSegmentationForImage('image-2')
+    ).toBeUndefined();
+  });
 });
