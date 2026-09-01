@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, shallowRef, toRaw, watch } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
@@ -38,6 +38,7 @@ import {
   type LabelmapSegment,
   type Segment,
   type Segmentation,
+  type SegmentVoxelAccessor,
 } from '@/src/types/segmentation';
 import { isRecord, removeFromArray } from '@/src/utils';
 import { normalize } from '@/src/utils/path';
@@ -404,6 +405,76 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       .labelmap;
     if (!binding) return undefined;
     return { ...toRaw(binding), labelmap: artifactIndex[binding.artifactId] };
+  }
+
+  /**
+   * The accessor contract every labelmap consumer routes through (C2 wires
+   * them up; C1 only ships the contract and this implementation). Every
+   * method re-resolves the segment and its binding rather than capturing
+   * them at construction, so a stale accessor sees deletion or growth done
+   * through another one.
+   */
+  function segmentVoxels(
+    segmentationId: string,
+    segmentId: string
+  ): SegmentVoxelAccessor {
+    // Validates eagerly: an accessor for a nonexistent segment is refused up
+    // front, not just on first use.
+    getSegment(segmentationId, segmentId);
+
+    const binding = () =>
+      getSegment(segmentationId, segmentId).representations.labelmap;
+
+    const requireBinding = () => {
+      const current = binding();
+      if (!current) throw new Error('No storage: call materialize() first');
+      return current;
+    };
+
+    const requireImage = (bound: ReturnType<typeof requireBinding>) => {
+      const image = artifactIndex[bound.artifactId];
+      if (!image) throw new Error('No such artifact');
+      return image;
+    };
+
+    // vtk declares getData() as number[] | TypedArray; labelmap storage is always typed.
+    const requireScalars = (bound: ReturnType<typeof requireBinding>) =>
+      requireImage(bound).getPointData().getScalars().getData() as TypedArray;
+
+    return {
+      binding,
+      materialize: () => ensureLabelmapBinding(segmentationId, segmentId),
+      image: () => requireImage(requireBinding()),
+      snapshot: () => requireScalars(requireBinding()).slice(),
+      apply: (scalars: TypedArray | number[]) => {
+        const bound = requireBinding();
+        const image = requireImage(bound);
+        const data = requireScalars(bound);
+        if (scalars.length !== data.length) {
+          throw new Error('Scalar length does not match storage');
+        }
+        data.set(scalars);
+        image.modified();
+      },
+      ensureContains: (extent: Extent3D) => {
+        const image = requireImage(requireBinding());
+        if (isEmptyExtent(extent)) return false;
+
+        const full = fullExtent(image.getDimensions());
+        const covered =
+          extent[0] >= full[0] &&
+          extent[1] <= full[1] &&
+          extent[2] >= full[2] &&
+          extent[3] <= full[3] &&
+          extent[4] >= full[4] &&
+          extent[5] <= full[5];
+        if (!covered) {
+          throw new Error('Extent exceeds full-extent storage');
+        }
+        // C1 storage is always full-extent already: no growth possible yet.
+        return false;
+      },
+    };
   }
 
   function updateSegment(
@@ -910,6 +981,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     ensureSegmentationForImage,
     getSegment,
     resolveLabelmapBinding,
+    segmentVoxels,
     createSegment,
     ensureLabelmapBinding,
     updateSegment,

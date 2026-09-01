@@ -1,6 +1,7 @@
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
+import type vtkLabelMap from '@/src/vtk/LabelMap';
 
 /** vtk.js index-space extent order: [iMin, iMax, jMin, jMax, kMin, kMax]. */
 export type Extent3D = [number, number, number, number, number, number];
@@ -47,6 +48,35 @@ export type Segmentation = {
   fillOpacity: number;
   outlineOpacity: number;
   outlineThickness: number;
+};
+
+/**
+ * The contract every labelmap consumer routes through. Storage is one
+ * full-extent mask per artifact at C1, so `ensureContains` can only assert;
+ * C4's bounded masks make it grow. Re-resolves the binding on every call
+ * rather than capturing it, so a caller that holds an accessor across a
+ * segment deletion or a growth sees the current state, not a stale one.
+ *
+ * `ensureContains` may replace the scalar array, dimensions and strides:
+ * anything that cached those from `image()` must re-fetch after calling it.
+ */
+export type SegmentVoxelAccessor = {
+  /** The current binding, or undefined before any voxels are allocated. */
+  binding(): LabelmapBinding | undefined;
+  /** Allocates storage if needed and returns the binding. Idempotent. */
+  materialize(): LabelmapBinding;
+  /** The live labelmap. Throws before materialize(). */
+  image(): vtkLabelMap;
+  /** Copy-out of the storage this segment writes through. Throws before materialize(). */
+  snapshot(): TypedArray;
+  /** Bulk replace; keeps image() identity, marks it modified. Throws before materialize(). */
+  apply(scalars: TypedArray | number[]): void;
+  /**
+   * Ensures storage covers `extent`, growing if needed. Returns whether
+   * storage was invalidated (scalars/dimensions/strides changed). Throws
+   * before materialize(), or when the extent cannot be covered.
+   */
+  ensureContains(extent: Extent3D): boolean;
 };
 
 /** Segments in display order. `order` is the authority, `segments` the store. */
