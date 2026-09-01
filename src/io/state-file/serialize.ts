@@ -234,7 +234,14 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     const resolvable: Record<ManifestRefKind, Set<string>> = {
       dataset: datasetIds,
       segmentation: new Set(validSegmentations.map((entry) => entry.id)),
-      segmentationArtifact: new Set(validArtifacts.map((entry) => entry.id)),
+      // Every artifact the manifest itself declared, not just the ones that
+      // survived pruning: a binding to an artifact dropped here for missing
+      // bytes is normalization doing its job, not a cascade that failed to run.
+      segmentationArtifact: new Set(
+        rawArtifacts.flatMap((raw) =>
+          isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
+        )
+      ),
       view: new Set(
         isRecord(candidate.viewByID) ? Object.keys(candidate.viewByID) : []
       ),

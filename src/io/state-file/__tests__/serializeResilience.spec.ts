@@ -339,4 +339,72 @@ describe('state-file serialization resilience', () => {
       /segmentation artifact artifact-1 is missing/
     );
   });
+
+  // The backstop exists to catch a store that left a reference behind, not to
+  // report normalization's own pruning. Spying on debug.warn keeps this
+  // deterministic; the warning otherwise depends on which modules a vitest
+  // worker happened to load.
+  describe('orphan backstop scope', () => {
+    const manifestBoundTo = (artifactId: string) =>
+      ({
+        version: MANIFEST_VERSION,
+        datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
+        dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
+        segmentationArtifacts: [
+          {
+            id: 'declared-artifact',
+            path: 'segmentations/gone.vti',
+            parentImage: 'dataset-1',
+            name: 'Gone',
+          },
+        ],
+        segmentations: [
+          {
+            id: 'seg-1',
+            name: 'Seg',
+            parentImage: 'dataset-1',
+            order: ['segment-1'],
+            segments: [
+              {
+                id: 'segment-1',
+                name: 'Tumor',
+                color: [255, 0, 0, 255],
+                visible: true,
+                locked: false,
+                representations: {
+                  labelmap: {
+                    artifactId,
+                    labelValue: 1,
+                    extent: [0, 1, 0, 1, 0, 1],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }) as unknown as Manifest;
+
+    const warningsFrom = async (manifest: Manifest) => {
+      await import('@/src/store/segmentations');
+      const warn = vi.spyOn(debug, 'warn').mockImplementation(() => {});
+      normalizeManifest(manifest, new JSZip());
+      const messages = warn.mock.calls.map((call) => String(call[0]));
+      warn.mockRestore();
+      return messages.join('\n');
+    };
+
+    it('does not blame the cascade for an artifact normalization pruned', async () => {
+      // 'declared-artifact' is in the manifest but its archive member is gone,
+      // so normalization drops it and unbinds the segment. Not a cascade bug.
+      expect(
+        await warningsFrom(manifestBoundTo('declared-artifact'))
+      ).not.toMatch(/declared-artifact/);
+    });
+
+    it('still reports a binding to an artifact no store ever declared', async () => {
+      expect(await warningsFrom(manifestBoundTo('never-declared'))).toMatch(
+        /never-declared/
+      );
+    });
+  });
 });
