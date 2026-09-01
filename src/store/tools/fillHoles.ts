@@ -50,14 +50,18 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     segmentScope.value = value;
   }
 
-  async function computeAlgorithm({
-    segImage,
-    labelValue,
-    artifactId,
-  }: ProcessTarget) {
+  async function computeAlgorithm(target: ProcessTarget) {
     const viewStore = useViewStore();
     const viewSliceStore = useViewSliceStore();
     const segmentationStore = useSegmentationStore();
+
+    const selectedSegment =
+      segmentScope.value === FillHolesSegmentScope.SelectedSegment;
+    if (selectedSegment && target.scope !== 'segment') {
+      throw new Error(
+        'Fill Holes needs an active segment to fill. Select one, then try again.'
+      );
+    }
 
     // Fill Holes works on the slice plane of the 2D view the user is on, so a
     // 2D view must be active to know which axis (and slice) to operate on.
@@ -68,6 +72,8 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
+    const { artifactId, voxels } = target;
+    const segImage = voxels.image();
     const metadata = segmentationStore.artifactMeta[artifactId];
 
     const parentMetadata = getImageMetadata(metadata.parentImage);
@@ -75,7 +81,8 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     const axis = labelMapLpsOrientation[effectiveView.axis];
 
     const dimensions = segImage.getDimensions() as [number, number, number];
-    const data = segImage.getPointData().getScalars().getData();
+    // The worker structured-clones its input, so the live buffer is right here.
+    const data = voxels.scalars();
 
     let sliceIndex: number | undefined;
     if (sliceScope.value === FillHolesSliceScope.CurrentSlice) {
@@ -96,9 +103,10 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
-    const selectedSegment =
-      segmentScope.value === FillHolesSegmentScope.SelectedSegment;
-    const label = selectedSegment ? labelValue : undefined;
+    const label =
+      target.scope === 'segment' && selectedSegment
+        ? target.labelValue
+        : undefined;
     // All-segments mode can fill a hole with any bordering label, so guard
     // locked segments from being grown. Selected-segment mode only writes the
     // active segment, whose lock is already enforced before the process starts.

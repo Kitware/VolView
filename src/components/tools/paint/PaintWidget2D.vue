@@ -70,7 +70,8 @@ export default defineComponent({
       ) {
         return null;
       }
-      return segmentationStore.artifactIndex[artifactId] ?? null;
+      const voxels = segmentationStore.artifactVoxels(artifactId);
+      return voxels.exists() ? voxels.image() : null;
     });
 
     const widget = view.widgetManager.addWidget(

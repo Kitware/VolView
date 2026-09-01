@@ -75,7 +75,7 @@ import { watchImmediate } from '@vueuse/core';
 import { fillPoly } from '@thi.ng/rasterize';
 import type { IGrid2D } from '@thi.ng/api';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
+import type { TypedArray, Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { convertSliceIndex } from '@/src/utils/imageSpace';
 import { getLPSDirections } from '@/src/utils/lps';
@@ -89,13 +89,13 @@ const toolType = Tools.Polygon;
 
 function createGridAccessor(
   image: vtkImageData,
+  pixelData: TypedArray,
   slice: number,
   axisIdx: 0 | 1 | 2 // i/j/k
 ): IGrid2D {
   const axisDims = image.getDimensions();
   axisDims.splice(axisIdx, 1);
   const extent = image.getExtent();
-  const pixelData = image.getPointData().getScalars();
   const convertTo3D = (a: number, b: number) => {
     const point = [a, b];
     point.splice(axisIdx, 0, slice);
@@ -109,7 +109,7 @@ function createGridAccessor(
       if (containsPoint(extent, ...ijk)) {
         const offset = image.computeOffsetIndex(ijk);
         // XXX assumes single-component image
-        pixelData.setTuple(offset, [value]);
+        pixelData[offset] = value;
         return true;
       }
       return false;
@@ -247,7 +247,7 @@ export default defineComponent({
       if (tool && tool.label !== target.segmentId) {
         activeToolStore.updateTool(toolId, { label: target.segmentId });
       }
-      const segmentGroup = target.labelmap;
+      const segmentGroup = target.voxels.image();
 
       // Convert parent slice index to segment group slice index
       const parentMeta = imageMetadata.value;
@@ -272,6 +272,7 @@ export default defineComponent({
 
       const grid = createGridAccessor(
         segmentGroup,
+        target.voxels.scalars(),
         segmentGroupSlice,
         segmentGroupIjkIndex
       );

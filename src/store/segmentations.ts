@@ -39,6 +39,7 @@ import {
   type Segment,
   type Segmentation,
   type SegmentVoxelAccessor,
+  type VoxelStorage,
 } from '@/src/types/segmentation';
 import { isRecord, removeFromArray } from '@/src/utils';
 import { normalize } from '@/src/utils/path';
@@ -408,48 +409,28 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * The accessor contract every labelmap consumer routes through (C2 wires
-   * them up; C1 only ships the contract and this implementation). Every
-   * method re-resolves the segment and its binding rather than capturing
-   * them at construction, so a stale accessor sees deletion or growth done
-   * through another one.
+   * The voxel half of the accessor seam, over whichever labelmap `findImage`
+   * resolves. Resolution is deferred to every call so a stale accessor sees
+   * deletion or growth done through another one. `onMissing` names why storage
+   * is unreachable, so `exists()` can answer without throwing.
    */
-  function segmentVoxels(
-    segmentationId: string,
-    segmentId: string
-  ): SegmentVoxelAccessor {
-    // Validates eagerly: an accessor for a nonexistent segment is refused up
-    // front, not just on first use.
-    getSegment(segmentationId, segmentId);
-
-    const binding = () =>
-      getSegment(segmentationId, segmentId).representations.labelmap;
-
-    const requireBinding = () => {
-      const current = binding();
-      if (!current) throw new Error('No storage: call materialize() first');
-      return current;
-    };
-
-    const requireImage = (bound: ReturnType<typeof requireBinding>) => {
-      const image = artifactIndex[bound.artifactId];
-      if (!image) throw new Error('No such artifact');
-      return image;
-    };
-
+  function voxelStorage(
+    findImage: () => Maybe<vtkLabelMap>,
+    onMissing: () => never
+  ): VoxelStorage {
+    const requireImage = () => findImage() ?? onMissing();
     // vtk declares getData() as number[] | TypedArray; labelmap storage is always typed.
-    const requireScalars = (bound: ReturnType<typeof requireBinding>) =>
-      requireImage(bound).getPointData().getScalars().getData() as TypedArray;
+    const requireScalars = () =>
+      requireImage().getPointData().getScalars().getData() as TypedArray;
 
     return {
-      binding,
-      materialize: () => ensureLabelmapBinding(segmentationId, segmentId),
-      image: () => requireImage(requireBinding()),
-      snapshot: () => requireScalars(requireBinding()).slice(),
+      exists: () => !!findImage(),
+      image: requireImage,
+      scalars: requireScalars,
+      snapshot: () => requireScalars().slice(),
       apply: (scalars: TypedArray | number[]) => {
-        const bound = requireBinding();
-        const image = requireImage(bound);
-        const data = requireScalars(bound);
+        const image = requireImage();
+        const data = image.getPointData().getScalars().getData() as TypedArray;
         if (scalars.length !== data.length) {
           throw new Error('Scalar length does not match storage');
         }
@@ -457,7 +438,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         image.modified();
       },
       ensureContains: (extent: Extent3D) => {
-        const image = requireImage(requireBinding());
+        const image = requireImage();
         if (isEmptyExtent(extent)) return false;
 
         const full = fullExtent(image.getDimensions());
@@ -471,10 +452,61 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         if (!covered) {
           throw new Error('Extent exceeds full-extent storage');
         }
-        // C1 storage is always full-extent already: no growth possible yet.
+        // Full-extent storage cannot grow, so nothing was invalidated.
         return false;
       },
     };
+  }
+
+  /**
+   * The accessor every labelmap consumer that holds a segment routes through.
+   * The binding is re-resolved on every call rather than captured.
+   */
+  function segmentVoxels(
+    segmentationId: string,
+    segmentId: string
+  ): SegmentVoxelAccessor {
+    // Validates eagerly: an accessor for a nonexistent segment is refused up
+    // front, not just on first use.
+    getSegment(segmentationId, segmentId);
+
+    const binding = () =>
+      getSegment(segmentationId, segmentId).representations.labelmap;
+
+    // Deliberately tolerant where binding() is not: the segment itself can be
+    // deleted out from under an accessor, and that is an absent storage, not a
+    // lookup error.
+    const findImage = () => {
+      const current =
+        segmentations[segmentationId]?.segments[segmentId]?.representations
+          .labelmap;
+      return current ? artifactIndex[current.artifactId] : undefined;
+    };
+
+    const onMissing = (): never => {
+      if (!binding()) throw new Error('No storage: call materialize() first');
+      throw new Error('No such artifact');
+    };
+
+    return {
+      binding,
+      materialize: () => ensureLabelmapBinding(segmentationId, segmentId),
+      ...voxelStorage(findImage, onMissing),
+    };
+  }
+
+  /**
+   * The accessor for consumers that hold an artifact and no segment. Stays
+   * constructible for an artifact that is gone: the renderer and the paint
+   * widget are computeds keyed on an id that can vanish a tick before they do.
+   */
+  function artifactVoxels(artifactId: string) {
+    return voxelStorage(
+      () => artifactIndex[artifactId],
+      () => {
+        throw new Error('No such artifact');
+      }
+    );
   }
 
   function updateSegment(
@@ -982,6 +1014,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegment,
     resolveLabelmapBinding,
     segmentVoxels,
+    artifactVoxels,
     createSegment,
     ensureLabelmapBinding,
     updateSegment,

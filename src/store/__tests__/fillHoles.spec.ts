@@ -4,7 +4,10 @@ import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import { useFillHolesStore } from '@/src/store/tools/fillHoles';
+import {
+  FillHolesSegmentScope,
+  useFillHolesStore,
+} from '@/src/store/tools/fillHoles';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
@@ -125,8 +128,33 @@ describe('Fill Holes store', () => {
 
     segmentationStore.setActiveSegment(segmentationId, segment.id);
 
-    return { fillHolesStore, segmentationStore, artifactId, segmentationId };
+    return {
+      fillHolesStore,
+      segmentationStore,
+      artifactId,
+      segmentationId,
+      segmentId: segment.id,
+    };
   }
+
+  /** Fill Holes defaults to every segment, so its target carries no segment. */
+  const artifactTarget = (artifactId: string) => ({
+    scope: 'artifact' as const,
+    artifactId,
+    voxels: useSegmentationStore().artifactVoxels(artifactId),
+  });
+
+  const segmentTarget = (
+    artifactId: string,
+    segmentationId: string,
+    segmentId: string,
+    labelValue: number
+  ) => ({
+    scope: 'segment' as const,
+    artifactId,
+    labelValue,
+    voxels: useSegmentationStore().segmentVoxels(segmentationId, segmentId),
+  });
 
   it('uses the label-map axis for the active parent view axis', async () => {
     // Label-map I points along parent/world axial, so an active Axial view must
@@ -138,11 +166,7 @@ describe('Fill Holes store', () => {
     );
     const { fillHolesStore, artifactId } = await setupFillHolesRun(labelMap, 0);
 
-    await fillHolesStore.computeAlgorithm({
-      segImage: labelMap,
-      labelValue: 1,
-      artifactId,
-    });
+    await fillHolesStore.computeAlgorithm(artifactTarget(artifactId));
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -160,11 +184,7 @@ describe('Fill Holes store', () => {
     );
     const { fillHolesStore, artifactId } = await setupFillHolesRun(labelMap, 4);
 
-    await fillHolesStore.computeAlgorithm({
-      segImage: labelMap,
-      labelValue: 1,
-      artifactId,
-    });
+    await fillHolesStore.computeAlgorithm(artifactTarget(artifactId));
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -193,14 +213,62 @@ describe('Fill Holes store', () => {
       locked.id
     )!.labelValue;
 
-    await fillHolesStore.computeAlgorithm({
-      segImage: labelMap,
-      labelValue: 1,
-      artifactId,
-    });
+    await fillHolesStore.computeAlgorithm(artifactTarget(artifactId));
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
       lockedLabels: [lockedValue],
     });
+  });
+
+  it('sends the artifact’s live voxels rather than a copy of them', async () => {
+    const labelMap = makeLabelMap(
+      [10, 10, 10],
+      [1, 1, 1],
+      [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    );
+    const { fillHolesStore, artifactId } = await setupFillHolesRun(labelMap, 0);
+
+    await fillHolesStore.computeAlgorithm(artifactTarget(artifactId));
+
+    expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
+      dimensions: [10, 10, 10],
+    });
+    expect(fillHolesWorkerMock.mock.calls[0][0].data).toBe(
+      labelMap.getPointData().getScalars().getData()
+    );
+  });
+
+  it('fills only the selected segment when scoped to one', async () => {
+    const labelMap = makeLabelMap(
+      [10, 10, 10],
+      [1, 1, 1],
+      [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    );
+    const { fillHolesStore, artifactId, segmentationId, segmentId } =
+      await setupFillHolesRun(labelMap, 0);
+    fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
+
+    await fillHolesStore.computeAlgorithm(
+      segmentTarget(artifactId, segmentationId, segmentId, 1)
+    );
+
+    expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({ label: 1 });
+    expect(fillHolesWorkerMock.mock.calls[0][0].lockedLabels).toBeUndefined();
+  });
+
+  it('refuses a selected-segment fill against an artifact-scoped target', async () => {
+    const labelMap = makeLabelMap(
+      [10, 10, 10],
+      [1, 1, 1],
+      [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    );
+    const { fillHolesStore, artifactId } = await setupFillHolesRun(labelMap, 0);
+    fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
+
+    // Silently filling every segment is the failure the union rules out.
+    await expect(
+      fillHolesStore.computeAlgorithm(artifactTarget(artifactId))
+    ).rejects.toThrow(/active segment/i);
+    expect(fillHolesWorkerMock).not.toHaveBeenCalled();
   });
 });

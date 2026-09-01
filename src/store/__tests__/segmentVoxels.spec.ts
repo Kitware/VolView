@@ -10,9 +10,9 @@ import type { Extent3D } from '@/src/types/segmentation';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 // ---------------------------------------------------------------------------
-// The segment voxel accessor: the one contract C2 routes every labelmap
-// consumer through. Storage is still one full-extent mask per artifact here,
-// so `ensureContains` can only assert, never grow.
+// The segment voxel accessor: the one contract every labelmap consumer that
+// holds a segment routes through. Storage is one full-extent mask per
+// artifact, so `ensureContains` can only assert, never grow.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS = [4, 4, 2] as const;
@@ -185,6 +185,28 @@ describe('segment voxel accessor', () => {
 
       expect(Array.from(voxels.snapshot())[5]).toBe(1);
       expect(Array.from(scalarsOf(seat.labelmap))[5]).toBe(1);
+    });
+  });
+
+  describe('scalars()', () => {
+    it('aliases the live buffer rather than copying it', () => {
+      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
+      const voxels = voxelsOf(seat.first);
+
+      // The paint stroke reads this per candidate voxel while the brush writes
+      // the same buffer, so a copy would be both stale and a per-stroke
+      // allocation the size of the volume.
+      expect(voxels.scalars()).toBe(scalarsOf(seat.labelmap));
+
+      voxels.scalars()[5] = 1;
+      expect(scalarsOf(seat.labelmap)[5]).toBe(1);
+    });
+
+    it('refuses before materialize', () => {
+      const target = addSegment('img-1');
+
+      expect(() => voxelsOf(target).scalars()).toThrow(/No storage/);
+      expect(store().artifactsForImage('img-1')).toHaveLength(0);
     });
   });
 

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
-import vtkLabelMap from '@/src/vtk/LabelMap';
+import type { VoxelStorage } from '@/src/types/segmentation';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
@@ -31,20 +31,27 @@ type ComputingState = TargetedState & {
 
 type PreviewingState = TargetedState & {
   step: 'previewing';
-  segImage: vtkLabelMap;
-  originalScalars: TypedArray | number[];
-  processedScalars: TypedArray | number[];
+  voxels: VoxelStorage;
+  originalScalars: TypedArray;
+  processedScalars: TypedArray;
   showingOriginal: boolean;
 };
 
 type ProcessState = StartState | ComputingState | PreviewingState;
 
-/** The resolved storage a process writes into, passed instead of being re-derived. */
-export type ProcessTarget = {
-  segImage: vtkLabelMap;
-  labelValue: number;
-  artifactId: string;
-};
+/**
+ * The resolved storage a process writes into, passed instead of being
+ * re-derived. An all-segments process has an artifact and no segment, so it
+ * carries no label value at all rather than a dummy one.
+ */
+export type ProcessTarget =
+  | {
+      scope: 'segment';
+      voxels: VoxelStorage;
+      artifactId: string;
+      labelValue: number;
+    }
+  | { scope: 'artifact'; voxels: VoxelStorage; artifactId: string };
 
 export type ProcessAlgorithm = (
   target: ProcessTarget
@@ -66,17 +73,23 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     processState.value = { step: 'start' };
   }
 
+  // Storage can be deleted while a preview is up, and the accessor re-resolves,
+  // so every preview write is conditional on the storage still being there.
+  function writeIfPresent(
+    voxels: VoxelStorage,
+    scalars: TypedArray | number[]
+  ) {
+    if (!voxels.exists()) return;
+    voxels.apply(scalars);
+  }
+
   function confirmProcess() {
     const state = processState.value;
     // Apply commits the processed result. When the user is viewing the
     // original, the image currently holds originalScalars, so restore the
     // processed scalars before finishing or the result is silently discarded.
     if (state.step === 'previewing' && state.showingOriginal) {
-      state.segImage
-        .getPointData()
-        .getScalars()
-        .setData(state.processedScalars);
-      state.segImage.modified();
+      writeIfPresent(state.voxels, state.processedScalars);
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -88,18 +101,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   const { currentImageID } = useCurrentImage('global');
 
   function rollbackPreview(
-    image: vtkLabelMap,
-    originalScalars: TypedArray | number[]
+    voxels: VoxelStorage,
+    originalScalars: TypedArray
   ): void {
-    image.getPointData().getScalars().setData(originalScalars);
-    image.modified();
+    writeIfPresent(voxels, originalScalars);
   }
 
   function cancelProcess() {
     const state = processState.value;
 
     if (state.step === 'previewing') {
-      rollbackPreview(state.segImage, state.originalScalars);
+      rollbackPreview(state.voxels, state.originalScalars);
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -125,8 +137,12 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       segmentId
     );
     return {
-      artifactId: binding.artifactId,
-      labelValue: binding.labelValue,
+      target: {
+        scope: 'segment' as const,
+        voxels: segmentationStore.segmentVoxels(segmentationId, segmentId),
+        artifactId: binding.artifactId,
+        labelValue: binding.labelValue,
+      },
       segmentationId,
       segmentId,
     };
@@ -143,12 +159,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError('No segmentation to process');
       return undefined;
     }
-    const target = segmentationStore.activeTarget;
+    // The active segment is not part of the target; it is recorded only so the
+    // watcher can cancel when the user moves to another segment.
+    const activeSegment = segmentationStore.activeTarget;
     return {
-      artifactId,
-      labelValue: 0,
-      segmentationId: target?.segmentationId ?? '',
-      segmentId: target?.segmentId ?? '',
+      target: {
+        scope: 'artifact' as const,
+        voxels: segmentationStore.artifactVoxels(artifactId),
+        artifactId,
+      },
+      segmentationId: activeSegment?.segmentationId ?? '',
+      segmentId: activeSegment?.segmentId ?? '',
     };
   }
 
@@ -166,27 +187,23 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       return;
     }
 
-    // An all-segments process writes the whole artifact and ignores labelValue,
-    // so it resolves an existing artifact rather than a segment. Only the
-    // segment-scoped path goes through resolveEditTarget, which is the one call
-    // that creates segments.
+    // An all-segments process writes the whole artifact, so it resolves an
+    // existing artifact rather than a segment. Only the segment-scoped path
+    // goes through resolveEditTarget, which is the one call that creates
+    // segments.
     const resolved = requiresActiveSegment
       ? resolveSegmentScoped(imageId)
       : resolveArtifactScoped(imageId);
     if (!resolved) return;
-    const { artifactId, labelValue, segmentationId, segmentId } = resolved;
+    const { target, segmentationId, segmentId } = resolved;
+    const { voxels, artifactId } = target;
 
-    const segImage = segmentationStore.artifactIndex[artifactId];
     const activeParentImageID =
       segmentationStore.artifactMeta[artifactId].parentImage;
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 
-    const originalScalars = segImage
-      .getPointData()
-      .getScalars()
-      .getData()
-      .slice();
+    const originalScalars = voxels.snapshot();
 
     paintStore.enterProcessMode();
     processState.value = {
@@ -198,11 +215,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     };
 
     try {
-      const outputScalars = await algorithm({
-        segImage,
-        labelValue,
-        artifactId,
-      });
+      const outputScalars = await algorithm(target);
 
       // If the state changed during the async operation, stop processing.
       if (
@@ -212,9 +225,15 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         return;
       }
 
-      const scalars = segImage.getPointData().getScalars();
-      scalars.setData(outputScalars);
-      segImage.modified();
+      // The storage can be deleted while the algorithm runs; there is then
+      // nothing to preview and nothing to roll back.
+      if (!voxels.exists()) {
+        resetState();
+        paintStore.restoreModeAfterProcess();
+        return;
+      }
+
+      voxels.apply(outputScalars);
 
       processState.value = {
         step: 'previewing',
@@ -222,9 +241,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         segmentationId,
         segmentId,
         processType,
-        segImage,
+        voxels,
         originalScalars,
-        processedScalars: outputScalars,
+        processedScalars: voxels.snapshot(),
         showingOriginal: false,
       };
     } catch (error) {
@@ -238,7 +257,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,
       });
-      rollbackPreview(segImage, originalScalars);
+      rollbackPreview(voxels, originalScalars);
       resetState();
       paintStore.restoreModeAfterProcess();
     }
@@ -253,8 +272,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         ? state.originalScalars
         : state.processedScalars;
 
-      state.segImage.getPointData().getScalars().setData(scalarsToShow);
-      state.segImage.modified();
+      writeIfPresent(state.voxels, scalarsToShow);
 
       processState.value = {
         ...state,

@@ -10,7 +10,10 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
+import {
+  usePaintProcessStore,
+  type ProcessTarget,
+} from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
 
 function makeLabelMap(values: Uint8Array) {
@@ -178,13 +181,17 @@ describe('Paint process store', () => {
   it('hands the algorithm the active segment’s resolved label value', async () => {
     const processStore = usePaintProcessStore();
     const { labelMap } = addTestSegment(new Uint8Array([0, 0]), 3);
-    const algorithm = vi.fn(async () => new Uint8Array([3, 3]));
+    let target: ProcessTarget | undefined;
+    const algorithm = vi.fn(async (resolved: ProcessTarget) => {
+      target = resolved;
+      return new Uint8Array([3, 3]);
+    });
 
     await processStore.startProcess(algorithm);
 
-    expect(algorithm).toHaveBeenCalledWith(
-      expect.objectContaining({ segImage: labelMap, labelValue: 3 })
-    );
+    expect(algorithm).toHaveBeenCalledTimes(1);
+    expect(target).toMatchObject({ scope: 'segment', labelValue: 3 });
+    expect(target!.voxels.image()).toBe(labelMap);
   });
 
   it('refuses to process a locked segment', async () => {
@@ -211,26 +218,29 @@ describe('Paint process store', () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const { labelMap: firstLabelMap } = addTestSegment();
-    const algorithm = vi.fn(async () => new Uint8Array([4, 4]));
+    let target: ProcessTarget | undefined;
+    const algorithm = vi.fn(async (resolved: ProcessTarget) => {
+      target = resolved;
+      return new Uint8Array([4, 4]);
+    });
 
     await viewImage('image-2');
     await processStore.startProcess(algorithm);
 
-    const target = segmentationStore.activeTarget!;
-    expect(target.segmentationId).toBe(
+    const active = segmentationStore.activeTarget!;
+    expect(active.segmentationId).toBe(
       segmentationStore.getSegmentationForImage('image-2')!.id
     );
     const binding = segmentationStore.resolveLabelmapBinding(
-      target.segmentationId,
-      target.segmentId
+      active.segmentationId,
+      active.segmentId
     )!;
-    expect(algorithm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        segImage: binding.labelmap,
-        labelValue: binding.labelValue,
-        artifactId: binding.artifactId,
-      })
-    );
+    expect(target).toMatchObject({
+      scope: 'segment',
+      labelValue: binding.labelValue,
+      artifactId: binding.artifactId,
+    });
+    expect(target!.voxels.image()).toBe(binding.labelmap);
     expect(getScalars(binding.labelmap)).toEqual([4, 4]);
     expect(getScalars(firstLabelMap)).toEqual([0, 0]);
   });

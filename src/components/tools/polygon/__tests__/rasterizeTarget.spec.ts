@@ -42,7 +42,9 @@ describe('polygon rasterize target', () => {
 
     expect(target.labelValue).toBe(1);
     expect(store().artifactsForImage('img-1')).toEqual([target.artifactId]);
-    expect(target.labelmap).toBe(store().artifactIndex[target.artifactId]);
+    expect(target.voxels.image()).toBe(
+      store().artifactIndex[target.artifactId]
+    );
     expect(
       store().getSegment(segmentation.id, segment.id).representations.labelmap
     ).toMatchObject({ artifactId: target.artifactId, labelValue: 1 });
@@ -110,7 +112,9 @@ describe('polygon rasterize target', () => {
     expect(store().activeTarget?.segmentId).toBe(
       Object.keys(segmentation!.segments)[0]
     );
-    expect(target.labelmap).toBe(store().artifactIndex[target.artifactId]);
+    expect(target.voxels.image()).toBe(
+      store().artifactIndex[target.artifactId]
+    );
     expect(target.segmentId).toBe(Object.keys(segmentation!.segments)[0]);
   });
 
@@ -125,6 +129,24 @@ describe('polygon rasterize target', () => {
     expect(
       Object.keys(store().getSegmentationForImage('img-1')!.segments)
     ).toHaveLength(1);
+  });
+
+  it('hands back the accessor the polygon writes through', async () => {
+    await seatImage('img-1');
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
+
+    const target = resolveRasterizeTarget('img-1', segment.id);
+    // fillPoly writes voxel offsets into the live buffer, so a copy would be
+    // rasterized and thrown away.
+    target.voxels.scalars()[3] = target.labelValue;
+
+    expect(
+      store()
+        .artifactIndex[target.artifactId].getPointData()
+        .getScalars()
+        .getData()[3]
+    ).toBe(target.labelValue);
   });
 
   it('rasterizes into the default segment when the tool id is stale', async () => {

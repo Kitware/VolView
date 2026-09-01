@@ -139,7 +139,7 @@ export function useInputStaging() {
     segmentGroupId: string,
     fileName: string
   ): Promise<string[]> => {
-    const labelmap = segmentationStore.artifactIndex[segmentGroupId];
+    const labelmap = segmentationStore.artifactVoxels(segmentGroupId).image();
     const segments =
       segmentationStore.labelmapSegmentsByArtifact[segmentGroupId] ?? [];
     const referenceImage = labelmapReferenceImage(segmentGroupId);

@@ -88,7 +88,7 @@ async function saveSegmentGroup() {
     fileNameValue.value = sanitizedFileName;
     const serialized = await writeSegmentation(
       fileFormat.value,
-      segmentationStore.artifactIndex[props.id],
+      segmentationStore.artifactVoxels(props.id).image(),
       segmentationStore.labelmapSegmentsByArtifact[props.id] ?? []
     );
     saveAs(new Blob([serialized]), `${sanitizedFileName}.${fileFormat.value}`);

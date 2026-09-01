@@ -27,14 +27,10 @@ export function resolveRasterizeTarget(
 
   const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
 
-  segmentationStore.ensureLabelmapBinding(
+  const voxels = segmentationStore.segmentVoxels(
     resolved.segmentationId,
     resolved.segmentId
   );
-  const target = segmentationStore.resolveLabelmapBinding(
-    resolved.segmentationId,
-    resolved.segmentId
-  );
-  if (!target) throw new Error('Failed to allocate labelmap storage');
-  return { ...target, segmentId: resolved.segmentId };
+  const binding = voxels.materialize();
+  return { ...binding, voxels, segmentId: resolved.segmentId };
 }

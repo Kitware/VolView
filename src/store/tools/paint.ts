@@ -118,12 +118,13 @@ export const usePaintToolStore = defineStore('paint', () => {
       target.segmentationId,
       target.segmentId
     );
-    const labelmap = segmentationStore.artifactIndex[binding.artifactId];
-    if (!labelmap) return undefined;
     return {
       labelValue: binding.labelValue,
       artifactId: binding.artifactId,
-      labelmap,
+      voxels: segmentationStore.segmentVoxels(
+        target.segmentationId,
+        target.segmentId
+      ),
     };
   }
 
@@ -141,7 +142,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID);
     if (!target) return;
 
-    const { labelmap, labelValue } = target;
+    const { voxels, labelValue } = target;
+    const labelmap = voxels.image();
     this.$paint.setBrushValue(labelValue);
 
     // One catalog read per stroke: the per-voxel predicate below is the hot path.
@@ -162,11 +164,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (!underlyingImagePixels) return;
 
     // Both buffers are fixed for the stroke, so they are read once rather than
-    // per candidate voxel.
-    const currentData = labelmap
-      .getPointData()
-      .getScalars()
-      .getData() as Uint8Array;
+    // per candidate voxel. The labelmap buffer is the live one the brush writes.
+    const currentData = voxels.scalars();
     const shouldPaint = (idx: number) => {
       // Prevent painting over locked segments
       if (lockedValues.has(currentData[idx])) {

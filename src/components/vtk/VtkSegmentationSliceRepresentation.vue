@@ -37,9 +37,12 @@ const metadata = computed(
 const segments = computed(
   () => segmentationStore.labelmapSegmentsByArtifact[segmentationId.value]
 );
-const imageData = computed(
-  () => segmentationStore.artifactIndex[segmentationId.value]
-);
+const imageData = computed(() => {
+  // The id can outlive its artifact by a tick, so the accessor is asked rather
+  // than indexed.
+  const voxels = segmentationStore.artifactVoxels(segmentationId.value);
+  return voxels.exists() ? voxels.image() : null;
+});
 
 // redraw whenever the image changes
 onVTKEvent(imageData, 'onModified', () => {

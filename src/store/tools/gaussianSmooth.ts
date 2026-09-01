@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import * as Comlink from 'comlink';
-import vtkLabelMap from '@/src/vtk/LabelMap';
+import type { VoxelStorage } from '@/src/types/segmentation';
 import { gaussianSmoothLabelMapWorker } from '@/src/core/tools/paint/gaussianSmooth.worker';
 import type { ProcessTarget } from '@/src/store/tools/paintProcess';
 
@@ -32,11 +32,12 @@ async function getWorker() {
 }
 
 async function gaussianSmoothLabelMap(
-  labelMap: vtkLabelMap,
+  voxels: VoxelStorage,
   params: { sigma: number; label: number }
 ) {
-  const scalars = labelMap.getPointData().getScalars();
-  const originalData = scalars.getData();
+  const labelMap = voxels.image();
+  // The worker structured-clones its input, so the live buffer is right here.
+  const originalData = voxels.scalars();
   const dimensions = labelMap.getDimensions();
   const spacing = labelMap.getSpacing() as [number, number, number];
 
@@ -59,13 +60,21 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
     sigma.value = Math.max(MIN_SIGMA, Math.min(MAX_SIGMA, value));
   }
 
-  async function computeAlgorithm({ segImage, labelValue }: ProcessTarget) {
+  async function computeAlgorithm(target: ProcessTarget) {
+    // Smoothing rewrites one label's boundary, so an artifact-scoped target has
+    // nothing to smooth.
+    if (target.scope !== 'segment') {
+      throw new Error(
+        'Gaussian Smooth needs an active segment. Select one, then try again.'
+      );
+    }
+
     const params = {
       sigma: sigma.value,
-      label: labelValue,
+      label: target.labelValue,
     };
 
-    return gaussianSmoothLabelMap(segImage, params);
+    return gaussianSmoothLabelMap(target.voxels, params);
   }
 
   return {

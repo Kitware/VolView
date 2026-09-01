@@ -88,7 +88,7 @@ const getSegments = () => {
               segment.name,
             ])
         ),
-        image: segmentationStore.artifactIndex[groupId],
+        image: segmentationStore.artifactVoxels(groupId).image(),
       };
     })
     .filter(Boolean);
