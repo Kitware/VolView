@@ -848,7 +848,20 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     // follow the ones the manifest named, not precede them.
     loaded.forEach((result) => {
       if (!result?.decoded) return;
-      setArtifactSegments(artifactIdMap[result.artifact.id], result.decoded);
+      const artifactId = artifactIdMap[result.artifact.id];
+      const created = setArtifactSegments(artifactId, result.decoded);
+
+      // A migrated legacy group carried its active paint value here, because
+      // its segments did not exist when activeSegment was applied above.
+      const pendingActive = (result.artifact as { pendingActiveValue?: number })
+        .pendingActiveValue;
+      if (pendingActive === undefined) return;
+      const segmentation = getSegmentationForArtifact(artifactId);
+      const active = created.find(
+        (segment) =>
+          segment.representations.labelmap?.labelValue === pendingActive
+      );
+      if (segmentation && active) setActiveSegment(segmentation.id, active.id);
     });
 
     return { artifactIdMap, segmentIdMap, skipped };

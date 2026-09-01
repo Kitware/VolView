@@ -208,6 +208,19 @@ const migrate640To700 = (inputManifest: any) => {
   // Insertion order is the migrated order: groups in manifest order, then the
   // vector-tool labels in the order their tools reference them.
   const segmentsByParent = new Map<string, any[]>();
+
+  // Segment ids are built by joining legacy identifiers with '-', which those
+  // identifiers may themselves contain, so distinct sources can produce the
+  // same string. Restore keys a global map on this id, so a collision silently
+  // misroutes one segment onto another. Disambiguate deterministically.
+  const usedSegmentIds = new Set<string>();
+  const uniqueSegmentId = (candidate: string) => {
+    let id = candidate;
+    for (let n = 2; usedSegmentIds.has(id); n += 1) id = `${candidate}-${n}`;
+    usedSegmentIds.add(id);
+    return id;
+  };
+
   const addSegment = (parentImage: string, segment: any) => {
     const segments = segmentsByParent.get(parentImage) ?? [];
     segments.push(segment);
@@ -218,15 +231,30 @@ const migrate640To700 = (inputManifest: any) => {
     ? manifest.segmentGroups
     : [];
 
+  const paint = manifest.tools?.paint;
+  const activeGroupId = paint?.activeSegmentGroupID;
+  const activeValue = paint?.activeSegment;
+  if (paint) {
+    delete paint.activeSegmentGroupID;
+    delete paint.activeSegment;
+  }
+  // Captured as the segment is emitted, because uniqueSegmentId may have
+  // suffixed the id that the legacy pair would have interpolated to.
+  let activeSegmentId: string | undefined;
+
   const artifacts = groups.map((group) => {
     const metadata = group.metadata ?? {};
     const descriptors = metadata.segments;
 
     descriptorValues(descriptors).forEach((value) => {
       const mask = descriptors.byValue[String(value)];
+      const segmentId = uniqueSegmentId(`${group.id}-${value}`);
+      if (group.id === activeGroupId && value === activeValue) {
+        activeSegmentId = segmentId;
+      }
       addSegment(metadata.parentImage, {
         // Every {group, value} is its own segment, equal names included.
-        id: `${group.id}-${value}`,
+        id: segmentId,
         name: mask.name,
         color: mask.color,
         visible: mask.visible ?? true,
@@ -251,6 +279,13 @@ const migrate640To700 = (inputManifest: any) => {
         : { dataSourceId: group.dataSourceId }),
       ...(metadata.source ? { source: metadata.source } : {}),
       ...(descriptors ? {} : { pendingDecode: true }),
+      // Its segments are decoded during restore, after activeSegment would have
+      // been applied, so the value to reactivate travels with the artifact.
+      ...(!descriptors &&
+      group.id === activeGroupId &&
+      activeValue !== undefined
+        ? { pendingActiveValue: activeValue }
+        : {}),
     };
   });
 
@@ -272,7 +307,7 @@ const migrate640To700 = (inputManifest: any) => {
         const pair = `${tool.imageID}\u0000${tool.label}`;
         let segmentId = segmentIdByPair.get(pair);
         if (segmentId === undefined) {
-          segmentId = `${key}-${tool.label}-${tool.imageID}`;
+          segmentId = uniqueSegmentId(`${key}-${tool.label}-${tool.imageID}`);
           segmentIdByPair.set(pair, segmentId);
           const { labelName, color, ...props } = label;
           addSegment(tool.imageID, {
@@ -293,17 +328,6 @@ const migrate640To700 = (inputManifest: any) => {
     delete entry.labels;
     entry.segmentProps = segmentProps;
   });
-
-  const paint = manifest.tools?.paint;
-  const activeSegmentId =
-    paint?.activeSegmentGroupID !== undefined &&
-    paint?.activeSegment !== undefined
-      ? `${paint.activeSegmentGroupID}-${paint.activeSegment}`
-      : undefined;
-  if (paint) {
-    delete paint.activeSegmentGroupID;
-    delete paint.activeSegment;
-  }
 
   const segmentations = [...segmentsByParent.entries()].map(
     ([parentImage, segments]) => ({

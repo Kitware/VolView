@@ -286,6 +286,22 @@ describe('migrate640To700 — structural stage', () => {
     expect(parsed.segmentationArtifacts[0].pendingDecode).toBe(true);
   });
 
+  it('carries the active value of a descriptorless group for post-decode restore', () => {
+    const migrated = migrate({
+      segmentGroups: [legacyGroup('sg-blind', 'ds-ct')],
+      tools: { paint: { activeSegmentGroupID: 'sg-blind', activeSegment: 2 } },
+    });
+
+    // No segment exists to activate yet, so the value travels on the artifact.
+    expect(
+      (migrated.segmentations ?? []).flatMap((entry: any) => entry.segments)
+    ).toEqual([]);
+    expect(migrated.segmentationArtifacts[0].pendingActiveValue).toBe(2);
+
+    const parsed = ManifestSchema.parse(migrated) as any;
+    expect(parsed.segmentationArtifacts[0].pendingActiveValue).toBe(2);
+  });
+
   it('maps the active group and value to the matching segment id', () => {
     const migrated = migrate({
       segmentGroups: [
@@ -645,5 +661,44 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
     await nextTick();
 
     expect(snapshot('new-ct')).toEqual(before);
+  });
+
+  it('keeps colliding legacy identifiers as distinct segments', () => {
+    // Group 'polygons-1-img' value 2 and a polygon labelled '1' on 'img-2'
+    // both interpolate to 'polygons-1-img-2'.
+    const migrated: any = migrateManifest(
+      JSON.stringify({
+        version: '6.4.0',
+        datasets: [{ id: 'img-2', dataSourceId: 1 }],
+        dataSources: [{ id: 1, type: 'uri', uri: '/img-2' }],
+        segmentGroups: [
+          {
+            id: 'polygons-1-img',
+            path: 'group.vti',
+            metadata: {
+              parentImage: 'img-2',
+              name: 'Group',
+              segments: {
+                order: [2],
+                byValue: {
+                  '2': { value: 2, name: 'Voxels', color: [1, 2, 3, 255] },
+                },
+              },
+            },
+          },
+        ],
+        tools: {
+          polygons: {
+            labels: { '1': { labelName: 'Vector', color: '#00ff00' } },
+            tools: [{ id: 't1', label: '1', imageID: 'img-2' }],
+          },
+        },
+      })
+    );
+
+    const ids = migrated.segmentations[0].segments.map((s: any) => s.id);
+    // Both sources interpolate to 'polygons-1-img-2'; the second is suffixed.
+    expect(ids).toEqual(['polygons-1-img-2', 'polygons-1-img-2-2']);
+    expect(migrated.tools.polygons.tools[0].label).toBe('polygons-1-img-2-2');
   });
 });

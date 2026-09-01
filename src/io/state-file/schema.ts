@@ -358,6 +358,9 @@ export const SegmentationArtifact = z
     // Set only by the 7.0.0 migration, for a legacy group that carried no
     // segment descriptors: the loaded restore stage enumerates its voxels.
     pendingDecode: z.boolean().optional(),
+    // Also migration-only: the legacy active paint value, reactivated once the
+    // decode above has created the segments it names.
+    pendingActiveValue: z.number().optional(),
   })
   .refine(
     (data) => data.path !== undefined || data.dataSourceId !== undefined,
