@@ -7,6 +7,7 @@ import { ToolID } from '@/src/types/annotation-tool';
 import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
+import { createLocalSegmentRegistry } from './segmentRegistry';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -24,7 +25,7 @@ const rulerDefaults = () => ({
 export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
-    initialLabels: RULER_LABEL_DEFAULTS,
+    segments: () => createLocalSegmentRegistry(RULER_LABEL_DEFAULTS),
   });
 
   // prefix some props with ruler

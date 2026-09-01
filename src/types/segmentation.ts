@@ -108,6 +108,9 @@ export function cssColorToRGBA(css: string): RGBAColor {
   return hexaToRGBA(expandShorthandHex(hex));
 }
 
+// Opaque colors keep the 6-digit form label colors are written in, so a color
+// that round trips through a segment comes back byte-identical.
 export function rgbaToCssColor(rgba: RGBAColor) {
-  return rgbaToHexa(rgba);
+  const hexa = rgbaToHexa(rgba);
+  return rgba[3] === 255 ? hexa.slice(0, 7) : hexa;
 }

@@ -6,11 +6,11 @@ import {
   useToolSelectionStore,
 } from '@/src/store/tools/toolSelection';
 import { AnnotationToolType } from '@/src/store/tools/types';
-import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
+import { createSharedSegmentRegistry } from './segmentRegistry';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -38,7 +38,7 @@ const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {
 export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults,
-    initialLabels: POLYGON_LABEL_DEFAULTS,
+    segments: () => createSharedSegmentRegistry(),
   });
 
   function getPoints(id: ToolID) {

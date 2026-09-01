@@ -27,6 +27,9 @@ const applyLabelOffset = (offset: number) => () => {
   if (!activeToolStore) return;
 
   const labels = Object.entries(activeToolStore.labels);
+  // Shared-registry tools start with no segments, so there is nothing to cycle.
+  if (labels.length === 0) return;
+
   const activeLabelIndex = labels.findIndex(
     ([name]) => name === activeToolStore.activeLabel
   );

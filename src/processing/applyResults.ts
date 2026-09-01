@@ -266,7 +266,8 @@ const prepareAnnotations = (
 const mergeReferencedLabels = (
   kind: AnnotationToolKind,
   tools: readonly PreparedCore[],
-  namespace: Record<string, AnnotationLabel>
+  namespace: Record<string, AnnotationLabel>,
+  imageId: string
 ): Record<string, string> => {
   const store = annotationToolStore(kind);
   const names = new Set(
@@ -278,7 +279,10 @@ const mergeReferencedLabels = (
   const ids = Object.fromEntries(
     [...names].map((labelName) => [
       labelName,
-      store.mergeLabel({ labelName, ...(namespace[labelName] ?? {}) }),
+      store.mergeLabelForImage(imageId, {
+        labelName,
+        ...(namespace[labelName] ?? {}),
+      }),
     ])
   );
   store.setActiveLabel(activeBefore);
@@ -342,7 +346,12 @@ async function applyAnnotations(
   const labelIds = Object.fromEntries(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
-      mergeReferencedLabels(kind, prepared[kind], decoded.labels[kind]),
+      mergeReferencedLabels(
+        kind,
+        prepared[kind],
+        decoded.labels[kind],
+        parentSelection
+      ),
     ])
   ) as Record<AnnotationToolKind, Record<string, string>>;
 

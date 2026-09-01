@@ -14,7 +14,8 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
-import { useLabels, type Labels } from './useLabels';
+import type { ToolSegmentRegistry } from './segmentRegistry';
+import type { Labels } from './useLabels';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
@@ -39,10 +40,6 @@ export const declareAnnotationToolManifestRefs = (
     );
   });
 
-const annotationToolLabelDefault = Object.freeze({
-  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
-});
-
 const makeAnnotationToolDefaults = () => ({
   frameOfReference: {
     planeOrigin: [0, 0, 0],
@@ -62,12 +59,11 @@ export const useAnnotationTool = <
   LabelProps,
 >({
   toolDefaults,
-  initialLabels,
-  newLabelDefault,
+  segments,
 }: {
   toolDefaults: MakeToolDefaults;
-  initialLabels: Labels<LabelProps>;
-  newLabelDefault?: LabelProps;
+  // Factory, not the invoked registry: tools are created inside store setup.
+  segments: () => ToolSegmentRegistry<LabelProps>;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -88,16 +84,12 @@ export const useAnnotationTool = <
     tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
 
-  const labels = useLabels({
-    ...annotationToolLabelDefault,
-    ...newLabelDefault,
-  });
-  labels.mergeLabels(initialLabels);
+  const registry = segments();
 
-  function makePropsFromLabel(label: string | undefined) {
+  function makePropsFromLabel(label: Maybe<string>) {
     if (!label) return { labelName: '' };
 
-    const labelProps = labels.labels.value[label];
+    const labelProps = registry.allLabels.value[label];
     if (labelProps) return labelProps;
 
     // if label deleted, remove label name from tool
@@ -113,7 +105,7 @@ export const useAnnotationTool = <
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
       ...toolDefaults(),
-      label: labels.activeLabel.value,
+      label: registry.activeLabel.value,
       ...tool,
       // updates label props if changed between sessions
       ...makePropsFromLabel(tool.label),
@@ -152,7 +144,7 @@ export const useAnnotationTool = <
   });
 
   // updates props controlled by labels
-  watch(labels.labels, () => {
+  watch(registry.allLabels, () => {
     toolIDs.value.forEach((id) => {
       const tool = toolByID.value[id];
       const propsFromLabel = makePropsFromLabel(tool.label);
@@ -182,7 +174,9 @@ export const useAnnotationTool = <
 
     return {
       tools: toolsSerialized,
-      labels: labels.labels.value,
+      labels: registry.serializeLabels(
+        toolsSerialized.flatMap((tool) => (tool.label ? [tool.label] : []))
+      ),
     };
   };
 
@@ -194,30 +188,24 @@ export const useAnnotationTool = <
     serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>
   ) {
-    if (serialized?.labels) {
-      labels.clearDefaultLabels();
-    }
-    const labelIDMap = Object.fromEntries(
-      Object.entries(serialized?.labels ?? {}).map(([id, label]) => {
-        const newID = labels.addLabel(label); // side effect in Array.map
-        return [id, newID];
-      })
-    );
+    const resolveLabel = serialized?.labels
+      ? registry.adoptLabels(serialized.labels as Labels<LabelProps>)
+      : () => '';
 
     serialized?.tools
-      .map(
-        ({ imageID, label, ...rest }) =>
-          ({
-            ...rest,
-            imageID: dataIDMap[imageID],
-            label: (label && labelIDMap[label]) || '',
-          }) as ToolPatch
-      )
+      .map(({ imageID, label, ...rest }) => {
+        const newImageID = dataIDMap[imageID];
+        return {
+          ...rest,
+          imageID: newImageID,
+          label: resolveLabel(label, newImageID),
+        } as ToolPatch;
+      })
       .forEach((tool) => addTool(tool));
   }
 
   return {
-    ...labels,
+    ...registry,
     toolIDs,
     toolByID,
     tools,

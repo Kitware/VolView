@@ -1,9 +1,9 @@
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { RECTANGLE_LABEL_DEFAULTS } from '@/src/config';
 import { ToolID } from '@/src/types/annotation-tool';
 
+import { createSharedSegmentRegistry } from './segmentRegistry';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -26,8 +26,7 @@ const newLabelDefault = {
 export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults: rectangleDefaults,
-    initialLabels: RECTANGLE_LABEL_DEFAULTS,
-    newLabelDefault,
+    segments: () => createSharedSegmentRegistry(newLabelDefault),
   });
 
   function getPoints(id: ToolID) {
