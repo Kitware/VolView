@@ -100,10 +100,29 @@ describe('polygon rasterize target', () => {
     expect(() => resolveRasterizeTarget('img-1', segment.id)).toThrow();
   });
 
-  it('rejects a tool with no segment', async () => {
+  it('rasterizes into a default segment when the image has none', async () => {
     await seatImage('img-1');
-    store().ensureSegmentationForImage('img-1');
 
-    expect(() => resolveRasterizeTarget('img-1', undefined)).toThrow();
+    const target = resolveRasterizeTarget('img-1', undefined);
+
+    const segmentation = store().getSegmentationForImage('img-1');
+    expect(Object.keys(segmentation!.segments)).toHaveLength(1);
+    expect(store().activeTarget?.segmentId).toBe(
+      Object.keys(segmentation!.segments)[0]
+    );
+    expect(target.labelmap).toBe(store().artifactIndex[target.artifactId]);
+  });
+
+  it('reuses the default segment on a second rasterize', async () => {
+    await seatImage('img-1');
+
+    const first = resolveRasterizeTarget('img-1', undefined);
+    const second = resolveRasterizeTarget('img-1', undefined);
+
+    expect(second.artifactId).toBe(first.artifactId);
+    expect(second.labelValue).toBe(first.labelValue);
+    expect(
+      Object.keys(store().getSegmentationForImage('img-1')!.segments)
+    ).toHaveLength(1);
   });
 });
