@@ -173,9 +173,7 @@ export const useAnnotationTool = <
 
     return {
       tools: toolsSerialized,
-      ...registry.serializeIdentity(
-        toolsSerialized.flatMap((tool) => (tool.label ? [tool.label] : []))
-      ),
+      ...registry.serializeIdentity(),
     };
   };
 
@@ -198,7 +196,7 @@ export const useAnnotationTool = <
         return {
           ...rest,
           imageID: newImageID,
-          label: resolveLabel(label, newImageID),
+          label: resolveLabel(label),
         } as ToolPatch;
       })
       .forEach((tool) => addTool(tool));

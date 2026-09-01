@@ -4,6 +4,7 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
+import { NO_NAME } from '@/src/constants';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -30,10 +31,10 @@ import {
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import {
   isEmptyExtent,
+  listSegments,
   type ActiveSegmentationTarget,
   type ActiveSegmentIntent,
   type Extent3D,
-  type LabelmapBinding,
   type LabelmapSegment,
   type Segment,
   type Segmentation,
@@ -74,8 +75,6 @@ const defaultArtifactIO: SegmentationArtifactIO = {
   write: writeSegmentation,
   read: readImage,
 };
-
-const NO_NAME = '(no name)';
 
 const fullExtent = (dimensions: number[]): Extent3D => [
   0,
@@ -198,17 +197,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segment;
   }
 
-  const listSegments = (segmentation: Segmentation) =>
-    segmentation.order.map((id) => segmentation.segments[id]);
-
-  const allBindings = () =>
-    Object.values(segmentations)
-      .flatMap(listSegments)
-      .map((segment) => segment.representations.labelmap)
-      .filter((binding): binding is LabelmapBinding => !!binding);
-
   const bindingsForArtifact = (artifactId: string) =>
-    allBindings().filter((binding) => binding.artifactId === artifactId);
+    segmentsForArtifact(artifactId).map(
+      (segment) => segment.representations.labelmap!
+    );
 
   function getSegmentationForImage(parentImageId: string) {
     const id = byParentImage[parentImageId];

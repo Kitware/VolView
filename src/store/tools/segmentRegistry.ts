@@ -4,8 +4,13 @@ import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import type { Maybe } from '@/src/types';
-import type { Segment, Segmentation } from '@/src/types/segmentation';
-import { cssColorToRGBA, rgbaToCssColor } from '@/src/types/segmentation';
+import type { Segment } from '@/src/types/segmentation';
+import { omit } from '@/src/utils';
+import {
+  cssColorToRGBA,
+  listSegments,
+  rgbaToCssColor,
+} from '@/src/types/segmentation';
 import { useLabels, type Label, type Labels } from './useLabels';
 
 export type RegistrySegment = {
@@ -41,11 +46,11 @@ export type SegmentLabelApi<Props> = {
   findLabel: (name: Maybe<string>) => [string, Label<Props>] | undefined;
   clearDefaultLabels: () => void;
   mergeLabelForImage: (imageId: Maybe<string>, label: Label<Props>) => string;
-  serializeIdentity: (referenced: string[]) => ToolWireIdentity<Props>;
+  serializeIdentity: () => ToolWireIdentity<Props>;
   adoptIdentity: (
     serialized: Maybe<ToolWireIdentity<Props>>,
     segmentIdMap: Record<string, string>
-  ) => (labelId: Maybe<string>, imageId: Maybe<string>) => string;
+  ) => (labelId: Maybe<string>) => string;
 };
 
 /**
@@ -64,9 +69,6 @@ export type ToolSegmentRegistry<Props> = SegmentRegistry &
 const annotationToolLabelDefault = Object.freeze({
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
 });
-
-const listSegments = (segmentation: Segmentation) =>
-  segmentation.order.map((id) => segmentation.segments[id]);
 
 const toRegistrySegment = (segment: Segment) => ({
   id: segment.id,
@@ -214,9 +216,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     // Read before deleting: the store drops the active target with the segment.
     const wasActive = id === activeLabel.value;
     segmentationStore.deleteSegment(segmentation.id, id);
-    propsBySegment.value = Object.fromEntries(
-      Object.entries(propsBySegment.value).filter(([key]) => key !== id)
-    );
+    propsBySegment.value = omit(propsBySegment.value, id);
 
     if (wasActive) {
       setActiveLabel(segments.value[0]?.id ?? '');
@@ -288,12 +288,18 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     serialized: Maybe<ToolWireIdentity<Props>>,
     segmentIdMap: Record<string, string>
   ) => {
+    // One assignment, not one per entry: setProps clones the whole record each
+    // time, which is quadratic in the number of restored segments.
+    const merged = { ...propsBySegment.value };
     Object.entries(serialized?.segmentProps ?? {}).forEach(
       ([wireId, props]) => {
         const segmentId = segmentIdMap[wireId];
-        if (segmentId) setProps(segmentId, props as ToolLabel);
+        if (segmentId) {
+          merged[segmentId] = { ...merged[segmentId], ...(props as ToolLabel) };
+        }
       }
     );
+    propsBySegment.value = merged;
     // A segment the restore did not recreate is a deleted one; leave the tool
     // unlabeled.
     return (labelId: Maybe<string>) => (labelId && segmentIdMap[labelId]) || '';

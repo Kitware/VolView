@@ -44,6 +44,11 @@ export type Segmentation = {
   order: string[];
 };
 
+/** Segments in display order. `order` is the authority, `segments` the store. */
+export function listSegments(segmentation: Segmentation) {
+  return segmentation.order.map((id) => segmentation.segments[id]);
+}
+
 export type ActiveSegmentationTarget = {
   segmentationId: string;
   segmentId: string;
