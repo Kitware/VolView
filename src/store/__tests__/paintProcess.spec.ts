@@ -182,7 +182,9 @@ describe('Paint process store', () => {
 
     await processStore.startProcess(algorithm);
 
-    expect(algorithm).toHaveBeenCalledWith(labelMap, 3);
+    expect(algorithm).toHaveBeenCalledWith(
+      expect.objectContaining({ segImage: labelMap, labelValue: 3 })
+    );
   });
 
   it('refuses to process a locked segment', async () => {
@@ -223,8 +225,11 @@ describe('Paint process store', () => {
       target.segmentId
     )!;
     expect(algorithm).toHaveBeenCalledWith(
-      binding.labelmap,
-      binding.labelValue
+      expect.objectContaining({
+        segImage: binding.labelmap,
+        labelValue: binding.labelValue,
+        artifactId: binding.artifactId,
+      })
     );
     expect(getScalars(binding.labelmap)).toEqual([4, 4]);
     expect(getScalars(firstLabelMap)).toEqual([0, 0]);
@@ -262,7 +267,9 @@ describe('Paint process store', () => {
     ).toBeUndefined();
     expect(processStore.processState.step).toBe('start');
     expect(
-      messageStore.messages.some((m) => m.title === 'No segment to process')
+      messageStore.messages.some(
+        (m) => m.title === 'No segmentation to process'
+      )
     ).toBe(true);
   });
 

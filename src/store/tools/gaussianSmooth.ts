@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import * as Comlink from 'comlink';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { gaussianSmoothLabelMapWorker } from '@/src/core/tools/paint/gaussianSmooth.worker';
+import type { ProcessTarget } from '@/src/store/tools/paintProcess';
 
 export const DEFAULT_SIGMA = 1.0;
 export const MIN_SIGMA = 0.1;
@@ -58,7 +59,7 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
     sigma.value = Math.max(MIN_SIGMA, Math.min(MAX_SIGMA, value));
   }
 
-  async function computeAlgorithm(segImage: vtkLabelMap, labelValue: number) {
+  async function computeAlgorithm({ segImage, labelValue }: ProcessTarget) {
     const params = {
       sigma: sigma.value,
       label: labelValue,

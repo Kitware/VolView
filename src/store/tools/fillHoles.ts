@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import * as Comlink from 'comlink';
-import vtkLabelMap from '@/src/vtk/LabelMap';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import type { ProcessTarget } from '@/src/store/tools/paintProcess';
 import { getImageMetadata } from '@/src/composables/useCurrentImage';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/core/tools/paint/fillHoles.worker';
@@ -50,7 +50,11 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     segmentScope.value = value;
   }
 
-  async function computeAlgorithm(segImage: vtkLabelMap, labelValue: number) {
+  async function computeAlgorithm({
+    segImage,
+    labelValue,
+    artifactId,
+  }: ProcessTarget) {
     const viewStore = useViewStore();
     const viewSliceStore = useViewSliceStore();
     const segmentationStore = useSegmentationStore();
@@ -64,12 +68,6 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
-    // The artifact is read off the labelmap the process resolved, so the voxels
-    // being filled and the catalog guiding the fill cannot disagree.
-    const artifactId = segmentationStore.findArtifactIdForLabelmap(segImage);
-    if (!artifactId) {
-      throw new Error('Fill Holes was handed an unknown segmentation labelmap');
-    }
     const metadata = segmentationStore.artifactMeta[artifactId];
 
     const parentMetadata = getImageMetadata(metadata.parentImage);

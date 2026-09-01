@@ -158,13 +158,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const artifactMeta = reactive<Record<string, ArtifactMetadata>>({});
   const artifactOrderByParent = reactive<Record<string, string[]>>({});
 
-  let nextColorIndex = 0;
-  function getNextColor(): RGBAColor {
-    const color = CATEGORICAL_COLORS[nextColorIndex];
-    nextColorIndex = (nextColorIndex + 1) % CATEGORICAL_COLORS.length;
-    return [...color, 255] as RGBAColor;
-  }
-
   // Names keep counting up per parent image so a deleted artifact's name is
   // not immediately handed to the next one. Cleared by the deletion cascade.
   const nextDefaultIndex: Record<string, number> = Object.create(null);
@@ -223,6 +216,15 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentations[id];
   }
 
+  // Deliberately separate from the decode path's cursor: decoded catalogs must
+  // be reproducible regardless of how many segments this session has created.
+  let nextColorIndex = 0;
+  function getNextColor(): RGBAColor {
+    const color = CATEGORICAL_COLORS[nextColorIndex];
+    nextColorIndex = (nextColorIndex + 1) % CATEGORICAL_COLORS.length;
+    return [...color, 255] as RGBAColor;
+  }
+
   function createSegment(segmentationId: string, init?: SegmentInit) {
     const segmentation = getSegmentation(segmentationId);
     const id = useIdStore().nextId();
@@ -260,8 +262,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /** The artifact an operation's labelmap belongs to. */
-  const findArtifactIdForLabelmap = (labelmap: vtkLabelMap) =>
-    Object.keys(artifactIndex).find((id) => artifactIndex[id] === labelmap);
 
   function findSegmentByLabelValue(artifactId: string, labelValue: number) {
     return segmentsForArtifact(artifactId).find(
@@ -506,7 +506,26 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * creates a segment; setting an active segment or viewing another image
    * never does. Storage stays deferred to ensureLabelmapBinding.
    */
-  function resolveEditTarget(imageId: string) {
+  /** Whether a segment id is live anywhere, used to tell stale ids from foreign ones. */
+  const segmentExists = (segmentId: string) =>
+    Object.values(segmentations).some(
+      (segmentation) => segmentId in segmentation.segments
+    );
+
+  function resolveEditTarget(
+    imageId: string,
+    preferredSegmentId?: Maybe<string>
+  ) {
+    // An explicit segment wins when it belongs to this image. Anything else, a
+    // stale id included, falls through to the normal path. This does not change
+    // the active segment: naming a segment to edit is not selecting it.
+    if (preferredSegmentId) {
+      const owner = getSegmentationForImage(imageId);
+      if (owner?.segments[preferredSegmentId]) {
+        return { segmentationId: owner.id, segmentId: preferredSegmentId };
+      }
+    }
+
     const recorded = intent?.targetByImageId[imageId];
     if (recorded && segmentAt(recorded)) {
       activeTargetRef.value = recorded;
@@ -858,6 +877,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     setActiveSegment,
     clearActiveSegment,
     resolveEditTarget,
+    segmentExists,
     getSegmentationForImage,
     ensureSegmentationForImage,
     getSegment,
@@ -872,7 +892,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegmentationForArtifact,
     segmentsForArtifact,
     findSegmentByLabelValue,
-    findArtifactIdForLabelmap,
     registerArtifact,
     createArtifactForImage,
     updateArtifactMeta,

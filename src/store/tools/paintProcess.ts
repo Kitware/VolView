@@ -39,9 +39,15 @@ type PreviewingState = TargetedState & {
 
 type ProcessState = StartState | ComputingState | PreviewingState;
 
+/** The resolved storage a process writes into, passed instead of being re-derived. */
+export type ProcessTarget = {
+  segImage: vtkLabelMap;
+  labelValue: number;
+  artifactId: string;
+};
+
 export type ProcessAlgorithm = (
-  segImage: vtkLabelMap,
-  labelValue: number
+  target: ProcessTarget
 ) => Promise<TypedArray | number[]>;
 
 export const usePaintProcessStore = defineStore('paintProcess', () => {
@@ -105,15 +111,45 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     activeProcessType.value = processType;
   }
 
-  function existingTargetForImage(imageId: string) {
-    const segmentation = segmentationStore.getSegmentationForImage(imageId);
-    if (!segmentation) return undefined;
-    const active = segmentationStore.activeTarget;
-    if (active?.segmentationId === segmentation.id) return active;
-    const segmentId = segmentation.order[0];
-    return segmentId
-      ? { segmentationId: segmentation.id, segmentId }
-      : undefined;
+  // Segment-scoped: resolveEditTarget creates the segment if needed, then
+  // storage is allocated for it.
+  function resolveSegmentScoped(imageId: string) {
+    const { segmentationId, segmentId } =
+      segmentationStore.resolveEditTarget(imageId);
+    if (segmentationStore.getSegment(segmentationId, segmentId).locked) {
+      messageStore.addError('Cannot process locked segment');
+      return undefined;
+    }
+    const binding = segmentationStore.ensureLabelmapBinding(
+      segmentationId,
+      segmentId
+    );
+    return {
+      artifactId: binding.artifactId,
+      labelValue: binding.labelValue,
+      segmentationId,
+      segmentId,
+    };
+  }
+
+  // Artifact-scoped: nothing is created, and an image with no artifact has
+  // nothing to process.
+  function resolveArtifactScoped(imageId: string) {
+    const active = segmentationStore.activeArtifactId;
+    const forImage = segmentationStore.artifactsForImage(imageId);
+    const artifactId =
+      active && forImage.includes(active) ? active : forImage[0];
+    if (!artifactId) {
+      messageStore.addError('No segmentation to process');
+      return undefined;
+    }
+    const target = segmentationStore.activeTarget;
+    return {
+      artifactId,
+      labelValue: 0,
+      segmentationId: target?.segmentationId ?? '',
+      segmentId: target?.segmentId ?? '',
+    };
   }
 
   async function startProcess(
@@ -130,33 +166,19 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       return;
     }
 
-    // resolveEditTarget is the one call that creates segments, so an
-    // all-segments process reads an existing target instead of minting a
-    // default segment or cloning the active one onto a merely viewed image.
-    const target = requiresActiveSegment
-      ? segmentationStore.resolveEditTarget(imageId)
-      : existingTargetForImage(imageId);
-    if (!target) {
-      messageStore.addError('No segment to process');
-      return;
-    }
-    const { segmentationId, segmentId } = target;
+    // An all-segments process writes the whole artifact and ignores labelValue,
+    // so it resolves an existing artifact rather than a segment. Only the
+    // segment-scoped path goes through resolveEditTarget, which is the one call
+    // that creates segments.
+    const resolved = requiresActiveSegment
+      ? resolveSegmentScoped(imageId)
+      : resolveArtifactScoped(imageId);
+    if (!resolved) return;
+    const { artifactId, labelValue, segmentationId, segmentId } = resolved;
 
-    if (
-      requiresActiveSegment &&
-      segmentationStore.getSegment(segmentationId, segmentId).locked
-    ) {
-      messageStore.addError('Cannot process locked segment');
-      return;
-    }
-
-    const binding = segmentationStore.ensureLabelmapBinding(
-      segmentationId,
-      segmentId
-    );
-    const segImage = segmentationStore.artifactIndex[binding.artifactId];
+    const segImage = segmentationStore.artifactIndex[artifactId];
     const activeParentImageID =
-      segmentationStore.artifactMeta[binding.artifactId].parentImage;
+      segmentationStore.artifactMeta[artifactId].parentImage;
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 
@@ -176,7 +198,11 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     };
 
     try {
-      const outputScalars = await algorithm(segImage, binding.labelValue);
+      const outputScalars = await algorithm({
+        segImage,
+        labelValue,
+        artifactId,
+      });
 
       // If the state changed during the async operation, stop processing.
       if (

@@ -136,9 +136,13 @@ describe('Fill Holes store', () => {
       [1, 1, 1],
       [0, 0, 1, 0, 1, 0, 1, 0, 0]
     );
-    const { fillHolesStore } = await setupFillHolesRun(labelMap, 0);
+    const { fillHolesStore, artifactId } = await setupFillHolesRun(labelMap, 0);
 
-    await fillHolesStore.computeAlgorithm(labelMap, 1);
+    await fillHolesStore.computeAlgorithm({
+      segImage: labelMap,
+      labelValue: 1,
+      artifactId,
+    });
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -154,9 +158,13 @@ describe('Fill Holes store', () => {
       [1, 1, 2],
       [1, 0, 0, 0, 1, 0, 0, 0, 1]
     );
-    const { fillHolesStore } = await setupFillHolesRun(labelMap, 4);
+    const { fillHolesStore, artifactId } = await setupFillHolesRun(labelMap, 4);
 
-    await fillHolesStore.computeAlgorithm(labelMap, 1);
+    await fillHolesStore.computeAlgorithm({
+      segImage: labelMap,
+      labelValue: 1,
+      artifactId,
+    });
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -171,7 +179,7 @@ describe('Fill Holes store', () => {
       [1, 1, 1],
       [1, 0, 0, 0, 1, 0, 0, 0, 1]
     );
-    const { fillHolesStore, segmentationStore, segmentationId } =
+    const { fillHolesStore, segmentationStore, segmentationId, artifactId } =
       await setupFillHolesRun(labelMap, 0);
     const locked = segmentationStore.createSegment(segmentationId, {
       name: 'Locked',
@@ -185,7 +193,11 @@ describe('Fill Holes store', () => {
       locked.id
     )!.labelValue;
 
-    await fillHolesStore.computeAlgorithm(labelMap, 1);
+    await fillHolesStore.computeAlgorithm({
+      segImage: labelMap,
+      labelValue: 1,
+      artifactId,
+    });
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
       lockedLabels: [lockedValue],
