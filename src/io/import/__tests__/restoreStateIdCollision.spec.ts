@@ -127,9 +127,7 @@ const assembleStateIdMap = (leaves: UriLeaf[], completionOrder: string[]) =>
     return { ...map, [leaf!.stateFileLeaf!.stateID]: storeIdByUri[uri] };
   }, {});
 
-// Deferred to C8, which restores legacy `segmentGroups` manifests through
-// `migrate640To700`; the 7.0.0 wire has no segment-group root.
-describe.skip('restore stateID namespaces (collision)', () => {
+describe('restore stateID namespaces (collision)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     ioMocks.readImage.mockReset();

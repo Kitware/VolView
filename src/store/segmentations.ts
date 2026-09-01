@@ -27,14 +27,15 @@ import {
   useSegmentGroupStore,
 } from '@/src/store/segmentGroups';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
-import type {
-  ActiveSegmentationTarget,
-  ActiveSegmentIntent,
-  Extent3D,
-  LabelmapBinding,
-  LabelmapSegment,
-  Segment,
-  Segmentation,
+import {
+  isEmptyExtent,
+  type ActiveSegmentationTarget,
+  type ActiveSegmentIntent,
+  type Extent3D,
+  type LabelmapBinding,
+  type LabelmapSegment,
+  type Segment,
+  type Segmentation,
 } from '@/src/types/segmentation';
 import { removeFromArray } from '@/src/utils';
 import { normalize } from '@/src/utils/path';
@@ -63,7 +64,9 @@ export type SegmentationArtifactIO = {
     labelmap: vtkLabelMap,
     segments: LabelmapSegment[]
   ) => Promise<string | Uint8Array>;
-  read: (file: File) => Promise<{ image: vtkImageData }>;
+  read: (
+    file: File
+  ) => Promise<{ image: vtkImageData; headerMetadata?: Map<string, string> }>;
 };
 
 const defaultArtifactIO: SegmentationArtifactIO = {
@@ -628,7 +631,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           `Could not get image data for dataSourceId ${artifact.dataSourceId}`
         );
       }
-      return { image };
+      return {
+        image,
+        headerMetadata: imageCacheStore.imageById[storeId!]?.headerMetadata,
+      };
     }
 
     // Skip BEFORE awaiting anything an artifact whose parent image is
@@ -669,12 +675,25 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     try {
       loaded = await Promise.all(
         attachable.map(async (artifact) => {
+          const storeId = artifactStoreId(artifact);
           try {
-            const { image } = await loadArtifactImage(
+            const { image, headerMetadata } = await loadArtifactImage(
               artifact,
-              artifactStoreId(artifact)
+              storeId
             );
-            return { artifact, labelmap: toLabelMap(image) };
+            const labelmap = toLabelMap(image);
+            // A migrated group that carried no descriptors is enumerated here,
+            // through the same decode live import uses, while its source image
+            // is still loaded: the temp artifact dataset is dropped below.
+            const decoded = artifact.pendingDecode
+              ? ((await useSegmentGroupStore().decodeSegments(
+                  storeId,
+                  labelmap,
+                  0,
+                  headerMetadata
+                )) as LabelmapSegment[])
+              : undefined;
+            return { artifact, labelmap, decoded };
           } catch {
             // A parse/read failure skips just this artifact — never rejects the
             // whole restore; the survivors still attach.
@@ -730,7 +749,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           segment.representations.labelmap = {
             artifactId,
             labelValue: binding.labelValue,
-            extent: [...binding.extent] as Extent3D,
+            // A migrated binding carries an empty placeholder extent: only the
+            // loaded artifact knows the real one.
+            extent: isEmptyExtent(binding.extent as Extent3D)
+              ? fullExtent(artifactIndex[artifactId].getDimensions())
+              : ([...binding.extent] as Extent3D),
           };
         }
         segmentIdMap[wireSegmentId] = segment.id;
@@ -741,6 +764,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         : undefined;
       if (activeSegmentId !== undefined)
         setActiveSegment(segmentation.id, activeSegmentId);
+    });
+
+    // Catalogued after the wire segmentations so a decoded artifact's segments
+    // follow the ones the manifest named, not precede them.
+    loaded.forEach((result) => {
+      if (!result?.decoded) return;
+      setArtifactSegments(artifactIdMap[result.artifact.id], result.decoded);
     });
 
     return { artifactIdMap, segmentIdMap, skipped };

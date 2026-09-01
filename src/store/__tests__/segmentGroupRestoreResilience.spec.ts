@@ -7,6 +7,7 @@ import { leafStateId } from '@/src/io/import/dataSource';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
+import { migrateManifest } from '@/src/io/state-file/migrations';
 import {
   completeStateFileRestore,
   resolveArtifactRestoreSources,
@@ -59,17 +60,28 @@ const group = (
   metadata: { name: id, parentImage, segments },
 });
 
+// Legacy groups reach the stores only through the migration the import path
+// runs first, so every fixture here is a migrated 7.0.0 manifest.
 const manifestWith = (groups: Array<Record<string, unknown>>): Manifest =>
-  ManifestSchema.parse({
-    version: '6.4.0',
-    dataSources: [
-      { id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' },
-      { id: 3, type: 'uri', uri: ARTIFACT_URI, name: 'Tumor.seg.nrrd' },
-      { id: 4, type: 'uri', uri: OTHER_ARTIFACT_URI, name: 'Liver.seg.nrrd' },
-    ],
-    datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
-    segmentGroups: groups,
-  });
+  ManifestSchema.parse(
+    migrateManifest(
+      JSON.stringify({
+        version: '6.4.0',
+        dataSources: [
+          { id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' },
+          { id: 3, type: 'uri', uri: ARTIFACT_URI, name: 'Tumor.seg.nrrd' },
+          {
+            id: 4,
+            type: 'uri',
+            uri: OTHER_ARTIFACT_URI,
+            name: 'Liver.seg.nrrd',
+          },
+        ],
+        datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
+        segmentGroups: groups,
+      })
+    )
+  );
 
 function makeImage(fillValue = 0) {
   const image = vtkImageData.newInstance();
@@ -134,9 +146,7 @@ const restoreGroups = (
     resolveArtifactRestoreSources(manifest)
   );
 
-// Deferred to C8, which restores legacy `segmentGroups` manifests through
-// `migrate640To700`; the 7.0.0 wire has no segment-group root.
-describe.skip('segmentGroups.deserialize — resilient restore', () => {
+describe('migrated segment groups — resilient restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     ioMocks.readImage.mockReset();

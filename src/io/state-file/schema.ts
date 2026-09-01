@@ -363,6 +363,9 @@ export const SegmentationArtifact = z
     path: z.string().optional(),
     dataSourceId: z.number().optional(),
     source: ProcessingResultSource.optional(),
+    // Set only by the 7.0.0 migration, for a legacy group that carried no
+    // segment descriptors: the loaded restore stage enumerates its voxels.
+    pendingDecode: z.boolean().optional(),
   })
   .refine(
     (data) => data.path !== undefined || data.dataSourceId !== undefined,

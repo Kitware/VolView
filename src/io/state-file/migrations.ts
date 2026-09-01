@@ -1,4 +1,5 @@
 import { pipe } from '@/src/utils/functional';
+import { cssColorToRGBA, emptyExtent } from '@/src/types/segmentation';
 
 const migrateOrPass =
   (versions: Array<string>, migrationFunc: (manifest: any) => any) =>
@@ -164,6 +165,167 @@ const migrate630To640 = (inputManifest: any) => ({
   version: '6.4.0',
 });
 
+// Vector-tool label records become segments; rulers keep owning their labels.
+const SEGMENT_TOOL_KEYS = ['rectangles', 'polygons'] as const;
+
+// A manifest saved before `datasets` existed lets every uri source stand in for
+// one, keyed by its stringified source id — mirrors `manifestDatasets`.
+const datasetDisplayName = (manifest: any, datasetId: string) => {
+  const sources: any[] = Array.isArray(manifest.dataSources)
+    ? manifest.dataSources
+    : [];
+  const datasets: any[] = Array.isArray(manifest.datasets)
+    ? manifest.datasets
+    : sources
+        .filter((source) => source.type === 'uri')
+        .map((source) => ({ id: String(source.id), dataSourceId: source.id }));
+  const dataset = datasets.find((entry) => entry.id === datasetId);
+  const source = sources.find((entry) => entry.id === dataset?.dataSourceId);
+  return typeof source?.name === 'string' ? source.name : datasetId;
+};
+
+// Descriptor values in `order`, then any byValue entry `order` forgot.
+const descriptorValues = (descriptors: any) => {
+  const byValue = descriptors?.byValue ?? {};
+  const ordered: number[] = (
+    Array.isArray(descriptors?.order) ? descriptors.order : []
+  ).filter((value: number) => String(value) in byValue);
+  const rest = Object.keys(byValue)
+    .map(Number)
+    .filter((value) => !ordered.includes(value))
+    .sort((a, b) => a - b);
+  return [...ordered, ...rest];
+};
+
+// 6.4.0 -> 7.0.0 moves identity off segment groups and off the vector tools'
+// label records and onto segments owned by one segmentation per parent image.
+// JSON only: no voxels are read here, so a group with no descriptors is marked
+// `pendingDecode` for the loaded restore stage, and every labelmap binding
+// carries an empty placeholder extent that stage resolves against the artifact.
+const migrate640To700 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+
+  // Insertion order is the migrated order: groups in manifest order, then the
+  // vector-tool labels in the order their tools reference them.
+  const segmentsByParent = new Map<string, any[]>();
+  const addSegment = (parentImage: string, segment: any) => {
+    const segments = segmentsByParent.get(parentImage) ?? [];
+    segments.push(segment);
+    segmentsByParent.set(parentImage, segments);
+  };
+
+  const groups: any[] = Array.isArray(manifest.segmentGroups)
+    ? manifest.segmentGroups
+    : [];
+
+  const artifacts = groups.map((group) => {
+    const metadata = group.metadata ?? {};
+    const descriptors = metadata.segments;
+
+    descriptorValues(descriptors).forEach((value) => {
+      const mask = descriptors.byValue[String(value)];
+      addSegment(metadata.parentImage, {
+        // Every {group, value} is its own segment, equal names included.
+        id: `${group.id}-${value}`,
+        name: mask.name,
+        color: mask.color,
+        visible: mask.visible ?? true,
+        locked: mask.locked ?? false,
+        representations: {
+          labelmap: {
+            artifactId: group.id,
+            labelValue: value,
+            extent: emptyExtent(),
+          },
+        },
+      });
+    });
+
+    return {
+      id: group.id,
+      parentImage: metadata.parentImage,
+      name: metadata.name,
+      ...(group.path === undefined ? {} : { path: group.path }),
+      ...(group.dataSourceId === undefined
+        ? {}
+        : { dataSourceId: group.dataSourceId }),
+      ...(metadata.source ? { source: metadata.source } : {}),
+      ...(descriptors ? {} : { pendingDecode: true }),
+    };
+  });
+
+  SEGMENT_TOOL_KEYS.forEach((key) => {
+    const entry = manifest.tools?.[key];
+    if (!entry) return;
+
+    const labels = entry.labels ?? {};
+    const segmentProps: Record<string, any> = {};
+    // One segment per {label, image} pair: a label used on two images is two
+    // segments, and identity is never bridged across them.
+    const segmentIdByPair = new Map<string, string>();
+
+    entry.tools = (Array.isArray(entry.tools) ? entry.tools : []).map(
+      (tool: any) => {
+        const label = labels[tool.label];
+        if (!label) return tool;
+
+        const pair = `${tool.imageID}\u0000${tool.label}`;
+        let segmentId = segmentIdByPair.get(pair);
+        if (segmentId === undefined) {
+          segmentId = `${key}-${tool.label}-${tool.imageID}`;
+          segmentIdByPair.set(pair, segmentId);
+          const { labelName, color, ...props } = label;
+          addSegment(tool.imageID, {
+            id: segmentId,
+            name: labelName ?? '',
+            color: cssColorToRGBA(color ?? tool.color ?? ''),
+            visible: true,
+            locked: false,
+            // A vector-tool label has no voxels.
+            representations: {},
+          });
+          segmentProps[segmentId] = props;
+        }
+        return { ...tool, label: segmentId };
+      }
+    );
+
+    delete entry.labels;
+    entry.segmentProps = segmentProps;
+  });
+
+  const paint = manifest.tools?.paint;
+  const activeSegmentId =
+    paint?.activeSegmentGroupID !== undefined &&
+    paint?.activeSegment !== undefined
+      ? `${paint.activeSegmentGroupID}-${paint.activeSegment}`
+      : undefined;
+  if (paint) {
+    delete paint.activeSegmentGroupID;
+    delete paint.activeSegment;
+  }
+
+  const segmentations = [...segmentsByParent.entries()].map(
+    ([parentImage, segments]) => ({
+      id: `segmentation-${parentImage}`,
+      name: datasetDisplayName(manifest, parentImage),
+      parentImage,
+      segments,
+      order: segments.map((segment) => segment.id),
+      ...(segments.some((segment) => segment.id === activeSegmentId)
+        ? { activeSegment: activeSegmentId }
+        : {}),
+    })
+  );
+
+  if (artifacts.length > 0) manifest.segmentationArtifacts = artifacts;
+  if (segmentations.length > 0) manifest.segmentations = segmentations;
+  delete manifest.segmentGroups;
+
+  manifest.version = '7.0.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
@@ -171,6 +333,8 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['5.0.1'], migrate501To600),
     migrateOrPass(['6.0.0'], migrate600To610),
     migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
-    migrateOrPass(['6.3.0'], migrate630To640)
+    migrateOrPass(['6.3.0'], migrate630To640),
+    // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
+    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700)
   );
 };

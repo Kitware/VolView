@@ -6,8 +6,9 @@ import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { leafStateId } from '@/src/io/import/dataSource';
-import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
+import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
+import { migrateManifest } from '@/src/io/state-file/migrations';
 
 // ---------------------------------------------------------------------------
 // Compose-validity refinement PARITY PIN: segment descriptors are OPTIONAL on
@@ -76,9 +77,13 @@ function makeParentImage() {
 }
 
 // A parent-bound, descriptor-less group: metadata carries name + parentImage,
-// NO segments.
-const descriptorlessComposedManifest = (): Manifest =>
-  ManifestSchema.parse({
+// NO segments. The migration turns it into an artifact marked `pendingDecode`,
+// and the LOADED restore stage is what enumerates its voxels.
+const migrated = (manifest: Record<string, unknown>): Manifest =>
+  ManifestSchema.parse(migrateManifest(JSON.stringify(manifest)));
+
+const descriptorlessComposedManifest = () =>
+  migrated({
     version: '6.4.0',
     dataSources: [
       { id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' },
@@ -100,8 +105,8 @@ const descriptorlessComposedManifest = (): Manifest =>
     ],
   });
 
-const descriptorlessArchiveManifest = (): Manifest =>
-  ManifestSchema.parse({
+const descriptorlessArchiveManifest = () =>
+  migrated({
     version: '6.4.0',
     dataSources: [{ id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' }],
     datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
@@ -155,8 +160,8 @@ async function liveCatalog(segmentMetadata?: Map<string, string>) {
   return catalogFor('parent-img', artifactId);
 }
 
-// The COLD path: what deserialize builds from a descriptor-less composed
-// manifest whose artifact materialized as a loaded dataset.
+// The COLD path: what the loaded restore stage builds from a descriptor-less
+// composed manifest whose artifact materialized as a loaded dataset.
 async function coldCatalog(segmentMetadata?: Map<string, string>) {
   setActivePinia(createPinia());
   seat('parent-store', 'CT Chest', makeParentImage());
@@ -166,18 +171,11 @@ async function coldCatalog(segmentMetadata?: Map<string, string>) {
     makeLabelmapImage(),
     segmentMetadata
   );
-  const store = useSegmentationStore();
-  const manifest = descriptorlessComposedManifest();
-  const { artifactIdMap: idMap } = await store.deserialize(
-    manifest,
-    [],
-    {
-      'ds-ct': 'parent-store',
-      [leafStateId(3)]: 'artifact-store',
-    },
-    resolveArtifactRestoreSources(manifest)
-  );
-  const artifactId = idMap['sg-tumor'];
+  await completeStateFileRestore(descriptorlessComposedManifest(), [], {
+    'ds-ct': 'parent-store',
+    [leafStateId(3)]: 'artifact-store',
+  });
+  const [artifactId] = useSegmentationStore().artifactsForImage('parent-store');
   expect(artifactId).toBeDefined();
   return catalogFor('parent-store', artifactId);
 }
@@ -187,9 +185,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     ioMocks.readImage.mockReset();
   });
 
-  // Deferred to C8, which restores legacy `segmentGroups` manifests through
-  // `migrate640To700`; the 7.0.0 wire has no segment-group root.
-  it.skip('defaults-only labelmap: identical enumeration, names, and colors', async () => {
+  it('defaults-only labelmap: identical enumeration, names, and colors', async () => {
     const live = await liveCatalog();
     const cold = await coldCatalog();
 
@@ -204,9 +200,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     expect(cold).toEqual(live);
   });
 
-  // Deferred to C8, which restores legacy `segmentGroups` manifests through
-  // `migrate640To700`; the 7.0.0 wire has no segment-group root.
-  it.skip('embedded .seg.nrrd metadata: identical overlay result in both paths', async () => {
+  it('embedded .seg.nrrd metadata: identical overlay result in both paths', async () => {
     const embedded = () =>
       new Map<string, string>([
         ['Segment0_LabelValue', '2'],
@@ -226,9 +220,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     expect(cold).toEqual(live);
   });
 
-  // Deferred to C8, which restores legacy `segmentGroups` manifests through
-  // `migrate640To700`; the 7.0.0 wire has no segment-group root.
-  it.skip('preserves embedded metadata from an archive-backed .seg.nrrd', async () => {
+  it('preserves embedded metadata from an archive-backed .seg.nrrd', async () => {
     setActivePinia(createPinia());
     seat('parent-store', 'CT Chest', makeParentImage());
     ioMocks.readImage.mockResolvedValue({
@@ -240,8 +232,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       ]),
     });
 
-    const store = useSegmentationStore();
-    const { artifactIdMap: idMap } = await store.deserialize(
+    await completeStateFileRestore(
       descriptorlessArchiveManifest(),
       [
         {
@@ -252,7 +243,9 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       { 'ds-ct': 'parent-store' }
     );
 
-    const segments = catalogFor('parent-store', idMap['sg-tumor']);
+    const [artifactId] =
+      useSegmentationStore().artifactsForImage('parent-store');
+    const segments = catalogFor('parent-store', artifactId);
     expect(segments.map((segment) => segment.labelValue)).toEqual([1, 2]);
     expect(segments[0].name).toBe('Segment 1');
     expect(segments[1]).toMatchObject({

@@ -327,6 +327,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     orderByParent,
     saveFormat,
     addLabelmap,
+    decodeSegments,
     newLabelmapFromImage,
     removeGroup,
     convertImageToLabelmap,

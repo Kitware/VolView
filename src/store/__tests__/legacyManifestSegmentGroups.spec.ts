@@ -6,6 +6,7 @@ import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
+import { migrateManifest } from '@/src/io/state-file/migrations';
 import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
 
 // ---------------------------------------------------------------------------
@@ -41,21 +42,26 @@ const segments = {
   },
 };
 
-// No `datasets` root: the legacy composed shape.
-const legacyManifest = ManifestSchema.parse({
-  version: '6.4.0',
-  dataSources: [
-    { id: 1, type: 'uri', uri: 'https://ex/ct.nrrd', name: 'CT Chest' },
-    { id: 3, type: 'uri', uri: 'https://ex/tumor.seg.nrrd', name: 'Tumor' },
-  ],
-  segmentGroups: [
-    {
-      id: 'sg-tumor',
-      dataSourceId: 3,
-      metadata: { name: 'sg-tumor', parentImage: '1', segments },
-    },
-  ],
-});
+// No `datasets` root: the legacy composed shape, read through the migration
+// the import path runs before anything touches a store.
+const legacyManifest = ManifestSchema.parse(
+  migrateManifest(
+    JSON.stringify({
+      version: '6.4.0',
+      dataSources: [
+        { id: 1, type: 'uri', uri: 'https://ex/ct.nrrd', name: 'CT Chest' },
+        { id: 3, type: 'uri', uri: 'https://ex/tumor.seg.nrrd', name: 'Tumor' },
+      ],
+      segmentGroups: [
+        {
+          id: 'sg-tumor',
+          dataSourceId: 3,
+          metadata: { name: 'sg-tumor', parentImage: '1', segments },
+        },
+      ],
+    })
+  )
+);
 
 function makeImage() {
   const image = vtkImageData.newInstance();
@@ -73,9 +79,7 @@ function makeImage() {
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(makeImage(), name, { id });
 
-// Deferred to C8, which restores legacy `segmentGroups` manifests through
-// `migrate640To700`; the 7.0.0 wire has no segment-group root.
-describe.skip('segmentGroups.deserialize — legacy manifests without `datasets`', () => {
+describe('migrated legacy manifests without `datasets`', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     ioMocks.readImage.mockReset();
@@ -105,5 +109,13 @@ describe.skip('segmentGroups.deserialize — legacy manifests without `datasets`
     // The consumed artifact dataset is removed after conversion.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-seg');
+
+    // The migrated descriptor restored as a segment bound to that artifact.
+    expect(
+      store.segmentsForArtifact(idMap['sg-tumor']).map((segment) => ({
+        name: segment.name,
+        labelValue: segment.representations.labelmap!.labelValue,
+      }))
+    ).toEqual([{ name: 'Tumor', labelValue: 1 }]);
   });
 });
