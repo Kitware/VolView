@@ -111,6 +111,7 @@ describe('polygon rasterize target', () => {
       Object.keys(segmentation!.segments)[0]
     );
     expect(target.labelmap).toBe(store().artifactIndex[target.artifactId]);
+    expect(target.segmentId).toBe(Object.keys(segmentation!.segments)[0]);
   });
 
   it('reuses the default segment on a second rasterize', async () => {

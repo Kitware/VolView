@@ -74,4 +74,25 @@ describe('Polygon rasterize target', () => {
     expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
     expect(await segmentColor('Lesion')).toEqual(lesionColor);
   });
+
+  it('rasterizes an unlabeled polygon into a default segment', async () => {
+    const { centerX, centerY } = await setupTest();
+    const half = 60;
+
+    // No paint stroke and no added label, so the image holds no segment and the
+    // polygon carries no label. Rasterize still has to work.
+    await AppPage.selectTool('mdi-pentagon-outline');
+    await drawSquare(centerX, centerY, half);
+
+    await AppPage.selectTool('mdi-cursor-default');
+    await openPolygonMenuAt(centerX + half, centerY - half);
+    await $(RASTERIZE_ITEM).click();
+
+    await openAnnotationSegments();
+    await showFirstSegmentGroup();
+    await browser.waitUntil(async () => (await segmentNames()).length === 1, {
+      timeoutMsg:
+        'Rasterizing without a label should create one default segment',
+    });
+  });
 });

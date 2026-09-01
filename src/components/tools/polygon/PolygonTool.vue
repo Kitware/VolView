@@ -21,7 +21,6 @@
     >
       <v-list-item
         v-if="!isCurrentImageCine"
-        :disabled="!activeToolStore.toolByID[context.forToolID]?.label"
         @click="rasterize(context.forToolID)"
       >
         <template #prepend>
@@ -240,10 +239,13 @@ export default defineComponent({
         throw new Error('Rasterization is not supported for cine images');
       }
 
-      const target = resolveRasterizeTarget(
-        imageId.value,
-        activeToolStore.toolByID[toolId]?.label
-      );
+      const tool = activeToolStore.toolByID[toolId];
+      const target = resolveRasterizeTarget(imageId.value, tool?.label);
+      // An unlabeled polygon rasterizes into the default segment, so record
+      // where it landed.
+      if (tool && !tool.label) {
+        activeToolStore.updateTool(toolId, { label: target.segmentId });
+      }
       const segmentGroup = target.labelmap;
 
       // Convert parent slice index to segment group slice index

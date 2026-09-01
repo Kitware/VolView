@@ -34,5 +34,5 @@ export function resolveRasterizeTarget(
     resolved.segmentId
   );
   if (!target) throw new Error('Failed to allocate labelmap storage');
-  return target;
+  return { ...target, segmentId: resolved.segmentId };
 }
