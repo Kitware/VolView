@@ -289,4 +289,54 @@ describe('state-file serialization resilience', () => {
     });
     expect(segmentation.activeSegment).toBe('segment-1');
   });
+
+  it('unbinds a segment whose artifact was omitted', () => {
+    const manifest = {
+      version: MANIFEST_VERSION,
+      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
+      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
+      segmentationArtifacts: [
+        {
+          id: 'artifact-1',
+          path: 'segmentations/gone.vti',
+          parentImage: 'dataset-1',
+          name: 'Gone',
+        },
+      ],
+      segmentations: [
+        {
+          id: 'seg-1',
+          name: 'Seg',
+          parentImage: 'dataset-1',
+          order: ['segment-1'],
+          segments: [
+            {
+              id: 'segment-1',
+              name: 'Tumor',
+              color: [255, 0, 0, 255],
+              visible: true,
+              locked: false,
+              representations: {
+                labelmap: {
+                  artifactId: 'artifact-1',
+                  labelValue: 1,
+                  extent: [0, 1, 0, 1, 0, 1],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    } as unknown as Manifest;
+
+    const normalized = normalizeManifest(manifest, new JSZip()) as any;
+
+    expect(normalized.manifest.segmentationArtifacts).toEqual([]);
+    expect(
+      normalized.manifest.segmentations[0].segments[0].representations
+    ).toEqual({});
+    expect(normalized.omitted.join('\n')).toMatch(
+      /segmentation artifact artifact-1 is missing/
+    );
+  });
 });

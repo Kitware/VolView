@@ -190,7 +190,19 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       omitted.push(`${name}: ${reason}`);
       return [];
     }
-    return [parsed.data];
+
+    // An artifact pruned above must not be left referenced: restore would
+    // silently recreate the segment with no storage.
+    const artifactIds = new Set(validArtifacts.map((entry) => entry.id));
+    const segments = parsed.data.segments.map((segment) => {
+      const binding = segment.representations.labelmap;
+      if (!binding || artifactIds.has(binding.artifactId)) return segment;
+      omitted.push(
+        `${name}.segments[${segment.id}]: segmentation artifact ${binding.artifactId} is missing`
+      );
+      return { ...segment, representations: {} };
+    });
+    return [{ ...parsed.data, segments }];
   });
 
   let validLayers: ParentToLayers | undefined;
