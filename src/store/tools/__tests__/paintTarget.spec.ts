@@ -184,4 +184,14 @@ describe('paint edit target', () => {
     expect(scalars[offsetOf(1, 1, 0)]).toBe(neighborBinding.labelValue);
     expect(scalars[offsetOf(3, 1, 0)]).toBe(activeBinding.labelValue);
   });
+
+  it('creates nothing when the paint tool is merely activated', async () => {
+    await seatImage('img-1');
+    const paintStore = usePaintToolStore();
+
+    paintStore.activateTool();
+
+    expect(store().getSegmentationForImage('img-1')).toBeUndefined();
+    expect(store().artifactsForImage('img-1')).toEqual([]);
+  });
 });

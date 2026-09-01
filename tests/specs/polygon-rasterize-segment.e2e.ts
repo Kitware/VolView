@@ -46,9 +46,11 @@ describe('Polygon rasterize target', () => {
     const { centerX, centerY } = await setupTest();
     const half = 60;
 
-    // Paint first, so the image already holds a segment the polygon must not
-    // borrow.
+    // Paint a stroke first, so the image already holds a segment the polygon
+    // must not borrow. Activating the tool alone creates nothing.
     await AppPage.activatePaint();
+    const views2D = await AppPage.getViews2D();
+    await AppPage.paintStrokeOnView(views2D[0]);
     await AppPage.selectTool('mdi-pentagon-outline');
 
     await addLabel();

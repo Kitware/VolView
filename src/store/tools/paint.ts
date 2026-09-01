@@ -264,15 +264,12 @@ export const usePaintToolStore = defineStore('paint', () => {
   // --- setup and teardown --- //
 
   function activateTool(this: _This) {
-    const imageID = currentImageID.value;
-    if (!imageID) {
+    if (!currentImageID.value) {
       return false;
     }
-    const target = segmentationStore.resolveEditTarget(imageID);
-    segmentationStore.ensureLabelmapBinding(
-      target.segmentationId,
-      target.segmentId
-    );
+    // Selecting the tool configures the widget and nothing else. The segment
+    // and its storage are resolved by the first stroke, so picking up the brush
+    // and putting it down again leaves the image untouched.
     this.$paint.setBrushSize(this.brushSize);
 
     isActive.value = true;
