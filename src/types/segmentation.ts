@@ -106,11 +106,88 @@ const expandShorthandHex = (hex: string) =>
  * without an alpha channel, plus the basic color keywords). Unparseable input
  * falls back to opaque black so migrating a state file cannot throw.
  */
-export function cssColorToRGBA(css: string): RGBAColor {
+// Config and legacy manifests accept any CSS color string, so the functional
+// syntaxes are parsed too: falling back to black silently discarded them.
+const RGB_COLOR = /^rgba?\(([^)]+)\)$/;
+const HSL_COLOR = /^hsla?\(([^)]+)\)$/;
+
+const splitArgs = (body: string) =>
+  body
+    .replace(/\//g, ' ')
+    .split(/[\s,]+/)
+    .filter(Boolean);
+
+const toAlpha = (raw: string | undefined) => {
+  if (raw === undefined) return 255;
+  const value = raw.endsWith('%')
+    ? Number(raw.slice(0, -1)) / 100
+    : Number(raw);
+  return Number.isFinite(value)
+    ? Math.round(Math.min(Math.max(value, 0), 1) * 255)
+    : 255;
+};
+
+const toChannel = (raw: string) => {
+  const value = raw.endsWith('%')
+    ? (Number(raw.slice(0, -1)) / 100) * 255
+    : Number(raw);
+  return Math.round(Math.min(Math.max(value, 0), 255));
+};
+
+/** h in degrees, s and l in 0..1, per the CSS hsl() to rgb() conversion. */
+const hslToRGB = (h: number, s: number, l: number) => {
+  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const hp = (((h % 360) + 360) % 360) / 60;
+  const x = chroma * (1 - Math.abs((hp % 2) - 1));
+  const [r, g, b] = (
+    [
+      [chroma, x, 0],
+      [x, chroma, 0],
+      [0, chroma, x],
+      [0, x, chroma],
+      [x, 0, chroma],
+      [chroma, 0, x],
+    ] as const
+  )[Math.floor(hp) % 6];
+  const m = l - chroma / 2;
+  return [r + m, g + m, b + m].map((c) =>
+    Math.round(Math.min(Math.max(c, 0), 1) * 255)
+  ) as [number, number, number];
+};
+
+/** The parsed color, or undefined when the string is not a CSS color we know. */
+export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const value = css.trim().toLowerCase();
+  if (value === 'transparent') return [0, 0, 0, 0];
+
   const hex = NAMED_COLORS[value] ?? HEX_COLOR.exec(value)?.[1];
-  if (!hex) return [0, 0, 0, 255];
-  return hexaToRGBA(expandShorthandHex(hex));
+  if (hex) return hexaToRGBA(expandShorthandHex(hex));
+
+  const rgb = RGB_COLOR.exec(value);
+  if (rgb) {
+    const args = splitArgs(rgb[1]);
+    if (args.length < 3) return undefined;
+    const channels = args.slice(0, 3).map(toChannel);
+    if (channels.some((c) => !Number.isFinite(c))) return undefined;
+    return [...channels, toAlpha(args[3])] as RGBAColor;
+  }
+
+  const hsl = HSL_COLOR.exec(value);
+  if (hsl) {
+    const args = splitArgs(hsl[1]);
+    if (args.length < 3) return undefined;
+    const h = Number(args[0].replace(/deg$/, ''));
+    const sat = Number(args[1].replace(/%$/, '')) / 100;
+    const light = Number(args[2].replace(/%$/, '')) / 100;
+    if (![h, sat, light].every(Number.isFinite)) return undefined;
+    return [...hslToRGB(h, sat, light), toAlpha(args[3])] as RGBAColor;
+  }
+
+  return undefined;
+}
+
+export function cssColorToRGBA(css: string): RGBAColor {
+  return tryCssColorToRGBA(css) ?? [0, 0, 0, 255];
 }
 
 // Opaque colors keep the 6-digit form label colors are written in, so a color
