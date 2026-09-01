@@ -420,12 +420,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function setActiveSegment(segmentationId: string, segmentId: string) {
     const segment = getSegment(segmentationId, segmentId);
     const target = { segmentationId, segmentId };
+    const imageId = getSegmentation(segmentationId).parentImageId;
+
+    // Reselecting where the intent already landed restates the same intent, so
+    // the other images keep their records and a later edit there reuses the
+    // clone instead of making a second one.
+    const landed = intent?.targetByImageId;
+    const here = landed?.[imageId];
+    const sameIntent =
+      here?.segmentationId === segmentationId && here?.segmentId === segmentId;
+
     intent = {
       name: segment.name,
       color: [...segment.color] as RGBAColor,
-      targetByImageId: {
-        [getSegmentation(segmentationId).parentImageId]: target,
-      },
+      targetByImageId: sameIntent
+        ? { ...landed, [imageId]: target }
+        : { [imageId]: target },
     };
     activeTargetRef.value = target;
   }

@@ -733,6 +733,21 @@ describe('segmentation store', () => {
       expect(store().segmentations[one].order).toEqual([source.id]);
     });
 
+    it('keeps the landing map when the segment it already landed on is reselected', async () => {
+      const { one, two } = await seatTwoImages();
+      const source = store().createSegment(one, { name: 'Tumor' });
+      store().setActiveSegment(one, source.id);
+      const clone = store().resolveEditTarget('img-2');
+
+      store().setActiveSegment(two, clone.segmentId);
+
+      expect(store().resolveEditTarget('img-1')).toEqual({
+        segmentationId: one,
+        segmentId: source.id,
+      });
+      expect(store().segmentations[one].order).toEqual([source.id]);
+    });
+
     it('keeps a clone independent of the segment it came from', async () => {
       const { one } = await seatTwoImages();
       const source = store().createSegment(one, {
