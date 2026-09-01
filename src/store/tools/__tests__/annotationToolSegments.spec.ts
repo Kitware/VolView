@@ -130,6 +130,18 @@ describe('shared segment identity for polygons and rectangles', () => {
     expect(segment).not.toHaveProperty('fillColor');
   });
 
+  it('serializes props for a segment no tool references yet', () => {
+    const rectangles = useRectangleStore();
+    const segment = makeSegment('Tumor');
+    rectangles.updateLabel(segment.id, { fillColor: 'red' });
+
+    const serialized = rectangles.serializeTools();
+
+    expect(serialized.segmentProps?.[segment.id]).toMatchObject({
+      fillColor: 'red',
+    });
+  });
+
   it('creates a segment in the segmentation store through the tool store', () => {
     const store = usePolygonStore();
 

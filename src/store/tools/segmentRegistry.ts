@@ -289,11 +289,11 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return (labelId: Maybe<string>) => (labelId && segmentIdMap[labelId]) || '';
   };
 
-  const serializeIdentity = (referenced: string[]) => ({
+  // Props outlive the tools that reference them: a label customized before any
+  // annotation is placed still belongs to a live segment.
+  const serializeIdentity = () => ({
     segmentProps: Object.fromEntries(
-      [...new Set(referenced)]
-        .filter((id) => id in propsBySegment.value)
-        .map((id) => [id, propsBySegment.value[id]])
+      Object.entries(propsBySegment.value).filter(([id]) => !!findSegment(id))
     ) as Labels<Props>,
   });
 
