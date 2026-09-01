@@ -2,7 +2,7 @@
 // Emits just enough tags for ITK/GDCM to categorize and load a series:
 // SOP Class/Instance UIDs, Study/SeriesInstanceUID, SeriesNumber, Modality,
 // Patient identifiers, ImageOrientationPatient, ImagePositionPatient,
-// PixelSpacing, SliceThickness, image geometry, and zeroed PixelData.
+// PixelSpacing, SliceThickness, image geometry, and constant-valued PixelData.
 
 const SOP_CLASS_MR = '1.2.840.10008.5.1.4.1.1.4';
 const SOP_CLASS_ULTRASOUND_MULTIFRAME = '1.2.840.10008.5.1.4.1.1.3.1';
@@ -92,6 +92,22 @@ const ds = (g: number, e: number, v: string) =>
 const us = (g: number, e: number, v: number) =>
   elemShort(g, e, 'US', writeShort(v));
 
+// DICOM element values must have an even length, so an odd-sized 8-bit frame
+// gets a trailing pad byte.
+const frameBytes8 = (sampleCount: number, value: number) => {
+  const bytes = new Uint8Array(sampleCount + (sampleCount % 2));
+  bytes.fill(value & 0xff, 0, sampleCount);
+  return bytes;
+};
+
+const frameBytes16 = (sampleCount: number, value: number) => {
+  const bytes = new Uint8Array(sampleCount * 2);
+  const view = new DataView(bytes.buffer);
+  for (let i = 0; i < sampleCount; i++)
+    view.setUint16(i * 2, value & 0xffff, true);
+  return bytes;
+};
+
 export type SyntheticSliceOptions = {
   studyUid: string;
   seriesUid: string;
@@ -108,6 +124,15 @@ export type SyntheticSliceOptions = {
   imagePositionPatient: readonly [number, number, number];
   rows?: number;
   cols?: number;
+  bitsAllocated?: number;
+  bitsStored?: number;
+  highBit?: number;
+  pixelRepresentation?: number;
+  rescaleSlope?: number;
+  rescaleIntercept?: number;
+  // Stored value written to every sample. Signed values are written as two's
+  // complement, so they pair with pixelRepresentation 1.
+  pixelValue?: number;
   pixelSpacing?: readonly [number, number];
   spacingBetweenSlices?: number;
   sliceThickness?: number;
@@ -128,6 +153,13 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     imagePositionPatient,
     rows = 4,
     cols = 4,
+    bitsAllocated = 16,
+    bitsStored = bitsAllocated,
+    highBit = bitsStored - 1,
+    pixelRepresentation = 0,
+    rescaleSlope,
+    rescaleIntercept,
+    pixelValue = 0,
     pixelSpacing = [1, 1] as const,
     spacingBetweenSlices,
     sliceThickness = 1,
@@ -137,6 +169,12 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     seriesNumber = 1,
     studyDate = '20260101',
   } = opts;
+
+  if (bitsAllocated !== 8 && bitsAllocated !== 16) {
+    throw new Error(
+      `bitsAllocated must be 8 or 16, got ${bitsAllocated}. Other widths would need a pixel data VR this helper does not emit.`
+    );
+  }
 
   const dataset = combine(
     ui(0x0008, 0x0016, SOP_CLASS_MR),
@@ -172,11 +210,17 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     us(0x0028, 0x0010, rows),
     us(0x0028, 0x0011, cols),
     ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\')),
-    us(0x0028, 0x0100, 16),
-    us(0x0028, 0x0101, 16),
-    us(0x0028, 0x0102, 15),
-    us(0x0028, 0x0103, 0),
-    elemLong(0x7fe0, 0x0010, 'OW', new Uint8Array(rows * cols * 2))
+    us(0x0028, 0x0100, bitsAllocated),
+    us(0x0028, 0x0101, bitsStored),
+    us(0x0028, 0x0102, highBit),
+    us(0x0028, 0x0103, pixelRepresentation),
+    ...(rescaleIntercept == null
+      ? []
+      : [ds(0x0028, 0x1052, String(rescaleIntercept))]),
+    ...(rescaleSlope == null ? [] : [ds(0x0028, 0x1053, String(rescaleSlope))]),
+    bitsAllocated === 8
+      ? elemLong(0x7fe0, 0x0010, 'OB', frameBytes8(rows * cols, pixelValue))
+      : elemLong(0x7fe0, 0x0010, 'OW', frameBytes16(rows * cols, pixelValue))
   );
 
   const fileMetaBody = combine(
