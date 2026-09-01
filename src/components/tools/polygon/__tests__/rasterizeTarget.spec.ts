@@ -126,4 +126,19 @@ describe('polygon rasterize target', () => {
       Object.keys(store().getSegmentationForImage('img-1')!.segments)
     ).toHaveLength(1);
   });
+
+  it('rasterizes into the default segment when the tool id is stale', async () => {
+    await seatImage('img-1');
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
+    store().deleteSegment(segmentation.id, segment.id);
+
+    // The tool keeps the deleted segment's id; that must not block rasterizing.
+    const target = resolveRasterizeTarget('img-1', segment.id);
+
+    expect(target.segmentId).not.toBe(segment.id);
+    expect(store().getSegmentationForImage('img-1')!.segments).toHaveProperty(
+      target.segmentId
+    );
+  });
 });

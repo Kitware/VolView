@@ -279,8 +279,13 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     if (imageId) seedSessionLabels(imageId);
   });
 
-  // Segments are never seeded, so there is nothing default to clear.
-  const clearDefaultLabels = () => {};
+  // Loading a second config replaces the first config's labels rather than
+  // adding to them, so the templates it seeded are dropped here. Segments the
+  // user has since edited are left alone; only the untouched seeds go.
+  const clearDefaultLabels = () => {
+    sessionLabels = {};
+    seededImages.clear();
+  };
 
   // The segments themselves restore with their segmentation; only the props
   // this tool store owns are re-attached, keyed by the restored segment id.

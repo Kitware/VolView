@@ -2,8 +2,10 @@ import { useSegmentationStore } from '@/src/store/segmentations';
 import type { Maybe } from '@/src/types';
 
 /**
- * The labelmap a polygon rasterizes into. Storage is allocated on first use;
- * the active segment is left untouched when the polygon already names one.
+ * The labelmap a polygon rasterizes into. Rasterizing is itself an edit, so it
+ * routes through the one entry point that resolves and creates segments: a
+ * polygon carrying no segment, or one whose segment was deleted, lands in the
+ * default segment rather than failing.
  */
 export function resolveRasterizeTarget(
   imageId: string,
@@ -11,19 +13,19 @@ export function resolveRasterizeTarget(
 ) {
   const segmentationStore = useSegmentationStore();
 
-  // Rasterizing is itself an edit, so a polygon drawn before any segment exists
-  // lands in the default segment rather than failing.
-  const owner = segmentId
-    ? segmentationStore.getSegmentationForImage(imageId)
-    : undefined;
-  if (segmentId && !owner?.segments[segmentId]) {
+  // A live segment owned by another image is a real inconsistency. A stale id,
+  // left on the tool when its segment was deleted, is not: it falls through to
+  // the default segment below.
+  const owner = segmentationStore.getSegmentationForImage(imageId);
+  if (
+    segmentId &&
+    !owner?.segments[segmentId] &&
+    segmentationStore.segmentExists(segmentId)
+  ) {
     throw new Error(`Segment ${segmentId} does not belong to image ${imageId}`);
   }
 
-  const resolved =
-    segmentId && owner
-      ? { segmentationId: owner.id, segmentId }
-      : segmentationStore.resolveEditTarget(imageId);
+  const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
 
   segmentationStore.ensureLabelmapBinding(
     resolved.segmentationId,
