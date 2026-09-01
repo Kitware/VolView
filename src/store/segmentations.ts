@@ -32,12 +32,12 @@ import type { Maybe, ProcessingResultSource } from '@/src/types';
 import {
   isEmptyExtent,
   listSegments,
-  type ActiveSegmentationTarget,
   type ActiveSegmentIntent,
   type Extent3D,
   type LabelmapSegment,
   type Segment,
   type Segmentation,
+  type SegmentIdentity,
   type SegmentVoxelAccessor,
   type VoxelStorage,
 } from '@/src/types/segmentation';
@@ -93,6 +93,9 @@ const pickUniqueSegmentName = (taken: Iterable<string>) => {
   while (existing.has(makeDefaultSegmentName(index))) index += 1;
   return makeDefaultSegmentName(index);
 };
+
+const sameIdentity = (a: SegmentIdentity, b: SegmentIdentity) =>
+  a.name === b.name && a.color.every((channel, i) => channel === b.color[i]);
 
 // The manifest references this store's remove cascade keeps clean (see the
 // onImageDeleted registration below), declared for the dev-only save backstop.
@@ -186,8 +189,24 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentation;
   }
 
-  function getSegment(segmentationId: string, segmentId: string) {
-    const segment = getSegmentation(segmentationId).segments[segmentId];
+  // Segment ids are globally unique and one segmentation per image is
+  // enforced, so a segment addresses itself; the segmentation is looked up.
+  const segmentationOf = (segmentId: string) =>
+    Object.values(segmentations).find(
+      (segmentation) => segmentId in segmentation.segments
+    );
+
+  const findSegment = (segmentId: string) =>
+    segmentationOf(segmentId)?.segments[segmentId];
+
+  function getSegmentationOf(segmentId: string) {
+    const segmentation = segmentationOf(segmentId);
+    if (!segmentation) throw new Error('No such segment');
+    return segmentation;
+  }
+
+  function getSegment(segmentId: string) {
+    const segment = findSegment(segmentId);
     if (!segment) throw new Error('No such segment');
     return segment;
   }
@@ -372,15 +391,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   /** The single voxel-allocation point: no other operation creates storage. */
   function ensureLabelmapBinding(
-    segmentationId: string,
     segmentId: string,
     preferredArtifactId?: string
   ) {
-    const segment = getSegment(segmentationId, segmentId);
+    const segmentation = getSegmentationOf(segmentId);
+    const segment = segmentation.segments[segmentId];
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
-    const segmentation = getSegmentation(segmentationId);
     const artifactId =
       preferredArtifactId ??
       listSegments(segmentation).find((other) => other.representations.labelmap)
@@ -401,9 +419,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segment.representations.labelmap;
   }
 
-  function resolveLabelmapBinding(segmentationId: string, segmentId: string) {
-    const binding = getSegment(segmentationId, segmentId).representations
-      .labelmap;
+  function resolveLabelmapBinding(segmentId: string) {
+    const binding = getSegment(segmentId).representations.labelmap;
     if (!binding) return undefined;
     return { ...toRaw(binding), labelmap: artifactIndex[binding.artifactId] };
   }
@@ -462,24 +479,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * The accessor every labelmap consumer that holds a segment routes through.
    * The binding is re-resolved on every call rather than captured.
    */
-  function segmentVoxels(
-    segmentationId: string,
-    segmentId: string
-  ): SegmentVoxelAccessor {
+  function segmentVoxels(segmentId: string): SegmentVoxelAccessor {
     // Validates eagerly: an accessor for a nonexistent segment is refused up
     // front, not just on first use.
-    getSegment(segmentationId, segmentId);
+    getSegment(segmentId);
 
-    const binding = () =>
-      getSegment(segmentationId, segmentId).representations.labelmap;
+    const binding = () => getSegment(segmentId).representations.labelmap;
 
     // Deliberately tolerant where binding() is not: the segment itself can be
     // deleted out from under an accessor, and that is an absent storage, not a
     // lookup error.
     const findImage = () => {
-      const current =
-        segmentations[segmentationId]?.segments[segmentId]?.representations
-          .labelmap;
+      const current = findSegment(segmentId)?.representations.labelmap;
       return current ? artifactIndex[current.artifactId] : undefined;
     };
 
@@ -490,7 +501,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
     return {
       binding,
-      materialize: () => ensureLabelmapBinding(segmentationId, segmentId),
+      materialize: () => ensureLabelmapBinding(segmentId),
       ...voxelStorage(findImage, onMissing),
     };
   }
@@ -509,14 +520,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     );
   }
 
-  function updateSegment(
-    segmentationId: string,
-    segmentId: string,
-    patch: SegmentPatch
-  ) {
-    const segmentation = getSegmentation(segmentationId);
+  function updateSegment(segmentId: string, patch: SegmentPatch) {
+    const segmentation = getSegmentationOf(segmentId);
     segmentation.segments[segmentId] = {
-      ...toRaw(getSegment(segmentationId, segmentId)),
+      ...toRaw(segmentation.segments[segmentId]),
       ...patch,
     };
   }
@@ -525,10 +532,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegmentation(segmentationId).order = [...order];
   }
 
-  function deleteSegment(segmentationId: string, segmentId: string) {
-    const segmentation = getSegmentation(segmentationId);
-    const binding = getSegment(segmentationId, segmentId).representations
-      .labelmap;
+  function deleteSegment(segmentId: string) {
+    const segmentation = getSegmentationOf(segmentId);
+    const binding = segmentation.segments[segmentId].representations.labelmap;
 
     detachSegment(segmentation, segmentId);
 
@@ -558,55 +564,96 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- active target and cross-image intent --- //
 
-  const activeTargetRef = shallowRef<Maybe<ActiveSegmentationTarget>>();
+  const activeSegmentRef = shallowRef<Maybe<string>>();
 
   // Session-only, never serialized: which segment the user means, and where
   // that intent has already landed per image.
-  let intent: Maybe<ActiveSegmentIntent>;
+  const intent = shallowRef<Maybe<ActiveSegmentIntent>>();
 
-  const segmentAt = (target: ActiveSegmentationTarget) =>
-    segmentations[target.segmentationId]?.segments[target.segmentId];
+  // Tool stores read it to tell a template intent from a materialized one.
+  const activeSegmentIntent = computed(() => intent.value);
 
-  // A target whose segment is gone (deleted, or its catalog replaced) is none.
-  const activeTarget = computed(() =>
-    activeTargetRef.value && segmentAt(activeTargetRef.value)
-      ? activeTargetRef.value
+  // The segment an edit just minted for the intent, and where its identity came
+  // from. Per-tool props are the tool store's own, so it carries them onto the
+  // new segment on this signal: from the config template on the first edit,
+  // from the origin segment on every later cross-image clone.
+  const mintedSegment =
+    shallowRef<
+      Maybe<{
+        segmentId: string;
+        templateName?: string;
+        fromSegmentId?: string;
+      }>
+    >();
+
+  // A segment that is gone (deleted, or its catalog replaced) is not active.
+  const activeSegmentId = computed(() =>
+    activeSegmentRef.value && findSegment(activeSegmentRef.value)
+      ? activeSegmentRef.value
       : undefined
   );
 
-  function setActiveSegment(segmentationId: string, segmentId: string) {
-    const segment = getSegment(segmentationId, segmentId);
-    const target = { segmentationId, segmentId };
-    const imageId = getSegmentation(segmentationId).parentImageId;
+  function setActiveSegment(segmentId: string) {
+    const imageId = getSegmentationOf(segmentId).parentImageId;
 
     // Reselecting where the intent already landed restates the same intent, so
     // the other images keep their records and a later edit there reuses the
     // clone instead of making a second one.
-    const landed = intent?.targetByImageId;
-    const here = landed?.[imageId];
-    const sameIntent =
-      here?.segmentationId === segmentationId && here?.segmentId === segmentId;
+    const landed = intent.value?.targetByImageId;
+    const sameIntent = landed?.[imageId] === segmentId;
 
-    intent = {
-      name: segment.name,
-      color: [...segment.color] as RGBAColor,
+    intent.value = {
+      originSegmentId: segmentId,
       targetByImageId: sameIntent
-        ? { ...landed, [imageId]: target }
-        : { [imageId]: target },
+        ? { ...landed, [imageId]: segmentId }
+        : { [imageId]: segmentId },
     };
-    activeTargetRef.value = target;
+    activeSegmentRef.value = segmentId;
+  }
+
+  /** What the intent means right now: the origin's live identity, or its template. */
+  function heldIdentity() {
+    const held = intent.value;
+    if (!held) return undefined;
+    const origin = held.originSegmentId
+      ? findSegment(held.originSegmentId)
+      : undefined;
+    return origin ?? held.template;
+  }
+
+  /**
+   * States an intent that has no segment yet: a config template the user
+   * picked. The first edit materializes it, so nothing is allocated here.
+   */
+  function setActiveSegmentTemplate(template: SegmentIdentity) {
+    const identity = {
+      name: template.name,
+      color: [...template.color] as RGBAColor,
+    };
+    const current = intent.value;
+    const held = heldIdentity();
+
+    // Restating the intent already held keeps the images it landed on, so a
+    // later edit there reuses that clone instead of minting a second one.
+    if (current && held && sameIdentity(held, identity)) {
+      intent.value = { ...current, template: identity };
+      return;
+    }
+
+    intent.value = { template: identity, targetByImageId: {} };
+    activeSegmentRef.value = undefined;
   }
 
   function clearActiveSegment() {
-    intent = undefined;
-    activeTargetRef.value = undefined;
+    intent.value = undefined;
+    activeSegmentRef.value = undefined;
   }
 
   /** The artifact the active segment writes into, once it has storage. */
   const activeArtifactId = computed(() => {
-    const target = activeTarget.value;
-    if (!target) return undefined;
-    return segmentAt(target)?.representations.labelmap?.artifactId;
+    const segmentId = activeSegmentId.value;
+    if (!segmentId) return undefined;
+    return findSegment(segmentId)?.representations.labelmap?.artifactId;
   });
 
   /**
@@ -615,10 +662,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * never does. Storage stays deferred to ensureLabelmapBinding.
    */
   /** Whether a segment id is live anywhere, used to tell stale ids from foreign ones. */
-  const segmentExists = (segmentId: string) =>
-    Object.values(segmentations).some(
-      (segmentation) => segmentId in segmentation.segments
-    );
+  const segmentExists = (segmentId: string) => !!findSegment(segmentId);
 
   function resolveEditTarget(
     imageId: string,
@@ -629,30 +673,41 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     // the active segment: naming a segment to edit is not selecting it.
     if (preferredSegmentId) {
       const owner = getSegmentationForImage(imageId);
-      if (owner?.segments[preferredSegmentId]) {
-        return { segmentationId: owner.id, segmentId: preferredSegmentId };
-      }
+      if (owner?.segments[preferredSegmentId]) return preferredSegmentId;
     }
 
-    const recorded = intent?.targetByImageId[imageId];
-    if (recorded && segmentAt(recorded)) {
-      activeTargetRef.value = recorded;
+    const recorded = intent.value?.targetByImageId[imageId];
+    if (recorded && findSegment(recorded)) {
+      activeSegmentRef.value = recorded;
       return recorded;
     }
 
     // Identity is copied, never matched: a same-named segment is not the same
-    // segment.
-    const { name, color } = intent ?? DEFAULT_SEGMENT_MASKS[0];
+    // segment. The origin is read now, not when it was selected, so a rename
+    // since then carries across.
+    const origin = intent.value?.originSegmentId
+      ? findSegment(intent.value.originSegmentId)
+      : undefined;
+    const template = origin ? undefined : intent.value?.template;
+    const { name, color } = origin ?? template ?? DEFAULT_SEGMENT_MASKS[0];
     const segmentation = ensureSegmentationForImage(imageId);
     const segment = createSegment(segmentation.id, { name, color });
-    const target = { segmentationId: segmentation.id, segmentId: segment.id };
-    intent = {
-      name,
-      color: [...color] as RGBAColor,
-      targetByImageId: { ...intent?.targetByImageId, [imageId]: target },
+    // A template or a bare default has no origin, so the segment just made
+    // becomes one: the next image clones this identity, not the default again.
+    intent.value = {
+      originSegmentId: origin?.id ?? segment.id,
+      targetByImageId: {
+        ...intent.value?.targetByImageId,
+        [imageId]: segment.id,
+      },
     };
-    activeTargetRef.value = target;
-    return target;
+    activeSegmentRef.value = segment.id;
+    mintedSegment.value = {
+      segmentId: segment.id,
+      ...(template ? { templateName: template.name } : {}),
+      ...(origin ? { fromSegmentId: origin.id } : {}),
+    };
+    return segment.id;
   }
 
   // --- render sync --- //
@@ -674,6 +729,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           color: [...segment.color] as RGBAColor,
           visible: segment.visible,
           locked: segment.locked,
+          fillOpacity: segment.fillOpacity,
+          outlineOpacity: segment.outlineOpacity,
         });
       });
     });
@@ -725,7 +782,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       })
     );
 
-    const target = activeTarget.value;
+    const activeId = activeSegmentId.value;
     manifest.segmentations = Object.values(segmentations).map(
       (segmentation) => ({
         id: segmentation.id,
@@ -756,8 +813,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           };
         }),
         order: [...segmentation.order],
-        ...(target?.segmentationId === segmentation.id
-          ? { activeSegment: target.segmentId }
+        ...(activeId && segmentation.segments[activeId]
+          ? { activeSegment: activeId }
           : {}),
       })
     );
@@ -955,11 +1012,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         segmentIdMap[wireSegmentId] = segment.id;
       });
 
-      const activeSegmentId = wire.activeSegment
+      const restoredActiveId = wire.activeSegment
         ? segmentIdMap[wire.activeSegment]
         : undefined;
-      if (activeSegmentId !== undefined)
-        setActiveSegment(segmentation.id, activeSegmentId);
+      if (restoredActiveId !== undefined) setActiveSegment(restoredActiveId);
     });
 
     // Catalogued after the wire segmentations so a decoded artifact's segments
@@ -974,12 +1030,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       const pendingActive = (result.artifact as { pendingActiveValue?: number })
         .pendingActiveValue;
       if (pendingActive === undefined) return;
-      const segmentation = getSegmentationForArtifact(artifactId);
       const active = created.find(
         (segment) =>
           segment.representations.labelmap?.labelValue === pendingActive
       );
-      if (segmentation && active) setActiveSegment(segmentation.id, active.id);
+      if (active) setActiveSegment(active.id);
     });
 
     return { artifactIdMap, segmentIdMap, skipped };
@@ -1003,9 +1058,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     artifactMeta,
     artifactOrderByParent,
     labelmapSegmentsByArtifact,
-    activeTarget,
+    activeSegmentId,
+    activeSegmentIntent,
+    mintedSegment,
     activeArtifactId,
     setActiveSegment,
+    setActiveSegmentTemplate,
     clearActiveSegment,
     resolveEditTarget,
     segmentExists,

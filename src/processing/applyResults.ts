@@ -424,10 +424,9 @@ export const appApplyDependencies = (): ApplyDependencies => ({
       ),
     updateSegment: (artifactId, labelValue, segmentUpdate) => {
       const store = useSegmentationStore();
-      const segmentation = store.getSegmentationForArtifact(artifactId);
       const segment = store.findSegmentByLabelValue(artifactId, labelValue);
-      if (!segmentation || !segment) return;
-      store.updateSegment(segmentation.id, segment.id, segmentUpdate);
+      if (!segment) return;
+      store.updateSegment(segment.id, segmentUpdate);
     },
   },
 });

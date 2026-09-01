@@ -126,7 +126,7 @@ describe('Fill Holes store', () => {
       slice: parentSlice,
     });
 
-    segmentationStore.setActiveSegment(segmentationId, segment.id);
+    segmentationStore.setActiveSegment(segment.id);
 
     return {
       fillHolesStore,
@@ -153,7 +153,7 @@ describe('Fill Holes store', () => {
     scope: 'segment' as const,
     artifactId,
     labelValue,
-    voxels: useSegmentationStore().segmentVoxels(segmentationId, segmentId),
+    voxels: useSegmentationStore().segmentVoxels(segmentId),
   });
 
   it('uses the label-map axis for the active parent view axis', async () => {
@@ -204,12 +204,11 @@ describe('Fill Holes store', () => {
     const locked = segmentationStore.createSegment(segmentationId, {
       name: 'Locked',
     });
-    segmentationStore.ensureLabelmapBinding(segmentationId, locked.id);
-    segmentationStore.updateSegment(segmentationId, locked.id, {
+    segmentationStore.ensureLabelmapBinding(locked.id);
+    segmentationStore.updateSegment(locked.id, {
       locked: true,
     });
     const lockedValue = segmentationStore.resolveLabelmapBinding(
-      segmentationId,
       locked.id
     )!.labelValue;
 

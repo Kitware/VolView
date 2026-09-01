@@ -85,11 +85,13 @@ const snapshot = (imageId: string) => {
 
 const activeSegmentSummary = () => {
   const store = useSegmentationStore();
-  const target = store.activeTarget;
-  if (!target) return undefined;
+  const segmentId = store.activeSegmentId;
+  if (!segmentId) return undefined;
   return {
-    parentImage: store.segmentations[target.segmentationId].parentImageId,
-    name: store.getSegment(target.segmentationId, target.segmentId).name,
+    parentImage: Object.values(store.segmentations).find(
+      (segmentation) => segmentId in segmentation.segments
+    )!.parentImageId,
+    name: store.getSegment(segmentId).name,
   };
 };
 
@@ -101,19 +103,19 @@ async function buildScene() {
   const first = store.ensureSegmentationForImage('img-1');
   // No binding: a segment created by "add" has no voxels until a first edit.
   const planned = store.createSegment(first.id, { name: 'Planned' });
-  store.updateSegment(first.id, planned.id, { locked: true, visible: false });
+  store.updateSegment(planned.id, { locked: true, visible: false });
   const tumor = store.createSegment(first.id, { name: 'Tumor' });
-  store.ensureLabelmapBinding(first.id, tumor.id);
-  const artifactId = store.getSegment(first.id, tumor.id).representations
-    .labelmap!.artifactId;
+  store.ensureLabelmapBinding(tumor.id);
+  const artifactId = store.getSegment(tumor.id).representations.labelmap!
+    .artifactId;
   store.updateArtifactMeta(artifactId, { source: SOURCE });
 
   // Same name on another image: still a distinct segment.
   const second = store.ensureSegmentationForImage('img-2');
   const otherTumor = store.createSegment(second.id, { name: 'Tumor' });
-  store.ensureLabelmapBinding(second.id, otherTumor.id);
+  store.ensureLabelmapBinding(otherTumor.id);
 
-  store.setActiveSegment(first.id, tumor.id);
+  store.setActiveSegment(tumor.id);
   await nextTick();
   return { store };
 }

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import SegmentGroupOpacity from '@/src/components/SegmentGroupOpacity.vue';
 import SegmentList from '@/src/components/SegmentList.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
@@ -12,11 +11,8 @@ import {
 } from '@/src/utils/dataSelection';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useGlobalLayerColorConfig } from '@/src/composables/useGlobalLayerColorConfig';
 import { Maybe } from '@/src/types';
-import { reactive, ref, computed, watch, toRaw } from 'vue';
-import type { RGBAColor } from '@kitware/vtk.js/types';
-import { useMultiSelection } from '@/src/composables/useMultiSelection';
+import { reactive, ref, computed } from 'vue';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
@@ -27,47 +23,17 @@ const { currentImageID } = useCurrentImage();
 const dataStore = useDatasetStore();
 const isCurrentImageCine = computed(() => isCineImage(currentImageID.value));
 
+// Storage, not identity: the panel below lists segments, and these rows only
+// name the labelmaps the viewed image's segments are stored in.
 const currentSegmentGroups = computed(() => {
   if (!currentImageID.value) return [];
-  return segmentationStore.artifactsForImage(currentImageID.value).map((id) => {
-    const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(id);
-    return {
+  return segmentationStore
+    .artifactsForImage(currentImageID.value)
+    .map((id) => ({
       id,
       name: segmentationStore.artifactMeta[id].name,
-      visibility: sampledConfig.value?.config?.blendConfig.visibility ?? true,
-      toggleVisibility: () => {
-        const currentBlend = sampledConfig.value!.config!.blendConfig;
-        updateConfig({
-          blendConfig: {
-            ...currentBlend,
-            visibility: !currentBlend.visibility,
-          },
-        });
-      },
-    };
-  });
+    }));
 });
-
-// Group selection is a projection of the active segment: picking a group means
-// picking its first segment.
-const currentSegmentGroupID = computed({
-  get: () => segmentationStore.activeArtifactId ?? null,
-  set: (id: Maybe<string>) => {
-    const segmentation = id
-      ? segmentationStore.getSegmentationForArtifact(id)
-      : undefined;
-    const [segment] = id ? segmentationStore.segmentsForArtifact(id) : [];
-    if (!segmentation || !segment) {
-      segmentationStore.clearActiveSegment();
-      return;
-    }
-    segmentationStore.setActiveSegment(segmentation.id, segment.id);
-  },
-});
-
-function deleteGroup(id: string) {
-  segmentationStore.removeArtifact(id);
-}
 
 // --- editing state --- //
 
@@ -127,24 +93,6 @@ function createSegmentGroup() {
   const id = segmentGroupStore.newLabelmapFromImage(currentImageID.value);
   if (!id) throw new Error('Could not create a new labelmap');
 
-  // copy segments from current labelmap
-  if (currentSegmentGroupID.value) {
-    segmentationStore.setArtifactSegments(
-      id,
-      segmentationStore
-        .segmentsForArtifact(currentSegmentGroupID.value)
-        .map((segment) => ({
-          value: segment.representations.labelmap!.labelValue,
-          name: segment.name,
-          color: [...toRaw(segment.color)] as RGBAColor,
-          visible: segment.visible,
-          locked: segment.locked,
-        }))
-    );
-  }
-
-  currentSegmentGroupID.value = id;
-
   startEditing(id);
 }
 
@@ -175,62 +123,6 @@ const saveDialog = ref(false);
 function openSaveDialog(id: string) {
   saveId.value = id;
   saveDialog.value = true;
-}
-
-const segGroupIds = computed(() =>
-  currentSegmentGroups.value.map((group) => group.id)
-);
-
-const { selected, selectedAll, selectedSome } = useMultiSelection(segGroupIds);
-
-// ensure currentSegmentGroupID is always in selected
-watch(
-  // includes currentImageID to reselect when switching images because currentSegmentGroupID is not updated on image change
-  [currentSegmentGroupID, currentImageID],
-  () => {
-    const groupId = currentSegmentGroupID.value;
-    if (!groupId) return;
-    selected.value = [groupId];
-  },
-  { immediate: true }
-);
-
-function toggleSelectAll() {
-  if (selectedAll.value && currentSegmentGroupID.value) {
-    selected.value = [currentSegmentGroupID.value];
-  } else if (selectedAll.value) {
-    selected.value = [];
-  } else {
-    selected.value = segGroupIds.value;
-  }
-}
-
-const allHidden = computed(() => {
-  return selected.value
-    .map((id) => currentSegmentGroups.value.find((group) => id === group.id))
-    .filter((group): group is NonNullable<typeof group> => group != null)
-    .every((group) => !group.visibility);
-});
-
-function toggleGlobalVisibility() {
-  const shouldShow = allHidden.value;
-  selected.value.forEach((id) => {
-    const group = currentSegmentGroups.value.find((g) => g.id === id);
-    if (group) {
-      const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(id);
-      const currentBlend = sampledConfig.value!.config!.blendConfig;
-      updateConfig({
-        blendConfig: {
-          ...currentBlend,
-          visibility: shouldShow,
-        },
-      });
-    }
-  });
-}
-
-function deleteSelected() {
-  selected.value.forEach((id) => deleteGroup(id));
 }
 </script>
 
@@ -276,79 +168,15 @@ function deleteSelected() {
       </v-menu>
     </div>
 
-    <segment-group-opacity
-      v-if="currentSegmentGroupID"
-      :group-id="currentSegmentGroupID"
-      :selected="selected"
-    />
-
-    <div class="d-flex align-center" v-if="currentSegmentGroups.length > 0">
-      <v-checkbox
-        class="ml-3"
-        :indeterminate="selectedSome && !selectedAll"
-        label="Select All"
-        :model-value="selectedAll"
-        @update:model-value="toggleSelectAll"
-        density="compact"
-        hide-details
-      />
-      <v-btn
-        icon
-        variant="text"
-        :disabled="selected.length === 0"
-        @click.stop="toggleGlobalVisibility"
-      >
-        <v-icon v-if="allHidden">mdi-eye-off</v-icon>
-        <v-icon v-else>mdi-eye</v-icon>
-        <v-tooltip location="top" activator="parent">
-          {{ allHidden ? 'Show' : 'Hide' }} selected
-        </v-tooltip>
-      </v-btn>
-      <v-btn
-        icon
-        variant="text"
-        :disabled="selected.length === 0"
-        @click.stop="deleteSelected"
-      >
-        <v-icon>mdi-delete</v-icon>
-        <v-tooltip location="top" activator="parent">
-          Delete selected
-        </v-tooltip>
-      </v-btn>
-    </div>
-    <v-list density="comfortable" class="my-1 segment-group-list">
-      <v-list-item
-        v-for="group in currentSegmentGroups"
-        :key="group.id"
-        :active="currentSegmentGroupID === group.id"
-        @click="currentSegmentGroupID = group.id"
-      >
+    <v-list
+      density="comfortable"
+      class="my-1 segment-group-list"
+      v-if="currentSegmentGroups.length > 0"
+    >
+      <v-list-item v-for="group in currentSegmentGroups" :key="group.id">
         <div class="d-flex flex-row align-center w-100" :title="group.name">
-          <v-checkbox
-            class="no-grow mr-4"
-            density="compact"
-            hide-details
-            @click.stop
-            :value="group.id"
-            v-model="selected"
-            :disabled="group.id === currentSegmentGroupID"
-          />
           <span class="group-name">{{ group.name }}</span>
           <v-spacer />
-          <v-btn
-            icon
-            variant="text"
-            size="small"
-            @click.stop="group.toggleVisibility"
-          >
-            <v-icon v-if="group.visibility" style="pointer-events: none"
-              >mdi-eye</v-icon
-            >
-            <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
-            <v-tooltip location="left" activator="parent">
-              {{ group.visibility ? 'Hide' : 'Show' }}
-            </v-tooltip>
-          </v-btn>
           <v-btn
             data-testid="segment-group-save-button"
             icon="mdi-content-save"
@@ -362,17 +190,6 @@ function deleteSelected() {
             variant="text"
             @click.stop="startEditing(group.id)"
           />
-          <v-btn
-            icon="mdi-delete"
-            size="small"
-            variant="text"
-            @click.stop="deleteGroup(group.id)"
-          />
-        </div>
-      </v-list-item>
-      <v-list-item v-if="currentSegmentGroups.length === 0">
-        <div class="text-center text-grey-darken-1 py-4 w-100">
-          Create a segment group with the above buttons or click the paint tool
         </div>
       </v-list-item>
     </v-list>
@@ -380,10 +197,7 @@ function deleteSelected() {
     <v-divider class="my-4" />
   </div>
   <div v-else class="text-center text-caption">No selected image</div>
-  <segment-list
-    v-if="currentSegmentGroupID"
-    :group-id="currentSegmentGroupID"
-  />
+  <segment-list v-if="currentImageID" />
 
   <v-dialog v-model="editDialog" max-width="400px">
     <v-card>
@@ -426,9 +240,5 @@ function deleteSelected() {
   text-overflow: ellipsis;
   padding-right: 10px;
   text-align: left;
-}
-
-.no-grow {
-  flex: 0 0 auto;
 }
 </style>

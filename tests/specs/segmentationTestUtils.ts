@@ -78,13 +78,6 @@ export const renameLabel = async (from: string, to: string) => {
   });
 };
 
-// --- segment groups, the interim panel wrapped around the segment list --- //
-
-const GROUP_LIST = '.segment-group-list';
-
-export const segmentGroupNames = () =>
-  $$(`${GROUP_LIST} .group-name`).map((name) => name.getText());
-
 export const openAnnotationSegments = async () => {
   await volViewPage.annotationsModuleTab.click();
   const tab = volViewPage.segmentGroupsTab;
@@ -92,15 +85,17 @@ export const openAnnotationSegments = async () => {
   await tab.click();
 };
 
+// The panel is one flat list scoped to the viewed image, so what used to be a
+// group is now just the segments that image has.
+export const segmentGroupNames = segmentNames;
+
 /**
- * The panel follows the active segment's group rather than the viewed image's,
- * so a spec that switched images picks that image's group back up here.
+ * The list follows the viewed image, so there is nothing left to pick; the wait
+ * stays, because the list renders empty until the image's segments arrive.
  */
 export const showFirstSegmentGroup = async () => {
-  await browser.waitUntil(async () => (await segmentGroupNames()).length >= 1, {
-    timeoutMsg: 'Expected the viewed image to have a segment group',
-  });
-  const groups = await $$(`${GROUP_LIST} .group-name`);
-  await groups[0].click();
   await $(SEGMENT_LIST).waitForDisplayed();
+  await browser.waitUntil(async () => (await segmentNames()).length >= 1, {
+    timeoutMsg: 'Expected the viewed image to have a segment',
+  });
 };

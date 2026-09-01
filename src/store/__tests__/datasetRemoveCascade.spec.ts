@@ -193,14 +193,13 @@ describe('dataset remove — synchronous reference cascade', () => {
     const segmentGroups = useSegmentGroupStore();
     const segmentationStore = useSegmentationStore();
     const groupId = segmentGroups.newLabelmapFromImage('img-1')!;
-    const segmentation = segmentationStore.getSegmentationForArtifact(groupId)!;
     const [segment] = segmentationStore.segmentsForArtifact(groupId);
-    segmentationStore.setActiveSegment(segmentation.id, segment.id);
+    segmentationStore.setActiveSegment(segment.id);
     expect(segmentationStore.activeArtifactId).toBe(groupId);
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentationStore.activeTarget).toBeUndefined();
+    expect(segmentationStore.activeSegmentId).toBeUndefined();
   });
 
   it('leaves references to OTHER datasets intact', () => {

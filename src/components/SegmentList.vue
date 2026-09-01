@@ -1,203 +1,156 @@
 <script setup lang="ts">
-import EditableChipList from '@/src/components/EditableChipList.vue';
-import SegmentEditor from '@/src/components/SegmentEditor.vue';
-import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
-import { makeDefaultSegmentName } from '@/src/store/segmentGroups';
-import {
-  useSegmentationStore,
-  type SegmentPatch,
-} from '@/src/store/segmentations';
-import { Maybe } from '@/src/types';
-import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
-import { reactive, ref, toRefs, computed, watch } from 'vue';
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import { computed, reactive, ref } from 'vue';
+
 import ColorDot from '@/src/components/ColorDot.vue';
-
-const props = defineProps({
-  groupId: {
-    required: true,
-    type: String,
-  },
-});
-
-const { groupId } = toRefs(props);
+import EditableChipList from '@/src/components/EditableChipList.vue';
+import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
+import SegmentEditor from '@/src/components/SegmentEditor.vue';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useSegmentationStore } from '@/src/store/segmentations';
+import { Maybe } from '@/src/types';
+import {
+  cssColorToRGBA,
+  listSegments,
+  rgbaToCssColor,
+} from '@/src/types/segmentation';
 
 const segmentationStore = useSegmentationStore();
+const { currentImageID } = useCurrentImage();
 
-const segmentation = computed(() =>
-  segmentationStore.getSegmentationForArtifact(groupId.value)
-);
+// Scoped to the viewed image, never to the active segment's image: after an
+// image switch the panel must show this image's segments, not the last edited
+// one's. Rendering creates nothing, so an image with no segmentation is empty.
+const segments = computed(() => {
+  const imageId = currentImageID.value;
+  const segmentation = imageId
+    ? segmentationStore.getSegmentationForImage(imageId)
+    : undefined;
+  return segmentation ? listSegments(segmentation) : [];
+});
 
-// The chip list is still keyed on label value; the edits and the selection
-// below route through the segment's stable id.
-const segments = computed(() =>
-  segmentationStore.segmentsForArtifact(groupId.value).map((segment) => ({
-    id: segment.id,
-    value: segment.representations.labelmap!.labelValue,
-    name: segment.name,
-    color: segment.color,
-    visible: segment.visible,
-    locked: segment.locked,
-  }))
-);
-
-const segmentByValue = (value: number) =>
-  segments.value.find((segment) => segment.value === value);
-
-function updateByValue(value: number, patch: SegmentPatch) {
-  const target = segmentation.value;
-  const segment = segmentByValue(value);
-  if (!target || !segment) return;
-  segmentationStore.updateSegment(target.id, segment.id, patch);
-}
+const segmentById = (id: string) =>
+  segments.value.find((segment) => segment.id === id);
 
 // --- selection --- //
 
 const selectedSegment = computed({
   get: () => {
-    const target = segmentationStore.activeTarget;
-    if (!target) return null;
-    const segment = segments.value.find((seg) => seg.id === target.segmentId);
-    return segment ? segment.value : null;
+    const id = segmentationStore.activeSegmentId;
+    return id && segmentById(id) ? id : null;
   },
-  set: (value: Maybe<number>) => {
-    const target = segmentation.value;
-    const segment = value == null ? undefined : segmentByValue(value);
-    if (!target || !segment) {
+  set: (id: Maybe<string>) => {
+    if (!id) {
       segmentationStore.clearActiveSegment();
       return;
     }
-    segmentationStore.setActiveSegment(target.id, segment.id);
+    segmentationStore.setActiveSegment(id);
   },
 });
 
+// Adding a row allocates no storage: the segment exists as identity until an
+// edit binds a labelmap to it.
 function addNewSegment() {
-  const target = segmentation.value;
-  if (!target) return;
-  const segment = segmentationStore.createSegment(target.id);
-  const binding = segmentationStore.ensureLabelmapBinding(
-    target.id,
-    segment.id,
-    groupId.value
-  );
-  selectedSegment.value = binding.labelValue;
+  const imageId = currentImageID.value;
+  if (!imageId) return;
+  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
+  const segment = segmentationStore.createSegment(segmentation.id);
+  segmentationStore.setActiveSegment(segment.id);
 }
 
-// reset selection when necessary
-watch(
-  segments,
-  (segments_) => {
-    let reset = true;
-    if (segments_ && selectedSegment.value) {
-      reset = !segments_.find((seg) => seg.value === selectedSegment.value);
-    }
+// --- row actions --- //
 
-    if (reset) {
-      selectedSegment.value = segments_?.length ? segments_[0].value : null;
-    }
-  },
-  { immediate: true }
-);
-
-const toggleVisible = (value: number) => {
-  const segment = segmentByValue(value);
+const toggleVisible = (id: string) => {
+  const segment = segmentById(id);
   if (!segment) return;
-  updateByValue(value, { visible: !segment.visible });
+  segmentationStore.updateSegment(id, { visible: !segment.visible });
 };
 
-const allVisible = computed(() => {
-  return segments.value.every((seg) => seg.visible);
-});
+const toggleLock = (id: string) => {
+  const segment = segmentById(id);
+  if (!segment) return;
+  segmentationStore.updateSegment(id, { locked: !segment.locked });
+};
 
-const allLocked = computed(() => {
-  return segments.value.every((seg) => seg.locked);
-});
+const allVisible = computed(() =>
+  segments.value.every((segment) => segment.visible)
+);
+
+const allLocked = computed(() =>
+  segments.value.every((segment) => segment.locked)
+);
 
 function toggleGlobalVisible() {
   const visible = !allVisible.value;
-
-  segments.value.forEach((seg) => {
-    updateByValue(seg.value, { visible });
-  });
+  segments.value.forEach((segment) =>
+    segmentationStore.updateSegment(segment.id, { visible })
+  );
 }
 
 function toggleGlobalLocked() {
   const locked = !allLocked.value;
+  segments.value.forEach((segment) =>
+    segmentationStore.updateSegment(segment.id, { locked })
+  );
+}
 
-  segments.value.forEach((seg) => {
-    updateByValue(seg.value, { locked });
-  });
+function deleteSegment(id: string) {
+  if (!segmentById(id)) return;
+  segmentationStore.deleteSegment(id);
 }
 
 // --- editing state --- //
 
-const editingSegmentValue = ref<Maybe<number>>(null);
+const editingSegmentId = ref<Maybe<string>>(null);
 const editState = reactive({
   name: '',
   color: '',
-  opacity: 1,
+  fillOpacity: 1,
+  outlineOpacity: 1,
 });
 const editDialog = ref(false);
 
-const editingSegment = computed(() => {
-  if (editingSegmentValue.value == null) return null;
-  return segmentByValue(editingSegmentValue.value) ?? null;
-});
+const editingSegment = computed(() =>
+  editingSegmentId.value ? segmentById(editingSegmentId.value) : undefined
+);
+
 const invalidNames = computed(() => {
-  const names = new Set(segments.value.map((seg) => seg.name));
-  const currentName = editingSegment.value?.name;
-  if (currentName) names.delete(currentName); // allow current name
+  const names = new Set(
+    segments.value
+      .filter((segment) => segment.id !== editingSegmentId.value)
+      .map((segment) => segment.name)
+  );
   return names;
 });
 
-function startEditing(value: number) {
+function startEditing(id: string) {
+  const segment = segmentById(id);
+  if (!segment) return;
+  editingSegmentId.value = id;
   editDialog.value = true;
-  editingSegmentValue.value = value;
-  if (!editingSegment.value) return;
-  editState.name = editingSegment.value.name;
-  editState.color = rgbaToHexa(editingSegment.value.color);
-  editState.opacity = editingSegment.value.color[3] / 255;
+  editState.name = segment.name;
+  editState.color = rgbaToCssColor(segment.color);
+  editState.fillOpacity = segment.fillOpacity;
+  editState.outlineOpacity = segment.outlineOpacity;
 }
 
 function stopEditing(commit: boolean) {
-  if (editingSegmentValue.value && commit) {
-    const color = [
-      ...(hexaToRGBA(editState.color).slice(0, 3) as [number, number, number]),
-      Math.round(editState.opacity * 255),
-    ] as RGBAColor;
-    updateByValue(editingSegmentValue.value, {
-      name: editState.name ?? makeDefaultSegmentName(editingSegmentValue.value),
-      color,
+  const id = editingSegmentId.value;
+  if (id && commit && segmentById(id)) {
+    segmentationStore.updateSegment(id, {
+      name: editState.name,
+      color: cssColorToRGBA(editState.color),
+      fillOpacity: editState.fillOpacity,
+      outlineOpacity: editState.outlineOpacity,
     });
   }
-  editingSegmentValue.value = null;
+  editingSegmentId.value = null;
   editDialog.value = false;
 }
 
-function deleteSegment(value: number) {
-  const target = segmentation.value;
-  const segment = segmentByValue(value);
-  if (!target || !segment) return;
-  segmentationStore.deleteSegment(target.id, segment.id);
-}
-
 function deleteEditingSegment() {
-  if (editingSegmentValue.value) deleteSegment(editingSegmentValue.value);
+  if (editingSegmentId.value) deleteSegment(editingSegmentId.value);
   stopEditing(false);
 }
-
-/**
- * Toggles the lock state of a segment.
- * Locked segments cannot be edited or painted over.
- *
- * @param value - The segment value to toggle lock state for
- */
-const toggleLock = (value: number) => {
-  const seg = segmentByValue(value);
-  if (seg) {
-    updateByValue(value, { locked: !seg.locked });
-  }
-};
 </script>
 
 <template>
@@ -229,7 +182,7 @@ const toggleLock = (value: number) => {
     <editable-chip-list
       v-model="selectedSegment"
       :items="segments"
-      item-key="value"
+      item-key="id"
       item-title="name"
       create-label-text="New segment"
       @create="addNewSegment"
@@ -241,7 +194,7 @@ const toggleLock = (value: number) => {
           <ColorDot :color="item.color" />
         </div>
       </template>
-      <template #item-append="{ key, item }">
+      <template #item-append="{ item }">
         <!-- Lock/unlock segment button -->
         <v-btn
           icon
@@ -249,7 +202,7 @@ const toggleLock = (value: number) => {
           density="compact"
           class="mr-1"
           variant="plain"
-          @click.stop="toggleLock(key as number)"
+          @click.stop="toggleLock(item.id)"
           :color="item.locked ? 'error' : undefined"
         >
           <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
@@ -263,7 +216,7 @@ const toggleLock = (value: number) => {
           density="compact"
           class="ml-auto mr-1"
           variant="plain"
-          @click.stop="toggleVisible(key as number)"
+          @click.stop="toggleVisible(item.id)"
         >
           <v-icon v-if="item.visible" style="pointer-events: none"
             >mdi-eye</v-icon
@@ -280,7 +233,7 @@ const toggleLock = (value: number) => {
           density="compact"
           class="mr-1"
           variant="plain"
-          @click.stop="startEditing(key as number)"
+          @click.stop="startEditing(item.id)"
           :disabled="item.locked"
         />
         <!-- Delete segment button (disabled when locked) -->
@@ -290,7 +243,7 @@ const toggleLock = (value: number) => {
           density="compact"
           class="ml-auto"
           variant="plain"
-          @click.stop="deleteSegment(key as number)"
+          @click.stop="deleteSegment(item.id)"
           :disabled="item.locked"
         />
       </template>
@@ -302,7 +255,8 @@ const toggleLock = (value: number) => {
       v-if="!!editingSegment"
       v-model:name="editState.name"
       v-model:color="editState.color"
-      v-model:opacity="editState.opacity"
+      v-model:fillOpacity="editState.fillOpacity"
+      v-model:outlineOpacity="editState.outlineOpacity"
       @delete="deleteEditingSegment"
       @cancel="stopEditing(false)"
       @done="stopEditing(true)"

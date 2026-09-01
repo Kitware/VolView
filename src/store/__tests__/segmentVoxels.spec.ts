@@ -77,7 +77,7 @@ function seatArtifactSegment(imageId: string, values: Uint8Array) {
 }
 
 const voxelsOf = (target: { segmentationId: string; segmentId: string }) =>
-  store().segmentVoxels(target.segmentationId, target.segmentId);
+  store().segmentVoxels(target.segmentId);
 
 const scalarsOf = (labelmap: vtkLabelMap) =>
   labelmap.getPointData().getScalars().getData();
@@ -90,10 +90,8 @@ describe('segment voxel accessor', () => {
 
   describe('resolution', () => {
     it('throws for a segment that does not exist', () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      expect(() => store().segmentVoxels(segmentation.id, 'nope')).toThrow(
-        /No such segment/
-      );
+      store().ensureSegmentationForImage('img-1');
+      expect(() => store().segmentVoxels('nope')).toThrow(/No such segment/);
     });
 
     it('resolves the segment on every call rather than capturing it', () => {
@@ -105,7 +103,7 @@ describe('segment voxel accessor', () => {
       voxelsOf(target).materialize();
       expect(voxels.binding()?.labelValue).toBeGreaterThan(0);
 
-      store().deleteSegment(target.segmentationId, target.segmentId);
+      store().deleteSegment(target.segmentId);
       expect(() => voxels.binding()).toThrow();
     });
   });

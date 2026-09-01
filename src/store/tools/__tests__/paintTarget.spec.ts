@@ -35,8 +35,8 @@ async function seatImage(id: string, name = 'CT') {
 
 const store = () => useSegmentationStore();
 
-const bindingOf = (segmentationId: string, segmentId: string) =>
-  store().resolveLabelmapBinding(segmentationId, segmentId);
+const bindingOf = (segmentId: string) =>
+  store().resolveLabelmapBinding(segmentId);
 
 const artifactScalars = (artifactId: string) =>
   Array.from(
@@ -46,7 +46,7 @@ const artifactScalars = (artifactId: string) =>
 /** Creates a segment with voxel storage already allocated. */
 function boundSegment(segmentationId: string, name: string) {
   const segment = store().createSegment(segmentationId, { name });
-  store().ensureLabelmapBinding(segmentationId, segment.id);
+  store().ensureLabelmapBinding(segment.id);
   return segment;
 }
 
@@ -70,11 +70,11 @@ describe('paint edit target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Other');
     const active = boundSegment(segmentation.id, 'Tumor');
-    store().setActiveSegment(segmentation.id, active.id);
+    store().setActiveSegment(active.id);
 
     strokeAt('img-1', [1, 1, 0]);
 
-    const binding = bindingOf(segmentation.id, active.id)!;
+    const binding = bindingOf(active.id)!;
     expect(binding.labelValue).toBe(2);
     expect(artifactScalars(binding.artifactId)[offsetOf(1, 1, 0)]).toBe(
       binding.labelValue
@@ -86,16 +86,16 @@ describe('paint edit target', () => {
     await seatImage('img-2');
     const first = store().ensureSegmentationForImage('img-1');
     const source = boundSegment(first.id, 'Tumor');
-    store().setActiveSegment(first.id, source.id);
+    store().setActiveSegment(source.id);
 
     strokeAt('img-2', [1, 1, 0]);
 
-    const cloned = store().activeTarget!;
-    expect(cloned.segmentationId).toBe(
-      store().getSegmentationForImage('img-2')!.id
-    );
-    const clonedBinding = bindingOf(cloned.segmentationId, cloned.segmentId)!;
-    const sourceBinding = bindingOf(first.id, source.id)!;
+    const cloned = store().activeSegmentId!;
+    expect(
+      store().getSegmentationForImage('img-2')!.segments[cloned]
+    ).toBeDefined();
+    const clonedBinding = bindingOf(cloned)!;
+    const sourceBinding = bindingOf(source.id)!;
     expect(clonedBinding.artifactId).not.toBe(sourceBinding.artifactId);
     expect(artifactScalars(clonedBinding.artifactId)[offsetOf(1, 1, 0)]).toBe(
       clonedBinding.labelValue
@@ -116,11 +116,8 @@ describe('paint edit target', () => {
     expect(segmentation.segments[segmentId].name).toBe(
       DEFAULT_SEGMENT_MASKS[0].name
     );
-    expect(store().activeTarget).toEqual({
-      segmentationId: segmentation.id,
-      segmentId,
-    });
-    const binding = bindingOf(segmentation.id, segmentId)!;
+    expect(store().activeSegmentId).toBe(segmentId);
+    const binding = bindingOf(segmentId)!;
     expect(artifactScalars(binding.artifactId)[offsetOf(1, 1, 0)]).toBe(
       binding.labelValue
     );
@@ -133,16 +130,16 @@ describe('paint edit target', () => {
     const active = boundSegment(segmentation.id, 'Tumor');
     const paintStore = usePaintToolStore();
 
-    store().setActiveSegment(segmentation.id, neighbor.id);
+    store().setActiveSegment(neighbor.id);
     strokeAt('img-1', [1, 1, 0]);
-    store().setActiveSegment(segmentation.id, active.id);
+    store().setActiveSegment(active.id);
     strokeAt('img-1', [2, 1, 0]);
 
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
     strokeAt('img-1', [2, 1, 0]);
 
-    const neighborBinding = bindingOf(segmentation.id, neighbor.id)!;
+    const neighborBinding = bindingOf(neighbor.id)!;
     const scalars = artifactScalars(neighborBinding.artifactId);
     expect(scalars[offsetOf(1, 1, 0)]).toBe(neighborBinding.labelValue);
     expect(scalars[offsetOf(2, 1, 0)]).toBe(0);
@@ -153,12 +150,12 @@ describe('paint edit target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
-    store().updateSegment(segmentation.id, active.id, { locked: true });
-    store().setActiveSegment(segmentation.id, active.id);
+    store().updateSegment(active.id, { locked: true });
+    store().setActiveSegment(active.id);
 
     strokeAt('img-1', [1, 1, 0]);
 
-    const binding = bindingOf(segmentation.id, active.id)!;
+    const binding = bindingOf(active.id)!;
     expect(
       artifactScalars(binding.artifactId).every((value) => value === 0)
     ).toBe(true);
@@ -170,16 +167,16 @@ describe('paint edit target', () => {
     const neighbor = boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
 
-    store().setActiveSegment(segmentation.id, neighbor.id);
+    store().setActiveSegment(neighbor.id);
     strokeAt('img-1', [1, 1, 0]);
-    store().updateSegment(segmentation.id, neighbor.id, { locked: true });
+    store().updateSegment(neighbor.id, { locked: true });
 
-    store().setActiveSegment(segmentation.id, active.id);
+    store().setActiveSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
     strokeAt('img-1', [3, 1, 0]);
 
-    const neighborBinding = bindingOf(segmentation.id, neighbor.id)!;
-    const activeBinding = bindingOf(segmentation.id, active.id)!;
+    const neighborBinding = bindingOf(neighbor.id)!;
+    const activeBinding = bindingOf(active.id)!;
     const scalars = artifactScalars(neighborBinding.artifactId);
     expect(scalars[offsetOf(1, 1, 0)]).toBe(neighborBinding.labelValue);
     expect(scalars[offsetOf(3, 1, 0)]).toBe(activeBinding.labelValue);

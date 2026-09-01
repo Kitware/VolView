@@ -76,11 +76,7 @@ describe('segmentation display state', () => {
     });
 
     it('gives a segment created by the edit path the same defaults', () => {
-      const target = store().resolveEditTarget('img-1');
-      const segment = store().getSegment(
-        target.segmentationId,
-        target.segmentId
-      );
+      const segment = store().getSegment(store().resolveEditTarget('img-1'));
 
       expect(segment.fillOpacity).toBe(1);
       expect(segment.outlineOpacity).toBe(1);
@@ -112,12 +108,12 @@ describe('segmentation display state', () => {
       const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
       expect(segment.fillOpacity).toBe(1);
 
-      store().updateSegment(segmentation.id, segment.id, { fillOpacity: 0.4 });
-      store().updateSegment(segmentation.id, segment.id, {
+      store().updateSegment(segment.id, { fillOpacity: 0.4 });
+      store().updateSegment(segment.id, {
         outlineOpacity: 0.25,
       });
 
-      const updated = store().getSegment(segmentation.id, segment.id);
+      const updated = store().getSegment(segment.id);
       expect(updated.fillOpacity).toBe(0.4);
       expect(updated.outlineOpacity).toBe(0.25);
       expect(updated.id).toBe(segment.id);
@@ -130,15 +126,34 @@ describe('segmentation display state', () => {
       const first = store().createSegment(segmentation.id);
       const second = store().createSegment(segmentation.id);
 
-      store().updateSegment(segmentation.id, first.id, {
+      store().updateSegment(first.id, {
         fillOpacity: 0,
         outlineOpacity: 0.5,
       });
 
-      const sibling = store().getSegment(segmentation.id, second.id);
+      const sibling = store().getSegment(second.id);
       expect(sibling.fillOpacity).toBe(1);
       expect(sibling.outlineOpacity).toBe(1);
       expect(store().segmentations[segmentation.id].fillOpacity).toBe(1);
+    });
+  });
+
+  // Without this the editor's sliders write state nothing renders from.
+  describe('reaching the renderer', () => {
+    it('projects each segment’s opacities onto its artifact', () => {
+      const artifactId = seatArtifact('img-1');
+      const segmentation = store().ensureSegmentationForImage('img-1');
+      const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
+      store().ensureLabelmapBinding(segment.id, artifactId);
+
+      store().updateSegment(segment.id, {
+        fillOpacity: 0.4,
+        outlineOpacity: 0.25,
+      });
+
+      expect(store().labelmapSegmentsByArtifact[artifactId]).toEqual([
+        expect.objectContaining({ fillOpacity: 0.4, outlineOpacity: 0.25 }),
+      ]);
     });
   });
 });

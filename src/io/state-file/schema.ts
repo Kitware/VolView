@@ -413,11 +413,14 @@ const makeLabelledToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   });
 
 // Polygons and rectangles point at segments: identity lives on the
-// segmentation, and only the per-tool props are keyed by segment id here.
+// segmentation, and only the per-tool props are keyed by segment id here. A
+// config template has no segment yet, so a tool labeled with one needs the
+// template itself on the wire, keyed by template name.
 const makeSegmentToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({
     tools: z.array(tool),
     segmentProps: z.record(z.string(), tool.partial()).optional(),
+    templates: z.record(z.string(), tool.partial()).optional(),
   });
 
 const Ruler = annotationTool.extend({

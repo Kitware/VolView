@@ -20,7 +20,6 @@ type StartState = {
 
 type TargetedState = {
   activeParentImageID: string | null;
-  segmentationId: string;
   segmentId: string;
   processType: ProcessType;
 };
@@ -126,24 +125,19 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // Segment-scoped: resolveEditTarget creates the segment if needed, then
   // storage is allocated for it.
   function resolveSegmentScoped(imageId: string) {
-    const { segmentationId, segmentId } =
-      segmentationStore.resolveEditTarget(imageId);
-    if (segmentationStore.getSegment(segmentationId, segmentId).locked) {
+    const segmentId = segmentationStore.resolveEditTarget(imageId);
+    if (segmentationStore.getSegment(segmentId).locked) {
       messageStore.addError('Cannot process locked segment');
       return undefined;
     }
-    const binding = segmentationStore.ensureLabelmapBinding(
-      segmentationId,
-      segmentId
-    );
+    const binding = segmentationStore.ensureLabelmapBinding(segmentId);
     return {
       target: {
         scope: 'segment' as const,
-        voxels: segmentationStore.segmentVoxels(segmentationId, segmentId),
+        voxels: segmentationStore.segmentVoxels(segmentId),
         artifactId: binding.artifactId,
         labelValue: binding.labelValue,
       },
-      segmentationId,
       segmentId,
     };
   }
@@ -161,15 +155,13 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
     // The active segment is not part of the target; it is recorded only so the
     // watcher can cancel when the user moves to another segment.
-    const activeSegment = segmentationStore.activeTarget;
     return {
       target: {
         scope: 'artifact' as const,
         voxels: segmentationStore.artifactVoxels(artifactId),
         artifactId,
       },
-      segmentationId: activeSegment?.segmentationId ?? '',
-      segmentId: activeSegment?.segmentId ?? '',
+      segmentId: segmentationStore.activeSegmentId ?? '',
     };
   }
 
@@ -195,7 +187,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       ? resolveSegmentScoped(imageId)
       : resolveArtifactScoped(imageId);
     if (!resolved) return;
-    const { target, segmentationId, segmentId } = resolved;
+    const { target, segmentId } = resolved;
     const { voxels, artifactId } = target;
 
     const activeParentImageID =
@@ -209,7 +201,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     processState.value = {
       step: 'computing',
       activeParentImageID,
-      segmentationId,
       segmentId,
       processType,
     };
@@ -238,7 +229,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       processState.value = {
         step: 'previewing',
         activeParentImageID,
-        segmentationId,
         segmentId,
         processType,
         voxels,
@@ -297,18 +287,13 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   // Cancel process when the active segment changes
   watch(
-    () => segmentationStore.activeTarget,
-    (target) => {
+    () => segmentationStore.activeSegmentId,
+    (segmentId) => {
       const state = processState.value;
       if (state.step !== 'computing' && state.step !== 'previewing') {
         return;
       }
-      if (
-        state.segmentationId === target?.segmentationId &&
-        state.segmentId === target?.segmentId
-      ) {
-        return;
-      }
+      if (state.segmentId === segmentId) return;
       cancelProcess();
     }
   );

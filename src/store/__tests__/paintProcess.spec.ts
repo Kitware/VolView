@@ -79,7 +79,7 @@ function addTestSegment(values = new Uint8Array([0, 0]), labelValue = 1) {
   ]);
   const segmentationId =
     segmentationStore.getSegmentationForImage('image-1')!.id;
-  segmentationStore.setActiveSegment(segmentationId, segment.id);
+  segmentationStore.setActiveSegment(segment.id);
 
   return { segmentationId, segmentId: segment.id, artifactId, labelMap };
 }
@@ -198,8 +198,8 @@ describe('Paint process store', () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const messageStore = useMessageStore();
-    const { segmentationId, segmentId, labelMap } = addTestSegment();
-    segmentationStore.updateSegment(segmentationId, segmentId, {
+    const { segmentId, labelMap } = addTestSegment();
+    segmentationStore.updateSegment(segmentId, {
       locked: true,
     });
 
@@ -227,14 +227,11 @@ describe('Paint process store', () => {
     await viewImage('image-2');
     await processStore.startProcess(algorithm);
 
-    const active = segmentationStore.activeTarget!;
-    expect(active.segmentationId).toBe(
-      segmentationStore.getSegmentationForImage('image-2')!.id
-    );
-    const binding = segmentationStore.resolveLabelmapBinding(
-      active.segmentationId,
-      active.segmentId
-    )!;
+    const active = segmentationStore.activeSegmentId!;
+    expect(
+      segmentationStore.getSegmentationForImage('image-2')!.segments[active]
+    ).toBeDefined();
+    const binding = segmentationStore.resolveLabelmapBinding(active)!;
     expect(target).toMatchObject({
       scope: 'segment',
       labelValue: binding.labelValue,
@@ -256,7 +253,7 @@ describe('Paint process store', () => {
     const other = segmentationStore.createSegment(segmentationId, {
       name: 'Other',
     });
-    segmentationStore.setActiveSegment(segmentationId, other.id);
+    segmentationStore.setActiveSegment(other.id);
     await nextTick();
 
     expect(processStore.processState.step).toBe('start');

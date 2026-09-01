@@ -17,6 +17,10 @@ import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
+import {
+  segmentFillAlpha,
+  segmentOutlineTables,
+} from '@/src/components/vtk/segmentDisplay';
 
 interface Props {
   viewId: string;
@@ -149,9 +153,8 @@ const applySegmentColoring = () => {
     const r = segment.color[0] || 0;
     const g = segment.color[1] || 0;
     const b = segment.color[2] || 0;
-    const a = (segment.visible && segment.color[3]) || 0;
     cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
-    ofun.addPoint(segment.value, a / 255);
+    ofun.addPoint(segment.value, segmentFillAlpha(segment));
 
     maxValue = Math.max(maxValue, segment.value);
   });
@@ -177,23 +180,19 @@ sliceRep.property.setUseLabelOutline(true);
 sliceRep.property.setUseLookupTableScalarRange(true);
 
 watchEffect(() => {
-  sliceRep.property.setLabelOutlineOpacity(config.value?.outlineOpacity ?? 1);
-});
-
-watchEffect(() => {
   if (!segments.value) return; // segment group just deleted
 
-  const thickness = outlineThickness.value;
-  const visibleByValue = new Map(
-    segments.value.map((segment) => [segment.value, segment.visible])
+  const groupOpacity = config.value?.outlineOpacity ?? 1;
+  const { thicknesses, opacities } = segmentOutlineTables(
+    segments.value,
+    outlineThickness.value,
+    groupOpacity
   );
-  const largestValue = Math.max(...visibleByValue.keys());
-
-  const segThicknesses = Array.from({ length: largestValue }, (_, index) => {
-    const visible = visibleByValue.get(index + 1);
-    return ((visible === undefined || visible) && thickness) || 0;
-  });
-  sliceRep.property.setLabelOutlineThickness(segThicknesses);
+  sliceRep.property.setLabelOutlineThickness(thicknesses);
+  // An empty table leaves every label without an opacity; fall back to a scalar.
+  sliceRep.property.setLabelOutlineOpacity(
+    opacities.length ? opacities : groupOpacity
+  );
 });
 
 defineExpose(sliceRep);

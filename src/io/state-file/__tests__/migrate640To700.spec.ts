@@ -506,7 +506,7 @@ const makeArtifactIO = () => {
 const snapshot = (imageId: string) => {
   const store = useSegmentationStore();
   const segmentation = store.getSegmentationForImage(imageId)!;
-  const active = store.activeTarget;
+  const activeId = store.activeSegmentId;
   return {
     segments: segmentation.order.map((segmentId) => {
       const segment = segmentation.segments[segmentId];
@@ -525,8 +525,8 @@ const snapshot = (imageId: string) => {
       };
     }),
     activeSegmentName:
-      active && active.segmentationId === segmentation.id
-        ? segmentation.segments[active.segmentId].name
+      activeId && segmentation.segments[activeId]
+        ? segmentation.segments[activeId].name
         : undefined,
   };
 };
@@ -624,8 +624,8 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
 
     const store = useSegmentationStore();
     const segmentation = store.getSegmentationForImage('store-ct')!;
-    const active = store.activeTarget!;
-    expect(segmentation.segments[active.segmentId].name).toBe('Edema');
+    const activeId = store.activeSegmentId!;
+    expect(segmentation.segments[activeId].name).toBe('Edema');
     expect(
       segmentation.order.map((id) => segmentation.segments[id].name)
     ).toEqual(['Tumor', 'Edema', 'Drawn']);

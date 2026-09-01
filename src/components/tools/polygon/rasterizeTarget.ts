@@ -27,10 +27,7 @@ export function resolveRasterizeTarget(
 
   const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
 
-  const voxels = segmentationStore.segmentVoxels(
-    resolved.segmentationId,
-    resolved.segmentId
-  );
+  const voxels = segmentationStore.segmentVoxels(resolved);
   const binding = voxels.materialize();
-  return { ...binding, voxels, segmentId: resolved.segmentId };
+  return { ...binding, voxels, segmentId: resolved };
 }

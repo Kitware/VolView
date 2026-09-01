@@ -11,7 +11,6 @@ import {
 } from '@/src/types/segmentation';
 import type {
   ActiveSegmentIntent,
-  ActiveSegmentationTarget,
   Extent3D,
   LabelmapBinding,
   Segment,
@@ -167,25 +166,17 @@ describe('segment model', () => {
 });
 
 describe('active segment intent', () => {
-  it('targets one segment per image', () => {
-    const target: ActiveSegmentationTarget = {
-      segmentationId: 'segmentation-1',
-      segmentId: 'segment-1',
-    };
+  it('targets one segment per image, and holds its origin by reference', () => {
     const intent: ActiveSegmentIntent = {
-      name: 'Tumor',
-      color: [255, 0, 0, 255],
+      originSegmentId: 'segment-1',
       targetByImageId: {
-        'image-1': target,
-        'image-2': {
-          segmentationId: 'segmentation-2',
-          segmentId: 'segment-7',
-        },
+        'image-1': 'segment-1',
+        'image-2': 'segment-7',
       },
     };
 
-    expect(intent.targetByImageId['image-1']).toEqual(target);
-    expect(intent.targetByImageId['image-2'].segmentId).toBe('segment-7');
+    expect(intent.targetByImageId['image-1']).toBe(intent.originSegmentId);
+    expect(intent.targetByImageId['image-2']).toBe('segment-7');
   });
 
   describe('functional CSS colors', () => {

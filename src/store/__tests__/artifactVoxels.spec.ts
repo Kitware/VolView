@@ -116,9 +116,7 @@ describe('artifact voxel accessor', () => {
       const seat = seatArtifact('img-1');
 
       expect(store().artifactVoxels(seat.artifactId).image()).toBe(
-        store()
-          .segmentVoxels(seat.first.segmentationId, seat.first.segmentId)
-          .image()
+        store().segmentVoxels(seat.first.segmentId).image()
       );
     });
   });
@@ -242,10 +240,7 @@ describe('artifact voxel accessor', () => {
   describe('shared storage', () => {
     it('shows a segment accessor write through the artifact accessor', () => {
       const seat = seatArtifact('img-1');
-      const segment = store().segmentVoxels(
-        seat.first.segmentationId,
-        seat.first.segmentId
-      );
+      const segment = store().segmentVoxels(seat.first.segmentId);
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[2] = 1;
@@ -262,11 +257,7 @@ describe('artifact voxel accessor', () => {
       store().artifactVoxels(seat.artifactId).scalars()[6] = 2;
 
       expect(
-        Array.from(
-          store()
-            .segmentVoxels(seat.second.segmentationId, seat.second.segmentId)
-            .snapshot()
-        )[6]
+        Array.from(store().segmentVoxels(seat.second.segmentId).snapshot())[6]
       ).toBe(2);
     });
   });

@@ -8,14 +8,16 @@ defineEmits([
   'delete',
   'update:name',
   'update:color',
-  'update:opacity',
+  'update:fillOpacity',
+  'update:outlineOpacity',
 ]);
 
 const props = defineProps<{
   name: string;
   color: string;
   invalidNames: Set<string>;
-  opacity: number;
+  fillOpacity: number;
+  outlineOpacity: number;
 }>();
 
 function isUniqueEditingName(name: string) {
@@ -51,15 +53,27 @@ const valid = computed(() => {
       />
       <v-slider
         class="mx-4 my-1"
-        label="Segment Fill Opacity"
+        label="Fill Opacity"
         min="0"
         max="1"
         step="0.01"
         density="compact"
         hide-details
         thumb-label
-        :model-value="opacity"
-        @update:model-value="$emit('update:opacity', $event)"
+        :model-value="fillOpacity"
+        @update:model-value="$emit('update:fillOpacity', $event)"
+      />
+      <v-slider
+        class="mx-4 my-1"
+        label="Outline Opacity"
+        min="0"
+        max="1"
+        step="0.01"
+        density="compact"
+        hide-details
+        thumb-label
+        :model-value="outlineOpacity"
+        @update:model-value="$emit('update:outlineOpacity', $event)"
       />
     </template>
   </label-editor>

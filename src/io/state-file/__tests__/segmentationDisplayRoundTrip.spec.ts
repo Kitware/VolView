@@ -61,14 +61,14 @@ const baseManifest = () =>
 function buildScene() {
   const segmentation = store().ensureSegmentationForImage('img-1');
   const tumor = store().createSegment(segmentation.id, { name: 'Tumor' });
-  store().ensureLabelmapBinding(segmentation.id, tumor.id);
+  store().ensureLabelmapBinding(tumor.id);
   const planned = store().createSegment(segmentation.id, { name: 'Planned' });
 
-  store().updateSegment(segmentation.id, tumor.id, {
+  store().updateSegment(tumor.id, {
     fillOpacity: 0.25,
     outlineOpacity: 0.75,
   });
-  store().updateSegment(segmentation.id, planned.id, { fillOpacity: 0 });
+  store().updateSegment(planned.id, { fillOpacity: 0 });
 
   const model = store().segmentations[segmentation.id];
   model.fillOpacity = 0.5;

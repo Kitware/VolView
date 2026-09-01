@@ -84,8 +84,6 @@ describe('shared segment identity for polygons and rectangles', () => {
 
   it('updates a tool’s displayed name when the segment is renamed', async () => {
     const store = usePolygonStore();
-    const segmentation =
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!;
     const segment = makeSegment('Tumor');
     store.setActiveSegment(segment.id);
     const id = store.addTool({
@@ -94,7 +92,7 @@ describe('shared segment identity for polygons and rectangles', () => {
       label: segment.id,
     });
 
-    useSegmentationStore().updateSegment(segmentation.id, segment.id, {
+    useSegmentationStore().updateSegment(segment.id, {
       name: 'Lesion',
     });
     await nextTick();
@@ -104,8 +102,6 @@ describe('shared segment identity for polygons and rectangles', () => {
 
   it('updates a tool’s color when the segment is recolored', async () => {
     const store = usePolygonStore();
-    const segmentation =
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!;
     const segment = makeSegment('Tumor', [214, 0, 0, 255]);
     store.setActiveSegment(segment.id);
     const id = store.addTool({
@@ -114,7 +110,7 @@ describe('shared segment identity for polygons and rectangles', () => {
       label: segment.id,
     });
 
-    useSegmentationStore().updateSegment(segmentation.id, segment.id, {
+    useSegmentationStore().updateSegment(segment.id, {
       color: [0, 0, 255, 255],
     });
     await nextTick();
@@ -171,12 +167,10 @@ describe('shared segment identity for polygons and rectangles', () => {
 
   it('restores a tool whose segment was deleted as unlabeled', () => {
     const store = usePolygonStore();
-    const segmentation =
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!;
     const segment = makeSegment('Tumor');
     store.setActiveSegment(segment.id);
     store.addTool({ imageID: IMAGE_ID, placing: false, label: segment.id });
-    useSegmentationStore().deleteSegment(segmentation.id, segment.id);
+    useSegmentationStore().deleteSegment(segment.id);
 
     const serialized = JSON.parse(JSON.stringify(store.serializeTools()));
     expect(serialized.tools[0].label).toBe(segment.id);

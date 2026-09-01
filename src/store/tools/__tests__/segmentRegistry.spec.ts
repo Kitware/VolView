@@ -82,7 +82,7 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    segmentationStore().updateSegment(segmentation.id, segment.id, {
+    segmentationStore().updateSegment(segment.id, {
       name: 'Lesion',
     });
 
@@ -100,7 +100,7 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    segmentationStore().updateSegment(segmentation.id, segment.id, {
+    segmentationStore().updateSegment(segment.id, {
       color: [0, 0, 255, 255],
     });
 
@@ -116,7 +116,7 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    segmentationStore().deleteSegment(segmentation.id, segment.id);
+    segmentationStore().deleteSegment(segment.id);
 
     expect(registry.segments.value).toEqual([]);
     expect(registry.getSegment(segment.id)).toBeUndefined();
@@ -182,7 +182,7 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    segmentationStore().setActiveSegment(segmentation.id, segment.id);
+    segmentationStore().setActiveSegment(segment.id);
 
     expect(registry.activeSegmentId.value).toBe(segment.id);
   });
@@ -196,10 +196,7 @@ describe('shared segment registry', () => {
 
     registry.setActiveSegment(segment.id);
 
-    expect(segmentationStore().activeTarget).toEqual({
-      segmentationId: segmentation.id,
-      segmentId: segment.id,
-    });
+    expect(segmentationStore().activeSegmentId).toBe(segment.id);
   });
 
   it('scopes segments to the viewed image', () => {

@@ -1,6 +1,9 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
 
-import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
+import {
+  STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
+  TOOL_COLORS,
+} from '@/src/config';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import type { Maybe } from '@/src/types';
@@ -56,11 +59,14 @@ export type SegmentLabelApi<Props> = {
 /**
  * The identity half of a tool's manifest entry: a shared registry's segments
  * already serialize on their segmentation, so only their per-tool props go on
- * the wire; a local registry still carries its whole label record.
+ * the wire; a local registry still carries its whole label record. Config
+ * templates have no segment to ride on, so a tool labeled with one would
+ * restore unlabeled unless they travel too.
  */
 export type ToolWireIdentity<Props> = {
   labels?: Labels<Props>;
   segmentProps?: Labels<Props>;
+  templates?: Labels<Props>;
 };
 
 export type ToolSegmentRegistry<Props> = SegmentRegistry &
@@ -104,13 +110,10 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
 
   const segments = computed(() => currentSegments.value.map(toRegistrySegment));
 
-  const owningSegmentation = (segmentId: string) =>
-    Object.values(segmentationStore.segmentations).find(
-      (segmentation) => segmentId in segmentation.segments
-    );
-
   const findSegment = (segmentId: string) =>
-    owningSegmentation(segmentId)?.segments[segmentId];
+    segmentationStore.segmentExists(segmentId)
+      ? segmentationStore.getSegment(segmentId)
+      : undefined;
 
   const getSegment = (id: string) => {
     const segment = findSegment(id);
@@ -131,39 +134,116 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
       list.map((segment) => [segment.id, toLabel(segment)])
     ) as Labels<Props>;
 
-  const labels = computed(() => toLabelRecord(currentSegments.value));
+  // Config labels are declared once for the session, before any image loads.
+  // They stay templates: nothing is minted until an edit materializes one, so
+  // the picker offers the viewed image's segments followed by the templates
+  // that image does not have yet.
+  const sessionLabels = ref<Labels<Props>>({}) as Ref<Labels<Props>>;
 
-  const allLabels = computed(() =>
-    toLabelRecord(
-      Object.values(segmentationStore.segmentations).flatMap(listSegments)
-    )
+  const TEMPLATE_ID_PREFIX = 'config-label:';
+  const templateId = (name: string) => `${TEMPLATE_ID_PREFIX}${name}`;
+  const templateNameOf = (id: string) =>
+    id.startsWith(TEMPLATE_ID_PREFIX)
+      ? id.slice(TEMPLATE_ID_PREFIX.length)
+      : undefined;
+
+  const toTemplateLabel = (name: string, props: ToolLabel) =>
+    ({
+      ...annotationToolLabelDefault,
+      ...newLabelDefault,
+      color: TOOL_COLORS[0],
+      ...props,
+      labelName: name,
+    }) as ToolLabel;
+
+  const templateLabels = computed(
+    () =>
+      Object.fromEntries(
+        Object.entries(sessionLabels.value).map(([name, props]) => [
+          templateId(name),
+          toTemplateLabel(name, props),
+        ])
+      ) as Labels<Props>
+  );
+
+  const pendingTemplateNames = computed(() => {
+    const taken = new Set(currentSegments.value.map((segment) => segment.name));
+    return Object.keys(sessionLabels.value).filter((name) => !taken.has(name));
+  });
+
+  const labels = computed(
+    () =>
+      ({
+        ...toLabelRecord(currentSegments.value),
+        ...Object.fromEntries(
+          pendingTemplateNames.value.map((name) => [
+            templateId(name),
+            templateLabels.value[templateId(name)],
+          ])
+        ),
+      }) as Labels<Props>
+  );
+
+  // Templates included: a tool placed against one points at its template id, so
+  // resolving that id has to keep working after the template's name is taken on
+  // some image and the picker stops offering it.
+  const allLabels = computed(
+    () =>
+      ({
+        ...toLabelRecord(
+          Object.values(segmentationStore.segmentations).flatMap(listSegments)
+        ),
+        ...templateLabels.value,
+      }) as Labels<Props>
   );
 
   // Scoped to the viewed image: a segment belonging to another image must not
   // label an annotation placed here, or the annotation references a segment its
   // own image's segmentation does not hold.
   const activeSegmentId = computed(() => {
-    const target = segmentationStore.activeTarget;
-    if (!target || !currentImageID.value) return undefined;
-    const segmentation = segmentationStore.getSegmentationForImage(
-      currentImageID.value
-    );
-    return segmentation?.id === target.segmentationId
-      ? target.segmentId
+    const segmentId = segmentationStore.activeSegmentId;
+    if (!segmentId) return undefined;
+    return currentSegmentation.value?.segments[segmentId]
+      ? segmentId
+      : undefined;
+  });
+
+  // Derived, never mirrored: the store drops the template from the intent when
+  // an edit materializes it, so the picker cannot go on reporting one selected.
+  const activeTemplateName = computed(
+    () => segmentationStore.activeSegmentIntent?.template?.name
+  );
+
+  const activeTemplateId = computed(() => {
+    const name = activeTemplateName.value;
+    if (!name) return undefined;
+    return pendingTemplateNames.value.includes(name)
+      ? templateId(name)
       : undefined;
   });
 
   const setActiveLabel = (id: string | undefined) => {
-    const segmentation = id ? owningSegmentation(id) : undefined;
-    if (!id || !segmentation) {
+    const templateName = id ? templateNameOf(id) : undefined;
+    const template = templateName
+      ? sessionLabels.value[templateName]
+      : undefined;
+    if (templateName && template) {
+      segmentationStore.setActiveSegmentTemplate({
+        name: templateName,
+        color: cssColorToRGBA(toTemplateLabel(templateName, template).color!),
+      });
+      return;
+    }
+
+    if (!id || !segmentationStore.segmentExists(id)) {
       segmentationStore.clearActiveSegment();
       return;
     }
-    segmentationStore.setActiveSegment(segmentation.id, id);
+    segmentationStore.setActiveSegment(id);
   };
 
   const activeLabel = computed({
-    get: () => activeSegmentId.value ?? undefined,
+    get: () => activeSegmentId.value ?? activeTemplateId.value,
     set: setActiveLabel,
   });
 
@@ -185,6 +265,29 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     };
   };
 
+  // Per-tool props belong to this tool store, so the segmentation store cannot
+  // carry them across: they follow onto whatever an edit mints for the intent,
+  // from the declared template first and from the origin segment on every
+  // later cross-image clone.
+  watch(
+    () => segmentationStore.mintedSegment,
+    (minted) => {
+      if (!minted) return;
+      const declared = minted.templateName
+        ? sessionLabels.value[minted.templateName]
+        : undefined;
+      if (declared) {
+        setProps(minted.segmentId, splitLabel(declared).props);
+        return;
+      }
+      const inherited = minted.fromSegmentId
+        ? propsBySegment.value[minted.fromSegmentId]
+        : undefined;
+      if (inherited) setProps(minted.segmentId, inherited);
+    },
+    { flush: 'sync' }
+  );
+
   const addLabelForImage = (imageId: Maybe<string>, label: ToolLabel) => {
     if (!imageId) return '';
     const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
@@ -200,22 +303,46 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return id;
   };
 
+  // Editing a template edits the template: it has no segment to write into
+  // until an edit materializes it.
+  const updateTemplate = (name: string, patch: ToolLabel) => {
+    const { labelName, ...rest } = patch;
+    const renamed = labelName ?? name;
+    const { [name]: existing, ...others } = sessionLabels.value;
+    sessionLabels.value = {
+      ...others,
+      [renamed]: { ...existing, ...rest },
+    } as Labels<Props>;
+    if (activeTemplateName.value === name) setActiveLabel(templateId(renamed));
+  };
+
   const updateLabel = (id: string, patch: ToolLabel) => {
-    const segmentation = owningSegmentation(id);
-    if (!segmentation) throw new Error('Label does not exist');
+    const templateName = templateNameOf(id);
+    if (templateName && sessionLabels.value[templateName]) {
+      updateTemplate(templateName, patch);
+      return;
+    }
+    if (!segmentationStore.segmentExists(id))
+      throw new Error('Label does not exist');
 
     const { identity, props } = splitLabel(patch);
-    segmentationStore.updateSegment(segmentation.id, id, identity);
+    segmentationStore.updateSegment(id, identity);
     setProps(id, props);
   };
 
   const deleteLabel = (id: string) => {
-    const segmentation = owningSegmentation(id);
-    if (!segmentation) throw new Error('Label does not exist');
+    const templateName = templateNameOf(id);
+    if (templateName && sessionLabels.value[templateName]) {
+      sessionLabels.value = omit(sessionLabels.value, templateName);
+      if (activeTemplateName.value === templateName) setActiveLabel('');
+      return;
+    }
+    if (!segmentationStore.segmentExists(id))
+      throw new Error('Label does not exist');
 
-    // Read before deleting: the store drops the active target with the segment.
+    // Read before deleting: the store drops the active segment with it.
     const wasActive = id === activeLabel.value;
-    segmentationStore.deleteSegment(segmentation.id, id);
+    segmentationStore.deleteSegment(id);
     propsBySegment.value = omit(propsBySegment.value, id);
 
     if (wasActive) {
@@ -251,44 +378,32 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   const mergeLabel = (label: ToolLabel) =>
     mergeLabelForImage(currentImageID.value, label);
 
-  // Config labels are declared once for the session, but segments live per
-  // image and config lands before any image loads, so they are held here and
-  // seeded into each image's segmentation as that image becomes current.
-  let sessionLabels: Labels<Props> = {};
-  const seededImages = new Set<string>();
-
-  const seedSessionLabels = (imageId: string) => {
-    const entries = Object.entries(sessionLabels);
-    if (entries.length === 0 || seededImages.has(imageId)) return;
-    seededImages.add(imageId);
-    entries.forEach(([labelName, props]) =>
-      mergeLabelForImage(imageId, { ...props, labelName } as ToolLabel)
-    );
-  };
-
+  // Declaring config labels neither mints segments nor takes over the
+  // selection: they join the template pool the picker offers.
   const mergeLabels = (newLabels: Maybe<Labels<Props>>) => {
     const entries = Object.entries(newLabels ?? {});
     if (entries.length === 0) return;
-
-    sessionLabels = { ...sessionLabels, ...Object.fromEntries(entries) };
-    seededImages.clear();
-    if (currentImageID.value) seedSessionLabels(currentImageID.value);
+    sessionLabels.value = {
+      ...sessionLabels.value,
+      ...Object.fromEntries(entries),
+    } as Labels<Props>;
   };
 
-  watch(currentImageID, (imageId) => {
-    if (imageId) seedSessionLabels(imageId);
-  });
-
   // Loading a second config replaces the first config's labels rather than
-  // adding to them, so the templates it seeded are dropped here. Segments the
-  // user has since edited are left alone; only the untouched seeds go.
+  // adding to them. Segments a template already became are left alone; only
+  // the templates still unmaterialized go.
   const clearDefaultLabels = () => {
-    sessionLabels = {};
-    seededImages.clear();
+    const active = activeTemplateName.value;
+    // An intent pointing at a discarded template would still mint that label on
+    // the next edit, with the picker showing nothing selected.
+    if (active && sessionLabels.value[active])
+      segmentationStore.clearActiveSegment();
+    sessionLabels.value = {} as Labels<Props>;
   };
 
   // The segments themselves restore with their segmentation; only the props
   // this tool store owns are re-attached, keyed by the restored segment id.
+  // Templates have no segment, so they restore whole.
   const adoptIdentity = (
     serialized: Maybe<ToolWireIdentity<Props>>,
     segmentIdMap: Record<string, string>
@@ -305,9 +420,23 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
       }
     );
     propsBySegment.value = merged;
-    // A segment the restore did not recreate is a deleted one; leave the tool
-    // unlabeled.
-    return (labelId: Maybe<string>) => (labelId && segmentIdMap[labelId]) || '';
+
+    // The saved scene's templates win over the session's: restoring reproduces
+    // the scene that was saved.
+    sessionLabels.value = {
+      ...sessionLabels.value,
+      ...serialized?.templates,
+    } as Labels<Props>;
+
+    // A template keeps its own id across the round trip: it names a session
+    // label, not a segment, so there is nothing to remap it to. A segment the
+    // restore did not recreate is a deleted one; leave the tool unlabeled.
+    return (labelId: Maybe<string>) => {
+      if (!labelId) return '';
+      const templateName = templateNameOf(labelId);
+      if (templateName) return sessionLabels.value[templateName] ? labelId : '';
+      return segmentIdMap[labelId] || '';
+    };
   };
 
   // Props outlive the tools that reference them: a label customized before any
@@ -316,6 +445,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     segmentProps: Object.fromEntries(
       Object.entries(propsBySegment.value).filter(([id]) => !!findSegment(id))
     ) as Labels<Props>,
+    templates: sessionLabels.value,
   });
 
   return {

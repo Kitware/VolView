@@ -74,7 +74,7 @@ function addTestSegment(values = new Uint8Array([0, 0]), labelValue = 1) {
   ]);
   const segmentationId =
     segmentationStore.getSegmentationForImage('image-1')!.id;
-  segmentationStore.setActiveSegment(segmentationId, segment.id);
+  segmentationStore.setActiveSegment(segment.id);
 
   return { segmentationId, segmentId: segment.id, artifactId, labelMap };
 }
@@ -248,12 +248,12 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { segmentationId, segmentId } = addTestSegment();
+      const { segmentId } = addTestSegment();
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       expect(processStore.processState.step).toBe('previewing');
 
-      segmentationStore.deleteSegment(segmentationId, segmentId);
+      segmentationStore.deleteSegment(segmentId);
       await nextTick();
 
       expect(processStore.processState.step).toBe('start');

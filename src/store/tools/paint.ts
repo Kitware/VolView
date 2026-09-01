@@ -107,24 +107,14 @@ export const usePaintToolStore = defineStore('paint', () => {
    * The segment this operation writes into, with its storage allocated.
    */
   function resolveStrokeTarget(imageID: string) {
-    const target = segmentationStore.resolveEditTarget(imageID);
-    const segment = segmentationStore.getSegment(
-      target.segmentationId,
-      target.segmentId
-    );
-    if (segment.locked) return undefined;
+    const segmentId = segmentationStore.resolveEditTarget(imageID);
+    if (segmentationStore.getSegment(segmentId).locked) return undefined;
 
-    const binding = segmentationStore.ensureLabelmapBinding(
-      target.segmentationId,
-      target.segmentId
-    );
+    const binding = segmentationStore.ensureLabelmapBinding(segmentId);
     return {
       labelValue: binding.labelValue,
       artifactId: binding.artifactId,
-      voxels: segmentationStore.segmentVoxels(
-        target.segmentationId,
-        target.segmentId
-      ),
+      voxels: segmentationStore.segmentVoxels(segmentId),
     };
   }
 

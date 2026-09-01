@@ -46,7 +46,7 @@ describe('polygon rasterize target', () => {
       store().artifactIndex[target.artifactId]
     );
     expect(
-      store().getSegment(segmentation.id, segment.id).representations.labelmap
+      store().getSegment(segment.id).representations.labelmap
     ).toMatchObject({ artifactId: target.artifactId, labelValue: 1 });
   });
 
@@ -54,14 +54,14 @@ describe('polygon rasterize target', () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const first = store().createSegment(segmentation.id, { name: 'Other' });
-    store().ensureLabelmapBinding(segmentation.id, first.id);
+    store().segmentVoxels(first.id).materialize();
     const second = store().createSegment(segmentation.id, { name: 'Tumor' });
 
     const target = resolveRasterizeTarget('img-1', second.id);
 
     expect(target.labelValue).toBe(2);
     expect(target.artifactId).toBe(
-      store().resolveLabelmapBinding(segmentation.id, first.id)!.artifactId
+      store().resolveLabelmapBinding(first.id)!.artifactId
     );
   });
 
@@ -83,14 +83,11 @@ describe('polygon rasterize target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const active = store().createSegment(segmentation.id, { name: 'Active' });
     const other = store().createSegment(segmentation.id, { name: 'Other' });
-    store().setActiveSegment(segmentation.id, active.id);
+    store().setActiveSegment(active.id);
 
     resolveRasterizeTarget('img-1', other.id);
 
-    expect(store().activeTarget).toEqual({
-      segmentationId: segmentation.id,
-      segmentId: active.id,
-    });
+    expect(store().activeSegmentId).toBe(active.id);
   });
 
   it('rejects a segment that does not belong to the image', async () => {
@@ -109,7 +106,7 @@ describe('polygon rasterize target', () => {
 
     const segmentation = store().getSegmentationForImage('img-1');
     expect(Object.keys(segmentation!.segments)).toHaveLength(1);
-    expect(store().activeTarget?.segmentId).toBe(
+    expect(store().activeSegmentId).toBe(
       Object.keys(segmentation!.segments)[0]
     );
     expect(target.voxels.image()).toBe(
@@ -153,7 +150,7 @@ describe('polygon rasterize target', () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
-    store().deleteSegment(segmentation.id, segment.id);
+    store().deleteSegment(segment.id);
 
     // The tool keeps the deleted segment's id; that must not block rasterizing.
     const target = resolveRasterizeTarget('img-1', segment.id);

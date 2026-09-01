@@ -492,7 +492,7 @@ describe('JobsModule — segment group staging', () => {
       labelValue: 1,
       extent: [0, 1, 0, 1, 0, 1],
     };
-    store.setActiveSegment(segmentation.id, segment.id);
+    store.setActiveSegment(segment.id);
   };
 
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {

@@ -37,6 +37,9 @@ export type LabelmapSegment = {
   color: RGBAColor;
   visible: boolean;
   locked?: boolean;
+  // Absent on descriptors that come off a file rather than off a segment.
+  fillOpacity?: number;
+  outlineOpacity?: number;
 };
 
 export type Segmentation = {
@@ -99,15 +102,23 @@ export function listSegments(segmentation: Segmentation) {
   return segmentation.order.map((id) => segmentation.segments[id]);
 }
 
-export type ActiveSegmentationTarget = {
-  segmentationId: string;
-  segmentId: string;
-};
-
-export type ActiveSegmentIntent = {
+/** The name and color a new segment is minted with. */
+export type SegmentIdentity = {
   name: string;
   color: RGBAColor;
-  targetByImageId: Record<string, ActiveSegmentationTarget>;
+};
+
+/**
+ * Which segment the user means, and where that intent has already landed per
+ * image. Identity is held by reference to the origin segment so a rename or a
+ * recolor after selection carries into a later cross-image clone; a config
+ * template has no segment yet, so it carries its identity directly until the
+ * first edit materializes it.
+ */
+export type ActiveSegmentIntent = {
+  originSegmentId?: string;
+  template?: SegmentIdentity;
+  targetByImageId: Record<string, string>;
 };
 
 export function emptyExtent(): Extent3D {

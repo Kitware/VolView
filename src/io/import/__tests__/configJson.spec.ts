@@ -90,6 +90,14 @@ describe('label config', () => {
     useViewStore().setDataForAllViews(id);
   };
 
+  const labelIdNamed = (labels: Record<string, LabelRecord>, name: string) => {
+    const found = Object.entries(labels).find(
+      ([, label]) => label.labelName === name
+    );
+    if (!found) throw new Error(`No label named "${name}"`);
+    return found[0];
+  };
+
   const labelSummary = (store: { labels: Record<string, LabelRecord> }) =>
     Object.values(store.labels).map(({ labelName, color }) => ({
       labelName,
@@ -191,9 +199,44 @@ describe('label config', () => {
     expect(labelSummary(usePolygonStore())).toEqual([
       { labelName: 'Tumor', color: '#00ff00' },
     ]);
+    // Offered, not minted: a config label becomes a segment on the first edit.
     expect(
-      useSegmentationStore().getSegmentationForImage('img-1')?.order
-    ).toHaveLength(1);
+      useSegmentationStore().getSegmentationForImage('img-1')
+    ).toBeUndefined();
+  });
+
+  // Per-tool props are the tool store's own, so the segmentation store cannot
+  // carry them: they have to follow onto the segment the first edit mints. One
+  // selection materializes the template for every tool that declared it.
+  it('keeps configured props on the segment a label becomes', async () => {
+    applyPostStateConfig(
+      config.parse({
+        labels: {
+          polygonLabels: { Tumor: { color: '#00ff00', strokeWidth: 9 } },
+          rectangleLabels: {
+            Tumor: { color: '#00ff00', fillColor: '#00ff0033' },
+          },
+        },
+      })
+    );
+    seatAndView('img-1');
+    await nextTick();
+
+    const polygons = usePolygonStore();
+    const rectangles = useRectangleStore();
+    polygons.setActiveLabel(labelIdNamed(polygons.labels, 'Tumor'));
+    const segmentId = useSegmentationStore().resolveEditTarget('img-1');
+
+    expect(polygons.labels[segmentId]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#00ff00',
+      strokeWidth: 9,
+    });
+    expect(rectangles.labels[segmentId]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#00ff00',
+      fillColor: '#00ff0033',
+    });
   });
 
   it('creates no segments when no labels are configured', async () => {

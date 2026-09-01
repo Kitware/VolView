@@ -62,15 +62,18 @@ export default defineComponent({
     // widget's own image: the active artifact can belong to another image after
     // a switch, and its transforms would displace the brush.
     const activeLabelmap = computed(() => {
-      const artifactId = segmentationStore.activeArtifactId;
-      if (!artifactId) return null;
+      const segmentId = segmentationStore.activeSegmentId;
+      const binding = segmentId
+        ? segmentationStore.resolveLabelmapBinding(segmentId)
+        : undefined;
+      if (!binding) return null;
       if (
-        segmentationStore.artifactMeta[artifactId]?.parentImage !==
+        segmentationStore.artifactMeta[binding.artifactId]?.parentImage !==
         imageId.value
       ) {
         return null;
       }
-      const voxels = segmentationStore.artifactVoxels(artifactId);
+      const voxels = segmentationStore.artifactVoxels(binding.artifactId);
       return voxels.exists() ? voxels.image() : null;
     });
 
