@@ -58,7 +58,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   usePaintProcessStore,
   type ProcessAlgorithm,
@@ -74,15 +73,12 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const processStore = usePaintProcessStore();
-const paintStore = usePaintToolStore();
 
 const processStep = computed(() => processStore.processStep);
 const showingOriginal = computed(() => processStore.showingOriginal);
 
 function startCompute() {
-  const id = paintStore.activeSegmentGroupID;
-  if (!id) return;
-  processStore.startProcess(id, props.algorithm, {
+  processStore.startProcess(props.algorithm, {
     requiresActiveSegment: props.requiresActiveSegment,
   });
 }

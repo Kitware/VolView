@@ -174,6 +174,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     );
   }
 
+  /** The artifact an operation's labelmap belongs to. */
+  const findArtifactIdForLabelmap = (labelmap: vtkLabelMap) =>
+    Object.keys(artifactIndex).find((id) => artifactIndex[id] === labelmap);
+
   function findSegmentByLabelValue(artifactId: string, labelValue: number) {
     return segmentsForArtifact(artifactId).find(
       (segment) => segment.representations.labelmap?.labelValue === labelValue
@@ -395,6 +399,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     activeTargetRef.value = undefined;
   }
 
+  /** The artifact the active segment writes into, once it has storage. */
+  const activeArtifactId = computed(() => {
+    const target = activeTarget.value;
+    if (!target) return undefined;
+    return segmentAt(target)?.representations.labelmap?.artifactId;
+  });
+
   /**
    * The one entry point every edit path calls at operation time. Only this
    * creates a segment; setting an active segment or viewing another image
@@ -476,6 +487,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     artifactOrderByParent,
     labelmapSegmentsByArtifact,
     activeTarget,
+    activeArtifactId,
     setActiveSegment,
     clearActiveSegment,
     resolveEditTarget,
@@ -493,6 +505,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegmentationForArtifact,
     segmentsForArtifact,
     findSegmentByLabelValue,
+    findArtifactIdForLabelmap,
     registerArtifact,
     createArtifactForImage,
     updateArtifactMeta,

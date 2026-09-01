@@ -11,7 +11,6 @@ import { PaintMode } from '@/src/core/tools/paint';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
 import { Tools } from './types';
-import { useSegmentGroupStore } from '../segmentGroups';
 import { useSegmentationStore } from '../segmentations';
 import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
@@ -20,8 +19,7 @@ import { useImageCacheStore } from '../image-cache';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { isRecord } from '@/src/utils';
 
-// The manifest reference this store's sync orphan-watch keeps clean (see the
-// activeSegmentGroupID watch below), declared for the dev-only save backstop.
+// wire-format shim, replaced in C7
 declareManifestRefs('tools.paint', (manifest) => {
   const tools = isRecord(manifest.tools) ? manifest.tools : {};
   const paint = isRecord(tools.paint) ? tools.paint : {};
@@ -48,8 +46,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activeMode = ref(PaintMode.CirclePaint);
   const modeBeforeProcess = ref(PaintMode.CirclePaint);
   const processControlsOpen = ref(false);
-  const activeSegmentGroupID = ref<Maybe<string>>(null);
-  const activeSegment = ref<Maybe<number>>(null);
   const brushSize = ref(DEFAULT_BRUSH_SIZE);
   const strokePoints = ref<vec3[]>([]);
   const isActive = ref(false);
@@ -57,7 +53,6 @@ export const usePaintToolStore = defineStore('paint', () => {
   const crossPlaneSync = ref(false);
   const paintPosition = ref<Vector3>([0, 0, 0]);
   const activePaintViewID = ref<Maybe<string>>(null);
-  const lastSegmentByGroup = ref<Record<string, number>>({});
 
   const { currentImageID, currentImageMetadata } = useCurrentImage('global');
   const imageStatsStore = useImageStatsStore();
@@ -69,24 +64,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     return this.$paint.factory;
   }
 
-  const segmentGroupStore = useSegmentGroupStore();
   const segmentationStore = useSegmentationStore();
-
-  // Delete-base cleanup: removing a dataset cascades away its segment groups.
-  // `serialize` writes the raw `activeSegmentGroupID`, so null it the instant
-  // its record leaves the store or the save manifest carries an orphaned id.
-  // Sync flush keeps this within the same `datasetStore.remove` call — the same
-  // remove-cascade contract as onImageDeleted, but keyed on segmentGroupID (not
-  // imageID), so it watches the record set instead of using that composable.
-  watch(
-    () =>
-      activeSegmentGroupID.value != null &&
-      !(activeSegmentGroupID.value in segmentationStore.artifactMeta),
-    (orphaned) => {
-      if (orphaned) activeSegmentGroupID.value = null;
-    },
-    { flush: 'sync' }
-  );
 
   const isPaintingModeActive = computed(
     () =>
@@ -143,73 +121,27 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   /**
-   * Sets the active labelmap.
+   * The segment this operation writes into, with its storage allocated.
    */
-  function setActiveSegmentGroup(segmentGroupID: Maybe<string>) {
-    activeSegmentGroupID.value = segmentGroupID;
-  }
+  function resolveStrokeTarget(imageID: string) {
+    const target = segmentationStore.resolveEditTarget(imageID);
+    const segment = segmentationStore.getSegment(
+      target.segmentationId,
+      target.segmentId
+    );
+    if (segment.locked) return undefined;
 
-  function getValidSegmentGroupID(imageID: Maybe<string>): Maybe<string> {
-    if (!imageID) return null;
-
-    // If current segment group belongs to this image, keep using it
-    if (
-      activeSegmentGroupID.value &&
-      segmentationStore.artifactMeta[activeSegmentGroupID.value]
-        ?.parentImage === imageID
-    ) {
-      return activeSegmentGroupID.value;
-    }
-
-    // Otherwise look for other segment groups for this image
-    const segmentGroups = segmentGroupStore.orderByParent[imageID];
-    if (segmentGroups && segmentGroups.length > 0) {
-      return segmentGroups[0];
-    }
-    return null;
-  }
-
-  /**
-   * Sets the active labelmap from a given image.
-   *
-   * If a labelmap exists, pick one. If no labelmap exists, create one.
-   */
-  function ensureActiveSegmentGroupForImage(imageID: Maybe<string>) {
-    if (!imageID) {
-      setActiveSegmentGroup(null);
-      return;
-    }
-
-    const segmentGroupID =
-      getValidSegmentGroupID(imageID) ??
-      segmentGroupStore.newLabelmapFromImage(imageID);
-    setActiveSegmentGroup(segmentGroupID);
-  }
-
-  /**
-   * Sets the active segment.
-   *
-   * If the segment may be null | undefined, indicating no paint will occur.
-   * @param segValue
-   */
-  function setActiveSegment(this: _This, segValue: Maybe<number>) {
-    if (segValue) {
-      if (!activeSegmentGroupID.value)
-        throw new Error('Cannot set active segment without a labelmap');
-
-      if (
-        !segmentationStore.findSegmentByLabelValue(
-          activeSegmentGroupID.value,
-          segValue
-        )
-      )
-        throw new Error('Segment is not available for the active labelmap');
-
-      lastSegmentByGroup.value[activeSegmentGroupID.value] = segValue;
-    }
-
-    activeSegment.value = segValue;
-    this.$paint.setBrushValue(segValue);
+    const binding = segmentationStore.ensureLabelmapBinding(
+      target.segmentationId,
+      target.segmentId
+    );
+    const labelmap = segmentationStore.artifactIndex[binding.artifactId];
+    if (!labelmap) return undefined;
+    return {
+      labelValue: binding.labelValue,
+      artifactId: binding.artifactId,
+      labelmap,
+    };
   }
 
   /**
@@ -223,31 +155,21 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
-    const segmentGroupID = getValidSegmentGroupID(imageID);
-    if (!segmentGroupID) return;
+    const target = resolveStrokeTarget(imageID);
+    if (!target) return;
 
-    const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
-    if (!labelmap) return;
+    const { labelmap, labelValue } = target;
+    this.$paint.setBrushValue(labelValue);
 
     // One catalog read per stroke: the per-voxel predicate below is the hot path.
     const lockedValues = new Set(
       segmentationStore
-        .segmentsForArtifact(segmentGroupID)
+        .segmentsForArtifact(target.artifactId)
         .filter((segment) => segment.locked)
         .map((segment) => segment.representations.labelmap!.labelValue)
     );
 
-    // Prevent painting if active segment is locked or doesn't exist
-    if (activeSegment.value) {
-      const segment = segmentationStore.findSegmentByLabelValue(
-        segmentGroupID,
-        activeSegment.value
-      );
-      if (!segment || segment.locked) {
-        return;
-      }
-    }
-
+    const erasing = activeMode.value === PaintMode.Erase;
     const imageData = useImageCacheStore().getVtkImageData(imageID);
     const underlyingImagePixels = imageData
       ?.getPointData()
@@ -265,6 +187,9 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (lockedValues.has(currentData[idx])) {
         return false;
       }
+
+      // Erase clears the active segment only.
+      if (erasing && currentData[idx] !== labelValue) return false;
 
       const pixValue = underlyingImagePixels[idx];
       return minThreshold <= pixValue && pixValue <= maxThreshold;
@@ -301,45 +226,12 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushScale(scale);
   }
 
-  function switchToSegmentGroupForImage(this: _This, imageID: string) {
-    const segmentGroupID =
-      getValidSegmentGroupID(imageID) ??
-      segmentGroupStore.newLabelmapFromImage(imageID);
-
-    if (!segmentGroupID) {
-      throw new Error(
-        `Failed to create or find segment group for image ${imageID}`
-      );
-    }
-
-    if (activeSegmentGroupID.value === segmentGroupID) return;
-
-    setActiveSegmentGroup(segmentGroupID);
-
-    if (!segmentationStore.artifactMeta[segmentGroupID]) return;
-
-    const labelValues = segmentationStore
-      .segmentsForArtifact(segmentGroupID)
-      .map((segment) => segment.representations.labelmap!.labelValue);
-
-    const lastSegment = lastSegmentByGroup.value[segmentGroupID];
-    if (lastSegment !== undefined && labelValues.includes(lastSegment)) {
-      setActiveSegment.call(this, lastSegment);
-      return;
-    }
-
-    if (labelValues.length > 0) {
-      setActiveSegment.call(this, labelValues[0]);
-    }
-  }
-
   function startStroke(
     this: _This,
     worldPoint: vec3,
     axisIndex: 0 | 1 | 2,
     imageID: string
   ) {
-    switchToSegmentGroupForImage.call(this, imageID);
     strokePoints.value = [vec3.clone(worldPoint)];
     doPaintStroke.call(this, axisIndex, imageID);
   }
@@ -391,7 +283,11 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (!imageID) {
       return false;
     }
-    ensureActiveSegmentGroupForImage(imageID);
+    const target = segmentationStore.resolveEditTarget(imageID);
+    segmentationStore.ensureLabelmapBinding(
+      target.segmentationId,
+      target.segmentId
+    );
     this.$paint.setBrushSize(this.brushSize);
 
     isActive.value = true;
@@ -455,13 +351,25 @@ export const usePaintToolStore = defineStore('paint', () => {
     activePaintViewID.value = activeViewID;
   }
 
+  // wire-format shim, replaced in C7
+  const activeBinding = () => {
+    const target = segmentationStore.activeTarget;
+    if (!target) return undefined;
+    return segmentationStore.resolveLabelmapBinding(
+      target.segmentationId,
+      target.segmentId
+    );
+  };
+
   function serialize(state: StateFile) {
     const paint = state.manifest.tools?.paint;
     if (!paint) return;
 
-    paint.activeSegmentGroupID = activeSegmentGroupID.value ?? null;
+    // wire-format shim, replaced in C7
+    const binding = activeBinding();
+    paint.activeSegmentGroupID = binding?.artifactId ?? null;
+    paint.activeSegment = binding?.labelValue ?? null;
     paint.brushSize = brushSize.value;
-    paint.activeSegment = activeSegment.value;
     paint.crossPlaneSync = crossPlaneSync.value;
   }
 
@@ -478,11 +386,22 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
     isActive.value = manifest.tools?.current === Tools.Paint;
 
-    if (paint.activeSegmentGroupID) {
-      activeSegmentGroupID.value =
-        segmentGroupIDMap[paint.activeSegmentGroupID];
-      setActiveSegmentGroup(activeSegmentGroupID.value);
-      setActiveSegment.call(this, paint.activeSegment);
+    // wire-format shim, replaced in C7
+    const artifactId = paint.activeSegmentGroupID
+      ? segmentGroupIDMap[paint.activeSegmentGroupID]
+      : undefined;
+    const segmentation = artifactId
+      ? segmentationStore.getSegmentationForArtifact(artifactId)
+      : undefined;
+    const segment =
+      artifactId && paint.activeSegment != null
+        ? segmentationStore.findSegmentByLabelValue(
+            artifactId,
+            paint.activeSegment
+          )
+        : undefined;
+    if (segmentation && segment) {
+      segmentationStore.setActiveSegment(segmentation.id, segment.id);
     }
     setCrossPlaneSync(paint.crossPlaneSync ?? false);
   }
@@ -491,8 +410,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     activeMode,
     activePaintMode,
     processControlsOpen,
-    activeSegmentGroupID,
-    activeSegment,
     brushSize,
     strokePoints,
     isActive,
@@ -509,8 +426,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     setProcessControlsOpen,
     enterProcessMode,
     restoreModeAfterProcess,
-    setActiveSegmentGroup,
-    setActiveSegment,
     setBrushSize,
     setSliceAxis,
     setThresholdRange,

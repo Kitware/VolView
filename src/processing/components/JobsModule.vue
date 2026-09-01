@@ -147,7 +147,6 @@ import {
 } from '@/src/processing/engine/jobDisplay';
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useMessageStore } from '@/src/store/messages';
 
@@ -159,7 +158,6 @@ const providers = useProcessingJobsStore();
 const { currentImageID } = useCurrentImage('global');
 const imageCache = useImageCacheStore();
 const cropStore = useCropStore();
-const paintStore = usePaintToolStore();
 const segmentationStore = useSegmentationStore();
 const messageStore = useMessageStore();
 
@@ -526,7 +524,7 @@ watchDebounced(
     return {
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
-      activeSegmentGroup: paintStore.activeSegmentGroupID,
+      activeSegmentGroup: segmentationStore.activeArtifactId,
       groupCount: id ? segmentationStore.artifactsForImage(id).length : 0,
       // Placing the first (or removing the last) tool flips the annotations
       // binding, so the form must revalidate.

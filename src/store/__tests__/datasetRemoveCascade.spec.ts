@@ -11,7 +11,6 @@ import { useSegmentationStore } from '@/src/store/segmentations';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { useCropStore } from '@/src/store/tools/crop';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 
 // Bind an existing (default-layout) view to a dataset via the public API —
 // `addView` is internal, but every fresh store already seats slot views.
@@ -191,17 +190,19 @@ describe('dataset remove — synchronous reference cascade', () => {
     expect('img-1' in cropStore.croppingByImageID).toBe(false);
   });
 
-  it('nulls the active paint segment group when its parent image is removed', () => {
+  it('clears the active segment when its parent image is removed', () => {
     seatImage('img-1', 'CT');
     const segmentGroups = useSegmentGroupStore();
-    const paintStore = usePaintToolStore();
-    const groupId = segmentGroups.newLabelmapFromImage('img-1');
-    paintStore.setActiveSegmentGroup(groupId);
-    expect(paintStore.activeSegmentGroupID).toBe(groupId);
+    const segmentationStore = useSegmentationStore();
+    const groupId = segmentGroups.newLabelmapFromImage('img-1')!;
+    const segmentation = segmentationStore.getSegmentationForArtifact(groupId)!;
+    const [segment] = segmentationStore.segmentsForArtifact(groupId);
+    segmentationStore.setActiveSegment(segmentation.id, segment.id);
+    expect(segmentationStore.activeArtifactId).toBe(groupId);
 
     useDatasetStore().remove('img-1');
 
-    expect(paintStore.activeSegmentGroupID).toBeNull();
+    expect(segmentationStore.activeTarget).toBeUndefined();
   });
 
   it('leaves references to OTHER datasets intact', () => {
@@ -229,6 +230,7 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
     // Side-effect imports for the declaring modules the tests above don't use.
     await import('@/src/store/tools/rectangles');
     await import('@/src/store/tools/polygons');
+    await import('@/src/store/tools/paint');
     const { collectManifestRefs } = await import('@/src/core/manifestRefs');
 
     const refs = collectManifestRefs({

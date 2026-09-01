@@ -46,7 +46,6 @@ import type {
   SourceRefBindingContext,
   SourceRefBindings,
 } from '@/src/processing/engine/sourceRefs';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 
 // Everything the annotations file is made of, read off the stores in one
 // synchronous pass so staging never mixes two images' state.
@@ -64,7 +63,6 @@ export function useInputStaging() {
   const imageCache = useImageCacheStore();
   const datasetStore = useDatasetStore();
   const segmentationStore = useSegmentationStore();
-  const paintStore = usePaintToolStore();
 
   const activeDataSource = () =>
     datasetStore.getDataSource(currentImageID.value);
@@ -128,7 +126,7 @@ export function useInputStaging() {
   const sourceRefContext = (): SourceRefBindingContext => ({
     activeDataSource: activeDataSource(),
     backgroundImageId: currentImageID.value ?? undefined,
-    activeSegmentGroupId: paintStore.activeSegmentGroupID,
+    activeArtifactId: segmentationStore.activeArtifactId,
     segmentGroups: segmentGroupView(),
     hasFinishedAnnotations: finishedAnnotationCount.value > 0,
     getDataSource: (imageId) => datasetStore.getDataSource(imageId),

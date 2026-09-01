@@ -1,13 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { createApp } from 'vue';
+import { createApp, nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { PaintMode } from '@/src/core/tools/paint';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { useMessageStore } from '@/src/store/messages';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
+import { useViewStore } from '@/src/store/views';
 
 function makeLabelMap(values: Uint8Array) {
   const labelMap = vtkLabelMap.newInstance();
@@ -20,6 +24,23 @@ function makeLabelMap(values: Uint8Array) {
   );
   labelMap.computeTransforms();
   return labelMap;
+}
+
+/** Seats a two-voxel image and makes it the one the active view shows. */
+async function viewImage(id: string) {
+  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
+  image.setDimensions([2, 1, 1]);
+  image.getPointData().setScalars(
+    vtkDataArray.newInstance({
+      numberOfComponents: 1,
+      values: new Uint8Array(2),
+    })
+  );
+  image.computeTransforms();
+  useImageCacheStore().addVTKImageData(image, id, { id });
+  useViewStore().setDataForAllViews(id);
+  await nextTick();
+  return id;
 }
 
 function getScalars(labelMap: vtkLabelMap) {
@@ -36,31 +57,36 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function addTestSegmentGroup(values = new Uint8Array([0, 0])) {
-  const segmentGroupStore = useSegmentGroupStore();
+/** Seats one artifact carrying one segment, and makes that segment active. */
+function addTestSegment(values = new Uint8Array([0, 0]), labelValue = 1) {
+  const segmentationStore = useSegmentationStore();
   const labelMap = makeLabelMap(values);
-  const groupId = segmentGroupStore.addLabelmap(
-    labelMap,
-    { name: 'Test group', parentImage: 'image-1' },
-    [
-      {
-        value: 1,
-        name: 'Segment 1',
-        color: [255, 0, 0, 255],
-        visible: true,
-        locked: false,
-      },
-    ]
-  );
+  const artifactId = segmentationStore.registerArtifact(labelMap, {
+    name: 'Test group',
+    parentImage: 'image-1',
+  });
+  const [segment] = segmentationStore.setArtifactSegments(artifactId, [
+    {
+      value: labelValue,
+      name: 'Segment 1',
+      color: [255, 0, 0, 255],
+      visible: true,
+      locked: false,
+    },
+  ]);
+  const segmentationId =
+    segmentationStore.getSegmentationForImage('image-1')!.id;
+  segmentationStore.setActiveSegment(segmentationId, segment.id);
 
-  return { groupId, labelMap };
+  return { segmentationId, segmentId: segment.id, artifactId, labelMap };
 }
 
 describe('Paint process store', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
     createApp({}).use(pinia);
     setActivePinia(pinia);
+    await viewImage('image-1');
   });
 
   it('opens process controls without changing the paint interaction mode', () => {
@@ -78,18 +104,13 @@ describe('Paint process store', () => {
   it('uses process interaction mode only while previewing', async () => {
     const paintStore = usePaintToolStore();
     const processStore = usePaintProcessStore();
-    const { groupId, labelMap } = addTestSegmentGroup();
+    const { labelMap } = addTestSegment();
 
     paintStore.setMode(PaintMode.Erase);
-    paintStore.activeSegmentGroupID = groupId;
-    paintStore.activeSegment = 1;
 
     expect(paintStore.processControlsOpen).toBe(false);
 
-    await processStore.startProcess(
-      groupId,
-      async () => new Uint8Array([2, 2])
-    );
+    await processStore.startProcess(async () => new Uint8Array([2, 2]));
 
     expect(processStore.processState.step).toBe('previewing');
     expect(paintStore.processControlsOpen).toBe(true);
@@ -110,17 +131,14 @@ describe('Paint process store', () => {
   it('restores the paint interaction mode when preview is canceled', async () => {
     const paintStore = usePaintToolStore();
     const processStore = usePaintProcessStore();
-    const { groupId, labelMap } = addTestSegmentGroup();
+    const { labelMap } = addTestSegment();
 
     paintStore.setMode(PaintMode.CirclePaint);
     paintStore.setProcessControlsOpen(true);
-    paintStore.activeSegmentGroupID = groupId;
-    paintStore.activeSegment = 1;
 
-    await processStore.startProcess(
-      groupId,
-      async () => new Uint8Array([3, 3])
-    );
+    await processStore.startProcess(async () => new Uint8Array([3, 3]));
+
+    expect(getScalars(labelMap)).toEqual([3, 3]);
 
     processStore.cancelProcess();
 
@@ -134,17 +152,15 @@ describe('Paint process store', () => {
 
   it('ignores stale async results after a newer process starts', async () => {
     const paintStore = usePaintToolStore();
-    const { groupId, labelMap } = addTestSegmentGroup();
+    const { labelMap } = addTestSegment();
 
-    paintStore.activeSegmentGroupID = groupId;
-    paintStore.activeSegment = 1;
     paintStore.activeMode = PaintMode.Process;
     const processStore = usePaintProcessStore();
 
     const first = deferred<Uint8Array>();
     const second = deferred<Uint8Array>();
-    const firstRun = processStore.startProcess(groupId, () => first.promise);
-    const secondRun = processStore.startProcess(groupId, () => second.promise);
+    const firstRun = processStore.startProcess(() => first.promise);
+    const secondRun = processStore.startProcess(() => second.promise);
 
     first.resolve(new Uint8Array([9, 9]));
     await firstRun;
@@ -157,5 +173,78 @@ describe('Paint process store', () => {
 
     expect(processStore.processState.step).toBe('previewing');
     expect(getScalars(labelMap)).toEqual([2, 2]);
+  });
+
+  it('hands the algorithm the active segment’s resolved label value', async () => {
+    const processStore = usePaintProcessStore();
+    const { labelMap } = addTestSegment(new Uint8Array([0, 0]), 3);
+    const algorithm = vi.fn(async () => new Uint8Array([3, 3]));
+
+    await processStore.startProcess(algorithm);
+
+    expect(algorithm).toHaveBeenCalledWith(labelMap, 3);
+  });
+
+  it('refuses to process a locked segment', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+    const { segmentationId, segmentId, labelMap } = addTestSegment();
+    segmentationStore.updateSegment(segmentationId, segmentId, {
+      locked: true,
+    });
+
+    await processStore.startProcess(async () => new Uint8Array([2, 2]));
+
+    expect(processStore.processState.step).toBe('start');
+    expect(getScalars(labelMap)).toEqual([0, 0]);
+    expect(
+      messageStore.messages.some((message) =>
+        message.title.includes('locked segment')
+      )
+    ).toBe(true);
+  });
+
+  it('processes the labelmap of the image being viewed', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const { labelMap: firstLabelMap } = addTestSegment();
+    const algorithm = vi.fn(async () => new Uint8Array([4, 4]));
+
+    await viewImage('image-2');
+    await processStore.startProcess(algorithm);
+
+    const target = segmentationStore.activeTarget!;
+    expect(target.segmentationId).toBe(
+      segmentationStore.getSegmentationForImage('image-2')!.id
+    );
+    const binding = segmentationStore.resolveLabelmapBinding(
+      target.segmentationId,
+      target.segmentId
+    )!;
+    expect(algorithm).toHaveBeenCalledWith(
+      binding.labelmap,
+      binding.labelValue
+    );
+    expect(getScalars(binding.labelmap)).toEqual([4, 4]);
+    expect(getScalars(firstLabelMap)).toEqual([0, 0]);
+  });
+
+  it('cancels the preview when the active segment changes', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const { segmentationId, labelMap } = addTestSegment();
+
+    await processStore.startProcess(async () => new Uint8Array([2, 2]));
+    expect(processStore.processState.step).toBe('previewing');
+
+    const other = segmentationStore.createSegment(segmentationId, {
+      name: 'Other',
+    });
+    segmentationStore.setActiveSegment(segmentationId, other.id);
+    await nextTick();
+
+    expect(processStore.processState.step).toBe('start');
+    expect(getScalars(labelMap)).toEqual([0, 0]);
   });
 });

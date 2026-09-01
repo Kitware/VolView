@@ -19,37 +19,15 @@
       :tool-store="activeToolStore"
       v-slot="{ context }"
     >
-      <v-list-item v-if="!isCurrentImageCine" @click.stop>
+      <v-list-item
+        v-if="!isCurrentImageCine"
+        :disabled="!activeToolStore.toolByID[context.forToolID]?.label"
+        @click="rasterize(context.forToolID)"
+      >
         <template #prepend>
           <v-icon>mdi-grid</v-icon>
         </template>
-        <v-list-item-title>Rasterize as...</v-list-item-title>
-        <template #append>
-          <v-icon icon="mdi-menu-right"></v-icon>
-        </template>
-        <v-menu :open-on-focus="false" open-on-hover activator="parent" submenu>
-          <v-list>
-            <template v-if="currentSegmentGroup">
-              <v-list-item class="text-subtitle-2">
-                <div class="text-caption">Selected segment group:</div>
-                <div class="text-subtitle-2">
-                  {{ currentSegmentGroup.name }}
-                </div>
-              </v-list-item>
-              <v-list-item
-                v-for="segment in currentSegmentGroup.segments"
-                :key="segment.value"
-                @click="rasterize(context.forToolID, segment)"
-              >
-                <div class="d-flex flex-row align-center ga-3">
-                  <ColorDot :color="segment.color" />
-                  <span>{{ segment.name }}</span>
-                </div>
-              </v-list-item>
-            </template>
-            <v-list-item v-else> No segment group selected </v-list-item>
-          </v-list>
-        </v-menu>
+        <v-list-item-title>Rasterize</v-list-item-title>
       </v-list-item>
       <v-tooltip
         :disabled="mergePossible"
@@ -104,11 +82,7 @@ import { convertSliceIndex } from '@/src/utils/imageSpace';
 import { getLPSDirections } from '@/src/utils/lps';
 import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
-import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import ColorDot from '@/src/components/ColorDot.vue';
-import type { LabelmapSegment } from '@/src/types/segmentation';
+import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterizeTarget';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
@@ -161,7 +135,6 @@ export default defineComponent({
     PolygonWidget2D,
     AnnotationContextMenu,
     AnnotationInfo,
-    ColorDot,
   },
   setup(props) {
     const { viewDirection, imageId, viewId } = toRefs(props);
@@ -257,25 +230,9 @@ export default defineComponent({
       () => activeToolStore.mergeableTools.length >= 1
     );
 
-    const segmentGroupStore = useSegmentGroupStore();
-    const segmentationStore = useSegmentationStore();
-    const paintStore = usePaintToolStore();
     const isCurrentImageCine = computed(() => isCineImage(imageId.value));
-    const currentSegmentGroup = computed(() => {
-      if (isCurrentImageCine.value) return null;
-      if (!imageId.value) return null;
-      const [artifactId] = segmentationStore.artifactsForImage(imageId.value);
-      const meta = artifactId
-        ? segmentationStore.artifactMeta[artifactId]
-        : undefined;
-      if (!meta) return null;
-      return {
-        name: meta.name,
-        segments: segmentationStore.labelmapSegmentsByArtifact[artifactId],
-      };
-    });
 
-    function rasterize(toolId: ToolID, segment: LabelmapSegment) {
+    function rasterize(toolId: ToolID) {
       if (!imageId.value) {
         throw new Error('No image ID available for rasterization');
       }
@@ -283,25 +240,11 @@ export default defineComponent({
         throw new Error('Rasterization is not supported for cine images');
       }
 
-      const groups = segmentGroupStore.orderByParent[imageId.value];
-      if (!groups?.length) {
-        throw new Error(`No segment group exists for image ${imageId.value}`);
-      }
-
-      const segmentGroupID = groups[0];
-
-      // Switch to the correct segment group if needed
-      if (paintStore.activeSegmentGroupID !== segmentGroupID) {
-        paintStore.setActiveSegmentGroup(segmentGroupID);
-        paintStore.setActiveSegment(segment.value);
-      }
-
-      const segmentGroup = segmentGroupStore.dataIndex[segmentGroupID];
-      if (!segmentGroup) {
-        throw new Error(
-          `Failed to get segment group data for ${segmentGroupID}`
-        );
-      }
+      const target = resolveRasterizeTarget(
+        imageId.value,
+        activeToolStore.toolByID[toolId]?.label
+      );
+      const segmentGroup = target.labelmap;
 
       // Convert parent slice index to segment group slice index
       const parentMeta = imageMetadata.value;
@@ -329,7 +272,7 @@ export default defineComponent({
         segmentGroupSlice,
         segmentGroupIjkIndex
       );
-      fillPoly(grid, indexSpacePoints2D, segment.value);
+      fillPoly(grid, indexSpacePoints2D, target.labelValue);
       segmentGroup.modified();
     }
 
@@ -345,7 +288,6 @@ export default defineComponent({
       onHover,
       overlayInfo,
       rasterize,
-      currentSegmentGroup,
       isCurrentImageCine,
     };
   },

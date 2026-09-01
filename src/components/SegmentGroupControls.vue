@@ -13,7 +13,6 @@ import {
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useGlobalLayerColorConfig } from '@/src/composables/useGlobalLayerColorConfig';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
@@ -49,18 +48,21 @@ const currentSegmentGroups = computed(() => {
   });
 });
 
-const paintStore = usePaintToolStore();
+// Group selection is a projection of the active segment: picking a group means
+// picking its first segment.
 const currentSegmentGroupID = computed({
-  get: () => paintStore.activeSegmentGroupID,
-  set: (id) => paintStore.setActiveSegmentGroup(id),
-});
-
-// clear selection if we delete the active segment group
-watch(currentSegmentGroups, () => {
-  const selection = currentSegmentGroupID.value;
-  if (selection && !(selection in segmentationStore.artifactIndex)) {
-    currentSegmentGroupID.value = null;
-  }
+  get: () => segmentationStore.activeArtifactId ?? null,
+  set: (id: Maybe<string>) => {
+    const segmentation = id
+      ? segmentationStore.getSegmentationForArtifact(id)
+      : undefined;
+    const [segment] = id ? segmentationStore.segmentsForArtifact(id) : [];
+    if (!segmentation || !segment) {
+      segmentationStore.clearActiveSegment();
+      return;
+    }
+    segmentationStore.setActiveSegment(segmentation.id, segment.id);
+  },
 });
 
 function deleteGroup(id: string) {

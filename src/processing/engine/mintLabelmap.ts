@@ -34,7 +34,7 @@ export type LabelmapResolution =
 
 export const resolveLabelmapGroups = (
   backgroundImageId: string | undefined,
-  activeSegmentGroupId: string | null | undefined,
+  activeArtifactId: string | null | undefined,
   multiple: boolean,
   view: SegmentGroupView
 ): LabelmapResolution => {
@@ -48,8 +48,8 @@ export const resolveLabelmapGroups = (
       ? { kind: 'resolved', groupIds }
       : { kind: 'unresolved' };
   }
-  if (activeSegmentGroupId && groupIds.includes(activeSegmentGroupId)) {
-    return { kind: 'resolved', groupIds: [activeSegmentGroupId] };
+  if (activeArtifactId && groupIds.includes(activeArtifactId)) {
+    return { kind: 'resolved', groupIds: [activeArtifactId] };
   }
   return groupIds.length === 1
     ? { kind: 'resolved', groupIds }

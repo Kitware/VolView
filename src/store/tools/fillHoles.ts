@@ -4,7 +4,6 @@ import * as Comlink from 'comlink';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { getImageMetadata } from '@/src/composables/useCurrentImage';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
@@ -51,13 +50,9 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     segmentScope.value = value;
   }
 
-  async function computeAlgorithm(
-    segImage: vtkLabelMap,
-    activeSegment: number
-  ) {
+  async function computeAlgorithm(segImage: vtkLabelMap, labelValue: number) {
     const viewStore = useViewStore();
     const viewSliceStore = useViewSliceStore();
-    const paintStore = usePaintToolStore();
     const segmentationStore = useSegmentationStore();
 
     // Fill Holes works on the slice plane of the 2D view the user is on, so a
@@ -69,11 +64,13 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
-    const groupId = paintStore.activeSegmentGroupID;
-    if (!groupId) {
-      throw new Error('No active segment group');
+    // The artifact is read off the labelmap the process resolved, so the voxels
+    // being filled and the catalog guiding the fill cannot disagree.
+    const artifactId = segmentationStore.findArtifactIdForLabelmap(segImage);
+    if (!artifactId) {
+      throw new Error('Fill Holes was handed an unknown segmentation labelmap');
     }
-    const metadata = segmentationStore.artifactMeta[groupId];
+    const metadata = segmentationStore.artifactMeta[artifactId];
 
     const parentMetadata = getImageMetadata(metadata.parentImage);
     const labelMapLpsOrientation = getLPSDirections(segImage.getDirection());
@@ -103,14 +100,14 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
 
     const selectedSegment =
       segmentScope.value === FillHolesSegmentScope.SelectedSegment;
-    const label = selectedSegment ? activeSegment : undefined;
+    const label = selectedSegment ? labelValue : undefined;
     // All-segments mode can fill a hole with any bordering label, so guard
     // locked segments from being grown. Selected-segment mode only writes the
     // active segment, whose lock is already enforced before the process starts.
     const lockedLabels = selectedSegment
       ? undefined
       : segmentationStore
-          .segmentsForArtifact(groupId)
+          .segmentsForArtifact(artifactId)
           .filter((segment) => segment.locked)
           .map((segment) => segment.representations.labelmap!.labelValue);
 

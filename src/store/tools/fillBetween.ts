@@ -7,11 +7,11 @@ import { morphologicalContourInterpolation } from '@itk-wasm/morphological-conto
 export const useFillBetweenStore = defineStore('fillBetween', () => {
   async function computeAlgorithm(
     segImage: vtkLabelMap,
-    activeSegment: number
+    labelValue: number
   ): Promise<TypedArray> {
     const vtkImage = vtkITKHelper.convertVtkToItkImage(segImage);
     const out = await morphologicalContourInterpolation(vtkImage, {
-      label: activeSegment,
+      label: labelValue,
     });
 
     const vtkOut = vtkITKHelper.convertItkToVtkImage(out.outputImage);

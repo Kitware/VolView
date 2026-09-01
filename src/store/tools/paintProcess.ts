@@ -1,4 +1,4 @@
-import { defineStore, storeToRefs } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
 import vtkLabelMap from '@/src/vtk/LabelMap';
@@ -6,7 +6,6 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useSegmentGroupStore } from '../segmentGroups';
 import { useSegmentationStore } from '../segmentations';
 
 export enum ProcessType {
@@ -19,18 +18,19 @@ type StartState = {
   step: 'start';
 };
 
-type ComputingState = {
-  step: 'computing';
+type TargetedState = {
   activeParentImageID: string | null;
-  activeSegmentGroupID: string;
+  segmentationId: string;
+  segmentId: string;
   processType: ProcessType;
 };
 
-type PreviewingState = {
+type ComputingState = TargetedState & {
+  step: 'computing';
+};
+
+type PreviewingState = TargetedState & {
   step: 'previewing';
-  activeParentImageID: string | null;
-  activeSegmentGroupID: string;
-  processType: ProcessType;
   segImage: vtkLabelMap;
   originalScalars: TypedArray | number[];
   processedScalars: TypedArray | number[];
@@ -41,7 +41,7 @@ type ProcessState = StartState | ComputingState | PreviewingState;
 
 export type ProcessAlgorithm = (
   segImage: vtkLabelMap,
-  activeSegment: number
+  labelValue: number
 ) => Promise<TypedArray | number[]>;
 
 export const usePaintProcessStore = defineStore('paintProcess', () => {
@@ -76,10 +76,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     paintStore.restoreModeAfterProcess();
   }
 
-  const segmentGroupStore = useSegmentGroupStore();
   const segmentationStore = useSegmentationStore();
   const paintStore = usePaintToolStore();
-  const { activeSegmentGroupID } = storeToRefs(paintStore);
   const messageStore = useMessageStore();
   const { currentImageID } = useCurrentImage('global');
 
@@ -108,35 +106,36 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   async function startProcess(
-    groupId: string,
     algorithm: ProcessAlgorithm,
     options?: { requiresActiveSegment?: boolean }
   ) {
-    const activeSegment = paintStore.activeSegment;
     // Most processes operate on the active segment; all-segments processes opt
-    // out so they are not blocked by (or limited to) a single active segment.
+    // out so they are not blocked by a locked active segment.
     const requiresActiveSegment = options?.requiresActiveSegment ?? true;
 
-    if (requiresActiveSegment) {
-      if (!activeSegment) {
-        messageStore.addError('No active segment selected');
-        return;
-      }
+    const imageId = currentImageID.value;
+    if (!imageId) {
+      messageStore.addError('No image to process');
+      return;
+    }
+    const { segmentationId, segmentId } =
+      segmentationStore.resolveEditTarget(imageId);
 
-      // Check if the active segment is locked
-      const segment = segmentationStore.findSegmentByLabelValue(
-        groupId,
-        activeSegment
-      );
-      if (segment?.locked) {
-        messageStore.addError('Cannot process locked segment');
-        return;
-      }
+    if (
+      requiresActiveSegment &&
+      segmentationStore.getSegment(segmentationId, segmentId).locked
+    ) {
+      messageStore.addError('Cannot process locked segment');
+      return;
     }
 
-    const segImage = segmentGroupStore.dataIndex[groupId];
+    const binding = segmentationStore.ensureLabelmapBinding(
+      segmentationId,
+      segmentId
+    );
+    const segImage = segmentationStore.artifactIndex[binding.artifactId];
     const activeParentImageID =
-      segmentationStore.artifactMeta[groupId].parentImage;
+      segmentationStore.artifactMeta[binding.artifactId].parentImage;
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 
@@ -150,12 +149,13 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     processState.value = {
       step: 'computing',
       activeParentImageID,
-      activeSegmentGroupID: groupId,
+      segmentationId,
+      segmentId,
       processType,
     };
 
     try {
-      const outputScalars = await algorithm(segImage, activeSegment ?? 0);
+      const outputScalars = await algorithm(segImage, binding.labelValue);
 
       // If the state changed during the async operation, stop processing.
       if (
@@ -172,7 +172,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       processState.value = {
         step: 'previewing',
         activeParentImageID,
-        activeSegmentGroupID: groupId,
+        segmentationId,
+        segmentId,
         processType,
         segImage,
         originalScalars,
@@ -229,17 +230,23 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
   );
 
-  // Cancel process when active segment group changes
-  watch(activeSegmentGroupID, (groupId) => {
-    const state = processState.value;
-    if (state.step !== 'computing' && state.step !== 'previewing') {
-      return;
+  // Cancel process when the active segment changes
+  watch(
+    () => segmentationStore.activeTarget,
+    (target) => {
+      const state = processState.value;
+      if (state.step !== 'computing' && state.step !== 'previewing') {
+        return;
+      }
+      if (
+        state.segmentationId === target?.segmentationId &&
+        state.segmentId === target?.segmentId
+      ) {
+        return;
+      }
+      cancelProcess();
     }
-    if (state.activeSegmentGroupID === groupId) {
-      return;
-    }
-    cancelProcess();
-  });
+  );
 
   // Cancel process when current image changes
   watch(currentImageID, (newVal) => {

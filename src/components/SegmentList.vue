@@ -10,7 +10,6 @@ import {
 import { Maybe } from '@/src/types';
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 import { reactive, ref, toRefs, computed, watch } from 'vue';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 import ColorDot from '@/src/components/ColorDot.vue';
 
@@ -24,14 +23,13 @@ const props = defineProps({
 const { groupId } = toRefs(props);
 
 const segmentationStore = useSegmentationStore();
-const paintStore = usePaintToolStore();
 
 const segmentation = computed(() =>
   segmentationStore.getSegmentationForArtifact(groupId.value)
 );
 
-// The chip list and the paint selection are still keyed on label value; the
-// edits below route through the segment's stable id.
+// The chip list is still keyed on label value; the edits and the selection
+// below route through the segment's stable id.
 const segments = computed(() =>
   segmentationStore.segmentsForArtifact(groupId.value).map((segment) => ({
     id: segment.id,
@@ -56,9 +54,20 @@ function updateByValue(value: number, patch: SegmentPatch) {
 // --- selection --- //
 
 const selectedSegment = computed({
-  get: () => paintStore.activeSegment,
+  get: () => {
+    const target = segmentationStore.activeTarget;
+    if (!target) return null;
+    const segment = segments.value.find((seg) => seg.id === target.segmentId);
+    return segment ? segment.value : null;
+  },
   set: (value: Maybe<number>) => {
-    paintStore.setActiveSegment(value);
+    const target = segmentation.value;
+    const segment = value == null ? undefined : segmentByValue(value);
+    if (!target || !segment) {
+      segmentationStore.clearActiveSegment();
+      return;
+    }
+    segmentationStore.setActiveSegment(target.id, segment.id);
   },
 });
 

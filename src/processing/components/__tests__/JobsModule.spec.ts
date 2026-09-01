@@ -33,7 +33,6 @@ import TaskForm from '@/src/processing/components/TaskForm.vue';
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
@@ -482,6 +481,20 @@ describe('JobsModule — segment group staging', () => {
     });
   };
 
+  // Selects a segment bound to the given artifact, which is what makes that
+  // artifact the active one for singular labelmap params.
+  const activateGroup = (artifactId: string) => {
+    const store = useSegmentationStore();
+    const segmentation = store.ensureSegmentationForImage('image-1');
+    const segment = store.createSegment(segmentation.id, { name: 'Active' });
+    segment.representations.labelmap = {
+      artifactId,
+      labelValue: 1,
+      extent: [0, 1, 0, 1, 0, 1],
+    };
+    store.setActiveSegment(segmentation.id, segment.id);
+  };
+
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {
     const p = makeProvider('P');
     p.listTasks = vi.fn().mockResolvedValue([{ id: 'seg', title: 'Segment' }]);
@@ -558,7 +571,7 @@ describe('JobsModule — segment group staging', () => {
       ['group-1', 'Tumor'],
       ['group-2', 'Liver'],
     ]);
-    usePaintToolStore().setActiveSegmentGroup('group-2');
+    activateGroup('group-2');
 
     const { provider, submitSpy } = await submit(labelmapSpec(false));
 

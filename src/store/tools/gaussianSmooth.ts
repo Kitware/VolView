@@ -58,13 +58,10 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
     sigma.value = Math.max(MIN_SIGMA, Math.min(MAX_SIGMA, value));
   }
 
-  async function computeAlgorithm(
-    segImage: vtkLabelMap,
-    activeSegment: number
-  ) {
+  async function computeAlgorithm(segImage: vtkLabelMap, labelValue: number) {
     const params = {
       sigma: sigma.value,
-      label: activeSegment,
+      label: labelValue,
     };
 
     return gaussianSmoothLabelMap(segImage, params);

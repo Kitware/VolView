@@ -12,7 +12,7 @@ export const createSourceRefBindingContext = (
 ): SourceRefBindingContext => ({
   activeDataSource: defaultDataSource,
   backgroundImageId: 'image-1',
-  activeSegmentGroupId: null,
+  activeArtifactId: null,
   segmentGroups: { orderByParent: {}, metadataByID: {} },
   hasFinishedAnnotations: false,
   getDataSource: () => defaultDataSource,

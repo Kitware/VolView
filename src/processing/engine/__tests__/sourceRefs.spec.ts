@@ -127,7 +127,7 @@ describe('bindSourceRefs', () => {
         },
       ]),
       context({
-        activeSegmentGroupId: 'group-2',
+        activeArtifactId: 'group-2',
         segmentGroups: {
           orderByParent: { 'image-1': ['group-1', 'group-2'] },
           metadataByID: {

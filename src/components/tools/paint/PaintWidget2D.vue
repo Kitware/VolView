@@ -60,9 +60,9 @@ export default defineComponent({
 
     // Get the active labelmap for coordinate transforms
     const activeLabelmap = computed(() => {
-      const groupId = paintStore.activeSegmentGroupID;
-      if (!groupId) return null;
-      return segmentationStore.artifactIndex[groupId] ?? null;
+      const artifactId = segmentationStore.activeArtifactId;
+      if (!artifactId) return null;
+      return segmentationStore.artifactIndex[artifactId] ?? null;
     });
 
     const widget = view.widgetManager.addWidget(

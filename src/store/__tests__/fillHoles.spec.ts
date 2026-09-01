@@ -6,8 +6,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { useFillHolesStore } from '@/src/store/tools/fillHoles';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
 
@@ -82,10 +81,9 @@ describe('Fill Holes store', () => {
 
   async function setupFillHolesRun(labelMap: vtkLabelMap, parentSlice: number) {
     const imageCacheStore = useImageCacheStore();
-    const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
     const viewStore = useViewStore();
     const viewSliceStore = useViewSliceStore();
-    const paintStore = usePaintToolStore();
     const fillHolesStore = useFillHolesStore();
 
     const parentImageID = 'parent-image';
@@ -99,19 +97,21 @@ describe('Fill Holes store', () => {
     });
     await nextTick();
 
-    const groupId = segmentGroupStore.addLabelmap(
-      labelMap,
-      { name: 'Test group', parentImage: parentImageID },
-      [
-        {
-          value: 1,
-          name: 'Segment 1',
-          color: [255, 0, 0, 255],
-          visible: true,
-          locked: false,
-        },
-      ]
-    );
+    const artifactId = segmentationStore.registerArtifact(labelMap, {
+      name: 'Test group',
+      parentImage: parentImageID,
+    });
+    const [segment] = segmentationStore.setArtifactSegments(artifactId, [
+      {
+        value: 1,
+        name: 'Segment 1',
+        color: [255, 0, 0, 255],
+        visible: true,
+        locked: false,
+      },
+    ]);
+    const segmentationId =
+      segmentationStore.getSegmentationForImage(parentImageID)!.id;
 
     const axialView = viewStore.visibleViews.find(
       (view) => view.type === '2D' && view.options.orientation === 'Axial'
@@ -123,10 +123,9 @@ describe('Fill Holes store', () => {
       slice: parentSlice,
     });
 
-    paintStore.activeSegmentGroupID = groupId;
-    paintStore.activeSegment = 1;
+    segmentationStore.setActiveSegment(segmentationId, segment.id);
 
-    return { fillHolesStore };
+    return { fillHolesStore, segmentationStore, artifactId, segmentationId };
   }
 
   it('uses the label-map axis for the active parent view axis', async () => {
@@ -163,6 +162,33 @@ describe('Fill Holes store', () => {
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
       axis: 2,
       sliceIndex: 2,
+    });
+  });
+
+  it('guards the locked segments of the active target’s artifact', async () => {
+    const labelMap = makeLabelMap(
+      [10, 10, 10],
+      [1, 1, 1],
+      [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    );
+    const { fillHolesStore, segmentationStore, segmentationId } =
+      await setupFillHolesRun(labelMap, 0);
+    const locked = segmentationStore.createSegment(segmentationId, {
+      name: 'Locked',
+    });
+    segmentationStore.ensureLabelmapBinding(segmentationId, locked.id);
+    segmentationStore.updateSegment(segmentationId, locked.id, {
+      locked: true,
+    });
+    const lockedValue = segmentationStore.resolveLabelmapBinding(
+      segmentationId,
+      locked.id
+    )!.labelValue;
+
+    await fillHolesStore.computeAlgorithm(labelMap, 1);
+
+    expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
+      lockedLabels: [lockedValue],
     });
   });
 });
