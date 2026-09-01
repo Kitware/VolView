@@ -37,24 +37,13 @@
                 </div>
               </v-list-item>
               <v-list-item
-                v-for="segmentID in currentSegmentGroup.segments.order"
-                :key="segmentID"
-                @click="
-                  rasterize(
-                    context.forToolID,
-                    currentSegmentGroup.segments.byValue[segmentID]
-                  )
-                "
+                v-for="segment in currentSegmentGroup.segments"
+                :key="segment.value"
+                @click="rasterize(context.forToolID, segment)"
               >
                 <div class="d-flex flex-row align-center ga-3">
-                  <ColorDot
-                    :color="
-                      currentSegmentGroup.segments.byValue[segmentID].color
-                    "
-                  />
-                  <span>
-                    {{ currentSegmentGroup.segments.byValue[segmentID].name }}
-                  </span>
+                  <ColorDot :color="segment.color" />
+                  <span>{{ segment.name }}</span>
                 </div>
               </v-list-item>
             </template>
@@ -117,8 +106,9 @@ import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import ColorDot from '@/src/components/ColorDot.vue';
-import { SegmentMask } from '@/src/types/segment';
+import type { LabelmapSegment } from '@/src/types/segmentation';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
@@ -268,17 +258,24 @@ export default defineComponent({
     );
 
     const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
     const paintStore = usePaintToolStore();
     const isCurrentImageCine = computed(() => isCineImage(imageId.value));
     const currentSegmentGroup = computed(() => {
       if (isCurrentImageCine.value) return null;
       if (!imageId.value) return null;
-      const groups = segmentGroupStore.orderByParent[imageId.value];
-      if (!groups?.length) return null;
-      return segmentGroupStore.metadataByID[groups[0]] ?? null;
+      const [artifactId] = segmentationStore.artifactsForImage(imageId.value);
+      const meta = artifactId
+        ? segmentationStore.artifactMeta[artifactId]
+        : undefined;
+      if (!meta) return null;
+      return {
+        name: meta.name,
+        segments: segmentationStore.labelmapSegmentsByArtifact[artifactId],
+      };
     });
 
-    function rasterize(toolId: ToolID, segment: SegmentMask) {
+    function rasterize(toolId: ToolID, segment: LabelmapSegment) {
       if (!imageId.value) {
         throw new Error('No image ID available for rasterization');
       }

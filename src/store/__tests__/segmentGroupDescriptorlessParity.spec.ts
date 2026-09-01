@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
@@ -120,17 +121,38 @@ const seat = (
   headerMetadata?: Map<string, string>
 ) => useImageCacheStore().addVTKImageData(image, name, { id, headerMetadata });
 
+// The catalog now lives in the segmentation store: the segments bound to one
+// artifact, in segmentation order. Identity is a stable id, so parity compares
+// the descriptive fields plus the label value the binding carries.
+const catalogFor = (parentImageId: string, artifactId: string) => {
+  const segmentation =
+    useSegmentationStore().getSegmentationForImage(parentImageId);
+  if (!segmentation) return [];
+  return segmentation.order
+    .map((id) => segmentation.segments[id])
+    .filter(
+      (segment) => segment.representations.labelmap?.artifactId === artifactId
+    )
+    .map((segment) => ({
+      name: segment.name,
+      color: [...segment.color],
+      visible: segment.visible,
+      locked: segment.locked,
+      labelValue: segment.representations.labelmap!.labelValue,
+    }));
+};
+
 // The LIVE path: what convertImageToLabelmap builds for this labelmap.
 async function liveCatalog(segmentMetadata?: Map<string, string>) {
   setActivePinia(createPinia());
   seat('parent-img', 'CT Chest', makeParentImage());
   seat('child-img', 'Tumor.seg.nrrd', makeLabelmapImage(), segmentMetadata);
   const store = useSegmentGroupStore();
-  const [groupId] = await store.convertImageToLabelmap(
+  const [artifactId] = await store.convertImageToLabelmap(
     'child-img',
     'parent-img'
   );
-  return JSON.parse(JSON.stringify(store.metadataByID[groupId].segments));
+  return catalogFor('parent-img', artifactId);
 }
 
 // The COLD path: what deserialize builds from a descriptor-less composed
@@ -155,9 +177,9 @@ async function coldCatalog(segmentMetadata?: Map<string, string>) {
     },
     resolveArtifactRestoreSources(manifest)
   );
-  const groupId = idMap['sg-tumor'];
-  expect(groupId).toBeDefined();
-  return JSON.parse(JSON.stringify(store.metadataByID[groupId].segments));
+  const artifactId = idMap['sg-tumor'];
+  expect(artifactId).toBeDefined();
+  return catalogFor('parent-store', artifactId);
 }
 
 describe('descriptor-less segment catalogs: cold restore == live conversion (parity pin)', () => {
@@ -171,9 +193,11 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     // Sanity on the live shape: the full non-background enumeration got
     // default names/colors — not an empty catalog.
-    expect(live.order).toEqual([1, 2]);
-    expect(live.byValue[1].name).toBe('Segment 1');
-    expect(live.byValue[2].name).toBe('Segment 2');
+    expect(live.map((segment) => segment.labelValue)).toEqual([1, 2]);
+    expect(live.map((segment) => segment.name)).toEqual([
+      'Segment 1',
+      'Segment 2',
+    ]);
 
     expect(cold).toEqual(live);
   });
@@ -190,8 +214,10 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     // The described value carries its embedded name; the undescribed value
     // still gets its default (merge, not replace).
-    expect(live.byValue[2].name).toBe('Tumor core');
-    expect(live.byValue[1].name).toBe('Segment 1');
+    const named = (labelValue: number) =>
+      live.find((segment) => segment.labelValue === labelValue)?.name;
+    expect(named(2)).toBe('Tumor core');
+    expect(named(1)).toBe('Segment 1');
 
     expect(cold).toEqual(live);
   });
@@ -220,10 +246,10 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       { 'ds-ct': 'parent-store' }
     );
 
-    const segments = store.metadataByID[idMap['sg-tumor']].segments;
-    expect(segments.order).toEqual([1, 2]);
-    expect(segments.byValue[1].name).toBe('Segment 1');
-    expect(segments.byValue[2]).toMatchObject({
+    const segments = catalogFor('parent-store', idMap['sg-tumor']);
+    expect(segments.map((segment) => segment.labelValue)).toEqual([1, 2]);
+    expect(segments[0].name).toBe('Segment 1');
+    expect(segments[1]).toMatchObject({
       name: 'Tumor core',
       color: [255, 0, 0, 255],
     });
@@ -235,16 +261,14 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     seat('child-img', 'Sparse.seg.nrrd', makeSparseLabelmapImage());
     const store = useSegmentGroupStore();
 
-    const [groupId] = await store.convertImageToLabelmap(
+    const [artifactId] = await store.convertImageToLabelmap(
       'child-img',
       'parent-img'
     );
 
-    expect(store.metadataByID[groupId].segments.order).toEqual([1, 255]);
-    expect(Object.keys(store.metadataByID[groupId].segments.byValue)).toEqual([
-      '1',
-      '255',
-    ]);
+    expect(
+      catalogFor('parent-img', artifactId).map((segment) => segment.labelValue)
+    ).toEqual([1, 255]);
   });
 
   it('enumerates no segments for an all-background labelmap', async () => {
@@ -256,14 +280,14 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     seat('child-img', 'Empty.seg.nrrd', makeParentImage());
     const store = useSegmentGroupStore();
 
-    const [groupId] = await store.convertImageToLabelmap(
+    const [artifactId] = await store.convertImageToLabelmap(
       'child-img',
       'parent-img'
     );
 
-    expect(store.metadataByID[groupId].segments.order).toEqual([]);
-    expect(Object.keys(store.metadataByID[groupId].segments.byValue)).toEqual(
-      []
+    expect(catalogFor('parent-img', artifactId)).toEqual([]);
+    expect(useSegmentationStore().artifactMeta[artifactId]?.parentImage).toBe(
+      'parent-img'
     );
   });
 });

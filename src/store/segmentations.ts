@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { markRaw, reactive, toRaw } from 'vue';
+import { computed, markRaw, reactive, toRaw, watch } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
@@ -16,6 +16,7 @@ import type { ProcessingResultSource } from '@/src/types';
 import type {
   Extent3D,
   LabelmapBinding,
+  LabelmapSegment,
   Segment,
   Segmentation,
 } from '@/src/types/segmentation';
@@ -46,14 +47,11 @@ const fullExtent = (dimensions: number[]): Extent3D => [
   dimensions[2] - 1,
 ];
 
-const pickUniqueName = (
-  formatName: (index: number) => string,
-  taken: Iterable<string>
-) => {
+const pickUniqueSegmentName = (taken: Iterable<string>) => {
   const existing = new Set(taken);
   let index = 1;
-  while (existing.has(formatName(index))) index += 1;
-  return formatName(index);
+  while (existing.has(makeDefaultSegmentName(index))) index += 1;
+  return makeDefaultSegmentName(index);
 };
 
 export const useSegmentationStore = defineStore('segmentation', () => {
@@ -64,12 +62,33 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   // Internal storage layer: UI and tools reach it through this store's API only.
   const artifactIndex = reactive<Record<string, vtkLabelMap>>({});
   const artifactMeta = reactive<Record<string, ArtifactMetadata>>({});
+  const artifactOrderByParent = reactive<Record<string, string[]>>({});
 
   let nextColorIndex = 0;
   function getNextColor(): RGBAColor {
     const color = CATEGORICAL_COLORS[nextColorIndex];
     nextColorIndex = (nextColorIndex + 1) % CATEGORICAL_COLORS.length;
     return [...color, 255] as RGBAColor;
+  }
+
+  // Names keep counting up per parent image so a deleted artifact's name is
+  // not immediately handed to the next one. Cleared by the deletion cascade.
+  const nextDefaultIndex: Record<string, number> = Object.create(null);
+
+  function pickUniqueArtifactName(
+    formatName: (index: number) => string,
+    parentImageId: string
+  ) {
+    const existing = new Set(
+      Object.values(artifactMeta).map((meta) => meta.name)
+    );
+    let name = '';
+    do {
+      const nameIndex = nextDefaultIndex[parentImageId] ?? 1;
+      nextDefaultIndex[parentImageId] = nameIndex + 1;
+      name = formatName(nameIndex);
+    } while (existing.has(name));
+    return name;
   }
 
   function getSegmentation(segmentationId: string) {
@@ -95,12 +114,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   const bindingsForArtifact = (artifactId: string) =>
     allBindings().filter((binding) => binding.artifactId === artifactId);
-
-  function releaseUnreferencedArtifact(artifactId: string) {
-    if (bindingsForArtifact(artifactId).length > 0) return;
-    delete artifactIndex[artifactId];
-    delete artifactMeta[artifactId];
-  }
 
   function getSegmentationForImage(parentImageId: string) {
     const id = byParentImage[parentImageId];
@@ -130,8 +143,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       id,
       name:
         init?.name ??
-        pickUniqueName(
-          makeDefaultSegmentName,
+        pickUniqueSegmentName(
           listSegments(segmentation).map((segment) => segment.name)
         ),
       color: init?.color ? ([...init.color] as RGBAColor) : getNextColor(),
@@ -143,37 +155,139 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentation.segments[id];
   }
 
-  function createArtifact(parentImageId: string) {
-    const imageData = imageCacheStore.getVtkImageData(parentImageId);
-    if (!imageData) throw new Error('No such parent image');
+  const artifactsForImage = (parentImageId: string) =>
+    artifactOrderByParent[parentImageId] ?? [];
 
+  function getSegmentationForArtifact(artifactId: string) {
+    const parentImage = artifactMeta[artifactId]?.parentImage;
+    return parentImage ? getSegmentationForImage(parentImage) : undefined;
+  }
+
+  /** The ordered segments whose labelmap binding points at one artifact. */
+  function segmentsForArtifact(artifactId: string) {
+    const segmentation = getSegmentationForArtifact(artifactId);
+    if (!segmentation) return [];
+    return listSegments(segmentation).filter(
+      (segment) => segment.representations.labelmap?.artifactId === artifactId
+    );
+  }
+
+  function findSegmentByLabelValue(artifactId: string, labelValue: number) {
+    return segmentsForArtifact(artifactId).find(
+      (segment) => segment.representations.labelmap?.labelValue === labelValue
+    );
+  }
+
+  function registerArtifact(labelmap: vtkLabelMap, meta: ArtifactMetadata) {
     const id = useIdStore().nextId();
-    artifactIndex[id] = markRaw(createLabelmapFromImage(imageData));
-    artifactMeta[id] = {
-      parentImage: parentImageId,
-      name: pickUniqueName(
-        (index) =>
-          makeDefaultSegmentGroupName(
-            imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME,
-            index
-          ),
-        Object.values(artifactMeta).map((meta) => meta.name)
-      ),
-    };
+    artifactIndex[id] = markRaw(labelmap);
+    artifactMeta[id] = { ...meta };
+    artifactOrderByParent[meta.parentImage] ??= [];
+    artifactOrderByParent[meta.parentImage].push(id);
     return id;
   }
 
+  /** Allocates an empty labelmap shaped like the parent image. */
+  function createArtifactForImage(parentImageId: string) {
+    const imageData = imageCacheStore.getVtkImageData(parentImageId);
+    if (!imageData) throw new Error('No such parent image');
+
+    const baseName =
+      imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME;
+    return registerArtifact(createLabelmapFromImage(imageData), {
+      parentImage: parentImageId,
+      name: pickUniqueArtifactName(
+        (index) => makeDefaultSegmentGroupName(baseName, index),
+        parentImageId
+      ),
+    });
+  }
+
+  function updateArtifactMeta(
+    artifactId: string,
+    patch: Partial<ArtifactMetadata>
+  ) {
+    const meta = artifactMeta[artifactId];
+    if (!meta) throw new Error('No such artifact');
+    artifactMeta[artifactId] = { ...meta, ...patch };
+  }
+
+  function detachSegment(segmentation: Segmentation, segmentId: string) {
+    removeFromArray(segmentation.order, segmentId);
+    delete segmentation.segments[segmentId];
+  }
+
+  function removeArtifact(artifactId: string) {
+    const meta = artifactMeta[artifactId];
+    if (!meta) return;
+
+    const segmentation = getSegmentationForImage(meta.parentImage);
+    if (segmentation) {
+      segmentsForArtifact(artifactId).forEach((segment) =>
+        detachSegment(segmentation, segment.id)
+      );
+    }
+
+    removeFromArray(artifactOrderByParent[meta.parentImage] ?? [], artifactId);
+    delete artifactIndex[artifactId];
+    delete artifactMeta[artifactId];
+  }
+
+  function releaseUnreferencedArtifact(artifactId: string) {
+    if (bindingsForArtifact(artifactId).length > 0) return;
+    removeArtifact(artifactId);
+  }
+
+  /**
+   * Replaces an artifact's segment catalog with one segment per given label
+   * value. Voxels are untouched: this is a catalog operation.
+   */
+  function setArtifactSegments(
+    artifactId: string,
+    descriptors: LabelmapSegment[]
+  ) {
+    const meta = artifactMeta[artifactId];
+    if (!meta) throw new Error('No such artifact');
+
+    const segmentation = ensureSegmentationForImage(meta.parentImage);
+    segmentsForArtifact(artifactId).forEach((segment) =>
+      detachSegment(segmentation, segment.id)
+    );
+
+    const extent = fullExtent(artifactIndex[artifactId].getDimensions());
+    descriptors.forEach((descriptor) => {
+      const segment = createSegment(segmentation.id, {
+        name: descriptor.name,
+        color: [...descriptor.color] as RGBAColor,
+      });
+      segment.visible = descriptor.visible;
+      segment.locked = descriptor.locked ?? false;
+      segment.representations.labelmap = {
+        artifactId,
+        labelValue: descriptor.value,
+        extent,
+      };
+    });
+
+    return segmentsForArtifact(artifactId);
+  }
+
   /** The single voxel-allocation point: no other operation creates storage. */
-  function ensureLabelmapBinding(segmentationId: string, segmentId: string) {
+  function ensureLabelmapBinding(
+    segmentationId: string,
+    segmentId: string,
+    preferredArtifactId?: string
+  ) {
     const segment = getSegment(segmentationId, segmentId);
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
     const segmentation = getSegmentation(segmentationId);
     const artifactId =
+      preferredArtifactId ??
       listSegments(segmentation).find((other) => other.representations.labelmap)
         ?.representations.labelmap?.artifactId ??
-      createArtifact(segmentation.parentImageId);
+      createArtifactForImage(segmentation.parentImageId);
 
     const used = new Set(
       bindingsForArtifact(artifactId).map((binding) => binding.labelValue)
@@ -217,11 +331,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const binding = getSegment(segmentationId, segmentId).representations
       .labelmap;
 
-    removeFromArray(segmentation.order, segmentId);
-    delete segmentation.segments[segmentId];
+    detachSegment(segmentation, segmentId);
 
     if (!binding) return;
-    artifactIndex[binding.artifactId].replaceLabelValue(
+    artifactIndex[binding.artifactId]?.replaceLabelValue(
       binding.labelValue,
       LABELMAP_BACKGROUND_VALUE
     );
@@ -232,22 +345,61 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const segmentation = segmentations[segmentationId];
     if (!segmentation) return;
 
-    const artifactIds = new Set(
-      listSegments(segmentation)
-        .map((segment) => segment.representations.labelmap?.artifactId)
-        .filter((id): id is string => !!id)
-    );
-
-    delete byParentImage[segmentation.parentImageId];
+    const { parentImageId } = segmentation;
+    delete byParentImage[parentImageId];
     delete segmentations[segmentationId];
 
-    artifactIds.forEach(releaseUnreferencedArtifact);
+    removeArtifactsForImage(parentImageId);
   }
+
+  function removeArtifactsForImage(parentImageId: string) {
+    [...artifactsForImage(parentImageId)].forEach(removeArtifact);
+    delete artifactOrderByParent[parentImageId];
+  }
+
+  // --- render sync --- //
+
+  // The labelmap renderer colors by voxel value, so each artifact receives the
+  // value-keyed projection of the segments bound to it.
+  const labelmapSegmentsByArtifact = computed(() => {
+    const byArtifact: Record<string, LabelmapSegment[]> = {};
+    Object.keys(artifactMeta).forEach((artifactId) => {
+      byArtifact[artifactId] = [];
+    });
+    Object.values(segmentations).forEach((segmentation) => {
+      listSegments(segmentation).forEach((segment) => {
+        const binding = segment.representations.labelmap;
+        if (!binding || !byArtifact[binding.artifactId]) return;
+        byArtifact[binding.artifactId].push({
+          value: binding.labelValue,
+          name: segment.name,
+          color: [...segment.color] as RGBAColor,
+          visible: segment.visible,
+          locked: segment.locked,
+        });
+      });
+    });
+    return byArtifact;
+  });
+
+  watch(
+    labelmapSegmentsByArtifact,
+    (byArtifact) => {
+      Object.entries(byArtifact).forEach(([artifactId, segments]) => {
+        artifactIndex[artifactId]?.setSegments(segments);
+      });
+    },
+    { immediate: true }
+  );
+
+  // --- handle deletions --- //
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentImageId) => {
+      delete nextDefaultIndex[parentImageId];
       const id = byParentImage[parentImageId];
       if (id) removeSegmentation(id);
+      else removeArtifactsForImage(parentImageId);
     });
   });
 
@@ -256,6 +408,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     byParentImage,
     artifactIndex,
     artifactMeta,
+    artifactOrderByParent,
+    labelmapSegmentsByArtifact,
     getSegmentationForImage,
     ensureSegmentationForImage,
     getSegment,
@@ -266,5 +420,15 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     reorderSegments,
     deleteSegment,
     removeSegmentation,
+    artifactsForImage,
+    getSegmentationForArtifact,
+    segmentsForArtifact,
+    findSegmentByLabelValue,
+    registerArtifact,
+    createArtifactForImage,
+    updateArtifactMeta,
+    setArtifactSegments,
+    removeArtifact,
+    pickUniqueArtifactName,
   };
 });

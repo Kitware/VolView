@@ -8,42 +8,35 @@ import {
   type ParsedSegment,
   type DecodedSegment,
 } from '@/src/io/segNrrdMetadata';
-import type { SegmentGroupMetadata } from '@/src/store/segmentGroups';
+import type { LabelmapSegment } from '@/src/types/segmentation';
 
 // Tests the metadata-embedding layer rather than the ITK-wasm write, which
 // needs a worker + wasm the unit env cannot run. The key gate: names/colors
 // are embedded only for the literal 'seg.nrrd' format token; plain 'nrrd'
 // silently drops them.
 
-const metadata: SegmentGroupMetadata = {
-  name: 'Tumor group',
-  parentImage: 'img-1',
-  segments: {
-    order: [1, 2],
-    byValue: {
-      1: {
-        value: 1,
-        name: 'Tumor',
-        color: [255, 0, 0, 255],
-        visible: true,
-        locked: false,
-      },
-      2: {
-        value: 2,
-        name: 'Edema',
-        color: [0, 128, 255, 255],
-        visible: true,
-        locked: false,
-      },
-    },
+const segments: LabelmapSegment[] = [
+  {
+    value: 1,
+    name: 'Tumor',
+    color: [255, 0, 0, 255],
+    visible: true,
+    locked: false,
   },
-};
+  {
+    value: 2,
+    name: 'Edema',
+    color: [0, 128, 255, 255],
+    visible: true,
+    locked: false,
+  },
+];
 
 const dims: [number, number, number] = [4, 4, 2];
 
 describe('buildSegNrrdMetadata embeds segment names + colors', () => {
   it('writes a Name / Color / LabelValue entry per segment, in order', () => {
-    const m = buildSegNrrdMetadata(metadata, dims);
+    const m = buildSegNrrdMetadata(segments, dims);
 
     expect(m.get('Segment0_Name')).toBe('Tumor');
     expect(m.get('Segment0_Color')).toBe('1.000000 0.000000 0.000000');
@@ -56,7 +49,7 @@ describe('buildSegNrrdMetadata embeds segment names + colors', () => {
   });
 
   it('stamps the Slicer segmentation representation + extent from dimensions', () => {
-    const m = buildSegNrrdMetadata(metadata, dims);
+    const m = buildSegNrrdMetadata(segments, dims);
     expect(m.get('Segmentation_MasterRepresentation')).toBe('Binary labelmap');
     // extent = 0..dim-1 per axis.
     expect(m.get('Segment0_Extent')).toBe('0 3 0 3 0 1');
@@ -65,7 +58,7 @@ describe('buildSegNrrdMetadata embeds segment names + colors', () => {
 
 describe('maybeBuildSegNrrdMetadata gates on the exact seg.nrrd token', () => {
   it('embeds names/colors ONLY for the literal "seg.nrrd" format', () => {
-    const m = maybeBuildSegNrrdMetadata('seg.nrrd', metadata, dims);
+    const m = maybeBuildSegNrrdMetadata('seg.nrrd', segments, dims);
     expect(m).toBeInstanceOf(Map);
     expect(m?.get('Segment0_Name')).toBe('Tumor');
     expect(m?.get('Segment1_Name')).toBe('Edema');
@@ -74,9 +67,9 @@ describe('maybeBuildSegNrrdMetadata gates on the exact seg.nrrd token', () => {
   it('drops the metadata for any other token (the load-bearing gotcha)', () => {
     // Passing 'nrrd' (or 'nii.gz', 'vti', …) silently omits segment names/colors
     // — must serialize with 'seg.nrrd', never saveFormat's 'vti' default.
-    expect(maybeBuildSegNrrdMetadata('nrrd', metadata, dims)).toBeUndefined();
-    expect(maybeBuildSegNrrdMetadata('nii.gz', metadata, dims)).toBeUndefined();
-    expect(maybeBuildSegNrrdMetadata('vti', metadata, dims)).toBeUndefined();
+    expect(maybeBuildSegNrrdMetadata('nrrd', segments, dims)).toBeUndefined();
+    expect(maybeBuildSegNrrdMetadata('nii.gz', segments, dims)).toBeUndefined();
+    expect(maybeBuildSegNrrdMetadata('vti', segments, dims)).toBeUndefined();
   });
 });
 
@@ -88,7 +81,7 @@ describe('maybeBuildSegNrrdMetadata gates on the exact seg.nrrd token', () => {
 
 describe('parseSegNrrdMetadata recovers segment descriptors from header metadata', () => {
   it('round-trips buildSegNrrdMetadata: names, label values, colors back to 0–255', () => {
-    const parsed = parseSegNrrdMetadata(buildSegNrrdMetadata(metadata, dims));
+    const parsed = parseSegNrrdMetadata(buildSegNrrdMetadata(segments, dims));
     expect(parsed).toEqual([
       { value: 1, name: 'Tumor', color: [255, 0, 0, 255], visible: true },
       // 0.501961 → round(0.501961*255) = 128; 1.000000 → 255.
@@ -138,7 +131,7 @@ describe('parseSegNrrdMetadata recovers segment descriptors from header metadata
   it('recovers a segment past a header gap (no zero-based contiguity assumption)', () => {
     // A foreign / hand-edited header may leave gaps between indices. Every
     // present Segment{N}_ block must be recovered, not just the leading run.
-    const m = buildSegNrrdMetadata(metadata, dims); // Segment0, Segment1
+    const m = buildSegNrrdMetadata(segments, dims); // Segment0, Segment1
     m.set('Segment5_Name', 'orphan'); // gap at 2..4 — must still be reached
     m.set('Segment5_LabelValue', '9');
     m.set('Segment5_Color', '0 0 0');

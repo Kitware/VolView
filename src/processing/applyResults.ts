@@ -28,11 +28,12 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import type { SegmentMask } from '@/src/types/segment';
+import type { LabelmapSegment } from '@/src/types/segmentation';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
@@ -374,7 +375,7 @@ type SegmentGroupWriter = {
   updateSegment: (
     segmentGroupID: string,
     segmentValue: number,
-    segmentUpdate: Partial<Omit<SegmentMask, 'value'>>
+    segmentUpdate: Partial<Omit<LabelmapSegment, 'value'>>
   ) => void;
 };
 
@@ -403,7 +404,7 @@ export const appApplyDependencies = (): ApplyDependencies => ({
     useLayersStore().addLayer(parentSelection, childSelection),
   segmentGroups: {
     resultSourcesInScene: () =>
-      Object.values(useSegmentGroupStore().metadataByID).map(
+      Object.values(useSegmentationStore().artifactMeta).map(
         ({ source }) => source
       ),
     convertImageToLabelmap: (childSelection, parentSelection, source) =>
@@ -412,12 +413,13 @@ export const appApplyDependencies = (): ApplyDependencies => ({
         parentSelection,
         source
       ),
-    updateSegment: (segmentGroupID, segmentValue, segmentUpdate) =>
-      useSegmentGroupStore().updateSegment(
-        segmentGroupID,
-        segmentValue,
-        segmentUpdate
-      ),
+    updateSegment: (artifactId, labelValue, segmentUpdate) => {
+      const store = useSegmentationStore();
+      const segmentation = store.getSegmentationForArtifact(artifactId);
+      const segment = store.findSegmentByLabelValue(artifactId, labelValue);
+      if (!segmentation || !segment) return;
+      store.updateSegment(segmentation.id, segment.id, segmentUpdate);
+    },
   },
 });
 

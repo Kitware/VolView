@@ -11,29 +11,30 @@ import {
   DataSelection,
 } from '@/src/utils/dataSelection';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useGlobalLayerColorConfig } from '@/src/composables/useGlobalLayerColorConfig';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { Maybe } from '@/src/types';
 import { reactive, ref, computed, watch, toRaw } from 'vue';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 import { useMultiSelection } from '@/src/composables/useMultiSelection';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const UNNAMED_GROUP_NAME = 'Unnamed Segment Group';
 
 const segmentGroupStore = useSegmentGroupStore();
+const segmentationStore = useSegmentationStore();
 const { currentImageID } = useCurrentImage();
 const dataStore = useDatasetStore();
 const isCurrentImageCine = computed(() => isCineImage(currentImageID.value));
 
 const currentSegmentGroups = computed(() => {
   if (!currentImageID.value) return [];
-  const { orderByParent, metadataByID } = segmentGroupStore;
-  if (!(currentImageID.value in orderByParent)) return [];
-  return orderByParent[currentImageID.value].map((id) => {
+  return segmentationStore.artifactsForImage(currentImageID.value).map((id) => {
     const { sampledConfig, updateConfig } = useGlobalLayerColorConfig(id);
     return {
       id,
-      name: metadataByID[id].name,
+      name: segmentationStore.artifactMeta[id].name,
       visibility: sampledConfig.value?.config?.blendConfig.visibility ?? true,
       toggleVisibility: () => {
         const currentBlend = sampledConfig.value!.config!.blendConfig;
@@ -57,13 +58,13 @@ const currentSegmentGroupID = computed({
 // clear selection if we delete the active segment group
 watch(currentSegmentGroups, () => {
   const selection = currentSegmentGroupID.value;
-  if (selection && !(selection in segmentGroupStore.dataIndex)) {
+  if (selection && !(selection in segmentationStore.artifactIndex)) {
     currentSegmentGroupID.value = null;
   }
 });
 
 function deleteGroup(id: string) {
-  segmentGroupStore.removeGroup(id);
+  segmentationStore.removeArtifact(id);
 }
 
 // --- editing state --- //
@@ -74,12 +75,12 @@ const editDialog = ref(false);
 
 const editingMetadata = computed(() => {
   if (!editingGroupID.value) return null;
-  return segmentGroupStore.metadataByID[editingGroupID.value];
+  return segmentationStore.artifactMeta[editingGroupID.value];
 });
 
 const existingNames = computed(() => {
   return new Set(
-    Object.values(segmentGroupStore.metadataByID).map((meta) => meta.name)
+    Object.values(segmentationStore.artifactMeta).map((meta) => meta.name)
   );
 });
 
@@ -126,10 +127,18 @@ function createSegmentGroup() {
 
   // copy segments from current labelmap
   if (currentSegmentGroupID.value) {
-    const metadata =
-      segmentGroupStore.metadataByID[currentSegmentGroupID.value];
-    const copied = structuredClone(toRaw(metadata.segments));
-    segmentGroupStore.updateMetadata(id, { segments: copied });
+    segmentationStore.setArtifactSegments(
+      id,
+      segmentationStore
+        .segmentsForArtifact(currentSegmentGroupID.value)
+        .map((segment) => ({
+          value: segment.representations.labelmap!.labelValue,
+          name: segment.name,
+          color: [...toRaw(segment.color)] as RGBAColor,
+          visible: segment.visible,
+          locked: segment.locked,
+        }))
+    );
   }
 
   currentSegmentGroupID.value = id;

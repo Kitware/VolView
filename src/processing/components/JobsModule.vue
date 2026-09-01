@@ -148,7 +148,7 @@ import {
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useMessageStore } from '@/src/store/messages';
 
 import TaskPicker from './TaskPicker.vue';
@@ -160,7 +160,7 @@ const { currentImageID } = useCurrentImage('global');
 const imageCache = useImageCacheStore();
 const cropStore = useCropStore();
 const paintStore = usePaintToolStore();
-const segmentGroupStore = useSegmentGroupStore();
+const segmentationStore = useSegmentationStore();
 const messageStore = useMessageStore();
 
 const {
@@ -498,7 +498,7 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   const labelmapNames = Object.fromEntries(
     Object.entries(bindings.labelmap.groups).map(([parameterId, groupIds]) => [
       parameterId,
-      groupIds.map((groupId) => segmentGroupStore.metadataByID[groupId].name),
+      groupIds.map((groupId) => segmentationStore.artifactMeta[groupId].name),
     ])
   );
   return {
@@ -527,7 +527,7 @@ watchDebounced(
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
       activeSegmentGroup: paintStore.activeSegmentGroupID,
-      groupCount: id ? (segmentGroupStore.orderByParent[id]?.length ?? 0) : 0,
+      groupCount: id ? segmentationStore.artifactsForImage(id).length : 0,
       // Placing the first (or removing the last) tool flips the annotations
       // binding, so the form must revalidate.
       annotationCount: finishedAnnotationCount.value,

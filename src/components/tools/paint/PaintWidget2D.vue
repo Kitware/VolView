@@ -15,7 +15,7 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { LPSAxisDir } from '@/src/types/lps';
 import { getLPSDirections } from '@/src/utils/lps';
@@ -48,7 +48,7 @@ export default defineComponent({
     const slice = computed(() => sliceInfo.value?.slice);
 
     const paintStore = usePaintToolStore();
-    const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
     const widgetFactory = paintStore.getWidgetFactory();
     const widgetState = widgetFactory.getWidgetState();
 
@@ -62,7 +62,7 @@ export default defineComponent({
     const activeLabelmap = computed(() => {
       const groupId = paintStore.activeSegmentGroupID;
       if (!groupId) return null;
-      return segmentGroupStore.dataIndex[groupId] ?? null;
+      return segmentationStore.artifactIndex[groupId] ?? null;
     });
 
     const widget = view.widgetManager.addWidget(

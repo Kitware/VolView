@@ -1,4 +1,4 @@
-import { SegmentMask } from '@/src/types/segment';
+import { LabelmapSegment } from '@/src/types/segmentation';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Vector4 } from '@kitware/vtk.js/types';
 
@@ -7,12 +7,12 @@ export interface vtkLabelMap extends vtkImageData {
    * Sets the segments of the labelmap.
    * @param segments
    */
-  setSegments(segments: SegmentMask[]): boolean;
+  setSegments(segments: LabelmapSegment[]): boolean;
 
   /**
    * Gets the segments of the labelmap.
    */
-  getSegments(): SegmentMask[];
+  getSegments(): LabelmapSegment[];
 
   /**
    * Replaces a labelmap value with another value.

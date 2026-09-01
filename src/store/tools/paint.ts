@@ -12,6 +12,7 @@ import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
 import { Tools } from './types';
 import { useSegmentGroupStore } from '../segmentGroups';
+import { useSegmentationStore } from '../segmentations';
 import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
 import { useViewCameraStore } from '../view-configs/camera';
@@ -69,6 +70,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
 
   // Delete-base cleanup: removing a dataset cascades away its segment groups.
   // `serialize` writes the raw `activeSegmentGroupID`, so null it the instant
@@ -79,7 +81,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   watch(
     () =>
       activeSegmentGroupID.value != null &&
-      !(activeSegmentGroupID.value in segmentGroupStore.metadataByID),
+      !(activeSegmentGroupID.value in segmentationStore.artifactMeta),
     (orphaned) => {
       if (orphaned) activeSegmentGroupID.value = null;
     },
@@ -153,7 +155,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     // If current segment group belongs to this image, keep using it
     if (
       activeSegmentGroupID.value &&
-      segmentGroupStore.metadataByID[activeSegmentGroupID.value]
+      segmentationStore.artifactMeta[activeSegmentGroupID.value]
         ?.parentImage === imageID
     ) {
       return activeSegmentGroupID.value;
@@ -195,10 +197,12 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (!activeSegmentGroupID.value)
         throw new Error('Cannot set active segment without a labelmap');
 
-      const { segments } =
-        segmentGroupStore.metadataByID[activeSegmentGroupID.value];
-
-      if (!(segValue in segments.byValue))
+      if (
+        !segmentationStore.findSegmentByLabelValue(
+          activeSegmentGroupID.value,
+          segValue
+        )
+      )
         throw new Error('Segment is not available for the active labelmap');
 
       lastSegmentByGroup.value[activeSegmentGroupID.value] = segValue;
@@ -225,12 +229,20 @@ export const usePaintToolStore = defineStore('paint', () => {
     const labelmap = segmentGroupStore.dataIndex[segmentGroupID];
     if (!labelmap) return;
 
+    // One catalog read per stroke: the per-voxel predicate below is the hot path.
+    const lockedValues = new Set(
+      segmentationStore
+        .segmentsForArtifact(segmentGroupID)
+        .filter((segment) => segment.locked)
+        .map((segment) => segment.representations.labelmap!.labelValue)
+    );
+
     // Prevent painting if active segment is locked or doesn't exist
     if (activeSegment.value) {
-      const metadata = segmentGroupStore.metadataByID[segmentGroupID];
-      if (!metadata) return;
-
-      const segment = metadata.segments.byValue[activeSegment.value];
+      const segment = segmentationStore.findSegmentByLabelValue(
+        segmentGroupID,
+        activeSegment.value
+      );
       if (!segment || segment.locked) {
         return;
       }
@@ -246,17 +258,12 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (!underlyingImagePixels) return false;
 
       // Prevent painting over locked segments
-      const metadata = segmentGroupStore.metadataByID[segmentGroupID];
-      if (metadata) {
-        const currentData = labelmap
-          .getPointData()
-          .getScalars()
-          .getData() as Uint8Array;
-        const currentValue = currentData[idx];
-        const segment = metadata.segments.byValue[currentValue];
-        if (segment?.locked) {
-          return false;
-        }
+      const currentData = labelmap
+        .getPointData()
+        .getScalars()
+        .getData() as Uint8Array;
+      if (lockedValues.has(currentData[idx])) {
+        return false;
       }
 
       const pixValue = underlyingImagePixels[idx];
@@ -309,17 +316,20 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     setActiveSegmentGroup(segmentGroupID);
 
-    const metadata = segmentGroupStore.metadataByID[segmentGroupID];
-    if (!metadata) return;
+    if (!segmentationStore.artifactMeta[segmentGroupID]) return;
+
+    const labelValues = segmentationStore
+      .segmentsForArtifact(segmentGroupID)
+      .map((segment) => segment.representations.labelmap!.labelValue);
 
     const lastSegment = lastSegmentByGroup.value[segmentGroupID];
-    if (lastSegment !== undefined && lastSegment in metadata.segments.byValue) {
+    if (lastSegment !== undefined && labelValues.includes(lastSegment)) {
       setActiveSegment.call(this, lastSegment);
       return;
     }
 
-    if (metadata.segments.order.length > 0) {
-      setActiveSegment.call(this, metadata.segments.order[0]);
+    if (labelValues.length > 0) {
+      setActiveSegment.call(this, labelValues[0]);
     }
   }
 

@@ -7,6 +7,7 @@ import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useSegmentGroupStore } from '../segmentGroups';
+import { useSegmentationStore } from '../segmentations';
 
 export enum ProcessType {
   FillHoles = 'fillHoles',
@@ -76,6 +77,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
   const paintStore = usePaintToolStore();
   const { activeSegmentGroupID } = storeToRefs(paintStore);
   const messageStore = useMessageStore();
@@ -122,7 +124,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       }
 
       // Check if the active segment is locked
-      const segment = segmentGroupStore.getSegment(groupId, activeSegment);
+      const segment = segmentationStore.findSegmentByLabelValue(
+        groupId,
+        activeSegment
+      );
       if (segment?.locked) {
         messageStore.addError('Cannot process locked segment');
         return;
@@ -131,7 +136,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
     const segImage = segmentGroupStore.dataIndex[groupId];
     const activeParentImageID =
-      segmentGroupStore.metadataByID[groupId].parentImage;
+      segmentationStore.artifactMeta[groupId].parentImage;
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 

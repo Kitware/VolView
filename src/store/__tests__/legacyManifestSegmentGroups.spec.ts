@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
@@ -96,7 +97,9 @@ describe('segmentGroups.deserialize — legacy manifests without `datasets`', ()
     expect(skipped).toEqual([]);
     expect(idMap['sg-tumor']).toBeDefined();
     expect(
-      Object.values(store.metadataByID).some((m) => m.name === 'sg-tumor')
+      Object.values(useSegmentationStore().artifactMeta).some(
+        (m) => m.name === 'sg-tumor'
+      )
     ).toBe(true);
     // The consumed artifact dataset is removed after conversion.
     expect(removeSpy).toHaveBeenCalledTimes(1);

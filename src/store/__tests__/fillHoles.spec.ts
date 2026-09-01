@@ -99,22 +99,19 @@ describe('Fill Holes store', () => {
     });
     await nextTick();
 
-    const groupId = segmentGroupStore.addLabelmap(labelMap, {
-      name: 'Test group',
-      parentImage: parentImageID,
-      segments: {
-        order: [1],
-        byValue: {
-          1: {
-            value: 1,
-            name: 'Segment 1',
-            color: [255, 0, 0, 255],
-            visible: true,
-            locked: false,
-          },
+    const groupId = segmentGroupStore.addLabelmap(
+      labelMap,
+      { name: 'Test group', parentImage: parentImageID },
+      [
+        {
+          value: 1,
+          name: 'Segment 1',
+          color: [255, 0, 0, 255],
+          visible: true,
+          locked: false,
         },
-      },
-    });
+      ]
+    );
 
     const axialView = viewStore.visibleViews.find(
       (view) => view.type === '2D' && view.options.orientation === 'Axial'

@@ -34,7 +34,7 @@ import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
 
@@ -472,17 +472,13 @@ describe('JobsModule — segment group staging', () => {
 
   // Painted groups, in the order the store hands them back.
   const seedGroups = (names: [string, string][]) => {
-    const store = useSegmentGroupStore();
+    const store = useSegmentationStore();
     names.forEach(([id, name]) => {
-      store.dataIndex[id] = {
+      store.artifactIndex[id] = {
         setSegments: () => {},
-      } as unknown as (typeof store.dataIndex)[string];
-      store.metadataByID[id] = {
-        name,
-        parentImage: 'image-1',
-        segments: { order: [], byValue: {} },
-      };
-      (store.orderByParent['image-1'] ??= []).push(id);
+      } as unknown as (typeof store.artifactIndex)[string];
+      store.artifactMeta[id] = { name, parentImage: 'image-1' };
+      (store.artifactOrderByParent['image-1'] ??= []).push(id);
     });
   };
 

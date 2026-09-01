@@ -7,6 +7,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { useCropStore } from '@/src/store/tools/crop';
@@ -73,7 +74,9 @@ describe('dataset remove — synchronous reference cascade', () => {
     useDatasetStore().remove('img-1');
 
     expect(segmentGroups.orderByParent['img-1'] ?? []).toEqual([]);
-    expect(segmentGroups.metadataByID).not.toHaveProperty(groupId as string);
+    expect(useSegmentationStore().artifactMeta).not.toHaveProperty(
+      groupId as string
+    );
   });
 
   it('clears ALL segment groups when an image has several (no splice-skip)', () => {
@@ -95,9 +98,42 @@ describe('dataset remove — synchronous reference cascade', () => {
 
     expect(segmentGroups.orderByParent['img-1'] ?? []).toEqual([]);
     [groupA, groupB, groupC].forEach((id) => {
-      expect(segmentGroups.metadataByID).not.toHaveProperty(id as string);
+      expect(useSegmentationStore().artifactMeta).not.toHaveProperty(
+        id as string
+      );
       expect(segmentGroups.dataIndex).not.toHaveProperty(id as string);
     });
+  });
+
+  it('removes the segmentation and its artifacts with the parent image', () => {
+    seatImage('img-1', 'CT');
+    const segmentGroups = useSegmentGroupStore();
+    const segmentations = useSegmentationStore();
+    const artifactId = segmentGroups.newLabelmapFromImage('img-1') as string;
+    const segmentation = segmentations.getSegmentationForImage('img-1');
+    expect(segmentation).toBeTruthy();
+    expect(segmentations.artifactMeta).toHaveProperty(artifactId);
+
+    useDatasetStore().remove('img-1');
+
+    expect(segmentations.getSegmentationForImage('img-1')).toBeFalsy();
+    expect(segmentations.segmentations).not.toHaveProperty(segmentation!.id);
+    expect(segmentations.artifactMeta).not.toHaveProperty(artifactId);
+    expect(segmentations.artifactIndex).not.toHaveProperty(artifactId);
+  });
+
+  it('leaves another image segmentation intact', () => {
+    seatImage('img-1', 'CT');
+    seatImage('img-2', 'PET');
+    const segmentGroups = useSegmentGroupStore();
+    const segmentations = useSegmentationStore();
+    segmentGroups.newLabelmapFromImage('img-1');
+    const keptArtifact = segmentGroups.newLabelmapFromImage('img-2') as string;
+
+    useDatasetStore().remove('img-1');
+
+    expect(segmentations.getSegmentationForImage('img-2')).toBeTruthy();
+    expect(segmentations.artifactMeta).toHaveProperty(keptArtifact);
   });
 
   it('clears annotation tools bound to the removed image', () => {

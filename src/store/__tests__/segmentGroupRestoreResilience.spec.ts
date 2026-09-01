@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -106,6 +107,22 @@ function makeEmptyScalarsImage() {
 // Mirrors production: the restore setup resolves each group's artifact state
 // source from the manifest (resolveArtifactRestoreSources, the single-owner
 // policy) and hands it to deserialize alongside the dataIDMap.
+// Restored artifacts register in the segmentation store: name/parent live in
+// artifactMeta, the segment catalog in the parent image's segmentation.
+const artifactNames = () =>
+  Object.values(useSegmentationStore().artifactMeta).map((meta) => meta.name);
+
+const catalogFor = (parentImageId: string, artifactId: string) => {
+  const segmentation =
+    useSegmentationStore().getSegmentationForImage(parentImageId);
+  if (!segmentation) return [];
+  return segmentation.order
+    .map((id) => segmentation.segments[id])
+    .filter(
+      (segment) => segment.representations.labelmap?.artifactId === artifactId
+    );
+};
+
 const restoreGroups = (
   manifest: Manifest,
   stateFiles: { archivePath: string; file: File }[],
@@ -145,6 +162,11 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'artifact source unavailable' },
     ]);
+    const restored = catalogFor('store-ct', idMap['sg-liver']);
+    expect(restored.map((segment) => segment.name)).toEqual(['Tumor']);
+    expect(restored[0].representations.labelmap!.labelValue).toBe(1);
+    expect([...restored[0].color]).toEqual([255, 0, 0, 255]);
+    expect(artifactNames()).toEqual(['sg-liver']);
   });
 
   it('skips a group whose parent base never resolved', async () => {
@@ -157,7 +179,7 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     );
 
     expect(idMap).toEqual({});
-    expect(Object.keys(useSegmentGroupStore().metadataByID)).toEqual([]);
+    expect(Object.keys(useSegmentationStore().artifactMeta)).toEqual([]);
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'parent image did not load' },
     ]);
@@ -211,7 +233,6 @@ describe('segmentGroups.deserialize — resilient restore', () => {
     seatImage('store-ct', 'CT Chest');
     seatImage('store-liver', 'Liver.seg.nrrd');
 
-    const store = useSegmentGroupStore();
     await completeStateFileRestore(
       manifestWith([
         group('sg-tumor', { dataSourceId: 3 }, 'ds-missing'),
@@ -221,12 +242,8 @@ describe('segmentGroups.deserialize — resilient restore', () => {
       { 'ds-ct': 'store-ct', [leafStateId(4)]: 'store-liver' }
     );
 
-    expect(
-      Object.values(store.metadataByID).some((m) => m.name === 'sg-liver')
-    ).toBe(true);
-    expect(
-      Object.values(store.metadataByID).some((m) => m.name === 'sg-tumor')
-    ).toBe(false);
+    expect(artifactNames()).toContain('sg-liver');
+    expect(artifactNames()).not.toContain('sg-tumor');
 
     const warning = useMessageStore().messages.find(
       (message) => message.title === 'Some scene content could not be restored'

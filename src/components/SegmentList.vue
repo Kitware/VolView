@@ -2,14 +2,14 @@
 import EditableChipList from '@/src/components/EditableChipList.vue';
 import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
+import { makeDefaultSegmentName } from '@/src/store/segmentGroups';
 import {
-  useSegmentGroupStore,
-  makeDefaultSegmentName,
-} from '@/src/store/segmentGroups';
+  useSegmentationStore,
+  type SegmentPatch,
+} from '@/src/store/segmentations';
 import { Maybe } from '@/src/types';
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 import { reactive, ref, toRefs, computed, watch } from 'vue';
-import { SegmentMask } from '@/src/types/segment';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 import ColorDot from '@/src/components/ColorDot.vue';
@@ -23,12 +23,35 @@ const props = defineProps({
 
 const { groupId } = toRefs(props);
 
-const segmentGroupStore = useSegmentGroupStore();
+const segmentationStore = useSegmentationStore();
 const paintStore = usePaintToolStore();
 
-const segments = computed<SegmentMask[]>(() => {
-  return segmentGroupStore.segmentByGroupID[groupId.value] ?? [];
-});
+const segmentation = computed(() =>
+  segmentationStore.getSegmentationForArtifact(groupId.value)
+);
+
+// The chip list and the paint selection are still keyed on label value; the
+// edits below route through the segment's stable id.
+const segments = computed(() =>
+  segmentationStore.segmentsForArtifact(groupId.value).map((segment) => ({
+    id: segment.id,
+    value: segment.representations.labelmap!.labelValue,
+    name: segment.name,
+    color: segment.color,
+    visible: segment.visible,
+    locked: segment.locked,
+  }))
+);
+
+const segmentByValue = (value: number) =>
+  segments.value.find((segment) => segment.value === value);
+
+function updateByValue(value: number, patch: SegmentPatch) {
+  const target = segmentation.value;
+  const segment = segmentByValue(value);
+  if (!target || !segment) return;
+  segmentationStore.updateSegment(target.id, segment.id, patch);
+}
 
 // --- selection --- //
 
@@ -40,8 +63,15 @@ const selectedSegment = computed({
 });
 
 function addNewSegment() {
-  const newSegment = segmentGroupStore.addSegment(groupId.value);
-  selectedSegment.value = newSegment.value;
+  const target = segmentation.value;
+  if (!target) return;
+  const segment = segmentationStore.createSegment(target.id);
+  const binding = segmentationStore.ensureLabelmapBinding(
+    target.id,
+    segment.id,
+    groupId.value
+  );
+  selectedSegment.value = binding.labelValue;
 }
 
 // reset selection when necessary
@@ -61,11 +91,9 @@ watch(
 );
 
 const toggleVisible = (value: number) => {
-  const segment = segmentGroupStore.getSegment(groupId.value, value);
+  const segment = segmentByValue(value);
   if (!segment) return;
-  segmentGroupStore.updateSegment(groupId.value, value, {
-    visible: !segment.visible,
-  });
+  updateByValue(value, { visible: !segment.visible });
 };
 
 const allVisible = computed(() => {
@@ -80,9 +108,7 @@ function toggleGlobalVisible() {
   const visible = !allVisible.value;
 
   segments.value.forEach((seg) => {
-    segmentGroupStore.updateSegment(groupId.value, seg.value, {
-      visible,
-    });
+    updateByValue(seg.value, { visible });
   });
 }
 
@@ -90,9 +116,7 @@ function toggleGlobalLocked() {
   const locked = !allLocked.value;
 
   segments.value.forEach((seg) => {
-    segmentGroupStore.updateSegment(groupId.value, seg.value, {
-      locked,
-    });
+    updateByValue(seg.value, { locked });
   });
 }
 
@@ -108,7 +132,7 @@ const editDialog = ref(false);
 
 const editingSegment = computed(() => {
   if (editingSegmentValue.value == null) return null;
-  return segmentGroupStore.getSegment(groupId.value, editingSegmentValue.value);
+  return segmentByValue(editingSegmentValue.value) ?? null;
 });
 const invalidNames = computed(() => {
   const names = new Set(segments.value.map((seg) => seg.name));
@@ -132,7 +156,7 @@ function stopEditing(commit: boolean) {
       ...(hexaToRGBA(editState.color).slice(0, 3) as [number, number, number]),
       Math.round(editState.opacity * 255),
     ] as RGBAColor;
-    segmentGroupStore.updateSegment(groupId.value, editingSegmentValue.value, {
+    updateByValue(editingSegmentValue.value, {
       name: editState.name ?? makeDefaultSegmentName(editingSegmentValue.value),
       color,
     });
@@ -142,7 +166,10 @@ function stopEditing(commit: boolean) {
 }
 
 function deleteSegment(value: number) {
-  segmentGroupStore.deleteSegment(groupId.value, value);
+  const target = segmentation.value;
+  const segment = segmentByValue(value);
+  if (!target || !segment) return;
+  segmentationStore.deleteSegment(target.id, segment.id);
 }
 
 function deleteEditingSegment() {
@@ -157,11 +184,9 @@ function deleteEditingSegment() {
  * @param value - The segment value to toggle lock state for
  */
 const toggleLock = (value: number) => {
-  const seg = segmentGroupStore.getSegment(groupId.value, value);
+  const seg = segmentByValue(value);
   if (seg) {
-    segmentGroupStore.updateSegment(groupId.value, value, {
-      locked: !seg.locked,
-    });
+    updateByValue(value, { locked: !seg.locked });
   }
 };
 </script>

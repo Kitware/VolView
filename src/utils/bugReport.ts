@@ -4,6 +4,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { COMPOUND_EXTENSIONS } from '@/src/utils/path';
 
 const MAX_ERROR_LENGTH = 4000;
@@ -57,7 +58,7 @@ const collectDatasetInfo = (): string[] => {
         ? 'DICOM'
         : 'unknown';
 
-    const segCount = segmentGroupStore.orderByParent[id]?.length ?? 0;
+    const segCount = useSegmentationStore().artifactsForImage(id).length;
     const segPart =
       segCount > 0
         ? ` (segment groups: ${segCount} as ${segmentGroupStore.saveFormat})`

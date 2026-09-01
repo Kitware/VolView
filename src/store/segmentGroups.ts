@@ -1,15 +1,11 @@
-import { computed, reactive, ref, toRaw, watch } from 'vue';
+import { ref } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
 import { normalize } from '@/src/utils/path';
-import { useIdStore } from '@/src/store/id';
-import { onImageDeleted } from '@/src/composables/onImageDeleted';
-import { normalizeForStore, removeFromArray } from '@/src/utils';
-import { SegmentMask } from '@/src/types/segment';
-import type { ProcessingResultSource } from '@/src/types';
+import type { LabelmapSegment } from '@/src/types/segmentation';
 import { DEFAULT_SEGMENT_MASKS, CATEGORICAL_COLORS } from '@/src/config';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import {
@@ -24,15 +20,14 @@ import {
 } from '@/src/utils/dataSelection';
 import vtkImageExtractComponents from '@/src/utils/imageExtractComponentsFilter';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import {
+  useSegmentationStore,
+  type ArtifactMetadata,
+} from '@/src/store/segmentations';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import vtkLabelMap from '../vtk/LabelMap';
-import {
-  StateFile,
-  Manifest,
-  SegmentGroupMetadata,
-  SegmentGroup,
-} from '../io/state-file/schema';
+import { StateFile, Manifest, SegmentGroup } from '../io/state-file/schema';
 import { makeSegmentGroupArchivePath } from '../io/state-file/segmentGroupArchivePath';
 import { FileEntry } from '../io/types';
 import { ensureSameSpace } from '../io/resample/resample';
@@ -47,17 +42,6 @@ export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
 export const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
   `Segment Group ${index} for ${baseName}`;
 const numberer = (index: number) => (index <= 1 ? '' : `${index}`); // start numbering at 2
-
-export type SegmentGroupMetadata = {
-  name: string;
-  parentImage: string;
-  segments: {
-    order: number[];
-    byValue: Record<number, SegmentMask>;
-  };
-  // Provenance of a job-produced group; absent on hand-painted ones.
-  source?: ProcessingResultSource;
-};
 
 export function createLabelmapFromImage(imageData: vtkImageData) {
   const points = new LabelmapArrayType(imageData.getNumberOfPoints());
@@ -128,133 +112,52 @@ export function extractEachComponent(input: vtkImageData) {
   });
 }
 
+/** The artifact layer: labelmap bytes, decode, and the legacy wire format. */
 export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   type _This = ReturnType<typeof useSegmentGroupStore>;
   const imageCacheStore = useImageCacheStore();
+  const segmentationStore = useSegmentationStore();
 
-  const dataIndex = reactive<Record<string, vtkLabelMap>>(Object.create(null));
-  const metadataByID = reactive<Record<string, SegmentGroupMetadata>>(
-    Object.create(null)
-  );
-  const orderByParent = ref<Record<string, string[]>>(Object.create(null));
-
-  /**
-   * Gets the metadata for a labelmap.
-   * @param segmentGroupID
-   * @param segmentValue
-   */
-  function getMetadata(segmentGroupID: string) {
-    if (!(segmentGroupID in metadataByID))
-      throw new Error('No such labelmap ID');
-    return metadataByID[segmentGroupID];
-  }
-
-  /**
-   * Gets a segment.
-   * @param segmentGroupID
-   * @param segmentValue
-   * @returns
-   */
-  function getSegment(segmentGroupID: string, segmentValue: number) {
-    const metadata = getMetadata(segmentGroupID);
-    if (!(segmentValue in metadata.segments.byValue))
-      throw new Error('No such segment');
-    return metadata.segments.byValue[segmentValue];
-  }
-
-  /**
-   * Validates that a segment does not violate constraints.
-   *
-   * Assumes that the given segment is not yet part of the labelmap segments.
-   * @param segmentGroupID
-   * @param segment
-   */
-  function validateSegment(segmentGroupID: string, segment: SegmentMask) {
-    return (
-      // cannot be zero (background)
-      segment.value !== 0 &&
-      // cannot already exist
-      !(segment.value in getMetadata(segmentGroupID).segments.byValue)
-    );
-  }
+  // One artifact index for the app, owned by the segmentation store; exposed
+  // here for the edit paths still keyed on segment-group ids until C6.
+  const { artifactIndex: dataIndex, artifactOrderByParent: orderByParent } =
+    segmentationStore;
 
   /**
    * Adds a given image + metadata as a labelmap.
    */
   function addLabelmap(
-    this: _This,
     labelmap: vtkLabelMap,
-    metadata: SegmentGroupMetadata
+    metadata: ArtifactMetadata,
+    segments: LabelmapSegment[] = []
   ) {
-    const id = useIdStore().nextId();
-
-    dataIndex[id] = labelmap;
-    metadataByID[id] = metadata;
-    orderByParent.value[metadata.parentImage] ??= [];
-    orderByParent.value[metadata.parentImage].push(id);
-
+    const id = segmentationStore.registerArtifact(labelmap, metadata);
+    segmentationStore.setArtifactSegments(id, segments);
     return id;
-  }
-
-  // Used for constructing labelmap names in newLabelmapFromImage.
-  // Cleared by the onImageDeleted cascade below.
-  const nextDefaultIndex: Record<string, number> = Object.create(null);
-
-  function pickUniqueName(
-    formatName: (index: number) => string,
-    parentID: string
-  ) {
-    const existingNames = new Set(
-      Object.values(metadataByID).map((meta) => meta.name)
-    );
-    let name = '';
-    do {
-      const nameIndex = nextDefaultIndex[parentID] ?? 1;
-      nextDefaultIndex[parentID] = nameIndex + 1;
-      name = formatName(nameIndex);
-    } while (existingNames.has(name));
-    return name;
   }
 
   /**
    * Creates a new labelmap entry from a parent/source image.
    */
-  function newLabelmapFromImage(this: _This, parentID: string) {
+  function newLabelmapFromImage(parentID: string) {
     const imageData = imageCacheStore.getVtkImageData(parentID);
     if (!imageData) {
       return null;
     }
-    const baseName =
-      imageCacheStore.getImageMetadata(parentID)?.name ?? '(no name)';
 
-    const labelmap = createLabelmapFromImage(imageData);
-
-    const { order, byKey } = normalizeForStore(
-      structuredClone(DEFAULT_SEGMENT_MASKS),
-      'value'
+    const id = segmentationStore.createArtifactForImage(parentID);
+    segmentationStore.setArtifactSegments(
+      id,
+      structuredClone(DEFAULT_SEGMENT_MASKS)
     );
-
-    const name = pickUniqueName(
-      (index: number) => makeDefaultSegmentGroupName(baseName, index),
-      parentID
-    );
-
-    return addLabelmap.call(this, labelmap, {
-      name,
-      parentImage: parentID,
-      segments: { order, byValue: byKey },
-    });
+    return id;
   }
 
   /**
    * Deletes a labelmap.
    */
   function removeGroup(id: string) {
-    if (!(id in dataIndex)) return;
-    const { parentImage } = metadataByID[id];
-    removeFromArray(orderByParent.value[parentImage], id);
-    delete dataIndex[id];
-    delete metadataByID[id];
+    segmentationStore.removeArtifact(id);
   }
 
   let nextColorIndex = 0;
@@ -337,16 +240,16 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   /**
    * Converts an image to a labelmap.
    *
-   * Returns the created segment-group id(s) — one per component of the source
+   * Returns the created artifact id(s) — one per component of the source
    * image (one for the common single-component case). Awaits the per-component
-   * adds so the caller can act on the created groups synchronously afterwards
+   * adds so the caller can act on the created artifacts synchronously afterwards
    * (corroboration/present + descriptor application key off the
-   * returned ids rather than racing `orderByParent`).
+   * returned ids rather than racing the artifact order).
    */
   async function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
-    source?: SegmentGroupMetadata['source']
+    source?: ArtifactMetadata['source']
   ): Promise<string[]> {
     if (imageID === parentID)
       throw new Error('Cannot convert an image to be a labelmap of itself');
@@ -395,118 +298,39 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
           labelmapImage,
           component
         );
-        const { order, byKey } = normalizeForStore(segments, 'value');
-        const segmentGroupStore = useSegmentGroupStore();
 
-        const name = pickUniqueName(
+        const name = segmentationStore.pickUniqueArtifactName(
           (index: number) => `${baseName} ${numberer(index)}`,
           parentID
         );
-        const id = segmentGroupStore.addLabelmap(labelmapImage, {
-          name,
-          parentImage: parentID,
-          segments: { order, byValue: byKey },
-          ...(source ? { source } : {}),
-        });
-        return id;
+        return addLabelmap(
+          labelmapImage,
+          {
+            name,
+            parentImage: parentID,
+            ...(source ? { source } : {}),
+          },
+          segments as LabelmapSegment[]
+        );
       })
     );
   }
 
   /**
-   * Updates a labelmap's metadata
-   * @param segmentGroupID
-   * @param metadata
+   * Updates an artifact's metadata
    */
   function updateMetadata(
-    segmentGroupID: string,
-    metadata: Partial<SegmentGroupMetadata>
+    artifactId: string,
+    metadata: Partial<ArtifactMetadata>
   ) {
-    metadataByID[segmentGroupID] = {
-      ...getMetadata(segmentGroupID),
-      ...metadata,
-    };
-  }
-
-  /**
-   * Creates a new default segment with an unallocated value.
-   *
-   * The value picked is the smallest unused value greater than 0.
-   * @param segmentGroupID
-   */
-  function createNewSegment(segmentGroupID: string): SegmentMask {
-    const { segments } = getMetadata(segmentGroupID);
-
-    let value = 1;
-    for (; value <= segments.order.length; value++) {
-      if (!(value in segments.byValue)) break;
-    }
-
-    return {
-      name: makeDefaultSegmentName(value),
-      value,
-      color: [...getNextColor()],
-      visible: true,
-      locked: false, // default to unlocked
-    };
-  }
-
-  /**
-   * Adds a segment to a labelmap.
-   *
-   * If no segment is provided, a default one is provided.
-   * Duplicate segment values throw an error.
-   * @param segmentGroupID
-   * @param segment
-   */
-  function addSegment(segmentGroupID: string, segment?: SegmentMask) {
-    const metadata = getMetadata(segmentGroupID);
-    const seg = segment ?? createNewSegment(segmentGroupID);
-    if (!validateSegment(segmentGroupID, seg))
-      throw new Error('Invalid segment');
-    metadata.segments.byValue[seg.value] = seg;
-    metadata.segments.order.push(seg.value);
-    return seg;
-  }
-
-  /**
-   * Updates a segment's properties.
-   *
-   * Does not allow updating the segment value.
-   * @param segmentGroupID
-   * @param segmentValue
-   * @param segmentUpdate
-   */
-  function updateSegment(
-    segmentGroupID: string,
-    segmentValue: number,
-    segmentUpdate: Partial<Omit<SegmentMask, 'value'>>
-  ) {
-    const metadata = getMetadata(segmentGroupID);
-    const segment = getSegment(segmentGroupID, segmentValue);
-    metadata.segments.byValue[segmentValue] = {
-      ...toRaw(segment),
-      ...segmentUpdate,
-    };
-  }
-
-  /**
-   * Deletes a segment from a labelmap.
-   * @param segmentGroupID
-   * @param segmentValue
-   */
-  function deleteSegment(segmentGroupID: string, segmentValue: number) {
-    const { segments } = getMetadata(segmentGroupID);
-    removeFromArray(segments.order, segmentValue);
-    delete segments.byValue[segmentValue];
-
-    dataIndex[segmentGroupID].replaceLabelValue(
-      segmentValue,
-      LABELMAP_BACKGROUND_VALUE
-    );
+    segmentationStore.updateArtifactMeta(artifactId, metadata);
   }
 
   const saveFormat = ref('vti');
+
+  // wire-format shim, replaced in C7
+  const legacySegmentDescriptors = (artifactId: string) =>
+    segmentationStore.labelmapSegmentsByArtifact[artifactId] ?? [];
 
   /**
    * Serializes the store's state.
@@ -515,14 +339,14 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const { zip } = state;
     const usedArchivePaths = new Set<string>();
 
-    // orderByParent is implicitly preserved based on
+    // Artifact order per parent image is implicitly preserved based on
     // the order of serialized entries.
 
-    const parents = Object.keys(orderByParent.value);
-    const serialized = parents.flatMap((parentID) => {
-      const segmentGroupIDs = orderByParent.value[parentID];
-      return segmentGroupIDs.map((id) => {
-        const metadata = metadataByID[id];
+    const parents = Object.keys(orderByParent);
+    const serialized = parents.flatMap((parentID) =>
+      orderByParent[parentID].map((id) => {
+        const metadata = segmentationStore.artifactMeta[id];
+        const segments = legacySegmentDescriptors(id);
         return {
           id,
           path: makeSegmentGroupArchivePath(
@@ -530,23 +354,36 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
             saveFormat.value,
             usedArchivePaths
           ),
+          segments,
+          // wire-format shim, replaced in C7
           metadata: {
-            ...metadata,
+            name: metadata.name,
             parentImage: metadata.parentImage,
+            segments: {
+              order: segments.map((segment) => segment.value),
+              byValue: Object.fromEntries(
+                segments.map((segment) => [segment.value, segment])
+              ),
+            },
+            ...(metadata.source ? { source: metadata.source } : {}),
           },
         };
-      });
-    });
+      })
+    );
 
-    state.manifest.segmentGroups = serialized;
+    state.manifest.segmentGroups = serialized.map(({ id, path, metadata }) => ({
+      id,
+      path,
+      metadata,
+    }));
 
     // save labelmap images
     await Promise.all(
-      serialized.map(async ({ id, path }) => {
+      serialized.map(async ({ id, path, segments }) => {
         const serializedImage = await writeSegmentation(
           saveFormat.value,
           dataIndex[id],
-          metadataByID[id]
+          segments
         );
         zip.file(path, serializedImage);
       })
@@ -580,7 +417,7 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     }
 
     // First restore the data, then restore the store.
-    // This preserves ordering from orderByParent.
+    // This preserves the per-parent artifact ordering.
 
     // `path` is authoritative for bytes when present: a re-saved
     // zip carries the archive bytes AND the provenance `dataSourceId`, but
@@ -693,22 +530,18 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
             // live convertImageToLabelmap uses (voxel enumeration + embedded
             // .seg.nrrd metadata overlay + default names/colors) — parity is
             // pinned by segmentGroupDescriptorlessParity.spec.ts.
-            const segments =
-              segmentGroup.metadata.segments ??
-              (await (async () => {
-                const decoded = await decodeSegments(
-                  storeId,
-                  labelmapImage,
-                  0,
-                  headerMetadata
-                );
-                const { order, byKey } = normalizeForStore(decoded, 'value');
-                return { order, byValue: byKey };
-              })());
+            const wireSegments = segmentGroup.metadata.segments;
+            const segments = wireSegments
+              ? wireSegments.order
+                  .map((value) => wireSegments.byValue[String(value)])
+                  .filter((segment) => !!segment)
+              : await decodeSegments(storeId, labelmapImage, 0, headerMetadata);
 
-            const id = useIdStore().nextId();
-            dataIndex[id] = labelmapImage;
-            return { segmentGroup, id, segments };
+            return {
+              segmentGroup,
+              labelmapImage,
+              segments: segments as LabelmapSegment[],
+            };
           } catch {
             // A parse/read failure skips just this group — never rejects the
             // whole restore; the survivors still attach. Recorded (not silent) so
@@ -727,75 +560,31 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
 
     labelmapResults.forEach((result) => {
       if (!result) return;
-      const { segmentGroup, id: newID, segments } = result;
-      segmentGroupIDMap[segmentGroup.id] = newID;
-
+      const { segmentGroup, labelmapImage, segments } = result;
+      const { name, source } = segmentGroup.metadata;
       const parentImage = dataIDMap[segmentGroup.metadata.parentImage];
-      metadataByID[newID] = { ...segmentGroup.metadata, parentImage, segments };
 
-      orderByParent.value[parentImage] ??= [];
-      orderByParent.value[parentImage].push(newID);
+      segmentGroupIDMap[segmentGroup.id] = addLabelmap(
+        labelmapImage,
+        { name, parentImage, ...(source ? { source } : {}) },
+        segments
+      );
     });
 
     return { segmentGroupIDMap, skipped };
   }
 
-  // --- sync segments --- //
-
-  const segmentByGroupID = computed(() => {
-    return Object.entries(metadataByID).reduce<Record<string, SegmentMask[]>>(
-      (acc, [id, metadata]) => {
-        const {
-          segments: { order, byValue },
-        } = metadata;
-        const segments = order.map((value) => byValue[value]);
-        return { ...acc, [id]: segments };
-      },
-      {}
-    );
-  });
-
-  watch(
-    segmentByGroupID,
-    (segsByID) => {
-      Object.entries(segsByID).forEach(([id, segments]) => {
-        // ensure segments are not proxies
-        dataIndex[id].setSegments(toRaw(segments).map((seg) => toRaw(seg)));
-      });
-    },
-    { immediate: true }
-  );
-
-  // --- handle deletions --- //
-
-  onImageDeleted((deleted) => {
-    deleted.forEach((parentID) => {
-      delete nextDefaultIndex[parentID];
-      // Iterate a COPY: removeGroup splices the same orderByParent array via
-      // removeFromArray, so forEaching the live array skips every other group
-      // when an image has 2+ groups (the normal case once job labelmaps and
-      // multi-component conversions land).
-      [...(orderByParent.value[parentID] ?? [])].forEach(removeGroup);
-    });
-  });
-
   // --- api --- //
 
   return {
     dataIndex,
-    metadataByID,
     orderByParent,
-    segmentByGroupID,
     saveFormat,
     addLabelmap,
     newLabelmapFromImage,
     removeGroup,
     convertImageToLabelmap,
     updateMetadata,
-    addSegment,
-    getSegment,
-    updateSegment,
-    deleteSegment,
     serialize,
     deserialize,
   };

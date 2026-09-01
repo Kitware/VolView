@@ -8,6 +8,7 @@ import {
 } from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 
 // ---------------------------------------------------------------------------
@@ -176,7 +177,9 @@ describe('restore stateID namespaces (collision)', () => {
       // The group attached, parented on the BASE dataset's store id.
       const groupId = idMap['sg-tumor'];
       expect(groupId).toBeDefined();
-      expect(store.metadataByID[groupId].parentImage).toBe(BASE_STORE_ID);
+      expect(useSegmentationStore().artifactMeta[groupId].parentImage).toBe(
+        BASE_STORE_ID
+      );
 
       // Its labelmap was built from the ARTIFACT's voxels, not the base's.
       const scalars = store.dataIndex[groupId]
@@ -227,7 +230,9 @@ describe('restore stateID namespaces (collision)', () => {
 
     const groupId = idMap['sg-tumor'];
     expect(groupId).toBeDefined();
-    expect(store.metadataByID[groupId].parentImage).toBe(BASE_STORE_ID);
+    expect(useSegmentationStore().artifactMeta[groupId].parentImage).toBe(
+      BASE_STORE_ID
+    );
     expect(ioMocks.readImage).toHaveBeenCalledTimes(1);
   });
 });

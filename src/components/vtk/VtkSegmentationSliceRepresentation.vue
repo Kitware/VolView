@@ -6,10 +6,7 @@ import { LPSAxis } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import {
-  useSegmentGroupStore,
-  SegmentGroupMetadata,
-} from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/ImageProperty/Constants';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
@@ -33,12 +30,15 @@ const { viewId, segmentationId, axis } = toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
-const segmentationStore = useSegmentGroupStore();
-const metadata = computed<SegmentGroupMetadata | undefined>(
-  () => segmentationStore.metadataByID[segmentationId.value]
+const segmentationStore = useSegmentationStore();
+const metadata = computed(
+  () => segmentationStore.artifactMeta[segmentationId.value]
+);
+const segments = computed(
+  () => segmentationStore.labelmapSegmentsByArtifact[segmentationId.value]
 );
 const imageData = computed(
-  () => segmentationStore.dataIndex[segmentationId.value]
+  () => segmentationStore.artifactIndex[segmentationId.value]
 );
 
 // redraw whenever the image changes
@@ -140,11 +140,9 @@ const applySegmentColoring = () => {
 
   let maxValue = 0;
 
-  if (!metadata.value) return; // segment group just deleted
+  if (!segments.value) return; // segment group just deleted
 
-  const { segments } = metadata.value;
-  segments.order.forEach((segId) => {
-    const segment = segments.byValue[segId];
+  segments.value.forEach((segment) => {
     const r = segment.color[0] || 0;
     const g = segment.color[1] || 0;
     const b = segment.color[2] || 0;
@@ -180,15 +178,17 @@ watchEffect(() => {
 });
 
 watchEffect(() => {
-  if (!metadata.value) return; // segment group just deleted
+  if (!segments.value) return; // segment group just deleted
 
   const thickness = outlineThickness.value;
-  const { segments } = metadata.value;
-  const largestValue = Math.max(...segments.order);
+  const visibleByValue = new Map(
+    segments.value.map((segment) => [segment.value, segment.visible])
+  );
+  const largestValue = Math.max(...visibleByValue.keys());
 
-  const segThicknesses = Array.from({ length: largestValue }, (_, value) => {
-    const segment = segments.byValue[value + 1];
-    return ((!segment || segment.visible) && thickness) || 0;
+  const segThicknesses = Array.from({ length: largestValue }, (_, index) => {
+    const visible = visibleByValue.get(index + 1);
+    return ((visible === undefined || visible) && thickness) || 0;
   });
   sliceRep.property.setLabelOutlineThickness(segThicknesses);
 });

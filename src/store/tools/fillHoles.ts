@@ -5,7 +5,7 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { getImageMetadata } from '@/src/composables/useCurrentImage';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/core/tools/paint/fillHoles.worker';
@@ -58,7 +58,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     const viewStore = useViewStore();
     const viewSliceStore = useViewSliceStore();
     const paintStore = usePaintToolStore();
-    const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
 
     // Fill Holes works on the slice plane of the 2D view the user is on, so a
     // 2D view must be active to know which axis (and slice) to operate on.
@@ -73,7 +73,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     if (!groupId) {
       throw new Error('No active segment group');
     }
-    const metadata = segmentGroupStore.metadataByID[groupId];
+    const metadata = segmentationStore.artifactMeta[groupId];
 
     const parentMetadata = getImageMetadata(metadata.parentImage);
     const labelMapLpsOrientation = getLPSDirections(segImage.getDirection());
@@ -109,9 +109,10 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     // active segment, whose lock is already enforced before the process starts.
     const lockedLabels = selectedSegment
       ? undefined
-      : Object.values(metadata.segments.byValue)
+      : segmentationStore
+          .segmentsForArtifact(groupId)
           .filter((segment) => segment.locked)
-          .map((segment) => segment.value);
+          .map((segment) => segment.representations.labelmap!.labelValue);
 
     const worker = await getWorker();
     return worker.fillHolesWorker({

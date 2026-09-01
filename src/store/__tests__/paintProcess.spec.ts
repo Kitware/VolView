@@ -39,22 +39,19 @@ function deferred<T>() {
 function addTestSegmentGroup(values = new Uint8Array([0, 0])) {
   const segmentGroupStore = useSegmentGroupStore();
   const labelMap = makeLabelMap(values);
-  const groupId = segmentGroupStore.addLabelmap(labelMap, {
-    name: 'Test group',
-    parentImage: 'image-1',
-    segments: {
-      order: [1],
-      byValue: {
-        1: {
-          value: 1,
-          name: 'Segment 1',
-          color: [255, 0, 0, 255],
-          visible: true,
-          locked: false,
-        },
+  const groupId = segmentGroupStore.addLabelmap(
+    labelMap,
+    { name: 'Test group', parentImage: 'image-1' },
+    [
+      {
+        value: 1,
+        name: 'Segment 1',
+        color: [255, 0, 0, 255],
+        visible: true,
+        locked: false,
       },
-    },
-  });
+    ]
+  );
 
   return { groupId, labelMap };
 }

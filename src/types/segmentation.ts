@@ -23,6 +23,19 @@ export type Segment = {
   };
 };
 
+/**
+ * One artifact's label descriptor, derived from the segments bound to it.
+ * Identity lives on `Segment`; this is the value-keyed view the labelmap
+ * renderer and the .seg.nrrd writer consume.
+ */
+export type LabelmapSegment = {
+  value: number;
+  name: string;
+  color: RGBAColor;
+  visible: boolean;
+  locked?: boolean;
+};
+
 export type Segmentation = {
   id: string;
   name: string;

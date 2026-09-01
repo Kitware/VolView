@@ -8,7 +8,7 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useProbeStore } from '@/src/store/probe';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { NO_NAME } from '@/src/constants';
@@ -32,7 +32,7 @@ const {
   currentLayers,
 } = useCurrentImage();
 const imageCacheStore = useImageCacheStore();
-const segmentGroupStore = useSegmentGroupStore();
+const segmentationStore = useSegmentationStore();
 const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
@@ -67,20 +67,28 @@ const getLayers = () =>
 
 const getSegments = () => {
   if (!currentImageID.value) return [];
-  const parentGroups = segmentGroupStore.orderByParent[currentImageID.value];
-  if (!parentGroups) return [];
+  const parentGroups = segmentationStore.artifactsForImage(
+    currentImageID.value
+  );
   return segmentGroupsReps.value
     .map((rep, index) => {
       const groupId = parentGroups[index];
       if (!groupId) return null;
-      const meta = segmentGroupStore.metadataByID[groupId];
+      const meta = segmentationStore.artifactMeta[groupId];
       return {
         type: 'segmentGroup',
         id: groupId,
         name: meta.name,
         rep,
-        segments: meta.segments,
-        image: segmentGroupStore.dataIndex[groupId],
+        nameByLabelValue: Object.fromEntries(
+          segmentationStore
+            .segmentsForArtifact(groupId)
+            .map((segment) => [
+              segment.representations.labelmap!.labelValue,
+              segment.name,
+            ])
+        ),
+        image: segmentationStore.artifactIndex[groupId],
       };
     })
     .filter(Boolean);
@@ -147,7 +155,7 @@ const getImageSamples = (x: number, y: number) => {
         return {
           ...baseInfo,
           displayValues: scalars.map(
-            (v) => item.segments.byValue[v]?.name || 'Background'
+            (v) => item.nameByLabelValue[v] || 'Background'
           ),
         };
       }

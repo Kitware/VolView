@@ -40,7 +40,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
 import { sanitizeSegmentGroupFileStem } from '@/src/io/state-file/segmentGroupArchivePath';
@@ -69,7 +69,7 @@ const valid = ref(true);
 const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
-const segmentGroupStore = useSegmentGroupStore();
+const segmentationStore = useSegmentationStore();
 const fileName = computed({
   get: () => fileNameValue.value,
   set: (value: string) => {
@@ -88,8 +88,8 @@ async function saveSegmentGroup() {
     fileNameValue.value = sanitizedFileName;
     const serialized = await writeSegmentation(
       fileFormat.value,
-      segmentGroupStore.dataIndex[props.id],
-      segmentGroupStore.metadataByID[props.id]
+      segmentationStore.artifactIndex[props.id],
+      segmentationStore.labelmapSegmentsByArtifact[props.id] ?? []
     );
     saveAs(new Blob([serialized]), `${sanitizedFileName}.${fileFormat.value}`);
   });
@@ -100,7 +100,7 @@ async function saveSegmentGroup() {
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
   fileNameValue.value = sanitizeSegmentGroupFileStem(
-    segmentGroupStore.metadataByID[props.id].name
+    segmentationStore.artifactMeta[props.id].name
   );
 });
 

@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import { getDataSourceName } from '@/src/io/import/dataSource';
 import { stripExtension } from '@/src/utils/path';
@@ -63,7 +63,7 @@ export function useInputStaging() {
   const { currentImageID } = useCurrentImage('global');
   const imageCache = useImageCacheStore();
   const datasetStore = useDatasetStore();
-  const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
   const paintStore = usePaintToolStore();
 
   const activeDataSource = () =>
@@ -79,8 +79,8 @@ export function useInputStaging() {
   };
 
   const segmentGroupView = (): SegmentGroupView => ({
-    orderByParent: segmentGroupStore.orderByParent,
-    metadataByID: segmentGroupStore.metadataByID,
+    orderByParent: segmentationStore.artifactOrderByParent,
+    metadataByID: segmentationStore.artifactMeta,
   });
 
   const labelmapReferenceImage = (segmentGroupId: string): InputValue | null =>
@@ -141,13 +141,14 @@ export function useInputStaging() {
     segmentGroupId: string,
     fileName: string
   ): Promise<string[]> => {
-    const metadata = segmentGroupStore.metadataByID[segmentGroupId];
-    const labelmap = segmentGroupStore.dataIndex[segmentGroupId];
+    const labelmap = segmentationStore.artifactIndex[segmentGroupId];
+    const segments =
+      segmentationStore.labelmapSegmentsByArtifact[segmentGroupId] ?? [];
     const referenceImage = labelmapReferenceImage(segmentGroupId);
     if (!referenceImage) {
       throw new Error('Segment group reference image has no server provenance');
     }
-    const serialized = await writeSegmentation('seg.nrrd', labelmap, metadata);
+    const serialized = await writeSegmentation('seg.nrrd', labelmap, segments);
     return p.stageInput({
       file: new Blob([serialized]),
       descriptor: {
@@ -176,7 +177,7 @@ export function useInputStaging() {
     )) {
       const fileNames = stagedLabelmapFileNames(
         segmentGroupIds.map(
-          (groupId) => segmentGroupStore.metadataByID[groupId].name
+          (groupId) => segmentationStore.artifactMeta[groupId].name
         )
       );
       const uris: string[] = [];

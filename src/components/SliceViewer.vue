@@ -172,7 +172,7 @@ import { VtkViewApi } from '@/src/types/vtk-types';
 import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
 import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
@@ -267,8 +267,7 @@ onVTKEvent(currentImageData, 'onModified', () => {
 
 const segmentations = computed(() => {
   if (!currentImageID.value) return [];
-  const store = useSegmentGroupStore();
-  return store.orderByParent[currentImageID.value];
+  return useSegmentationStore().artifactsForImage(currentImageID.value);
 });
 
 // --- selection points --- //
