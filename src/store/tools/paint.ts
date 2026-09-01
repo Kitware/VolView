@@ -159,14 +159,16 @@ export const usePaintToolStore = defineStore('paint', () => {
       .getScalars()
       .getData();
     const [minThreshold, maxThreshold] = thresholdRange.value;
-    const shouldPaint = (idx: number) => {
-      if (!underlyingImagePixels) return false;
+    if (!underlyingImagePixels) return;
 
+    // Both buffers are fixed for the stroke, so they are read once rather than
+    // per candidate voxel.
+    const currentData = labelmap
+      .getPointData()
+      .getScalars()
+      .getData() as Uint8Array;
+    const shouldPaint = (idx: number) => {
       // Prevent painting over locked segments
-      const currentData = labelmap
-        .getPointData()
-        .getScalars()
-        .getData() as Uint8Array;
       if (lockedValues.has(currentData[idx])) {
         return false;
       }
