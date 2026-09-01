@@ -2,12 +2,21 @@ import {
   buildSegmentGroups,
   ReadOverlappingSegmentationMeta,
   readVolumeSlice,
-  splitAndSort,
+  splitAndSort as splitAndSortChunks,
 } from '@/src/io/dicom';
 import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
-import { Image, JsonCompatible, readImage } from '@itk-wasm/image-io';
+import {
+  Image,
+  JsonCompatible,
+  readImage as readItkImage,
+} from '@itk-wasm/image-io';
 import { getWorker } from '@/src/io/itk/worker';
-import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
+import {
+  allocateImageFromChunks,
+  getBufferValueRange,
+  samplesAreIntegral,
+  valuesFitBuffer,
+} from '@/src/utils/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
 import { Tags } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -71,10 +80,28 @@ async function dicomSliceToImageUri(blob: Blob) {
   return itkImageToURI(itkImage);
 }
 
+function readDicomImage(file: File) {
+  return readItkImage(file, { webWorker: getWorker() });
+}
+
+export interface DicomChunkImageInit {
+  splitAndSort: (
+    chunks: Chunk[],
+    mapToBlob: (chunk: Chunk, index: number) => Blob
+  ) => Promise<Record<string, Chunk[]>>;
+  readDicomImage: (file: File) => Promise<{
+    image: Pick<Image, 'size' | 'data'> & {
+      imageType: Pick<Image['imageType'], 'components'>;
+    };
+  }>;
+}
+
 export default class DicomChunkImage
   extends BaseProgressiveImage
   implements ChunkImage
 {
+  private splitAndSort: DicomChunkImageInit['splitAndSort'];
+  private readDicomImage: DicomChunkImageInit['readDicomImage'];
   protected chunks: Chunk[];
   private chunkListeners: Array<() => void>;
   private thumbnailCache: WeakMap<Chunk, Promise<string>>;
@@ -85,8 +112,11 @@ export default class DicomChunkImage
     | (JsonCompatible & ReadOverlappingSegmentationMeta)
     | null;
 
-  constructor() {
+  constructor(init: Partial<DicomChunkImageInit> = {}) {
     super();
+
+    this.splitAndSort = init.splitAndSort ?? splitAndSortChunks;
+    this.readDicomImage = init.readDicomImage ?? readDicomImage;
 
     this.status.value = 'incomplete';
     this.loaded = computed(() => {
@@ -179,7 +209,7 @@ export default class DicomChunkImage
     });
 
     await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
-    const chunksByVolume = await splitAndSort(
+    const chunksByVolume = await this.splitAndSort(
       this.chunks,
       (chunk) => chunk.metaBlob!
     );
@@ -385,11 +415,8 @@ export default class DicomChunkImage
       throw new Error(`Chunk ${chunkIndex} does not have data`);
 
     const chunkId = chunk.metadata ? getChunkId(chunk) : `index-${chunkIndex}`;
-    const result = await readImage(
-      new File([chunk.dataBlob], `file-${chunkIndex}.dcm`),
-      {
-        webWorker: getWorker(),
-      }
+    const result = await this.readDicomImage(
+      new File([chunk.dataBlob], `file-${chunkIndex}.dcm`)
     );
 
     if (!result.image.data)
@@ -405,13 +432,12 @@ export default class DicomChunkImage
 
     const scalars = this.vtkImageData.value.getPointData().getScalars();
     const pixelData = scalars.getData() as TypedArray;
+    const componentCount = scalars.getNumberOfComponents();
 
     const dims = this.vtkImageData.value.getDimensions();
-    const components = scalars.getNumberOfComponents();
 
-    // The volume buffer is sized from the first chunk's metadata, so each
-    // chunk gets a fixed slot: one frame per chunk in a multi-file volume,
-    // the whole volume when a single multi-frame chunk fills it.
+    // Each chunk gets a fixed slot: one frame per chunk in a multi-file
+    // volume, or the whole volume when a single multi-frame chunk fills it.
     const framesPerChunk = this.chunks.length > 1 ? 1 : dims[2];
     const [chunkWidth, chunkHeight] = result.image.size;
     const chunkFrames = result.image.size[2] ?? 1;
@@ -420,7 +446,7 @@ export default class DicomChunkImage
       chunkWidth !== dims[0] ||
       chunkHeight !== dims[1] ||
       chunkFrames !== framesPerChunk ||
-      chunkComponents !== components
+      chunkComponents !== componentCount
     ) {
       // A lone chunk defines the volume it fails to fit, so advice about
       // agreeing with the other files only makes sense for a multi-file volume.
@@ -431,12 +457,47 @@ export default class DicomChunkImage
       throw new Error(
         `File ${chunkId} (chunk ${chunkIndex}) does not fit the volume it belongs to. ` +
           `It decoded to ${chunkWidth}x${chunkHeight}x${chunkFrames} with ${chunkComponents} component(s), ` +
-          `but the volume has room for ${dims[0]}x${dims[1]}x${framesPerChunk} with ${components} component(s).` +
+          `but the volume has room for ${dims[0]}x${dims[1]}x${framesPerChunk} with ${componentCount} component(s).` +
           advice
       );
     }
 
-    const offset = dims[0] * dims[1] * components * chunkIndex;
+    const chunkDataRange: Array<[number, number]> = [];
+    for (let comp = 0; comp < componentCount; comp++) {
+      const { min, max } = fastComputeRange(
+        result.image.data as unknown as number[],
+        comp,
+        componentCount
+      );
+      chunkDataRange.push([min, max]);
+    }
+
+    // The buffer is allocated for the range every chunk's tags declare, so a
+    // chunk only fails here when its decoded values disagree with its tags.
+    // TypedArray.set raises nothing for such values: integers wrap and
+    // fractions truncate.
+    const chunkMin = Math.min(...chunkDataRange.map(([min]) => min));
+    const chunkMax = Math.max(...chunkDataRange.map(([, max]) => max));
+    const decoded = result.image.data as unknown as ArrayLike<number>;
+    if (!valuesFitBuffer({ min: chunkMin, max: chunkMax }, pixelData)) {
+      const bufferRange = getBufferValueRange(pixelData)!;
+      throw new Error(
+        `File ${chunkId} (chunk ${chunkIndex}) has pixel values the volume it belongs to cannot represent. ` +
+          `Its pixel values run from ${chunkMin} to ${chunkMax}, but the volume's buffer is ` +
+          `${pixelData.constructor.name}, holding values from ${bufferRange.min} to ${bufferRange.max}. ` +
+          `Every file in a volume must decode to values its buffer can hold without conversion.`
+      );
+    }
+    if (!samplesAreIntegral(decoded, pixelData)) {
+      throw new Error(
+        `File ${chunkId} (chunk ${chunkIndex}) has fractional pixel values the volume it belongs to cannot represent. ` +
+          `Its pixel values run from ${chunkMin} to ${chunkMax}, but the volume's buffer is ` +
+          `${pixelData.constructor.name}, which holds only whole numbers. ` +
+          `Every file in a volume must decode to values its buffer can hold without conversion.`
+      );
+    }
+
+    const offset = dims[0] * dims[1] * componentCount * chunkIndex;
     pixelData.set(result.image.data as TypedArray, offset);
 
     const rangeAlreadyInitialized = this.chunkStatus.some(
@@ -444,21 +505,12 @@ export default class DicomChunkImage
     );
 
     // update the data range
-    const chunkDataRange: Array<[number, number]> = [];
-    for (let comp = 0; comp < scalars.getNumberOfComponents(); comp++) {
-      const { min, max } = fastComputeRange(
-        result.image.data as unknown as number[],
-        comp,
-        scalars.getNumberOfComponents()
-      );
-      chunkDataRange.push([min, max]);
-
+    chunkDataRange.forEach(([min, max], comp) => {
       const curRange = scalars.getRange(comp);
-
       const newMin = rangeAlreadyInitialized ? Math.min(min, curRange[0]) : min;
       const newMax = rangeAlreadyInitialized ? Math.max(max, curRange[1]) : max;
       scalars.setRange({ min: newMin, max: newMax }, comp);
-    }
+    });
     scalars.modified(); // so image-stats will trigger update of range
 
     chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);

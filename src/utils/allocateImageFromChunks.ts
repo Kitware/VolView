@@ -36,6 +36,77 @@ function getBitStorageSize(num: number, signed: boolean) {
   return 2 ** Math.ceil(Math.log2(nbits));
 }
 
+type TypedArrayConstructor =
+  | typeof Int8Array
+  | typeof Uint8Array
+  | typeof Int16Array
+  | typeof Uint16Array
+  | typeof Int32Array
+  | typeof Uint32Array;
+
+const TYPED_ARRAY_VALUE_RANGES = new Map<
+  TypedArrayConstructor,
+  { min: number; max: number }
+>([
+  [Int8Array, { min: -(2 ** 7), max: 2 ** 7 - 1 }],
+  [Uint8Array, { min: 0, max: 2 ** 8 - 1 }],
+  [Int16Array, { min: -(2 ** 15), max: 2 ** 15 - 1 }],
+  [Uint16Array, { min: 0, max: 2 ** 16 - 1 }],
+  [Int32Array, { min: -(2 ** 31), max: 2 ** 31 - 1 }],
+  [Uint32Array, { min: 0, max: 2 ** 32 - 1 }],
+]);
+
+/**
+ * The values a buffer of the given element type can hold without wrapping.
+ * Undefined for element types the allocator never produces, floats included.
+ */
+export function getTypedArrayValueRange(ctor: unknown) {
+  return TYPED_ARRAY_VALUE_RANGES.get(ctor as TypedArrayConstructor);
+}
+
+/**
+ * The values `buffer` can hold without wrapping, or undefined if its element
+ * type has no fixed integer range to enforce.
+ */
+export function getBufferValueRange(buffer: ArrayBufferView) {
+  return getTypedArrayValueRange(buffer.constructor);
+}
+
+/**
+ * Whether a decoded value range is representable in `buffer`'s element type.
+ * A buffer with no enforceable range accepts everything.
+ */
+export function valuesFitBuffer(
+  range: { min: number; max: number },
+  buffer: ArrayBufferView
+) {
+  const bufferRange = getBufferValueRange(buffer);
+  if (!bufferRange) return true;
+  return range.min >= bufferRange.min && range.max <= bufferRange.max;
+}
+
+/**
+ * Whether every sample is a whole number, which an integer-element buffer
+ * needs. Integer typed arrays hold nothing else, so only float or plain
+ * arrays are scanned. A buffer with no integer range accepts everything.
+ */
+export function samplesAreIntegral(
+  values: ArrayLike<number>,
+  buffer: ArrayBufferView
+) {
+  if (!getBufferValueRange(buffer)) return true;
+  if (
+    ArrayBuffer.isView(values) &&
+    !(values instanceof Float32Array) &&
+    !(values instanceof Float64Array)
+  ) {
+    return true;
+  }
+  return Array.prototype.every.call(values, (value: number) =>
+    Number.isInteger(value)
+  );
+}
+
 export function getTypedArrayForDataRange(min: number, max: number) {
   if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max))
     throw new Error('Input must be integers');
@@ -53,24 +124,85 @@ export function getTypedArrayForDataRange(min: number, max: number) {
   throw new Error(`Cannot handle ${nbits}-bit sized ranges`);
 }
 
-function getTypedArrayConstructor(
-  bitsStored: number,
-  pixelRepresentation: number,
-  rescaleIntercept: number,
-  rescaleSlope: number
-) {
-  if (bitsStored === 0) throw new Error('bits stored is zero!');
+function numberOr(value: Maybe<string>, fallback: number) {
+  const text = value?.trim();
+  if (!text) return fallback;
+  const num = Number(text);
+  return Number.isFinite(num) ? num : fallback;
+}
 
-  // Maybe constrain bitsAllocated to allowed values of 8, 16, 32?
+/**
+ * The tags that decide what values an instance decodes to.
+ *
+ * A bitsStored of 0 means the tag was absent or unparseable. It is not a DICOM
+ * default: BitsStored is Type 1, so a conforming instance always carries one.
+ */
+export function getPixelFormat(metadata: Maybe<Iterable<[string, string]>>) {
+  const meta = new Map(metadata ?? []);
+  return {
+    bitsStored: numberOr(meta.get(BitsStoredTag), 0),
+    pixelRepresentation: numberOr(meta.get(PixelRepresentationTag), 0),
+    rescaleSlope: numberOr(meta.get(RescaleSlope), 1),
+    rescaleIntercept: numberOr(meta.get(RescaleIntercept), 0),
+  };
+}
+
+type PixelFormat = ReturnType<typeof getPixelFormat>;
+
+/**
+ * The values an instance can decode to. ITK/GDCM applies RescaleSlope and
+ * RescaleIntercept while decoding, so this is the range after rescaling.
+ *
+ * Null when BitsStored is missing, since nothing can be derived without it.
+ */
+export function getRescaledValueRange(format: PixelFormat) {
+  const { bitsStored, pixelRepresentation, rescaleSlope, rescaleIntercept } =
+    format;
+  if (!Number.isInteger(bitsStored) || bitsStored <= 0) return null;
+
   const isSigned = pixelRepresentation === 1;
   const storedMin = isSigned ? -(2 ** (bitsStored - 1)) : 0;
   const storedMax = 2 ** (bitsStored - (isSigned ? 1 : 0)) - 1;
-  const outputMin = Math.floor(storedMin * rescaleSlope + rescaleIntercept);
-  const outputMax = Math.ceil(storedMax * rescaleSlope + rescaleIntercept);
+  const a = storedMin * rescaleSlope + rescaleIntercept;
+  const b = storedMax * rescaleSlope + rescaleIntercept;
+
+  return { min: Math.min(a, b), max: Math.max(a, b) };
+}
+
+/**
+ * The element type a volume allocated from instances of these formats holds.
+ *
+ * An instance whose tags give no finite range is left out of the union and
+ * judged on its decoded values by the containment guard instead.
+ */
+export function getVolumeBufferType(formats: PixelFormat[]) {
+  const usable = formats.flatMap((format) => {
+    const range = getRescaledValueRange(format);
+    return range && Number.isFinite(range.min) && Number.isFinite(range.max)
+      ? [{ format, range }]
+      : [];
+  });
+  if (usable.length === 0)
+    throw new Error('No instance declares a finite modality rescale range');
+
+  const needsFloat64 = usable.some(
+    ({ format, range }) =>
+      !Number.isInteger(format.rescaleSlope) ||
+      !Number.isInteger(format.rescaleIntercept) ||
+      !Number.isSafeInteger(range.min) ||
+      !Number.isSafeInteger(range.max)
+  );
+  if (needsFloat64) return Float64Array;
+
+  const min = Math.min(...usable.map(({ range }) => range.min));
+  const max = Math.max(...usable.map(({ range }) => range.max));
+  const exceedsSigned32 = min < 0 && (min < -(2 ** 31) || max > 2 ** 31 - 1);
+  const exceedsUnsigned32 = min >= 0 && max > 2 ** 32 - 1;
+  if (exceedsSigned32 || exceedsUnsigned32) return Float64Array;
 
   // NOTE(fli): might be better to assume (u)int16 and re-allocate to (u)int32
   // if needed, since the data range might actually fit in a smaller datatype.
-  return getTypedArrayForDataRange(outputMin, outputMax);
+  return getTypedArrayForDataRange(min, max);
 }
 
 export function allocateImageFromChunks(sortedChunks: Chunk[]) {
@@ -86,11 +218,10 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   const spacingBetweenSlices = Number(meta.get(SpacingBetweenSlicesTag));
   const rows = Number(meta.get(RowsTag) ?? 0);
   const columns = Number(meta.get(ColumnsTag) ?? 0);
-  const bitsStored = Number(meta.get(BitsStoredTag) ?? 0);
-  const pixelRepresentation = Number(meta.get(PixelRepresentationTag));
+  const volumeFormats = sortedChunks.map((chunk) =>
+    getPixelFormat(chunk.metadata)
+  );
   const samplesPerPixel = Number(meta.get(SamplesPerPixelTag) ?? 1);
-  const rescaleIntercept = Number(meta.get(RescaleIntercept) ?? 0);
-  const rescaleSlope = Number(meta.get(RescaleSlope) ?? 1);
   const numberOfFrames = meta.has(NumberOfFrames)
     ? Number(meta.get(NumberOfFrames))
     : null;
@@ -109,12 +240,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   // Some CT modality series have NumberOfFrames === 1, so use the number of chunks if more than 1 chunk.
   const slices =
     sortedChunks.length > 1 ? sortedChunks.length : (numberOfFrames ?? 1);
-  const TypedArrayCtor = getTypedArrayConstructor(
-    bitsStored,
-    pixelRepresentation,
-    rescaleIntercept,
-    rescaleSlope
-  );
+  const TypedArrayCtor = getVolumeBufferType(volumeFormats);
   const pixelData = new TypedArrayCtor(
     rows * columns * slices * samplesPerPixel
   );
