@@ -241,9 +241,10 @@ export default defineComponent({
 
       const tool = activeToolStore.toolByID[toolId];
       const target = resolveRasterizeTarget(imageId.value, tool?.label);
-      // An unlabeled polygon rasterizes into the default segment, so record
-      // where it landed.
-      if (tool && !tool.label) {
+      // The polygon records where its voxels actually landed. This covers an
+      // unlabeled polygon and one whose segment was deleted, whose stale id
+      // would otherwise outlive the segment it names.
+      if (tool && tool.label !== target.segmentId) {
         activeToolStore.updateTool(toolId, { label: target.segmentId });
       }
       const segmentGroup = target.labelmap;
