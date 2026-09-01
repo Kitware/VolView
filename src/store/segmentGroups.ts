@@ -28,7 +28,6 @@ import { ensureSameSpace } from '../io/resample/resample';
 import { untilLoaded } from '../composables/untilLoaded';
 
 const LabelmapArrayType = Uint8Array;
-export type LabelmapArrayType = Uint8Array;
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
@@ -91,7 +90,7 @@ export function toLabelMap(imageData: vtkImageData) {
   return labelmap;
 }
 
-export function extractEachComponent(input: vtkImageData) {
+function extractEachComponent(input: vtkImageData) {
   const numComponents = input
     .getPointData()
     .getScalars()
@@ -109,11 +108,6 @@ export function extractEachComponent(input: vtkImageData) {
 export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   const imageCacheStore = useImageCacheStore();
   const segmentationStore = useSegmentationStore();
-
-  // One artifact index for the app, owned by the segmentation store; aliased
-  // here for the callers still keyed on segment-group ids.
-  const { artifactIndex: dataIndex, artifactOrderByParent: orderByParent } =
-    segmentationStore;
 
   /**
    * Adds a given image + metadata as a labelmap.
@@ -143,13 +137,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       structuredClone(DEFAULT_SEGMENT_MASKS)
     );
     return id;
-  }
-
-  /**
-   * Deletes a labelmap.
-   */
-  function removeGroup(id: string) {
-    segmentationStore.removeArtifact(id);
   }
 
   let nextColorIndex = 0;
@@ -323,13 +310,9 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   // --- api --- //
 
   return {
-    dataIndex,
-    orderByParent,
     saveFormat,
-    addLabelmap,
     decodeSegments,
     newLabelmapFromImage,
-    removeGroup,
     convertImageToLabelmap,
     updateMetadata,
   };

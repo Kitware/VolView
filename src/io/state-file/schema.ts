@@ -300,14 +300,6 @@ export type View = z.infer<typeof View>;
 
 const RGBAColor = z.tuple([z.number(), z.number(), z.number(), z.number()]);
 
-const SegmentMask = z.object({
-  value: z.number(),
-  name: z.string(),
-  color: RGBAColor,
-  visible: z.boolean().default(true),
-  locked: z.boolean().optional(),
-});
-
 // Provenance of a scene object produced by a processing job. This durable
 // identity prevents a restored result from being applied twice. Optional and
 // additive wherever it is used; hand-made state has none. The shape mirrors the
@@ -375,43 +367,6 @@ export const SegmentationArtifact = z
   );
 
 export type SegmentationArtifact = z.infer<typeof SegmentationArtifact>;
-
-// Legacy 6.x wire shape. No current manifest root carries it; the 6.4.0
-// migration DTO is its only reader.
-export const SegmentGroupMetadata = z.object({
-  name: z.string(),
-  // The explicit parent binding stays REQUIRED: a segment group entry without
-  // a parent must not exist at all (the backend composes a parentless
-  // labelmap as an ordinary image dataset,
-  // never as a segment group). Segment descriptors are OPTIONAL: when absent,
-  // restore enumerates the labelmap's non-background voxel values and applies
-  // the same default names/colors (and embedded .seg.nrrd metadata overlay)
-  // that live convertImageToLabelmap uses.
-  parentImage: z.string(),
-  segments: z
-    .object({
-      order: z.number().array(),
-      byValue: z.record(z.string(), SegmentMask),
-    })
-    .optional(),
-  source: ProcessingResultSource.optional(),
-});
-
-export const SegmentGroup = z
-  .object({
-    id: z.string(),
-    path: z.string().optional(),
-    dataSourceId: z.number().optional(),
-    metadata: SegmentGroupMetadata,
-  })
-  .refine(
-    (data) => data.path !== undefined || data.dataSourceId !== undefined,
-    {
-      message: 'Either path or dataSourceId is required',
-    }
-  );
-
-export type SegmentGroup = z.infer<typeof SegmentGroup>;
 
 const LPSAxis = z.union([
   z.literal('Axial'),

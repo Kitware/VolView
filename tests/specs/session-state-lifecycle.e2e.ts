@@ -11,6 +11,9 @@ import {
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
+// The 5.0.1 fixture's rectangle carries this label.
+const RECTANGLE_LABEL_NAME = 'Label 1';
+
 const waitForElementCount = async (selector: string, minCount = 1) => {
   await browser.waitUntil(async () => {
     const count = await browser.execute(
@@ -103,8 +106,14 @@ describe('Session state lifecycle', () => {
 
     await waitForElementCount('button[data-testid="edit-label-button"]');
 
-    const buttons = await volViewPage.editLabelButtons;
-    await buttons[0].click();
+    // The list shows every segment on the image, so pick the one the session's
+    // rectangle actually carries rather than the first chip.
+    const labelChip = await $(`.v-chip*=${RECTANGLE_LABEL_NAME}`);
+    await labelChip.waitForDisplayed();
+    const editButton = await labelChip.$(
+      'button[data-testid="edit-label-button"]'
+    );
+    await editButton.click();
 
     const input = await volViewPage.labelStrokeWidthInput;
     await setValueVueInput(input, editedStrokeWidth.toString());
@@ -137,14 +146,14 @@ describe('Session state lifecycle', () => {
     if (!zip) {
       throw new Error('Expected saved session zip to be available');
     }
-    const segmentGroups = manifest.segmentGroups as Array<{
+    const artifacts = manifest.segmentationArtifacts as Array<{
       path: string;
-      metadata: { name: string };
+      name: string;
     }>;
 
-    expect(segmentGroups.length).toEqual(1);
-    expect(segmentGroups[0].metadata.name).toEqual(segmentGroupName);
-    expect(segmentGroups[0].path).toEqual(sanitizedFilePath);
+    expect(artifacts.length).toEqual(1);
+    expect(artifacts[0].name).toEqual(segmentGroupName);
+    expect(artifacts[0].path).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 });

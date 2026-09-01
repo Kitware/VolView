@@ -66,28 +66,28 @@ describe('dataset remove — synchronous reference cascade', () => {
   it('clears segment groups whose parent image was removed', () => {
     seatImage('img-1', 'CT');
     const segmentGroups = useSegmentGroupStore();
+    const segmentations = useSegmentationStore();
     const groupId = segmentGroups.newLabelmapFromImage('img-1');
     expect(groupId).not.toBeNull();
-    expect(segmentGroups.orderByParent['img-1']).toContain(groupId);
+    expect(segmentations.artifactOrderByParent['img-1']).toContain(groupId);
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentGroups.orderByParent['img-1'] ?? []).toEqual([]);
-    expect(useSegmentationStore().artifactMeta).not.toHaveProperty(
-      groupId as string
-    );
+    expect(segmentations.artifactOrderByParent['img-1'] ?? []).toEqual([]);
+    expect(segmentations.artifactMeta).not.toHaveProperty(groupId as string);
   });
 
   it('clears ALL segment groups when an image has several (no splice-skip)', () => {
     seatImage('img-1', 'CT');
     const segmentGroups = useSegmentGroupStore();
+    const segmentations = useSegmentationStore();
     const groupA = segmentGroups.newLabelmapFromImage('img-1');
     const groupB = segmentGroups.newLabelmapFromImage('img-1');
     const groupC = segmentGroups.newLabelmapFromImage('img-1');
     expect(groupA).not.toBeNull();
     expect(groupB).not.toBeNull();
     expect(groupC).not.toBeNull();
-    expect(segmentGroups.orderByParent['img-1']).toEqual([
+    expect(segmentations.artifactOrderByParent['img-1']).toEqual([
       groupA,
       groupB,
       groupC,
@@ -95,12 +95,10 @@ describe('dataset remove — synchronous reference cascade', () => {
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentGroups.orderByParent['img-1'] ?? []).toEqual([]);
+    expect(segmentations.artifactOrderByParent['img-1'] ?? []).toEqual([]);
     [groupA, groupB, groupC].forEach((id) => {
-      expect(useSegmentationStore().artifactMeta).not.toHaveProperty(
-        id as string
-      );
-      expect(segmentGroups.dataIndex).not.toHaveProperty(id as string);
+      expect(segmentations.artifactMeta).not.toHaveProperty(id as string);
+      expect(segmentations.artifactIndex).not.toHaveProperty(id as string);
     });
   });
 

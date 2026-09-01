@@ -302,10 +302,6 @@ class VolViewPage extends Page {
     await browser.keys([Key.Enter]);
   }
 
-  get editLabelButtons() {
-    return $$('button[data-testid="edit-label-button"]');
-  }
-
   get labelStrokeWidthInput() {
     // there should only be one on the screen at any given time
     return $('.label-stroke-width-input').$('input');
