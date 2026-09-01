@@ -137,9 +137,19 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     )
   );
 
-  const activeSegmentId = computed(
-    () => segmentationStore.activeTarget?.segmentId
-  );
+  // Scoped to the viewed image: a segment belonging to another image must not
+  // label an annotation placed here, or the annotation references a segment its
+  // own image's segmentation does not hold.
+  const activeSegmentId = computed(() => {
+    const target = segmentationStore.activeTarget;
+    if (!target || !currentImageID.value) return undefined;
+    const segmentation = segmentationStore.getSegmentationForImage(
+      currentImageID.value
+    );
+    return segmentation?.id === target.segmentationId
+      ? target.segmentId
+      : undefined;
+  });
 
   const setActiveLabel = (id: string | undefined) => {
     const segmentation = id ? owningSegmentation(id) : undefined;

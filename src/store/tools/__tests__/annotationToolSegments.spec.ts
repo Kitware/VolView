@@ -40,6 +40,22 @@ describe('shared segment identity for polygons and rectangles', () => {
     expect(store.segments.map((entry) => entry.name)).toEqual(['Tumor']);
   });
 
+  it('does not label a tool with a segment from another image', async () => {
+    const store = usePolygonStore();
+    const segment = makeSegment('Tumor');
+    store.setActiveSegment(segment.id);
+    expect(store.activeLabel).toBe(segment.id);
+
+    seatAndView('img-2');
+    await nextTick();
+
+    // The segment still belongs to img-1, so it must not label a tool placed
+    // on img-2.
+    expect(store.activeLabel).toBeUndefined();
+    const id = store.addTool({ imageID: 'img-2', placing: false });
+    expect(store.toolByID[id].label).toBeFalsy();
+  });
+
   it('captures the active segment id when a tool is added', () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor');
