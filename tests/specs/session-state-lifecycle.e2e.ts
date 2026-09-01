@@ -1,15 +1,28 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
-import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from './configTestUtils';
+import {
+  MINIMAL_501_SESSION,
+  PROSTATEX_DATASET,
+  PROSTATE_610_LABELMAP_MANIFEST,
+  PROSTATE_SEGMENT_GROUP,
+} from './configTestUtils';
 import {
   downloadFile,
   openUrls,
+  openVolViewPage,
   SESSION_SAVE_TIMEOUT,
   waitForFileExists,
+  writeManifestToFile,
 } from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
+import {
+  openAnnotationSegments,
+  segmentColor,
+  segmentNames,
+  showFirstSegmentGroup,
+} from './segmentationTestUtils';
 
 // The 5.0.1 fixture's rectangle carries this label.
 const RECTANGLE_LABEL_NAME = 'Label 1';
@@ -155,5 +168,32 @@ describe('Session state lifecycle', () => {
     expect(artifacts[0].name).toEqual(segmentGroupName);
     expect(artifacts[0].path).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
+  });
+
+  it('re-saves a migrated legacy labelmap with its segments intact', async () => {
+    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
+    await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
+
+    const fileName = `legacy-labelmap-${Date.now()}.volview.json`;
+    await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
+    await openVolViewPage(fileName);
+
+    // The 6.1.0 labelMaps entry names this segment and colors it red.
+    await openAnnotationSegments();
+    await showFirstSegmentGroup();
+    expect(await segmentNames()).toEqual(['Prostate']);
+    const prostateColor = await segmentColor('Prostate');
+
+    const { session, manifest } = await saveAndParseManifest();
+    expect(manifest.version).toEqual('7.0.0');
+
+    await volViewPage.open(`?urls=[tmp/${session}]`);
+    await volViewPage.waitForViews();
+    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+
+    await openAnnotationSegments();
+    await showFirstSegmentGroup();
+    expect(await segmentNames()).toEqual(['Prostate']);
+    expect(await segmentColor('Prostate')).toEqual(prostateColor);
   });
 });

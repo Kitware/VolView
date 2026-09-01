@@ -100,7 +100,7 @@ function deleteEditingLabel() {
 </script>
 
 <template>
-  <v-card class="pt-2">
+  <v-card class="pt-2" data-testid="tool-label-list">
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <editable-chip-list

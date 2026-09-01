@@ -1,6 +1,13 @@
 import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
-import { clickAt, setupTest, waitForCircleCount } from './annotationTestUtils';
+import {
+  clickAt,
+  nudgeTo,
+  pressAtPointer,
+  setupTest,
+  teleportTo,
+  waitForCircleCount,
+} from './annotationTestUtils';
 
 // BoundingRectangle.vue draws this around the selected annotation
 const getSelectionRectCount = async (axialView: ChainablePromiseElement) => {
@@ -17,45 +24,6 @@ const waitForSelectionRectCount = (
     async () => (await getSelectionRectCount(axialView)) === expected,
     { timeout: 5000, timeoutMsg }
   );
-
-// One input source held across action chains, so a press can land exactly where
-// an earlier chain left the pointer. Chains that keep it perform without
-// releasing actions, as releasing resets the pointer to the viewport origin.
-const HOVERING_MOUSE = 'hovering-mouse';
-const hoveringMouse = () => browser.action('pointer', { id: HOVERING_MOUSE });
-
-// A move with a duration is interpolated into a stream of pointer moves. A
-// zero duration dispatches exactly one, which is what teleportTo relies on.
-const INSTANT = 0;
-const NUDGE_PX = 2;
-
-// Two moves in one chain, so the one landing on (x, y) is never the first move
-// after an idle period, which vtk.js reports as StartMouseMove and the widget
-// manager ignores. The pick therefore runs at (x, y).
-const nudgeTo = (x: number, y: number) =>
-  hoveringMouse()
-    .move({
-      duration: INSTANT,
-      x: Math.round(x) + NUDGE_PX,
-      y: Math.round(y) + NUDGE_PX,
-    })
-    .move({ duration: INSTANT, x: Math.round(x), y: Math.round(y) })
-    .perform(true);
-
-// vtk.js reports the first pointer move after ~200ms of stillness as
-// StartMouseMove, which the widget manager does not subscribe to. A single move
-// after that idle therefore relocates the pointer while leaving the widget
-// manager's pick standing at the old position.
-const IDLE_MS = 400;
-
-const teleportTo = async (x: number, y: number) => {
-  await browser.pause(IDLE_MS);
-  await hoveringMouse()
-    .move({ duration: INSTANT, x: Math.round(x), y: Math.round(y) })
-    .perform(true);
-};
-
-const pressAtPointer = () => hoveringMouse().down().up().perform(true);
 
 const placeRectangle = async (cx: number, cy: number, halfSize: number) => {
   await AppPage.selectTool('mdi-vector-square');

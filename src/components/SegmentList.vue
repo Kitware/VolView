@@ -201,7 +201,7 @@ const toggleLock = (value: number) => {
 </script>
 
 <template>
-  <div class="px-3">
+  <div class="px-3" data-testid="segment-list">
     <div class="d-flex justify-start ga-4">
       <v-btn @click.stop="toggleGlobalVisible" class="my-1">
         <template #prepend>
