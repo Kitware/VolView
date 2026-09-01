@@ -175,6 +175,33 @@ describe('shared segment registry', () => {
     expect(registry.activeSegmentId.value).toBeFalsy();
   });
 
+  it('takes the active segment from the segmentation store', () => {
+    const segmentation = seatAndView('img-1');
+    const segment = segmentationStore().createSegment(segmentation.id, {
+      name: 'Tumor',
+    });
+    const registry = createSharedSegmentRegistry();
+
+    segmentationStore().setActiveSegment(segmentation.id, segment.id);
+
+    expect(registry.activeSegmentId.value).toBe(segment.id);
+  });
+
+  it('records the segment it activates on the segmentation store', () => {
+    const segmentation = seatAndView('img-1');
+    const segment = segmentationStore().createSegment(segmentation.id, {
+      name: 'Tumor',
+    });
+    const registry = createSharedSegmentRegistry();
+
+    registry.setActiveSegment(segment.id);
+
+    expect(segmentationStore().activeTarget).toEqual({
+      segmentationId: segmentation.id,
+      segmentId: segment.id,
+    });
+  });
+
   it('scopes segments to the viewed image', () => {
     const first = seatAndView('img-1');
     segmentationStore().createSegment(first.id, { name: 'Tumor' });

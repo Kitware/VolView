@@ -80,9 +80,6 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     Record<string, ToolLabel>
   >;
 
-  // Temporary; C5 moves this onto the segmentation store's active target.
-  const activeLabel = ref<string | undefined>();
-
   const segmentationFor = (imageId: Maybe<string>) =>
     imageId ? segmentationStore.getSegmentationForImage(imageId) : undefined;
 
@@ -132,9 +129,23 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     )
   );
 
+  const activeSegmentId = computed(
+    () => segmentationStore.activeTarget?.segmentId
+  );
+
   const setActiveLabel = (id: string | undefined) => {
-    activeLabel.value = id;
+    const segmentation = id ? owningSegmentation(id) : undefined;
+    if (!id || !segmentation) {
+      segmentationStore.clearActiveSegment();
+      return;
+    }
+    segmentationStore.setActiveSegment(segmentation.id, id);
   };
+
+  const activeLabel = computed({
+    get: () => activeSegmentId.value ?? undefined,
+    set: setActiveLabel,
+  });
 
   const setProps = (segmentId: string, props: ToolLabel) => {
     propsBySegment.value = {
@@ -182,12 +193,14 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     const segmentation = owningSegmentation(id);
     if (!segmentation) throw new Error('Label does not exist');
 
+    // Read before deleting: the store drops the active target with the segment.
+    const wasActive = id === activeLabel.value;
     segmentationStore.deleteSegment(segmentation.id, id);
     propsBySegment.value = Object.fromEntries(
       Object.entries(propsBySegment.value).filter(([key]) => key !== id)
     );
 
-    if (id === activeLabel.value) {
+    if (wasActive) {
       setActiveLabel(segments.value[0]?.id ?? '');
     }
   };
@@ -277,7 +290,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
 
   return {
     segments,
-    activeSegmentId: computed(() => activeLabel.value),
+    activeSegmentId,
     getSegment,
     setActiveSegment: (id: Maybe<string>) => setActiveLabel(id ?? undefined),
     createSegment: (init?: { name?: string; color?: string }) =>

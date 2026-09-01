@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
-import { computed, markRaw, reactive, toRaw, watch } from 'vue';
+import { computed, markRaw, reactive, shallowRef, toRaw, watch } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
-import { CATEGORICAL_COLORS } from '@/src/config';
+import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -12,8 +12,10 @@ import {
   makeDefaultSegmentGroupName,
   makeDefaultSegmentName,
 } from '@/src/store/segmentGroups';
-import type { ProcessingResultSource } from '@/src/types';
+import type { Maybe, ProcessingResultSource } from '@/src/types';
 import type {
+  ActiveSegmentationTarget,
+  ActiveSegmentIntent,
   Extent3D,
   LabelmapBinding,
   LabelmapSegment,
@@ -357,6 +359,69 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     delete artifactOrderByParent[parentImageId];
   }
 
+  // --- active target and cross-image intent --- //
+
+  const activeTargetRef = shallowRef<Maybe<ActiveSegmentationTarget>>();
+
+  // Session-only, never serialized: which segment the user means, and where
+  // that intent has already landed per image.
+  let intent: Maybe<ActiveSegmentIntent>;
+
+  const segmentAt = (target: ActiveSegmentationTarget) =>
+    segmentations[target.segmentationId]?.segments[target.segmentId];
+
+  // A target whose segment is gone (deleted, or its catalog replaced) is none.
+  const activeTarget = computed(() =>
+    activeTargetRef.value && segmentAt(activeTargetRef.value)
+      ? activeTargetRef.value
+      : undefined
+  );
+
+  function setActiveSegment(segmentationId: string, segmentId: string) {
+    const segment = getSegment(segmentationId, segmentId);
+    const target = { segmentationId, segmentId };
+    intent = {
+      name: segment.name,
+      color: [...segment.color] as RGBAColor,
+      targetByImageId: {
+        [getSegmentation(segmentationId).parentImageId]: target,
+      },
+    };
+    activeTargetRef.value = target;
+  }
+
+  function clearActiveSegment() {
+    intent = undefined;
+    activeTargetRef.value = undefined;
+  }
+
+  /**
+   * The one entry point every edit path calls at operation time. Only this
+   * creates a segment; setting an active segment or viewing another image
+   * never does. Storage stays deferred to ensureLabelmapBinding.
+   */
+  function resolveEditTarget(imageId: string) {
+    const recorded = intent?.targetByImageId[imageId];
+    if (recorded && segmentAt(recorded)) {
+      activeTargetRef.value = recorded;
+      return recorded;
+    }
+
+    // Identity is copied, never matched: a same-named segment is not the same
+    // segment.
+    const { name, color } = intent ?? DEFAULT_SEGMENT_MASKS[0];
+    const segmentation = ensureSegmentationForImage(imageId);
+    const segment = createSegment(segmentation.id, { name, color });
+    const target = { segmentationId: segmentation.id, segmentId: segment.id };
+    intent = {
+      name,
+      color: [...color] as RGBAColor,
+      targetByImageId: { ...intent?.targetByImageId, [imageId]: target },
+    };
+    activeTargetRef.value = target;
+    return target;
+  }
+
   // --- render sync --- //
 
   // The labelmap renderer colors by voxel value, so each artifact receives the
@@ -410,6 +475,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     artifactMeta,
     artifactOrderByParent,
     labelmapSegmentsByArtifact,
+    activeTarget,
+    setActiveSegment,
+    clearActiveSegment,
+    resolveEditTarget,
     getSegmentationForImage,
     ensureSegmentationForImage,
     getSegment,

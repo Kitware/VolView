@@ -4,7 +4,7 @@ import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { CATEGORICAL_COLORS } from '@/src/config';
+import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
@@ -633,6 +633,231 @@ describe('segmentation store', () => {
 
       expect(segmentsForArtifact('parent-img', artifactId)).toEqual([]);
       expect(store().artifactMeta[artifactId]?.parentImage).toBe('parent-img');
+    });
+  });
+
+  describe('active target and cross-image intent', () => {
+    /** Seats two images, each with an empty segmentation. */
+    async function seatTwoImages() {
+      await seatImage('img-1');
+      await seatImage('img-2', 'PET');
+      return {
+        one: store().ensureSegmentationForImage('img-1').id,
+        two: store().ensureSegmentationForImage('img-2').id,
+      };
+    }
+
+    const segmentOf = (target: { segmentationId: string; segmentId: string }) =>
+      store().getSegment(target.segmentationId, target.segmentId);
+
+    it('sets the active target to the chosen segment', async () => {
+      const { one } = await seatTwoImages();
+      const segment = store().createSegment(one, { name: 'Tumor' });
+
+      store().setActiveSegment(one, segment.id);
+
+      expect(store().activeTarget).toEqual({
+        segmentationId: one,
+        segmentId: segment.id,
+      });
+    });
+
+    it('creates nothing on another image when the active segment is set', async () => {
+      const { one, two } = await seatTwoImages();
+      const segment = store().createSegment(one, { name: 'Tumor' });
+
+      store().setActiveSegment(one, segment.id);
+
+      expect(store().segmentations[two].order).toEqual([]);
+      expect(store().segmentations[two].segments).toEqual({});
+      expect(store().segmentations[one].order).toEqual([segment.id]);
+      expect(Object.keys(store().artifactIndex)).toEqual([]);
+    });
+
+    it('creates no segmentation for an image that has none', async () => {
+      await seatImage('img-1');
+      await seatImage('img-2', 'PET');
+      const one = store().ensureSegmentationForImage('img-1').id;
+      const segment = store().createSegment(one, { name: 'Tumor' });
+
+      store().setActiveSegment(one, segment.id);
+
+      expect(store().getSegmentationForImage('img-2')).toBeFalsy();
+      expect(Object.keys(store().segmentations)).toEqual([one]);
+    });
+
+    it('resolves the image the active segment was set on to that segment', async () => {
+      const { one } = await seatTwoImages();
+      const segment = store().createSegment(one, { name: 'Tumor' });
+      store().setActiveSegment(one, segment.id);
+
+      const target = store().resolveEditTarget('img-1');
+
+      expect(target).toEqual({ segmentationId: one, segmentId: segment.id });
+      expect(store().segmentations[one].order).toEqual([segment.id]);
+    });
+
+    it('clones the active name and color into a fresh segment on another image', async () => {
+      const { one, two } = await seatTwoImages();
+      const source = store().createSegment(one, {
+        name: 'Tumor',
+        color: [12, 34, 56, 255],
+      });
+      store().setActiveSegment(one, source.id);
+
+      const target = store().resolveEditTarget('img-2');
+
+      expect(target.segmentationId).toBe(two);
+      expect(target.segmentId).not.toBe(source.id);
+      const clone = segmentOf(target);
+      expect(clone.name).toBe('Tumor');
+      expect([...clone.color]).toEqual([12, 34, 56, 255]);
+      expect(clone.visible).toBe(true);
+      expect(clone.locked).toBe(false);
+      expect(store().segmentations[two].order).toEqual([target.segmentId]);
+      expect(store().activeTarget).toEqual(target);
+    });
+
+    it('reuses the cloned target for the rest of the session', async () => {
+      const { one, two } = await seatTwoImages();
+      const source = store().createSegment(one, { name: 'Tumor' });
+      store().setActiveSegment(one, source.id);
+
+      const first = store().resolveEditTarget('img-2');
+      const back = store().resolveEditTarget('img-1');
+      const second = store().resolveEditTarget('img-2');
+
+      expect(back).toEqual({ segmentationId: one, segmentId: source.id });
+      expect(second).toEqual(first);
+      expect(store().segmentations[two].order).toEqual([first.segmentId]);
+      expect(store().segmentations[one].order).toEqual([source.id]);
+    });
+
+    it('keeps a clone independent of the segment it came from', async () => {
+      const { one } = await seatTwoImages();
+      const source = store().createSegment(one, {
+        name: 'Tumor',
+        color: [12, 34, 56, 255],
+      });
+      store().setActiveSegment(one, source.id);
+      const target = store().resolveEditTarget('img-2');
+
+      store().updateSegment(one, source.id, {
+        name: 'Lesion',
+        color: [9, 9, 9, 255],
+      });
+
+      expect(segmentOf(target).name).toBe('Tumor');
+      expect([...segmentOf(target).color]).toEqual([12, 34, 56, 255]);
+
+      store().updateSegment(target.segmentationId, target.segmentId, {
+        name: 'Metastasis',
+      });
+
+      expect(store().getSegment(one, source.id).name).toBe('Lesion');
+    });
+
+    it('never merges with an existing segment of the same name', async () => {
+      const { one, two } = await seatTwoImages();
+      const existing = store().createSegment(two, { name: 'Tumor' });
+      const source = store().createSegment(one, { name: 'Tumor' });
+      store().setActiveSegment(one, source.id);
+
+      const target = store().resolveEditTarget('img-2');
+
+      expect(target.segmentId).not.toBe(existing.id);
+      expect(store().segmentations[two].order).toEqual([
+        existing.id,
+        target.segmentId,
+      ]);
+      expect(store().getSegment(two, existing.id).name).toBe('Tumor');
+      expect(segmentOf(target).name).toBe('Tumor');
+    });
+
+    it('clones again when the recorded target has been deleted', async () => {
+      const { one, two } = await seatTwoImages();
+      const source = store().createSegment(one, { name: 'Tumor' });
+      store().setActiveSegment(one, source.id);
+      const first = store().resolveEditTarget('img-2');
+
+      store().deleteSegment(two, first.segmentId);
+      const second = store().resolveEditTarget('img-2');
+
+      expect(second.segmentationId).toBe(two);
+      expect(second.segmentId).not.toBe(first.segmentId);
+      expect(segmentOf(second).name).toBe('Tumor');
+      expect(store().segmentations[two].order).toEqual([second.segmentId]);
+    });
+
+    it('starts a fresh intent on every setActiveSegment', async () => {
+      const { one, two } = await seatTwoImages();
+      const first = store().createSegment(one, { name: 'Tumor' });
+      const second = store().createSegment(one, { name: 'Node' });
+      store().setActiveSegment(one, first.id);
+      const fromFirst = store().resolveEditTarget('img-2');
+
+      store().setActiveSegment(one, second.id);
+      const fromSecond = store().resolveEditTarget('img-2');
+
+      expect(fromSecond.segmentId).not.toBe(fromFirst.segmentId);
+      expect(segmentOf(fromSecond).name).toBe('Node');
+      expect(segmentOf(fromFirst).name).toBe('Tumor');
+      expect(store().segmentations[two].order).toEqual([
+        fromFirst.segmentId,
+        fromSecond.segmentId,
+      ]);
+    });
+
+    it('seeds a segmentation and a default segment on the first edit of a session', async () => {
+      await seatImage('img-1');
+
+      const target = store().resolveEditTarget('img-1');
+
+      const segmentation = store().getSegmentationForImage('img-1');
+      expect(segmentation!.id).toBe(target.segmentationId);
+      expect(segmentation!.order).toEqual([target.segmentId]);
+      const segment = segmentOf(target);
+      expect(segment.name).toBe(DEFAULT_SEGMENT_MASKS[0].name);
+      expect([...segment.color]).toEqual([...DEFAULT_SEGMENT_MASKS[0].color]);
+      expect(segment.visible).toBe(true);
+      expect(segment.locked).toBe(false);
+      expect(store().activeTarget).toEqual(target);
+    });
+
+    it('binds the seeded default segment to storage for its own image', async () => {
+      await seatImage('img-1');
+
+      const target = store().resolveEditTarget('img-1');
+      const binding = store().ensureLabelmapBinding(
+        target.segmentationId,
+        target.segmentId
+      );
+
+      expect(store().artifactMeta[binding.artifactId].parentImage).toBe(
+        'img-1'
+      );
+      expect(binding.labelValue).toBeGreaterThan(0);
+      const resolved = store().resolveLabelmapBinding(
+        target.segmentationId,
+        target.segmentId
+      );
+      expect(resolved!.labelmap).toBe(
+        store().artifactIndex[binding.artifactId]
+      );
+    });
+
+    it('gives each image its own segment when no intent was ever set', async () => {
+      await seatImage('img-1');
+      await seatImage('img-2', 'PET');
+
+      const first = store().resolveEditTarget('img-1');
+      const second = store().resolveEditTarget('img-2');
+
+      expect(second.segmentationId).not.toBe(first.segmentationId);
+      expect(second.segmentId).not.toBe(first.segmentId);
+      expect(store().getSegmentationForImage('img-2')!.order).toEqual([
+        second.segmentId,
+      ]);
     });
   });
 });
