@@ -48,6 +48,21 @@ export type LabelmapSegment = {
   outlineOpacity?: number;
 };
 
+/** The descriptor a segment projects onto the label value its mask holds. */
+export const toLabelmapSegment = (segment: Segment, labelValue: number) => ({
+  value: labelValue,
+  name: segment.name,
+  color: [...segment.color] as RGBAColor,
+  visible: segment.visible,
+  locked: segment.locked,
+  fillOpacity: segment.fillOpacity,
+  outlineOpacity: segment.outlineOpacity,
+});
+
+/** vtk declares getData() as number[] | TypedArray; mask storage is typed. */
+export const maskScalars = (mask: vtkLabelMap) =>
+  mask.getPointData().getScalars().getData() as Uint8Array;
+
 export type Segmentation = {
   id: string;
   name: string;
@@ -179,6 +194,25 @@ export function extentContainsIndex(
     k <= extent[5]
   );
 }
+
+/** A mask's extent with the row and plane strides that extent implies. */
+export type MaskBounds = {
+  extent: Extent3D;
+  mi: number;
+  mj: number;
+};
+
+/** Where a parent-index voxel sits in the buffer of a mask bounded that way. */
+export const maskOffset = (
+  bounds: MaskBounds,
+  i: number,
+  j: number,
+  k: number
+) =>
+  i -
+  bounds.extent[0] +
+  (j - bounds.extent[2]) * bounds.mi +
+  (k - bounds.extent[4]) * bounds.mi * bounds.mj;
 
 export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
   return [

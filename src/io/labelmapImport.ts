@@ -18,6 +18,8 @@ import {
   isEmptyExtent,
   LABELMAP_BACKGROUND_VALUE,
   makeDefaultSegmentName,
+  maskOffset,
+  maskScalars,
   type Extent3D,
   type LabelmapSegment,
 } from '@/src/types/segmentation';
@@ -86,9 +88,6 @@ function extractEachComponent(input: vtkImageData) {
   });
 }
 
-const labelmapScalars = (labelmap: vtkLabelMap) =>
-  labelmap.getPointData().getScalars().getData() as Uint8Array;
-
 const growBox = (box: Extent3D, i: number, j: number, k: number) => {
   box[0] = Math.min(box[0], i);
   box[1] = Math.max(box[1], i);
@@ -100,7 +99,7 @@ const growBox = (box: Extent3D, i: number, j: number, k: number) => {
 
 /** The box a label value occupies, per value, in one sweep of the buffer. */
 export function labelValueBounds(labelmap: vtkLabelMap) {
-  const scalars = labelmapScalars(labelmap);
+  const scalars = maskScalars(labelmap);
   const [di, dj, dk] = labelmap.getDimensions();
   const bounds = new Map<number, Extent3D>();
 
@@ -135,10 +134,11 @@ function cropLabelValue(
 ) {
   const [di, dj] = sweep.dimensions;
   const [mi, mj] = extentSize(extent);
+  const bounds = { extent, mi, mj };
 
   const copyRow = (j: number, k: number) => {
     const sourceStart = (j + k * dj) * di;
-    const maskStart = (j - extent[2]) * mi + (k - extent[4]) * mi * mj;
+    const maskStart = maskOffset(bounds, extent[0], j, k);
     for (let i = extent[0]; i <= extent[1]; i += 1) {
       if (sweep.scalars[sourceStart + i] !== sweep.value) continue;
       mask[maskStart + i - extent[0]] = labelValue;
@@ -165,7 +165,7 @@ export function splitLabelmap(
   descriptors: LabelmapSegment[],
   mint: MaskMinter
 ) {
-  const scalars = labelmapScalars(labelmap);
+  const scalars = maskScalars(labelmap);
   const dimensions = labelmap.getDimensions();
   const bounds = labelValueBounds(labelmap);
 

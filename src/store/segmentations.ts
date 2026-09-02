@@ -52,8 +52,12 @@ import {
   LABELMAP_BACKGROUND_VALUE,
   listSegments,
   makeDefaultSegmentName,
+  maskOffset,
+  maskScalars,
+  toLabelmapSegment,
   type ActiveSegmentIntent,
   type Extent3D,
+  type LabelmapBinding,
   type LabelmapSegment,
   type Segment,
   type Segmentation,
@@ -103,9 +107,6 @@ const defaultArtifactIO: SegmentationArtifactIO = {
 export const LABELMAP_MAX_VALUE = 255;
 
 export type { ImportedSegment } from '@/src/io/labelmapImport';
-
-const maskScalars = (mask: vtkLabelMap) =>
-  mask.getPointData().getScalars().getData() as Uint8Array;
 
 const setMaskScalars = (mask: vtkLabelMap, values: Uint8Array) =>
   mask
@@ -602,9 +603,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       return artifactId ? artifactIndex[artifactId] : undefined;
     };
     const requireImage = () => findImage() ?? onMissing();
-    // vtk declares getData() as number[] | TypedArray; labelmap storage is always typed.
-    const requireScalars = () =>
-      requireImage().getPointData().getScalars().getData() as TypedArray;
+    const requireScalars = () => maskScalars(requireImage());
 
     return {
       exists: () => !!findImage(),
@@ -613,7 +612,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       snapshot: () => requireScalars().slice(),
       apply: (scalars: TypedArray | number[]) => {
         const image = requireImage();
-        const data = image.getPointData().getScalars().getData() as TypedArray;
+        const data = maskScalars(image);
         if (scalars.length !== data.length) {
           throw new Error('Scalar length does not match storage');
         }
@@ -671,6 +670,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
+   * A bound segment's buffer with the strides its extent implies. The extent is
+   * copied out of the reactive tree because the callers read it per voxel.
+   */
+  function boundedMask(binding: LabelmapBinding) {
+    const mask = artifactIndex[binding.artifactId];
+    if (!mask || isEmptyExtent(binding.extent)) return undefined;
+    const extent = [...binding.extent] as Extent3D;
+    const [mi, mj] = extentSize(extent);
+    return { mask, scalars: maskScalars(mask), extent, mi, mj };
+  }
+
+  /**
    * The masks of an image's other segments, resolved once per stroke because
    * the callers below run per voxel.
    */
@@ -684,28 +695,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       if (segment.id === segmentId) return [];
       if (only && !only(segment)) return [];
       const binding = segment.representations.labelmap;
-      const mask = binding ? artifactIndex[binding.artifactId] : undefined;
-      if (!binding || !mask || isEmptyExtent(binding.extent)) return [];
-      // The extent is copied out of the reactive tree: these are read once per
-      // voxel a brush touches.
-      const extent = [...binding.extent] as Extent3D;
-      const [di, dj] = extentSize(extent);
-      return [{ extent, mask, scalars: maskScalars(mask), di, dj }];
+      const bounded = binding ? boundedMask(binding) : undefined;
+      return bounded ? [bounded] : [];
     });
   }
-
-  type SiblingMask = ReturnType<typeof siblingMasks>[number];
-
-  const siblingOffset = (
-    sibling: SiblingMask,
-    i: number,
-    j: number,
-    k: number
-  ) =>
-    i -
-    sibling.extent[0] +
-    (j - sibling.extent[2]) * sibling.di +
-    (k - sibling.extent[4]) * sibling.di * sibling.dj;
 
   /**
    * Overwrite-all across N masks: one shared labelmap erased a voxel's old
@@ -718,7 +711,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return (i: number, j: number, k: number) => {
       siblings.forEach((sibling) => {
         if (!extentContainsIndex(sibling.extent, i, j, k)) return;
-        const offset = siblingOffset(sibling, i, j, k);
+        const offset = maskOffset(sibling, i, j, k);
         if (sibling.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
         sibling.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
         sibling.mask.modified();
@@ -733,7 +726,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       locked.some(
         (sibling) =>
           extentContainsIndex(sibling.extent, i, j, k) &&
-          sibling.scalars[siblingOffset(sibling, i, j, k)] !==
+          sibling.scalars[maskOffset(sibling, i, j, k)] !==
             LABELMAP_BACKGROUND_VALUE
       );
   }
@@ -749,43 +742,23 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (!parent) throw new Error('No such parent image');
 
     const dimensions = parent.getDimensions();
-    const values = new Uint8Array(
-      dimensions[0] * dimensions[1] * dimensions[2]
-    );
-    const labelmap = vtkLabelMap.newInstance(
-      parent.get('spacing', 'origin', 'direction')
-    );
-    labelmap.setDimensions(dimensions as Vector3);
-    labelmap.computeTransforms();
-    setMaskScalars(labelmap, values);
+    const labelmap = allocateMask(parent, fullExtent(dimensions));
+    const values = maskScalars(labelmap);
 
     const segmentation = getSegmentationForImage(parentImageId);
     const segments: LabelmapSegment[] = [];
     (segmentation ? listSegments(segmentation) : []).forEach((segment) => {
       const binding = segment.representations.labelmap;
       if (!binding) return;
-      segments.push({
-        value: binding.labelValue,
-        name: segment.name,
-        color: [...segment.color] as RGBAColor,
-        visible: segment.visible,
-        locked: segment.locked,
-        fillOpacity: segment.fillOpacity,
-        outlineOpacity: segment.outlineOpacity,
-      });
+      segments.push(toLabelmapSegment(segment, binding.labelValue));
 
-      const mask = artifactIndex[binding.artifactId];
-      if (!mask || isEmptyExtent(binding.extent)) return;
-      const source = maskScalars(mask);
-      const extent = [...binding.extent] as Extent3D;
-      const [mi, mj] = extentSize(extent);
+      const bounded = boundedMask(binding);
+      if (!bounded) return;
+      const { scalars: source, extent } = bounded;
       for (let k = extent[4]; k <= extent[5]; k += 1) {
         for (let j = extent[2]; j <= extent[3]; j += 1) {
           for (let i = extent[0]; i <= extent[1]; i += 1) {
-            const value =
-              source[
-                i - extent[0] + (j - extent[2]) * mi + (k - extent[4]) * mi * mj
-              ];
+            const value = source[maskOffset(bounded, i, j, k)];
             if (value === LABELMAP_BACKGROUND_VALUE) continue;
             values[i + j * dimensions[0] + k * dimensions[0] * dimensions[1]] =
               value;
@@ -1192,15 +1165,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       listSegments(segmentation).forEach((segment) => {
         const binding = segment.representations.labelmap;
         if (!binding || !byArtifact[binding.artifactId]) return;
-        byArtifact[binding.artifactId].push({
-          value: binding.labelValue,
-          name: segment.name,
-          color: [...segment.color] as RGBAColor,
-          visible: segment.visible,
-          locked: segment.locked,
-          fillOpacity: segment.fillOpacity,
-          outlineOpacity: segment.outlineOpacity,
-        });
+        byArtifact[binding.artifactId].push(
+          toLabelmapSegment(segment, binding.labelValue)
+        );
       });
     });
     return byArtifact;
@@ -1532,15 +1499,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       const migrated = segmentsForArtifact(artifactId);
       const descriptors =
         result.decoded ??
-        migrated.map((segment) => ({
-          value: segment.representations.labelmap!.labelValue,
-          name: segment.name,
-          color: [...segment.color] as RGBAColor,
-          visible: segment.visible,
-          locked: segment.locked,
-          fillOpacity: segment.fillOpacity,
-          outlineOpacity: segment.outlineOpacity,
-        }));
+        migrated.map((segment) =>
+          toLabelmapSegment(
+            segment,
+            segment.representations.labelmap!.labelValue
+          )
+        );
 
       // The source goes first, so the split segments can take the label values
       // the migrated ones were holding.
