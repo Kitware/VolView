@@ -202,8 +202,26 @@ export const useAnnotationTool = <
       .forEach((tool) => addTool(tool));
   }
 
+  // A template's id is derived from its name, so renaming one moves it. The
+  // annotations that named the old id follow, or they go unlabeled.
+  const updateLabel = (
+    id: string,
+    patch: Parameters<typeof registry.updateLabel>[1]
+  ) => {
+    const movedTo = registry.updateLabel(id, patch);
+    if (movedTo !== id) {
+      toolIDs.value
+        .filter((toolId) => toolByID.value[toolId].label === id)
+        .forEach((toolId) =>
+          updateTool(toolId, { label: movedTo } as ToolPatch)
+        );
+    }
+    return movedTo;
+  };
+
   return {
     ...registry,
+    updateLabel,
     toolIDs,
     toolByID,
     tools,

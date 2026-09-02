@@ -42,7 +42,9 @@ export type SegmentLabelApi<Props> = {
   activeLabel: Ref<string | undefined>;
   setActiveLabel: (id: string | undefined) => void;
   addLabel: (label?: Label<Props>) => string;
-  updateLabel: (id: string, patch: Label<Props>) => void;
+  // Returns the label's id after the update: renaming a template moves its id,
+  // and the annotations that named the old one have to follow it.
+  updateLabel: (id: string, patch: Label<Props>) => string;
   deleteLabel: (id: string) => void;
   mergeLabel: (label: Label<Props>) => string;
   mergeLabels: (labels: Maybe<Labels<Props>>) => void;
@@ -314,13 +316,13 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
       [renamed]: { ...existing, ...rest },
     } as Labels<Props>;
     if (activeTemplateName.value === name) setActiveLabel(templateId(renamed));
+    return templateId(renamed);
   };
 
   const updateLabel = (id: string, patch: ToolLabel) => {
     const templateName = templateNameOf(id);
     if (templateName && sessionLabels.value[templateName]) {
-      updateTemplate(templateName, patch);
-      return;
+      return updateTemplate(templateName, patch);
     }
     if (!segmentationStore.segmentExists(id))
       throw new Error('Label does not exist');
@@ -328,6 +330,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     const { identity, props } = splitLabel(patch);
     segmentationStore.updateSegment(id, identity);
     setProps(id, props);
+    return id;
   };
 
   const deleteLabel = (id: string) => {
@@ -516,6 +519,11 @@ export const createLocalSegmentRegistry = <Props extends object = object>(
       } as ToolLabel),
     ...labels,
     allLabels: labels.labels,
+    // A local label's id is minted, so an update never moves it.
+    updateLabel: (id: string, patch: ToolLabel) => {
+      labels.updateLabel(id, patch);
+      return id;
+    },
     mergeLabelForImage: (_imageId: Maybe<string>, label: ToolLabel) =>
       labels.mergeLabel(label),
     adoptIdentity: (serialized: Maybe<ToolWireIdentity<Props>>) => {

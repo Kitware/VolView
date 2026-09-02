@@ -399,6 +399,33 @@ describe('an annotation labeled with an unmaterialized template', () => {
     expect(labelNames(restored.labels)).toEqual(['Tumor']);
   });
 
+  it('follows the template when it is renamed after placement', async () => {
+    const { rectangles, template } = await placeTumorRectangle();
+
+    rectangles.updateLabel(template, { labelName: 'Lesion' });
+    await nextTick();
+
+    const tool = rectangles.toolByID[rectangles.toolIDs[0]];
+    expect(tool.label).not.toBe(template);
+    expect(tool.labelName).toBe('Lesion');
+    expect(tool.fillColor).toBe('#00ff0033');
+    expect(labelNames(rectangles.labels)).toEqual(['Lesion']);
+  });
+
+  it('comes back labeled after the template was renamed', async () => {
+    const { rectangles, template } = await placeTumorRectangle();
+    rectangles.updateLabel(template, { labelName: 'Lesion' });
+    await nextTick();
+
+    const restored = await restore(
+      throughManifest(rectangles.serializeTools())
+    );
+
+    const tool = restored.toolByID[restored.toolIDs[0]];
+    expect(tool.labelName).toBe('Lesion');
+    expect(labelNames(restored.labels)).toEqual(['Lesion']);
+  });
+
   it('lands unlabeled when the saved entry carries no template', async () => {
     const { rectangles } = await placeTumorRectangle();
     const saved = throughManifest(rectangles.serializeTools());
