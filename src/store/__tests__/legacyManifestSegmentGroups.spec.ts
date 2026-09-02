@@ -8,6 +8,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
+import { listSegments } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
 // Backward compatibility: manifests saved before `datasets` existed (and
@@ -101,18 +102,14 @@ describe('migrated legacy manifests without `datasets`', () => {
 
     expect(skipped).toEqual([]);
     expect(idMap['sg-tumor']).toBeDefined();
-    expect(
-      Object.values(useSegmentationStore().artifactMeta).some(
-        (m) => m.name === 'sg-tumor'
-      )
-    ).toBe(true);
     // The consumed artifact dataset is removed after conversion.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-seg');
 
-    // The migrated descriptor restored as a segment bound to that artifact.
+    // The migrated descriptor restored as a segment with its own bounded mask.
+    const segmentation = store.getSegmentationForImage('store-ct')!;
     expect(
-      store.segmentsForArtifact(idMap['sg-tumor']).map((segment) => ({
+      listSegments(segmentation).map((segment) => ({
         name: segment.name,
         labelValue: segment.representations.labelmap!.labelValue,
       }))

@@ -174,18 +174,15 @@ describe('restore stateID namespaces (collision)', () => {
       );
 
       // The group attached, parented on the BASE dataset's store id.
-      const groupId = idMap['sg-tumor'];
-      expect(groupId).toBeDefined();
-      expect(useSegmentationStore().artifactMeta[groupId].parentImage).toBe(
-        BASE_STORE_ID
-      );
+      expect(idMap['sg-tumor']).toBeDefined();
+      const [segmentId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
+      const { artifactId } = store.resolveLabelmapBinding(segmentId)!;
+      expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
 
-      // Its labelmap was built from the ARTIFACT's voxels, not the base's.
-      const scalars = store.artifactIndex[groupId]
-        .getPointData()
-        .getScalars()
-        .getData() as Uint8Array;
-      expect(Array.from(new Set(scalars))).toEqual([1]);
+      // Its mask was built from the ARTIFACT's voxels, not the base's.
+      expect(
+        Array.from(new Set(store.segmentVoxels(segmentId).scalars()))
+      ).toEqual([1]);
 
       // The base dataset survived; only the consumed temp dataset is gone.
       expect(imageCache.getVtkImageData(BASE_STORE_ID)).toBeTruthy();
@@ -227,11 +224,10 @@ describe('restore stateID namespaces (collision)', () => {
       resolveArtifactRestoreSources(setup.manifest)
     );
 
-    const groupId = idMap['sg-tumor'];
-    expect(groupId).toBeDefined();
-    expect(useSegmentationStore().artifactMeta[groupId].parentImage).toBe(
-      BASE_STORE_ID
-    );
+    expect(idMap['sg-tumor']).toBeDefined();
+    const [segmentId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
+    const { artifactId } = store.resolveLabelmapBinding(segmentId)!;
+    expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
     expect(ioMocks.readImage).toHaveBeenCalledTimes(1);
   });
 });

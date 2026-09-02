@@ -1,0 +1,241 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
+import { createApp } from 'vue';
+
+import { PaintMode } from '@/src/core/tools/paint';
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import { usePaintToolStore } from '@/src/store/tools/paint';
+import { isEmptyExtent } from '@/src/types/segmentation';
+import {
+  addSegment,
+  extentOf,
+  labelValueOf,
+  maskValueAt,
+  seatImage,
+  seedVoxel,
+  store,
+  voxelCount,
+  type Index3,
+} from '@/src/store/__tests__/segmentMaskFixtures';
+
+// ---------------------------------------------------------------------------
+// A paint stroke against bounded masks. Three things change here:
+//
+//  - the stroke grows its own storage first, for the region it is about to
+//    touch, and only then captures scalars/dimensions/strides;
+//  - the threshold predicate reads the PARENT image, whose voxel offsets are no
+//    longer the mask's, so it converts through the mask's extent;
+//  - writing a voxel clears it in every other mask of the image, which is what
+//    one shared labelmap used to do for free.
+// ---------------------------------------------------------------------------
+
+const DIMENSIONS: Index3 = [4, 4, 4];
+
+/** Index-space [i, j, k] to a flat offset in the PARENT image. */
+const parentOffset = (i: number, j: number, k: number) =>
+  i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
+
+/** A one-voxel stroke on the K axis; unit spacing makes world points index points. */
+function strokeAt(imageId: string, point: Index3, brushSize = 1) {
+  const paintStore = usePaintToolStore();
+  paintStore.setBrushSize(brushSize);
+  paintStore.startStroke(point, 2, imageId);
+  paintStore.endStroke(point, 2, imageId);
+}
+
+/** A stroke that travels from one point to another on the same K slice. */
+function strokeFromTo(imageId: string, from: Index3, to: Index3) {
+  const paintStore = usePaintToolStore();
+  paintStore.setBrushSize(1);
+  paintStore.startStroke(from, 2, imageId);
+  paintStore.endStroke(to, 2, imageId);
+}
+
+const activeSegment = (imageId: string, name: string) => {
+  const segmentId = addSegment(imageId, name);
+  store().setActiveSegment(segmentId);
+  return segmentId;
+};
+
+describe('painting into bounded masks', () => {
+  beforeEach(() => {
+    const pinia = createPinia().use(CorePiniaProviderPlugin());
+    createApp({}).use(pinia);
+    setActivePinia(pinia);
+  });
+
+  describe('growth', () => {
+    it('grows storage from nothing to cover the stroke', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const active = activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+      expect(extentOf(active)).toEqual([1, 1, 1, 1, 0, 0]);
+    });
+
+    it('covers the whole interpolated stroke, not just its ends', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const active = activeSegment('img-1', 'Tumor');
+
+      strokeFromTo('img-1', [1, 1, 0], [3, 1, 0]);
+
+      const labelValue = labelValueOf(active);
+      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValue);
+      expect(maskValueAt(active, [2, 1, 0])).toBe(labelValue);
+      expect(maskValueAt(active, [3, 1, 0])).toBe(labelValue);
+    });
+
+    it('keeps the earlier stroke when a later one grows the mask', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const active = activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [1, 1, 0]);
+      strokeAt('img-1', [3, 3, 2]);
+
+      const labelValue = labelValueOf(active);
+      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValue);
+      expect(maskValueAt(active, [3, 3, 2])).toBe(labelValue);
+      expect(extentOf(active)).toEqual([1, 3, 1, 3, 0, 2]);
+    });
+
+    it('clips the growth to the parent image when the brush overhangs it', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const active = activeSegment('img-1', 'Tumor');
+
+      expect(() => strokeAt('img-1', [0, 0, 0], 3)).not.toThrow();
+
+      const extent = extentOf(active)!;
+      expect(maskValueAt(active, [0, 0, 0])).toBe(labelValueOf(active));
+      expect(extent[0]).toBe(0);
+      expect(extent[2]).toBe(0);
+      // A stroke on one slice touches one slice.
+      expect([extent[4], extent[5]]).toEqual([0, 0]);
+    });
+
+    it('allocates nothing when erasing where the segment has no voxels', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const active = activeSegment('img-1', 'Tumor');
+      usePaintToolStore().setMode(PaintMode.Erase);
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(isEmptyExtent(extentOf(active)!)).toBe(true);
+      expect(store().segmentVoxels(active).scalars()).toHaveLength(0);
+    });
+  });
+
+  describe('thresholding against the parent image', () => {
+    const withParentValues = async () => {
+      const values = new Uint8Array(voxelCount(DIMENSIONS));
+      values[parentOffset(2, 2, 0)] = 100;
+      values[parentOffset(3, 2, 0)] = 0;
+      // The offsets a mask starting at (2, 2, 0) would hit if the predicate
+      // read the parent by the mask's own offsets instead of converting.
+      values[parentOffset(0, 0, 0)] = 0;
+      values[parentOffset(1, 0, 0)] = 100;
+      await seatImage('img-1', { dimensions: DIMENSIONS, values });
+
+      const active = activeSegment('img-1', 'Tumor');
+      const voxels = store().segmentVoxels(active);
+      voxels.materialize();
+      voxels.ensureContains([2, 3, 2, 2, 0, 0]);
+
+      const paintStore = usePaintToolStore();
+      paintStore.setThresholdRange([50, 200]);
+      return active;
+    };
+
+    it('paints where the parent voxel under the mask voxel is in range', async () => {
+      const active = await withParentValues();
+
+      strokeAt('img-1', [2, 2, 0]);
+
+      expect(extentOf(active)).toEqual([2, 3, 2, 2, 0, 0]);
+      expect(maskValueAt(active, [2, 2, 0])).toBe(labelValueOf(active));
+    });
+
+    it('refuses where the parent voxel under the mask voxel is out of range', async () => {
+      const active = await withParentValues();
+
+      strokeAt('img-1', [3, 2, 0]);
+
+      expect(extentOf(active)).toEqual([2, 3, 2, 2, 0, 0]);
+      expect(maskValueAt(active, [3, 2, 0])).toBeFalsy();
+    });
+  });
+
+  describe('overwriting the other segments', () => {
+    it('clears the painted voxel in a neighbour’s mask and marks it modified', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const neighbor = addSegment('img-1', 'Neighbour');
+      seedVoxel(neighbor, [1, 1, 0]);
+      const active = activeSegment('img-1', 'Tumor');
+      const modified = store().segmentVoxels(neighbor).image().getMTime();
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(0);
+      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+      expect(
+        store().segmentVoxels(neighbor).image().getMTime()
+      ).toBeGreaterThan(modified);
+    });
+
+    it('leaves the neighbour’s other voxels alone', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const neighbor = addSegment('img-1', 'Neighbour');
+      seedVoxel(neighbor, [1, 1, 0]);
+      seedVoxel(neighbor, [2, 1, 0]);
+      activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(maskValueAt(neighbor, [2, 1, 0])).toBe(labelValueOf(neighbor));
+    });
+
+    it('leaves the segments of another image alone', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      await seatImage('img-2', { dimensions: DIMENSIONS });
+      const elsewhere = addSegment('img-2', 'Elsewhere');
+      seedVoxel(elsewhere, [1, 1, 0]);
+      activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(maskValueAt(elsewhere, [1, 1, 0])).toBe(labelValueOf(elsewhere));
+    });
+
+    it('erases its own voxels without clearing the neighbour’s', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const neighbor = addSegment('img-1', 'Neighbour');
+      seedVoxel(neighbor, [1, 1, 0]);
+      const active = activeSegment('img-1', 'Tumor');
+      strokeAt('img-1', [2, 1, 0]);
+
+      usePaintToolStore().setMode(PaintMode.Erase);
+      strokeAt('img-1', [1, 1, 0]);
+      strokeAt('img-1', [2, 1, 0]);
+
+      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(labelValueOf(neighbor));
+      expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
+      expect(maskValueAt(active, [2, 1, 0])).toBeFalsy();
+    });
+
+    it('takes nothing from a locked neighbour', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const neighbor = addSegment('img-1', 'Neighbour');
+      seedVoxel(neighbor, [1, 1, 0]);
+      store().updateSegment(neighbor, { locked: true });
+      const active = activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [1, 1, 0]);
+      strokeAt('img-1', [3, 1, 0]);
+
+      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(labelValueOf(neighbor));
+      expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
+      expect(maskValueAt(active, [3, 1, 0])).toBe(labelValueOf(active));
+    });
+  });
+});

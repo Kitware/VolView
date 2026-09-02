@@ -32,7 +32,10 @@ import type { LabelmapSegment } from '@/src/types/segmentation';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import {
+  useSegmentGroupStore,
+  type ImportedSegment,
+} from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
@@ -80,23 +83,26 @@ async function loadAsImport(file: ResultFile) {
   return loaded[0] ? toDataSelection(loaded[0]) : null;
 }
 
+// Matched on the SOURCE label value, never re-looked-up by it: colliding
+// values are remapped as the import lands, and the parent's own segments hold
+// values of their own.
 function applySegmentDescriptors(
-  segmentGroupID: string,
+  imported: ImportedSegment[],
   segments: SegmentDescriptor[],
   segmentGroups: SegmentGroupWriter
 ) {
+  const segmentIdBySourceValue = new Map(
+    imported.map(({ sourceValue, segmentId }) => [sourceValue, segmentId])
+  );
   segments.forEach((seg) => {
-    try {
-      segmentGroups.updateSegment(segmentGroupID, seg.value, {
-        name: seg.name,
-        color: seg.color,
-        ...(seg.visible == null ? {} : { visible: seg.visible }),
-      });
-    } catch (err) {
-      // Decoded segment list may not cover every value in the labelmap.
-
-      console.warn('Failed to apply segment descriptor', seg, err);
-    }
+    // Descriptors may name a value the labelmap does not carry.
+    const segmentId = segmentIdBySourceValue.get(seg.value);
+    if (!segmentId) return;
+    segmentGroups.updateSegment(segmentId, {
+      name: seg.name,
+      color: seg.color,
+      ...(seg.visible == null ? {} : { visible: seg.visible }),
+    });
   });
 }
 
@@ -105,19 +111,21 @@ async function convertAndDescribe(
   parentSelection: string,
   intent: SegmentGroupIntent,
   segmentGroups: SegmentGroupWriter
-): Promise<string[]> {
-  const ids = await segmentGroups.convertImageToLabelmap(
+): Promise<ImportedSegment[][]> {
+  const imported = await segmentGroups.convertImageToLabelmap(
     childSelection,
     parentSelection,
     intent.source
   );
-  // A seg.nrrd with embedded metadata carries no descriptors.
+  // A seg.nrrd with embedded metadata carries no descriptors. Each component
+  // gets its own descriptors: they share a segmentation, so applying one
+  // component's list to another's segments would describe the wrong ones.
   if (intent.segments?.length) {
-    ids.forEach((id) =>
-      applySegmentDescriptors(id, intent.segments!, segmentGroups)
+    imported.forEach((component) =>
+      applySegmentDescriptors(component, intent.segments!, segmentGroups)
     );
   }
-  return ids;
+  return imported;
 }
 
 // Annotation results are fully decoded and located before labels or tools are
@@ -380,10 +388,9 @@ type SegmentGroupWriter = {
     childSelection: string,
     parentSelection: string,
     source: ResultSource | undefined
-  ) => Promise<string[]>;
+  ) => Promise<ImportedSegment[][]>;
   updateSegment: (
-    segmentGroupID: string,
-    segmentValue: number,
+    segmentId: string,
     segmentUpdate: Partial<Omit<LabelmapSegment, 'value'>>
   ) => void;
 };
@@ -422,11 +429,11 @@ export const appApplyDependencies = (): ApplyDependencies => ({
         parentSelection,
         source
       ),
-    updateSegment: (artifactId, labelValue, segmentUpdate) => {
+    updateSegment: (segmentId, segmentUpdate) => {
       const store = useSegmentationStore();
-      const segment = store.findSegmentByLabelValue(artifactId, labelValue);
-      if (!segment) return;
-      store.updateSegment(segment.id, segmentUpdate);
+      // The segment can be gone by the time a multi-component import lands.
+      if (!store.segmentExists(segmentId)) return;
+      store.updateSegment(segmentId, segmentUpdate);
     },
   },
 });

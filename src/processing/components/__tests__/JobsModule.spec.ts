@@ -36,6 +36,9 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 const cfg = (id: string): ProcessingProviderConfig => ({
   id,
@@ -466,33 +469,33 @@ describe('JobsModule — segment group staging', () => {
         },
       },
     ]);
+    // Staging composites the image's segments, so the image itself has to be
+    // in the cache and not just a data source.
+    const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
+    image.setDimensions([2, 2, 2]);
+    image.getPointData().setScalars(
+      vtkDataArray.newInstance({
+        numberOfComponents: 1,
+        values: new Uint8Array(8),
+      })
+    );
+    image.computeTransforms();
+    useImageCacheStore().addVTKImageData(image, 'image.nrrd', {
+      id: 'image-1',
+    });
     useViewStore().setDataForAllViews('image-1');
   };
 
-  // Painted groups, in the order the store hands them back.
-  const seedGroups = (names: [string, string][]) => {
-    const store = useSegmentationStore();
-    names.forEach(([id, name]) => {
-      store.artifactIndex[id] = {
-        setSegments: () => {},
-      } as unknown as (typeof store.artifactIndex)[string];
-      store.artifactMeta[id] = { name, parentImage: 'image-1' };
-      (store.artifactOrderByParent['image-1'] ??= []).push(id);
-    });
-  };
-
-  // Selects a segment bound to the given artifact, which is what makes that
-  // artifact the active one for singular labelmap params.
-  const activateGroup = (artifactId: string) => {
+  // A labelmap input is the image's whole segmentation, so one painted segment
+  // is what makes it stageable.
+  const seedSegmentation = (name: string) => {
     const store = useSegmentationStore();
     const segmentation = store.ensureSegmentationForImage('image-1');
-    const segment = store.createSegment(segmentation.id, { name: 'Active' });
-    segment.representations.labelmap = {
-      artifactId,
-      labelValue: 1,
-      extent: [0, 1, 0, 1, 0, 1],
-    };
+    store.renameSegmentation(segmentation.id, name);
+    const segment = store.createSegment(segmentation.id, { name: 'Tumor' });
+    store.segmentVoxels(segment.id).materialize();
     store.setActiveSegment(segment.id);
+    return segmentation.id;
   };
 
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {
@@ -522,56 +525,26 @@ describe('JobsModule — segment group staging', () => {
     return { provider: p, submitSpy };
   };
 
-  it('stages every group of a multiple param in store order', async () => {
+  it('stages the image’s segmentation for a multiple param', async () => {
     seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Liver'],
-    ]);
+    seedSegmentation('Tumor');
 
     const { provider, submitSpy } = await submit(labelmapSpec(true));
 
-    expect(provider.stageInput).toHaveBeenCalledTimes(2);
+    expect(provider.stageInput).toHaveBeenCalledTimes(1);
+    expect(provider.stageInput.mock.calls[0][0].descriptor.name).toBe(
+      'Tumor.seg.nrrd'
+    );
     expect(submitSpy).toHaveBeenCalledTimes(1);
     expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
       type: 'labelmap',
-      uris: [
-        'girder://staged/Tumor-1.seg.nrrd',
-        'girder://staged/Liver-2.seg.nrrd',
-      ],
+      uris: ['girder://staged/Tumor.seg.nrrd'],
     });
   });
 
-  it('keeps staged file names unique for identically named groups', async () => {
+  it('stages the active image’s segmentation for a singular param', async () => {
     seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Tumor'],
-    ]);
-
-    const { provider, submitSpy } = await submit(labelmapSpec(true));
-
-    const names = provider.stageInput.mock.calls.map(
-      (call) => call[0].descriptor.name
-    );
-    expect(new Set(names).size).toBe(2);
-    expect(names).toEqual(['Tumor-1.seg.nrrd', 'Tumor-2.seg.nrrd']);
-    expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
-      type: 'labelmap',
-      uris: [
-        'girder://staged/Tumor-1.seg.nrrd',
-        'girder://staged/Tumor-2.seg.nrrd',
-      ],
-    });
-  });
-
-  it('stages only the active group of a singular param', async () => {
-    seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Liver'],
-    ]);
-    activateGroup('group-2');
+    seedSegmentation('Liver');
 
     const { provider, submitSpy } = await submit(labelmapSpec(false));
 
@@ -584,16 +557,11 @@ describe('JobsModule — segment group staging', () => {
 
   it('reports a staging failure and submits nothing', async () => {
     seedActiveImage();
-    seedGroups([
-      ['group-1', 'Tumor'],
-      ['group-2', 'Liver'],
-    ]);
+    seedSegmentation('Tumor');
 
     const p = stagingProvider(labelmapSpec(true));
-    p.stageInput = vi.fn(async (request) => {
-      if (request.descriptor.name === 'Liver-2.seg.nrrd')
-        throw new Error('upload rejected');
-      return ['girder://staged/Tumor-1.seg.nrrd'];
+    p.stageInput = vi.fn(async () => {
+      throw new Error('upload rejected');
     });
     const store = useProcessingJobsStore();
     registerFake(store, p);

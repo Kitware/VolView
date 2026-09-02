@@ -117,21 +117,19 @@ function makeEmptyScalarsImage() {
 
 // Mirrors production: the restore setup resolves each group's artifact state
 // source from the manifest (resolveArtifactRestoreSources, the single-owner
-// policy) and hands it to deserialize alongside the dataIDMap.
-// Restored artifacts register in the segmentation store: name/parent live in
-// artifactMeta, the segment catalog in the parent image's segmentation.
-const artifactNames = () =>
-  Object.values(useSegmentationStore().artifactMeta).map((meta) => meta.name);
+// policy) and hands it to deserialize alongside the dataIDMap. A restored
+// legacy group is split into one bounded mask per segment, so what a survivor
+// leaves behind is its segments, not a group record.
+const maskCount = () => Object.keys(useSegmentationStore().artifactMeta).length;
 
-const catalogFor = (parentImageId: string, artifactId: string) => {
+/** The image's segments that ended up with storage. */
+const catalogFor = (parentImageId: string) => {
   const segmentation =
     useSegmentationStore().getSegmentationForImage(parentImageId);
   if (!segmentation) return [];
   return segmentation.order
     .map((id) => segmentation.segments[id])
-    .filter(
-      (segment) => segment.representations.labelmap?.artifactId === artifactId
-    );
+    .filter((segment) => segment.representations.labelmap);
 };
 
 const restoreGroups = (
@@ -173,11 +171,11 @@ describe('migrated segment groups — resilient restore', () => {
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'artifact source unavailable' },
     ]);
-    const restored = catalogFor('store-ct', idMap['sg-liver']);
+    const restored = catalogFor('store-ct');
     expect(restored.map((segment) => segment.name)).toEqual(['Tumor']);
     expect(restored[0].representations.labelmap!.labelValue).toBe(1);
     expect([...restored[0].color]).toEqual([255, 0, 0, 255]);
-    expect(artifactNames()).toEqual(['sg-liver']);
+    expect(maskCount()).toBe(1);
   });
 
   it('skips a group whose parent base never resolved', async () => {
@@ -253,8 +251,11 @@ describe('migrated segment groups — resilient restore', () => {
       { 'ds-ct': 'store-ct', [leafStateId(4)]: 'store-liver' }
     );
 
-    expect(artifactNames()).toContain('sg-liver');
-    expect(artifactNames()).not.toContain('sg-tumor');
+    // Only the survivor's segments attached.
+    expect(catalogFor('store-ct').map((segment) => segment.name)).toEqual([
+      'Tumor',
+    ]);
+    expect(maskCount()).toBe(1);
 
     const warning = useMessageStore().messages.find(
       (message) => message.title === 'Some scene content could not be restored'

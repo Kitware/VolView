@@ -40,17 +40,19 @@ type ProcessState = StartState | ComputingState | PreviewingState;
 
 /**
  * The resolved storage a process writes into, passed instead of being
- * re-derived. An all-segments process has an artifact and no segment, so it
- * carries no label value at all rather than a dummy one.
+ * re-derived. An all-segments process gets the image's composite and no
+ * segment, so it carries neither an artifact nor a label value rather than a
+ * dummy one.
  */
 export type ProcessTarget =
   | {
       scope: 'segment';
+      parentImageId: string;
       voxels: VoxelStorage;
       artifactId: string;
       labelValue: number;
     }
-  | { scope: 'artifact'; voxels: VoxelStorage; artifactId: string };
+  | { scope: 'image'; parentImageId: string; voxels: VoxelStorage };
 
 export type ProcessAlgorithm = (
   target: ProcessTarget
@@ -74,11 +76,14 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   // Storage can be deleted while a preview is up, and the accessor re-resolves,
   // so every preview write is conditional on the storage still being there.
+  // A mask another tool grew no longer has the shape the snapshot was taken
+  // at, and a snapshot of the old shape cannot be written back at all.
   function writeIfPresent(
     voxels: VoxelStorage,
     scalars: TypedArray | number[]
   ) {
     if (!voxels.exists()) return;
+    if (voxels.scalars().length !== scalars.length) return;
     voxels.apply(scalars);
   }
 
@@ -134,6 +139,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     return {
       target: {
         scope: 'segment' as const,
+        parentImageId: imageId,
         voxels: segmentationStore.segmentVoxels(segmentId),
         artifactId: binding.artifactId,
         labelValue: binding.labelValue,
@@ -142,14 +148,11 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     };
   }
 
-  // Artifact-scoped: nothing is created, and an image with no artifact has
-  // nothing to process.
-  function resolveArtifactScoped(imageId: string) {
-    const active = segmentationStore.activeArtifactId;
-    const forImage = segmentationStore.artifactsForImage(imageId);
-    const artifactId =
-      active && forImage.includes(active) ? active : forImage[0];
-    if (!artifactId) {
+  // Image-scoped: every segment of the image at once, through the composite.
+  // Nothing is created, and an image with no mask has nothing to process.
+  function resolveImageScoped(imageId: string) {
+    const voxels = segmentationStore.imageVoxels(imageId);
+    if (!voxels.exists()) {
       messageStore.addError('No segmentation to process');
       return undefined;
     }
@@ -157,9 +160,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     // watcher can cancel when the user moves to another segment.
     return {
       target: {
-        scope: 'artifact' as const,
-        voxels: segmentationStore.artifactVoxels(artifactId),
-        artifactId,
+        scope: 'image' as const,
+        parentImageId: imageId,
+        voxels,
       },
       segmentId: segmentationStore.activeSegmentId ?? '',
     };
@@ -179,19 +182,16 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       return;
     }
 
-    // An all-segments process writes the whole artifact, so it resolves an
-    // existing artifact rather than a segment. Only the segment-scoped path
-    // goes through resolveEditTarget, which is the one call that creates
-    // segments.
+    // An all-segments process writes every mask of the image, so it resolves
+    // the image rather than a segment. Only the segment-scoped path goes
+    // through resolveEditTarget, which is the one call that creates segments.
     const resolved = requiresActiveSegment
       ? resolveSegmentScoped(imageId)
-      : resolveArtifactScoped(imageId);
+      : resolveImageScoped(imageId);
     if (!resolved) return;
     const { target, segmentId } = resolved;
-    const { voxels, artifactId } = target;
+    const { voxels, parentImageId: activeParentImageID } = target;
 
-    const activeParentImageID =
-      segmentationStore.artifactMeta[artifactId].parentImage;
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 
@@ -281,6 +281,19 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       if (state.step !== 'computing' && state.step !== 'previewing') {
         return;
       }
+      cancelProcess();
+    }
+  );
+
+  // A preview belongs to the paint tool: putting the brush down hands the
+  // segment to another tool, which is free to grow the mask the preview holds
+  // a snapshot of.
+  watch(
+    () => paintStore.isActive,
+    (isActive) => {
+      if (isActive) return;
+      const state = processState.value;
+      if (state.step !== 'computing' && state.step !== 'previewing') return;
       cancelProcess();
     }
   );

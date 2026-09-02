@@ -4,6 +4,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import { defineStore } from 'pinia';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 import type { LabelmapSegment } from '@/src/types/segmentation';
 import { DEFAULT_SEGMENT_MASKS, CATEGORICAL_COLORS } from '@/src/config';
 import {
@@ -30,27 +31,16 @@ import { untilLoaded } from '../composables/untilLoaded';
 const LabelmapArrayType = Uint8Array;
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
+
+/** Masks are Uint8Array, so a label value has to fit in one byte. */
+export const LABELMAP_MAX_VALUE = 255;
+
+/** A segment an import created, and the source label value it was split from. */
+export type ImportedSegment = { sourceValue: number; segmentId: string };
+
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
 export const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
   `Segment Group ${index} for ${baseName}`;
-const numberer = (index: number) => (index <= 1 ? '' : `${index}`); // start numbering at 2
-
-export function createLabelmapFromImage(imageData: vtkImageData) {
-  const points = new LabelmapArrayType(imageData.getNumberOfPoints());
-  const labelmap = vtkLabelMap.newInstance(
-    imageData.get('spacing', 'origin', 'direction')
-  );
-  labelmap.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: points,
-    })
-  );
-  labelmap.setDimensions(imageData.getDimensions());
-  labelmap.computeTransforms();
-
-  return labelmap;
-}
 
 function convertToUint8(array: number[] | TypedArray): Uint8Array {
   const uint8Array = new Uint8Array(array.length);
@@ -110,20 +100,10 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   const segmentationStore = useSegmentationStore();
 
   /**
-   * Adds a given image + metadata as a labelmap.
-   */
-  function addLabelmap(
-    labelmap: vtkLabelMap,
-    metadata: ArtifactMetadata,
-    segments: LabelmapSegment[] = []
-  ) {
-    const id = segmentationStore.registerArtifact(labelmap, metadata);
-    segmentationStore.setArtifactSegments(id, segments);
-    return id;
-  }
-
-  /**
-   * Creates a new labelmap entry from a parent/source image.
+   * The image's segmentation, seeded with the default segments the first time.
+   * One segmentation per image, so a repeat call adds nothing rather than
+   * stacking another set of identically named defaults. Nothing is allocated:
+   * the first edit on a segment materializes its mask.
    */
   function newLabelmapFromImage(parentID: string) {
     const imageData = imageCacheStore.getVtkImageData(parentID);
@@ -131,12 +111,19 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       return null;
     }
 
-    const id = segmentationStore.createArtifactForImage(parentID);
-    segmentationStore.setArtifactSegments(
-      id,
-      structuredClone(DEFAULT_SEGMENT_MASKS)
-    );
-    return id;
+    const segmentation = segmentationStore.ensureSegmentationForImage(parentID);
+    if (segmentation.order.length > 0) return segmentation.id;
+
+    DEFAULT_SEGMENT_MASKS.forEach((descriptor) => {
+      const segment = segmentationStore.createSegment(segmentation.id, {
+        name: descriptor.name,
+        color: [...descriptor.color] as RGBAColor,
+      });
+      segmentationStore.updateSegment(segment.id, {
+        visible: descriptor.visible,
+      });
+    });
+    return segmentation.id;
   }
 
   // Store-scoped on purpose, so it resets with the pinia instance: a
@@ -220,19 +207,18 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
   }
 
   /**
-   * Converts an image to a labelmap.
+   * Converts an image to a labelmap, one bounded mask per label value.
    *
-   * Returns the created artifact id(s) — one per component of the source
-   * image (one for the common single-component case). Awaits the per-component
-   * adds so the caller can act on the created artifacts synchronously afterwards
-   * (corroboration/present + descriptor application key off the
-   * returned ids rather than racing the artifact order).
+   * Returns the segments created per component of the source image (one entry
+   * for the common single-component case), each paired with the source label
+   * value it was split from. A value already taken on the parent is remapped,
+   * so the source value is the only handle a caller's descriptors can match on.
    */
   async function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
     source?: ArtifactMetadata['source']
-  ): Promise<string[]> {
+  ): Promise<ImportedSegment[][]> {
     if (imageID === parentID)
       throw new Error('Cannot convert an image to be a labelmap of itself');
 
@@ -255,9 +241,6 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
       );
     }
 
-    const baseName =
-      imageCacheStore.getImageMetadata(imageID)?.name ?? '(no name)';
-
     const componentCount = childImage
       .getPointData()
       .getScalars()
@@ -266,46 +249,37 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     const images =
       componentCount === 1 ? [childImage] : extractEachComponent(childImage);
 
-    return Promise.all(
-      images.map(async (image, component) => {
-        const matchingParentSpace = await ensureSameSpace(
-          parentImage,
-          image,
-          true
-        );
-        const labelmapImage = toLabelMap(matchingParentSpace);
+    // Sequential, not fanned out: the splits share one segmentation, and label
+    // values are minted against the segments already in it.
+    const created: ImportedSegment[][] = [];
+    for (const [component, image] of images.entries()) {
+      const matchingParentSpace = await ensureSameSpace(
+        parentImage,
+        image,
+        true
+      );
+      const labelmapImage = toLabelMap(matchingParentSpace);
 
-        const segments = await decodeSegments(
-          imageID,
-          labelmapImage,
-          component
-        );
+      const segments = (await decodeSegments(
+        imageID,
+        labelmapImage,
+        component
+      )) as LabelmapSegment[];
 
-        const name = segmentationStore.pickUniqueArtifactName(
-          (index: number) => `${baseName} ${numberer(index)}`,
-          parentID
-        );
-        return addLabelmap(
-          labelmapImage,
-          {
-            name,
-            parentImage: parentID,
-            ...(source ? { source } : {}),
-          },
-          segments as LabelmapSegment[]
-        );
-      })
-    );
-  }
-
-  /**
-   * Updates an artifact's metadata
-   */
-  function updateMetadata(
-    artifactId: string,
-    metadata: Partial<ArtifactMetadata>
-  ) {
-    segmentationStore.updateArtifactMeta(artifactId, metadata);
+      const split = segmentationStore.splitLabelmapIntoSegments(
+        parentID,
+        labelmapImage,
+        segments,
+        source
+      );
+      created.push(
+        split.map((segment, index) => ({
+          sourceValue: segments[index].value,
+          segmentId: segment.id,
+        }))
+      );
+    }
+    return created;
   }
 
   const saveFormat = ref('vti');
@@ -317,6 +291,5 @@ export const useSegmentGroupStore = defineStore('segmentGroup', () => {
     decodeSegments,
     newLabelmapFromImage,
     convertImageToLabelmap,
-    updateMetadata,
   };
 });

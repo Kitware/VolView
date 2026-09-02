@@ -11,11 +11,11 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 
 // ---------------------------------------------------------------------------
 // The artifact-scoped half of the voxel accessor seam. The renderer, the paint
-// widget, the probe, the save dialog, job staging and all-segments processes
-// hold an artifact and no segment, so they cannot route through
-// segmentVoxels(). Unlike the segment accessor, this one is constructible for
-// an artifact that is gone: two of its consumers are Vue computeds keyed on an
-// id that can vanish a tick before the component does.
+// widget, the probe and all-segments processes hold a mask id and no segment,
+// so they cannot route through segmentVoxels(). Unlike the segment accessor,
+// this one is constructible for an artifact that is gone: two of its consumers
+// are Vue computeds keyed on an id that can vanish a tick before the component
+// does.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS = [4, 4, 2] as const;
@@ -39,30 +39,21 @@ async function seatImage(id: string, name = 'CT') {
   return id;
 }
 
-/** An artifact this test owns a reference to, carrying two segments. */
+/** A segment grown to the whole parent image, and the mask that holds it. */
 function seatArtifact(imageId: string, values = new Uint8Array(VOXEL_COUNT)) {
-  const labelmap = vtkLabelMap.newInstance();
-  labelmap.setDimensions(DIMENSIONS as unknown as [number, number, number]);
-  labelmap
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  labelmap.computeTransforms();
+  const segmentation = store().ensureSegmentationForImage(imageId);
+  const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
+  const voxels = store().segmentVoxels(segment.id);
+  const { artifactId } = voxels.materialize();
+  voxels.ensureContains(FULL_EXTENT);
+  voxels.apply(values);
 
-  const artifactId = store().registerArtifact(labelmap, {
-    parentImage: imageId,
-    name: 'Group 1',
-  });
-  const [first, second] = store().setArtifactSegments(artifactId, [
-    { value: 1, name: 'Tumor', color: [255, 0, 0, 255], visible: true },
-    { value: 2, name: 'Node', color: [0, 255, 0, 255], visible: true },
-  ]);
-  const segmentationId = store().getSegmentationForArtifact(artifactId)!.id;
   return {
-    labelmap,
+    labelmap: voxels.image(),
     artifactId,
-    segmentationId,
-    first: { segmentationId, segmentId: first.id },
-    second: { segmentationId, segmentId: second.id },
+    segmentationId: segmentation.id,
+    first: { segmentationId: segmentation.id, segmentId: segment.id },
+    second: { segmentationId: segmentation.id, segmentId: segment.id },
   };
 }
 
@@ -148,7 +139,7 @@ describe('artifact voxel accessor', () => {
       expect(scalarsOf(seat.labelmap)[0]).toBe(1);
     });
 
-    it('covers every segment of the artifact, not one label value', () => {
+    it('copies the whole mask, every label value included', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
       values[1] = 2;
@@ -227,7 +218,7 @@ describe('artifact voxel accessor', () => {
       ).toBe(false);
     });
 
-    it('rejects an extent a full-extent mask cannot cover', () => {
+    it('rejects an extent that leaves the parent image', () => {
       const seat = seatArtifact('img-1');
       const voxels = store().artifactVoxels(seat.artifactId);
 

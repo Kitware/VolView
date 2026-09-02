@@ -22,30 +22,20 @@ import { useViewStore } from '@/src/store/views';
 // typed arrays into the live labelmap, so the buffer the mappers and the paint
 // engine hold stays the one that is written.
 //
-// It also pins the ProcessTarget union: an all-segments process has an
-// artifact and no segment, so it carries no label value.
+// It also pins the ProcessTarget union: an all-segments process has the
+// image's composite and no segment, so it carries no label value.
 // ---------------------------------------------------------------------------
 
-function makeLabelMap(values: Uint8Array) {
-  const labelMap = vtkLabelMap.newInstance();
-  labelMap.setDimensions([values.length, 1, 1]);
-  labelMap.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values,
-    })
-  );
-  labelMap.computeTransforms();
-  return labelMap;
-}
-
-async function viewImage(id: string) {
+async function viewImage(
+  id: string,
+  dimensions: [number, number, number] = [2, 1, 1]
+) {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions([2, 1, 1]);
+  image.setDimensions(dimensions);
   image.getPointData().setScalars(
     vtkDataArray.newInstance({
       numberOfComponents: 1,
-      values: new Uint8Array(2),
+      values: new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]),
     })
   );
   image.computeTransforms();
@@ -55,28 +45,38 @@ async function viewImage(id: string) {
   return id;
 }
 
-/** Seats one artifact carrying one segment, and makes that segment active. */
-function addTestSegment(values = new Uint8Array([0, 0]), labelValue = 1) {
+/** Seats one segment, grown to the first two voxels, and makes it active. */
+function addTestSegment(
+  values = new Uint8Array([0, 0]),
+  labelValue = 1,
+  imageId = 'image-1'
+) {
   const segmentationStore = useSegmentationStore();
-  const labelMap = makeLabelMap(values);
-  const artifactId = segmentationStore.registerArtifact(labelMap, {
-    name: 'Test group',
-    parentImage: 'image-1',
+  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
+  // Label values are minted per image, so the ones below the wanted value are
+  // taken by placeholder segments.
+  for (let value = 1; value < labelValue; value += 1) {
+    const filler = segmentationStore.createSegment(segmentation.id, {
+      name: `Filler ${value}`,
+    });
+    segmentationStore.segmentVoxels(filler.id).materialize();
+  }
+
+  const segment = segmentationStore.createSegment(segmentation.id, {
+    name: 'Segment 1',
   });
-  const [segment] = segmentationStore.setArtifactSegments(artifactId, [
-    {
-      value: labelValue,
-      name: 'Segment 1',
-      color: [255, 0, 0, 255],
-      visible: true,
-      locked: false,
-    },
-  ]);
-  const segmentationId =
-    segmentationStore.getSegmentationForImage('image-1')!.id;
+  const voxels = segmentationStore.segmentVoxels(segment.id);
+  const { artifactId } = voxels.materialize();
+  voxels.ensureContains([0, 1, 0, 0, 0, 0]);
+  voxels.apply(values);
   segmentationStore.setActiveSegment(segment.id);
 
-  return { segmentationId, segmentId: segment.id, artifactId, labelMap };
+  return {
+    segmentationId: segmentation.id,
+    segmentId: segment.id,
+    artifactId,
+    labelMap: voxels.image(),
+  };
 }
 
 const buffer = (labelMap: vtkLabelMap) =>
@@ -127,9 +127,9 @@ describe('paint process storage', () => {
       expect(target.voxels.image()).toBe(labelMap);
     });
 
-    it('hands an all-segments process an artifact and no label value', async () => {
+    it('hands an all-segments process the image and no segment', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap, artifactId } = addTestSegment();
+      const { labelMap } = addTestSegment();
       const { seen, algorithm } = recordingAlgorithm(
         () => new Uint8Array([2, 2])
       );
@@ -140,10 +140,16 @@ describe('paint process storage', () => {
 
       expect(seen).toHaveLength(1);
       const [target] = seen;
-      expect(target).toMatchObject({ scope: 'artifact', artifactId });
-      // An artifact-scoped target carries no label value at all.
+      expect(target).toMatchObject({
+        scope: 'image',
+        parentImageId: 'image-1',
+      });
+      // An image-scoped target carries neither an artifact nor a label value.
       expect('labelValue' in target).toBe(false);
-      expect(target.voxels.image()).toBe(labelMap);
+      expect('artifactId' in target).toBe(false);
+      // It is the composite of every segment, not one segment's own mask.
+      expect(target.voxels.image()).not.toBe(labelMap);
+      expect(target.voxels.image().getDimensions()).toEqual([2, 1, 1]);
     });
 
     it('gives the target accessor the storage the process reads', async () => {
@@ -318,6 +324,47 @@ describe('paint process storage', () => {
 
       expect(processStore.processState.step).toBe('start');
       expect(paintStore.activeMode).not.toBe(PaintMode.Process);
+    });
+  });
+
+  describe('storage reshaped mid-preview', () => {
+    it('cancels without throwing when another tool grew the mask', async () => {
+      const processStore = usePaintProcessStore();
+      const segmentationStore = useSegmentationStore();
+      await viewImage('image-2', [4, 1, 1]);
+      const { segmentId } = addTestSegment(
+        new Uint8Array([1, 0]),
+        1,
+        'image-2'
+      );
+
+      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      expect(processStore.processState.step).toBe('previewing');
+
+      // A polygon on the same segment grows the mask, so the snapshot the
+      // preview holds no longer has the shape the storage does.
+      segmentationStore
+        .segmentVoxels(segmentId)
+        .ensureContains([0, 3, 0, 0, 0, 0]);
+
+      expect(() => processStore.cancelProcess()).not.toThrow();
+      expect(processStore.processState.step).toBe('start');
+    });
+
+    it('cancels the preview when the paint tool is put down', async () => {
+      const processStore = usePaintProcessStore();
+      const paintStore = usePaintToolStore();
+      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
+      paintStore.activateTool();
+
+      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      expect(processStore.processState.step).toBe('previewing');
+
+      paintStore.deactivateTool();
+      await nextTick();
+
+      expect(processStore.processState.step).toBe('start');
+      expect(values(labelMap)).toEqual([1, 0]);
     });
   });
 

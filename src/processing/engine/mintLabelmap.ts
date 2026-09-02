@@ -13,7 +13,8 @@ import {
 export const labelmapInputFields = (model: TaskFormModel): SourceRefField[] =>
   sourceRefFields(model, TYPE_TAG_LABELMAP);
 
-// Passed in rather than read from the store so resolution stays pure.
+// Passed in rather than read from the store so resolution stays pure. A group
+// is an image's whole segmentation: a segment's mask is not what a job means.
 export type SegmentGroupView = {
   orderByParent: Record<string, string[] | undefined>;
   metadataByID: Record<string, { parentImage: string } | undefined>;

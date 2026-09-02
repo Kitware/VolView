@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, markRaw, reactive, shallowRef, toRaw, watch } from 'vue';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
+import type { RGBAColor, TypedArray, Vector3 } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
@@ -21,8 +22,8 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
-  createLabelmapFromImage,
   LABELMAP_BACKGROUND_VALUE,
+  LABELMAP_MAX_VALUE,
   makeDefaultSegmentGroupName,
   makeDefaultSegmentName,
   toLabelMap,
@@ -30,6 +31,12 @@ import {
 } from '@/src/store/segmentGroups';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import {
+  emptyExtent,
+  extentContains,
+  extentContainsIndex,
+  extentSize,
+  extentUnion,
+  fullExtent,
   isEmptyExtent,
   listSegments,
   type ActiveSegmentIntent,
@@ -78,14 +85,78 @@ const defaultArtifactIO: SegmentationArtifactIO = {
   read: readImage,
 };
 
-const fullExtent = (dimensions: number[]): Extent3D => [
-  0,
-  dimensions[0] - 1,
-  0,
-  dimensions[1] - 1,
-  0,
-  dimensions[2] - 1,
-];
+const maskScalars = (mask: vtkLabelMap) =>
+  mask.getPointData().getScalars().getData() as Uint8Array;
+
+const setMaskScalars = (mask: vtkLabelMap, values: Uint8Array) =>
+  mask
+    .getPointData()
+    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
+
+/**
+ * A mask sits on its parent's grid: the parent's spacing and direction, and an
+ * origin at the world position of the parent voxel its extent starts at, so a
+ * world point resolves to the same voxel in both. An extent that covers
+ * nothing is a real state, and its storage holds no voxels at all.
+ */
+function placeMask(mask: vtkLabelMap, parent: vtkImageData, extent: Extent3D) {
+  const dimensions = isEmptyExtent(extent) ? [0, 0, 0] : extentSize(extent);
+  const origin = isEmptyExtent(extent)
+    ? Array.from(parent.getOrigin())
+    : Array.from(
+        parent.indexToWorld([extent[0], extent[2], extent[4]] as Vector3)
+      );
+  mask.setOrigin(origin as Vector3);
+  mask.setDimensions(dimensions as Vector3);
+  mask.computeTransforms();
+  return dimensions;
+}
+
+function allocateMask(parent: vtkImageData, extent: Extent3D) {
+  const mask = vtkLabelMap.newInstance(
+    parent.get('spacing', 'origin', 'direction')
+  );
+  const dimensions = placeMask(mask, parent, extent);
+  setMaskScalars(
+    mask,
+    new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2])
+  );
+  return mask;
+}
+
+/**
+ * Grows a mask in place, keeping the vtk image the renderer's actor is bound
+ * to and replacing everything else: the scalars a caller captured before this
+ * are no longer the segment's storage.
+ */
+function regrowMask(
+  mask: vtkLabelMap,
+  parent: vtkImageData,
+  from: Extent3D,
+  to: Extent3D
+) {
+  const previous = maskScalars(mask);
+  const previousSize = extentSize(from);
+  const dimensions = placeMask(mask, parent, to);
+  const values = new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]);
+
+  if (!isEmptyExtent(from)) {
+    for (let k = 0; k < previousSize[2]; k += 1) {
+      for (let j = 0; j < previousSize[1]; j += 1) {
+        const source = (j + k * previousSize[1]) * previousSize[0];
+        const target =
+          from[0] -
+          to[0] +
+          (j + from[2] - to[2]) * dimensions[0] +
+          (k + from[4] - to[4]) * dimensions[0] * dimensions[1];
+        values.set(previous.subarray(source, source + previousSize[0]), target);
+      }
+    }
+  }
+
+  setMaskScalars(mask, values);
+  mask.modified();
+}
 
 const pickUniqueSegmentName = (taken: Iterable<string>) => {
   const existing = new Set(taken);
@@ -211,11 +282,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segment;
   }
 
-  const bindingsForArtifact = (artifactId: string) =>
-    segmentsForArtifact(artifactId).map(
-      (segment) => segment.representations.labelmap!
-    );
-
   function getSegmentationForImage(parentImageId: string) {
     const id = byParentImage[parentImageId];
     return id ? segmentations[id] : undefined;
@@ -289,12 +355,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   /** The artifact an operation's labelmap belongs to. */
 
-  function findSegmentByLabelValue(artifactId: string, labelValue: number) {
-    return segmentsForArtifact(artifactId).find(
-      (segment) => segment.representations.labelmap?.labelValue === labelValue
-    );
-  }
-
   function registerArtifact(labelmap: vtkLabelMap, meta: ArtifactMetadata) {
     const id = useIdStore().nextId();
     artifactIndex[id] = markRaw(labelmap);
@@ -304,19 +364,24 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return id;
   }
 
-  /** Allocates an empty labelmap shaped like the parent image. */
-  function createArtifactForImage(parentImageId: string) {
+  /** Allocates a mask on the parent's grid that covers nothing yet. */
+  function createArtifactForImage(
+    parentImageId: string,
+    extent: Extent3D = emptyExtent(),
+    source?: ProcessingResultSource
+  ) {
     const imageData = imageCacheStore.getVtkImageData(parentImageId);
     if (!imageData) throw new Error('No such parent image');
 
     const baseName =
       imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME;
-    return registerArtifact(createLabelmapFromImage(imageData), {
+    return registerArtifact(allocateMask(imageData, extent), {
       parentImage: parentImageId,
       name: pickUniqueArtifactName(
         (index) => makeDefaultSegmentGroupName(baseName, index),
         parentImageId
       ),
+      ...(source ? { source } : {}),
     });
   }
 
@@ -350,74 +415,131 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     delete artifactMeta[artifactId];
   }
 
-  function releaseUnreferencedArtifact(artifactId: string) {
-    if (bindingsForArtifact(artifactId).length > 0) return;
-    removeArtifact(artifactId);
+  /**
+   * Label values stay unique among the segments of one parent image, and have
+   * to fit in a mask byte. Exhausting them refuses the allocation rather than
+   * handing back a value that writes as background.
+   */
+  function nextLabelValue(segmentation: Segmentation, preferred?: number) {
+    const used = new Set(
+      listSegments(segmentation).flatMap((segment) =>
+        segment.representations.labelmap
+          ? [segment.representations.labelmap.labelValue]
+          : []
+      )
+    );
+    if (
+      preferred !== undefined &&
+      preferred > LABELMAP_BACKGROUND_VALUE &&
+      preferred <= LABELMAP_MAX_VALUE &&
+      !used.has(preferred)
+    ) {
+      return preferred;
+    }
+    let labelValue = LABELMAP_BACKGROUND_VALUE + 1;
+    while (used.has(labelValue)) labelValue += 1;
+    if (labelValue > LABELMAP_MAX_VALUE) {
+      throw new Error(
+        `An image holds at most ${LABELMAP_MAX_VALUE} segments with voxels`
+      );
+    }
+    return labelValue;
+  }
+
+  /** The box a label value occupies, per value, in one sweep of the buffer. */
+  function labelValueBounds(labelmap: vtkLabelMap) {
+    const scalars = maskScalars(labelmap);
+    const [di, dj, dk] = labelmap.getDimensions();
+    const bounds = new Map<number, Extent3D>();
+    for (let k = 0; k < dk; k += 1) {
+      for (let j = 0; j < dj; j += 1) {
+        for (let i = 0; i < di; i += 1) {
+          const value = scalars[i + j * di + k * di * dj];
+          if (value === LABELMAP_BACKGROUND_VALUE) continue;
+          const box = bounds.get(value);
+          if (!box) {
+            bounds.set(value, [i, i, j, j, k, k]);
+            continue;
+          }
+          box[0] = Math.min(box[0], i);
+          box[1] = Math.max(box[1], i);
+          box[2] = Math.min(box[2], j);
+          box[3] = Math.max(box[3], j);
+          box[4] = Math.min(box[4], k);
+          box[5] = Math.max(box[5], k);
+        }
+      }
+    }
+    return bounds;
   }
 
   /**
-   * Replaces an artifact's segment catalog with one segment per given label
-   * value. Voxels are untouched: this is a catalog operation.
+   * One bounded mask per label value. An imported or legacy labelmap carries
+   * every segment in one buffer; each descriptor becomes a segment whose mask
+   * is cropped to the box that value's voxels span.
    */
-  function setArtifactSegments(
-    artifactId: string,
-    descriptors: LabelmapSegment[]
+  function splitLabelmapIntoSegments(
+    parentImageId: string,
+    labelmap: vtkLabelMap,
+    descriptors: LabelmapSegment[],
+    source?: ProcessingResultSource
   ) {
-    const meta = artifactMeta[artifactId];
-    if (!meta) throw new Error('No such artifact');
+    const segmentation = ensureSegmentationForImage(parentImageId);
+    const scalars = maskScalars(labelmap);
+    const [di, dj] = labelmap.getDimensions();
+    const bounds = labelValueBounds(labelmap);
 
-    const segmentation = ensureSegmentationForImage(meta.parentImage);
-    segmentsForArtifact(artifactId).forEach((segment) =>
-      detachSegment(segmentation, segment.id)
-    );
-
-    const extent = fullExtent(artifactIndex[artifactId].getDimensions());
-    descriptors.forEach((descriptor) => {
+    return descriptors.map((descriptor) => {
       const segment = createSegment(segmentation.id, {
         name: descriptor.name,
         color: [...descriptor.color] as RGBAColor,
       });
       segment.visible = descriptor.visible;
       segment.locked = descriptor.locked ?? false;
-      segment.representations.labelmap = {
-        artifactId,
-        labelValue: descriptor.value,
-        extent,
-      };
-    });
 
-    return segmentsForArtifact(artifactId);
+      const labelValue = nextLabelValue(segmentation, descriptor.value);
+      const extent = bounds.get(descriptor.value) ?? emptyExtent();
+      const artifactId = createArtifactForImage(parentImageId, extent, source);
+      segment.representations.labelmap = { artifactId, labelValue, extent };
+
+      if (!isEmptyExtent(extent)) {
+        const target = maskScalars(artifactIndex[artifactId]);
+        const [mi, mj] = extentSize(extent);
+        for (let k = extent[4]; k <= extent[5]; k += 1) {
+          for (let j = extent[2]; j <= extent[3]; j += 1) {
+            for (let i = extent[0]; i <= extent[1]; i += 1) {
+              if (scalars[i + j * di + k * di * dj] !== descriptor.value)
+                continue;
+              target[
+                i - extent[0] + (j - extent[2]) * mi + (k - extent[4]) * mi * mj
+              ] = labelValue;
+            }
+          }
+        }
+      }
+
+      return segment;
+    });
   }
 
   /** The single voxel-allocation point: no other operation creates storage. */
-  function ensureLabelmapBinding(
-    segmentId: string,
-    preferredArtifactId?: string
-  ) {
+  function ensureLabelmapBinding(segmentId: string) {
     const segmentation = getSegmentationOf(segmentId);
     const segment = segmentation.segments[segmentId];
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
-    const artifactId =
-      preferredArtifactId ??
-      listSegments(segmentation).find((other) => other.representations.labelmap)
-        ?.representations.labelmap?.artifactId ??
-      createArtifactForImage(segmentation.parentImageId);
-
-    const used = new Set(
-      bindingsForArtifact(artifactId).map((binding) => binding.labelValue)
-    );
-    let labelValue = LABELMAP_BACKGROUND_VALUE + 1;
-    while (used.has(labelValue)) labelValue += 1;
-
     segment.representations.labelmap = {
-      artifactId,
-      labelValue,
-      extent: fullExtent(artifactIndex[artifactId].getDimensions()),
+      artifactId: createArtifactForImage(segmentation.parentImageId),
+      labelValue: nextLabelValue(segmentation),
+      extent: emptyExtent(),
     };
     return segment.representations.labelmap;
   }
+
+  /** The binding of a segment that may already be gone. */
+  const findSegmentBinding = (segmentId: string) =>
+    findSegment(segmentId)?.representations.labelmap;
 
   function resolveLabelmapBinding(segmentId: string) {
     const binding = getSegment(segmentId).representations.labelmap;
@@ -425,16 +547,50 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return { ...toRaw(binding), labelmap: artifactIndex[binding.artifactId] };
   }
 
+  /** Grows one mask, in place, to cover `extent` in parent index space. */
+  function ensureArtifactContains(artifactId: string, extent: Extent3D) {
+    const mask = artifactIndex[artifactId];
+    const meta = artifactMeta[artifactId];
+    if (!mask || !meta) throw new Error('No such artifact');
+    if (isEmptyExtent(extent)) return false;
+
+    const parent = imageCacheStore.getVtkImageData(meta.parentImage);
+    if (!parent) throw new Error('No such parent image');
+    // Refused before anything is touched, so a rejected growth leaves the mask
+    // exactly as it was.
+    if (!extentContains(fullExtent(parent.getDimensions()), extent))
+      throw new Error('Extent leaves the parent image');
+
+    const binding =
+      segmentsForArtifact(artifactId)[0]?.representations.labelmap;
+    if (!binding) throw new Error('No segment bound to this artifact');
+
+    const current = binding.extent;
+    if (!isEmptyExtent(current) && extentContains(current, extent))
+      return false;
+
+    const grown = isEmptyExtent(current)
+      ? ([...extent] as Extent3D)
+      : extentUnion(current, extent);
+    regrowMask(mask, parent, current, grown);
+    binding.extent = grown;
+    return true;
+  }
+
   /**
-   * The voxel half of the accessor seam, over whichever labelmap `findImage`
+   * The voxel half of the accessor seam, over whichever mask `findArtifactId`
    * resolves. Resolution is deferred to every call so a stale accessor sees
    * deletion or growth done through another one. `onMissing` names why storage
    * is unreachable, so `exists()` can answer without throwing.
    */
   function voxelStorage(
-    findImage: () => Maybe<vtkLabelMap>,
+    findArtifactId: () => Maybe<string>,
     onMissing: () => never
   ): VoxelStorage {
+    const findImage = () => {
+      const artifactId = findArtifactId();
+      return artifactId ? artifactIndex[artifactId] : undefined;
+    };
     const requireImage = () => findImage() ?? onMissing();
     // vtk declares getData() as number[] | TypedArray; labelmap storage is always typed.
     const requireScalars = () =>
@@ -455,22 +611,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         image.modified();
       },
       ensureContains: (extent: Extent3D) => {
-        const image = requireImage();
-        if (isEmptyExtent(extent)) return false;
-
-        const full = fullExtent(image.getDimensions());
-        const covered =
-          extent[0] >= full[0] &&
-          extent[1] <= full[1] &&
-          extent[2] >= full[2] &&
-          extent[3] <= full[3] &&
-          extent[4] >= full[4] &&
-          extent[5] <= full[5];
-        if (!covered) {
-          throw new Error('Extent exceeds full-extent storage');
-        }
-        // Full-extent storage cannot grow, so nothing was invalidated.
-        return false;
+        requireImage();
+        return ensureArtifactContains(findArtifactId()!, extent);
       },
     };
   }
@@ -489,10 +631,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     // Deliberately tolerant where binding() is not: the segment itself can be
     // deleted out from under an accessor, and that is an absent storage, not a
     // lookup error.
-    const findImage = () => {
-      const current = findSegment(segmentId)?.representations.labelmap;
-      return current ? artifactIndex[current.artifactId] : undefined;
-    };
+    const findArtifactId = () =>
+      findSegment(segmentId)?.representations.labelmap?.artifactId;
 
     const onMissing = (): never => {
       if (!binding()) throw new Error('No storage: call materialize() first');
@@ -502,7 +642,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return {
       binding,
       materialize: () => ensureLabelmapBinding(segmentId),
-      ...voxelStorage(findImage, onMissing),
+      ...voxelStorage(findArtifactId, onMissing),
     };
   }
 
@@ -513,11 +653,320 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    */
   function artifactVoxels(artifactId: string) {
     return voxelStorage(
-      () => artifactIndex[artifactId],
+      () => (artifactIndex[artifactId] ? artifactId : undefined),
       () => {
         throw new Error('No such artifact');
       }
     );
+  }
+
+  /**
+   * The masks of an image's other segments, resolved once per stroke because
+   * the callers below run per voxel.
+   */
+  function siblingMasks(
+    segmentId: string,
+    only?: (segment: Segment) => boolean
+  ) {
+    const segmentation = segmentationOf(segmentId);
+    if (!segmentation) return [];
+    return listSegments(segmentation).flatMap((segment) => {
+      if (segment.id === segmentId) return [];
+      if (only && !only(segment)) return [];
+      const binding = segment.representations.labelmap;
+      const mask = binding ? artifactIndex[binding.artifactId] : undefined;
+      if (!binding || !mask || isEmptyExtent(binding.extent)) return [];
+      // The extent is copied out of the reactive tree: these are read once per
+      // voxel a brush touches.
+      const extent = [...binding.extent] as Extent3D;
+      const [di, dj] = extentSize(extent);
+      return [{ extent, mask, scalars: maskScalars(mask), di, dj }];
+    });
+  }
+
+  type SiblingMask = ReturnType<typeof siblingMasks>[number];
+
+  const siblingOffset = (
+    sibling: SiblingMask,
+    i: number,
+    j: number,
+    k: number
+  ) =>
+    i -
+    sibling.extent[0] +
+    (j - sibling.extent[2]) * sibling.di +
+    (k - sibling.extent[4]) * sibling.di * sibling.dj;
+
+  /**
+   * Overwrite-all across N masks: one shared labelmap erased a voxel's old
+   * value for free, so a write path clears the voxel in every other mask of the
+   * same parent image itself. Coordinates are PARENT indices. A sibling that
+   * does not reach the voxel has nothing there to clear, so nothing grows.
+   */
+  function otherSegmentClearer(segmentId: string) {
+    const siblings = siblingMasks(segmentId);
+    return (i: number, j: number, k: number) => {
+      siblings.forEach((sibling) => {
+        if (!extentContainsIndex(sibling.extent, i, j, k)) return;
+        const offset = siblingOffset(sibling, i, j, k);
+        if (sibling.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
+        sibling.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
+        sibling.mask.modified();
+      });
+    };
+  }
+
+  /** Whether a locked segment of the same image already owns a parent voxel. */
+  function lockedSegmentAt(segmentId: string) {
+    const locked = siblingMasks(segmentId, (segment) => segment.locked);
+    return (i: number, j: number, k: number) =>
+      locked.some(
+        (sibling) =>
+          extentContainsIndex(sibling.extent, i, j, k) &&
+          sibling.scalars[siblingOffset(sibling, i, j, k)] !==
+            LABELMAP_BACKGROUND_VALUE
+      );
+  }
+
+  /**
+   * The image's segments as one parent-shaped labelmap, built on demand and
+   * never stored: what leaves VolView means the whole segmentation, not one
+   * segment's bounded mask. Later in `order` wins where two segments overlap,
+   * which is how their actors stack.
+   */
+  function compositeLabelmap(parentImageId: string) {
+    const parent = imageCacheStore.getVtkImageData(parentImageId);
+    if (!parent) throw new Error('No such parent image');
+
+    const dimensions = parent.getDimensions();
+    const values = new Uint8Array(
+      dimensions[0] * dimensions[1] * dimensions[2]
+    );
+    const labelmap = vtkLabelMap.newInstance(
+      parent.get('spacing', 'origin', 'direction')
+    );
+    labelmap.setDimensions(dimensions as Vector3);
+    labelmap.computeTransforms();
+    setMaskScalars(labelmap, values);
+
+    const segmentation = getSegmentationForImage(parentImageId);
+    const segments: LabelmapSegment[] = [];
+    (segmentation ? listSegments(segmentation) : []).forEach((segment) => {
+      const binding = segment.representations.labelmap;
+      if (!binding) return;
+      segments.push({
+        value: binding.labelValue,
+        name: segment.name,
+        color: [...segment.color] as RGBAColor,
+        visible: segment.visible,
+        locked: segment.locked,
+        fillOpacity: segment.fillOpacity,
+        outlineOpacity: segment.outlineOpacity,
+      });
+
+      const mask = artifactIndex[binding.artifactId];
+      if (!mask || isEmptyExtent(binding.extent)) return;
+      const source = maskScalars(mask);
+      const extent = [...binding.extent] as Extent3D;
+      const [mi, mj] = extentSize(extent);
+      for (let k = extent[4]; k <= extent[5]; k += 1) {
+        for (let j = extent[2]; j <= extent[3]; j += 1) {
+          for (let i = extent[0]; i <= extent[1]; i += 1) {
+            const value =
+              source[
+                i - extent[0] + (j - extent[2]) * mi + (k - extent[4]) * mi * mj
+              ];
+            if (value === LABELMAP_BACKGROUND_VALUE) continue;
+            values[i + j * dimensions[0] + k * dimensions[0] * dimensions[1]] =
+              value;
+          }
+        }
+      }
+    });
+
+    labelmap.setSegments(segments);
+    return { labelmap, segments };
+  }
+
+  /** The bound segments of an image, keyed by the label value their mask holds. */
+  function boundSegmentsByLabelValue(parentImageId: string) {
+    const segmentation = getSegmentationForImage(parentImageId);
+    const owners = new Map<number, Segment>();
+    (segmentation ? listSegments(segmentation) : []).forEach((segment) => {
+      const binding = segment.representations.labelmap;
+      if (binding) owners.set(binding.labelValue, segment);
+    });
+    return owners;
+  }
+
+  /**
+   * Writes a composite edit back into the bounded masks it was built from.
+   * Only voxels the edit actually changed are touched, so an overlap the
+   * composite could not show survives a process that never aimed at it.
+   */
+  function applyCompositeEdit(
+    parentImageId: string,
+    before: Uint8Array,
+    after: TypedArray | number[]
+  ) {
+    const parent = imageCacheStore.getVtkImageData(parentImageId);
+    if (!parent) throw new Error('No such parent image');
+    const [di, dj, dk] = parent.getDimensions();
+    const owners = boundSegmentsByLabelValue(parentImageId);
+
+    // Growth happens first, and nothing grows once the buffers below are read.
+    const needed = new Map<number, Extent3D>();
+    for (let k = 0; k < dk; k += 1) {
+      for (let j = 0; j < dj; j += 1) {
+        for (let i = 0; i < di; i += 1) {
+          const offset = i + j * di + k * di * dj;
+          const value = after[offset];
+          if (value === LABELMAP_BACKGROUND_VALUE || value === before[offset])
+            continue;
+          const box = needed.get(value);
+          if (!box) {
+            needed.set(value, [i, i, j, j, k, k]);
+            continue;
+          }
+          box[0] = Math.min(box[0], i);
+          box[1] = Math.max(box[1], i);
+          box[2] = Math.min(box[2], j);
+          box[3] = Math.max(box[3], j);
+          box[4] = Math.min(box[4], k);
+          box[5] = Math.max(box[5], k);
+        }
+      }
+    }
+    needed.forEach((extent, value) => {
+      const owner = owners.get(value);
+      if (owner)
+        ensureArtifactContains(
+          owner.representations.labelmap!.artifactId,
+          extent
+        );
+    });
+
+    const targets = new Map<
+      number,
+      {
+        mask: vtkLabelMap;
+        scalars: Uint8Array;
+        extent: Extent3D;
+        mi: number;
+        mj: number;
+      }
+    >();
+    owners.forEach((segment, value) => {
+      const binding = segment.representations.labelmap!;
+      const mask = artifactIndex[binding.artifactId];
+      if (!mask || isEmptyExtent(binding.extent)) return;
+      const extent = [...binding.extent] as Extent3D;
+      const [mi, mj] = extentSize(extent);
+      targets.set(value, { mask, scalars: maskScalars(mask), extent, mi, mj });
+    });
+
+    const touched = new Set<vtkLabelMap>();
+    const write = (
+      value: number,
+      i: number,
+      j: number,
+      k: number,
+      next: number
+    ) => {
+      const target = targets.get(value);
+      if (!target || !extentContainsIndex(target.extent, i, j, k)) return;
+      const offset =
+        i -
+        target.extent[0] +
+        (j - target.extent[2]) * target.mi +
+        (k - target.extent[4]) * target.mi * target.mj;
+      if (target.scalars[offset] === next) return;
+      target.scalars[offset] = next;
+      touched.add(target.mask);
+    };
+
+    for (let k = 0; k < dk; k += 1) {
+      for (let j = 0; j < dj; j += 1) {
+        for (let i = 0; i < di; i += 1) {
+          const offset = i + j * di + k * di * dj;
+          const next = after[offset];
+          const previous = before[offset];
+          if (next === previous) continue;
+          if (previous !== LABELMAP_BACKGROUND_VALUE)
+            write(previous, i, j, k, LABELMAP_BACKGROUND_VALUE);
+          if (next !== LABELMAP_BACKGROUND_VALUE) write(next, i, j, k, next);
+        }
+      }
+    }
+
+    touched.forEach((mask) => mask.modified());
+  }
+
+  /**
+   * Voxel access to an image's segments as one parent-shaped buffer, for the
+   * processes whose scope is every segment at once. The composite is a read
+   * model built once per accessor; a write is diffed against it and
+   * distributed back into the bounded masks that own each voxel.
+   */
+  function imageVoxels(parentImageId: string): VoxelStorage {
+    let composite: vtkLabelMap | undefined;
+
+    const exists = () =>
+      !!imageCacheStore.getVtkImageData(parentImageId) &&
+      segmentLayersForImage(parentImageId).length > 0;
+
+    const requireComposite = () => {
+      if (!exists()) throw new Error('No segmentation for this image');
+      composite ??= compositeLabelmap(parentImageId).labelmap;
+      return composite;
+    };
+    const scalars = () => maskScalars(requireComposite());
+
+    return {
+      exists,
+      image: requireComposite,
+      scalars,
+      snapshot: () => scalars().slice(),
+      apply: (values: TypedArray | number[]) => {
+        const current = scalars();
+        if (values.length !== current.length) {
+          throw new Error('Scalar length does not match storage');
+        }
+        applyCompositeEdit(parentImageId, current, values);
+        // The read model tracks what the masks now hold, so the next write
+        // diffs against the state this one left.
+        current.set(values);
+        requireComposite().modified();
+      },
+      // The composite spans the parent, so there is nothing to grow.
+      ensureContains: () => false,
+    };
+  }
+
+  /** The label values of an image's locked segments. */
+  function lockedLabelValues(parentImageId: string) {
+    const owners = boundSegmentsByLabelValue(parentImageId);
+    return [...owners.entries()].flatMap(([labelValue, segment]) =>
+      segment.locked ? [labelValue] : []
+    );
+  }
+
+  /** The segments of an image that have a mask, with their place in `order`. */
+  function segmentLayersForImage(parentImageId: string) {
+    const segmentation = getSegmentationForImage(parentImageId);
+    if (!segmentation) return [];
+    return listSegments(segmentation).flatMap((segment, stackIndex) => {
+      const binding = segment.representations.labelmap;
+      return binding
+        ? [
+            {
+              segmentId: segment.id,
+              artifactId: binding.artifactId,
+              stackIndex,
+            },
+          ]
+        : [];
+    });
   }
 
   function updateSegment(segmentId: string, patch: SegmentPatch) {
@@ -526,6 +975,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       ...toRaw(segmentation.segments[segmentId]),
       ...patch,
     };
+  }
+
+  function renameSegmentation(segmentationId: string, name: string) {
+    getSegmentation(segmentationId).name = name;
   }
 
   function reorderSegments(segmentationId: string, order: string[]) {
@@ -538,12 +991,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
     detachSegment(segmentation, segmentId);
 
-    if (!binding) return;
-    artifactIndex[binding.artifactId]?.replaceLabelValue(
-      binding.labelValue,
-      LABELMAP_BACKGROUND_VALUE
-    );
-    releaseUnreferencedArtifact(binding.artifactId);
+    // The mask holds this segment and nothing else, so it goes with it.
+    if (binding) removeArtifact(binding.artifactId);
   }
 
   function removeSegmentation(segmentationId: string) {
@@ -577,14 +1026,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   // from. Per-tool props are the tool store's own, so it carries them onto the
   // new segment on this signal: from the config template on the first edit,
   // from the origin segment on every later cross-image clone.
-  const mintedSegment =
-    shallowRef<
-      Maybe<{
-        segmentId: string;
-        templateName?: string;
-        fromSegmentId?: string;
-      }>
-    >();
+  const mintedSegment = shallowRef<
+    Maybe<{
+      segmentId: string;
+      templateName?: string;
+      fromSegmentId?: string;
+    }>
+  >();
 
   // A segment that is gone (deleted, or its catalog replaced) is not active.
   const activeSegmentId = computed(() =>
@@ -654,6 +1102,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const segmentId = activeSegmentId.value;
     if (!segmentId) return undefined;
     return findSegment(segmentId)?.representations.labelmap?.artifactId;
+  });
+
+  /** The segmentation the active segment belongs to. */
+  const activeSegmentationId = computed(() => {
+    const segmentId = activeSegmentId.value;
+    return segmentId ? segmentationOf(segmentId)?.id : undefined;
   });
 
   /**
@@ -749,6 +1203,20 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- state file --- //
 
+  /**
+   * A mask that covers nothing holds no voxels, and an image codec has nothing
+   * to write; the binding's empty extent is what restores it, so one background
+   * voxel stands in for the bytes.
+   */
+  function writableMask(artifactId: string) {
+    const mask = artifactIndex[artifactId];
+    if (mask.getDimensions().every((size) => size > 0)) return mask;
+    const parent = imageCacheStore.getVtkImageData(
+      artifactMeta[artifactId].parentImage
+    );
+    return parent ? allocateMask(parent, [0, 0, 0, 0, 0, 0]) : mask;
+  }
+
   async function serialize(
     state: StateFile,
     io: SegmentationArtifactIO = defaultArtifactIO
@@ -825,7 +1293,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           path,
           await io.write(
             format,
-            artifactIndex[artifactId],
+            writableMask(artifactId),
             labelmapSegmentsByArtifact.value[artifactId] ?? []
           )
         );
@@ -968,9 +1436,21 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       });
     });
 
+    // A migrated group holds every segment in one buffer, so its bindings are
+    // placeholders until it is split below; nothing reshapes its mask.
+    const artifactsToSplit = new Set(
+      loaded.flatMap((result) =>
+        result &&
+        (result.artifact.pendingDecode || result.artifact.pendingSplit)
+          ? [artifactIdMap[result.artifact.id]]
+          : []
+      )
+    );
+
     (manifest.segmentations ?? []).forEach((wire) => {
       const parentImageId = dataIDMap[wire.parentImage];
       if (parentImageId === undefined) return;
+      const parentImage = imageCacheStore.getVtkImageData(parentImageId);
 
       const segmentation = ensureSegmentationForImage(parentImageId);
       segmentation.name = wire.name;
@@ -999,15 +1479,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           ? artifactIdMap[binding.artifactId]
           : undefined;
         if (binding && artifactId !== undefined) {
+          const extent = [...binding.extent] as Extent3D;
           segment.representations.labelmap = {
             artifactId,
             labelValue: binding.labelValue,
-            // A migrated binding carries an empty placeholder extent: only the
-            // loaded artifact knows the real one.
-            extent: isEmptyExtent(binding.extent as Extent3D)
-              ? fullExtent(artifactIndex[artifactId].getDimensions())
-              : ([...binding.extent] as Extent3D),
+            extent,
           };
+          // The mask that covers nothing was written as a placeholder voxel;
+          // the extent is what says it covers nothing.
+          if (
+            isEmptyExtent(extent) &&
+            parentImage &&
+            !artifactsToSplit.has(artifactId)
+          ) {
+            placeMask(artifactIndex[artifactId], parentImage, extent);
+            setMaskScalars(artifactIndex[artifactId], new Uint8Array(0));
+          }
         }
         segmentIdMap[wireSegmentId] = segment.id;
       });
@@ -1018,22 +1505,89 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       if (restoredActiveId !== undefined) setActiveSegment(restoredActiveId);
     });
 
-    // Catalogued after the wire segmentations so a decoded artifact's segments
-    // follow the ones the manifest named, not precede them.
+    // Split after the wire segmentations so a legacy group's segments follow
+    // the ones the manifest named, not precede them. A migrated group holds
+    // every segment in one buffer: `decoded` names them when the group carried
+    // no descriptors, the restored bindings when it did.
     loaded.forEach((result) => {
-      if (!result?.decoded) return;
-      const artifactId = artifactIdMap[result.artifact.id];
-      const created = setArtifactSegments(artifactId, result.decoded);
+      if (!result) return;
+      const { artifact } = result;
+      const artifactId = artifactIdMap[artifact.id];
+      if (!artifactsToSplit.has(artifactId)) return;
+
+      // `decoded` names the segments when the group carried no descriptors;
+      // otherwise the bindings the manifest just restored do.
+      const migrated = segmentsForArtifact(artifactId);
+      const descriptors =
+        result.decoded ??
+        migrated.map((segment) => ({
+          value: segment.representations.labelmap!.labelValue,
+          name: segment.name,
+          color: [...segment.color] as RGBAColor,
+          visible: segment.visible,
+          locked: segment.locked,
+          fillOpacity: segment.fillOpacity,
+          outlineOpacity: segment.outlineOpacity,
+        }));
+
+      // The source goes first, so the split segments can take the label values
+      // the migrated ones were holding.
+      const parentImageId = dataIDMap[artifact.parentImage];
+      const segmentation = ensureSegmentationForImage(parentImageId);
+      const orderBefore = [...segmentation.order];
+      const labelmap = artifactIndex[artifactId];
+      const migratedIds = migrated.map((segment) => segment.id);
+      const wireIdByStoreId = new Map(
+        Object.entries(segmentIdMap).map(([wireId, storeId]) => [
+          storeId,
+          wireId,
+        ])
+      );
+      const activeBefore = activeSegmentRef.value;
+      removeArtifact(artifactId);
+
+      const created = splitLabelmapIntoSegments(
+        parentImageId,
+        labelmap,
+        descriptors,
+        artifact.source
+      );
+
+      // Every reference to a segment that went with the source artifact moves
+      // onto the split one that replaced it, its place in the order included.
+      const replacementOf = new Map<string, string>();
+      migratedIds.forEach((segmentId, index) => {
+        const replacement = created[index];
+        if (!replacement) return;
+        replacementOf.set(segmentId, replacement.id);
+        const wireId = wireIdByStoreId.get(segmentId);
+        if (wireId) segmentIdMap[wireId] = replacement.id;
+        if (activeBefore === segmentId) setActiveSegment(replacement.id);
+      });
+
+      const placed = orderBefore.flatMap((segmentId) => {
+        const replacement = replacementOf.get(segmentId);
+        if (replacement) return [replacement];
+        return segmentation.segments[segmentId] ? [segmentId] : [];
+      });
+      segmentation.order = [
+        ...placed,
+        ...created
+          .map((segment) => segment.id)
+          .filter((segmentId) => !placed.includes(segmentId)),
+      ];
 
       // A migrated legacy group carried its active paint value here, because
-      // its segments did not exist when activeSegment was applied above.
-      const pendingActive = (result.artifact as { pendingActiveValue?: number })
-        .pendingActiveValue;
-      if (pendingActive === undefined) return;
-      const active = created.find(
-        (segment) =>
-          segment.representations.labelmap?.labelValue === pendingActive
+      // its segments did not exist when activeSegment was applied above. It is
+      // a SOURCE value, and the split segment holding it keeps that value only
+      // when nothing else on this parent image already had it, so the
+      // descriptor it came from is what identifies the segment.
+      const { pendingActiveValue } = artifact;
+      if (pendingActiveValue === undefined) return;
+      const activeIndex = descriptors.findIndex(
+        (descriptor) => descriptor.value === pendingActiveValue
       );
+      const active = activeIndex === -1 ? undefined : created[activeIndex];
       if (active) setActiveSegment(active.id);
     });
 
@@ -1062,6 +1616,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     activeSegmentIntent,
     mintedSegment,
     activeArtifactId,
+    activeSegmentationId,
     setActiveSegment,
     setActiveSegmentTemplate,
     clearActiveSegment,
@@ -1071,22 +1626,29 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     ensureSegmentationForImage,
     getSegment,
     resolveLabelmapBinding,
+    findSegmentBinding,
     segmentVoxels,
     artifactVoxels,
+    imageVoxels,
     createSegment,
     ensureLabelmapBinding,
     updateSegment,
+    renameSegmentation,
     reorderSegments,
     deleteSegment,
     removeSegmentation,
     artifactsForImage,
     getSegmentationForArtifact,
     segmentsForArtifact,
-    findSegmentByLabelValue,
     registerArtifact,
     createArtifactForImage,
     updateArtifactMeta,
-    setArtifactSegments,
+    splitLabelmapIntoSegments,
+    otherSegmentClearer,
+    lockedSegmentAt,
+    compositeLabelmap,
+    lockedLabelValues,
+    segmentLayersForImage,
     removeArtifact,
     pickUniqueArtifactName,
     serialize,

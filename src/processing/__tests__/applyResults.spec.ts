@@ -19,6 +19,17 @@ import { useMessageStore } from '@/src/store/messages';
 // store is the real one.
 // ---------------------------------------------------------------------------
 
+/**
+ * What a conversion reports back: the segment each SOURCE label value became.
+ * Colliding values are remapped as the import lands, so the source value is the
+ * only handle a descriptor can match on.
+ */
+const importedComponent = (bySourceValue: Record<number, string>) =>
+  Object.entries(bySourceValue).map(([sourceValue, segmentId]) => ({
+    sourceValue: Number(sourceValue),
+    segmentId,
+  }));
+
 const recordingDependencies = () => ({
   fetchResult: vi.fn(),
   openVolumeUrls: vi.fn(async () => ['dataset-live']),
@@ -27,7 +38,9 @@ const recordingDependencies = () => ({
   addLayer: vi.fn(async (): Promise<string | undefined> => 'layer-1'),
   segmentGroups: {
     resultSourcesInScene: vi.fn((): Array<ResultSource | undefined> => []),
-    convertImageToLabelmap: vi.fn(async () => ['seg-group']),
+    convertImageToLabelmap: vi.fn(async () => [
+      importedComponent({ 1: 'segment-1', 2: 'segment-2' }),
+    ]),
     updateSegment: vi.fn(),
   },
 });
@@ -114,7 +127,9 @@ describe('applyIntent', () => {
   });
 
   it('add-segment-group converts the labelmap and applies descriptors to the created group', async () => {
-    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue(['group-1']);
+    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue([
+      importedComponent({ 1: 'liver-segment', 2: 'tumor-segment' }),
+    ]);
     const segments = [
       { value: 1, name: 'liver', color: rgba(255, 0, 0, 255) },
       { value: 2, name: 'tumor', color: rgba(0, 255, 0, 255), visible: false },
@@ -130,16 +145,14 @@ describe('applyIntent', () => {
     );
     expect(deps.segmentGroups.updateSegment).toHaveBeenCalledTimes(2);
     expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
-      'group-1',
-      1,
+      'liver-segment',
       {
         name: 'liver',
         color: [255, 0, 0, 255],
       }
     );
     expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
-      'group-1',
-      2,
+      'tumor-segment',
       {
         name: 'tumor',
         color: [0, 255, 0, 255],
@@ -147,6 +160,41 @@ describe('applyIntent', () => {
       }
     );
     expect(deps.openVolumeUrls).not.toHaveBeenCalled();
+  });
+
+  it('describes every component of a multi-component labelmap', async () => {
+    // Components share one segmentation, so the second one's values are
+    // remapped away from the first's. Applying by source value is what keeps
+    // each component's descriptors on the segments that component created.
+    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue([
+      importedComponent({ 1: 'a-1', 2: 'a-2' }),
+      importedComponent({ 1: 'b-1', 2: 'b-2' }),
+    ]);
+    await apply(
+      {
+        intent: 'add-segment-group',
+        ...file,
+        segments: [
+          { value: 1, name: 'liver', color: rgba(255, 0, 0, 255) },
+          { value: 2, name: 'tumor', color: rgba(0, 255, 0, 255) },
+        ],
+      },
+      context('parent')
+    );
+
+    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledTimes(4);
+    ['a-1', 'b-1'].forEach((segmentId) =>
+      expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+        segmentId,
+        expect.objectContaining({ name: 'liver' })
+      )
+    );
+    ['a-2', 'b-2'].forEach((segmentId) =>
+      expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+        segmentId,
+        expect.objectContaining({ name: 'tumor' })
+      )
+    );
   });
 
   it('add-segment-group removes the temporarily imported child dataset', async () => {
@@ -340,7 +388,9 @@ describe('applyIntent', () => {
 
   it('is additive-only: writes into the NEW group, never a pre-existing one', async () => {
     deps.segmentGroups.resultSourcesInScene.mockReturnValue([undefined]);
-    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue(['new-group']);
+    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue([
+      importedComponent({ 1: 'new-segment' }),
+    ]);
     await apply(
       {
         intent: 'add-segment-group',
@@ -351,13 +401,11 @@ describe('applyIntent', () => {
     );
     expect(deps.segmentGroups.convertImageToLabelmap).toHaveBeenCalledTimes(1);
     expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
-      'new-group',
-      1,
+      'new-segment',
       expect.anything()
     );
     expect(deps.segmentGroups.updateSegment).not.toHaveBeenCalledWith(
-      'existing-group',
-      expect.anything(),
+      'existing-segment',
       expect.anything()
     );
   });
@@ -365,7 +413,9 @@ describe('applyIntent', () => {
 
 describe('autoLoadProcessingResults', () => {
   it('routes every supported intent through the shared applier', async () => {
-    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue(['seg-group']);
+    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue([
+      importedComponent({ 1: 'segment-1' }),
+    ]);
     await autoLoad(
       [
         result({ id: 'a', intent: 'add-base-image' }),
@@ -425,7 +475,7 @@ describe('autoLoadProcessingResults', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     deps.segmentGroups.convertImageToLabelmap
       .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce(['g2']);
+      .mockResolvedValueOnce([importedComponent({ 1: 'segment-g2' })]);
     const application = await autoLoad(
       [
         result({ id: 'a', intent: 'add-segment-group' }),
@@ -492,7 +542,9 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
     result({ id: 'seg', intent: 'add-segment-group', ...overrides });
 
   it('auto-applies an importable labelmap', async () => {
-    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue(['seg-group']);
+    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue([
+      importedComponent({ 1: 'segment-1' }),
+    ]);
     await autoLoad([segResult()], context('parent'));
     expect(deps.segmentGroups.convertImageToLabelmap).toHaveBeenCalledTimes(1);
   });
@@ -517,7 +569,9 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
 describe('autoLoadProcessingResults — born-persistent (no confirm gate)', () => {
   it('applies the group immediately with no confirm gate', async () => {
     const source = { providerId: 'p1', jobId: 'j1', outputId: 'seg' };
-    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue(['seg-group']);
+    deps.segmentGroups.convertImageToLabelmap.mockResolvedValue([
+      importedComponent({ 1: 'segment-1' }),
+    ]);
     await autoLoad(
       [result({ id: 'seg', intent: 'add-segment-group', source })],
       context('parent')

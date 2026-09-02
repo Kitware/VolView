@@ -61,7 +61,7 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
   }
 
   async function computeAlgorithm(target: ProcessTarget) {
-    // Smoothing rewrites one label's boundary, so an artifact-scoped target has
+    // Smoothing rewrites one label's boundary, so an image-scoped target has
     // nothing to smooth.
     if (target.scope !== 'segment') {
       throw new Error(

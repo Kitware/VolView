@@ -1,4 +1,34 @@
-import type { LabelmapSegment } from '@/src/types/segmentation';
+import type { Extent3D, LabelmapSegment } from '@/src/types/segmentation';
+import { isEmptyExtent } from '@/src/types/segmentation';
+
+/**
+ * Whether a segment's actor has anything to draw on the slice being viewed.
+ * Extent and slice are both in the parent image's index space, on the index
+ * axis the view's LPS axis maps to. vtkImageMapper clamps a slice outside its
+ * input to the nearest one, so an actor left visible off its own extent paints
+ * a stale slice over the image.
+ */
+export function sliceWithinExtent(
+  extent: Extent3D,
+  axisIndex: number,
+  slice: number
+) {
+  if (isEmptyExtent(extent)) return false;
+  return slice >= extent[axisIndex * 2] && slice <= extent[axisIndex * 2 + 1];
+}
+
+// The base image draws at no offset, so every segment sits in front of it.
+const SEGMENT_OFFSET_FACTOR = -4;
+
+/**
+ * A segment's coincident-topology polygon offset, by its position in
+ * `segmentation.order`. Overlap is representable, so segments sharing one
+ * offset would z-fight. Later in the order draws in front: a segment is
+ * appended when it is added, so the one just painted is on top.
+ */
+export function segmentCoincidentOffset(stackIndex: number) {
+  return [SEGMENT_OFFSET_FACTOR, -4 - stackIndex] as [number, number];
+}
 
 /**
  * Fill alpha in 0..1 for the slice representation's piecewise function: the

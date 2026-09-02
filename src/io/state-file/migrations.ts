@@ -199,9 +199,10 @@ const descriptorValues = (descriptors: any) => {
 
 // 6.4.0 -> 7.0.0 moves identity off segment groups and off the vector tools'
 // label records and onto segments owned by one segmentation per parent image.
-// JSON only: no voxels are read here, so a group with no descriptors is marked
-// `pendingDecode` for the loaded restore stage, and every labelmap binding
-// carries an empty placeholder extent that stage resolves against the artifact.
+// JSON only: no voxels are read here, so a group is marked for the loaded
+// restore stage to divide into one bounded mask per segment, enumerating its
+// voxel values first when it carried no descriptors. Every binding's extent is
+// a placeholder that stage replaces.
 const migrate640To700 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
 
@@ -278,7 +279,7 @@ const migrate640To700 = (inputManifest: any) => {
         ? {}
         : { dataSourceId: group.dataSourceId }),
       ...(metadata.source ? { source: metadata.source } : {}),
-      ...(descriptors ? {} : { pendingDecode: true }),
+      ...(descriptors ? { pendingSplit: true } : { pendingDecode: true }),
       // Its segments are decoded during restore, after activeSegment would have
       // been applied, so the value to reactivate travels with the artifact.
       ...(!descriptors &&

@@ -9,7 +9,7 @@ export type Extent3D = [number, number, number, number, number, number];
 export type LabelmapBinding = {
   artifactId: string;
   labelValue: number;
-  extent: Extent3D; // parent image index space; full parent extent in this phase
+  extent: Extent3D; // the mask's own bounds, in parent image index space
 };
 
 export type Segment = {
@@ -55,7 +55,7 @@ export type Segmentation = {
 
 /**
  * The voxel operations every labelmap consumer routes through. Storage is one
- * full-extent mask per artifact, so `ensureContains` can only assert.
+ * bounded mask per segment, sized to the region that segment covers.
  *
  * `ensureContains` may replace the scalar array, dimensions and strides:
  * anything that cached those from `image()` or `scalars()` must re-fetch after
@@ -77,9 +77,10 @@ export type VoxelStorage = {
   /** Bulk copy-in; keeps image() and scalars() identity, marks it modified. */
   apply(scalars: TypedArray | number[]): void;
   /**
-   * Ensures storage covers `extent`, growing if needed. Returns whether
-   * storage was invalidated (scalars/dimensions/strides changed). Throws when
-   * the extent cannot be covered.
+   * Ensures storage covers `extent`, growing to the union of what it has and
+   * what it was asked for. Returns whether storage was invalidated
+   * (scalars/dimensions/strides changed). An empty extent is already covered.
+   * Throws when the extent leaves the parent image, so callers clip.
    */
   ensureContains(extent: Extent3D): boolean;
 };
@@ -130,6 +131,70 @@ export function isEmptyExtent(extent: Extent3D) {
   return (
     extent[1] < extent[0] || extent[3] < extent[2] || extent[5] < extent[4]
   );
+}
+
+/** Voxel counts along i, j, k. Meaningless for an empty extent. */
+export function extentSize(extent: Extent3D) {
+  return [
+    extent[1] - extent[0] + 1,
+    extent[3] - extent[2] + 1,
+    extent[5] - extent[4] + 1,
+  ] as [number, number, number];
+}
+
+export function extentContains(outer: Extent3D, inner: Extent3D) {
+  return (
+    inner[0] >= outer[0] &&
+    inner[1] <= outer[1] &&
+    inner[2] >= outer[2] &&
+    inner[3] <= outer[3] &&
+    inner[4] >= outer[4] &&
+    inner[5] <= outer[5]
+  );
+}
+
+export function extentContainsIndex(
+  extent: Extent3D,
+  i: number,
+  j: number,
+  k: number
+) {
+  return (
+    i >= extent[0] &&
+    i <= extent[1] &&
+    j >= extent[2] &&
+    j <= extent[3] &&
+    k >= extent[4] &&
+    k <= extent[5]
+  );
+}
+
+export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
+  return [
+    Math.min(a[0], b[0]),
+    Math.max(a[1], b[1]),
+    Math.min(a[2], b[2]),
+    Math.max(a[3], b[3]),
+    Math.min(a[4], b[4]),
+    Math.max(a[5], b[5]),
+  ];
+}
+
+/** The part of `extent` inside `bounds`; empty when they do not overlap. */
+export function clipExtent(extent: Extent3D, bounds: Extent3D): Extent3D {
+  return [
+    Math.max(extent[0], bounds[0]),
+    Math.min(extent[1], bounds[1]),
+    Math.max(extent[2], bounds[2]),
+    Math.min(extent[3], bounds[3]),
+    Math.max(extent[4], bounds[4]),
+    Math.min(extent[5], bounds[5]),
+  ];
+}
+
+/** The extent of an image's whole index space. */
+export function fullExtent(dimensions: number[] | Int32Array): Extent3D {
+  return [0, dimensions[0] - 1, 0, dimensions[1] - 1, 0, dimensions[2] - 1];
 }
 
 // CSS basic color keywords; the vector tool label defaults in src/config.ts use 'red'.

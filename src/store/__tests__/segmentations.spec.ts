@@ -8,6 +8,7 @@ import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { isEmptyExtent } from '@/src/types/segmentation';
 
 const DIMENSIONS = [4, 4, 2] as const;
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
@@ -49,18 +50,14 @@ async function seatLabelValues(
 
 const store = () => useSegmentationStore();
 
-/** The catalog a consumer builds for one artifact: segments bound to it, in order. */
-const segmentsForArtifact = (parentImageId: string, artifactId: string) => {
+/** The image's segments, in order. */
+const segmentsOfImage = (parentImageId: string) => {
   const segmentation = store().getSegmentationForImage(parentImageId);
   if (!segmentation) return [];
-  return segmentation.order
-    .map((id) => segmentation.segments[id])
-    .filter(
-      (segment) => segment.representations.labelmap?.artifactId === artifactId
-    );
+  return segmentation.order.map((id) => segmentation.segments[id]);
 };
 
-const labelValuesOf = (segments: ReturnType<typeof segmentsForArtifact>) =>
+const labelValuesOf = (segments: ReturnType<typeof segmentsOfImage>) =>
   segments.map((segment) => segment.representations.labelmap!.labelValue);
 
 const artifactScalars = (artifactId: string) =>
@@ -242,7 +239,7 @@ describe('segmentation store', () => {
   });
 
   describe('ensureLabelmapBinding', () => {
-    it('allocates one artifact shaped like the parent image', async () => {
+    it('allocates one mask on the parent image for the segment', async () => {
       await seatImage('img-1', 'Chest CT');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
@@ -250,10 +247,6 @@ describe('segmentation store', () => {
       const { binding } = makeBoundSegment(segmentationId);
 
       expect(Object.keys(store().artifactIndex)).toEqual([binding.artifactId]);
-      expect([
-        ...store().artifactIndex[binding.artifactId].getDimensions(),
-      ]).toEqual([...DIMENSIONS]);
-      expect(artifactScalars(binding.artifactId)).toHaveLength(VOXEL_COUNT);
       expect(store().artifactMeta[binding.artifactId].parentImage).toBe(
         'img-1'
       );
@@ -262,21 +255,18 @@ describe('segmentation store', () => {
       ).toBeGreaterThan(0);
     });
 
-    it('covers the full parent extent in this phase', async () => {
+    it('covers nothing until an edit says what to cover', async () => {
       await seatImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
       const { binding } = makeBoundSegment(segmentationId);
 
-      expect([...binding.extent]).toEqual([
-        0,
-        DIMENSIONS[0] - 1,
-        0,
-        DIMENSIONS[1] - 1,
-        0,
-        DIMENSIONS[2] - 1,
-      ]);
+      expect(isEmptyExtent(binding.extent)).toBe(true);
+      expect([
+        ...store().artifactIndex[binding.artifactId].getDimensions(),
+      ]).toEqual([0, 0, 0]);
+      expect(artifactScalars(binding.artifactId)).toHaveLength(0);
     });
 
     it('allocates a nonzero label value', async () => {
@@ -303,7 +293,7 @@ describe('segmentation store', () => {
       expect(Object.keys(store().artifactIndex)).toHaveLength(1);
     });
 
-    it('gives two segments of one segmentation distinct values in the shared artifact', async () => {
+    it('gives two segments of one segmentation their own mask and distinct values', async () => {
       await seatImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
@@ -311,9 +301,9 @@ describe('segmentation store', () => {
       const first = makeBoundSegment(segmentationId, 'Tumor');
       const second = makeBoundSegment(segmentationId, 'Node');
 
-      expect(second.binding.artifactId).toBe(first.binding.artifactId);
+      expect(second.binding.artifactId).not.toBe(first.binding.artifactId);
       expect(second.binding.labelValue).not.toBe(first.binding.labelValue);
-      expect(Object.keys(store().artifactIndex)).toHaveLength(1);
+      expect(Object.keys(store().artifactIndex)).toHaveLength(2);
     });
 
     it('resolves a binding to the artifact labelmap and its label value', async () => {
@@ -396,38 +386,41 @@ describe('segmentation store', () => {
   });
 
   describe('deleteSegment', () => {
-    it('clears only the deleted segment voxels', async () => {
+    it('leaves the neighbour mask alone', async () => {
       await seatImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const doomed = makeBoundSegment(segmentationId, 'Tumor');
       const kept = makeBoundSegment(segmentationId, 'Node');
-      const scalars = artifactScalars(doomed.binding.artifactId);
-      scalars[0] = doomed.binding.labelValue;
-      scalars[1] = doomed.binding.labelValue;
-      scalars[2] = kept.binding.labelValue;
+      store().segmentVoxels(kept.id).ensureContains([0, 0, 0, 0, 0, 0]);
+      store().segmentVoxels(kept.id).scalars()[0] = kept.binding.labelValue;
 
       store().deleteSegment(doomed.id);
 
-      expect([...scalars.slice(0, 3)]).toEqual([0, 0, kept.binding.labelValue]);
+      expect([...store().segmentVoxels(kept.id).scalars()]).toEqual([
+        kept.binding.labelValue,
+      ]);
       expect(store().segmentations[segmentationId].order).toEqual([kept.id]);
       expect(
         Object.keys(store().segmentations[segmentationId].segments)
       ).toEqual([kept.id]);
     });
 
-    it('releases the artifact only once no binding references it', async () => {
+    it('releases the segment mask with the segment', async () => {
       await seatImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const first = makeBoundSegment(segmentationId, 'Tumor');
       const second = makeBoundSegment(segmentationId, 'Node');
-      const { artifactId } = first.binding;
 
       store().deleteSegment(first.id);
 
-      expect(Object.keys(store().artifactIndex)).toEqual([artifactId]);
-      expect(Object.keys(store().artifactMeta)).toEqual([artifactId]);
+      expect(Object.keys(store().artifactIndex)).toEqual([
+        second.binding.artifactId,
+      ]);
+      expect(Object.keys(store().artifactMeta)).toEqual([
+        second.binding.artifactId,
+      ]);
 
       store().deleteSegment(second.id);
 
@@ -504,6 +497,23 @@ describe('segmentation store', () => {
     });
   });
 
+  describe('the default segment group for an image', () => {
+    it('seeds the image once, however often it is asked for', async () => {
+      await seatImage('img-1');
+      const segmentGroups = useSegmentGroupStore();
+
+      const first = segmentGroups.newLabelmapFromImage('img-1');
+      const second = segmentGroups.newLabelmapFromImage('img-1');
+
+      // One group per image, so a repeat call cannot stack another set of
+      // identically named defaults on it.
+      expect(second).toBe(first);
+      expect(segmentsOfImage('img-1').map((segment) => segment.name)).toEqual(
+        DEFAULT_SEGMENT_MASKS.map((descriptor) => descriptor.name)
+      );
+    });
+  });
+
   describe('conversion and decode', () => {
     it('creates one bound segment per discovered label value', async () => {
       await seatImage('parent-img', 'Chest CT');
@@ -512,7 +522,7 @@ describe('segmentation store', () => {
       values.fill(2, 12);
       await seatLabelValues('child-img', values);
 
-      const [artifactId] = await useSegmentGroupStore().convertImageToLabelmap(
+      await useSegmentGroupStore().convertImageToLabelmap(
         'child-img',
         'parent-img'
       );
@@ -520,7 +530,7 @@ describe('segmentation store', () => {
       const segmentation = store().getSegmentationForImage('parent-img');
       expect(segmentation).toBeTruthy();
       expect(segmentation!.parentImageId).toBe('parent-img');
-      const segments = segmentsForArtifact('parent-img', artifactId);
+      const segments = segmentsOfImage('parent-img');
       expect(segments.map((segment) => segment.name)).toEqual([
         'Segment 1',
         'Segment 2',
@@ -533,26 +543,32 @@ describe('segmentation store', () => {
       });
     });
 
-    it('binds converted segments to the artifact holding the voxels', async () => {
+    it('binds each converted segment to a mask holding its own voxels', async () => {
       await seatImage('parent-img', 'Chest CT');
       const values = new Uint8Array(VOXEL_COUNT);
       values.fill(1, 4, 12);
       values.fill(2, 12);
       await seatLabelValues('child-img', values);
 
-      const [artifactId] = await useSegmentGroupStore().convertImageToLabelmap(
+      await useSegmentGroupStore().convertImageToLabelmap(
         'child-img',
         'parent-img'
       );
 
-      const segments = segmentsForArtifact('parent-img', artifactId);
+      const segments = segmentsOfImage('parent-img');
       expect(segments).toHaveLength(2);
-      const resolved = store().resolveLabelmapBinding(segments[0].id);
-      expect(resolved?.artifactId).toBe(artifactId);
-      expect(resolved?.labelmap).toBe(store().artifactIndex[artifactId]);
-      expect([...artifactScalars(artifactId)]).toEqual([...values]);
-      expect(store().artifactMeta[artifactId].parentImage).toBe('parent-img');
-      expect(store().artifactMeta[artifactId].name.length).toBeGreaterThan(0);
+      const [first, second] = segments.map(
+        (segment) => segment.representations.labelmap!.artifactId
+      );
+      expect(second).not.toBe(first);
+      expect(store().resolveLabelmapBinding(segments[0].id)?.labelmap).toBe(
+        store().artifactIndex[first]
+      );
+      // Each mask holds exactly one nonzero value, its segment's.
+      expect(new Set(artifactScalars(first))).toEqual(new Set([1]));
+      expect(new Set(artifactScalars(second))).toEqual(new Set([0, 2]));
+      expect(store().artifactMeta[first].parentImage).toBe('parent-img');
+      expect(store().artifactMeta[first].name.length).toBeGreaterThan(0);
     });
 
     it('preserves names and colors from embedded seg.nrrd metadata', async () => {
@@ -570,12 +586,12 @@ describe('segmentation store', () => {
         ])
       );
 
-      const [artifactId] = await useSegmentGroupStore().convertImageToLabelmap(
+      await useSegmentGroupStore().convertImageToLabelmap(
         'child-img',
         'parent-img'
       );
 
-      const segments = segmentsForArtifact('parent-img', artifactId);
+      const segments = segmentsOfImage('parent-img');
       expect(labelValuesOf(segments)).toEqual([1, 2]);
       const byLabelValue = (labelValue: number) =>
         segments.find(
@@ -588,7 +604,7 @@ describe('segmentation store', () => {
       expect(byLabelValue(1).name).toBe('Segment 1');
     });
 
-    it('gives a second conversion of the same parent its own artifact', async () => {
+    it('gives a second conversion of the same parent its own segments', async () => {
       await seatImage('parent-img', 'Chest CT');
       const values = new Uint8Array(VOXEL_COUNT);
       values.fill(1, 4, 12);
@@ -596,35 +612,49 @@ describe('segmentation store', () => {
       await seatLabelValues('child-b', values);
       const segmentGroups = useSegmentGroupStore();
 
-      const [first] = await segmentGroups.convertImageToLabelmap(
-        'child-a',
-        'parent-img'
-      );
+      await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
+      await segmentGroups.convertImageToLabelmap('child-b', 'parent-img');
+
+      expect(Object.keys(store().segmentations)).toHaveLength(1);
+      const segments = segmentsOfImage('parent-img');
+      expect(segments).toHaveLength(2);
+      // Label values stay unique among the segments of one image.
+      expect(labelValuesOf(segments)).toEqual([1, 2]);
+      expect(segments[1].id).not.toBe(segments[0].id);
+    });
+
+    it('reports which segment each source label value became', async () => {
+      await seatImage('parent-img', 'Chest CT');
+      const values = new Uint8Array(VOXEL_COUNT);
+      values.fill(1, 4, 12);
+      await seatLabelValues('child-a', values);
+      await seatLabelValues('child-b', values);
+      const segmentGroups = useSegmentGroupStore();
+
+      await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
       const [second] = await segmentGroups.convertImageToLabelmap(
         'child-b',
         'parent-img'
       );
 
-      expect(second).not.toBe(first);
-      expect(Object.keys(store().segmentations)).toHaveLength(1);
-      const fromFirst = segmentsForArtifact('parent-img', first);
-      const fromSecond = segmentsForArtifact('parent-img', second);
-      expect(labelValuesOf(fromFirst)).toEqual([1]);
-      expect(labelValuesOf(fromSecond)).toEqual([1]);
-      expect(fromSecond[0].id).not.toBe(fromFirst[0].id);
+      // Source value 1 is already taken on the parent, so the second import's
+      // segment holds value 2: only the report says which segment it is.
+      const segments = segmentsOfImage('parent-img');
+      expect(second).toEqual([{ sourceValue: 1, segmentId: segments[1].id }]);
+      expect(segments[1].representations.labelmap!.labelValue).toBe(2);
     });
 
     it('enumerates no segments for an all-background labelmap', async () => {
       await seatImage('parent-img', 'Chest CT');
       await seatLabelValues('child-img', new Uint8Array(VOXEL_COUNT));
 
-      const [artifactId] = await useSegmentGroupStore().convertImageToLabelmap(
+      await useSegmentGroupStore().convertImageToLabelmap(
         'child-img',
         'parent-img'
       );
 
-      expect(segmentsForArtifact('parent-img', artifactId)).toEqual([]);
-      expect(store().artifactMeta[artifactId]?.parentImage).toBe('parent-img');
+      expect(segmentsOfImage('parent-img')).toEqual([]);
+      expect(Object.keys(store().artifactIndex)).toEqual([]);
     });
   });
 

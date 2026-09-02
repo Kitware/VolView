@@ -60,7 +60,7 @@ describe('polygon rasterize target', () => {
     const target = resolveRasterizeTarget('img-1', second.id);
 
     expect(target.labelValue).toBe(2);
-    expect(target.artifactId).toBe(
+    expect(target.artifactId).not.toBe(
       store().resolveLabelmapBinding(first.id)!.artifactId
     );
   });
@@ -134,6 +134,7 @@ describe('polygon rasterize target', () => {
     const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
 
     const target = resolveRasterizeTarget('img-1', segment.id);
+    target.voxels.ensureContains([0, 3, 0, 0, 0, 0]);
     // fillPoly writes voxel offsets into the live buffer, so a copy would be
     // rasterized and thrown away.
     target.voxels.scalars()[3] = target.labelValue;

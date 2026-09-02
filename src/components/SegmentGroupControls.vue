@@ -23,16 +23,14 @@ const { currentImageID } = useCurrentImage();
 const dataStore = useDatasetStore();
 const isCurrentImageCine = computed(() => isCineImage(currentImageID.value));
 
-// Storage, not identity: the panel below lists segments, and these rows only
-// name the labelmaps the viewed image's segments are stored in.
+// One row per image: a segment's mask is its own, so the group a save or a
+// rename means is the image's whole segmentation.
 const currentSegmentGroups = computed(() => {
   if (!currentImageID.value) return [];
-  return segmentationStore
-    .artifactsForImage(currentImageID.value)
-    .map((id) => ({
-      id,
-      name: segmentationStore.artifactMeta[id].name,
-    }));
+  const segmentation = segmentationStore.getSegmentationForImage(
+    currentImageID.value
+  );
+  return segmentation ? [{ id: segmentation.id, name: segmentation.name }] : [];
 });
 
 // --- editing state --- //
@@ -43,12 +41,14 @@ const editDialog = ref(false);
 
 const editingMetadata = computed(() => {
   if (!editingGroupID.value) return null;
-  return segmentationStore.artifactMeta[editingGroupID.value];
+  return segmentationStore.segmentations[editingGroupID.value];
 });
 
 const existingNames = computed(() => {
   return new Set(
-    Object.values(segmentationStore.artifactMeta).map((meta) => meta.name)
+    Object.values(segmentationStore.segmentations).map(
+      (segmentation) => segmentation.name
+    )
   );
 });
 
@@ -77,9 +77,10 @@ function stopEditing(commit: boolean) {
 
   editDialog.value = false;
   if (editingGroupID.value && commit)
-    segmentGroupStore.updateMetadata(editingGroupID.value, {
-      name: editState.name || UNNAMED_GROUP_NAME,
-    });
+    segmentationStore.renameSegmentation(
+      editingGroupID.value,
+      editState.name || UNNAMED_GROUP_NAME
+    );
   editingGroupID.value = null;
 }
 
@@ -90,10 +91,15 @@ function createSegmentGroup() {
     throw new Error('Cannot create a labelmap without a base image');
   if (isCurrentImageCine.value) return;
 
+  const existing = segmentationStore.getSegmentationForImage(
+    currentImageID.value
+  );
   const id = segmentGroupStore.newLabelmapFromImage(currentImageID.value);
   if (!id) throw new Error('Could not create a new labelmap');
 
-  startEditing(id);
+  // The dialog names the row this click created. An image has one group, so a
+  // repeat click creates nothing and there is nothing to name.
+  if (!existing) startEditing(id);
 }
 
 // Collect images that can be converted into

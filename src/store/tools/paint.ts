@@ -10,6 +10,12 @@ import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
+import {
+  clipExtent,
+  fullExtent,
+  isEmptyExtent,
+  type Extent3D,
+} from '@/src/types/segmentation';
 import { Tools } from './types';
 import { useSegmentationStore } from '../segmentations';
 import useViewSliceStore from '../view-configs/slicing';
@@ -112,8 +118,8 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     const binding = segmentationStore.ensureLabelmapBinding(segmentId);
     return {
+      segmentId,
       labelValue: binding.labelValue,
-      artifactId: binding.artifactId,
       voxels: segmentationStore.segmentVoxels(segmentId),
     };
   }
@@ -132,62 +138,99 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID);
     if (!target) return;
 
-    const { voxels, labelValue } = target;
-    const labelmap = voxels.image();
+    const { voxels, labelValue, segmentId } = target;
     this.$paint.setBrushValue(labelValue);
 
-    // One catalog read per stroke: the per-voxel predicate below is the hot path.
-    const lockedValues = new Set(
-      segmentationStore
-        .segmentsForArtifact(target.artifactId)
-        .filter((segment) => segment.locked)
-        .map((segment) => segment.representations.labelmap!.labelValue)
-    );
-
-    const erasing = activeMode.value === PaintMode.Erase;
-    const imageData = useImageCacheStore().getVtkImageData(imageID);
-    const underlyingImagePixels = imageData
-      ?.getPointData()
+    const parentImage = useImageCacheStore().getVtkImageData(imageID);
+    if (!parentImage) return;
+    const underlyingImagePixels = parentImage
+      .getPointData()
       .getScalars()
       .getData();
-    const [minThreshold, maxThreshold] = thresholdRange.value;
-    if (!underlyingImagePixels) return;
 
-    // Both buffers are fixed for the stroke, so they are read once rather than
-    // per candidate voxel. The labelmap buffer is the live one the brush writes.
-    const currentData = voxels.scalars();
-    const shouldPaint = (idx: number) => {
-      // Prevent painting over locked segments
-      if (lockedValues.has(currentData[idx])) {
-        return false;
-      }
+    const lastIndex = strokePoints.value.length - 1;
+    if (lastIndex < 0) return;
+
+    // The stroke is stated in PARENT index space: a bounded mask's own origin
+    // moves as it grows, so its indices are not a fixed frame to state it in.
+    const lastIndexPoint = worldPointToIndex(
+      parentImage,
+      strokePoints.value[lastIndex]
+    );
+    const prevIndexPoint =
+      lastIndex >= 1
+        ? worldPointToIndex(parentImage, strokePoints.value[lastIndex - 1])
+        : undefined;
+
+    const erasing = activeMode.value === PaintMode.Erase;
+    // Growth happens first, and nothing grows once the buffers below are read.
+    // Erase never allocates: there is nothing to erase where nothing is stored.
+    if (!erasing) {
+      voxels.ensureContains(
+        clipExtent(
+          this.$paint.strokeBounds(axisIndex, lastIndexPoint, prevIndexPoint),
+          fullExtent(parentImage.getDimensions())
+        )
+      );
+    }
+
+    // Copied out of the reactive tree: the two closures below read it for
+    // every voxel the brush touches.
+    const extent = [...voxels.binding()!.extent] as Extent3D;
+    if (isEmptyExtent(extent)) return;
+
+    // Resolved once per stroke: the predicate and the clear below run for every
+    // voxel the brush touches.
+    const clearOtherSegments = segmentationStore.otherSegmentClearer(segmentId);
+    const lockedAt = segmentationStore.lockedSegmentAt(segmentId);
+    const parentDimensions = parentImage.getDimensions();
+    const maskData = voxels.scalars();
+    const [minThreshold, maxThreshold] = thresholdRange.value;
+
+    const toParent = (point: number[]) => [
+      point[0] + extent[0],
+      point[1] + extent[2],
+      point[2] + extent[4],
+    ];
+
+    const shouldPaint = (offset: number, point: number[]) => {
+      const [i, j, k] = toParent(point);
+      // A locked neighbour keeps its voxel, and this segment does not get it.
+      // Erasing takes nothing from a neighbour, so no lock is in its way.
+      if (!erasing && lockedAt(i, j, k)) return false;
 
       // Erase clears the active segment only.
-      if (erasing && currentData[idx] !== labelValue) return false;
+      if (erasing && maskData[offset] !== labelValue) return false;
 
-      const pixValue = underlyingImagePixels[idx];
+      const pixValue =
+        underlyingImagePixels[
+          i +
+            j * parentDimensions[0] +
+            k * parentDimensions[0] * parentDimensions[1]
+        ];
       return minThreshold <= pixValue && pixValue <= maxThreshold;
     };
 
-    const lastIndex = strokePoints.value.length - 1;
-    if (lastIndex >= 0) {
-      const lastWorldPoint = strokePoints.value[lastIndex];
-      const prevWorldPoint =
-        lastIndex >= 1 ? strokePoints.value[lastIndex - 1] : undefined;
-
-      const lastIndexPoint = worldPointToIndex(labelmap, lastWorldPoint);
-      const prevIndexPoint = prevWorldPoint
-        ? worldPointToIndex(labelmap, prevWorldPoint)
-        : undefined;
-
-      this.$paint.paintLabelmap(
-        labelmap,
-        axisIndex,
-        lastIndexPoint,
-        prevIndexPoint,
-        shouldPaint
+    const toMask = (point: vec3) =>
+      vec3.fromValues(
+        point[0] - extent[0],
+        point[1] - extent[2],
+        point[2] - extent[4]
       );
-    }
+
+    this.$paint.paintLabelmap(
+      voxels.image(),
+      axisIndex,
+      toMask(lastIndexPoint),
+      prevIndexPoint ? toMask(prevIndexPoint) : undefined,
+      shouldPaint,
+      erasing
+        ? undefined
+        : (point) => {
+            const [i, j, k] = toParent(point);
+            clearOtherSegments(i, j, k);
+          }
+    );
   }
 
   function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {

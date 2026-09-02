@@ -3,6 +3,7 @@ import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { Maybe } from '@/src/types';
+import type { Extent3D } from '@/src/types/segmentation';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 
@@ -59,6 +60,44 @@ export default class PaintTool {
   }
 
   /**
+   * The index-space box a stroke can touch, in whatever space its points are
+   * given in. Bounded storage has to be grown to cover the stroke before the
+   * brush runs, and this states the region from the same stencil the brush
+   * writes through.
+   */
+  strokeBounds(
+    sliceAxis: 0 | 1 | 2,
+    startPoint: vec3,
+    endPoint?: vec3
+  ): Extent3D {
+    const round = (point: vec3) => [...point].map((value) => Math.round(value));
+    const start = round(startPoint);
+    const end = endPoint ? round(endPoint) : [...start];
+
+    const { size } = this.brush.getStencil();
+    const center = [
+      Math.floor((size[0] - 1) / 2),
+      Math.floor((size[1] - 1) / 2),
+    ];
+
+    const bounds = [0, 0, 0, 0, 0, 0] as Extent3D;
+    bounds[sliceAxis * 2] = start[sliceAxis];
+    bounds[sliceAxis * 2 + 1] = start[sliceAxis];
+    [0, 1, 2]
+      .filter((axis) => axis !== sliceAxis)
+      .forEach((axis, planeIndex) => {
+        bounds[axis * 2] =
+          Math.min(start[axis], end[axis]) - center[planeIndex];
+        bounds[axis * 2 + 1] =
+          Math.max(start[axis], end[axis]) +
+          size[planeIndex] -
+          1 -
+          center[planeIndex];
+      });
+    return bounds;
+  }
+
+  /**
    * Adds paint to a labelmap.
    *
    * If endPoint is specified, then linearly interpolates the brush
@@ -76,7 +115,8 @@ export default class PaintTool {
     sliceAxis: 0 | 1 | 2,
     startPoint: vec3,
     endPoint?: vec3,
-    shouldPaint: (offset: number, point: number[]) => boolean = () => true
+    shouldPaint: (offset: number, point: number[]) => boolean = () => true,
+    onPainted?: (point: number[]) => void
   ) {
     const inBrushingMode =
       this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
@@ -152,6 +192,7 @@ export default class PaintTool {
               rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
             if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
               labelmapPixels[offset] = brushValue;
+              onPainted?.(rounded);
             }
 
             // undo adding the slice axis value

@@ -13,13 +13,6 @@ export interface vtkLabelMap extends vtkImageData {
    * Gets the segments of the labelmap.
    */
   getSegments(): LabelmapSegment[];
-
-  /**
-   * Replaces a labelmap value with another value.
-   * @param from
-   * @param to
-   */
-  replaceLabelValue(from: number, to: number): void;
 }
 
 export function newInstance(initialValues?: any): vtkLabelMap;

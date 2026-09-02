@@ -97,10 +97,12 @@
             :axis="viewAxis"
           ></vtk-base-slice-representation>
           <vtk-segmentation-slice-representation
-            v-for="segId in segmentations"
-            :key="`seg-${segId}`"
+            v-for="layer in segmentLayers"
+            :key="`seg-${layer.segmentId}`"
             :view-id="viewId"
-            :segmentation-id="segId"
+            :segmentation-id="layer.artifactId"
+            :segment-id="layer.segmentId"
+            :stack-index="layer.stackIndex"
             :axis="viewAxis"
             ref="segSliceReps"
           ></vtk-segmentation-slice-representation>
@@ -265,9 +267,10 @@ onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
 
-const segmentations = computed(() => {
+// One actor per segment, stacked by its place in `segmentation.order`.
+const segmentLayers = computed(() => {
   if (!currentImageID.value) return [];
-  return useSegmentationStore().artifactsForImage(currentImageID.value);
+  return useSegmentationStore().segmentLayersForImage(currentImageID.value);
 });
 
 // --- selection points --- //

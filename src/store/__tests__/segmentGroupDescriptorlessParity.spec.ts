@@ -126,18 +126,15 @@ const seat = (
   headerMetadata?: Map<string, string>
 ) => useImageCacheStore().addVTKImageData(image, name, { id, headerMetadata });
 
-// The catalog now lives in the segmentation store: the segments bound to one
-// artifact, in segmentation order. Identity is a stable id, so parity compares
-// the descriptive fields plus the label value the binding carries.
-const catalogFor = (parentImageId: string, artifactId: string) => {
+// The catalog now lives in the segmentation store: the image's segments, in
+// segmentation order. Identity is a stable id, so parity compares the
+// descriptive fields plus the label value the binding carries.
+const catalogFor = (parentImageId: string) => {
   const segmentation =
     useSegmentationStore().getSegmentationForImage(parentImageId);
   if (!segmentation) return [];
   return segmentation.order
     .map((id) => segmentation.segments[id])
-    .filter(
-      (segment) => segment.representations.labelmap?.artifactId === artifactId
-    )
     .map((segment) => ({
       name: segment.name,
       color: [...segment.color],
@@ -153,11 +150,8 @@ async function liveCatalog(segmentMetadata?: Map<string, string>) {
   seat('parent-img', 'CT Chest', makeParentImage());
   seat('child-img', 'Tumor.seg.nrrd', makeLabelmapImage(), segmentMetadata);
   const store = useSegmentGroupStore();
-  const [artifactId] = await store.convertImageToLabelmap(
-    'child-img',
-    'parent-img'
-  );
-  return catalogFor('parent-img', artifactId);
+  await store.convertImageToLabelmap('child-img', 'parent-img');
+  return catalogFor('parent-img');
 }
 
 // The COLD path: what the loaded restore stage builds from a descriptor-less
@@ -175,9 +169,7 @@ async function coldCatalog(segmentMetadata?: Map<string, string>) {
     'ds-ct': 'parent-store',
     [leafStateId(3)]: 'artifact-store',
   });
-  const [artifactId] = useSegmentationStore().artifactsForImage('parent-store');
-  expect(artifactId).toBeDefined();
-  return catalogFor('parent-store', artifactId);
+  return catalogFor('parent-store');
 }
 
 describe('descriptor-less segment catalogs: cold restore == live conversion (parity pin)', () => {
@@ -243,9 +235,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       { 'ds-ct': 'parent-store' }
     );
 
-    const [artifactId] =
-      useSegmentationStore().artifactsForImage('parent-store');
-    const segments = catalogFor('parent-store', artifactId);
+    const segments = catalogFor('parent-store');
     expect(segments.map((segment) => segment.labelValue)).toEqual([1, 2]);
     expect(segments[0].name).toBe('Segment 1');
     expect(segments[1]).toMatchObject({
@@ -260,13 +250,10 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     seat('child-img', 'Sparse.seg.nrrd', makeSparseLabelmapImage());
     const store = useSegmentGroupStore();
 
-    const [artifactId] = await store.convertImageToLabelmap(
-      'child-img',
-      'parent-img'
-    );
+    await store.convertImageToLabelmap('child-img', 'parent-img');
 
     expect(
-      catalogFor('parent-img', artifactId).map((segment) => segment.labelValue)
+      catalogFor('parent-img').map((segment) => segment.labelValue)
     ).toEqual([1, 255]);
   });
 
@@ -279,14 +266,9 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     seat('child-img', 'Empty.seg.nrrd', makeParentImage());
     const store = useSegmentGroupStore();
 
-    const [artifactId] = await store.convertImageToLabelmap(
-      'child-img',
-      'parent-img'
-    );
+    await store.convertImageToLabelmap('child-img', 'parent-img');
 
-    expect(catalogFor('parent-img', artifactId)).toEqual([]);
-    expect(useSegmentationStore().artifactMeta[artifactId]?.parentImage).toBe(
-      'parent-img'
-    );
+    expect(catalogFor('parent-img')).toEqual([]);
+    expect(Object.keys(useSegmentationStore().artifactMeta)).toEqual([]);
   });
 });

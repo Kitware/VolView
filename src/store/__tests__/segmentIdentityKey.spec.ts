@@ -79,9 +79,7 @@ describe('segment addressing by id alone', () => {
 
     expect(binding.labelValue).toBe(1);
     expect(store().resolveLabelmapBinding(segment.id)?.labelValue).toBe(1);
-    expect(store().artifactIndex[binding.artifactId].getDimensions()).toEqual([
-      ...DIMENSIONS,
-    ]);
+    expect(store().artifactMeta[binding.artifactId].parentImage).toBe('img-1');
   });
 
   it('hands out a voxel accessor by segment id', () => {
@@ -92,6 +90,14 @@ describe('segment addressing by id alone', () => {
     expect(voxels.exists()).toBe(false);
     voxels.materialize();
     expect(voxels.exists()).toBe(true);
+    voxels.ensureContains([
+      0,
+      DIMENSIONS[0] - 1,
+      0,
+      DIMENSIONS[1] - 1,
+      0,
+      DIMENSIONS[2] - 1,
+    ]);
     expect(voxels.scalars().length).toBe(VOXEL_COUNT);
   });
 });

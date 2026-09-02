@@ -70,6 +70,8 @@ const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
 const segmentationStore = useSegmentationStore();
+const segmentation = computed(() => segmentationStore.segmentations[props.id]);
+const parentImageId = computed(() => segmentation.value.parentImageId);
 const fileName = computed({
   get: () => fileNameValue.value,
   set: (value: string) => {
@@ -86,10 +88,13 @@ async function saveSegmentGroup() {
   await useErrorMessage('Failed to save segment group', async () => {
     const sanitizedFileName = sanitizeSegmentGroupFileStem(fileName.value);
     fileNameValue.value = sanitizedFileName;
+    // What leaves VolView is the image's whole segmentation, not one segment's
+    // bounded mask, so the masks are composited on the way out.
+    const composite = segmentationStore.compositeLabelmap(parentImageId.value);
     const serialized = await writeSegmentation(
       fileFormat.value,
-      segmentationStore.artifactVoxels(props.id).image(),
-      segmentationStore.labelmapSegmentsByArtifact[props.id] ?? []
+      composite.labelmap,
+      composite.segments
     );
     saveAs(new Blob([serialized]), `${sanitizedFileName}.${fileFormat.value}`);
   });
@@ -99,9 +104,7 @@ async function saveSegmentGroup() {
 
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
-  fileNameValue.value = sanitizeSegmentGroupFileStem(
-    segmentationStore.artifactMeta[props.id].name
-  );
+  fileNameValue.value = sanitizeSegmentGroupFileStem(segmentation.value.name);
 });
 
 onKeyDown('Enter', () => {

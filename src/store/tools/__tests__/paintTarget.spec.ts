@@ -10,13 +10,13 @@ import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import {
+  markedVoxels,
+  maskValueAt,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 
 const DIMENSIONS: [number, number, number] = [4, 4, 2];
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
-/** Index-space [i, j, k] to a flat scalar offset in a [4, 4, 2] volume. */
-const offsetOf = (i: number, j: number, k: number) =>
-  i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
 
 async function seatImage(id: string, name = 'CT') {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
@@ -37,11 +37,6 @@ const store = () => useSegmentationStore();
 
 const bindingOf = (segmentId: string) =>
   store().resolveLabelmapBinding(segmentId);
-
-const artifactScalars = (artifactId: string) =>
-  Array.from(
-    store().artifactIndex[artifactId].getPointData().getScalars().getData()
-  );
 
 /** Creates a segment with voxel storage already allocated. */
 function boundSegment(segmentationId: string, name: string) {
@@ -76,9 +71,7 @@ describe('paint edit target', () => {
 
     const binding = bindingOf(active.id)!;
     expect(binding.labelValue).toBe(2);
-    expect(artifactScalars(binding.artifactId)[offsetOf(1, 1, 0)]).toBe(
-      binding.labelValue
-    );
+    expect(maskValueAt(active.id, [1, 1, 0])).toBe(binding.labelValue);
   });
 
   it('writes into the artifact of the image being painted', async () => {
@@ -97,12 +90,8 @@ describe('paint edit target', () => {
     const clonedBinding = bindingOf(cloned)!;
     const sourceBinding = bindingOf(source.id)!;
     expect(clonedBinding.artifactId).not.toBe(sourceBinding.artifactId);
-    expect(artifactScalars(clonedBinding.artifactId)[offsetOf(1, 1, 0)]).toBe(
-      clonedBinding.labelValue
-    );
-    expect(
-      artifactScalars(sourceBinding.artifactId).every((value) => value === 0)
-    ).toBe(true);
+    expect(maskValueAt(cloned, [1, 1, 0])).toBe(clonedBinding.labelValue);
+    expect(markedVoxels(source.id)).toEqual([]);
   });
 
   it('seeds a segmentation and a segment on the first stroke', async () => {
@@ -118,9 +107,7 @@ describe('paint edit target', () => {
     );
     expect(store().activeSegmentId).toBe(segmentId);
     const binding = bindingOf(segmentId)!;
-    expect(artifactScalars(binding.artifactId)[offsetOf(1, 1, 0)]).toBe(
-      binding.labelValue
-    );
+    expect(maskValueAt(segmentId, [1, 1, 0])).toBe(binding.labelValue);
   });
 
   it('erases only the active segment’s voxels', async () => {
@@ -140,9 +127,10 @@ describe('paint edit target', () => {
     strokeAt('img-1', [2, 1, 0]);
 
     const neighborBinding = bindingOf(neighbor.id)!;
-    const scalars = artifactScalars(neighborBinding.artifactId);
-    expect(scalars[offsetOf(1, 1, 0)]).toBe(neighborBinding.labelValue);
-    expect(scalars[offsetOf(2, 1, 0)]).toBe(0);
+    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(
+      neighborBinding.labelValue
+    );
+    expect(markedVoxels(active.id)).toEqual([]);
   });
 
   it('blocks a stroke when the active segment is locked', async () => {
@@ -155,10 +143,7 @@ describe('paint edit target', () => {
 
     strokeAt('img-1', [1, 1, 0]);
 
-    const binding = bindingOf(active.id)!;
-    expect(
-      artifactScalars(binding.artifactId).every((value) => value === 0)
-    ).toBe(true);
+    expect(markedVoxels(active.id)).toEqual([]);
   });
 
   it('paints past a locked neighbour without overwriting it', async () => {
@@ -177,9 +162,10 @@ describe('paint edit target', () => {
 
     const neighborBinding = bindingOf(neighbor.id)!;
     const activeBinding = bindingOf(active.id)!;
-    const scalars = artifactScalars(neighborBinding.artifactId);
-    expect(scalars[offsetOf(1, 1, 0)]).toBe(neighborBinding.labelValue);
-    expect(scalars[offsetOf(3, 1, 0)]).toBe(activeBinding.labelValue);
+    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(
+      neighborBinding.labelValue
+    );
+    expect(maskValueAt(active.id, [3, 1, 0])).toBe(activeBinding.labelValue);
   });
 
   it('creates nothing when the paint tool is merely activated', async () => {

@@ -72,11 +72,10 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
-    const { artifactId, voxels } = target;
+    const { parentImageId, voxels } = target;
     const segImage = voxels.image();
-    const metadata = segmentationStore.artifactMeta[artifactId];
 
-    const parentMetadata = getImageMetadata(metadata.parentImage);
+    const parentMetadata = getImageMetadata(parentImageId);
     const labelMapLpsOrientation = getLPSDirections(segImage.getDirection());
     const axis = labelMapLpsOrientation[effectiveView.axis];
 
@@ -88,7 +87,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     if (sliceScope.value === FillHolesSliceScope.CurrentSlice) {
       const sliceConfig = viewSliceStore.getConfig(
         effectiveView.viewInfo.id,
-        metadata.parentImage
+        parentImageId
       );
       const parentAxis = parentMetadata.lpsOrientation[effectiveView.axis];
       const parentSlice =
@@ -112,10 +111,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     // active segment, whose lock is already enforced before the process starts.
     const lockedLabels = selectedSegment
       ? undefined
-      : segmentationStore
-          .segmentsForArtifact(artifactId)
-          .filter((segment) => segment.locked)
-          .map((segment) => segment.representations.labelmap!.labelValue);
+      : segmentationStore.lockedLabelValues(parentImageId);
 
     const worker = await getWorker();
     return worker.fillHolesWorker({

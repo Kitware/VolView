@@ -496,7 +496,7 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   const labelmapNames = Object.fromEntries(
     Object.entries(bindings.labelmap.groups).map(([parameterId, groupIds]) => [
       parameterId,
-      groupIds.map((groupId) => segmentationStore.artifactMeta[groupId].name),
+      groupIds.map((groupId) => segmentationStore.segmentations[groupId].name),
     ])
   );
   return {
@@ -524,8 +524,10 @@ watchDebounced(
     return {
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
-      activeSegmentGroup: segmentationStore.activeArtifactId,
-      groupCount: id ? segmentationStore.artifactsForImage(id).length : 0,
+      activeSegmentGroup: segmentationStore.activeSegmentationId,
+      groupCount: id
+        ? (segmentationStore.getSegmentationForImage(id)?.order.length ?? 0)
+        : 0,
       // Placing the first (or removing the last) tool flips the annotations
       // binding, so the form must revalidate.
       annotationCount: finishedAnnotationCount.value,

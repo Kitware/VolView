@@ -34,20 +34,17 @@ async function seatImage(id: string, name = 'CT') {
   return id;
 }
 
-function seatArtifact(imageId: string) {
+/** A labelmap in the parent's space, carrying one voxel of value 1. */
+function makeImportedLabelmap() {
   const labelmap = vtkLabelMap.newInstance();
   labelmap.setDimensions(DIMENSIONS as unknown as [number, number, number]);
-  labelmap.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
-    })
-  );
+  const values = new Uint8Array(VOXEL_COUNT);
+  values[0] = 1;
+  labelmap
+    .getPointData()
+    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
   labelmap.computeTransforms();
-  return store().registerArtifact(labelmap, {
-    parentImage: imageId,
-    name: 'Group 1',
-  });
+  return labelmap;
 }
 
 describe('segmentation display state', () => {
@@ -82,17 +79,20 @@ describe('segmentation display state', () => {
       expect(segment.outlineOpacity).toBe(1);
     });
 
-    it('gives a decoded artifact catalog the same defaults', () => {
-      const artifactId = seatArtifact('img-1');
-      const [segment] = store().setArtifactSegments(artifactId, [
-        {
-          value: 1,
-          name: 'Tumor',
-          color: [255, 0, 0, 255],
-          visible: false,
-          locked: true,
-        },
-      ]);
+    it('gives a decoded segment catalog the same defaults', () => {
+      const [segment] = store().splitLabelmapIntoSegments(
+        'img-1',
+        makeImportedLabelmap(),
+        [
+          {
+            value: 1,
+            name: 'Tumor',
+            color: [255, 0, 0, 255],
+            visible: false,
+            locked: true,
+          },
+        ]
+      );
 
       expect(segment.fillOpacity).toBe(1);
       expect(segment.outlineOpacity).toBe(1);
@@ -140,11 +140,10 @@ describe('segmentation display state', () => {
 
   // Without this the editor's sliders write state nothing renders from.
   describe('reaching the renderer', () => {
-    it('projects each segment’s opacities onto its artifact', () => {
-      const artifactId = seatArtifact('img-1');
+    it('projects each segment’s opacities onto its mask', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
-      store().ensureLabelmapBinding(segment.id, artifactId);
+      const { artifactId } = store().segmentVoxels(segment.id).materialize();
 
       store().updateSegment(segment.id, {
         fillOpacity: 0.4,

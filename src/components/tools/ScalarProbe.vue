@@ -65,30 +65,27 @@ const getLayers = () =>
     })
     .filter(Boolean);
 
+// Paired positionally with the slice view's segment actors, which come off the
+// same ordered list.
 const getSegments = () => {
   if (!currentImageID.value) return [];
-  const parentGroups = segmentationStore.artifactsForImage(
-    currentImageID.value
-  );
+  const layers = segmentationStore.segmentLayersForImage(currentImageID.value);
   return segmentGroupsReps.value
     .map((rep, index) => {
-      const groupId = parentGroups[index];
-      if (!groupId) return null;
-      const meta = segmentationStore.artifactMeta[groupId];
+      const layer = layers[index];
+      if (!layer) return null;
+      const segment = segmentationStore.getSegment(layer.segmentId);
+      const voxels = segmentationStore.artifactVoxels(layer.artifactId);
+      if (!voxels.exists()) return null;
       return {
         type: 'segmentGroup',
-        id: groupId,
-        name: meta.name,
+        id: layer.artifactId,
+        name: segment.name,
         rep,
-        nameByLabelValue: Object.fromEntries(
-          segmentationStore
-            .segmentsForArtifact(groupId)
-            .map((segment) => [
-              segment.representations.labelmap!.labelValue,
-              segment.name,
-            ])
-        ),
-        image: segmentationStore.artifactVoxels(groupId).image(),
+        nameByLabelValue: {
+          [segment.representations.labelmap!.labelValue]: segment.name,
+        },
+        image: voxels.image(),
       };
     })
     .filter(Boolean);

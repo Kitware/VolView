@@ -52,7 +52,6 @@
 <script lang="ts">
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -72,50 +71,13 @@ import { Maybe } from '@/src/types';
 import { useViewLocator } from '@/src/composables/useViewLocator';
 import { locatorPatch } from '@/src/core/annotations/locator';
 import { watchImmediate } from '@vueuse/core';
-import { fillPoly } from '@thi.ng/rasterize';
-import type { IGrid2D } from '@thi.ng/api';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { TypedArray, Vector2, Vector3 } from '@kitware/vtk.js/types';
-import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { convertSliceIndex } from '@/src/utils/imageSpace';
-import { getLPSDirections } from '@/src/utils/lps';
 import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
-import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterizeTarget';
+import { rasterizePolygon } from '@/src/components/tools/polygon/rasterizeTarget';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
 const toolType = Tools.Polygon;
-
-function createGridAccessor(
-  image: vtkImageData,
-  pixelData: TypedArray,
-  slice: number,
-  axisIdx: 0 | 1 | 2 // i/j/k
-): IGrid2D {
-  const axisDims = image.getDimensions();
-  axisDims.splice(axisIdx, 1);
-  const extent = image.getExtent();
-  const convertTo3D = (a: number, b: number) => {
-    const point = [a, b];
-    point.splice(axisIdx, 0, slice);
-    return point as Vector3;
-  };
-
-  return {
-    size: axisDims,
-    setAtUnsafe(d0: number, d1: number, value: number): boolean {
-      const ijk = convertTo3D(d0, d1);
-      if (containsPoint(extent, ...ijk)) {
-        const offset = image.computeOffsetIndex(ijk);
-        // XXX assumes single-component image
-        pixelData[offset] = value;
-        return true;
-      }
-      return false;
-    },
-  } as unknown as IGrid2D;
-}
 
 export default defineComponent({
   name: 'PolygonTool',
@@ -143,7 +105,6 @@ export default defineComponent({
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
-    const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
@@ -240,44 +201,19 @@ export default defineComponent({
       }
 
       const tool = activeToolStore.toolByID[toolId];
-      const target = resolveRasterizeTarget(imageId.value, tool?.label);
+      const rasterized = rasterizePolygon({
+        imageId: imageId.value,
+        segmentId: tool?.label,
+        points: activeToolStore.getPoints(toolId),
+        slice: slice.value,
+        viewAxis: viewAxis.value,
+      });
       // The polygon records where its voxels actually landed. This covers an
       // unlabeled polygon and one whose segment was deleted, whose stale id
       // would otherwise outlive the segment it names.
-      if (tool && tool.label !== target.segmentId) {
-        activeToolStore.updateTool(toolId, { label: target.segmentId });
+      if (tool && tool.label !== rasterized.segmentId) {
+        activeToolStore.updateTool(toolId, { label: rasterized.segmentId });
       }
-      const segmentGroup = target.voxels.image();
-
-      // Convert parent slice index to segment group slice index
-      const parentMeta = imageMetadata.value;
-      const segmentGroupSlice = convertSliceIndex(
-        slice.value,
-        parentMeta.lpsOrientation,
-        parentMeta.indexToWorld,
-        segmentGroup,
-        viewAxis.value
-      );
-
-      const points = activeToolStore.getPoints(toolId);
-      const segmentGroupIjkIndex = getLPSDirections(
-        segmentGroup.getDirection()
-      )[viewAxis.value];
-
-      const indexSpacePoints2D = points.map((pt) => {
-        const output = [...segmentGroup.worldToIndex(pt)];
-        output.splice(segmentGroupIjkIndex, 1);
-        return output as Vector2;
-      });
-
-      const grid = createGridAccessor(
-        segmentGroup,
-        target.voxels.scalars(),
-        segmentGroupSlice,
-        segmentGroupIjkIndex
-      );
-      fillPoly(grid, indexSpacePoints2D, target.labelValue);
-      segmentGroup.modified();
     }
 
     return {

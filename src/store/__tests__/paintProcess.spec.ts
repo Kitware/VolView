@@ -16,19 +16,6 @@ import {
 } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
 
-function makeLabelMap(values: Uint8Array) {
-  const labelMap = vtkLabelMap.newInstance();
-  labelMap.setDimensions([values.length, 1, 1]);
-  labelMap.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values,
-    })
-  );
-  labelMap.computeTransforms();
-  return labelMap;
-}
-
 /** Seats a two-voxel image and makes it the one the active view shows. */
 async function viewImage(id: string) {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
@@ -60,28 +47,38 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-/** Seats one artifact carrying one segment, and makes that segment active. */
-function addTestSegment(values = new Uint8Array([0, 0]), labelValue = 1) {
+/** Seats one segment, grown to the whole image, and makes it active. */
+function addTestSegment(
+  values = new Uint8Array([0, 0]),
+  labelValue = 1,
+  imageId = 'image-1'
+) {
   const segmentationStore = useSegmentationStore();
-  const labelMap = makeLabelMap(values);
-  const artifactId = segmentationStore.registerArtifact(labelMap, {
-    name: 'Test group',
-    parentImage: 'image-1',
+  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
+  // Label values are minted per image, so the ones below the wanted value are
+  // taken by placeholder segments.
+  for (let value = 1; value < labelValue; value += 1) {
+    const filler = segmentationStore.createSegment(segmentation.id, {
+      name: `Filler ${value}`,
+    });
+    segmentationStore.segmentVoxels(filler.id).materialize();
+  }
+
+  const segment = segmentationStore.createSegment(segmentation.id, {
+    name: 'Segment 1',
   });
-  const [segment] = segmentationStore.setArtifactSegments(artifactId, [
-    {
-      value: labelValue,
-      name: 'Segment 1',
-      color: [255, 0, 0, 255],
-      visible: true,
-      locked: false,
-    },
-  ]);
-  const segmentationId =
-    segmentationStore.getSegmentationForImage('image-1')!.id;
+  const voxels = segmentationStore.segmentVoxels(segment.id);
+  const { artifactId } = voxels.materialize();
+  voxels.ensureContains([0, values.length - 1, 0, 0, 0, 0]);
+  voxels.apply(values);
   segmentationStore.setActiveSegment(segment.id);
 
-  return { segmentationId, segmentId: segment.id, artifactId, labelMap };
+  return {
+    segmentationId: segmentation.id,
+    segmentId: segment.id,
+    artifactId,
+    labelMap: voxels.image(),
+  };
 }
 
 describe('Paint process store', () => {
@@ -221,7 +218,7 @@ describe('Paint process store', () => {
     let target: ProcessTarget | undefined;
     const algorithm = vi.fn(async (resolved: ProcessTarget) => {
       target = resolved;
-      return new Uint8Array([4, 4]);
+      return new Uint8Array(resolved.voxels.scalars().length).fill(4);
     });
 
     await viewImage('image-2');
@@ -238,7 +235,9 @@ describe('Paint process store', () => {
       artifactId: binding.artifactId,
     });
     expect(target!.voxels.image()).toBe(binding.labelmap);
-    expect(getScalars(binding.labelmap)).toEqual([4, 4]);
+    // The clone covers nothing yet, so the process had no voxels to write, and
+    // the segment of the image left behind is untouched either way.
+    expect(getScalars(binding.labelmap)).toEqual([]);
     expect(getScalars(firstLabelMap)).toEqual([0, 0]);
   });
 

@@ -18,18 +18,24 @@ import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
 import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
 import {
+  segmentCoincidentOffset,
   segmentFillAlpha,
   segmentOutlineTables,
+  sliceWithinExtent,
 } from '@/src/components/vtk/segmentDisplay';
+import { isEmptyExtent } from '@/src/types/segmentation';
 
 interface Props {
   viewId: string;
   segmentationId: string;
+  segmentId: string;
+  // Position in `segmentation.order`, which is what the actors stack by.
+  stackIndex: number;
   axis: LPSAxis;
 }
 
 const props = defineProps<Props>();
-const { viewId, segmentationId, axis } = toRefs(props);
+const { viewId, segmentationId, segmentId, stackIndex, axis } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -41,11 +47,20 @@ const metadata = computed(
 const segments = computed(
   () => segmentationStore.labelmapSegmentsByArtifact[segmentationId.value]
 );
+// Where the mask sits in the parent image, and what it covers.
+const extent = computed(
+  () => segmentationStore.findSegmentBinding(segmentId.value)?.extent
+);
+
 const imageData = computed(() => {
   // The id can outlive its artifact by a tick, so the accessor is asked rather
   // than indexed.
   const voxels = segmentationStore.artifactVoxels(segmentationId.value);
-  return voxels.exists() ? voxels.image() : null;
+  if (!voxels.exists()) return null;
+  // A mask that covers nothing has no voxels, so there is no mapper input.
+  const bounds = extent.value;
+  if (!bounds || isEmptyExtent(bounds)) return null;
+  return voxels.image();
 });
 
 // redraw whenever the image changes
@@ -68,9 +83,17 @@ sliceRep.property.setInterpolationType(InterpolationType.NEAREST);
 // needed for vtk.js >= 23.0.0
 sliceRep.property.setUseLookupTableScalarRange(true);
 
-// set slice ordering to be in front of the base image
+// Each segment gets its own offset, in front of the base image and of the
+// segments before it in the order: overlap is representable, so a shared offset
+// would z-fight.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-4, -4);
+watchEffect(() => {
+  const [factor, units] = segmentCoincidentOffset(stackIndex.value);
+  sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
+    factor,
+    units
+  );
+});
 
 const coloringStore = useLayerColoringStore();
 
@@ -80,9 +103,6 @@ const visibility = computed(
     coloringStore.getConfig(viewId.value, segmentationId.value)!.blendConfig
       .visibility
 );
-watchEffect(() => {
-  sliceRep.actor.setVisibility(visibility.value);
-});
 
 // opacity
 const opacity = computed(
@@ -118,8 +138,10 @@ watchEffect(() => {
 const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 
+// The extent is a watch source because growth moves the mask's origin, so the
+// same parent slice lands on a different mask slice afterwards.
 watchImmediate(
-  [storedSlice, segmentGroupLpsOrientation, parentMetadata],
+  [storedSlice, segmentGroupLpsOrientation, parentMetadata, extent],
   () => {
     const parentImage = parentMetadata.value;
     const segmentGroup = imageData.value;
@@ -134,6 +156,20 @@ watchImmediate(
     );
   }
 );
+
+// A bounded mask covers only part of the volume, and vtkImageMapper clamps a
+// slice outside its input to the nearest one, so an actor left visible off its
+// own extent would paint a stale slice over the image.
+watchEffect(() => {
+  const bounds = extent.value;
+  const ijkIndex = parentMetadata.value?.lpsOrientation?.[axis.value];
+  const drawsHere =
+    !!bounds &&
+    ijkIndex !== undefined &&
+    storedSlice.value != null &&
+    sliceWithinExtent(bounds, ijkIndex, storedSlice.value);
+  sliceRep.actor.setVisibility(visibility.value && drawsHere);
+});
 
 // set coloring properties
 const applySegmentColoring = () => {

@@ -169,24 +169,29 @@ function calculateBoundingBox(
   return bounds;
 }
 
+/**
+ * A kernel radius of padding on every side, deliberately unclipped: the buffer
+ * is one segment's mask, cropped to the voxels that segment covers, so its
+ * faces are crop edges rather than the edge of anything real. Sampling outside
+ * them reads background, and the convolution's own mirroring then never
+ * reaches a voxel inside the mask.
+ */
 function expandBoundingBox(
   bounds: number[],
-  dimensions: number[],
   sigmaPixels: [number, number, number],
   radiusFactor = 1.5
 ) {
-  const [dimX, dimY, dimZ] = dimensions;
   const paddingX = Math.ceil(sigmaPixels[0] * radiusFactor);
   const paddingY = Math.ceil(sigmaPixels[1] * radiusFactor);
   const paddingZ = Math.ceil(sigmaPixels[2] * radiusFactor);
 
   return [
-    Math.max(0, bounds[0] - paddingX),
-    Math.min(dimX - 1, bounds[1] + paddingX),
-    Math.max(0, bounds[2] - paddingY),
-    Math.min(dimY - 1, bounds[3] + paddingY),
-    Math.max(0, bounds[4] - paddingZ),
-    Math.min(dimZ - 1, bounds[5] + paddingZ),
+    bounds[0] - paddingX,
+    bounds[1] + paddingX,
+    bounds[2] - paddingY,
+    bounds[3] + paddingY,
+    bounds[4] - paddingZ,
+    bounds[5] + paddingZ,
   ];
 }
 
@@ -195,20 +200,25 @@ function extractSubVolume(
   dimensions: number[],
   bounds: number[]
 ) {
-  const [dimX, dimY] = dimensions;
+  const [dimX, dimY, dimZ] = dimensions;
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
   const subDimX = maxX - minX + 1;
   const subDimY = maxY - minY + 1;
   const subDimZ = maxZ - minZ + 1;
   const subDims = [subDimX, subDimY, subDimZ];
+  // Zero filled, so everything outside the buffer stays background.
   const subData = new Float32Array(subDimX * subDimY * subDimZ);
 
   let subIndex = 0;
   for (let z = minZ; z <= maxZ; z++) {
+    const zInside = z >= 0 && z < dimZ;
     for (let y = minY; y <= maxY; y++) {
+      const yInside = zInside && y >= 0 && y < dimY;
       for (let x = minX; x <= maxX; x++) {
-        const origIndex = x + y * dimX + z * dimX * dimY;
-        subData[subIndex] = data[origIndex] as number;
+        if (yInside && x >= 0 && x < dimX) {
+          const origIndex = x + y * dimX + z * dimX * dimY;
+          subData[subIndex] = data[origIndex] as number;
+        }
         subIndex++;
       }
     }
@@ -224,19 +234,26 @@ function copySubVolumeBack(
   bounds: number[],
   label: number
 ) {
-  const [dimX, dimY] = dimensions;
+  const [dimX, dimY, dimZ] = dimensions;
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
 
   let subIndex = 0;
   for (let z = minZ; z <= maxZ; z++) {
+    const zInside = z >= 0 && z < dimZ;
     for (let y = minY; y <= maxY; y++) {
+      const yInside = zInside && y >= 0 && y < dimY;
       for (let x = minX; x <= maxX; x++) {
-        const origIndex = x + y * dimX + z * dimX * dimY;
-        const origLabel = originalData[origIndex];
-        const subValue = subData[subIndex];
+        // The padding ring has no voxel to write to. Nothing is lost: a
+        // thresholded Gaussian cannot turn on a voxel outside the label's own
+        // bounding box.
+        if (yInside && x >= 0 && x < dimX) {
+          const origIndex = x + y * dimX + z * dimX * dimY;
+          const origLabel = originalData[origIndex];
+          const subValue = subData[subIndex];
 
-        if (origLabel === label || origLabel === 0) {
-          originalData[origIndex] = subValue > 127.5 ? label : 0;
+          if (origLabel === label || origLabel === 0) {
+            originalData[origIndex] = subValue > 127.5 ? label : 0;
+          }
         }
         subIndex++;
       }
@@ -295,12 +312,7 @@ export function gaussianSmoothLabelMapWorker(input: {
     return outputData;
   }
 
-  const expandedBounds = expandBoundingBox(
-    bounds,
-    dimensions,
-    sigmaPixels,
-    1.5
-  );
+  const expandedBounds = expandBoundingBox(bounds, sigmaPixels, 1.5);
   const { subData, subDims } = extractSubVolume(
     originalData,
     dimensions,

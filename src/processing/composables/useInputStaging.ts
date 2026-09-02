@@ -76,10 +76,21 @@ export function useInputStaging() {
     );
   };
 
-  const segmentGroupView = (): SegmentGroupView => ({
-    orderByParent: segmentationStore.artifactOrderByParent,
-    metadataByID: segmentationStore.artifactMeta,
-  });
+  // A job's labelmap input is an image's whole segmentation, not one segment's
+  // bounded mask, so the group ids here are segmentation ids.
+  const segmentGroupView = (): SegmentGroupView => {
+    const orderByParent: Record<string, string[]> = {};
+    const metadataByID: Record<string, { parentImage: string; name: string }> =
+      {};
+    Object.values(segmentationStore.segmentations).forEach((segmentation) => {
+      orderByParent[segmentation.parentImageId] = [segmentation.id];
+      metadataByID[segmentation.id] = {
+        parentImage: segmentation.parentImageId,
+        name: segmentation.name,
+      };
+    });
+    return { orderByParent, metadataByID };
+  };
 
   const labelmapReferenceImage = (segmentGroupId: string): InputValue | null =>
     mintLabelmapReferenceImage(segmentGroupId, segmentGroupView(), (imageId) =>
@@ -126,7 +137,7 @@ export function useInputStaging() {
   const sourceRefContext = (): SourceRefBindingContext => ({
     activeDataSource: activeDataSource(),
     backgroundImageId: currentImageID.value ?? undefined,
-    activeArtifactId: segmentationStore.activeArtifactId,
+    activeArtifactId: segmentationStore.activeSegmentationId,
     segmentGroups: segmentGroupView(),
     hasFinishedAnnotations: finishedAnnotationCount.value > 0,
     getDataSource: (imageId) => datasetStore.getDataSource(imageId),
@@ -139,9 +150,11 @@ export function useInputStaging() {
     segmentGroupId: string,
     fileName: string
   ): Promise<string[]> => {
-    const labelmap = segmentationStore.artifactVoxels(segmentGroupId).image();
-    const segments =
-      segmentationStore.labelmapSegmentsByArtifact[segmentGroupId] ?? [];
+    const parentImage =
+      segmentationStore.segmentations[segmentGroupId]?.parentImageId;
+    if (!parentImage) throw new Error('No such segmentation');
+    const { labelmap, segments } =
+      segmentationStore.compositeLabelmap(parentImage);
     const referenceImage = labelmapReferenceImage(segmentGroupId);
     if (!referenceImage) {
       throw new Error('Segment group reference image has no server provenance');
@@ -175,7 +188,7 @@ export function useInputStaging() {
     )) {
       const fileNames = stagedLabelmapFileNames(
         segmentGroupIds.map(
-          (groupId) => segmentationStore.artifactMeta[groupId].name
+          (groupId) => segmentationStore.segmentations[groupId].name
         )
       );
       const uris: string[] = [];

@@ -58,63 +58,65 @@ const makeRuler = (imageID: string) =>
     placing: false,
   }) as never;
 
+/** A default segment group on an image, with the first segment's mask allocated. */
+const seatSegmentMask = (imageId: string) => {
+  const segmentations = useSegmentationStore();
+  const segmentationId = useSegmentGroupStore().newLabelmapFromImage(imageId)!;
+  const segmentId = segmentations.segmentations[segmentationId].order[0];
+  const { artifactId } = segmentations.segmentVoxels(segmentId).materialize();
+  return { segmentationId, segmentId, artifactId };
+};
+
 describe('dataset remove — synchronous reference cascade', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('clears segment groups whose parent image was removed', () => {
+  it('clears segment masks whose parent image was removed', () => {
     seatImage('img-1', 'CT');
-    const segmentGroups = useSegmentGroupStore();
     const segmentations = useSegmentationStore();
-    const groupId = segmentGroups.newLabelmapFromImage('img-1');
-    expect(groupId).not.toBeNull();
-    expect(segmentations.artifactOrderByParent['img-1']).toContain(groupId);
+    const { artifactId } = seatSegmentMask('img-1');
+    expect(segmentations.artifactOrderByParent['img-1']).toContain(artifactId);
 
     useDatasetStore().remove('img-1');
 
     expect(segmentations.artifactOrderByParent['img-1'] ?? []).toEqual([]);
-    expect(segmentations.artifactMeta).not.toHaveProperty(groupId as string);
+    expect(segmentations.artifactMeta).not.toHaveProperty(artifactId);
   });
 
-  it('clears ALL segment groups when an image has several (no splice-skip)', () => {
+  it('clears ALL segment masks when an image has several (no splice-skip)', () => {
     seatImage('img-1', 'CT');
-    const segmentGroups = useSegmentGroupStore();
     const segmentations = useSegmentationStore();
-    const groupA = segmentGroups.newLabelmapFromImage('img-1');
-    const groupB = segmentGroups.newLabelmapFromImage('img-1');
-    const groupC = segmentGroups.newLabelmapFromImage('img-1');
-    expect(groupA).not.toBeNull();
-    expect(groupB).not.toBeNull();
-    expect(groupC).not.toBeNull();
-    expect(segmentations.artifactOrderByParent['img-1']).toEqual([
-      groupA,
-      groupB,
-      groupC,
-    ]);
+    const segmentationId = seatSegmentMask('img-1').segmentationId;
+    const ids = ['A', 'B'].map((name) => {
+      const segment = segmentations.createSegment(segmentationId, { name });
+      return segmentations.segmentVoxels(segment.id).materialize().artifactId;
+    });
+    const artifactIds = [
+      segmentations.artifactOrderByParent['img-1']![0],
+      ...ids,
+    ];
+    expect(segmentations.artifactOrderByParent['img-1']).toEqual(artifactIds);
 
     useDatasetStore().remove('img-1');
 
     expect(segmentations.artifactOrderByParent['img-1'] ?? []).toEqual([]);
-    [groupA, groupB, groupC].forEach((id) => {
-      expect(segmentations.artifactMeta).not.toHaveProperty(id as string);
-      expect(segmentations.artifactIndex).not.toHaveProperty(id as string);
+    artifactIds.forEach((id) => {
+      expect(segmentations.artifactMeta).not.toHaveProperty(id);
+      expect(segmentations.artifactIndex).not.toHaveProperty(id);
     });
   });
 
-  it('removes the segmentation and its artifacts with the parent image', () => {
+  it('removes the segmentation and its masks with the parent image', () => {
     seatImage('img-1', 'CT');
-    const segmentGroups = useSegmentGroupStore();
     const segmentations = useSegmentationStore();
-    const artifactId = segmentGroups.newLabelmapFromImage('img-1') as string;
-    const segmentation = segmentations.getSegmentationForImage('img-1');
-    expect(segmentation).toBeTruthy();
+    const { segmentationId, artifactId } = seatSegmentMask('img-1');
     expect(segmentations.artifactMeta).toHaveProperty(artifactId);
 
     useDatasetStore().remove('img-1');
 
     expect(segmentations.getSegmentationForImage('img-1')).toBeFalsy();
-    expect(segmentations.segmentations).not.toHaveProperty(segmentation!.id);
+    expect(segmentations.segmentations).not.toHaveProperty(segmentationId);
     expect(segmentations.artifactMeta).not.toHaveProperty(artifactId);
     expect(segmentations.artifactIndex).not.toHaveProperty(artifactId);
   });
@@ -122,15 +124,14 @@ describe('dataset remove — synchronous reference cascade', () => {
   it('leaves another image segmentation intact', () => {
     seatImage('img-1', 'CT');
     seatImage('img-2', 'PET');
-    const segmentGroups = useSegmentGroupStore();
     const segmentations = useSegmentationStore();
-    segmentGroups.newLabelmapFromImage('img-1');
-    const keptArtifact = segmentGroups.newLabelmapFromImage('img-2') as string;
+    seatSegmentMask('img-1');
+    const kept = seatSegmentMask('img-2');
 
     useDatasetStore().remove('img-1');
 
     expect(segmentations.getSegmentationForImage('img-2')).toBeTruthy();
-    expect(segmentations.artifactMeta).toHaveProperty(keptArtifact);
+    expect(segmentations.artifactMeta).toHaveProperty(kept.artifactId);
   });
 
   it('clears annotation tools bound to the removed image', () => {
@@ -190,12 +191,10 @@ describe('dataset remove — synchronous reference cascade', () => {
 
   it('clears the active segment when its parent image is removed', () => {
     seatImage('img-1', 'CT');
-    const segmentGroups = useSegmentGroupStore();
     const segmentationStore = useSegmentationStore();
-    const groupId = segmentGroups.newLabelmapFromImage('img-1')!;
-    const [segment] = segmentationStore.segmentsForArtifact(groupId);
-    segmentationStore.setActiveSegment(segment.id);
-    expect(segmentationStore.activeArtifactId).toBe(groupId);
+    const { segmentId, artifactId } = seatSegmentMask('img-1');
+    segmentationStore.setActiveSegment(segmentId);
+    expect(segmentationStore.activeArtifactId).toBe(artifactId);
 
     useDatasetStore().remove('img-1');
 

@@ -599,7 +599,7 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
     setActivePinia(createPinia());
   });
 
-  it('resolves placeholder extents against the loaded parent image', async () => {
+  it('bounds each migrated segment to the voxels its value covers', async () => {
     await restoreLegacyScene();
 
     const store = useSegmentationStore();
@@ -608,15 +608,17 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
       (id) => segmentation.segments[id].representations.labelmap
     );
     // The migrated polygon label rides in the same segmentation, third and
-    // unbound — only the two labelmap segments carry an extent to resolve.
+    // unbound: only the two labelmap segments have voxels to bound.
     expect(bindings.map((binding) => binding?.labelValue)).toEqual([
       1,
       2,
       undefined,
     ]);
-    bindings
-      .flatMap((binding) => (binding ? [binding] : []))
-      .forEach((binding) => expect(binding.extent).toEqual([0, 3, 0, 3, 0, 1]));
+    expect(bindings.map((binding) => binding && [...binding.extent])).toEqual([
+      [0, 3, 1, 2, 0, 0],
+      [0, 3, 0, 3, 0, 1],
+      undefined,
+    ]);
   });
 
   it('restores the migrated active segment and vector-tool segment', async () => {

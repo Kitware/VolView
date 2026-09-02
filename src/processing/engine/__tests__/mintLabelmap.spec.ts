@@ -6,6 +6,7 @@ import {
   resolveLabelmapGroups,
   mintLabelmapValue,
   mintLabelmapReferenceImage,
+  stagedLabelmapFileNames,
   type SegmentGroupView,
 } from '../mintLabelmap';
 import { bindSourceRefs, type SourceRefBindingContext } from '../sourceRefs';
@@ -284,5 +285,18 @@ describe('mintLabelmapReferenceImage', () => {
         localFile('local.nrrd')
       )
     ).toBeNull();
+  });
+});
+
+describe('stagedLabelmapFileNames', () => {
+  it('leaves a lone group unnumbered', () => {
+    expect(stagedLabelmapFileNames(['Tumor'])).toEqual(['Tumor.seg.nrrd']);
+  });
+
+  it('numbers a parameter taking several, so equal names stay distinct', () => {
+    expect(stagedLabelmapFileNames(['Tumor', 'Tumor'])).toEqual([
+      'Tumor-1.seg.nrrd',
+      'Tumor-2.seg.nrrd',
+    ]);
   });
 });

@@ -1,50 +1,37 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
-import { useSegmentationStore } from '@/src/store/segmentations';
 import { useFillBetweenStore } from '@/src/store/tools/fillBetween';
 import { useGaussianSmoothStore } from '@/src/store/tools/gaussianSmooth';
-import vtkLabelMap from '@/src/vtk/LabelMap';
+import {
+  addSegment,
+  seatImage,
+  seedVoxel,
+  store,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 
-// A process that writes one label value cannot run against an artifact-scoped
+// A process that writes one label value cannot run against an image-scoped
 // target: with no segment to write, it refuses instead of touching the
 // background.
 
-const DIMENSIONS: [number, number, number] = [2, 2, 2];
-const VOXEL_COUNT = 8;
-
-const store = () => useSegmentationStore();
-
-function seatArtifact() {
-  const labelmap = vtkLabelMap.newInstance();
-  labelmap.setDimensions(DIMENSIONS);
-  labelmap.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
-    })
-  );
-  labelmap.computeTransforms();
-
-  const artifactId = store().registerArtifact(labelmap, {
-    parentImage: 'image-1',
-    name: 'Group 1',
-  });
+async function seatImageTarget() {
+  await seatImage('image-1');
+  const segmentId = addSegment('image-1', 'Tumor');
+  seedVoxel(segmentId, [1, 1, 1]);
   return {
-    scope: 'artifact' as const,
-    artifactId,
-    voxels: store().artifactVoxels(artifactId),
+    scope: 'image' as const,
+    parentImageId: 'image-1',
+    voxels: store().imageVoxels('image-1'),
   };
 }
 
-describe('single-label processes reject an artifact-scoped target', () => {
+describe('single-label processes reject an image-scoped target', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
   it('fill between needs an active segment', async () => {
-    const target = seatArtifact();
+    const target = await seatImageTarget();
 
     await expect(
       useFillBetweenStore().computeAlgorithm(target)
@@ -52,7 +39,7 @@ describe('single-label processes reject an artifact-scoped target', () => {
   });
 
   it('gaussian smooth needs an active segment', async () => {
-    const target = seatArtifact();
+    const target = await seatImageTarget();
 
     await expect(
       useGaussianSmoothStore().computeAlgorithm(target)

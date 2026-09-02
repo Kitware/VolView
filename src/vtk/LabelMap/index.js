@@ -12,16 +12,6 @@ function vtkLabelMap(publicAPI, model) {
 
   const originalAPI = { ...publicAPI };
 
-  publicAPI.replaceLabelValue = (from, to) => {
-    const pixels = publicAPI.getPointData().getScalars().getData();
-    const len = pixels.length;
-    for (let i = 0; i < len; i++) {
-      if (pixels[i] === from) {
-        pixels[i] = to;
-      }
-    }
-  };
-
   publicAPI.setSegments = (segments) => {
     if (segments === model.segments || deepEqual(segments, model.segments)) {
       return false;

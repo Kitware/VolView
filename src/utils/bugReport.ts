@@ -58,10 +58,11 @@ const collectDatasetInfo = (): string[] => {
         ? 'DICOM'
         : 'unknown';
 
-    const segCount = useSegmentationStore().artifactsForImage(id).length;
+    const segCount =
+      useSegmentationStore().getSegmentationForImage(id)?.order.length ?? 0;
     const segPart =
       segCount > 0
-        ? ` (segment groups: ${segCount} as ${segmentGroupStore.saveFormat})`
+        ? ` (segments: ${segCount} as ${segmentGroupStore.saveFormat})`
         : '';
 
     return `  [${i}] ${dims} ${dataType} from ${sourceFormat}${segPart}`;
