@@ -201,5 +201,15 @@ describe('active segment intent', () => {
       expect(tryCssColorToRGBA('rgb(1, 2)')).toBeUndefined();
       expect(cssColorToRGBA('not-a-color')).toEqual([0, 0, 0, 255]);
     });
+
+    // A config.json label color and a 6.x state file both reach here unvalidated,
+    // and the migration that calls this is not wrapped in a try.
+    it.each(['constructor', '__proto__', 'toString', 'valueOf'])(
+      'treats the inherited property name %s as unparseable',
+      (name) => {
+        expect(tryCssColorToRGBA(name)).toBeUndefined();
+        expect(cssColorToRGBA(name)).toEqual([0, 0, 0, 255]);
+      }
+    );
   });
 });

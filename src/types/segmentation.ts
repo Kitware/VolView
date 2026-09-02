@@ -204,24 +204,28 @@ export function fullExtent(dimensions: number[] | Int32Array): Extent3D {
 }
 
 // CSS basic color keywords; the vector tool label defaults in src/config.ts use 'red'.
-const NAMED_COLORS: Record<string, string> = {
-  black: '000000',
-  silver: 'c0c0c0',
-  gray: '808080',
-  white: 'ffffff',
-  maroon: '800000',
-  red: 'ff0000',
-  purple: '800080',
-  fuchsia: 'ff00ff',
-  green: '008000',
-  lime: '00ff00',
-  olive: '808000',
-  yellow: 'ffff00',
-  navy: '000080',
-  blue: '0000ff',
-  teal: '008080',
-  aqua: '00ffff',
-};
+// A Map, not an object: a plain one inherits Object.prototype, so 'constructor'
+// and '__proto__' would look up truthy and reach the hex parsers as non-strings.
+const NAMED_COLORS = new Map<string, string>(
+  Object.entries({
+    black: '000000',
+    silver: 'c0c0c0',
+    gray: '808080',
+    white: 'ffffff',
+    maroon: '800000',
+    red: 'ff0000',
+    purple: '800080',
+    fuchsia: 'ff00ff',
+    green: '008000',
+    lime: '00ff00',
+    olive: '808000',
+    yellow: 'ffff00',
+    navy: '000080',
+    blue: '0000ff',
+    teal: '008080',
+    aqua: '00ffff',
+  })
+);
 
 const HEX_COLOR = /^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/;
 
@@ -292,7 +296,7 @@ export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const value = css.trim().toLowerCase();
   if (value === 'transparent') return [0, 0, 0, 0];
 
-  const hex = NAMED_COLORS[value] ?? HEX_COLOR.exec(value)?.[1];
+  const hex = NAMED_COLORS.get(value) ?? HEX_COLOR.exec(value)?.[1];
   if (hex) return hexaToRGBA(expandShorthandHex(hex));
 
   const rgb = RGB_COLOR.exec(value);
