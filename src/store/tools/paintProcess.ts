@@ -157,6 +157,12 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     };
   }
 
+  // A run the user has already moved past: another process started, or the
+  // state machine left the step this one is finishing.
+  const runIsStale = (processRunId: number) =>
+    processRunId !== activeProcessRunId ||
+    processState.value.step !== 'computing';
+
   async function startProcess(
     algorithm: ProcessAlgorithm,
     options?: { requiresActiveSegment?: boolean }
@@ -196,13 +202,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     try {
       const outputScalars = await algorithm(target);
 
-      // If the state changed during the async operation, stop processing.
-      if (
-        processRunId !== activeProcessRunId ||
-        processState.value.step !== 'computing'
-      ) {
-        return;
-      }
+      if (runIsStale(processRunId)) return;
 
       // The storage can be deleted while the algorithm runs; there is then
       // nothing to preview and nothing to roll back.
@@ -212,6 +212,12 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         return;
       }
 
+      // The preview keeps the returned array, so an algorithm handing back the
+      // buffer it was given would leave the processed result aliasing storage
+      // and the first toggle to the original would erase it.
+      if (outputScalars === voxels.scalars()) {
+        throw new Error('Process returned the storage buffer it was given');
+      }
       voxels.apply(outputScalars);
 
       processState.value = {
@@ -226,12 +232,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         showingOriginal: false,
       };
     } catch (error) {
-      if (
-        processRunId !== activeProcessRunId ||
-        processState.value.step !== 'computing'
-      ) {
-        return;
-      }
+      if (runIsStale(processRunId)) return;
 
       messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,

@@ -84,6 +84,24 @@ const buffer = (labelMap: vtkLabelMap) =>
 
 const values = (labelMap: vtkLabelMap) => Array.from(buffer(labelMap));
 
+/**
+ * A refused result: reported, and the fixture's mask left holding its own
+ * values in the buffer it started with.
+ */
+function expectRolledBack(
+  labelMap: vtkLabelMap,
+  original: ReturnType<typeof buffer>
+) {
+  expect(usePaintProcessStore().processState.step).toBe('start');
+  expect(buffer(labelMap)).toBe(original);
+  expect(values(labelMap)).toEqual([1, 0]);
+  expect(
+    useMessageStore().messages.some((message) =>
+      message.title.includes('Operation Failed')
+    )
+  ).toBe(true);
+}
+
 /** Records the target the process resolved, and returns a fixed result. */
 function recordingAlgorithm(result: () => Uint8Array) {
   const seen: ProcessTarget[] = [];
@@ -363,24 +381,32 @@ describe('paint process storage', () => {
     });
   });
 
+  describe('a result that is the storage buffer itself', () => {
+    it('is refused, reported, and rolled back', async () => {
+      const processStore = usePaintProcessStore();
+      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
+      const original = buffer(labelMap);
+
+      await processStore.startProcess(async (target) => {
+        const live = target.voxels.scalars();
+        live[1] = 1;
+        return live;
+      });
+
+      expectRolledBack(labelMap, original);
+    });
+  });
+
   describe('a result that does not fit the storage', () => {
     it('is refused, reported, and rolled back', async () => {
       const processStore = usePaintProcessStore();
-      const messageStore = useMessageStore();
       const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
       const original = buffer(labelMap);
 
       await processStore.startProcess(async () => new Uint8Array([1, 1, 1]));
 
-      expect(processStore.processState.step).toBe('start');
-      expect(buffer(labelMap)).toBe(original);
-      expect(values(labelMap)).toEqual([1, 0]);
+      expectRolledBack(labelMap, original);
       expect(labelMap.getDimensions()).toEqual([2, 1, 1]);
-      expect(
-        messageStore.messages.some((message) =>
-          message.title.includes('Operation Failed')
-        )
-      ).toBe(true);
     });
   });
 });
