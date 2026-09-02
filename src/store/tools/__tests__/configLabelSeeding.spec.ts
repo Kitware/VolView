@@ -95,7 +95,7 @@ describe('config labels seed nothing on their own', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const segment = store().createSegment(segmentation.id, { name: 'Mine' });
     const polygons = usePolygonStore();
-    polygons.setActiveSegment(segment.id);
+    polygons.setActiveLabel(segment.id);
 
     polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
     await nextTick();
@@ -258,7 +258,7 @@ describe('a template the first edit already materialized', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const mine = store().createSegment(segmentation.id, { name: 'Mine' });
     rectangles.updateLabel(mine.id, { fillColor: '#ff000033' });
-    rectangles.setActiveSegment(mine.id);
+    rectangles.setActiveLabel(mine.id);
 
     const onImage2 = store().resolveEditTarget('img-2');
 

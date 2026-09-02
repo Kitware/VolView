@@ -149,7 +149,7 @@ describe('placing and rasterizing on another image', () => {
   it('leaves an annotation placed on another image unlabeled', async () => {
     const origin = makeSegment('img-1', 'Tumor');
     const polygons = usePolygonStore();
-    polygons.setActiveSegment(origin.id);
+    polygons.setActiveLabel(origin.id);
 
     await viewImage('img-2');
     const toolId = polygons.addTool({ imageID: 'img-2', placing: false });

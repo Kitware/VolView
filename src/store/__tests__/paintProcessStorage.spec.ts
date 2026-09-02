@@ -107,10 +107,7 @@ describe('paint process storage', () => {
   describe('the process target', () => {
     it('hands a segment-scoped process the segment it writes', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap, artifactId } = addTestSegment(
-        new Uint8Array([0, 0]),
-        3
-      );
+      const { labelMap } = addTestSegment(new Uint8Array([0, 0]), 3);
       const { seen, algorithm } = recordingAlgorithm(
         () => new Uint8Array([3, 3])
       );
@@ -121,7 +118,6 @@ describe('paint process storage', () => {
       const [target] = seen;
       expect(target).toMatchObject({
         scope: 'segment',
-        artifactId,
         labelValue: 3,
       });
       expect(target.voxels.image()).toBe(labelMap);
@@ -144,9 +140,8 @@ describe('paint process storage', () => {
         scope: 'image',
         parentImageId: 'image-1',
       });
-      // An image-scoped target carries neither an artifact nor a label value.
+      // An image-scoped target carries no label value.
       expect('labelValue' in target).toBe(false);
-      expect('artifactId' in target).toBe(false);
       // It is the composite of every segment, not one segment's own mask.
       expect(target.voxels.image()).not.toBe(labelMap);
       expect(target.voxels.image().getDimensions()).toEqual([2, 1, 1]);

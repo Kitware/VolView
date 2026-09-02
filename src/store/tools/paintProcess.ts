@@ -19,9 +19,8 @@ type StartState = {
 };
 
 type TargetedState = {
-  activeParentImageID: string | null;
+  activeParentImageID: string;
   segmentId: string;
-  processType: ProcessType;
 };
 
 type ComputingState = TargetedState & {
@@ -41,15 +40,13 @@ type ProcessState = StartState | ComputingState | PreviewingState;
 /**
  * The resolved storage a process writes into, passed instead of being
  * re-derived. An all-segments process gets the image's composite and no
- * segment, so it carries neither an artifact nor a label value rather than a
- * dummy one.
+ * segment, so it carries no label value rather than a dummy one.
  */
 export type ProcessTarget =
   | {
       scope: 'segment';
       parentImageId: string;
       voxels: VoxelStorage;
-      artifactId: string;
       labelValue: number;
     }
   | { scope: 'image'; parentImageId: string; voxels: VoxelStorage };
@@ -104,18 +101,11 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   const messageStore = useMessageStore();
   const { currentImageID } = useCurrentImage('global');
 
-  function rollbackPreview(
-    voxels: VoxelStorage,
-    originalScalars: TypedArray
-  ): void {
-    writeIfPresent(voxels, originalScalars);
-  }
-
   function cancelProcess() {
     const state = processState.value;
 
     if (state.step === 'previewing') {
-      rollbackPreview(state.voxels, state.originalScalars);
+      writeIfPresent(state.voxels, state.originalScalars);
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -141,7 +131,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         scope: 'segment' as const,
         parentImageId: imageId,
         voxels: segmentationStore.segmentVoxels(segmentId),
-        artifactId: binding.artifactId,
         labelValue: binding.labelValue,
       },
       segmentId,
@@ -202,7 +191,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       step: 'computing',
       activeParentImageID,
       segmentId,
-      processType,
     };
 
     try {
@@ -230,7 +218,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         step: 'previewing',
         activeParentImageID,
         segmentId,
-        processType,
         voxels,
         originalScalars,
         // The algorithm's own array, not a copy of it: an algorithm must not
@@ -249,7 +236,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,
       });
-      rollbackPreview(voxels, originalScalars);
+      writeIfPresent(voxels, originalScalars);
       resetState();
       paintStore.restoreModeAfterProcess();
     }
@@ -334,6 +321,5 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     confirmProcess,
     cancelProcess,
     togglePreview,
-    resetState,
   };
 });

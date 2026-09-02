@@ -232,7 +232,6 @@ describe('Paint process store', () => {
     expect(target).toMatchObject({
       scope: 'segment',
       labelValue: binding.labelValue,
-      artifactId: binding.artifactId,
     });
     expect(target!.voxels.image()).toBe(binding.labelmap);
     // The clone covers nothing yet, so the process had no voxels to write, and

@@ -1,4 +1,4 @@
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
+import { computed, ref, watch, type Ref } from 'vue';
 
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
@@ -15,20 +15,6 @@ import {
   rgbaToCssColor,
 } from '@/src/types/segmentation';
 import { useLabels, type Label, type Labels } from './useLabels';
-
-export type RegistrySegment = {
-  id: string;
-  name: string;
-  color: string; // CSS color for tool rendering
-};
-
-export type SegmentRegistry = {
-  segments: ComputedRef<RegistrySegment[]>;
-  activeSegmentId: ComputedRef<Maybe<string>>;
-  getSegment: (id: string) => Maybe<RegistrySegment>;
-  setActiveSegment: (id: Maybe<string>) => void;
-  createSegment: (init?: { name?: string; color?: string }) => string;
-};
 
 /**
  * The label-record surface label pickers, the config importer and the wire
@@ -77,17 +63,10 @@ export type ToolWireIdentity<Props> = {
   templates?: Labels<Props>;
 };
 
-export type ToolSegmentRegistry<Props> = SegmentRegistry &
-  SegmentLabelApi<Props>;
+export type ToolSegmentRegistry<Props> = SegmentLabelApi<Props>;
 
 const annotationToolLabelDefault = Object.freeze({
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
-});
-
-const toRegistrySegment = (segment: Segment) => ({
-  id: segment.id,
-  name: segment.name,
-  color: rgbaToCssColor(segment.color),
 });
 
 /** Identity from the segmentation store, scoped to the viewed image. */
@@ -116,17 +95,10 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return segmentation ? listSegments(segmentation) : [];
   });
 
-  const segments = computed(() => currentSegments.value.map(toRegistrySegment));
-
   const findSegment = (segmentId: string) =>
     segmentationStore.segmentExists(segmentId)
       ? segmentationStore.getSegment(segmentId)
       : undefined;
-
-  const getSegment = (id: string) => {
-    const segment = findSegment(id);
-    return segment ? toRegistrySegment(segment) : undefined;
-  };
 
   const toLabel = (segment: Segment) =>
     ({
@@ -305,14 +277,6 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return segment.id;
   };
 
-  // A segment the caller wants right now. The picker's create path declares a
-  // template instead, see addLabel.
-  const createSegmentNow = (label: ToolLabel = {} as ToolLabel) => {
-    const id = addLabelForImage(currentImageID.value, label);
-    if (id) setActiveLabel(id);
-    return id;
-  };
-
   // Adding a label declares a template, the same road config labels take. It
   // has no segment to write into until an edit materializes it.
   const addLabel = (label: ToolLabel = {} as ToolLabel) => {
@@ -371,7 +335,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     propsBySegment.value = omit(propsBySegment.value, id);
 
     if (wasActive) {
-      setActiveLabel(segments.value[0]?.id ?? '');
+      setActiveLabel(currentSegments.value[0]?.id ?? '');
     }
   };
 
@@ -492,15 +456,6 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   });
 
   return {
-    segments,
-    activeSegmentId,
-    getSegment,
-    setActiveSegment: (id: Maybe<string>) => setActiveLabel(id ?? undefined),
-    createSegment: (init?: { name?: string; color?: string }) =>
-      createSegmentNow({
-        ...(init?.name === undefined ? {} : { labelName: init.name }),
-        ...(init?.color === undefined ? {} : { color: init.color }),
-      } as ToolLabel),
     labels,
     allLabels,
     activeLabel,
@@ -532,32 +487,7 @@ export const createLocalSegmentRegistry = <Props extends object = object>(
   } as Props);
   labels.mergeLabels(initialLabels);
 
-  const toSegment = (id: string, label: ToolLabel) => ({
-    id,
-    name: label.labelName ?? '',
-    color: label.color ?? '',
-  });
-
-  const getSegment = (id: string) => {
-    const label = labels.labels.value[id];
-    return label ? toSegment(id, label) : undefined;
-  };
-
   return {
-    segments: computed(() =>
-      Object.entries(labels.labels.value).map(([id, label]) =>
-        toSegment(id, label)
-      )
-    ),
-    activeSegmentId: computed(() => labels.activeLabel.value),
-    getSegment,
-    setActiveSegment: (id: Maybe<string>) =>
-      labels.setActiveLabel(id ?? undefined),
-    createSegment: (init?: { name?: string; color?: string }) =>
-      labels.addLabel({
-        ...(init?.name === undefined ? {} : { labelName: init.name }),
-        ...(init?.color === undefined ? {} : { color: init.color }),
-      } as ToolLabel),
     ...labels,
     allLabels: labels.labels,
     // A local label's id is minted, so an update never moves it.

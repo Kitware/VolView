@@ -28,6 +28,12 @@ const seatAndView = (id: string) => {
   return segmentationStore().ensureSegmentationForImage(id);
 };
 
+const namesOf = (labels: Record<string, { labelName?: string }>) =>
+  Object.values(labels).map((label) => label.labelName);
+
+const colorsOf = (labels: Record<string, { color?: string }>) =>
+  Object.values(labels).map((label) => label.color);
+
 describe('shared segment registry', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -44,21 +50,15 @@ describe('shared segment registry', () => {
 
     const registry = createSharedSegmentRegistry();
 
-    expect(registry.segments.value.map((segment) => segment.id)).toEqual([
-      first.id,
-      second.id,
-    ]);
-    expect(registry.segments.value.map((segment) => segment.name)).toEqual([
-      'Tumor',
-      'Node',
-    ]);
+    expect(Object.keys(registry.labels.value)).toEqual([first.id, second.id]);
+    expect(namesOf(registry.labels.value)).toEqual(['Tumor', 'Node']);
   });
 
   it('reports no segments for an image without a segmentation', () => {
     seatImage('img-1');
     viewImage('img-1');
 
-    expect(createSharedSegmentRegistry().segments.value).toEqual([]);
+    expect(createSharedSegmentRegistry().labels.value).toEqual({});
   });
 
   it('exposes segment colors as css strings for tool rendering', () => {
@@ -70,7 +70,7 @@ describe('shared segment registry', () => {
 
     const registry = createSharedSegmentRegistry();
 
-    expect(registry.getSegment(segment.id)?.color).toBe(
+    expect(registry.labels.value[segment.id]?.color).toBe(
       rgbaToCssColor([214, 0, 0, 255])
     );
   });
@@ -86,10 +86,8 @@ describe('shared segment registry', () => {
       name: 'Lesion',
     });
 
-    expect(registry.getSegment(segment.id)?.name).toBe('Lesion');
-    expect(registry.segments.value.map((entry) => entry.name)).toEqual([
-      'Lesion',
-    ]);
+    expect(registry.labels.value[segment.id]?.labelName).toBe('Lesion');
+    expect(namesOf(registry.labels.value)).toEqual(['Lesion']);
   });
 
   it('reflects a recolor made through the segmentation store', () => {
@@ -104,7 +102,7 @@ describe('shared segment registry', () => {
       color: [0, 0, 255, 255],
     });
 
-    expect(registry.getSegment(segment.id)?.color).toBe(
+    expect(registry.labels.value[segment.id]?.color).toBe(
       rgbaToCssColor([0, 0, 255, 255])
     );
   });
@@ -118,25 +116,7 @@ describe('shared segment registry', () => {
 
     segmentationStore().deleteSegment(segment.id);
 
-    expect(registry.segments.value).toEqual([]);
-    expect(registry.getSegment(segment.id)).toBeUndefined();
-  });
-
-  it('returns undefined for an unknown segment id', () => {
-    seatAndView('img-1');
-
-    expect(createSharedSegmentRegistry().getSegment('nope')).toBeUndefined();
-  });
-
-  it('creates segments in the viewed image’s segmentation', () => {
-    const segmentation = seatAndView('img-1');
-    const registry = createSharedSegmentRegistry();
-
-    const id = registry.createSegment({ name: 'Tumor', color: '#00ff00ff' });
-
-    expect(segmentation.order).toEqual([id]);
-    expect(segmentation.segments[id].name).toBe('Tumor');
-    expect(segmentation.segments[id].color).toEqual([0, 255, 0, 255]);
+    expect(registry.labels.value).toEqual({});
   });
 
   it('seeds a segmentation when the viewed image has none', () => {
@@ -144,18 +124,24 @@ describe('shared segment registry', () => {
     viewImage('img-1');
     const registry = createSharedSegmentRegistry();
 
-    const id = registry.createSegment();
+    const id = registry.materializeLabelForImage(
+      'img-1',
+      registry.addLabel({ labelName: 'Tumor' })
+    );
 
     expect(segmentationStore().getSegmentationForImage('img-1')?.order).toEqual(
       [id]
     );
   });
 
-  it('allocates no voxels when creating a segment', () => {
+  it('allocates no voxels when a label materializes', () => {
     const segmentation = seatAndView('img-1');
     const registry = createSharedSegmentRegistry();
 
-    const id = registry.createSegment({ name: 'Tumor' });
+    const id = registry.materializeLabelForImage(
+      'img-1',
+      registry.addLabel({ labelName: 'Tumor' })
+    )!;
 
     expect(segmentation.segments[id].representations.labelmap).toBeUndefined();
     expect(segmentationStore().segmentLayersForImage('img-1')).toEqual([]);
@@ -168,11 +154,11 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    registry.setActiveSegment(segment.id);
-    expect(registry.activeSegmentId.value).toBe(segment.id);
+    registry.setActiveLabel(segment.id);
+    expect(registry.activeLabel.value).toBe(segment.id);
 
-    registry.setActiveSegment(undefined);
-    expect(registry.activeSegmentId.value).toBeFalsy();
+    registry.setActiveLabel(undefined);
+    expect(registry.activeLabel.value).toBeFalsy();
   });
 
   it('takes the active segment from the segmentation store', () => {
@@ -184,7 +170,7 @@ describe('shared segment registry', () => {
 
     segmentationStore().setActiveSegment(segment.id);
 
-    expect(registry.activeSegmentId.value).toBe(segment.id);
+    expect(registry.activeLabel.value).toBe(segment.id);
   });
 
   it('records the segment it activates on the segmentation store', () => {
@@ -194,7 +180,7 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    registry.setActiveSegment(segment.id);
+    registry.setActiveLabel(segment.id);
 
     expect(segmentationStore().activeSegmentId).toBe(segment.id);
   });
@@ -208,15 +194,11 @@ describe('shared segment registry', () => {
     });
     const registry = createSharedSegmentRegistry();
 
-    expect(registry.segments.value.map((segment) => segment.id)).toEqual([
-      other.id,
-    ]);
+    expect(Object.keys(registry.labels.value)).toEqual([other.id]);
 
     viewImage('img-1');
 
-    expect(registry.segments.value.map((segment) => segment.name)).toEqual([
-      'Tumor',
-    ]);
+    expect(namesOf(registry.labels.value)).toEqual(['Tumor']);
   });
 
   it('declares a template rather than minting a segment', () => {
@@ -227,21 +209,25 @@ describe('shared segment registry', () => {
 
     expect(segmentation.order).toEqual([]);
     expect(registry.allLabels.value[id]?.labelName).toBe('Lesion');
-    // The picker binds activeLabel; activeSegmentId stays empty because no
-    // segment exists yet.
+    // The picker binds activeLabel; the store holds no active segment because
+    // none exists yet.
     expect(registry.activeLabel.value).toBe(id);
-    expect(registry.activeSegmentId.value).toBeFalsy();
+    expect(segmentationStore().activeSegmentId).toBeFalsy();
   });
 
   it('mints the declared template on the first edit that materializes it', () => {
     const segmentation = seatAndView('img-1');
     const registry = createSharedSegmentRegistry();
-    const template = registry.addLabel({ labelName: 'Lesion' });
+    const template = registry.addLabel({
+      labelName: 'Lesion',
+      color: '#00ff00ff',
+    });
 
     const id = registry.materializeLabelForImage('img-1', template);
 
     expect(segmentation.order).toEqual([id]);
     expect(segmentation.segments[id!].name).toBe('Lesion');
+    expect(segmentation.segments[id!].color).toEqual([0, 255, 0, 255]);
   });
 
   it('shares one segment catalog across registries on the same image', () => {
@@ -249,9 +235,12 @@ describe('shared segment registry', () => {
     const polygons = createSharedSegmentRegistry();
     const rectangles = createSharedSegmentRegistry();
 
-    const id = polygons.createSegment({ name: 'Tumor' });
+    const id = polygons.materializeLabelForImage(
+      'img-1',
+      polygons.addLabel({ labelName: 'Tumor' })
+    )!;
 
-    expect(rectangles.getSegment(id)?.name).toBe('Tumor');
+    expect(rectangles.labels.value[id]?.labelName).toBe('Tumor');
   });
 });
 
@@ -263,29 +252,25 @@ describe('local segment registry', () => {
   it('seeds the initial labels by name and color', () => {
     const registry = createLocalSegmentRegistry(RULER_LABEL_DEFAULTS);
 
-    expect(registry.segments.value.map((segment) => segment.name)).toEqual([
-      'Label 1',
-    ]);
-    expect(registry.segments.value.map((segment) => segment.color)).toEqual([
-      'red',
-    ]);
+    expect(namesOf(registry.labels.value)).toEqual(['Label 1']);
+    expect(colorsOf(registry.labels.value)).toEqual(['red']);
   });
 
   it('activates the segment it creates', () => {
     const registry = createLocalSegmentRegistry({});
 
-    const id = registry.createSegment({ name: 'Tumor' });
+    const id = registry.addLabel({ labelName: 'Tumor' });
 
-    expect(registry.activeSegmentId.value).toBe(id);
-    expect(registry.getSegment(id)?.name).toBe('Tumor');
+    expect(registry.activeLabel.value).toBe(id);
+    expect(registry.labels.value[id]?.labelName).toBe('Tumor');
   });
 
   it('cycles the tool colors for created segments', () => {
     const registry = createLocalSegmentRegistry({});
 
-    const ids = TOOL_COLORS.map(() => registry.createSegment());
+    const ids = TOOL_COLORS.map(() => registry.addLabel());
 
-    expect(ids.map((id) => registry.getSegment(id)?.color)).toEqual([
+    expect(ids.map((id) => registry.labels.value[id]?.color)).toEqual([
       ...TOOL_COLORS,
     ]);
   });
@@ -293,58 +278,56 @@ describe('local segment registry', () => {
   it('honors an explicit color', () => {
     const registry = createLocalSegmentRegistry({});
 
-    const id = registry.createSegment({ name: 'Tumor', color: 'red' });
+    const id = registry.addLabel({ labelName: 'Tumor', color: 'red' });
 
-    expect(registry.getSegment(id)?.color).toBe('red');
+    expect(registry.labels.value[id]?.color).toBe('red');
   });
 
   it('applies the new label defaults to created segments', () => {
     const registry = createLocalSegmentRegistry({}, { strokeWidth: 3 });
 
-    const id = registry.createSegment();
+    const id = registry.addLabel();
 
     expect(registry.labels.value[id].strokeWidth).toBe(3);
   });
 
   it('renames through the label api', () => {
     const registry = createLocalSegmentRegistry({});
-    const id = registry.createSegment({ name: 'Tumor' });
+    const id = registry.addLabel({ labelName: 'Tumor' });
 
     registry.updateLabel(id, { labelName: 'Lesion' });
 
-    expect(registry.getSegment(id)?.name).toBe('Lesion');
+    expect(registry.labels.value[id]?.labelName).toBe('Lesion');
   });
 
   it('recolors through the label api', () => {
     const registry = createLocalSegmentRegistry({});
-    const id = registry.createSegment({ name: 'Tumor' });
+    const id = registry.addLabel({ labelName: 'Tumor' });
 
     registry.updateLabel(id, { color: 'red' });
 
-    expect(registry.getSegment(id)?.color).toBe('red');
+    expect(registry.labels.value[id]?.color).toBe('red');
   });
 
   it('moves the active segment when the active one is deleted', () => {
     const registry = createLocalSegmentRegistry({});
-    const kept = registry.createSegment({ name: 'Tumor' });
-    const doomed = registry.createSegment({ name: 'Node' });
+    const kept = registry.addLabel({ labelName: 'Tumor' });
+    const doomed = registry.addLabel({ labelName: 'Node' });
 
     registry.deleteLabel(doomed);
 
-    expect(registry.segments.value.map((segment) => segment.id)).toEqual([
-      kept,
-    ]);
-    expect(registry.activeSegmentId.value).toBe(kept);
+    expect(Object.keys(registry.labels.value)).toEqual([kept]);
+    expect(registry.activeLabel.value).toBe(kept);
   });
 
   it('clears the active segment when the last one is deleted', () => {
     const registry = createLocalSegmentRegistry({});
-    const id = registry.createSegment({ name: 'Tumor' });
+    const id = registry.addLabel({ labelName: 'Tumor' });
 
     registry.deleteLabel(id);
 
-    expect(registry.segments.value).toEqual([]);
-    expect(registry.activeSegmentId.value).toBeFalsy();
+    expect(registry.labels.value).toEqual({});
+    expect(registry.activeLabel.value).toBeFalsy();
   });
 
   it('rejects deleting an unknown label', () => {
@@ -355,11 +338,11 @@ describe('local segment registry', () => {
 
   it('accepts an unset active segment', () => {
     const registry = createLocalSegmentRegistry({});
-    registry.createSegment({ name: 'Tumor' });
+    registry.addLabel({ labelName: 'Tumor' });
 
-    registry.setActiveSegment(undefined);
+    registry.setActiveLabel(undefined);
 
-    expect(registry.activeSegmentId.value).toBeFalsy();
+    expect(registry.activeLabel.value).toBeFalsy();
   });
 
   it('keeps its segments out of the segmentation store', () => {
@@ -367,7 +350,7 @@ describe('local segment registry', () => {
     viewImage('img-1');
     const registry = createLocalSegmentRegistry({});
 
-    registry.createSegment({ name: 'Tumor' });
+    registry.addLabel({ labelName: 'Tumor' });
 
     expect(
       segmentationStore().getSegmentationForImage('img-1')
@@ -380,6 +363,6 @@ describe('local segment registry', () => {
 
     segmentationStore().createSegment(segmentation.id, { name: 'Tumor' });
 
-    expect(registry.segments.value).toEqual([]);
+    expect(registry.labels.value).toEqual({});
   });
 });

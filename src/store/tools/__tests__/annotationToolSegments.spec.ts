@@ -36,14 +36,16 @@ describe('shared segment identity for polygons and rectangles', () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor');
 
-    expect(store.segments.map((entry) => entry.id)).toEqual([segment.id]);
-    expect(store.segments.map((entry) => entry.name)).toEqual(['Tumor']);
+    expect(Object.keys(store.labels)).toEqual([segment.id]);
+    expect(Object.values(store.labels).map((label) => label.labelName)).toEqual(
+      ['Tumor']
+    );
   });
 
   it('does not label a tool with a segment from another image', async () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor');
-    store.setActiveSegment(segment.id);
+    store.setActiveLabel(segment.id);
     expect(store.activeLabel).toBe(segment.id);
 
     seatAndView('img-2');
@@ -59,18 +61,18 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('captures the active segment id when a tool is added', () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor');
-    store.setActiveSegment(segment.id);
+    store.setActiveLabel(segment.id);
 
     const id = store.addTool({ imageID: IMAGE_ID, placing: false });
 
-    expect(store.activeSegmentId).toBe(segment.id);
+    expect(store.activeLabel).toBe(segment.id);
     expect(store.toolByID[id].label).toBe(segment.id);
   });
 
   it('shows the segment name and color on the tool', () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor', [214, 0, 0, 255]);
-    store.setActiveSegment(segment.id);
+    store.setActiveLabel(segment.id);
 
     const id = store.addTool({
       imageID: IMAGE_ID,
@@ -85,7 +87,7 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('updates a tool’s displayed name when the segment is renamed', async () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor');
-    store.setActiveSegment(segment.id);
+    store.setActiveLabel(segment.id);
     const id = store.addTool({
       imageID: IMAGE_ID,
       placing: false,
@@ -103,7 +105,7 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('updates a tool’s color when the segment is recolored', async () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor', [214, 0, 0, 255]);
-    store.setActiveSegment(segment.id);
+    store.setActiveLabel(segment.id);
     const id = store.addTool({
       imageID: IMAGE_ID,
       placing: false,
@@ -123,14 +125,14 @@ describe('shared segment identity for polygons and rectangles', () => {
     const rectangles = useRectangleStore();
     const segment = makeSegment('Tumor');
 
-    expect(polygons.segments.map((entry) => entry.id)).toEqual([segment.id]);
-    expect(rectangles.segments.map((entry) => entry.id)).toEqual([segment.id]);
+    expect(Object.keys(polygons.labels)).toEqual([segment.id]);
+    expect(Object.keys(rectangles.labels)).toEqual([segment.id]);
   });
 
   it('keeps per-tool props out of the shared segment', () => {
     const rectangles = useRectangleStore();
     const segment = makeSegment('Tumor');
-    rectangles.setActiveSegment(segment.id);
+    rectangles.setActiveLabel(segment.id);
 
     const id = rectangles.addTool({
       imageID: IMAGE_ID,
@@ -157,7 +159,10 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('creates a segment in the segmentation store through the tool store', () => {
     const store = usePolygonStore();
 
-    const id = store.createSegment({ name: 'Tumor' });
+    const id = store.materializeLabelForImage(
+      IMAGE_ID,
+      store.addLabel({ labelName: 'Tumor' })
+    )!;
 
     const segmentation =
       useSegmentationStore().getSegmentationForImage(IMAGE_ID)!;
@@ -168,7 +173,7 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('restores a tool whose segment was deleted as unlabeled', () => {
     const store = usePolygonStore();
     const segment = makeSegment('Tumor');
-    store.setActiveSegment(segment.id);
+    store.setActiveLabel(segment.id);
     store.addTool({ imageID: IMAGE_ID, placing: false, label: segment.id });
     useSegmentationStore().deleteSegment(segment.id);
 
@@ -190,7 +195,7 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('pre-creates no segments for an empty segmentation', () => {
     const store = usePolygonStore();
 
-    expect(store.segments).toEqual([]);
+    expect(store.labels).toEqual({});
     expect(
       useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
     ).toEqual([]);

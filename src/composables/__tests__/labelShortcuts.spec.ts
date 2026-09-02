@@ -40,8 +40,8 @@ describe('next/previous label shortcuts', () => {
   it('cycles through the labels the active tool has', () => {
     seatAndView('img-1');
     const store = usePolygonStore();
-    const first = store.createSegment({ name: 'Tumor' });
-    const second = store.createSegment({ name: 'Node' });
+    const first = store.addLabel({ labelName: 'Tumor' });
+    const second = store.addLabel({ labelName: 'Node' });
 
     store.setActiveLabel(first);
     ACTION_TO_FUNC.incrementLabel();
