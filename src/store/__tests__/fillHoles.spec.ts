@@ -157,13 +157,12 @@ describe('Fill Holes store', () => {
 
   const segmentTarget = (
     parentImageId: string,
-    artifactId: string,
     segmentId: string,
     labelValue: number
   ) => ({
     scope: 'segment' as const,
     parentImageId,
-    artifactId,
+    segmentId,
     labelValue,
     voxels: useSegmentationStore().segmentVoxels(segmentId),
   });
@@ -192,7 +191,7 @@ describe('Fill Holes store', () => {
   it('converts the active parent slice into mask slice space', async () => {
     // A segment-scoped fill writes the bounded mask, which starts two slices
     // into the parent, so parent slice 4 is mask slice 2.
-    const { fillHolesStore, parentImageID, artifactId, segmentId } =
+    const { fillHolesStore, parentImageID, segmentId } =
       await setupFillHolesRun(
         { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
         [0, 9, 0, 9, 2, 4],
@@ -201,7 +200,7 @@ describe('Fill Holes store', () => {
     fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
 
     await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, artifactId, segmentId, 1)
+      segmentTarget(parentImageID, segmentId, 1)
     );
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
@@ -219,7 +218,7 @@ describe('Fill Holes store', () => {
     async (_where, extent, parentSlice) => {
       // Unclamped, the converted index folds back onto a real slice of the
       // cropped mask and the fill lands on a slice the user never picked.
-      const { fillHolesStore, parentImageID, artifactId, segmentId } =
+      const { fillHolesStore, parentImageID, segmentId } =
         await setupFillHolesRun(
           { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
           extent,
@@ -229,7 +228,7 @@ describe('Fill Holes store', () => {
 
       await expect(
         fillHolesStore.computeAlgorithm(
-          segmentTarget(parentImageID, artifactId, segmentId, 1)
+          segmentTarget(parentImageID, segmentId, 1)
         )
       ).rejects.toThrow(/nothing on this slice/i);
       expect(fillHolesWorkerMock).not.toHaveBeenCalled();
@@ -318,7 +317,7 @@ describe('Fill Holes store', () => {
   });
 
   it('fills only the selected segment when scoped to one', async () => {
-    const { fillHolesStore, parentImageID, artifactId, segmentId } =
+    const { fillHolesStore, parentImageID, segmentId } =
       await setupFillHolesRun(
         { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
         [0, 9, 0, 9, 0, 9],
@@ -327,7 +326,7 @@ describe('Fill Holes store', () => {
     fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
 
     await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, artifactId, segmentId, 1)
+      segmentTarget(parentImageID, segmentId, 1)
     );
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({ label: 1 });

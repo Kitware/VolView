@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
-import type { VoxelStorage } from '@/src/types/segmentation';
+import {
+  extentSize,
+  isEmptyExtent,
+  LABELMAP_BACKGROUND_VALUE,
+  type Extent3D,
+  type VoxelStorage,
+} from '@/src/types/segmentation';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
@@ -29,7 +35,7 @@ type ComputingState = TargetedState & {
 
 type PreviewingState = TargetedState & {
   step: 'previewing';
-  voxels: VoxelStorage;
+  target: ProcessTarget;
   originalScalars: TypedArray;
   processedScalars: TypedArray | number[];
   showingOriginal: boolean;
@@ -46,6 +52,7 @@ export type ProcessTarget =
   | {
       scope: 'segment';
       parentImageId: string;
+      segmentId: string;
       voxels: VoxelStorage;
       labelValue: number;
     }
@@ -84,13 +91,57 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     voxels.apply(scalars);
   }
 
+  /**
+   * A process claims the voxels it turned on the way a brush stroke does: every
+   * unlocked segment of the image releases them, a locked one keeps its own and
+   * the two overlap. Mask offsets are relative to the segment's own extent,
+   * read at commit time because growth moves it.
+   */
+  function claimTurnedOnVoxels(
+    segmentId: string,
+    before: TypedArray | number[],
+    after: TypedArray | number[]
+  ) {
+    const binding = segmentationStore.findSegmentBinding(segmentId);
+    if (!binding || isEmptyExtent(binding.extent)) return;
+    const extent = [...binding.extent] as Extent3D;
+    const [mi, mj, mk] = extentSize(extent);
+    // A mask reshaped since the run cannot be addressed by these offsets.
+    if (after.length !== mi * mj * mk || before.length !== after.length) return;
+
+    const clearOtherSegments = segmentationStore.otherSegmentClearer(segmentId);
+    for (let offset = 0; offset < after.length; offset += 1) {
+      const turnedOn =
+        after[offset] !== LABELMAP_BACKGROUND_VALUE &&
+        before[offset] === LABELMAP_BACKGROUND_VALUE;
+      if (turnedOn) {
+        clearOtherSegments(
+          (offset % mi) + extent[0],
+          (Math.floor(offset / mi) % mj) + extent[2],
+          Math.floor(offset / (mi * mj)) + extent[4]
+        );
+      }
+    }
+  }
+
   function confirmProcess() {
     const state = processState.value;
-    // Apply commits the processed result. When the user is viewing the
-    // original, the image currently holds originalScalars, so restore the
-    // processed scalars before finishing or the result is silently discarded.
-    if (state.step === 'previewing' && state.showingOriginal) {
-      writeIfPresent(state.voxels, state.processedScalars);
+    if (state.step === 'previewing') {
+      // Apply commits the processed result. When the user is viewing the
+      // original, the image currently holds originalScalars, so restore the
+      // processed scalars before finishing or the result is silently discarded.
+      if (state.showingOriginal) {
+        writeIfPresent(state.target.voxels, state.processedScalars);
+      }
+      // Only on confirm: a cancelled preview must leave the neighbours holding
+      // everything they had.
+      if (state.target.scope === 'segment') {
+        claimTurnedOnVoxels(
+          state.target.segmentId,
+          state.originalScalars,
+          state.processedScalars
+        );
+      }
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -105,7 +156,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const state = processState.value;
 
     if (state.step === 'previewing') {
-      writeIfPresent(state.voxels, state.originalScalars);
+      writeIfPresent(state.target.voxels, state.originalScalars);
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -130,6 +181,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       target: {
         scope: 'segment' as const,
         parentImageId: imageId,
+        segmentId,
         voxels: segmentationStore.segmentVoxels(segmentId),
         labelValue: binding.labelValue,
       },
@@ -224,7 +276,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         step: 'previewing',
         activeParentImageID,
         segmentId,
-        voxels,
+        target,
         originalScalars,
         // The algorithm's own array, not a copy of it: an algorithm must not
         // retain and mutate what it returns.
@@ -252,7 +304,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         ? state.originalScalars
         : state.processedScalars;
 
-      writeIfPresent(state.voxels, scalarsToShow);
+      writeIfPresent(state.target.voxels, scalarsToShow);
 
       processState.value = {
         ...state,

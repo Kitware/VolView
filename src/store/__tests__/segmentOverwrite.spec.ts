@@ -23,13 +23,24 @@ import {
 // stroke, not once per voxel: `clear` is called for every voxel a brush writes.
 // It takes PARENT index coordinates, the space extents are expressed in.
 //
-// Locks are deliberately not its business: a write path decides whether a voxel
-// may be written at all, and only then clears the rest.
+// A locked segment is exempt. `locked` means not editable, and losing a voxel
+// to a neighbour is an edit, so a locked sibling keeps it while the writing
+// segment gains it too: the two overlap. Locking is the whole opt-in for
+// overlap, and no write path refuses a voxel a locked segment already owns.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [4, 4, 4];
 
 const clearFor = (segmentId: string) => store().otherSegmentClearer(segmentId);
+
+/** Two segments of the same image, both holding one voxel. */
+function pairAt(index: Index3) {
+  const tumor = addSegment('img-1', 'Tumor');
+  const node = addSegment('img-1', 'Node');
+  seedVoxel(tumor, index);
+  seedVoxel(node, index);
+  return { tumor, node };
+}
 
 describe('clearing the other segments of an image', () => {
   beforeEach(async () => {
@@ -38,10 +49,7 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('clears the voxel in another segment’s mask', () => {
-    const tumor = addSegment('img-1', 'Tumor');
-    const node = addSegment('img-1', 'Node');
-    seedVoxel(tumor, [1, 1, 1]);
-    seedVoxel(node, [1, 1, 1]);
+    const { tumor, node } = pairAt([1, 1, 1]);
 
     clearFor(node)(1, 1, 1);
 
@@ -117,6 +125,44 @@ describe('clearing the other segments of an image', () => {
 
     expect(() => clearFor(only)(1, 1, 1)).not.toThrow();
     expect(maskValueAt(only, [1, 1, 1])).toBe(labelValueOf(only));
+  });
+
+  it('leaves a locked segment holding the voxel', () => {
+    const { tumor, node } = pairAt([1, 1, 1]);
+    store().updateSegment(tumor, { locked: true });
+
+    clearFor(node)(1, 1, 1);
+
+    expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
+  });
+
+  it('clears the unlocked siblings and skips the locked ones', () => {
+    const locked = addSegment('img-1', 'Locked');
+    const unlocked = addSegment('img-1', 'Unlocked');
+    const painting = addSegment('img-1', 'Painting');
+    seedVoxel(locked, [1, 1, 1]);
+    seedVoxel(unlocked, [1, 1, 1]);
+    seedVoxel(painting, [1, 1, 1]);
+    store().updateSegment(locked, { locked: true });
+
+    clearFor(painting)(1, 1, 1);
+
+    expect(maskValueAt(locked, [1, 1, 1])).toBe(labelValueOf(locked));
+    expect(maskValueAt(unlocked, [1, 1, 1])).toBe(0);
+  });
+
+  it('reads the locks once, when the clearer is made', () => {
+    const { tumor, node } = pairAt([1, 1, 1]);
+    store().updateSegment(tumor, { locked: true });
+    const clear = clearFor(node);
+    store().updateSegment(tumor, { locked: false });
+
+    clear(1, 1, 1);
+
+    // A lock lifted mid-stroke takes effect on the next stroke.
+    expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
   });
 
   it('addresses voxels in parent index space, not in mask offsets', () => {

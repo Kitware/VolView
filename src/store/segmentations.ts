@@ -699,11 +699,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   /**
    * Overwrite-all across N masks: one shared labelmap erased a voxel's old
    * value for free, so a write path clears the voxel in every other mask of the
-   * same parent image itself. Coordinates are PARENT indices. A sibling that
-   * does not reach the voxel has nothing there to clear, so nothing grows.
+   * same parent image itself. A locked segment is not editable, and losing a
+   * voxel is an edit, so it keeps the voxel and the two segments overlap.
+   * Coordinates are PARENT indices. A sibling that does not reach the voxel has
+   * nothing there to clear, so nothing grows.
    */
   function otherSegmentClearer(segmentId: string) {
-    const siblings = siblingMasks(segmentId);
+    const siblings = siblingMasks(segmentId, (segment) => !segment.locked);
     return (i: number, j: number, k: number) => {
       siblings.forEach((sibling) => {
         if (!extentContainsIndex(sibling.extent, i, j, k)) return;
@@ -713,18 +715,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         sibling.mask.modified();
       });
     };
-  }
-
-  /** Whether a locked segment of the same image already owns a parent voxel. */
-  function lockedSegmentAt(segmentId: string) {
-    const locked = siblingMasks(segmentId, (segment) => segment.locked);
-    return (i: number, j: number, k: number) =>
-      locked.some(
-        (sibling) =>
-          extentContainsIndex(sibling.extent, i, j, k) &&
-          sibling.scalars[maskOffset(sibling, i, j, k)] !==
-            LABELMAP_BACKGROUND_VALUE
-      );
   }
 
   /**
@@ -1608,7 +1598,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     convertImageToLabelmap,
     saveFormat,
     otherSegmentClearer,
-    lockedSegmentAt,
     compositeLabelmap,
     lockedLabelValues,
     segmentLayersForImage,

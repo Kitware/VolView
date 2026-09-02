@@ -25,7 +25,8 @@ import {
 //    touch, and only then captures scalars/dimensions/strides;
 //  - the threshold predicate reads the PARENT image, whose voxel offsets are
 //    not the mask's, so it converts through the mask's extent;
-//  - writing a voxel clears it in every other mask of the image.
+//  - writing a voxel clears it in every other UNLOCKED mask of the image; a
+//    locked one keeps it, so the two segments overlap there.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [4, 4, 4];
@@ -235,7 +236,7 @@ describe('painting into bounded masks', () => {
       expect(maskValueAt(active, [2, 1, 0])).toBeFalsy();
     });
 
-    it('takes nothing from a locked neighbour', async () => {
+    it('shares the voxel with a locked neighbour instead of taking it', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
       const neighbor = addSegment('img-1', 'Neighbour');
       seedVoxel(neighbor, [1, 1, 0]);
@@ -243,11 +244,25 @@ describe('painting into bounded masks', () => {
       const active = activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0]);
-      strokeAt('img-1', [3, 1, 0]);
 
       expect(maskValueAt(neighbor, [1, 1, 0])).toBe(labelValueOf(neighbor));
-      expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
-      expect(maskValueAt(active, [3, 1, 0])).toBe(labelValueOf(active));
+      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+    });
+
+    it('clears an unlocked neighbour while a locked one keeps the voxel', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const locked = addSegment('img-1', 'Locked');
+      const unlocked = addSegment('img-1', 'Unlocked');
+      seedVoxel(locked, [1, 1, 0]);
+      seedVoxel(unlocked, [1, 1, 0]);
+      store().updateSegment(locked, { locked: true });
+      const active = activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(maskValueAt(locked, [1, 1, 0])).toBe(labelValueOf(locked));
+      expect(maskValueAt(unlocked, [1, 1, 0])).toBe(0);
+      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
     });
   });
 });

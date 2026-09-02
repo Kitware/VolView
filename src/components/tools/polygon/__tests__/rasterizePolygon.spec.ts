@@ -21,7 +21,8 @@ import {
 // PolygonTool.vue so it can be tested: the component owns the view, not the
 // voxels. The mask grows to hold the polygon before `fillPoly` runs (a mask
 // that does not reach the polygon silently swallows every pixel), and the
-// filled voxels are cleared in the other segments of the image.
+// filled voxels are cleared in the other UNLOCKED segments of the image. A
+// locked one keeps its voxels, so the two segments overlap there.
 //
 // Unit spacing and a zero origin make world points index points, and an
 // identity direction maps the Axial view axis to K.
@@ -98,6 +99,21 @@ describe('rasterizing a polygon into a bounded mask', () => {
 
     expect(maskValueAt(neighbor, [2, 3, 0])).toBe(0);
     expect(maskValueAt(neighbor, [0, 0, 0])).toBe(labelValueOf(neighbor));
+  });
+
+  it('shares the filled voxels with a locked neighbour', () => {
+    const locked = addSegment('img-1', 'Locked');
+    const unlocked = addSegment('img-1', 'Unlocked');
+    seedVoxel(locked, [2, 3, 0]);
+    seedVoxel(unlocked, [2, 3, 0]);
+    store().updateSegment(locked, { locked: true });
+    const segmentId = addSegment('img-1', 'Tumor');
+
+    rasterize(segmentId);
+
+    expect(maskValueAt(locked, [2, 3, 0])).toBe(labelValueOf(locked));
+    expect(maskValueAt(unlocked, [2, 3, 0])).toBe(0);
+    expect(maskValueAt(segmentId, [2, 3, 0])).toBe(labelValueOf(segmentId));
   });
 
   it('keeps an earlier polygon when a later one grows the mask', () => {

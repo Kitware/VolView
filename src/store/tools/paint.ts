@@ -187,10 +187,9 @@ export const usePaintToolStore = defineStore('paint', () => {
     const extent = [...voxels.binding()!.extent] as Extent3D;
     if (isEmptyExtent(extent)) return;
 
-    // Resolved once per stroke: the predicate and the clear below run for every
-    // voxel the brush touches.
+    // Resolved once per stroke: the clear below runs for every voxel the brush
+    // touches.
     const clearOtherSegments = segmentationStore.otherSegmentClearer(segmentId);
-    const lockedAt = segmentationStore.lockedSegmentAt(segmentId);
     const parentDimensions = parentImage.getDimensions();
     const maskData = voxels.scalars();
     const [minThreshold, maxThreshold] = thresholdRange.value;
@@ -203,10 +202,6 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     const shouldPaint = (offset: number, point: number[]) => {
       const [i, j, k] = toParent(point);
-      // A locked neighbour keeps its voxel, and this segment does not get it.
-      // Erasing takes nothing from a neighbour, so no lock is in its way.
-      if (!erasing && lockedAt(i, j, k)) return false;
-
       // Erase clears the active segment only.
       if (erasing && maskData[offset] !== labelValue) return false;
 
