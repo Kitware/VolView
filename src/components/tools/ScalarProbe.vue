@@ -77,14 +77,16 @@ const getSegments = () => {
       const segment = segmentationStore.getSegment(layer.segmentId);
       const voxels = segmentationStore.artifactVoxels(layer.artifactId);
       if (!voxels.exists()) return null;
+      const catalog =
+        segmentationStore.labelmapSegmentsByArtifact[layer.artifactId] ?? [];
       return {
         type: 'segmentGroup',
         id: layer.artifactId,
         name: segment.name,
         rep,
-        nameByLabelValue: {
-          [segment.representations.labelmap!.labelValue]: segment.name,
-        },
+        nameByLabelValue: Object.fromEntries(
+          catalog.map((entry) => [entry.value, entry.name])
+        ),
         image: voxels.image(),
       };
     })

@@ -208,11 +208,11 @@ describe('multiple configs merge at section granularity, last-wins (in-flight de
     const [
       { applyPreStateConfig, config },
       { useWindowingStore },
-      { useSegmentGroupStore },
+      { useSegmentationStore },
     ] = await Promise.all([
       import('@/src/io/import/configJson'),
       import('@/src/store/view-configs/windowing'),
-      import('@/src/store/segmentGroups'),
+      import('@/src/store/segmentations'),
     ]);
 
     // Config A sets windowing.
@@ -232,7 +232,7 @@ describe('multiple configs merge at section granularity, last-wins (in-flight de
       level: 80,
       width: 800,
     });
-    expect(useSegmentGroupStore().saveFormat).toBe('nrrd');
+    expect(useSegmentationStore().saveFormat).toBe('nrrd');
   });
 });
 

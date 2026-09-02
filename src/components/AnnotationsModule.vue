@@ -4,13 +4,13 @@ import { storeToRefs } from 'pinia';
 import { AnnotationToolType, Tools } from '@/src/store/tools/types';
 import { useToolStore } from '@/src/store/tools';
 import MeasurementsToolList from './MeasurementsToolList.vue';
-import SegmentGroupControls from './SegmentGroupControls.vue';
+import SegmentList from './SegmentList.vue';
 import ToolControls from './ToolControls.vue';
 import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
 
 const Tabs = {
   Measurements: 'measurements',
-  SegmentGroups: 'segmentGroups',
+  Segments: 'segments',
 };
 
 const MeasurementTools = [
@@ -33,12 +33,12 @@ const MeasurementToolTypes = new Set<string>(
   MeasurementTools.map(({ type }) => type)
 );
 
-const tab = ref(Tabs.SegmentGroups);
+const tab = ref(Tabs.Segments);
 const { currentTool } = storeToRefs(useToolStore());
 
 function autoFocusTab() {
   if (currentTool.value === Tools.Paint) {
-    tab.value = Tabs.SegmentGroups;
+    tab.value = Tabs.Segments;
   } else if (MeasurementToolTypes.has(currentTool.value)) {
     tab.value = Tabs.Measurements;
   }
@@ -57,12 +57,12 @@ watch(
   <div>
     <tool-controls />
     <v-tabs v-model="tab" density="compact" grow class="annotation-tabs my-1">
-      <v-tab value="segmentGroups" class="tab-header">Segment Groups</v-tab>
+      <v-tab value="segments" class="tab-header">Segments</v-tab>
       <v-tab value="measurements" class="tab-header">Measurements</v-tab>
     </v-tabs>
     <v-window v-model="tab">
-      <v-window-item value="segmentGroups">
-        <segment-group-controls />
+      <v-window-item value="segments">
+        <segment-list />
       </v-window-item>
       <v-window-item value="measurements">
         <measurements-tool-list :tools="MeasurementTools" />

@@ -214,16 +214,8 @@ class VolViewPage extends Page {
     return $('button[data-testid="module-tab-Annotations"]');
   }
 
-  get newSegmentGroupButton() {
-    return $('button*=New Group');
-  }
-
   get activeDialog() {
     return $('div[role="dialog"]');
-  }
-
-  get activeDialogInput() {
-    return this.activeDialog.$('input[placeholder="Unnamed Segment Group"]');
   }
 
   get saveSessionFilenameInput() {
@@ -234,32 +226,33 @@ class VolViewPage extends Page {
     return $('span[data-testid="save-session-confirm-button"]');
   }
 
-  get segmentGroupsTab() {
-    return $('button.v-tab*=Segment Groups');
+  get segmentsTab() {
+    // "Measurements" is the only sibling tab and does not contain "Segments".
+    return $('button.v-tab*=Segments');
   }
 
-  get segmentGroupSaveButtons() {
-    return $$('button[data-testid="segment-group-save-button"]');
+  get saveSegmentsButtons() {
+    return $$('button[data-testid="save-segments-button"]');
   }
 
-  get segmentGroupList() {
-    return $('.segment-group-list');
+  get segmentList() {
+    return $('[data-testid="segment-list"]');
   }
 
-  get saveSegmentGroupFilenameInput() {
+  get saveSegmentsFilenameInput() {
     return this.activeDialog.$('#filename');
   }
 
-  get saveSegmentGroupConfirmButton() {
+  get saveSegmentsConfirmButton() {
     return this.activeDialog.$('button=Save');
   }
 
-  async clickFirstSegmentGroupSaveButton() {
+  async clickSaveSegmentsButton() {
     await browser.waitUntil(async () => {
-      const buttons = await this.segmentGroupSaveButtons;
+      const buttons = await this.saveSegmentsButtons;
       return (await buttons.length) >= 1;
     });
-    const buttons = await this.segmentGroupSaveButtons;
+    const buttons = await this.saveSegmentsButtons;
     await buttons[0].scrollIntoView();
     await buttons[0].waitForClickable();
     await buttons[0].click();
@@ -286,20 +279,6 @@ class VolViewPage extends Page {
     });
 
     return fileName;
-  }
-
-  async createSegmentGroup(name: string) {
-    const annotationsTab = await this.annotationsModuleTab;
-    await annotationsTab.click();
-
-    const newGroup = await this.newSegmentGroupButton;
-    await newGroup.waitForClickable();
-    await newGroup.click();
-
-    const input = await this.activeDialogInput;
-    await input.waitForDisplayed();
-    await setValueVueInput(input, name);
-    await browser.keys([Key.Enter]);
   }
 
   get labelStrokeWidthInput() {

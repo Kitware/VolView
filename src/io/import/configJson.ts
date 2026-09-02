@@ -20,7 +20,7 @@ import {
   isDispatchable,
 } from '@/src/composables/useKeyboardShortcuts';
 import { surfaceWarning } from '@/src/store/messages';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
 import { layoutConfig } from '@/src/utils/layoutParsing';
@@ -270,7 +270,7 @@ const applyIo = (manifest: Config) => {
   if (!manifest.io) return;
 
   if (manifest.io.segmentGroupSaveFormat)
-    useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
+    useSegmentationStore().saveFormat = manifest.io.segmentGroupSaveFormat;
   const loadDataStore = useLoadDataStore();
   loadDataStore.segmentGroupExtension = manifest.io.segmentGroupExtension;
   loadDataStore.layerExtension = manifest.io.layerExtension;

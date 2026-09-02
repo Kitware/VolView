@@ -33,10 +33,9 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import {
-  useSegmentGroupStore,
+  useSegmentationStore,
   type ImportedSegment,
-} from '@/src/store/segmentGroups';
-import { useSegmentationStore } from '@/src/store/segmentations';
+} from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
@@ -424,7 +423,7 @@ export const appApplyDependencies = (): ApplyDependencies => ({
         ({ source }) => source
       ),
     convertImageToLabelmap: (childSelection, parentSelection, source) =>
-      useSegmentGroupStore().convertImageToLabelmap(
+      useSegmentationStore().convertImageToLabelmap(
         childSelection,
         parentSelection,
         source

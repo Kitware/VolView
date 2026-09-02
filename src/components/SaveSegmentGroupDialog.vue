@@ -1,7 +1,7 @@
 <template>
   <v-card>
     <v-card-title class="d-flex flex-row align-center">
-      Save Segment Group
+      Save Segments
     </v-card-title>
     <v-card-text>
       <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
@@ -85,7 +85,7 @@ async function saveSegmentGroup() {
   }
 
   saving.value = true;
-  await useErrorMessage('Failed to save segment group', async () => {
+  await useErrorMessage('Failed to save segments', async () => {
     const sanitizedFileName = sanitizeSegmentGroupFileStem(fileName.value);
     fileNameValue.value = sanitizedFileName;
     // What leaves VolView is the image's whole segmentation, not one segment's

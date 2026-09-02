@@ -55,11 +55,11 @@ const downloadSegmentGroup = async (stem: string) => {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   });
 
-  await volViewPage.clickFirstSegmentGroupSaveButton();
-  const input = volViewPage.saveSegmentGroupFilenameInput;
+  await volViewPage.clickSaveSegmentsButton();
+  const input = volViewPage.saveSegmentsFilenameInput;
   await input.waitForDisplayed();
   await setValueVueInput(input, stem);
-  await volViewPage.saveSegmentGroupConfirmButton.click();
+  await volViewPage.saveSegmentsConfirmButton.click();
 
   await waitForFileExists(filePath, SAVE_TIMEOUT);
   await browser.waitUntil(

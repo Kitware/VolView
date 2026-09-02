@@ -20,7 +20,6 @@ import type {
   SliceConfig,
   WindowLevelConfig,
   LayersConfig,
-  SegmentGroupConfig,
   VolumeColorConfig,
   CinePlaybackViewConfig,
 } from '@/src/store/view-configs/types';
@@ -266,11 +265,6 @@ const LayersConfig = z.object({
   blendConfig: BlendConfig,
 }) satisfies z.ZodType<LayersConfig>;
 
-const SegmentGroupConfig = z.object({
-  outlineOpacity: z.number(),
-  outlineThickness: z.number(),
-}) satisfies z.ZodType<SegmentGroupConfig>;
-
 const CinePlaybackViewConfig = z.object({
   frame: z.number(),
 }) satisfies z.ZodType<CinePlaybackViewConfig>;
@@ -279,7 +273,6 @@ const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
   layers: LayersConfig.optional(),
-  segmentGroup: SegmentGroupConfig.optional(),
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
   cinePlayback: CinePlaybackViewConfig.optional(),

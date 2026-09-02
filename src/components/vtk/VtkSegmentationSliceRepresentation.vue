@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject, computed, unref } from 'vue';
+import { toRefs, watchEffect, inject, computed } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { LPSAxis } from '@/src/types/lps';
@@ -16,7 +16,6 @@ import { convertSliceIndex } from '@/src/utils/imageSpace';
 import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import useLayerColoringStore from '@/src/store/view-configs/layers';
-import { useSegmentGroupConfigStore } from '@/src/store/view-configs/segmentGroups';
 import {
   segmentCoincidentOffset,
   segmentFillAlpha,
@@ -206,19 +205,20 @@ const applySegmentColoring = () => {
 
 watchEffect(applySegmentColoring);
 
-const configStore = useSegmentGroupConfigStore();
-const config = computed(() =>
-  configStore.getConfig(unref(viewId), unref(segmentationId))
+const segmentation = computed(() =>
+  segmentationStore.getSegmentationForArtifact(segmentationId.value)
 );
 
-const outlineThickness = computed(() => config.value?.outlineThickness ?? 2);
+const outlineThickness = computed(
+  () => segmentation.value?.outlineThickness ?? 2
+);
 sliceRep.property.setUseLabelOutline(true);
 sliceRep.property.setUseLookupTableScalarRange(true);
 
 watchEffect(() => {
   if (!segments.value) return; // segment group just deleted
 
-  const groupOpacity = config.value?.outlineOpacity ?? 1;
+  const groupOpacity = segmentation.value?.outlineOpacity ?? 1;
   const { thicknesses, opacities } = segmentOutlineTables(
     segments.value,
     outlineThickness.value,

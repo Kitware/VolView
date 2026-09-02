@@ -175,6 +175,6 @@ describe('paint edit target', () => {
     paintStore.activateTool();
 
     expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-    expect(store().artifactsForImage('img-1')).toEqual([]);
+    expect(store().segmentLayersForImage('img-1')).toEqual([]);
   });
 });

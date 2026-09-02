@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
-import { LABELMAP_MAX_VALUE } from '@/src/store/segmentGroups';
+import { LABELMAP_MAX_VALUE } from '@/src/store/segmentations';
 import type { Extent3D } from '@/src/types/segmentation';
 import { isEmptyExtent } from '@/src/types/segmentation';
 import {

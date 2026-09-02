@@ -26,6 +26,12 @@ export type Segment = {
   };
 };
 
+/** The value a mask voxel carries where no segment claims it. */
+export const LABELMAP_BACKGROUND_VALUE = 0;
+
+/** The name a segment gets when nothing named it: shared by decode and paint. */
+export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
+
 /**
  * One artifact's label descriptor, derived from the segments bound to it.
  * Identity lives on `Segment`; this is the value-keyed view the labelmap

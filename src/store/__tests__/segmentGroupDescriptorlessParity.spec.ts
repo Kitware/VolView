@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { leafStateId } from '@/src/io/import/dataSource';
@@ -149,7 +148,7 @@ async function liveCatalog(segmentMetadata?: Map<string, string>) {
   setActivePinia(createPinia());
   seat('parent-img', 'CT Chest', makeParentImage());
   seat('child-img', 'Tumor.seg.nrrd', makeLabelmapImage(), segmentMetadata);
-  const store = useSegmentGroupStore();
+  const store = useSegmentationStore();
   await store.convertImageToLabelmap('child-img', 'parent-img');
   return catalogFor('parent-img');
 }
@@ -248,7 +247,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     setActivePinia(createPinia());
     seat('parent-img', 'CT Chest', makeParentImage());
     seat('child-img', 'Sparse.seg.nrrd', makeSparseLabelmapImage());
-    const store = useSegmentGroupStore();
+    const store = useSegmentationStore();
 
     await store.convertImageToLabelmap('child-img', 'parent-img');
 
@@ -264,7 +263,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     // built with the same all-zero image helper the parent uses. Distinct
     // nonzero labels are enumerated, so this labelmap has none.
     seat('child-img', 'Empty.seg.nrrd', makeParentImage());
-    const store = useSegmentGroupStore();
+    const store = useSegmentationStore();
 
     await store.convertImageToLabelmap('child-img', 'parent-img');
 

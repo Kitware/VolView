@@ -5,7 +5,6 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { listSegments } from '@/src/types/segmentation';
 import {
   addSegment,
@@ -208,10 +207,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
       'Tumor.seg.nrrd',
       { id: 'child-img' }
     );
-    await useSegmentGroupStore().convertImageToLabelmap(
-      'child-img',
-      'parent-img'
-    );
+    await store().convertImageToLabelmap('child-img', 'parent-img');
   };
 
   it('makes one segment per label value, bounded to that value’s voxels', async () => {

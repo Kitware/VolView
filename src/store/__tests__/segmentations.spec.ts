@@ -6,7 +6,6 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { isEmptyExtent } from '@/src/types/segmentation';
 
@@ -497,23 +496,6 @@ describe('segmentation store', () => {
     });
   });
 
-  describe('the default segment group for an image', () => {
-    it('seeds the image once, however often it is asked for', async () => {
-      await seatImage('img-1');
-      const segmentGroups = useSegmentGroupStore();
-
-      const first = segmentGroups.newLabelmapFromImage('img-1');
-      const second = segmentGroups.newLabelmapFromImage('img-1');
-
-      // One group per image, so a repeat call cannot stack another set of
-      // identically named defaults on it.
-      expect(second).toBe(first);
-      expect(segmentsOfImage('img-1').map((segment) => segment.name)).toEqual(
-        DEFAULT_SEGMENT_MASKS.map((descriptor) => descriptor.name)
-      );
-    });
-  });
-
   describe('conversion and decode', () => {
     it('creates one bound segment per discovered label value', async () => {
       await seatImage('parent-img', 'Chest CT');
@@ -522,10 +504,7 @@ describe('segmentation store', () => {
       values.fill(2, 12);
       await seatLabelValues('child-img', values);
 
-      await useSegmentGroupStore().convertImageToLabelmap(
-        'child-img',
-        'parent-img'
-      );
+      await store().convertImageToLabelmap('child-img', 'parent-img');
 
       const segmentation = store().getSegmentationForImage('parent-img');
       expect(segmentation).toBeTruthy();
@@ -550,10 +529,7 @@ describe('segmentation store', () => {
       values.fill(2, 12);
       await seatLabelValues('child-img', values);
 
-      await useSegmentGroupStore().convertImageToLabelmap(
-        'child-img',
-        'parent-img'
-      );
+      await store().convertImageToLabelmap('child-img', 'parent-img');
 
       const segments = segmentsOfImage('parent-img');
       expect(segments).toHaveLength(2);
@@ -586,10 +562,7 @@ describe('segmentation store', () => {
         ])
       );
 
-      await useSegmentGroupStore().convertImageToLabelmap(
-        'child-img',
-        'parent-img'
-      );
+      await store().convertImageToLabelmap('child-img', 'parent-img');
 
       const segments = segmentsOfImage('parent-img');
       expect(labelValuesOf(segments)).toEqual([1, 2]);
@@ -610,7 +583,7 @@ describe('segmentation store', () => {
       values.fill(1, 4, 12);
       await seatLabelValues('child-a', values);
       await seatLabelValues('child-b', values);
-      const segmentGroups = useSegmentGroupStore();
+      const segmentGroups = store();
 
       await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
       await segmentGroups.convertImageToLabelmap('child-b', 'parent-img');
@@ -629,7 +602,7 @@ describe('segmentation store', () => {
       values.fill(1, 4, 12);
       await seatLabelValues('child-a', values);
       await seatLabelValues('child-b', values);
-      const segmentGroups = useSegmentGroupStore();
+      const segmentGroups = store();
 
       await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
       const [second] = await segmentGroups.convertImageToLabelmap(
@@ -648,10 +621,7 @@ describe('segmentation store', () => {
       await seatImage('parent-img', 'Chest CT');
       await seatLabelValues('child-img', new Uint8Array(VOXEL_COUNT));
 
-      await useSegmentGroupStore().convertImageToLabelmap(
-        'child-img',
-        'parent-img'
-      );
+      await store().convertImageToLabelmap('child-img', 'parent-img');
 
       expect(segmentsOfImage('parent-img')).toEqual([]);
       expect(Object.keys(store().artifactIndex)).toEqual([]);

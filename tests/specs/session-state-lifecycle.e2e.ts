@@ -9,7 +9,6 @@ import {
 } from './configTestUtils';
 import {
   downloadFile,
-  openUrls,
   openVolViewPage,
   SESSION_SAVE_TIMEOUT,
   waitForFileExists,
@@ -97,11 +96,8 @@ describe('Session state lifecycle', () => {
     await waitForElementCount('.v-list-item i.mdi-vector-square.tool-icon');
     await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
 
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await waitForElementCount('.segment-group-list .v-list-item');
+    await openAnnotationSegments();
+    await showFirstSegmentGroup();
   });
 
   it('edited label strokeWidth persists through save/load cycle', async () => {
@@ -147,13 +143,26 @@ describe('Session state lifecycle', () => {
     expect(tools.rectangles.tools[0].strokeWidth).toEqual(editedStrokeWidth);
   });
 
-  it('sanitizes segment group names when saving labelmaps into the session zip', async () => {
-    await openUrls([PROSTATEX_DATASET]);
+  it('sanitizes stored labelmap names when saving them into the session zip', async () => {
+    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
+    await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
 
-    const segmentGroupName = 'Liver: left/right*?';
+    // The panel is one flat list per image with no group left to name, so a
+    // filesystem-hostile name now reaches the app through the manifest.
+    const storedName = 'Liver: left/right*?';
     const sanitizedFilePath = 'segmentations/Liver left right.vti';
-
-    await volViewPage.createSegmentGroup(segmentGroupName);
+    const source = PROSTATE_610_LABELMAP_MANIFEST.labelMaps[0];
+    const fileName = `hostile-labelmap-name-${Date.now()}.volview.json`;
+    await writeManifestToFile(
+      {
+        ...PROSTATE_610_LABELMAP_MANIFEST,
+        labelMaps: [
+          { ...source, metadata: { ...source.metadata, name: storedName } },
+        ],
+      },
+      fileName
+    );
+    await openVolViewPage(fileName);
 
     const { manifest, zip } = await saveAndParseManifest();
     if (!zip) {
@@ -165,7 +174,7 @@ describe('Session state lifecycle', () => {
     }>;
 
     expect(artifacts.length).toEqual(1);
-    expect(artifacts[0].name).toEqual(segmentGroupName);
+    expect(artifacts[0].name).toEqual(storedName);
     expect(artifacts[0].path).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });

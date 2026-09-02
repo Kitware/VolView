@@ -100,6 +100,12 @@ const globalOptions = {
     EditableChipList: ChipListStub,
     SegmentEditor: SegmentEditorStub,
     IsolatedDialog: { template: '<div class="dialog"><slot /></div>' },
+    CloseableDialog: {
+      props: ['modelValue'],
+      template:
+        '<div v-if="modelValue" class="dialog"><slot :close="() => {}" /></div>',
+    },
+    SaveSegmentGroupDialog: { props: ['id'], template: '<div />' },
     ColorDot: { props: ['color'], template: '<span class="color-dot" />' },
     VBtn: BtnStub,
     VIcon: IconStub,
@@ -202,6 +208,32 @@ describe('flat segment list', () => {
     await nextTick();
 
     expect(store().activeSegmentId).toBe(first.id);
+  });
+});
+
+describe('flat segment list with no viewed image', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1');
+  });
+
+  it('offers no list and no toggles until an image is viewed', async () => {
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="segment-list"]').exists()).toBe(false);
+    expect(wrapper.findAll('button')).toEqual([]);
+    expect(wrapper.text()).toContain('No selected image');
+  });
+
+  it('renders the list once an image is viewed', async () => {
+    const wrapper = mountList();
+    await nextTick();
+
+    await viewImage('img-1');
+
+    expect(wrapper.find('[data-testid="segment-list"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain('No selected image');
   });
 });
 

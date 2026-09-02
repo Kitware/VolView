@@ -8,7 +8,7 @@ import {
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -256,10 +256,10 @@ function loadSegmentations(
     return modality.trim() === 'SEG';
   });
 
-  const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
   [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
     const loadable = toDataSelection(ds);
-    segmentGroupStore.convertImageToLabelmap(
+    segmentationStore.convertImageToLabelmap(
       loadable,
       toDataSelection(primaryDataSource)
     );

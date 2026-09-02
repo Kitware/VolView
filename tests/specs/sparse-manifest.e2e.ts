@@ -11,6 +11,10 @@ import {
   writeManifestToZip,
 } from './utils';
 import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
+import {
+  openAnnotationSegments,
+  showFirstSegmentGroup,
+} from './segmentationTestUtils';
 
 describe('Sparse manifest.json', () => {
   it('loads manifest with only URL data source', async () => {
@@ -124,26 +128,8 @@ describe('Sparse manifest.json', () => {
     await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
     await openVolViewPage(fileName);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await browser.waitUntil(
-      async () => {
-        const segmentGroups = await $$('.segment-group-list .v-list-item');
-        const count = await segmentGroups.length;
-        return count >= 1;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Segment group not found in segment groups list',
-      }
-    );
+    await openAnnotationSegments();
+    await showFirstSegmentGroup(DOWNLOAD_TIMEOUT);
 
     // Verify the segment group source image is NOT in the Anonymous section
     const dataTab = await $('button[data-testid="module-tab-Data"]');

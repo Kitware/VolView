@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { volViewPage } from '../pageobjects/volview.page';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
+import { openAnnotationSegments, segmentNames } from './segmentationTestUtils';
 
 const writeBufferToFile = async (data: Buffer, fileName: string) => {
   const filePath = path.join(TEMP_DIR, fileName);
@@ -154,18 +155,11 @@ describe('Session with large URI base and nii.gz labelmap', function () {
       await volViewPage.open(`?urls=[tmp/${sessionFileName}]`);
       await volViewPage.waitForViews(DOWNLOAD_TIMEOUT * 6);
 
-      // Open the segment groups panel so the list renders in the DOM
-      const annotationsTab = await $(
-        'button[data-testid="module-tab-Annotations"]'
-      );
-      await annotationsTab.click();
+      // Open the segments panel so the list renders in the DOM
+      await openAnnotationSegments();
 
-      const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-      await segmentGroupsTab.waitForClickable();
-      await segmentGroupsTab.click();
-
-      // Wait for the labelmap readImage to either succeed (segment group
-      // appears) or fail (RangeError in console OR error notification).
+      // Wait for the labelmap readImage to either succeed (a segment appears)
+      // or fail (RangeError in console OR error notification).
       // The deserialization is async and finishes after views render.
       const notifsBefore = await volViewPage.getNotificationsCount();
 
@@ -178,8 +172,7 @@ describe('Session with large URI base and nii.gz labelmap', function () {
           } catch {
             // badge may not exist yet
           }
-          const segmentGroups = await $$('.segment-group-list .v-list-item');
-          return (await segmentGroups.length) >= 1;
+          return (await segmentNames()).length >= 1;
         },
         {
           timeout: DOWNLOAD_TIMEOUT * 3,

@@ -9,6 +9,10 @@ import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 import * as path from 'path';
 import * as fs from 'fs';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
+import {
+  openAnnotationSegments,
+  showFirstSegmentGroup,
+} from './segmentationTestUtils';
 
 /**
  * Regression test for labelmap with different direction matrix than parent image.
@@ -47,25 +51,8 @@ describe('Labelmap with different direction matrix', () => {
     const notifications = await volViewPage.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await browser.waitUntil(
-      async () => {
-        const segmentGroups = await $$('.segment-group-list .v-list-item');
-        return (await segmentGroups.length) >= 1;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Segment group not found in segment groups list',
-      }
-    );
+    await openAnnotationSegments();
+    await showFirstSegmentGroup(DOWNLOAD_TIMEOUT);
 
     await volViewPage.openLayoutMenu(1);
     await volViewPage.selectLayoutOption('Coronal Only');

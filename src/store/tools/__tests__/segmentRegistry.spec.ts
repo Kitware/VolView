@@ -158,7 +158,7 @@ describe('shared segment registry', () => {
     const id = registry.createSegment({ name: 'Tumor' });
 
     expect(segmentation.segments[id].representations.labelmap).toBeUndefined();
-    expect(segmentationStore().artifactsForImage('img-1')).toEqual([]);
+    expect(segmentationStore().segmentLayersForImage('img-1')).toEqual([]);
   });
 
   it('tracks the active segment', () => {

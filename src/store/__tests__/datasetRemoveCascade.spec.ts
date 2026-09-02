@@ -6,7 +6,6 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
@@ -58,11 +57,11 @@ const makeRuler = (imageID: string) =>
     placing: false,
   }) as never;
 
-/** A default segment group on an image, with the first segment's mask allocated. */
+/** A segmentation on an image, with one segment's mask allocated. */
 const seatSegmentMask = (imageId: string) => {
   const segmentations = useSegmentationStore();
-  const segmentationId = useSegmentGroupStore().newLabelmapFromImage(imageId)!;
-  const segmentId = segmentations.segmentations[segmentationId].order[0];
+  const segmentationId = segmentations.ensureSegmentationForImage(imageId).id;
+  const segmentId = segmentations.createSegment(segmentationId).id;
   const { artifactId } = segmentations.segmentVoxels(segmentId).materialize();
   return { segmentationId, segmentId, artifactId };
 };
@@ -76,31 +75,27 @@ describe('dataset remove — synchronous reference cascade', () => {
     seatImage('img-1', 'CT');
     const segmentations = useSegmentationStore();
     const { artifactId } = seatSegmentMask('img-1');
-    expect(segmentations.artifactOrderByParent['img-1']).toContain(artifactId);
+    expect(segmentations.artifactMeta).toHaveProperty(artifactId);
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentations.artifactOrderByParent['img-1'] ?? []).toEqual([]);
     expect(segmentations.artifactMeta).not.toHaveProperty(artifactId);
   });
 
   it('clears ALL segment masks when an image has several (no splice-skip)', () => {
     seatImage('img-1', 'CT');
     const segmentations = useSegmentationStore();
-    const segmentationId = seatSegmentMask('img-1').segmentationId;
-    const ids = ['A', 'B'].map((name) => {
-      const segment = segmentations.createSegment(segmentationId, { name });
+    const first = seatSegmentMask('img-1');
+    const rest = ['A', 'B'].map((name) => {
+      const segment = segmentations.createSegment(first.segmentationId, {
+        name,
+      });
       return segmentations.segmentVoxels(segment.id).materialize().artifactId;
     });
-    const artifactIds = [
-      segmentations.artifactOrderByParent['img-1']![0],
-      ...ids,
-    ];
-    expect(segmentations.artifactOrderByParent['img-1']).toEqual(artifactIds);
+    const artifactIds = [first.artifactId, ...rest];
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentations.artifactOrderByParent['img-1'] ?? []).toEqual([]);
     artifactIds.forEach((id) => {
       expect(segmentations.artifactMeta).not.toHaveProperty(id);
       expect(segmentations.artifactIndex).not.toHaveProperty(id);

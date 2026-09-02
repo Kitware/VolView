@@ -41,7 +41,11 @@ describe('polygon rasterize target', () => {
     const target = resolveRasterizeTarget('img-1', segment.id);
 
     expect(target.labelValue).toBe(1);
-    expect(store().artifactsForImage('img-1')).toEqual([target.artifactId]);
+    expect(
+      store()
+        .segmentLayersForImage('img-1')
+        .map((layer) => layer.artifactId)
+    ).toEqual([target.artifactId]);
     expect(target.voxels.image()).toBe(
       store().artifactIndex[target.artifactId]
     );
@@ -75,7 +79,7 @@ describe('polygon rasterize target', () => {
 
     expect(second.artifactId).toBe(first.artifactId);
     expect(second.labelValue).toBe(first.labelValue);
-    expect(store().artifactsForImage('img-1')).toHaveLength(1);
+    expect(store().segmentLayersForImage('img-1')).toHaveLength(1);
   });
 
   it('leaves the active segment alone', async () => {

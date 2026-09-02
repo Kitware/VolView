@@ -111,7 +111,7 @@ describe('segment voxel accessor', () => {
       const target = addSegment('img-1');
 
       expect(voxelsOf(target).binding()).toBeUndefined();
-      expect(store().artifactsForImage('img-1')).toHaveLength(0);
+      expect(store().segmentLayersForImage('img-1')).toHaveLength(0);
     });
 
     it('refuses voxel access instead of allocating on read', () => {
@@ -122,7 +122,7 @@ describe('segment voxel accessor', () => {
       expect(() => voxels.snapshot()).toThrow();
       expect(() => voxels.apply(new Uint8Array(VOXEL_COUNT))).toThrow();
       expect(() => voxels.ensureContains(FULL_EXTENT)).toThrow();
-      expect(store().artifactsForImage('img-1')).toHaveLength(0);
+      expect(store().segmentLayersForImage('img-1')).toHaveLength(0);
     });
   });
 
@@ -131,8 +131,10 @@ describe('segment voxel accessor', () => {
       const target = addSegment('img-1');
       const binding = voxelsOf(target).materialize();
 
-      expect(store().artifactsForImage('img-1')).toHaveLength(1);
-      expect(binding.artifactId).toBe(store().artifactsForImage('img-1')[0]);
+      expect(store().segmentLayersForImage('img-1')).toHaveLength(1);
+      expect(binding.artifactId).toBe(
+        store().segmentLayersForImage('img-1')[0].artifactId
+      );
       expect(binding.labelValue).toBeGreaterThan(0);
       expect(isEmptyExtent(binding.extent)).toBe(true);
       expect(voxelsOf(target).image().getDimensions()).toEqual([0, 0, 0]);
@@ -146,7 +148,7 @@ describe('segment voxel accessor', () => {
       const second = voxelsOf(target).materialize();
 
       expect(second).toEqual(first);
-      expect(store().artifactsForImage('img-1')).toHaveLength(1);
+      expect(store().segmentLayersForImage('img-1')).toHaveLength(1);
       expect(voxelsOf(target).image()).toBe(image);
     });
 
@@ -157,7 +159,7 @@ describe('segment voxel accessor', () => {
       const a = voxelsOf(first).materialize();
       const b = voxelsOf(second).materialize();
 
-      expect(store().artifactsForImage('img-1')).toHaveLength(2);
+      expect(store().segmentLayersForImage('img-1')).toHaveLength(2);
       expect(b.artifactId).not.toBe(a.artifactId);
       expect(b.labelValue).not.toBe(a.labelValue);
       expect(voxelsOf(second).image()).not.toBe(voxelsOf(first).image());
@@ -202,7 +204,7 @@ describe('segment voxel accessor', () => {
       const target = addSegment('img-1');
 
       expect(() => voxelsOf(target).scalars()).toThrow(/No storage/);
-      expect(store().artifactsForImage('img-1')).toHaveLength(0);
+      expect(store().segmentLayersForImage('img-1')).toHaveLength(0);
     });
   });
 

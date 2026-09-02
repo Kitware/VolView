@@ -80,7 +80,7 @@ export const renameLabel = async (from: string, to: string) => {
 
 export const openAnnotationSegments = async () => {
   await volViewPage.annotationsModuleTab.click();
-  const tab = volViewPage.segmentGroupsTab;
+  const tab = volViewPage.segmentsTab;
   await tab.waitForClickable();
   await tab.click();
 };
@@ -93,9 +93,10 @@ export const segmentGroupNames = segmentNames;
  * The list follows the viewed image, so there is nothing left to pick; the wait
  * stays, because the list renders empty until the image's segments arrive.
  */
-export const showFirstSegmentGroup = async () => {
-  await $(SEGMENT_LIST).waitForDisplayed();
+export const showFirstSegmentGroup = async (timeout?: number) => {
+  await $(SEGMENT_LIST).waitForDisplayed(timeout ? { timeout } : undefined);
   await browser.waitUntil(async () => (await segmentNames()).length >= 1, {
+    ...(timeout ? { timeout } : {}),
     timeoutMsg: 'Expected the viewed image to have a segment',
   });
 };

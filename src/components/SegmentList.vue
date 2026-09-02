@@ -4,6 +4,8 @@ import { computed, reactive, ref } from 'vue';
 import ColorDot from '@/src/components/ColorDot.vue';
 import EditableChipList from '@/src/components/EditableChipList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
+import CloseableDialog from '@/src/components/CloseableDialog.vue';
+import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
 import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useSegmentationStore } from '@/src/store/segmentations';
@@ -20,13 +22,24 @@ const { currentImageID } = useCurrentImage();
 // Scoped to the viewed image, never to the active segment's image: after an
 // image switch the panel must show this image's segments, not the last edited
 // one's. Rendering creates nothing, so an image with no segmentation is empty.
-const segments = computed(() => {
+const viewedSegmentation = computed(() => {
   const imageId = currentImageID.value;
-  const segmentation = imageId
+  return imageId
     ? segmentationStore.getSegmentationForImage(imageId)
     : undefined;
-  return segmentation ? listSegments(segmentation) : [];
 });
+
+const segments = computed(() =>
+  viewedSegmentation.value ? listSegments(viewedSegmentation.value) : []
+);
+
+// --- saving --- //
+
+const saveDialog = ref(false);
+
+function openSaveDialog() {
+  saveDialog.value = true;
+}
 
 const segmentById = (id: string) =>
   segments.value.find((segment) => segment.id === id);
@@ -154,7 +167,7 @@ function deleteEditingSegment() {
 </script>
 
 <template>
-  <div class="px-3" data-testid="segment-list">
+  <div v-if="currentImageID" class="px-3" data-testid="segment-list">
     <div class="d-flex justify-start ga-4">
       <v-btn @click.stop="toggleGlobalVisible" class="my-1">
         <template #prepend>
@@ -176,6 +189,16 @@ function deleteEditingSegment() {
         <v-tooltip location="top" activator="parent">{{
           allLocked ? 'Unlock All' : 'Lock All'
         }}</v-tooltip>
+      </v-btn>
+
+      <v-btn
+        v-if="viewedSegmentation"
+        data-testid="save-segments-button"
+        icon="mdi-content-save"
+        class="my-1"
+        @click.stop="openSaveDialog"
+      >
+        <v-tooltip location="top" activator="parent">Save</v-tooltip>
       </v-btn>
     </div>
 
@@ -249,6 +272,7 @@ function deleteEditingSegment() {
       </template>
     </editable-chip-list>
   </div>
+  <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
 
   <isolated-dialog v-model="editDialog" @keydown.stop max-width="800px">
     <segment-editor
@@ -263,6 +287,16 @@ function deleteEditingSegment() {
       :invalidNames="invalidNames"
     />
   </isolated-dialog>
+
+  <closeable-dialog v-model="saveDialog" max-width="30%">
+    <template v-slot="{ close }">
+      <save-segment-group-dialog
+        v-if="viewedSegmentation"
+        :id="viewedSegmentation.id"
+        @done="close"
+      />
+    </template>
+  </closeable-dialog>
 </template>
 
 <style scoped>

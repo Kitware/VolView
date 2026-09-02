@@ -4,7 +4,7 @@ import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import {
   isRegularImage,
   type DataSelection,
@@ -37,7 +37,7 @@ export default defineComponent({
     const imageStore = useImageStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
-    const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
     const imageCacheStore = useImageCacheStore();
@@ -155,7 +155,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (currentImageID.value) {
-        segmentGroupStore.convertImageToLabelmap(key, currentImageID.value);
+        segmentationStore.convertImageToLabelmap(key, currentImageID.value);
       }
     }
 
@@ -313,7 +313,7 @@ export default defineComponent({
                     <v-icon v-if="!image.layerable" class="mr-1">
                       mdi-alert
                     </v-icon>
-                    Add as Segment Group
+                    Add as segmentation
                     <v-tooltip
                       activator="parent"
                       location="end"

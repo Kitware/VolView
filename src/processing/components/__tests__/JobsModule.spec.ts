@@ -491,7 +491,7 @@ describe('JobsModule — segment group staging', () => {
   const seedSegmentation = (name: string) => {
     const store = useSegmentationStore();
     const segmentation = store.ensureSegmentationForImage('image-1');
-    store.renameSegmentation(segmentation.id, name);
+    segmentation.name = name;
     const segment = store.createSegment(segmentation.id, { name: 'Tumor' });
     store.segmentVoxels(segment.id).materialize();
     store.setActiveSegment(segment.id);

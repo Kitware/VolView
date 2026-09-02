@@ -1,5 +1,13 @@
 import { defineStore } from 'pinia';
-import { computed, markRaw, reactive, shallowRef, toRaw, watch } from 'vue';
+import {
+  computed,
+  markRaw,
+  reactive,
+  ref,
+  shallowRef,
+  toRaw,
+  watch,
+} from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { RGBAColor, TypedArray, Vector3 } from '@kitware/vtk.js/types';
@@ -9,6 +17,12 @@ import { NO_NAME } from '@/src/constants';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { untilLoaded } from '@/src/composables/untilLoaded';
+import {
+  decodeLabelmapSegments,
+  importLabelmapImage,
+  splitLabelmap,
+  toLabelMap,
+} from '@/src/io/labelmapImport';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
 import type {
@@ -21,15 +35,8 @@ import type { FileEntry } from '@/src/io/types';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import {
-  LABELMAP_BACKGROUND_VALUE,
-  LABELMAP_MAX_VALUE,
-  makeDefaultSegmentGroupName,
-  makeDefaultSegmentName,
-  toLabelMap,
-  useSegmentGroupStore,
-} from '@/src/store/segmentGroups';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
+import { type DataSelection } from '@/src/utils/dataSelection';
 import {
   emptyExtent,
   extentContains,
@@ -38,7 +45,9 @@ import {
   extentUnion,
   fullExtent,
   isEmptyExtent,
+  LABELMAP_BACKGROUND_VALUE,
   listSegments,
+  makeDefaultSegmentName,
   type ActiveSegmentIntent,
   type Extent3D,
   type LabelmapSegment,
@@ -84,6 +93,14 @@ const defaultArtifactIO: SegmentationArtifactIO = {
   write: writeSegmentation,
   read: readImage,
 };
+
+/** Masks are Uint8Array, so a label value has to fit in one byte. */
+export const LABELMAP_MAX_VALUE = 255;
+
+export type { ImportedSegment } from '@/src/io/labelmapImport';
+
+const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
+  `Segment Group ${index} for ${baseName}`;
 
 const maskScalars = (mask: vtkLabelMap) =>
   mask.getPointData().getScalars().getData() as Uint8Array;
@@ -232,8 +249,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   // Internal storage layer: UI and tools reach it through this store's API only.
   const artifactIndex = reactive<Record<string, vtkLabelMap>>({});
   const artifactMeta = reactive<Record<string, ArtifactMetadata>>({});
-  const artifactOrderByParent = reactive<Record<string, string[]>>({});
-
   // Names keep counting up per parent image so a deleted artifact's name is
   // not immediately handed to the next one. Cleared by the deletion cascade.
   const nextDefaultIndex: Record<string, number> = Object.create(null);
@@ -336,9 +351,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentation.segments[id];
   }
 
-  const artifactsForImage = (parentImageId: string) =>
-    artifactOrderByParent[parentImageId] ?? [];
-
   function getSegmentationForArtifact(artifactId: string) {
     const parentImage = artifactMeta[artifactId]?.parentImage;
     return parentImage ? getSegmentationForImage(parentImage) : undefined;
@@ -359,8 +371,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const id = useIdStore().nextId();
     artifactIndex[id] = markRaw(labelmap);
     artifactMeta[id] = { ...meta };
-    artifactOrderByParent[meta.parentImage] ??= [];
-    artifactOrderByParent[meta.parentImage].push(id);
     return id;
   }
 
@@ -410,7 +420,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       );
     }
 
-    removeFromArray(artifactOrderByParent[meta.parentImage] ?? [], artifactId);
     delete artifactIndex[artifactId];
     delete artifactMeta[artifactId];
   }
@@ -446,37 +455,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return labelValue;
   }
 
-  /** The box a label value occupies, per value, in one sweep of the buffer. */
-  function labelValueBounds(labelmap: vtkLabelMap) {
-    const scalars = maskScalars(labelmap);
-    const [di, dj, dk] = labelmap.getDimensions();
-    const bounds = new Map<number, Extent3D>();
-    for (let k = 0; k < dk; k += 1) {
-      for (let j = 0; j < dj; j += 1) {
-        for (let i = 0; i < di; i += 1) {
-          const value = scalars[i + j * di + k * di * dj];
-          if (value === LABELMAP_BACKGROUND_VALUE) continue;
-          const box = bounds.get(value);
-          if (!box) {
-            bounds.set(value, [i, i, j, j, k, k]);
-            continue;
-          }
-          box[0] = Math.min(box[0], i);
-          box[1] = Math.max(box[1], i);
-          box[2] = Math.min(box[2], j);
-          box[3] = Math.max(box[3], j);
-          box[4] = Math.min(box[4], k);
-          box[5] = Math.max(box[5], k);
-        }
-      }
-    }
-    return bounds;
-  }
-
   /**
-   * One bounded mask per label value. An imported or legacy labelmap carries
-   * every segment in one buffer; each descriptor becomes a segment whose mask
-   * is cropped to the box that value's voxels span.
+   * Mints one segment per descriptor and fills its bounded mask. The segments
+   * share one segmentation, so label values are assigned against what is
+   * already in it and a taken value gets remapped.
    */
   function splitLabelmapIntoSegments(
     parentImageId: string,
@@ -485,11 +467,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     source?: ProcessingResultSource
   ) {
     const segmentation = ensureSegmentationForImage(parentImageId);
-    const scalars = maskScalars(labelmap);
-    const [di, dj] = labelmap.getDimensions();
-    const bounds = labelValueBounds(labelmap);
+    const created: Segment[] = [];
 
-    return descriptors.map((descriptor) => {
+    splitLabelmap(labelmap, descriptors, (descriptor, extent) => {
       const segment = createSegment(segmentation.id, {
         name: descriptor.name,
         color: [...descriptor.color] as RGBAColor,
@@ -498,29 +478,59 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       segment.locked = descriptor.locked ?? false;
 
       const labelValue = nextLabelValue(segmentation, descriptor.value);
-      const extent = bounds.get(descriptor.value) ?? emptyExtent();
       const artifactId = createArtifactForImage(parentImageId, extent, source);
       segment.representations.labelmap = { artifactId, labelValue, extent };
+      created.push(segment);
 
-      if (!isEmptyExtent(extent)) {
-        const target = maskScalars(artifactIndex[artifactId]);
-        const [mi, mj] = extentSize(extent);
-        for (let k = extent[4]; k <= extent[5]; k += 1) {
-          for (let j = extent[2]; j <= extent[3]; j += 1) {
-            for (let i = extent[0]; i <= extent[1]; i += 1) {
-              if (scalars[i + j * di + k * di * dj] !== descriptor.value)
-                continue;
-              target[
-                i - extent[0] + (j - extent[2]) * mi + (k - extent[4]) * mi * mj
-              ] = labelValue;
-            }
-          }
-        }
-      }
+      return { labelValue, mask: maskScalars(artifactIndex[artifactId]) };
+    });
 
-      return segment;
+    return created;
+  }
+
+  // Deliberately separate from createSegment's cursor: a descriptor-less
+  // labelmap must decode to the same catalog whether it came from a cold
+  // restore or a live conversion, regardless of how many segments this
+  // session has otherwise created.
+  let nextDecodeColorIndex = 0;
+  function getNextDecodeColor() {
+    const color = CATEGORICAL_COLORS[nextDecodeColorIndex];
+    nextDecodeColorIndex =
+      (nextDecodeColorIndex + 1) % CATEGORICAL_COLORS.length;
+    return [...color, 255] as const;
+  }
+
+  function decodeSegments(
+    imageId: DataSelection | undefined,
+    image: vtkLabelMap,
+    component = 0,
+    headerMetadata?: Map<string, string>
+  ) {
+    return decodeLabelmapSegments(imageId, image, {
+      component,
+      headerMetadata,
+      nextColor: getNextDecodeColor,
     });
   }
+
+  function convertImageToLabelmap(
+    imageID: DataSelection,
+    parentID: DataSelection,
+    source?: ArtifactMetadata['source']
+  ) {
+    return importLabelmapImage(imageID, parentID, {
+      decode: (labelmap, component) =>
+        decodeSegments(imageID, labelmap, component) as Promise<
+          LabelmapSegment[]
+        >,
+      split: (labelmap, descriptors) =>
+        splitLabelmapIntoSegments(parentID, labelmap, descriptors, source).map(
+          (segment) => segment.id
+        ),
+    });
+  }
+
+  const saveFormat = ref('vti');
 
   /** The single voxel-allocation point: no other operation creates storage. */
   function ensureLabelmapBinding(segmentId: string) {
@@ -977,10 +987,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     };
   }
 
-  function renameSegmentation(segmentationId: string, name: string) {
-    getSegmentation(segmentationId).name = name;
-  }
-
   function reorderSegments(segmentationId: string, order: string[]) {
     getSegmentation(segmentationId).order = [...order];
   }
@@ -1007,8 +1013,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   function removeArtifactsForImage(parentImageId: string) {
-    [...artifactsForImage(parentImageId)].forEach(removeArtifact);
-    delete artifactOrderByParent[parentImageId];
+    Object.keys(artifactMeta)
+      .filter(
+        (artifactId) => artifactMeta[artifactId].parentImage === parentImageId
+      )
+      .forEach(removeArtifact);
   }
 
   // --- active target and cross-image intent --- //
@@ -1222,23 +1231,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     io: SegmentationArtifactIO = defaultArtifactIO
   ) {
     const { zip, manifest } = state;
-    const format = useSegmentGroupStore().saveFormat;
+    const format = saveFormat.value;
     const usedArchivePaths = new Set<string>();
 
-    // Artifact order per parent image is implicitly preserved by the order of
-    // the serialized entries.
-    const entries = Object.keys(artifactOrderByParent).flatMap(
-      (parentImageId) =>
-        artifactsForImage(parentImageId).map((artifactId) => ({
-          artifactId,
-          meta: artifactMeta[artifactId],
-          path: makeSegmentGroupArchivePath(
-            artifactMeta[artifactId].name,
-            format,
-            usedArchivePaths
-          ),
-        }))
-    );
+    const entries = Object.keys(artifactMeta).map((artifactId) => ({
+      artifactId,
+      meta: artifactMeta[artifactId],
+      path: makeSegmentGroupArchivePath(
+        artifactMeta[artifactId].name,
+        format,
+        usedArchivePaths
+      ),
+    }));
 
     manifest.segmentationArtifacts = entries.map(
       ({ artifactId, meta, path }) => ({
@@ -1402,7 +1406,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
             // through the same decode live import uses, while its source image
             // is still loaded: the temp artifact dataset is dropped below.
             const decoded = artifact.pendingDecode
-              ? ((await useSegmentGroupStore().decodeSegments(
+              ? ((await decodeSegments(
                   storeId,
                   labelmap,
                   0,
@@ -1610,7 +1614,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     byParentImage,
     artifactIndex,
     artifactMeta,
-    artifactOrderByParent,
     labelmapSegmentsByArtifact,
     activeSegmentId,
     activeSegmentIntent,
@@ -1633,17 +1636,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     createSegment,
     ensureLabelmapBinding,
     updateSegment,
-    renameSegmentation,
     reorderSegments,
     deleteSegment,
     removeSegmentation,
-    artifactsForImage,
     getSegmentationForArtifact,
     segmentsForArtifact,
     registerArtifact,
     createArtifactForImage,
     updateArtifactMeta,
     splitLabelmapIntoSegments,
+    decodeSegments,
+    convertImageToLabelmap,
+    saveFormat,
     otherSegmentClearer,
     lockedSegmentAt,
     compositeLabelmap,
