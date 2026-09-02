@@ -21,6 +21,15 @@ export function sliceWithinExtent(
 const SEGMENT_OFFSET_FACTOR = -4;
 
 /**
+ * Actor opacity for a segment's slice representation. Per-segment and
+ * per-segmentation opacity live in the transfer functions, so the actor itself
+ * carries none. It must stay below 1: vtk.js puts an image slice in the opaque
+ * render pass at an opacity of 1, which restacks it against the base image and
+ * the sibling segment actors.
+ */
+export const SEGMENT_ACTOR_OPACITY = 0.9999;
+
+/**
  * A segment's coincident-topology polygon offset, by its position in
  * `segmentation.order`. Overlap is representable, so segments sharing one
  * offset would z-fight. Later in the order draws in front: a segment is

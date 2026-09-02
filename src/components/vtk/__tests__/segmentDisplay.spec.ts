@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  SEGMENT_ACTOR_OPACITY,
   segmentFillAlpha,
   segmentOutlineTables,
 } from '@/src/components/vtk/segmentDisplay';
@@ -112,5 +113,19 @@ describe('segmentOutlineTables', () => {
       thicknesses: [],
       opacities: [],
     });
+  });
+});
+
+describe('SEGMENT_ACTOR_OPACITY', () => {
+  it('leaves the fill to the transfer functions', () => {
+    // A fully opaque segment reaches the screen at its own alpha, so the actor
+    // must not scale it down.
+    expect(SEGMENT_ACTOR_OPACITY).toBeGreaterThan(0.999);
+  });
+
+  it('stays out of the opaque render pass', () => {
+    // vtk.js treats an image slice at opacity 1 as opaque and restacks it
+    // against the base image and the sibling segment actors.
+    expect(SEGMENT_ACTOR_OPACITY).toBeLessThan(1);
   });
 });

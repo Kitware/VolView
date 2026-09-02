@@ -15,8 +15,8 @@ import { watchImmediate } from '@vueuse/core';
 import { convertSliceIndex } from '@/src/utils/imageSpace';
 import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import useLayerColoringStore from '@/src/store/view-configs/layers';
 import {
+  SEGMENT_ACTOR_OPACITY,
   segmentCoincidentOffset,
   segmentFillAlpha,
   segmentOutlineTables,
@@ -79,6 +79,7 @@ sliceRep.property.setRGBTransferFunction(
 );
 sliceRep.property.setScalarOpacity(0, vtkPiecewiseFunction.newInstance());
 sliceRep.property.setInterpolationType(InterpolationType.NEAREST);
+sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
 // needed for vtk.js >= 23.0.0
 sliceRep.property.setUseLookupTableScalarRange(true);
 
@@ -92,25 +93,6 @@ watchEffect(() => {
     factor,
     units
   );
-});
-
-const coloringStore = useLayerColoringStore();
-
-// visibility
-const visibility = computed(
-  () =>
-    coloringStore.getConfig(viewId.value, segmentationId.value)!.blendConfig
-      .visibility
-);
-
-// opacity
-const opacity = computed(
-  () =>
-    coloringStore.getConfig(viewId.value, segmentationId.value)!.blendConfig
-      .opacity
-);
-watchEffect(() => {
-  sliceRep.property.setOpacity(opacity.value);
 });
 
 // set slicing mode
@@ -167,7 +149,7 @@ watchEffect(() => {
     ijkIndex !== undefined &&
     storedSlice.value != null &&
     sliceWithinExtent(bounds, ijkIndex, storedSlice.value);
-  sliceRep.actor.setVisibility(visibility.value && drawsHere);
+  sliceRep.actor.setVisibility(drawsHere);
 });
 
 const segmentation = computed(() =>
