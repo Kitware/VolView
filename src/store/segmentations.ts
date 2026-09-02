@@ -1,13 +1,5 @@
 import { defineStore } from 'pinia';
-import {
-  computed,
-  markRaw,
-  reactive,
-  ref,
-  shallowRef,
-  toRaw,
-  watch,
-} from 'vue';
+import { computed, markRaw, reactive, ref, shallowRef, toRaw } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { RGBAColor, TypedArray, Vector3 } from '@kitware/vtk.js/types';
@@ -552,10 +544,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const findSegmentBinding = (segmentId: string) =>
     findSegment(segmentId)?.representations.labelmap;
 
+  /**
+   * A copy of a segment's binding, or undefined when it has none. No live
+   * buffer travels with it: the copied extent would go stale beside one.
+   */
   function resolveLabelmapBinding(segmentId: string) {
     const binding = getSegment(segmentId).representations.labelmap;
     if (!binding) return undefined;
-    return { ...toRaw(binding), labelmap: artifactIndex[binding.artifactId] };
+    return { ...toRaw(binding) };
   }
 
   /** Grows one mask, in place, to cover `extent` in parent index space. */
@@ -767,7 +763,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       }
     });
 
-    labelmap.setSegments(segments);
     return { labelmap, segments };
   }
 
@@ -1154,8 +1149,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- render sync --- //
 
-  // The labelmap renderer colors by voxel value, so each artifact receives the
-  // value-keyed projection of the segments bound to it.
+  // The labelmap renderer colors by voxel value, so it reads the value-keyed
+  // projection of the segments bound to each artifact.
   const labelmapSegmentsByArtifact = computed(() => {
     const byArtifact: Record<string, LabelmapSegment[]> = {};
     Object.keys(artifactMeta).forEach((artifactId) => {
@@ -1172,16 +1167,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     });
     return byArtifact;
   });
-
-  watch(
-    labelmapSegmentsByArtifact,
-    (byArtifact) => {
-      Object.entries(byArtifact).forEach(([artifactId, segments]) => {
-        artifactIndex[artifactId]?.setSegments(segments);
-      });
-    },
-    { immediate: true }
-  );
 
   // --- state file --- //
 

@@ -233,10 +233,13 @@ describe('Paint process store', () => {
       scope: 'segment',
       labelValue: binding.labelValue,
     });
-    expect(target!.voxels.image()).toBe(binding.labelmap);
+    const boundLabelMap = segmentationStore
+      .artifactVoxels(binding.artifactId)
+      .image();
+    expect(target!.voxels.image()).toBe(boundLabelMap);
     // The clone covers nothing yet, so the process had no voxels to write, and
     // the segment of the image left behind is untouched either way.
-    expect(getScalars(binding.labelmap)).toEqual([]);
+    expect(getScalars(boundLabelMap)).toEqual([]);
     expect(getScalars(firstLabelMap)).toEqual([0, 0]);
   });
 

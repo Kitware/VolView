@@ -62,6 +62,12 @@ const labelValuesOf = (segments: ReturnType<typeof segmentsOfImage>) =>
 const artifactScalars = (artifactId: string) =>
   store().artifactIndex[artifactId].getPointData().getScalars().getData();
 
+/** The buffer a segment's binding points at, reached through the accessor. */
+const labelmapOf = (segmentId: string) =>
+  store()
+    .artifactVoxels(store().resolveLabelmapBinding(segmentId)!.artifactId)
+    .image();
+
 const bindingOf = (segmentationId: string, segmentId: string) =>
   store().getSegment(segmentId).representations.labelmap;
 
@@ -305,7 +311,7 @@ describe('segmentation store', () => {
       expect(Object.keys(store().artifactIndex)).toHaveLength(2);
     });
 
-    it('resolves a binding to the artifact labelmap and its label value', async () => {
+    it('resolves a binding to its artifact and label value', async () => {
       await seatImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
@@ -314,8 +320,8 @@ describe('segmentation store', () => {
       const resolved = store().resolveLabelmapBinding(segmentId);
 
       expect(resolved!.labelValue).toBe(binding.labelValue);
-      expect(resolved!.labelmap.getPointData().getScalars().getData()).toBe(
-        artifactScalars(binding.artifactId)
+      expect(store().artifactVoxels(resolved!.artifactId).image()).toBe(
+        store().artifactIndex[binding.artifactId]
       );
     });
   });
@@ -378,9 +384,7 @@ describe('segmentation store', () => {
       expect(second.id).not.toBe(first.id);
       expect(store().getSegment(first.id).id).toBe(first.id);
       expect(store().getSegment(second.id).id).toBe(second.id);
-      expect(store().resolveLabelmapBinding(first.id)!.labelmap).not.toBe(
-        store().resolveLabelmapBinding(second.id)!.labelmap
-      );
+      expect(labelmapOf(first.id)).not.toBe(labelmapOf(second.id));
     });
   });
 
@@ -539,9 +543,7 @@ describe('segmentation store', () => {
         (segment) => segment.representations.labelmap!.artifactId
       );
       expect(second).not.toBe(first);
-      expect(store().resolveLabelmapBinding(segments[0].id)?.labelmap).toBe(
-        store().artifactIndex[first]
-      );
+      expect(labelmapOf(segments[0].id)).toBe(store().artifactIndex[first]);
       // Each mask holds exactly one nonzero value, its segment's.
       expect(new Set(artifactScalars(first))).toEqual(new Set([1]));
       expect(new Set(artifactScalars(second))).toEqual(new Set([0, 2]));
@@ -828,8 +830,7 @@ describe('segmentation store', () => {
         'img-1'
       );
       expect(binding.labelValue).toBeGreaterThan(0);
-      const resolved = store().resolveLabelmapBinding(target);
-      expect(resolved!.labelmap).toBe(
+      expect(labelmapOf(target)).toBe(
         store().artifactIndex[binding.artifactId]
       );
     });

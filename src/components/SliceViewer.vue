@@ -100,7 +100,6 @@
             v-for="layer in segmentLayers"
             :key="`seg-${layer.segmentId}`"
             :view-id="viewId"
-            :segmentation-id="layer.artifactId"
             :segment-id="layer.segmentId"
             :stack-index="layer.stackIndex"
             :axis="viewAxis"

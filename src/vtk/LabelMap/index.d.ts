@@ -1,18 +1,11 @@
-import { LabelmapSegment } from '@/src/types/segmentation';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { Vector4 } from '@kitware/vtk.js/types';
 
+/**
+ * Segment voxel storage. Its own class so a mask stays distinguishable from
+ * the image it sits on, in the type system and in serialized state alike.
+ */
 export interface vtkLabelMap extends vtkImageData {
-  /**
-   * Sets the segments of the labelmap.
-   * @param segments
-   */
-  setSegments(segments: LabelmapSegment[]): boolean;
-
-  /**
-   * Gets the segments of the labelmap.
-   */
-  getSegments(): LabelmapSegment[];
+  getClassName(): 'vtkLabelMap';
 }
 
 export function newInstance(initialValues?: any): vtkLabelMap;

@@ -26,7 +26,6 @@ import { isEmptyExtent } from '@/src/types/segmentation';
 
 interface Props {
   viewId: string;
-  segmentationId: string;
   segmentId: string;
   // Position in `segmentation.order`, which is what the actors stack by.
   stackIndex: number;
@@ -34,32 +33,37 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const { viewId, segmentationId, segmentId, stackIndex, axis } = toRefs(props);
+const { viewId, segmentId, stackIndex, axis } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const segmentationStore = useSegmentationStore();
-const metadata = computed(
-  () => segmentationStore.artifactMeta[segmentationId.value]
-);
-const segments = computed(
-  () => segmentationStore.labelmapSegmentsByArtifact[segmentationId.value]
-);
 // Where the mask sits in the parent image, and what it covers.
-const extent = computed(
-  () => segmentationStore.findSegmentBinding(segmentId.value)?.extent
+const binding = computed(() =>
+  segmentationStore.findSegmentBinding(segmentId.value)
+);
+const artifactId = computed(() => binding.value?.artifactId);
+const extent = computed(() => binding.value?.extent);
+const metadata = computed(() =>
+  artifactId.value
+    ? segmentationStore.artifactMeta[artifactId.value]
+    : undefined
+);
+const segments = computed(() =>
+  artifactId.value
+    ? segmentationStore.labelmapSegmentsByArtifact[artifactId.value]
+    : undefined
 );
 
 const imageData = computed(() => {
-  // The id can outlive its artifact by a tick, so the accessor is asked rather
-  // than indexed.
-  const voxels = segmentationStore.artifactVoxels(segmentationId.value);
-  if (!voxels.exists()) return null;
   // A mask that covers nothing has no voxels, so there is no mapper input.
   const bounds = extent.value;
-  if (!bounds || isEmptyExtent(bounds)) return null;
-  return voxels.image();
+  if (!artifactId.value || !bounds || isEmptyExtent(bounds)) return null;
+  // The id can outlive its artifact by a tick, so the accessor is asked rather
+  // than indexed.
+  const voxels = segmentationStore.artifactVoxels(artifactId.value);
+  return voxels.exists() ? voxels.image() : null;
 });
 
 // redraw whenever the image changes
@@ -153,7 +157,9 @@ watchEffect(() => {
 });
 
 const segmentation = computed(() =>
-  segmentationStore.getSegmentationForArtifact(segmentationId.value)
+  artifactId.value
+    ? segmentationStore.getSegmentationForArtifact(artifactId.value)
+    : undefined
 );
 
 // set coloring properties
@@ -198,7 +204,6 @@ const outlineThickness = computed(
   () => segmentation.value?.outlineThickness ?? 2
 );
 sliceRep.property.setUseLabelOutline(true);
-sliceRep.property.setUseLookupTableScalarRange(true);
 
 watchEffect(() => {
   if (!segments.value) return; // segment group just deleted
