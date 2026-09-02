@@ -194,7 +194,7 @@ describe('Session state lifecycle', () => {
     const prostateColor = await segmentColor('Prostate');
 
     const { session, manifest } = await saveAndParseManifest();
-    expect(manifest.version).toEqual('7.0.0');
+    expect(manifest.version).toEqual('7.1.0');
 
     await volViewPage.open(`?urls=[tmp/${session}]`);
     await volViewPage.waitForViews();
