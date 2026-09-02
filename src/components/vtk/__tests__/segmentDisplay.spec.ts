@@ -39,6 +39,16 @@ describe('segmentFillAlpha', () => {
   it('treats a descriptor without a fill opacity as opaque', () => {
     expect(segmentFillAlpha(makeSegment(1))).toBe(1);
   });
+
+  it('scales the segment alpha by the segmentation\u2019s fill opacity', () => {
+    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 0.5 }), 0.5)).toBe(
+      0.25
+    );
+  });
+
+  it('hides every fill when the segmentation\u2019s fill opacity is zero', () => {
+    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 1 }), 0)).toBe(0);
+  });
 });
 
 describe('segmentOutlineTables', () => {

@@ -170,6 +170,10 @@ watchEffect(() => {
   sliceRep.actor.setVisibility(visibility.value && drawsHere);
 });
 
+const segmentation = computed(() =>
+  segmentationStore.getSegmentationForArtifact(segmentationId.value)
+);
+
 // set coloring properties
 const applySegmentColoring = () => {
   const cfun = sliceRep.property.getRGBTransferFunction(0);
@@ -189,7 +193,10 @@ const applySegmentColoring = () => {
     const g = segment.color[1] || 0;
     const b = segment.color[2] || 0;
     cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
-    ofun.addPoint(segment.value, segmentFillAlpha(segment));
+    ofun.addPoint(
+      segment.value,
+      segmentFillAlpha(segment, segmentation.value?.fillOpacity ?? 1)
+    );
 
     maxValue = Math.max(maxValue, segment.value);
   });
@@ -204,10 +211,6 @@ const applySegmentColoring = () => {
 };
 
 watchEffect(applySegmentColoring);
-
-const segmentation = computed(() =>
-  segmentationStore.getSegmentationForArtifact(segmentationId.value)
-);
 
 const outlineThickness = computed(
   () => segmentation.value?.outlineThickness ?? 2

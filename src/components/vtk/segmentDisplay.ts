@@ -32,11 +32,14 @@ export function segmentCoincidentOffset(stackIndex: number) {
 
 /**
  * Fill alpha in 0..1 for the slice representation's piecewise function: the
- * segment's own alpha scaled by its fill opacity.
+ * segment's own alpha scaled by its fill opacity and by the segmentation's,
+ * the same way the outline tables compose theirs.
  */
-export const segmentFillAlpha = (segment: LabelmapSegment) =>
+export const segmentFillAlpha = (segment: LabelmapSegment, groupOpacity = 1) =>
   segment.visible
-    ? ((segment.color[3] || 0) / 255) * (segment.fillOpacity ?? 1)
+    ? ((segment.color[3] || 0) / 255) *
+      (segment.fillOpacity ?? 1) *
+      groupOpacity
     : 0;
 
 /**
