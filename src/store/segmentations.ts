@@ -54,6 +54,7 @@ import {
   type LabelmapSegment,
   type Segment,
   type Segmentation,
+  type SegmentationDisplayPatch,
   type SegmentIdentity,
   type SegmentVoxelAccessor,
   type VoxelStorage,
@@ -960,26 +961,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const segmentation = getSegmentationForImage(parentImageId);
     if (!segmentation) return [];
     return listSegments(segmentation).flatMap((segment, stackIndex) => {
-      const binding = segment.representations.labelmap;
-      return binding
-        ? [
-            {
-              segmentId: segment.id,
-              artifactId: binding.artifactId,
-              stackIndex,
-            },
-          ]
+      const { artifactId } = segment.representations.labelmap ?? {};
+      return artifactId
+        ? [{ segmentId: segment.id, artifactId, stackIndex }]
         : [];
     });
   }
 
   function updateSegment(segmentId: string, patch: SegmentPatch) {
-    const segmentation = getSegmentationOf(segmentId);
-    segmentation.segments[segmentId] = {
-      ...toRaw(segmentation.segments[segmentId]),
-      ...patch,
-    };
+    const { segments } = getSegmentationOf(segmentId);
+    segments[segmentId] = { ...toRaw(segments[segmentId]), ...patch };
   }
+
+  const updateSegmentationDisplay = (
+    segmentationId: string,
+    patch: SegmentationDisplayPatch
+  ) => Object.assign(getSegmentation(segmentationId), patch);
 
   function reorderSegments(segmentationId: string, order: string[]) {
     getSegmentation(segmentationId).order = [...order];
@@ -1646,6 +1643,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     createSegment,
     ensureLabelmapBinding,
     updateSegment,
+    updateSegmentationDisplay,
     reorderSegments,
     deleteSegment,
     removeSegmentation,

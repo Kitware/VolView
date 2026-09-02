@@ -15,6 +15,7 @@ import {
   cssColorToRGBA,
   listSegments,
   rgbaToCssColor,
+  type SegmentationDisplayPatch,
 } from '@/src/types/segmentation';
 
 const segmentationStore = useSegmentationStore();
@@ -37,6 +38,26 @@ const segments = computed(() =>
 // A clip is a stack of unrelated frames, so a segmentation drawn across it
 // means nothing and saves as an empty 2D file.
 const viewingCine = computed(() => isCineImage(currentImageID.value));
+
+// --- display --- //
+
+// One multiplier each for fill and outline, scaling every segment of the
+// viewed image at once, plus the thickness they share.
+const display = computed(() => {
+  const segmentation = viewedSegmentation.value;
+  if (!segmentation) return undefined;
+  const write = (patch: SegmentationDisplayPatch) =>
+    segmentationStore.updateSegmentationDisplay(segmentation.id, patch);
+  return {
+    fillOpacity: segmentation.fillOpacity,
+    outlineOpacity: segmentation.outlineOpacity,
+    outlineThickness: segmentation.outlineThickness,
+    setFillOpacity: (fillOpacity: number) => write({ fillOpacity }),
+    setOutlineOpacity: (outlineOpacity: number) => write({ outlineOpacity }),
+    setOutlineThickness: (outlineThickness: number) =>
+      write({ outlineThickness }),
+  };
+});
 
 // --- saving --- //
 
@@ -205,6 +226,45 @@ function deleteEditingSegment() {
       >
         <v-tooltip location="top" activator="parent">Save</v-tooltip>
       </v-btn>
+    </div>
+
+    <div v-if="display" class="my-2">
+      <v-slider
+        class="mx-4"
+        label="Fill Opacity"
+        min="0"
+        max="1"
+        step="0.01"
+        density="compact"
+        hide-details
+        thumb-label
+        :model-value="display.fillOpacity"
+        @update:model-value="display.setFillOpacity($event)"
+      />
+      <v-slider
+        class="mx-4"
+        label="Outline Opacity"
+        min="0"
+        max="1"
+        step="0.01"
+        density="compact"
+        hide-details
+        thumb-label
+        :model-value="display.outlineOpacity"
+        @update:model-value="display.setOutlineOpacity($event)"
+      />
+      <v-slider
+        class="mx-4"
+        label="Outline Thickness"
+        min="0"
+        max="10"
+        step="1"
+        density="compact"
+        hide-details
+        thumb-label
+        :model-value="display.outlineThickness"
+        @update:model-value="display.setOutlineThickness($event)"
+      />
     </div>
 
     <editable-chip-list

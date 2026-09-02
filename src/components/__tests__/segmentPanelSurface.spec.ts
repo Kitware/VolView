@@ -92,6 +92,7 @@ const globalOptions = {
     VList: { template: '<div><slot /></div>' },
     VListItem: { template: '<div><slot /></div>' },
     VSpacer: { template: '<span />' },
+    VSlider: { props: ['label', 'modelValue'], template: '<input />' },
     VDivider: { template: '<hr />' },
   },
 };

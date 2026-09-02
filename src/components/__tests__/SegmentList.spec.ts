@@ -104,8 +104,24 @@ const SegmentEditorStub = defineComponent({
   template: `<div class="segment-editor" />`,
 });
 
+// Sliders are found by the label the user reads.
+const SliderStub = defineComponent({
+  name: 'VSlider',
+  props: ['label', 'modelValue', 'min', 'max', 'step'],
+  emits: ['update:modelValue'],
+  template: `<input
+    class="slider"
+    :data-label="label"
+    :data-value="modelValue"
+    :data-min="min"
+    :data-max="max"
+    :data-step="step"
+  />`,
+});
+
 const globalOptions = {
   stubs: {
+    VSlider: SliderStub,
     EditableChipList: ChipListStub,
     SegmentEditor: SegmentEditorStub,
     IsolatedDialog: { template: '<div class="dialog"><slot /></div>' },
@@ -528,5 +544,112 @@ describe('flat segment list on a cine image', () => {
 
     expect(store().getSegmentationForImage('img-1')).toBeDefined();
     expect(rowIds(wrapper)).toHaveLength(1);
+  });
+});
+
+// The segmentation display section owns the multipliers that scale every
+// segment at once, and the outline thickness they share.
+describe('segmentation display section', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1');
+    await viewImage('img-1');
+  });
+
+  const slider = (wrapper: VueWrapper, label: string) => {
+    const found = wrapper.find(`.slider[data-label="${label}"]`);
+    if (!found.exists()) throw new Error(`No "${label}" slider`);
+    return found;
+  };
+
+  const setSlider = async (
+    wrapper: VueWrapper,
+    label: string,
+    value: number
+  ) => {
+    const stub = wrapper
+      .findAllComponents(SliderStub)
+      .find((candidate) => candidate.props('label') === label);
+    if (!stub) throw new Error(`No "${label}" slider`);
+    stub.vm.$emit('update:modelValue', value);
+    await nextTick();
+  };
+
+  it('offers no display controls until the image has a segmentation', async () => {
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(wrapper.findAll('.slider')).toHaveLength(0);
+  });
+
+  it('seats each control at the segmentation’s current value', async () => {
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    store().createSegment(segmentation.id, { name: 'Tumor' });
+    store().updateSegmentationDisplay(segmentation.id, {
+      fillOpacity: 0.4,
+      outlineOpacity: 0.6,
+      outlineThickness: 5,
+    });
+
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(slider(wrapper, 'Fill Opacity').attributes('data-value')).toBe(
+      '0.4'
+    );
+    expect(slider(wrapper, 'Outline Opacity').attributes('data-value')).toBe(
+      '0.6'
+    );
+    expect(slider(wrapper, 'Outline Thickness').attributes('data-value')).toBe(
+      '5'
+    );
+  });
+
+  it('writes the fill multiplier onto the viewed image’s segmentation', async () => {
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    store().createSegment(segmentation.id, { name: 'Tumor' });
+    const wrapper = mountList();
+    await nextTick();
+
+    await setSlider(wrapper, 'Fill Opacity', 0.25);
+
+    expect(store().getSegmentationForImage('img-1')!.fillOpacity).toBe(0.25);
+  });
+
+  it('writes the outline multiplier onto the viewed image’s segmentation', async () => {
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    store().createSegment(segmentation.id, { name: 'Tumor' });
+    const wrapper = mountList();
+    await nextTick();
+
+    await setSlider(wrapper, 'Outline Opacity', 0.5);
+
+    expect(store().getSegmentationForImage('img-1')!.outlineOpacity).toBe(0.5);
+  });
+
+  it('writes the outline thickness onto the viewed image’s segmentation', async () => {
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    store().createSegment(segmentation.id, { name: 'Tumor' });
+    const wrapper = mountList();
+    await nextTick();
+
+    await setSlider(wrapper, 'Outline Thickness', 4);
+
+    expect(store().getSegmentationForImage('img-1')!.outlineThickness).toBe(4);
+  });
+
+  it('writes only the viewed image’s segmentation', async () => {
+    await seatImage('img-2', 'MR');
+    const first = store().ensureSegmentationForImage('img-1');
+    store().createSegment(first.id, { name: 'Tumor' });
+    const second = store().ensureSegmentationForImage('img-2');
+    store().createSegment(second.id, { name: 'Node' });
+    const wrapper = mountList();
+    await nextTick();
+
+    await setSlider(wrapper, 'Fill Opacity', 0.25);
+
+    expect(store().getSegmentationForImage('img-1')!.fillOpacity).toBe(0.25);
+    expect(store().getSegmentationForImage('img-2')!.fillOpacity).toBe(1);
   });
 });

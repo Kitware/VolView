@@ -59,6 +59,11 @@ export type Segmentation = {
   outlineThickness: number;
 };
 
+/** The display multipliers every segment of a segmentation is scaled by. */
+export type SegmentationDisplayPatch = Partial<
+  Pick<Segmentation, 'fillOpacity' | 'outlineOpacity' | 'outlineThickness'>
+>;
+
 /**
  * The voxel operations every labelmap consumer routes through. Storage is one
  * bounded mask per segment, sized to the region that segment covers.
