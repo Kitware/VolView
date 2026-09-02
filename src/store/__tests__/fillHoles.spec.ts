@@ -211,6 +211,31 @@ describe('Fill Holes store', () => {
     });
   });
 
+  it.each([
+    ['below', [0, 9, 0, 9, 2, 4] as Extent3D, 0],
+    ['above', [0, 9, 0, 9, 0, 1] as Extent3D, 4],
+  ])(
+    'refuses a selected-segment fill on a slice %s the segment',
+    async (_where, extent, parentSlice) => {
+      // Unclamped, the converted index folds back onto a real slice of the
+      // cropped mask and the fill lands on a slice the user never picked.
+      const { fillHolesStore, parentImageID, artifactId, segmentId } =
+        await setupFillHolesRun(
+          { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
+          extent,
+          parentSlice
+        );
+      fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
+
+      await expect(
+        fillHolesStore.computeAlgorithm(
+          segmentTarget(parentImageID, artifactId, segmentId, 1)
+        )
+      ).rejects.toThrow(/nothing on this slice/i);
+      expect(fillHolesWorkerMock).not.toHaveBeenCalled();
+    }
+  );
+
   it('fills the whole parent slice when scoped to every segment', async () => {
     // The composite spans the parent, so there is no mask offset to convert.
     const { fillHolesStore, parentImageID } = await setupFillHolesRun(

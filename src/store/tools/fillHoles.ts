@@ -10,6 +10,8 @@ import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/core/tools/paint/fillHoles.worker';
 import { convertSliceIndex } from '@/src/utils/imageSpace';
 import { getLPSDirections } from '@/src/utils/lps';
+import type { LPSAxis } from '@/src/types/lps';
+import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 export enum FillHolesSliceScope {
   CurrentSlice = 'currentSlice',
@@ -38,6 +40,40 @@ async function getWorker() {
   return workerInstance;
 }
 
+/**
+ * The current parent slice in the mask's own index space. A segment's mask is
+ * cropped to its own extent, so a slice outside it converts to an index the
+ * worker would fold back onto a real slice of the mask and fill the wrong one.
+ */
+function maskSliceIndex(
+  view: { viewInfo: { id: string }; axis: LPSAxis },
+  parentImageId: string,
+  segImage: vtkImageData,
+  sliceCount: number
+) {
+  const parentMetadata = getImageMetadata(parentImageId);
+  const sliceConfig = useViewSliceStore().getConfig(
+    view.viewInfo.id,
+    parentImageId
+  );
+  const parentAxis = parentMetadata.lpsOrientation[view.axis];
+  const parentSlice =
+    sliceConfig?.slice ?? Math.floor(parentMetadata.dimensions[parentAxis] / 2);
+  const sliceIndex = convertSliceIndex(
+    parentSlice,
+    parentMetadata.lpsOrientation,
+    parentMetadata.indexToWorld,
+    segImage,
+    view.axis
+  );
+  if (sliceIndex < 0 || sliceIndex >= sliceCount) {
+    throw new Error(
+      'the selected segment has nothing on this slice. Scroll to a slice it covers, then try again.'
+    );
+  }
+  return sliceIndex;
+}
+
 export const useFillHolesStore = defineStore('fillHoles', () => {
   const sliceScope = ref(FillHolesSliceScope.CurrentSlice);
   const segmentScope = ref(FillHolesSegmentScope.AllSegments);
@@ -52,7 +88,6 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
 
   async function computeAlgorithm(target: ProcessTarget) {
     const viewStore = useViewStore();
-    const viewSliceStore = useViewSliceStore();
     const segmentationStore = useSegmentationStore();
 
     const selectedSegment =
@@ -75,7 +110,6 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     const { parentImageId, voxels } = target;
     const segImage = voxels.image();
 
-    const parentMetadata = getImageMetadata(parentImageId);
     const labelMapLpsOrientation = getLPSDirections(segImage.getDirection());
     const axis = labelMapLpsOrientation[effectiveView.axis];
 
@@ -83,24 +117,15 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     // The worker structured-clones its input, so the live buffer is right here.
     const data = voxels.scalars();
 
-    let sliceIndex: number | undefined;
-    if (sliceScope.value === FillHolesSliceScope.CurrentSlice) {
-      const sliceConfig = viewSliceStore.getConfig(
-        effectiveView.viewInfo.id,
-        parentImageId
-      );
-      const parentAxis = parentMetadata.lpsOrientation[effectiveView.axis];
-      const parentSlice =
-        sliceConfig?.slice ??
-        Math.floor(parentMetadata.dimensions[parentAxis] / 2);
-      sliceIndex = convertSliceIndex(
-        parentSlice,
-        parentMetadata.lpsOrientation,
-        parentMetadata.indexToWorld,
-        segImage,
-        effectiveView.axis
-      );
-    }
+    const sliceIndex =
+      sliceScope.value === FillHolesSliceScope.CurrentSlice
+        ? maskSliceIndex(
+            effectiveView,
+            parentImageId,
+            segImage,
+            dimensions[axis]
+          )
+        : undefined;
 
     const label =
       target.scope === 'segment' && selectedSegment
