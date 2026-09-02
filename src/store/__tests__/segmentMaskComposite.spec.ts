@@ -298,6 +298,28 @@ describe('writing a composite edit back into the bounded masks', () => {
     await seatImage('img-1', GRID);
   });
 
+  /** What a composite built after the edit reads at a parent index. */
+  const compositeValueAt = (index: Index3) =>
+    store().imageVoxels('img-1').scalars()[parentOffset(...index)];
+
+  /** Two segments stacked on one voxel: the later one owns the composite. */
+  const overlapAt = (index: Index3) => {
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
+    seedVoxel(under, index);
+    seedVoxel(over, index);
+    return { under, over };
+  };
+
+  /** Writes one voxel through the image accessor the edit was read from. */
+  const applyVoxel = (index: Index3, value: number) => {
+    const voxels = store().imageVoxels('img-1');
+    const edited = voxels.snapshot();
+    edited[parentOffset(...index)] = value;
+    voxels.apply(edited);
+    return voxels;
+  };
+
   it('sends each label value back to the segment that owns it', () => {
     const tumor = addSegment('img-1', 'Tumor');
     const node = addSegment('img-1', 'Node');
@@ -331,30 +353,48 @@ describe('writing a composite edit back into the bounded masks', () => {
   it('clears a voxel the edit took away from its segment', () => {
     const tumor = addSegment('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
-    const voxels = store().imageVoxels('img-1');
 
-    const edited = voxels.snapshot();
-    edited[parentOffset(1, 1, 1)] = 0;
-    voxels.apply(edited);
+    applyVoxel([1, 1, 1], 0);
 
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(0);
   });
 
   it('leaves the voxels the edit did not change alone, overlap included', () => {
-    const under = addSegment('img-1', 'Under');
-    const over = addSegment('img-1', 'Over');
-    seedVoxel(under, [1, 1, 1]);
-    seedVoxel(over, [1, 1, 1]);
-    const voxels = store().imageVoxels('img-1');
+    const { under, over } = overlapAt([1, 1, 1]);
 
     // The composite can only show the later segment there, so a write-back
     // that rewrote every voxel would erase the one underneath.
-    const edited = voxels.snapshot();
-    edited[parentOffset(2, 2, 2)] = labelValueOf(over)!;
-    voxels.apply(edited);
+    applyVoxel([2, 2, 2], labelValueOf(over)!);
 
     expect(maskValueAt(under, [1, 1, 1])).toBe(labelValueOf(under));
     expect(maskValueAt(over, [1, 1, 1])).toBe(labelValueOf(over));
+  });
+
+  it('takes an overlapped voxel from every mask when the edit clears it', () => {
+    const { under, over } = overlapAt([1, 1, 1]);
+
+    const voxels = applyVoxel([1, 1, 1], 0);
+
+    expect(maskValueAt(under, [1, 1, 1])).toBe(0);
+    expect(maskValueAt(over, [1, 1, 1])).toBe(0);
+    // What the accessor now reads is what a freshly composed one reads.
+    expect(compositeValueAt([1, 1, 1])).toBe(0);
+    expect(voxels.scalars()[parentOffset(1, 1, 1)]).toBe(0);
+  });
+
+  it('leaves a changed overlapped voxel holding only the value the edit set', () => {
+    // First in the order, so the composite shows it only where nothing later
+    // still holds the voxel.
+    const other = addSegment('img-1', 'Other');
+    seedVoxel(other, [3, 3, 3]);
+    const { under, over } = overlapAt([1, 1, 1]);
+
+    applyVoxel([1, 1, 1], labelValueOf(other)!);
+
+    expect(maskValueAt(other, [1, 1, 1])).toBe(labelValueOf(other));
+    expect(maskValueAt(under, [1, 1, 1])).toBe(0);
+    expect(maskValueAt(over, [1, 1, 1])).toBe(0);
+    expect(compositeValueAt([1, 1, 1])).toBe(labelValueOf(other));
   });
 
   it('drops a label value no segment owns', () => {

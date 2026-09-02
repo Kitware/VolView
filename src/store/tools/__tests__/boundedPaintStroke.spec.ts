@@ -5,9 +5,9 @@ import { createApp } from 'vue';
 import { PaintMode } from '@/src/core/tools/paint';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { isEmptyExtent } from '@/src/types/segmentation';
 import {
   addSegment,
+  bindingOf,
   extentOf,
   labelValueOf,
   maskValueAt,
@@ -121,8 +121,21 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(isEmptyExtent(extentOf(active)!)).toBe(true);
-      expect(store().segmentVoxels(active).scalars()).toHaveLength(0);
+      // No binding at all, not an empty one: erase refuses before the segment
+      // gets storage it has nothing to take from.
+      expect(bindingOf(active)).toBeUndefined();
+      expect(Object.keys(store().artifactIndex)).toHaveLength(0);
+    });
+
+    it('mints no segment when erasing on an image that has none', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      usePaintToolStore().setMode(PaintMode.Erase);
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(store().getSegmentationForImage('img-1')).toBeUndefined();
+      expect(store().activeSegmentId).toBeUndefined();
+      expect(Object.keys(store().artifactIndex)).toHaveLength(0);
     });
   });
 

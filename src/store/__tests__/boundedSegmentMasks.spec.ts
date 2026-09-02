@@ -288,12 +288,16 @@ describe('bounded segment masks', () => {
         store().segmentVoxels(addSegment('img-1')).materialize()
       );
       const overflow = addSegment('img-1', 'One too many');
+      const artifactCount = Object.keys(store().artifactIndex).length;
 
       expect(() => store().segmentVoxels(overflow).materialize()).toThrow(
         /at most 255 segments/
       );
-      // Refused, not half-done: the segment is still unbound.
+      // Refused, not half-done: the segment is still unbound, and no mask was
+      // minted for the binding that never happened.
       expect(store().segmentVoxels(overflow).binding()).toBeUndefined();
+      expect(Object.keys(store().artifactIndex)).toHaveLength(artifactCount);
+      expect(Object.keys(store().artifactMeta)).toHaveLength(artifactCount);
     });
 
     it('leaves the values of another image alone', async () => {

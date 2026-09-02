@@ -110,13 +110,22 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   /**
-   * The segment this operation writes into, with its storage allocated.
+   * The segment this operation writes into. It is allocated for a stroke that
+   * writes voxels; an erase takes what is already there, so it resolves nothing
+   * into existence and refuses when there is nothing stored to take from.
    */
-  function resolveStrokeTarget(imageID: string) {
-    const segmentId = segmentationStore.resolveEditTarget(imageID);
+  function resolveStrokeTarget(imageID: string, allocate: boolean) {
+    const segmentId = allocate
+      ? segmentationStore.resolveEditTarget(imageID)
+      : segmentationStore.findEditTarget(imageID);
+    if (!segmentId) return undefined;
     if (segmentationStore.getSegment(segmentId).locked) return undefined;
 
-    const binding = segmentationStore.ensureLabelmapBinding(segmentId);
+    const binding = allocate
+      ? segmentationStore.ensureLabelmapBinding(segmentId)
+      : segmentationStore.findSegmentBinding(segmentId);
+    if (!binding) return undefined;
+
     return {
       segmentId,
       labelValue: binding.labelValue,
@@ -135,7 +144,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
-    const target = resolveStrokeTarget(imageID);
+    const erasing = activeMode.value === PaintMode.Erase;
+    const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;
 
     const { voxels, labelValue, segmentId } = target;
@@ -162,9 +172,7 @@ export const usePaintToolStore = defineStore('paint', () => {
         ? worldPointToIndex(parentImage, strokePoints.value[lastIndex - 1])
         : undefined;
 
-    const erasing = activeMode.value === PaintMode.Erase;
     // Growth happens first, and nothing grows once the buffers below are read.
-    // Erase never allocates: there is nothing to erase where nothing is stored.
     if (!erasing) {
       voxels.ensureContains(
         clipExtent(

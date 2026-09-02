@@ -51,6 +51,26 @@ const manifestWithSelection = (primarySelection: string): Manifest => ({
   primarySelection,
 });
 
+/** One segmentation on dataset-1 whose only segment binds to `artifactId`. */
+const segmentationBoundTo = (artifactId: string) => ({
+  id: 'seg-1',
+  name: 'Seg',
+  parentImage: 'dataset-1',
+  order: ['segment-1'],
+  segments: [
+    {
+      id: 'segment-1',
+      name: 'Tumor',
+      color: [255, 0, 0, 255],
+      visible: true,
+      locked: false,
+      representations: {
+        labelmap: { artifactId, labelValue: 1, extent: [0, 1, 0, 1, 0, 1] },
+      },
+    },
+  ],
+});
+
 describe('state-file serialization resilience', () => {
   it('writes a restorable zip when one manifest entry is malformed', async () => {
     const sink = recordWarnings();
@@ -303,30 +323,7 @@ describe('state-file serialization resilience', () => {
           name: 'Gone',
         },
       ],
-      segmentations: [
-        {
-          id: 'seg-1',
-          name: 'Seg',
-          parentImage: 'dataset-1',
-          order: ['segment-1'],
-          segments: [
-            {
-              id: 'segment-1',
-              name: 'Tumor',
-              color: [255, 0, 0, 255],
-              visible: true,
-              locked: false,
-              representations: {
-                labelmap: {
-                  artifactId: 'artifact-1',
-                  labelValue: 1,
-                  extent: [0, 1, 0, 1, 0, 1],
-                },
-              },
-            },
-          ],
-        },
-      ],
+      segmentations: [segmentationBoundTo('artifact-1')],
     } as unknown as Manifest;
 
     const normalized = normalizeManifest(manifest, new JSZip()) as any;
@@ -337,6 +334,41 @@ describe('state-file serialization resilience', () => {
     ).toEqual({});
     expect(normalized.omitted.join('\n')).toMatch(
       /segmentation artifact artifact-1 is missing/
+    );
+  });
+
+  it('unbinds a segment whose artifact belongs to another image', () => {
+    const manifest = {
+      version: MANIFEST_VERSION,
+      datasets: [
+        { id: 'dataset-1', dataSourceId: 1 },
+        { id: 'dataset-2', dataSourceId: 2 },
+      ],
+      dataSources: [
+        { id: 1, type: 'uri', uri: '/dataset-1' },
+        { id: 2, type: 'uri', uri: '/dataset-2' },
+      ],
+      segmentationArtifacts: [
+        {
+          id: 'artifact-2',
+          dataSourceId: 2,
+          parentImage: 'dataset-2',
+          name: 'Other image',
+        },
+      ],
+      segmentations: [segmentationBoundTo('artifact-2')],
+    } as unknown as Manifest;
+
+    const normalized = normalizeManifest(manifest, new JSZip()) as any;
+
+    // The artifact itself is valid, so it stays; only the binding across
+    // images goes.
+    expect(normalized.manifest.segmentationArtifacts).toHaveLength(1);
+    expect(
+      normalized.manifest.segmentations[0].segments[0].representations
+    ).toEqual({});
+    expect(normalized.omitted.join('\n')).toMatch(
+      /segmentation artifact artifact-2 belongs to dataset-2/
     );
   });
 
@@ -358,30 +390,7 @@ describe('state-file serialization resilience', () => {
             name: 'Gone',
           },
         ],
-        segmentations: [
-          {
-            id: 'seg-1',
-            name: 'Seg',
-            parentImage: 'dataset-1',
-            order: ['segment-1'],
-            segments: [
-              {
-                id: 'segment-1',
-                name: 'Tumor',
-                color: [255, 0, 0, 255],
-                visible: true,
-                locked: false,
-                representations: {
-                  labelmap: {
-                    artifactId,
-                    labelValue: 1,
-                    extent: [0, 1, 0, 1, 0, 1],
-                  },
-                },
-              },
-            ],
-          },
-        ],
+        segmentations: [segmentationBoundTo(artifactId)],
       }) as unknown as Manifest;
 
     const warningsFrom = async (manifest: Manifest) => {

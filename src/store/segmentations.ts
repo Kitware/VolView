@@ -539,9 +539,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
+    // The value is claimed before the mask exists: exhausting the values throws,
+    // and an artifact minted first would outlive the refused binding.
+    const labelValue = nextLabelValue(segmentation);
     segment.representations.labelmap = {
       artifactId: createArtifactForImage(segmentation.parentImageId),
-      labelValue: nextLabelValue(segmentation),
+      labelValue,
       extent: emptyExtent(),
     };
     return segment.representations.labelmap;
@@ -812,7 +815,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   /**
    * Writes a composite edit back into the bounded masks it was built from.
    * Only voxels the edit actually changed are touched, so an overlap the
-   * composite could not show survives a process that never aimed at it.
+   * composite could not show survives a process that never aimed at it. A
+   * changed voxel is stated in full: it ends up holding the edit's value and
+   * nothing else, so the composite reads back what was written into it.
    */
   function applyCompositeEdit(
     parentImageId: string,
@@ -833,17 +838,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           const value = after[offset];
           if (value === LABELMAP_BACKGROUND_VALUE || value === before[offset])
             continue;
+          const voxel: Extent3D = [i, i, j, j, k, k];
           const box = needed.get(value);
-          if (!box) {
-            needed.set(value, [i, i, j, j, k, k]);
-            continue;
-          }
-          box[0] = Math.min(box[0], i);
-          box[1] = Math.max(box[1], i);
-          box[2] = Math.min(box[2], j);
-          box[3] = Math.max(box[3], j);
-          box[4] = Math.min(box[4], k);
-          box[5] = Math.max(box[5], k);
+          needed.set(value, box ? extentUnion(box, voxel) : voxel);
         }
       }
     }
@@ -895,16 +892,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       touched.add(target.mask);
     };
 
+    // Read once: the loop below visits every one of these per changed voxel.
+    const owned = [...targets.keys()];
+    const clear = LABELMAP_BACKGROUND_VALUE;
+
     for (let k = 0; k < dk; k += 1) {
       for (let j = 0; j < dj; j += 1) {
         for (let i = 0; i < di; i += 1) {
           const offset = i + j * di + k * di * dj;
           const next = after[offset];
-          const previous = before[offset];
-          if (next === previous) continue;
-          if (previous !== LABELMAP_BACKGROUND_VALUE)
-            write(previous, i, j, k, LABELMAP_BACKGROUND_VALUE);
-          if (next !== LABELMAP_BACKGROUND_VALUE) write(next, i, j, k, next);
+          if (next === before[offset]) continue;
+          // A changed voxel is stated in full: the mask the edit names takes
+          // it and every other mask releases it, so an overlap the composite
+          // could not show cannot resurface as the value the edit dropped.
+          owned.forEach((value) =>
+            write(value, i, j, k, value === next ? next : clear)
+          );
         }
       }
     }
@@ -1127,22 +1130,32 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   /** Whether a segment id is live anywhere, used to tell stale ids from foreign ones. */
   const segmentExists = (segmentId: string) => !!findSegment(segmentId);
 
+  /**
+   * The segment an edit would target, if it already exists. Creates nothing, so
+   * an operation with nothing to allocate for, erasing above all, can refuse
+   * before a segment is minted.
+   */
+  function findEditTarget(imageId: string, preferredSegmentId?: Maybe<string>) {
+    // An explicit segment wins when it belongs to this image. Anything else, a
+    // stale id included, falls through to the recorded target.
+    const owner = getSegmentationForImage(imageId);
+    if (preferredSegmentId && owner?.segments[preferredSegmentId])
+      return preferredSegmentId;
+
+    const recorded = intent.value?.targetByImageId[imageId];
+    return recorded && findSegment(recorded) ? recorded : undefined;
+  }
+
   function resolveEditTarget(
     imageId: string,
     preferredSegmentId?: Maybe<string>
   ) {
-    // An explicit segment wins when it belongs to this image. Anything else, a
-    // stale id included, falls through to the normal path. This does not change
-    // the active segment: naming a segment to edit is not selecting it.
-    if (preferredSegmentId) {
-      const owner = getSegmentationForImage(imageId);
-      if (owner?.segments[preferredSegmentId]) return preferredSegmentId;
-    }
-
-    const recorded = intent.value?.targetByImageId[imageId];
-    if (recorded && findSegment(recorded)) {
-      activeSegmentRef.value = recorded;
-      return recorded;
+    const existing = findEditTarget(imageId, preferredSegmentId);
+    if (existing) {
+      // A recorded target is this image's selection, so editing it selects it.
+      // Naming a segment to edit is not selecting it.
+      if (existing !== preferredSegmentId) activeSegmentRef.value = existing;
+      return existing;
     }
 
     // Identity is copied, never matched: a same-named segment is not the same
@@ -1462,6 +1475,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       segmentation.outlineOpacity = wire.outlineOpacity;
       segmentation.outlineThickness = wire.outlineThickness;
 
+      // A mask sits on its parent's grid, so a binding to another image's
+      // artifact is not storage a segment here can be read or written through.
+      const ownsArtifact = (artifactId: string) =>
+        artifactMeta[artifactId]?.parentImage === parentImageId;
+
       const wireById = new Map(
         wire.segments.map((segment) => [segment.id, segment])
       );
@@ -1482,7 +1500,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         const artifactId = binding
           ? artifactIdMap[binding.artifactId]
           : undefined;
-        if (binding && artifactId !== undefined) {
+        if (binding && artifactId !== undefined && ownsArtifact(artifactId)) {
           const extent = [...binding.extent] as Extent3D;
           segment.representations.labelmap = {
             artifactId,
@@ -1623,6 +1641,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     setActiveSegment,
     setActiveSegmentTemplate,
     clearActiveSegment,
+    findEditTarget,
     resolveEditTarget,
     segmentExists,
     getSegmentationForImage,

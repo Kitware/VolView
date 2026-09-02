@@ -175,6 +175,10 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     return [parsed.data];
   });
 
+  const artifactParentById = new Map(
+    validArtifacts.map((entry) => [entry.id, entry.parentImage])
+  );
+
   const rawSegmentations = Array.isArray(candidate.segmentations)
     ? candidate.segmentations
     : [];
@@ -192,13 +196,18 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     }
 
     // An artifact pruned above must not be left referenced: restore would
-    // silently recreate the segment with no storage.
-    const artifactIds = new Set(validArtifacts.map((entry) => entry.id));
+    // silently recreate the segment with no storage. Nor may one belong to
+    // another image: a mask sits on its parent's grid, so a binding across
+    // images points the segment at storage of the wrong shape.
     const segments = parsed.data.segments.map((segment) => {
       const binding = segment.representations.labelmap;
-      if (!binding || artifactIds.has(binding.artifactId)) return segment;
+      if (!binding) return segment;
+      const artifactParent = artifactParentById.get(binding.artifactId);
+      if (artifactParent === parsed.data.parentImage) return segment;
       omitted.push(
-        `${name}.segments[${segment.id}]: segmentation artifact ${binding.artifactId} is missing`
+        artifactParent === undefined
+          ? `${name}.segments[${segment.id}]: segmentation artifact ${binding.artifactId} is missing`
+          : `${name}.segments[${segment.id}]: segmentation artifact ${binding.artifactId} belongs to ${artifactParent}`
       );
       return { ...segment, representations: {} };
     });

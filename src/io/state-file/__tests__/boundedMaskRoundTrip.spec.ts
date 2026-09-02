@@ -105,12 +105,16 @@ const emptyManifest = () =>
     datasetFilePath: {},
   }) as unknown as Manifest;
 
-async function roundTrip(io: ReturnType<typeof makeArtifactIO>) {
+async function roundTrip(
+  io: ReturnType<typeof makeArtifactIO>,
+  tamper?: (manifest: any) => void
+) {
   const zip = new JSZip();
   const manifest = emptyManifest();
   await store().serialize({ zip, manifest }, io);
 
   const parsed = ManifestSchema.parse(manifest) as any;
+  tamper?.(parsed);
   const stateFiles = await Promise.all(
     parsed.segmentationArtifacts.map(async (artifact: any) => ({
       archivePath: artifact.path,
@@ -207,6 +211,33 @@ describe('bounded masks through the state file', () => {
       store().getSegmentationForImage('new-1')!
     ).find((segment) => segment.name === 'Unbound')!;
     expect(unbound.representations.labelmap).toBeUndefined();
+  });
+
+  it('leaves a segment unbound when its artifact belongs to another image', async () => {
+    await buildScene();
+
+    // A mask sits on its parent's grid, so a binding across images would put
+    // the segment on storage of another shape.
+    await roundTrip(makeArtifactIO(), (manifest) => {
+      const foreign = manifest.segmentationArtifacts.find(
+        (artifact: any) => artifact.parentImage === 'img-2'
+      );
+      const segmentation = manifest.segmentations.find(
+        (entry: any) => entry.parentImage === 'img-1'
+      );
+      const tumor = segmentation.segments.find(
+        (segment: any) => segment.name === 'Tumor'
+      );
+      tumor.representations.labelmap.artifactId = foreign.id;
+    });
+
+    const restored = listSegments(store().getSegmentationForImage('new-1')!);
+    const named = (name: string) =>
+      restored.find((segment) => segment.name === name)!;
+    expect(named('Tumor').representations.labelmap).toBeUndefined();
+    // The image's other segments restore as they were.
+    expect(named('Node').representations.labelmap).toBeDefined();
+    expect(markedVoxels(named('Node').id)).toEqual([[3, 3, 3, 2]]);
   });
 
   it('puts the restored masks back on the parent grid', async () => {
