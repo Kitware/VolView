@@ -6,6 +6,7 @@ import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { usePolygonStore } from '@/src/store/tools/polygons';
 import type { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
@@ -125,7 +126,12 @@ export function rasterizePolygon({
   const parent = useImageCacheStore().getVtkImageData(imageId);
   if (!parent) throw new Error('No such parent image');
 
-  const target = resolveRasterizeTarget(imageId, segmentId);
+  // A polygon labeled with an unmaterialized template names an identity, not a
+  // segment. Rasterizing is the edit that materializes it, on this image.
+  const target = resolveRasterizeTarget(
+    imageId,
+    usePolygonStore().materializeLabelForImage(imageId, segmentId)
+  );
   const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
   const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
 

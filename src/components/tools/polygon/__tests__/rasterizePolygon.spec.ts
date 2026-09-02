@@ -3,6 +3,8 @@ import { setActivePinia, createPinia } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { rasterizePolygon } from '@/src/components/tools/polygon/rasterizeTarget';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { listSegments } from '@/src/types/segmentation';
 import {
   addSegment,
   extentOf,
@@ -44,6 +46,16 @@ const rasterize = (segmentId: string | undefined, points = SQUARE, slice = 0) =>
     slice,
     viewAxis: 'Axial',
   });
+
+const templateIdNamed = (
+  labels: Record<string, { labelName?: string }>,
+  name: string
+) => Object.entries(labels).find(([, label]) => label.labelName === name)![0];
+
+const segmentNamesOf = (imageId: string) =>
+  listSegments(store().getSegmentationForImage(imageId)!).map(
+    (segment) => segment.name
+  );
 
 describe('rasterizing a polygon into a bounded mask', () => {
   beforeEach(async () => {
@@ -133,6 +145,34 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const segmentation = store().getSegmentationForImage('img-1')!;
     expect(segmentation.order).toEqual([segmentId]);
     expect(maskValueAt(segmentId, [2, 3, 0])).toBe(labelValueOf(segmentId));
+  });
+
+  it('rasterizes into the template the polygon names, not the selected one', () => {
+    const polygons = usePolygonStore();
+    polygons.mergeLabels({ Tumor: { color: '#00ff00' }, Node: {} });
+    const tumor = templateIdNamed(polygons.allLabels, 'Tumor');
+    polygons.setActiveLabel(tumor);
+    // The user picks another label between placing the polygon and rasterizing
+    // it; the polygon still carries the template it was drawn with.
+    polygons.setActiveLabel(templateIdNamed(polygons.allLabels, 'Node'));
+
+    const { segmentId } = rasterize(tumor);
+
+    expect(store().getSegment(segmentId).name).toBe('Tumor');
+    expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
+    expect(maskValueAt(segmentId, [2, 3, 0])).toBe(labelValueOf(segmentId));
+  });
+
+  it('rasterizes into the segment a template already became', () => {
+    const polygons = usePolygonStore();
+    polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
+    const tumor = templateIdNamed(polygons.allLabels, 'Tumor');
+
+    const first = rasterize(tumor);
+    const second = rasterize(tumor, SQUARE, 1);
+
+    expect(second.segmentId).toBe(first.segmentId);
+    expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
   });
 
   it('rasterizes into the segment it was given, not the active one', () => {
