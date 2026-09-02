@@ -305,9 +305,25 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return segment.id;
   };
 
-  const addLabel = (label: ToolLabel = {} as ToolLabel) => {
+  // A segment the caller wants right now. The picker's create path declares a
+  // template instead, see addLabel.
+  const createSegmentNow = (label: ToolLabel = {} as ToolLabel) => {
     const id = addLabelForImage(currentImageID.value, label);
     if (id) setActiveLabel(id);
+    return id;
+  };
+
+  // Adding a label declares a template, the same road config labels take. It
+  // has no segment to write into until an edit materializes it.
+  const addLabel = (label: ToolLabel = {} as ToolLabel) => {
+    const { labelName, ...props } = label;
+    if (!labelName) return '';
+    sessionLabels.value = {
+      ...sessionLabels.value,
+      [labelName]: props as Props,
+    };
+    const id = templateId(labelName);
+    setActiveLabel(id);
     return id;
   };
 
@@ -481,7 +497,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     getSegment,
     setActiveSegment: (id: Maybe<string>) => setActiveLabel(id ?? undefined),
     createSegment: (init?: { name?: string; color?: string }) =>
-      addLabel({
+      createSegmentNow({
         ...(init?.name === undefined ? {} : { labelName: init.name }),
         ...(init?.color === undefined ? {} : { color: init.color }),
       } as ToolLabel),

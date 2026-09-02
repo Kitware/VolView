@@ -219,6 +219,31 @@ describe('shared segment registry', () => {
     ]);
   });
 
+  it('declares a template rather than minting a segment', () => {
+    const segmentation = seatAndView('img-1');
+    const registry = createSharedSegmentRegistry();
+
+    const id = registry.addLabel({ labelName: 'Lesion' });
+
+    expect(segmentation.order).toEqual([]);
+    expect(registry.allLabels.value[id]?.labelName).toBe('Lesion');
+    // The picker binds activeLabel; activeSegmentId stays empty because no
+    // segment exists yet.
+    expect(registry.activeLabel.value).toBe(id);
+    expect(registry.activeSegmentId.value).toBeFalsy();
+  });
+
+  it('mints the declared template on the first edit that materializes it', () => {
+    const segmentation = seatAndView('img-1');
+    const registry = createSharedSegmentRegistry();
+    const template = registry.addLabel({ labelName: 'Lesion' });
+
+    const id = registry.materializeLabelForImage('img-1', template);
+
+    expect(segmentation.order).toEqual([id]);
+    expect(segmentation.segments[id!].name).toBe('Lesion');
+  });
+
   it('shares one segment catalog across registries on the same image', () => {
     seatAndView('img-1');
     const polygons = createSharedSegmentRegistry();
