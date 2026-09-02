@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import type { Manifest } from '@/src/io/state-file/schema';
 import { useDatasetStore } from '@/src/store/datasets';
-import type vtkLabelMap from '@/src/vtk/LabelMap';
+import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   addSegment,
   seatImage,
@@ -57,6 +58,52 @@ async function buildScene() {
 
   return { tumor, node, planned, other };
 }
+
+/** One labelled voxel on the 4x4x4 fixture grid, as an import would arrive. */
+function importedLabelmap() {
+  const labelmap = vtkLabelMap.newInstance();
+  labelmap.setDimensions([4, 4, 4]);
+  const values = new Uint8Array(64);
+  values[0] = 1;
+  labelmap
+    .getPointData()
+    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
+  labelmap.computeTransforms();
+  return labelmap;
+}
+
+const artifactNames = () =>
+  Object.values(store().artifactMeta).map((meta) => meta.name);
+
+const split = (name?: string) =>
+  store().splitLabelmapIntoSegments(
+    'img-1',
+    importedLabelmap(),
+    [{ value: 1, name: 'Liver', color: [255, 0, 0, 255], visible: true }],
+    { artifactName: name }
+  );
+
+// A restored artifact's name reaches the saved manifest and the zip entry path,
+// so generating one where the manifest carried one renames the file on every
+// round trip.
+describe('artifact names carried in from a manifest', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1', { name: 'CT A' });
+  });
+
+  it('keeps the name the caller carried', () => {
+    split('Liver: left/right*?');
+
+    expect(artifactNames()).toEqual(['Liver: left/right*?']);
+  });
+
+  it('generates one when the caller carries none', () => {
+    split();
+
+    expect(artifactNames()).toEqual(['Segment Group 1 for CT A']);
+  });
+});
 
 describe('artifact bookkeeping without the per-parent order map', () => {
   beforeEach(() => {

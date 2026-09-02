@@ -14,6 +14,7 @@ import type { RGBAColor, TypedArray, Vector3 } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
+import { createArtifactNamer } from '@/src/store/artifactNaming';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -98,9 +99,6 @@ const defaultArtifactIO: SegmentationArtifactIO = {
 export const LABELMAP_MAX_VALUE = 255;
 
 export type { ImportedSegment } from '@/src/io/labelmapImport';
-
-const makeDefaultSegmentGroupName = (baseName: string, index: number) =>
-  `Segment Group ${index} for ${baseName}`;
 
 const maskScalars = (mask: vtkLabelMap) =>
   mask.getPointData().getScalars().getData() as Uint8Array;
@@ -249,25 +247,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   // Internal storage layer: UI and tools reach it through this store's API only.
   const artifactIndex = reactive<Record<string, vtkLabelMap>>({});
   const artifactMeta = reactive<Record<string, ArtifactMetadata>>({});
-  // Names keep counting up per parent image so a deleted artifact's name is
-  // not immediately handed to the next one. Cleared by the deletion cascade.
-  const nextDefaultIndex: Record<string, number> = Object.create(null);
-
-  function pickUniqueArtifactName(
-    formatName: (index: number) => string,
-    parentImageId: string
-  ) {
-    const existing = new Set(
-      Object.values(artifactMeta).map((meta) => meta.name)
-    );
-    let name = '';
-    do {
-      const nameIndex = nextDefaultIndex[parentImageId] ?? 1;
-      nextDefaultIndex[parentImageId] = nameIndex + 1;
-      name = formatName(nameIndex);
-    } while (existing.has(name));
-    return name;
-  }
+  const artifactNamer = createArtifactNamer(
+    () => new Set(Object.values(artifactMeta).map((meta) => meta.name))
+  );
 
   function getSegmentation(segmentationId: string) {
     const segmentation = segmentations[segmentationId];
@@ -374,11 +356,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return id;
   }
 
-  /** Allocates a mask on the parent's grid that covers nothing yet. */
+  /**
+   * Allocates a mask on the parent's grid that covers nothing yet. `name` is
+   * the name a manifest carried: it reaches the saved zip's entry path and the
+   * artifact list, so a restore that generated one instead would rename the
+   * file on every round trip. Duplicates are fine, serialize resolves the
+   * archive path against the ones it has already used.
+   */
   function createArtifactForImage(
     parentImageId: string,
     extent: Extent3D = emptyExtent(),
-    source?: ProcessingResultSource
+    source?: ProcessingResultSource,
+    name?: string
   ) {
     const imageData = imageCacheStore.getVtkImageData(parentImageId);
     if (!imageData) throw new Error('No such parent image');
@@ -387,10 +376,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME;
     return registerArtifact(allocateMask(imageData, extent), {
       parentImage: parentImageId,
-      name: pickUniqueArtifactName(
-        (index) => makeDefaultSegmentGroupName(baseName, index),
-        parentImageId
-      ),
+      name: name ?? artifactNamer.pick(parentImageId, baseName),
       ...(source ? { source } : {}),
     });
   }
@@ -464,7 +450,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     parentImageId: string,
     labelmap: vtkLabelMap,
     descriptors: LabelmapSegment[],
-    source?: ProcessingResultSource
+    options: { source?: ProcessingResultSource; artifactName?: string } = {}
   ) {
     const segmentation = ensureSegmentationForImage(parentImageId);
     const created: Segment[] = [];
@@ -478,7 +464,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       segment.locked = descriptor.locked ?? false;
 
       const labelValue = nextLabelValue(segmentation, descriptor.value);
-      const artifactId = createArtifactForImage(parentImageId, extent, source);
+      const artifactId = createArtifactForImage(
+        parentImageId,
+        extent,
+        options.source,
+        options.artifactName
+      );
       segment.representations.labelmap = { artifactId, labelValue, extent };
       created.push(segment);
 
@@ -524,9 +515,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           LabelmapSegment[]
         >,
       split: (labelmap, descriptors) =>
-        splitLabelmapIntoSegments(parentID, labelmap, descriptors, source).map(
-          (segment) => segment.id
-        ),
+        splitLabelmapIntoSegments(parentID, labelmap, descriptors, {
+          source,
+        }).map((segment) => segment.id),
     });
   }
 
@@ -1572,7 +1563,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         parentImageId,
         labelmap,
         descriptors,
-        artifact.source
+        { source: artifact.source, artifactName: artifact.name }
       );
 
       // Every reference to a segment that went with the source artifact moves
@@ -1620,7 +1611,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentImageId) => {
-      delete nextDefaultIndex[parentImageId];
+      artifactNamer.forget(parentImageId);
       const id = byParentImage[parentImageId];
       if (id) removeSegmentation(id);
       else removeArtifactsForImage(parentImageId);
@@ -1673,7 +1664,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     lockedLabelValues,
     segmentLayersForImage,
     removeArtifact,
-    pickUniqueArtifactName,
     serialize,
     deserialize,
   };
