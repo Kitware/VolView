@@ -299,11 +299,13 @@ const migrate640To700 = (inputManifest: any) => {
     // One segment per {label, image} pair: a label used on two images is two
     // segments, and identity is never bridged across them.
     const segmentIdByPair = new Map<string, string>();
+    const usedLabelIds = new Set<string>();
 
     entry.tools = (Array.isArray(entry.tools) ? entry.tools : []).map(
       (tool: any) => {
         const label = labels[tool.label];
         if (!label) return tool;
+        usedLabelIds.add(tool.label);
 
         const pair = `${tool.imageID}\u0000${tool.label}`;
         let segmentId = segmentIdByPair.get(pair);
@@ -326,8 +328,21 @@ const migrate640To700 = (inputManifest: any) => {
       }
     );
 
+    // A label no tool used has no {label, image} pair to become a segment of,
+    // and the picker would lose it. It keeps its identity as a template, which
+    // is what an unmaterialized label is from 7.0 on.
+    const templates = Object.fromEntries(
+      Object.entries(labels)
+        .filter(([labelId]) => !usedLabelIds.has(labelId))
+        .map(([labelId, label]: [string, any]) => {
+          const { labelName, ...props } = label;
+          return [labelName || labelId, props];
+        })
+    );
+
     delete entry.labels;
     entry.segmentProps = segmentProps;
+    if (Object.keys(templates).length > 0) entry.templates = templates;
   });
 
   const segmentations = [...segmentsByParent.entries()].map(

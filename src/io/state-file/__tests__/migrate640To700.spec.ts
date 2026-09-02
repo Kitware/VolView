@@ -395,6 +395,44 @@ describe('migrate640To700 — structural stage', () => {
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
 
+  it('keeps a label no tool used as a template', () => {
+    const polygon = (imageID: string, slice: number) => ({
+      imageID,
+      label: 'lbl-tumor',
+      slice,
+      frameOfReference: {
+        planeOrigin: [0, 0, slice],
+        planeNormal: [0, 0, 1],
+      },
+      points: [
+        [1, 1, slice],
+        [5, 1, slice],
+        [3, 5, slice],
+      ],
+    });
+
+    const migrated = migrate({
+      tools: {
+        polygons: {
+          tools: [polygon('ds-ct', 3)],
+          labels: {
+            'lbl-tumor': { labelName: 'Tumor', color: 'red', strokeWidth: 3 },
+            'lbl-node': { labelName: 'Node', color: 'blue', strokeWidth: 1 },
+          },
+        },
+      },
+    });
+
+    const segments = orderedSegments(segmentationFor(migrated, 'ds-ct'));
+    // The used label became a segment; the unused one has no image to be a
+    // segment of, so it stays offered as a template.
+    expect(segments.map((segment: any) => segment.name)).toEqual(['Tumor']);
+    expect(migrated.tools.polygons.templates).toEqual({
+      Node: { color: 'blue', strokeWidth: 1 },
+    });
+    expect(() => ManifestSchema.parse(migrated)).not.toThrow();
+  });
+
   it('converts CSS label colors to RGBA', () => {
     const rectangle = (label: string) => ({
       imageID: 'ds-ct',
@@ -571,7 +609,11 @@ const legacyScene = () =>
             ],
           },
         ],
-        labels: { 'lbl-drawn': { labelName: 'Drawn', color: 'blue' } },
+        labels: {
+          'lbl-drawn': { labelName: 'Drawn', color: 'blue' },
+          // Declared, never drawn with.
+          'lbl-planned': { labelName: 'Planned', color: 'green' },
+        },
       },
     },
   });
@@ -634,6 +676,23 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
 
     const polygons = usePolygonStore();
     expect(polygons.toolByID[polygons.toolIDs[0]].labelName).toBe('Drawn');
+  });
+
+  it('offers a legacy label no tool used as a template', async () => {
+    await restoreLegacyScene();
+
+    const polygons = usePolygonStore();
+    const labelNames = Object.values(polygons.allLabels).map(
+      (label: any) => label.labelName
+    );
+    expect(labelNames).toContain('Planned');
+
+    // It is a template, not a segment: nothing was drawn with it.
+    const segmentation =
+      useSegmentationStore().getSegmentationForImage('store-ct')!;
+    expect(
+      segmentation.order.map((id) => segmentation.segments[id].name)
+    ).not.toContain('Planned');
   });
 
   it('re-saves as 7.0.0 and reloads identically', async () => {
