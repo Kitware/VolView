@@ -32,7 +32,7 @@ type PreviewingState = TargetedState & {
   step: 'previewing';
   voxels: VoxelStorage;
   originalScalars: TypedArray;
-  processedScalars: TypedArray;
+  processedScalars: TypedArray | number[];
   showingOriginal: boolean;
 };
 
@@ -233,7 +233,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         processType,
         voxels,
         originalScalars,
-        processedScalars: voxels.snapshot(),
+        // The algorithm's own array, not a copy of it: an algorithm must not
+        // retain and mutate what it returns.
+        processedScalars: outputScalars,
         showingOriginal: false,
       };
     } catch (error) {
