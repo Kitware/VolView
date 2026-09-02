@@ -91,8 +91,16 @@ export const openAnnotationSegments = async () => {
  */
 export const showFirstSegmentGroup = async (timeout?: number) => {
   await $(SEGMENT_LIST).waitForDisplayed(timeout ? { timeout } : undefined);
-  await browser.waitUntil(async () => (await segmentNames()).length >= 1, {
-    ...(timeout ? { timeout } : {}),
-    timeoutMsg: 'Expected the viewed image to have a segment',
-  });
+  // A chip renders before its title does, so a name-less chip is not yet a
+  // segment the caller can read.
+  await browser.waitUntil(
+    async () => {
+      const names = await segmentNames();
+      return names.length >= 1 && names.every((name) => name.length > 0);
+    },
+    {
+      ...(timeout ? { timeout } : {}),
+      timeoutMsg: 'Expected the viewed image to have a named segment',
+    }
+  );
 };
