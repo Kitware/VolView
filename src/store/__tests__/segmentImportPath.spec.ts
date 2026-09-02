@@ -131,8 +131,8 @@ describe('the import path answers on the segmentation store', () => {
 
     const segments = segmentsOf('parent-img');
     expect(segments.map((segment) => segment.name)).toEqual([
-      'Segment 1',
-      'Segment 2',
+      'Tumor 1',
+      'Tumor 2',
     ]);
 
     const bindings = segments.map(
@@ -196,6 +196,34 @@ describe('the import path answers on the segmentation store', () => {
     expect(Object.keys(store().artifactMeta)).toEqual([]);
   });
 
+  // 'Segment 1' says nothing about what was imported. The file stem is the only
+  // name a descriptor-less labelmap carries, and it reaches the panel and the
+  // .seg.nrrd header a save writes.
+  it('names descriptor-less segments after the imported file', async () => {
+    await seat('parent-img', 'CT');
+    await seat('child-img', 'liver.nrrd', labelValues());
+
+    await store().convertImageToLabelmap('child-img', 'parent-img');
+
+    expect(segmentsOf('parent-img').map((segment) => segment.name)).toEqual([
+      'liver 1',
+      'liver 2',
+    ]);
+  });
+
+  it('numbers nothing when the import holds a single label value', async () => {
+    const single = new Uint8Array(VOXEL_COUNT);
+    single[offset(1, 1, 1)] = 4;
+    await seat('parent-img', 'CT');
+    await seat('child-img', 'liver.nrrd', single);
+
+    await store().convertImageToLabelmap('child-img', 'parent-img');
+
+    expect(segmentsOf('parent-img').map((segment) => segment.name)).toEqual([
+      'liver',
+    ]);
+  });
+
   it('decodes a labelmap the restore path already holds', async () => {
     // `deserialize` decodes a migrated artifact's buffer directly, so the decode
     // stays reachable as store API and not only through the conversion.
@@ -231,7 +259,7 @@ describe('the import path answers on the segmentation store', () => {
     // Merge, not replace: the described value takes the embedded name and
     // colour, the undescribed one keeps its default.
     expect(describedBy('parent-img')).toEqual([
-      { name: 'Segment 1', color: categorical(0), labelValue: 1 },
+      { name: 'Tumor 1', color: categorical(0), labelValue: 1 },
       { name: 'Tumor core', color: [255, 0, 0, 255], labelValue: 2 },
     ]);
   });

@@ -183,10 +183,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     // Sanity on the live shape: the full non-background enumeration got
     // default names/colors — not an empty catalog.
     expect(live.map((segment) => segment.labelValue)).toEqual([1, 2]);
-    expect(live.map((segment) => segment.name)).toEqual([
-      'Segment 1',
-      'Segment 2',
-    ]);
+    expect(live.map((segment) => segment.name)).toEqual(['Tumor 1', 'Tumor 2']);
 
     expect(cold).toEqual(live);
   });
@@ -206,7 +203,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     const named = (labelValue: number) =>
       live.find((segment) => segment.labelValue === labelValue)?.name;
     expect(named(2)).toBe('Tumor core');
-    expect(named(1)).toBe('Segment 1');
+    expect(named(1)).toBe('Tumor 1');
 
     expect(cold).toEqual(live);
   });

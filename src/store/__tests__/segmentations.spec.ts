@@ -510,9 +510,11 @@ describe('segmentation store', () => {
       expect(segmentation).toBeTruthy();
       expect(segmentation!.parentImageId).toBe('parent-img');
       const segments = segmentsOfImage('parent-img');
+      // The fixture files the child as `child-img.seg.nrrd`, and an
+      // undescribed value names after the file it arrived in.
       expect(segments.map((segment) => segment.name)).toEqual([
-        'Segment 1',
-        'Segment 2',
+        'child-img 1',
+        'child-img 2',
       ]);
       expect(labelValuesOf(segments)).toEqual([1, 2]);
       segments.forEach((segment) => {
@@ -574,7 +576,7 @@ describe('segmentation store', () => {
       expect(byLabelValue(2).name).toBe('Tumor core');
       expect([...byLabelValue(2).color]).toEqual([255, 0, 0, 255]);
       // Merge, not replace: an undescribed value keeps its default.
-      expect(byLabelValue(1).name).toBe('Segment 1');
+      expect(byLabelValue(1).name).toBe('child-img 1');
     });
 
     it('gives a second conversion of the same parent its own segments', async () => {

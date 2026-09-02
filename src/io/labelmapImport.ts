@@ -229,7 +229,16 @@ export type DecodeOptions = {
   component?: number;
   /** File-header metadata, for bytes that never came through a loaded image. */
   headerMetadata?: Map<string, string>;
+  /** What undescribed segments are named after, in place of 'Segment'. */
+  baseName?: string;
   nextColor: () => readonly number[];
+};
+
+/** A lone value carries the base name bare: there is nothing to tell apart. */
+const fallbackNamer = (values: number[], baseName?: string) => {
+  if (!baseName) return makeDefaultSegmentName;
+  if (values.length === 1) return () => baseName;
+  return (value: number) => `${baseName} ${value}`;
 };
 
 /**
@@ -265,16 +274,15 @@ export async function decodeLabelmapSegments(
       : undefined);
   const described = embedded ? parseSegNrrdMetadata(embedded) : undefined;
 
-  return overlaySegmentMetadata(
-    distinctLabelValues(image),
-    described,
-    (value) => ({
-      value,
-      name: makeDefaultSegmentName(value),
-      color: [...options.nextColor()] as RGBAColor,
-      visible: true,
-    })
-  );
+  const values = distinctLabelValues(image);
+  const nameFor = fallbackNamer(values, options.baseName);
+
+  return overlaySegmentMetadata(values, described, (value) => ({
+    value,
+    name: nameFor(value),
+    color: [...options.nextColor()] as RGBAColor,
+    visible: true,
+  }));
 }
 
 export type LabelmapImportHooks = {

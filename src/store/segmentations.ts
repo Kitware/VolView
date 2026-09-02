@@ -37,7 +37,10 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
-import { type DataSelection } from '@/src/utils/dataSelection';
+import {
+  type DataSelection,
+  getSelectionStem,
+} from '@/src/utils/dataSelection';
 import {
   emptyExtent,
   extentContains,
@@ -495,12 +498,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function decodeSegments(
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
-    component = 0,
-    headerMetadata?: Map<string, string>
+    options: { component?: number; headerMetadata?: Map<string, string> } = {}
   ) {
     return decodeLabelmapSegments(imageId, image, {
-      component,
-      headerMetadata,
+      ...options,
+      // A descriptor-less labelmap reads as the file it arrived in, not as
+      // 'Segment N'; the cold restore decodes through here too, so the two
+      // paths keep naming one labelmap alike.
+      baseName: imageId === undefined ? undefined : getSelectionStem(imageId),
       nextColor: getNextDecodeColor,
     });
   }
@@ -512,7 +517,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   ) {
     return importLabelmapImage(imageID, parentID, {
       decode: (labelmap, component) =>
-        decodeSegments(imageID, labelmap, component) as Promise<
+        decodeSegments(imageID, labelmap, { component }) as Promise<
           LabelmapSegment[]
         >,
       split: (labelmap, descriptors) =>
@@ -1407,12 +1412,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
             // through the same decode live import uses, while its source image
             // is still loaded: the temp artifact dataset is dropped below.
             const decoded = artifact.pendingDecode
-              ? ((await decodeSegments(
-                  storeId,
-                  labelmap,
-                  0,
-                  headerMetadata
-                )) as LabelmapSegment[])
+              ? ((await decodeSegments(storeId, labelmap, {
+                  headerMetadata,
+                })) as LabelmapSegment[])
               : undefined;
             return { artifact, labelmap, decoded };
           } catch {

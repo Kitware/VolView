@@ -315,8 +315,8 @@ describe('a legacy group restored as bounded masks', () => {
       store().getSegmentationForImage('parent-store')!
     );
     expect(segments.map((segment) => segment.name)).toEqual([
-      'Segment 1',
-      'Segment 2',
+      'Tumor 1',
+      'Tumor 2',
     ]);
     expect(extentOf(segments[0].id)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(extentOf(segments[1].id)).toEqual([3, 3, 3, 3, 3, 3]);

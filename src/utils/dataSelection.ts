@@ -1,6 +1,7 @@
 import { getDisplayName, useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { Maybe } from '@/src/types';
+import { stripExtension } from '@/src/utils/path';
 
 export type DataSelection = string;
 
@@ -30,4 +31,14 @@ export const getSelectionName = (selection: string) => {
     return getDisplayName(useDICOMStore().volumeInfo[selection]);
   }
   return getImageName(selection);
+};
+
+/**
+ * How a selection reads as a name for something derived from it. A DICOM
+ * display name is not a filename, so only a file-backed selection is stripped.
+ */
+export const getSelectionStem = (selection: string) => {
+  const name = getSelectionName(selection);
+  if (!name) return undefined;
+  return isRegularImage(selection) ? stripExtension(name) : name;
 };

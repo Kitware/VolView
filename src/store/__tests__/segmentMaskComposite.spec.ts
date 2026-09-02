@@ -245,8 +245,8 @@ describe('splitting an imported labelmap into bounded masks', () => {
 
     const segmentation = store().getSegmentationForImage('parent-img')!;
     expect(listSegments(segmentation).map((segment) => segment.name)).toEqual([
-      'Segment 1',
-      'Segment 3',
+      'Tumor 1',
+      'Tumor 3',
     ]);
     expect(segmentIdsOf('parent-img').map(labelValueOf)).toEqual([1, 3]);
   });
