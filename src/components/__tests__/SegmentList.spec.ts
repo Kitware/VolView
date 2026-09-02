@@ -9,6 +9,7 @@ import SegmentList from '@/src/components/SegmentList.vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useViewStore } from '@/src/store/views';
+import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
 
 // ---------------------------------------------------------------------------
 // One flat segment list per image: rows are the viewed image's segments, keyed
@@ -52,7 +53,14 @@ const makeSegment = (imageId: string, name: string) => {
 // the list uses today.
 const ChipListStub = defineComponent({
   name: 'EditableChipList',
-  props: ['items', 'itemKey', 'itemTitle', 'modelValue', 'createLabelText'],
+  props: [
+    'items',
+    'itemKey',
+    'itemTitle',
+    'modelValue',
+    'createLabelText',
+    'hideCreate',
+  ],
   emits: ['update:model-value', 'create', 'select', 'edit'],
   template: `
     <div class="chip-list">
@@ -65,6 +73,7 @@ const ChipListStub = defineComponent({
         <slot name="item-prepend" :key="item.id" :item="item" />
         <slot name="item-append" :key="item.id" :item="item" />
       </div>
+      <button v-if="!hideCreate" class="create-chip" @click="$emit('create')" />
     </div>
   `,
 });
@@ -474,5 +483,50 @@ describe('flat segment list row editing', () => {
     const wrapper = await openEditor(second.id);
 
     expect([...editor(wrapper).props('invalidNames')]).toEqual(['Tumor']);
+  });
+});
+
+// A cine clip is a stack of unrelated frames, so a segmentation drawn across it
+// means nothing and saves as an empty 2D file.
+describe('flat segment list on a cine image', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    seatCineImage('cine-1');
+    await seatImage('img-1');
+    await nextTick();
+  });
+
+  it('creates no segment when the create affordance is driven anyway', async () => {
+    await viewImage('cine-1');
+    const wrapper = mountList();
+    await nextTick();
+
+    chipList(wrapper).vm.$emit('create');
+    await nextTick();
+
+    expect(store().getSegmentationForImage('cine-1')).toBeUndefined();
+    expect(rowIds(wrapper)).toEqual([]);
+  });
+
+  it('offers no create affordance', async () => {
+    await viewImage('cine-1');
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(wrapper.find('.create-chip').exists()).toBe(false);
+  });
+
+  it('still offers the create affordance on a plain image', async () => {
+    await viewImage('img-1');
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(wrapper.find('.create-chip').exists()).toBe(true);
+
+    await wrapper.find('.create-chip').trigger('click');
+    await nextTick();
+
+    expect(store().getSegmentationForImage('img-1')).toBeDefined();
+    expect(rowIds(wrapper)).toHaveLength(1);
   });
 });

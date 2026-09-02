@@ -8,6 +8,7 @@ import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
 import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { Maybe } from '@/src/types';
 import {
@@ -32,6 +33,10 @@ const viewedSegmentation = computed(() => {
 const segments = computed(() =>
   viewedSegmentation.value ? listSegments(viewedSegmentation.value) : []
 );
+
+// A clip is a stack of unrelated frames, so a segmentation drawn across it
+// means nothing and saves as an empty 2D file.
+const viewingCine = computed(() => isCineImage(currentImageID.value));
 
 // --- saving --- //
 
@@ -64,7 +69,7 @@ const selectedSegment = computed({
 // edit binds a labelmap to it.
 function addNewSegment() {
   const imageId = currentImageID.value;
-  if (!imageId) return;
+  if (!imageId || viewingCine.value) return;
   const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
   const segment = segmentationStore.createSegment(segmentation.id);
   segmentationStore.setActiveSegment(segment.id);
@@ -208,6 +213,7 @@ function deleteEditingSegment() {
       item-key="id"
       item-title="name"
       create-label-text="New segment"
+      :hide-create="viewingCine"
       @create="addNewSegment"
       class="my-4"
     >
