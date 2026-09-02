@@ -756,167 +756,20 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return { labelmap, segments };
   }
 
-  /** The bound segments of an image, keyed by the label value their mask holds. */
-  function boundSegmentsByLabelValue(parentImageId: string) {
+  /**
+   * The segments of an image a process may edit: unlocked, since a locked one
+   * is not editable, and holding voxels, since an empty mask has no content to
+   * process.
+   */
+  function editableSegments(parentImageId: string) {
     const segmentation = getSegmentationForImage(parentImageId);
-    const owners = new Map<number, Segment>();
-    (segmentation ? listSegments(segmentation) : []).forEach((segment) => {
+    if (!segmentation) return [];
+    return listSegments(segmentation).flatMap((segment) => {
       const binding = segment.representations.labelmap;
-      if (binding) owners.set(binding.labelValue, segment);
+      if (segment.locked || !binding || isEmptyExtent(binding.extent))
+        return [];
+      return [{ segmentId: segment.id, labelValue: binding.labelValue }];
     });
-    return owners;
-  }
-
-  /**
-   * Writes a composite edit back into the bounded masks it was built from.
-   * Only voxels the edit actually changed are touched, so an overlap the
-   * composite could not show survives a process that never aimed at it. A
-   * changed voxel is stated in full: it ends up holding the edit's value and
-   * nothing else, so the composite reads back what was written into it.
-   */
-  function applyCompositeEdit(
-    parentImageId: string,
-    before: Uint8Array,
-    after: TypedArray | number[]
-  ) {
-    const parent = imageCacheStore.getVtkImageData(parentImageId);
-    if (!parent) throw new Error('No such parent image');
-    const [di, dj, dk] = parent.getDimensions();
-    const owners = boundSegmentsByLabelValue(parentImageId);
-
-    // Growth happens first, and nothing grows once the buffers below are read.
-    const needed = new Map<number, Extent3D>();
-    for (let k = 0; k < dk; k += 1) {
-      for (let j = 0; j < dj; j += 1) {
-        for (let i = 0; i < di; i += 1) {
-          const offset = i + j * di + k * di * dj;
-          const value = after[offset];
-          if (value === LABELMAP_BACKGROUND_VALUE || value === before[offset])
-            continue;
-          const voxel: Extent3D = [i, i, j, j, k, k];
-          const box = needed.get(value);
-          needed.set(value, box ? extentUnion(box, voxel) : voxel);
-        }
-      }
-    }
-    needed.forEach((extent, value) => {
-      const owner = owners.get(value);
-      if (owner)
-        ensureArtifactContains(
-          owner.representations.labelmap!.artifactId,
-          extent
-        );
-    });
-
-    const targets = new Map<
-      number,
-      {
-        mask: vtkLabelMap;
-        scalars: Uint8Array;
-        extent: Extent3D;
-        mi: number;
-        mj: number;
-      }
-    >();
-    owners.forEach((segment, value) => {
-      const binding = segment.representations.labelmap!;
-      const mask = artifactIndex[binding.artifactId];
-      if (!mask || isEmptyExtent(binding.extent)) return;
-      const extent = [...binding.extent] as Extent3D;
-      const [mi, mj] = extentSize(extent);
-      targets.set(value, { mask, scalars: maskScalars(mask), extent, mi, mj });
-    });
-
-    const touched = new Set<vtkLabelMap>();
-    const write = (
-      value: number,
-      i: number,
-      j: number,
-      k: number,
-      next: number
-    ) => {
-      const target = targets.get(value);
-      if (!target || !extentContainsIndex(target.extent, i, j, k)) return;
-      const offset =
-        i -
-        target.extent[0] +
-        (j - target.extent[2]) * target.mi +
-        (k - target.extent[4]) * target.mi * target.mj;
-      if (target.scalars[offset] === next) return;
-      target.scalars[offset] = next;
-      touched.add(target.mask);
-    };
-
-    // Read once: the loop below visits every one of these per changed voxel.
-    const owned = [...targets.keys()];
-    const clear = LABELMAP_BACKGROUND_VALUE;
-
-    for (let k = 0; k < dk; k += 1) {
-      for (let j = 0; j < dj; j += 1) {
-        for (let i = 0; i < di; i += 1) {
-          const offset = i + j * di + k * di * dj;
-          const next = after[offset];
-          if (next === before[offset]) continue;
-          // A changed voxel is stated in full: the mask the edit names takes
-          // it and every other mask releases it, so an overlap the composite
-          // could not show cannot resurface as the value the edit dropped.
-          owned.forEach((value) =>
-            write(value, i, j, k, value === next ? next : clear)
-          );
-        }
-      }
-    }
-
-    touched.forEach((mask) => mask.modified());
-  }
-
-  /**
-   * Voxel access to an image's segments as one parent-shaped buffer, for the
-   * processes whose scope is every segment at once. The composite is a read
-   * model built once per accessor; a write is diffed against it and
-   * distributed back into the bounded masks that own each voxel.
-   */
-  function imageVoxels(parentImageId: string): VoxelStorage {
-    let composite: vtkLabelMap | undefined;
-
-    const exists = () =>
-      !!imageCacheStore.getVtkImageData(parentImageId) &&
-      segmentLayersForImage(parentImageId).length > 0;
-
-    const requireComposite = () => {
-      if (!exists()) throw new Error('No segmentation for this image');
-      composite ??= compositeLabelmap(parentImageId).labelmap;
-      return composite;
-    };
-    const scalars = () => maskScalars(requireComposite());
-
-    return {
-      exists,
-      image: requireComposite,
-      scalars,
-      snapshot: () => scalars().slice(),
-      apply: (values: TypedArray | number[]) => {
-        const current = scalars();
-        if (values.length !== current.length) {
-          throw new Error('Scalar length does not match storage');
-        }
-        applyCompositeEdit(parentImageId, current, values);
-        // The read model tracks what the masks now hold, so the next write
-        // diffs against the state this one left.
-        current.set(values);
-        requireComposite().modified();
-      },
-      // The composite spans the parent, so there is nothing to grow.
-      ensureContains: () => false,
-    };
-  }
-
-  /** The label values of an image's locked segments. */
-  function lockedLabelValues(parentImageId: string) {
-    const owners = boundSegmentsByLabelValue(parentImageId);
-    return [...owners.entries()].flatMap(([labelValue, segment]) =>
-      segment.locked ? [labelValue] : []
-    );
   }
 
   /** The segments of an image that have a mask, with their place in `order`. */
@@ -1580,7 +1433,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     findSegmentBinding,
     segmentVoxels,
     artifactVoxels,
-    imageVoxels,
     createSegment,
     ensureLabelmapBinding,
     updateSegment,
@@ -1599,7 +1451,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     saveFormat,
     otherSegmentClearer,
     compositeLabelmap,
-    lockedLabelValues,
+    editableSegments,
     segmentLayersForImage,
     removeArtifact,
     serialize,

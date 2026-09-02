@@ -38,15 +38,7 @@ const HOLE: Index3 = [2, 2, 2];
 const offsetOf = (i: number, j: number, k: number) =>
   i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
 
-/** The processes are all segment-scoped; the other arm never reaches them. */
-function segmentTarget(target: ProcessTarget) {
-  if (target.scope !== 'segment') throw new Error('Not a segment target');
-  return target;
-}
-
-type SegmentAlgorithm = (
-  target: ReturnType<typeof segmentTarget>
-) => TypedArray | number[];
+type SegmentAlgorithm = (target: ProcessTarget) => TypedArray | number[];
 
 const runFillHoles: SegmentAlgorithm = (target) =>
   fillHoles({
@@ -119,9 +111,7 @@ describe.each([
 
   const process = async () => {
     const processStore = usePaintProcessStore();
-    await processStore.startProcess(async (target) =>
-      run(segmentTarget(target))
-    );
+    await processStore.startProcess(async (target) => run(target));
     return processStore;
   };
 

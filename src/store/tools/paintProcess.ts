@@ -33,11 +33,16 @@ type ComputingState = TargetedState & {
   step: 'computing';
 };
 
-type PreviewingState = TargetedState & {
-  step: 'previewing';
+/** One segment's slot in a run: what it held, and what the algorithm made. */
+type PreviewRun = {
   target: ProcessTarget;
   originalScalars: TypedArray;
   processedScalars: TypedArray | number[];
+};
+
+type PreviewingState = TargetedState & {
+  step: 'previewing';
+  runs: PreviewRun[];
   showingOriginal: boolean;
 };
 
@@ -45,18 +50,16 @@ type ProcessState = StartState | ComputingState | PreviewingState;
 
 /**
  * The resolved storage a process writes into, passed instead of being
- * re-derived. An all-segments process gets the image's composite and no
- * segment, so it carries no label value rather than a dummy one.
+ * re-derived. Every process is scoped to one segment and writes one label into
+ * that segment's own bounded mask; a run over every segment is a run per
+ * segment, since one buffer cannot hold two labels in the same voxel.
  */
-export type ProcessTarget =
-  | {
-      scope: 'segment';
-      parentImageId: string;
-      segmentId: string;
-      voxels: VoxelStorage;
-      labelValue: number;
-    }
-  | { scope: 'image'; parentImageId: string; voxels: VoxelStorage };
+export type ProcessTarget = {
+  parentImageId: string;
+  segmentId: string;
+  voxels: VoxelStorage;
+  labelValue: number;
+};
 
 export type ProcessAlgorithm = (
   target: ProcessTarget
@@ -124,24 +127,47 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
   }
 
+  /**
+   * One segment's preview slot, or nothing when its storage went away while the
+   * algorithm ran. The result is kept as the algorithm's own array rather than
+   * a copy: an algorithm handing back the buffer it was given would leave the
+   * processed result aliasing storage, and the first toggle to the original
+   * would erase it.
+   */
+  function buildRun(
+    target: ProcessTarget,
+    originalScalars: TypedArray,
+    processedScalars: TypedArray | number[]
+  ): PreviewRun[] {
+    if (!target.voxels.exists()) return [];
+    if (processedScalars === target.voxels.scalars()) {
+      throw new Error('Process returned the storage buffer it was given');
+    }
+    return [{ target, originalScalars, processedScalars }];
+  }
+
   function confirmProcess() {
     const state = processState.value;
     if (state.step === 'previewing') {
       // Apply commits the processed result. When the user is viewing the
-      // original, the image currently holds originalScalars, so restore the
+      // original, the masks currently hold originalScalars, so restore the
       // processed scalars before finishing or the result is silently discarded.
       if (state.showingOriginal) {
-        writeIfPresent(state.target.voxels, state.processedScalars);
-      }
-      // Only on confirm: a cancelled preview must leave the neighbours holding
-      // everything they had.
-      if (state.target.scope === 'segment') {
-        claimTurnedOnVoxels(
-          state.target.segmentId,
-          state.originalScalars,
-          state.processedScalars
+        state.runs.forEach((run) =>
+          writeIfPresent(run.target.voxels, run.processedScalars)
         );
       }
+      // Only on confirm: a cancelled preview must leave the neighbours holding
+      // everything they had. Where two segments of the same run turned the same
+      // background voxel on, each takes it from the other and it stays
+      // background, which is what it was before the run.
+      state.runs.forEach((run) =>
+        claimTurnedOnVoxels(
+          run.target.segmentId,
+          run.originalScalars,
+          run.processedScalars
+        )
+      );
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -156,7 +182,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const state = processState.value;
 
     if (state.step === 'previewing') {
-      writeIfPresent(state.target.voxels, state.originalScalars);
+      state.runs.forEach((run) =>
+        writeIfPresent(run.target.voxels, run.originalScalars)
+      );
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -168,6 +196,16 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     activeProcessType.value = processType;
   }
 
+  const targetFor = (
+    parentImageId: string,
+    segment: { segmentId: string; labelValue: number }
+  ): ProcessTarget => ({
+    parentImageId,
+    segmentId: segment.segmentId,
+    voxels: segmentationStore.segmentVoxels(segment.segmentId),
+    labelValue: segment.labelValue,
+  });
+
   // Segment-scoped: resolveEditTarget creates the segment if needed, then
   // storage is allocated for it.
   function resolveSegmentScoped(imageId: string) {
@@ -176,37 +214,27 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError('Cannot process locked segment');
       return undefined;
     }
-    const binding = segmentationStore.ensureLabelmapBinding(segmentId);
+    const { labelValue } = segmentationStore.ensureLabelmapBinding(segmentId);
     return {
-      target: {
-        scope: 'segment' as const,
-        parentImageId: imageId,
-        segmentId,
-        voxels: segmentationStore.segmentVoxels(segmentId),
-        labelValue: binding.labelValue,
-      },
+      targets: [targetFor(imageId, { segmentId, labelValue })],
       segmentId,
     };
   }
 
-  // Image-scoped: every segment of the image at once, through the composite.
-  // Nothing is created, and an image with no mask has nothing to process.
-  function resolveImageScoped(imageId: string) {
-    const voxels = segmentationStore.imageVoxels(imageId);
-    if (!voxels.exists()) {
+  // All-segments: one run per editable segment, each on its own bounded mask.
+  // Nothing is created, and an image with no editable segment has nothing to
+  // process.
+  function resolveEverySegment(imageId: string) {
+    const targets = segmentationStore
+      .editableSegments(imageId)
+      .map((segment) => targetFor(imageId, segment));
+    if (targets.length === 0) {
       messageStore.addError('No segmentation to process');
       return undefined;
     }
     // The active segment is not part of the target; it is recorded only so the
     // watcher can cancel when the user moves to another segment.
-    return {
-      target: {
-        scope: 'image' as const,
-        parentImageId: imageId,
-        voxels,
-      },
-      segmentId: segmentationStore.activeSegmentId ?? '',
-    };
+    return { targets, segmentId: segmentationStore.activeSegmentId ?? '' };
   }
 
   // A run the user has already moved past: another process started, or the
@@ -229,58 +257,55 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       return;
     }
 
-    // An all-segments process writes every mask of the image, so it resolves
-    // the image rather than a segment. Only the segment-scoped path goes
-    // through resolveEditTarget, which is the one call that creates segments.
+    // An all-segments process runs once per editable segment. Only the
+    // segment-scoped path goes through resolveEditTarget, which is the one call
+    // that creates segments.
     const resolved = requiresActiveSegment
       ? resolveSegmentScoped(imageId)
-      : resolveImageScoped(imageId);
+      : resolveEverySegment(imageId);
     if (!resolved) return;
-    const { target, segmentId } = resolved;
-    const { voxels, parentImageId: activeParentImageID } = target;
+    const { targets, segmentId } = resolved;
 
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 
-    const originalScalars = voxels.snapshot();
+    const snapshots = targets.map((target) => target.voxels.snapshot());
 
     paintStore.enterProcessMode();
     processState.value = {
       step: 'computing',
-      activeParentImageID,
+      activeParentImageID: imageId,
       segmentId,
     };
 
     try {
-      const outputScalars = await algorithm(target);
+      // Started together, so every algorithm reads its own mask before any
+      // result is written back: each run sees the state the user acted on.
+      const outputs = await Promise.all(
+        targets.map((target) => algorithm(target))
+      );
 
       if (runIsStale(processRunId)) return;
 
-      // The storage can be deleted while the algorithm runs; there is then
-      // nothing to preview and nothing to roll back.
-      if (!voxels.exists()) {
+      const runs = targets.flatMap((target, index) =>
+        buildRun(target, snapshots[index], outputs[index])
+      );
+
+      // Every mask the run held was deleted while the algorithm ran; there is
+      // then nothing to preview and nothing to roll back.
+      if (runs.length === 0) {
         resetState();
         paintStore.restoreModeAfterProcess();
         return;
       }
 
-      // The preview keeps the returned array, so an algorithm handing back the
-      // buffer it was given would leave the processed result aliasing storage
-      // and the first toggle to the original would erase it.
-      if (outputScalars === voxels.scalars()) {
-        throw new Error('Process returned the storage buffer it was given');
-      }
-      voxels.apply(outputScalars);
+      runs.forEach((run) => run.target.voxels.apply(run.processedScalars));
 
       processState.value = {
         step: 'previewing',
-        activeParentImageID,
+        activeParentImageID: imageId,
         segmentId,
-        target,
-        originalScalars,
-        // The algorithm's own array, not a copy of it: an algorithm must not
-        // retain and mutate what it returns.
-        processedScalars: outputScalars,
+        runs,
         showingOriginal: false,
       };
     } catch (error) {
@@ -289,7 +314,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,
       });
-      writeIfPresent(voxels, originalScalars);
+      targets.forEach((target, index) =>
+        writeIfPresent(target.voxels, snapshots[index])
+      );
       resetState();
       paintStore.restoreModeAfterProcess();
     }
@@ -300,11 +327,12 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
     if (state.step === 'previewing') {
       const newShowingOriginal = !state.showingOriginal;
-      const scalarsToShow = newShowingOriginal
-        ? state.originalScalars
-        : state.processedScalars;
-
-      writeIfPresent(state.target.voxels, scalarsToShow);
+      state.runs.forEach((run) =>
+        writeIfPresent(
+          run.target.voxels,
+          newShowingOriginal ? run.originalScalars : run.processedScalars
+        )
+      );
 
       processState.value = {
         ...state,

@@ -187,7 +187,7 @@ describe('Paint process store', () => {
     await processStore.startProcess(algorithm);
 
     expect(algorithm).toHaveBeenCalledTimes(1);
-    expect(target).toMatchObject({ scope: 'segment', labelValue: 3 });
+    expect(target).toMatchObject({ labelValue: 3 });
     expect(target!.voxels.image()).toBe(labelMap);
   });
 
@@ -230,7 +230,7 @@ describe('Paint process store', () => {
     ).toBeDefined();
     const binding = segmentationStore.resolveLabelmapBinding(active)!;
     expect(target).toMatchObject({
-      scope: 'segment',
+      segmentId: active,
       labelValue: binding.labelValue,
     });
     const boundLabelMap = segmentationStore

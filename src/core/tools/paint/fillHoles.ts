@@ -15,27 +15,19 @@ export type FillHolesOptions = {
   // When set, only this slice index along `axis` is processed.
   // When omitted, every slice along `axis` is processed.
   sliceIndex?: number;
-  // When set, only this label is treated as foreground (selected-segment mode)
-  // and enclosed background is filled with it. When omitted, every non-zero
-  // voxel is foreground (all-segments mode) and enclosed background is filled
-  // with the majority bordering label. In both modes only background (0)
-  // voxels are filled, so existing segments are never overwritten.
-  label?: number;
-  // All-segments mode only: labels that must not be grown. A hole whose
-  // majority bordering label is locked is left unfilled rather than expanding a
-  // locked segment.
-  lockedLabels?: number[];
+  // The one label treated as foreground, and the one enclosed background is
+  // filled with. Storage is a mask per segment, so a fill is always one
+  // segment's own; running over several segments is one call each.
+  label: number;
 };
 
 // Fills enclosed background regions ("holes") on 2D slices of a label map.
 // A hole is background that does not connect to the slice border. Only
-// background (0) voxels are filled; other segments are never overwritten, even
-// when enclosed by the foreground. Returns a copy of `data`; the input is left
+// background (0) voxels are filled. Returns a copy of `data`; the input is left
 // untouched.
 export function fillHoles(opts: FillHolesOptions) {
-  const { data, dimensions, axis, sliceIndex, label, lockedLabels } = opts;
+  const { data, dimensions, axis, sliceIndex, label } = opts;
   const out = data.slice();
-  const lockedSet = lockedLabels?.length ? new Set(lockedLabels) : null;
 
   const strides = [1, dimensions[0], dimensions[0] * dimensions[1]];
   const sliceStride = strides[axis];
@@ -48,13 +40,6 @@ export function fillHoles(opts: FillHolesOptions) {
   const uStride = strides[uAxis];
   const vStride = strides[vAxis];
   const planeSize = uDim * vDim;
-
-  const isForeground =
-    label === undefined
-      ? (value: number) => value !== 0
-      : (value: number) => value === label;
-  // Only all-segments mode needs to tally each hole's bordering labels.
-  const trackBorders = label === undefined;
 
   // 0 = unvisited, 1 = outside (border-connected non-foreground), 2 = hole.
   const visited = new Uint8Array(planeSize);
@@ -72,13 +57,8 @@ export function fillHoles(opts: FillHolesOptions) {
 
     // Drain `stack`, expanding the region into unvisited non-foreground
     // neighbors (each marked with `mark`). `collect`, when given, receives the
-    // flat offset of every region cell; `onBorder`, when given, is called with
-    // each bordering foreground label.
-    const drain = (
-      mark: number,
-      collect?: number[],
-      onBorder?: (value: number) => void
-    ) => {
+    // flat offset of every region cell.
+    const drain = (mark: number, collect?: number[]) => {
       while (stack.length) {
         const p = stack.pop()!;
         const u = p % uDim;
@@ -89,10 +69,7 @@ export function fillHoles(opts: FillHolesOptions) {
           const nv = v + NEIGHBOR_DV[n];
           if (nu < 0 || nu >= uDim || nv < 0 || nv >= vDim) continue;
           const np = nu + nv * uDim;
-          const nValue = out[planeOffset(nu, nv)];
-          if (isForeground(nValue)) {
-            onBorder?.(nValue);
-          } else if (visited[np] === 0) {
+          if (out[planeOffset(nu, nv)] !== label && visited[np] === 0) {
             visited[np] = mark;
             stack.push(np);
           }
@@ -103,7 +80,7 @@ export function fillHoles(opts: FillHolesOptions) {
     // Flood non-foreground cells reachable from the slice border ("outside").
     const seedOutside = (u: number, v: number) => {
       const p = u + v * uDim;
-      if (visited[p] === 0 && !isForeground(out[planeOffset(u, v)])) {
+      if (visited[p] === 0 && out[planeOffset(u, v)] !== label) {
         visited[p] = 1;
         stack.push(p);
       }
@@ -123,55 +100,18 @@ export function fillHoles(opts: FillHolesOptions) {
     for (let v = 0; v < vDim; v++) {
       for (let u = 0; u < uDim; u++) {
         const p = u + v * uDim;
-        if (visited[p] !== 0 || isForeground(out[planeOffset(u, v)])) continue;
+        if (visited[p] !== 0 || out[planeOffset(u, v)] === label) continue;
 
         const holeCells: number[] = [];
-        const borderLabelCounts = trackBorders
-          ? new Map<number, number>()
-          : null;
         visited[p] = 2;
         stack.push(p);
-        drain(
-          2,
-          holeCells,
-          borderLabelCounts
-            ? (value) =>
-                borderLabelCounts.set(
-                  value,
-                  (borderLabelCounts.get(value) ?? 0) + 1
-                )
-            : undefined
-        );
+        drain(2, holeCells);
 
-        let fillValue = label;
-        if (fillValue === undefined && borderLabelCounts) {
-          // All-segments mode: fill with the majority bordering label, breaking
-          // ties by lowest label so the result is deterministic. Never fill
-          // with a locked label, which would grow a locked segment.
-          let bestCount = 0;
-          let bestLabel = -1;
-          borderLabelCounts.forEach((count, value) => {
-            if (
-              count > bestCount ||
-              (count === bestCount && value < bestLabel)
-            ) {
-              bestCount = count;
-              bestLabel = value;
-            }
-          });
-          if (bestLabel !== -1 && !lockedSet?.has(bestLabel)) {
-            fillValue = bestLabel;
-          }
-        }
-        // fillValue stays undefined only when the hole had no fillable border
-        // (no foreground neighbors, or every bordering label is locked).
-        if (fillValue !== undefined) {
-          for (let c = 0; c < holeCells.length; c++) {
-            // Only fill background; never overwrite another segment, even when
-            // it is enclosed by the foreground.
-            if (out[holeCells[c]] === 0) {
-              out[holeCells[c]] = fillValue;
-            }
+        for (let c = 0; c < holeCells.length; c++) {
+          // Only fill background. A voxel another segment holds is not this
+          // segment's to take here; the write path decides that on confirm.
+          if (out[holeCells[c]] === 0) {
+            out[holeCells[c]] = label;
           }
         }
       }

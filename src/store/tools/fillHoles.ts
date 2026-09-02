@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import * as Comlink from 'comlink';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
-import { useSegmentationStore } from '@/src/store/segmentations';
 import type { ProcessTarget } from '@/src/store/tools/paintProcess';
 import { getImageMetadata } from '@/src/composables/useCurrentImage';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
@@ -41,9 +40,10 @@ async function getWorker() {
 }
 
 /**
- * The current parent slice in the mask's own index space. A segment's mask is
- * cropped to its own extent, so a slice outside it converts to an index the
- * worker would fold back onto a real slice of the mask and fill the wrong one.
+ * The current parent slice in the mask's own index space, or undefined when the
+ * mask does not reach it. A segment's mask is cropped to its own extent, so a
+ * slice outside it converts to an index the worker would fold back onto a real
+ * slice of the mask and fill the wrong one.
  */
 function maskSliceIndex(
   view: { viewInfo: { id: string }; axis: LPSAxis },
@@ -66,12 +66,7 @@ function maskSliceIndex(
     segImage,
     view.axis
   );
-  if (sliceIndex < 0 || sliceIndex >= sliceCount) {
-    throw new Error(
-      'the selected segment has nothing on this slice. Scroll to a slice it covers, then try again.'
-    );
-  }
-  return sliceIndex;
+  return sliceIndex < 0 || sliceIndex >= sliceCount ? undefined : sliceIndex;
 }
 
 export const useFillHolesStore = defineStore('fillHoles', () => {
@@ -88,15 +83,6 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
 
   async function computeAlgorithm(target: ProcessTarget) {
     const viewStore = useViewStore();
-    const segmentationStore = useSegmentationStore();
-
-    const selectedSegment =
-      segmentScope.value === FillHolesSegmentScope.SelectedSegment;
-    if (selectedSegment && target.scope !== 'segment') {
-      throw new Error(
-        'Fill Holes needs an active segment to fill. Select one, then try again.'
-      );
-    }
 
     // Fill Holes works on the slice plane of the 2D view the user is on, so a
     // 2D view must be active to know which axis (and slice) to operate on.
@@ -117,26 +103,20 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     // The worker structured-clones its input, so the live buffer is right here.
     const data = voxels.scalars();
 
-    const sliceIndex =
-      sliceScope.value === FillHolesSliceScope.CurrentSlice
-        ? maskSliceIndex(
-            effectiveView,
-            parentImageId,
-            segImage,
-            dimensions[axis]
-          )
-        : undefined;
-
-    const label =
-      target.scope === 'segment' && selectedSegment
-        ? target.labelValue
-        : undefined;
-    // All-segments mode can fill a hole with any bordering label, so guard
-    // locked segments from being grown. Selected-segment mode only writes the
-    // active segment, whose lock is already enforced before the process starts.
-    const lockedLabels = selectedSegment
-      ? undefined
-      : segmentationStore.lockedLabelValues(parentImageId);
+    const currentSlice = sliceScope.value === FillHolesSliceScope.CurrentSlice;
+    const sliceIndex = currentSlice
+      ? maskSliceIndex(effectiveView, parentImageId, segImage, dimensions[axis])
+      : undefined;
+    if (currentSlice && sliceIndex === undefined) {
+      // The user named one segment, so say the slice misses it. An
+      // all-segments pass simply has nothing to do in this one.
+      if (segmentScope.value === FillHolesSegmentScope.SelectedSegment) {
+        throw new Error(
+          'the selected segment has nothing on this slice. Scroll to a slice it covers, then try again.'
+        );
+      }
+      return voxels.snapshot();
+    }
 
     const worker = await getWorker();
     return worker.fillHolesWorker({
@@ -144,8 +124,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       dimensions,
       axis,
       sliceIndex,
-      label,
-      lockedLabels,
+      label: target.labelValue,
     });
   }
 

@@ -126,41 +126,12 @@ describe('Fill Holes store', () => {
     };
   }
 
-  /** Another segment of the same image, with one voxel of its own. */
-  function addSegmentWithVoxel(
-    segmentationId: string,
-    name: string,
-    index: [number, number, number]
-  ) {
-    const segmentationStore = useSegmentationStore();
-    const segment = segmentationStore.createSegment(segmentationId, { name });
-    const voxels = segmentationStore.segmentVoxels(segment.id);
-    const binding = voxels.materialize();
-    voxels.ensureContains([
-      index[0],
-      index[0],
-      index[1],
-      index[1],
-      index[2],
-      index[2],
-    ]);
-    voxels.scalars()[0] = binding.labelValue;
-    return { segmentId: segment.id, labelValue: binding.labelValue };
-  }
-
-  /** Fill Holes defaults to every segment, so its target is the whole image. */
-  const imageTarget = (parentImageId: string) => ({
-    scope: 'image' as const,
-    parentImageId,
-    voxels: useSegmentationStore().imageVoxels(parentImageId),
-  });
-
+  /** Every fill is one segment's own bounded mask, in either segment scope. */
   const segmentTarget = (
     parentImageId: string,
     segmentId: string,
     labelValue: number
   ) => ({
-    scope: 'segment' as const,
     parentImageId,
     segmentId,
     labelValue,
@@ -170,17 +141,20 @@ describe('Fill Holes store', () => {
   it('uses the mask axis the active parent view maps to', async () => {
     // Index I points along world axial here, so an active Axial view must be
     // sent to the worker as axis 0 rather than as index axis 2.
-    const { fillHolesStore, parentImageID } = await setupFillHolesRun(
-      {
-        dimensions: [5, 10, 10],
-        spacing: UNIT,
-        direction: [0, 0, 1, 0, 1, 0, 1, 0, 0],
-      },
-      [0, 4, 0, 9, 0, 9],
-      0
-    );
+    const { fillHolesStore, parentImageID, segmentId } =
+      await setupFillHolesRun(
+        {
+          dimensions: [5, 10, 10],
+          spacing: UNIT,
+          direction: [0, 0, 1, 0, 1, 0, 1, 0, 0],
+        },
+        [0, 4, 0, 9, 0, 9],
+        0
+      );
 
-    await fillHolesStore.computeAlgorithm(imageTarget(parentImageID));
+    await fillHolesStore.computeAlgorithm(
+      segmentTarget(parentImageID, segmentId, 1)
+    );
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -235,15 +209,17 @@ describe('Fill Holes store', () => {
     }
   );
 
-  it('fills the whole parent slice when scoped to every segment', async () => {
-    // The composite spans the parent, so there is no mask offset to convert.
-    const { fillHolesStore, parentImageID } = await setupFillHolesRun(
-      { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
-      [0, 9, 0, 9, 2, 4],
-      4
-    );
+  it('converts nothing for a mask that spans the parent', async () => {
+    const { fillHolesStore, parentImageID, segmentId } =
+      await setupFillHolesRun(
+        { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
+        [0, 9, 0, 9, 0, 4],
+        4
+      );
 
-    await fillHolesStore.computeAlgorithm(imageTarget(parentImageID));
+    await fillHolesStore.computeAlgorithm(
+      segmentTarget(parentImageID, segmentId, 1)
+    );
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
       axis: 2,
@@ -252,59 +228,34 @@ describe('Fill Holes store', () => {
     });
   });
 
-  it('guards the locked segments of the whole image', async () => {
-    const {
-      fillHolesStore,
-      segmentationStore,
-      parentImageID,
-      segmentationId,
-      segmentId,
-    } = await setupFillHolesRun(
-      { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
-      [0, 9, 0, 9, 0, 9],
-      0
+  it('leaves an all-segments fill alone on a slice its mask misses', async () => {
+    // One segment of several missing the slice must not fail the whole pass.
+    const { fillHolesStore, parentImageID, segmentId } =
+      await setupFillHolesRun(
+        { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
+        [0, 9, 0, 9, 2, 4],
+        0
+      );
+    const voxels = useSegmentationStore().segmentVoxels(segmentId);
+    voxels.scalars()[0] = 1;
+
+    const out = await fillHolesStore.computeAlgorithm(
+      segmentTarget(parentImageID, segmentId, 1)
     );
-    segmentationStore.updateSegment(segmentId, { locked: true });
-    const lockedValue =
-      segmentationStore.resolveLabelmapBinding(segmentId)!.labelValue;
-    // A second, unlocked segment: only the locked one is guarded, and a
-    // segment outside the active one's mask is still reached.
-    addSegmentWithVoxel(segmentationId, 'Other', [1, 1, 1]);
 
-    await fillHolesStore.computeAlgorithm(imageTarget(parentImageID));
-
-    expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
-      lockedLabels: [lockedValue],
-    });
+    expect(fillHolesWorkerMock).not.toHaveBeenCalled();
+    expect(Array.from(out)).toEqual(Array.from(voxels.scalars()));
+    expect(out).not.toBe(voxels.scalars());
   });
 
-  it('sends every segment of the image, not just the active one', async () => {
-    const { fillHolesStore, parentImageID, segmentationId, segmentId } =
+  it('sends the target’s own buffer rather than a copy of it', async () => {
+    const { fillHolesStore, parentImageID, segmentId } =
       await setupFillHolesRun(
         { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
         [0, 9, 0, 9, 0, 9],
         0
       );
-    const segmentationStore = useSegmentationStore();
-    const activeVoxels = segmentationStore.segmentVoxels(segmentId);
-    const activeValue = activeVoxels.binding()!.labelValue;
-    activeVoxels.scalars()[0] = activeValue;
-    const other = addSegmentWithVoxel(segmentationId, 'Other', [5, 5, 5]);
-
-    await fillHolesStore.computeAlgorithm(imageTarget(parentImageID));
-
-    const sent = new Set(fillHolesWorkerMock.mock.calls[0][0].data);
-    expect(sent).toContain(activeValue);
-    expect(sent).toContain(other.labelValue);
-  });
-
-  it('sends the target’s own buffer rather than a copy of it', async () => {
-    const { fillHolesStore, parentImageID } = await setupFillHolesRun(
-      { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
-      [0, 9, 0, 9, 0, 9],
-      0
-    );
-    const target = imageTarget(parentImageID);
+    const target = segmentTarget(parentImageID, segmentId, 1);
 
     await fillHolesStore.computeAlgorithm(target);
 
@@ -330,21 +281,5 @@ describe('Fill Holes store', () => {
     );
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({ label: 1 });
-    expect(fillHolesWorkerMock.mock.calls[0][0].lockedLabels).toBeUndefined();
-  });
-
-  it('refuses a selected-segment fill against an image-scoped target', async () => {
-    const { fillHolesStore, parentImageID } = await setupFillHolesRun(
-      { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
-      [0, 9, 0, 9, 0, 9],
-      0
-    );
-    fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
-
-    // Silently filling every segment is the failure the union rules out.
-    await expect(
-      fillHolesStore.computeAlgorithm(imageTarget(parentImageID))
-    ).rejects.toThrow(/active segment/i);
-    expect(fillHolesWorkerMock).not.toHaveBeenCalled();
   });
 });

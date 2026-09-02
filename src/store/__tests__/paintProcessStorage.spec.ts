@@ -22,8 +22,8 @@ import { useViewStore } from '@/src/store/views';
 // typed arrays into the live labelmap, so the buffer the mappers and the paint
 // engine hold stays the one that is written.
 //
-// It also pins the ProcessTarget union: an all-segments process has the
-// image's composite and no segment, so it carries no label value.
+// It also pins how a run is scoped: every process writes one segment's own
+// bounded mask, and an all-segments process is one run per editable segment.
 // ---------------------------------------------------------------------------
 
 async function viewImage(
@@ -79,6 +79,16 @@ function addTestSegment(
   };
 }
 
+/** Another segment of the same image, grown to the same two voxels. */
+function addBoundSegment(segmentationId: string, name: string) {
+  const segmentationStore = useSegmentationStore();
+  const segment = segmentationStore.createSegment(segmentationId, { name });
+  const voxels = segmentationStore.segmentVoxels(segment.id);
+  const { labelValue } = voxels.materialize();
+  voxels.ensureContains([0, 1, 0, 0, 0, 0]);
+  return { segmentId: segment.id, labelValue };
+}
+
 const buffer = (labelMap: vtkLabelMap) =>
   labelMap.getPointData().getScalars().getData();
 
@@ -114,6 +124,15 @@ function recordingAlgorithm(result: () => Uint8Array) {
   };
 }
 
+/** The targets an all-segments run resolved, in the order it ran them. */
+async function allSegmentsTargets() {
+  const { seen, algorithm } = recordingAlgorithm(() => new Uint8Array([2, 2]));
+  await usePaintProcessStore().startProcess(algorithm, {
+    requiresActiveSegment: false,
+  });
+  return seen;
+}
+
 describe('paint process storage', () => {
   beforeEach(async () => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
@@ -135,34 +154,48 @@ describe('paint process storage', () => {
       expect(seen).toHaveLength(1);
       const [target] = seen;
       expect(target).toMatchObject({
-        scope: 'segment',
+        parentImageId: 'image-1',
         labelValue: 3,
       });
       expect(target.voxels.image()).toBe(labelMap);
     });
 
-    it('hands an all-segments process the image and no segment', async () => {
-      const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment();
-      const { seen, algorithm } = recordingAlgorithm(
-        () => new Uint8Array([2, 2])
+    it('runs an all-segments process once per editable segment', async () => {
+      const { segmentationId, segmentId, labelMap } = addTestSegment(
+        new Uint8Array([1, 0])
       );
+      const other = addBoundSegment(segmentationId, 'Other');
 
-      await processStore.startProcess(algorithm, {
-        requiresActiveSegment: false,
-      });
+      const seen = await allSegmentsTargets();
 
-      expect(seen).toHaveLength(1);
-      const [target] = seen;
-      expect(target).toMatchObject({
-        scope: 'image',
-        parentImageId: 'image-1',
+      expect(seen.map((target) => target.segmentId)).toEqual([
+        segmentId,
+        other.segmentId,
+      ]);
+      // Each run gets that segment's own mask, not a composite of them all.
+      expect(seen[0].voxels.image()).toBe(labelMap);
+      expect(seen[1].voxels.image()).not.toBe(labelMap);
+      expect(seen.map((target) => target.labelValue)).toEqual([
+        1,
+        other.labelValue,
+      ]);
+    });
+
+    it('skips a locked segment and one with no voxels', async () => {
+      const segmentationStore = useSegmentationStore();
+      const { segmentationId, segmentId } = addTestSegment(
+        new Uint8Array([1, 0])
+      );
+      const locked = addBoundSegment(segmentationId, 'Locked');
+      segmentationStore.updateSegment(locked.segmentId, { locked: true });
+      const empty = segmentationStore.createSegment(segmentationId, {
+        name: 'Empty',
       });
-      // An image-scoped target carries no label value.
-      expect('labelValue' in target).toBe(false);
-      // It is the composite of every segment, not one segment's own mask.
-      expect(target.voxels.image()).not.toBe(labelMap);
-      expect(target.voxels.image().getDimensions()).toEqual([2, 1, 1]);
+      segmentationStore.segmentVoxels(empty.id).materialize();
+
+      const seen = await allSegmentsTargets();
+
+      expect(seen.map((target) => target.segmentId)).toEqual([segmentId]);
     });
 
     it('gives the target accessor the storage the process reads', async () => {
