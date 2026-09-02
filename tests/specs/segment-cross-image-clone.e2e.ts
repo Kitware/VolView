@@ -6,7 +6,6 @@ import {
   openAnnotationSegments,
   renameSegment,
   segmentColor,
-  segmentGroupNames,
   segmentNames,
   selectSegment,
 } from './segmentationTestUtils';
@@ -84,14 +83,14 @@ describe('Segment identity across images', function () {
 
     // Viewing the other image is not an edit, so it gets nothing.
     await showImage(second);
-    expect(await segmentGroupNames()).toEqual([]);
+    expect(await segmentNames()).toEqual([]);
     expect(await volViewPage.getNotificationsCount()).toEqual(0);
 
     // The first edit there clones the name and color into a segment of its own.
     await browser.waitUntil(
       async () => {
         await paintOnViewedImage();
-        return (await segmentGroupNames()).length === 1;
+        return (await segmentNames()).length === 1;
       },
       {
         timeout: 30000,

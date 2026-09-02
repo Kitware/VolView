@@ -19,14 +19,13 @@ import {
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
-// A paint stroke against bounded masks. Three things change here:
+// A paint stroke against bounded masks:
 //
 //  - the stroke grows its own storage first, for the region it is about to
 //    touch, and only then captures scalars/dimensions/strides;
-//  - the threshold predicate reads the PARENT image, whose voxel offsets are no
-//    longer the mask's, so it converts through the mask's extent;
-//  - writing a voxel clears it in every other mask of the image, which is what
-//    one shared labelmap used to do for free.
+//  - the threshold predicate reads the PARENT image, whose voxel offsets are
+//    not the mask's, so it converts through the mask's extent;
+//  - writing a voxel clears it in every other mask of the image.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [4, 4, 4];

@@ -18,7 +18,7 @@ import { emptyExtent, type Extent3D } from '@/src/types/segmentation';
 //
 // `segmentCoincidentOffset` gives each segment its own coincident-topology
 // polygon offset, by its position in `segmentation.order`. Overlap is
-// representable now, so segments that used to share one offset would z-fight.
+// representable, so segments sharing one offset would z-fight.
 // Later in the order draws in front: a segment is appended when it is added, so
 // the one just painted is the one on top.
 // ---------------------------------------------------------------------------

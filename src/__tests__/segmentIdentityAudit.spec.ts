@@ -5,13 +5,6 @@ import { hits, isTest, sourceFiles } from './sourceAudit';
 // Phase 1 exit audit: no tool infers segment identity from a label value and no
 // segment-group identity surface survives. Encodes the plan's exit greps so the
 // unit suite, not a human grep, guards the boundary.
-//
-// The "module surface" half that used to live here (a hand-rolled regex
-// analyzer of the group-keyed store's exports and action surface) is retired:
-// C5 deletes that module outright, so an analyzer of it has nothing left to
-// analyze. Its replacement is the exit-grep suite in
-// src/__tests__/segmentGroupRemoval.spec.ts, which asserts the module and its
-// production references are gone rather than auditing what remains of them.
 
 // Legacy manifests still name the old fields on the wire; the migration and the
 // fixtures that feed it are the only places allowed to say so.

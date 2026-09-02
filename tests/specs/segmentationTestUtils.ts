@@ -85,10 +85,6 @@ export const openAnnotationSegments = async () => {
   await tab.click();
 };
 
-// The panel is one flat list scoped to the viewed image, so what used to be a
-// group is now just the segments that image has.
-export const segmentGroupNames = segmentNames;
-
 /**
  * The list follows the viewed image, so there is nothing left to pick; the wait
  * stays, because the list renders empty until the image's segments arrive.

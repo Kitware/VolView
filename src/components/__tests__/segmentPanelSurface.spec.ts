@@ -15,14 +15,9 @@ import {
 import { useViewStore } from '@/src/store/views';
 
 // ---------------------------------------------------------------------------
-// The segmentation panel after the group controls are deleted.
-//
-// Saving the image's segmentation to a file is real functionality and outlives
-// its old host, so the flat list carries it: one affordance, scoped to the
-// viewed image, and absent when that image has nothing to save. Creating a
-// "group", renaming one, and converting an image from a second menu all go with
-// the component, because a segment is added by the list's own create chip and
-// the dataset browser already converts an image.
+// The segmentation panel is one flat list scoped to the viewed image. Saving
+// that image's segmentation to a file lives on the list, and is absent when the
+// image has nothing to save.
 //
 // Phase 2's exit condition is on user-visible text: no panel says "segment
 // group", "labelmap", "label value" or "layer". Identifiers are out of scope,

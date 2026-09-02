@@ -111,8 +111,7 @@ describe('artifact bookkeeping without the per-parent order map', () => {
   });
 
   it('reaches the outline settings from the artifact a renderer holds', async () => {
-    // The renderer is handed an artifact id and nothing else, and the per-view
-    // group config that used to answer for the outline is gone, so the segment
+    // The renderer is handed an artifact id and nothing else, so the segment
     // model has to be reachable from that id alone.
     const { tumor } = await buildScene();
     const segmentation = store().getSegmentationForImage('img-1')!;

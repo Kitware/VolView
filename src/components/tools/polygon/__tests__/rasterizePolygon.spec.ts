@@ -17,12 +17,11 @@ import {
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
-// Rasterizing a polygon into a bounded mask. The write itself moves out of
-// PolygonTool.vue so it can be tested at all: the component owns the view, not
-// the voxels. Two things the shared full-extent labelmap gave for free have to
-// happen here now. The mask grows to hold the polygon before `fillPoly` runs
-// (a mask that does not reach the polygon silently swallows every pixel), and
-// the filled voxels are cleared in the other segments of the image.
+// Rasterizing a polygon into a bounded mask. The write lives outside
+// PolygonTool.vue so it can be tested: the component owns the view, not the
+// voxels. The mask grows to hold the polygon before `fillPoly` runs (a mask
+// that does not reach the polygon silently swallows every pixel), and the
+// filled voxels are cleared in the other segments of the image.
 //
 // Unit spacing and a zero origin make world points index points, and an
 // identity direction maps the Axial view axis to K.

@@ -3,19 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { exists, hits, isTest, read, sourceFiles } from './sourceAudit';
 
 // ---------------------------------------------------------------------------
-// The residual group infrastructure is GONE, not merely unreferenced.
+// The residual group infrastructure is gone, not merely unreferenced. Deleting
+// a module is only real when nothing imports it, so these assertions are the
+// exit greps, run by the suite instead of by hand.
 //
-// C2-C4 moved every consumer onto the segment model, so what is left of the
-// group layer is a shell: a store keyed by group, a per-view group config that
-// nothing writes and that the segment model already serializes, and the two
-// components that drove them. Deleting a module is only real when nothing
-// imports it, so these assertions are the exit greps, run by the suite instead
-// of by hand.
-//
-// The identity audit is folded in here: it is a hand-rolled analyzer over the
-// module this checkpoint deletes, so it cannot be left asserting against a file
-// that is gone. Replacing it with `knip` or `ts-prune` in CI is out of scope for
-// this phase and stays a tracked follow-up.
+// The identity audit is folded in here because it analyzed the deleted module
+// and cannot assert against a file that is not there.
 // ---------------------------------------------------------------------------
 
 const IDENTITY_AUDIT = 'src/__tests__/segmentIdentityAudit.spec.ts';
