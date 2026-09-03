@@ -116,6 +116,20 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(segmentId, [2, 3, 0])).toBe(labelValueOf(segmentId));
   });
 
+  it('refuses a locked segment and leaves every mask as it was', () => {
+    const neighbour = addSegment('img-1', 'Neighbour');
+    seedVoxel(neighbour, [2, 3, 0]);
+    const segmentId = addSegment('img-1', 'Tumor');
+    store().updateSegment(segmentId, { locked: true });
+
+    const result = rasterize(segmentId);
+
+    expect(result.segmentId).toBe(segmentId);
+    expect(maskValueAt(segmentId, [2, 3, 0])).toBeFalsy();
+    // The clearer never ran, so the neighbour keeps what a fill would take.
+    expect(maskValueAt(neighbour, [2, 3, 0])).toBe(labelValueOf(neighbour));
+  });
+
   it('keeps an earlier polygon when a later one grows the mask', () => {
     const segmentId = addSegment('img-1', 'Tumor');
 
@@ -155,7 +169,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
   });
 
   it('rasterizes into a segment it resolves when the polygon carries none', () => {
-    const { segmentId } = rasterize(undefined);
+    const segmentId = rasterize(undefined).segmentId!;
 
     const segmentation = store().getSegmentationForImage('img-1')!;
     expect(segmentation.order).toEqual([segmentId]);
@@ -171,7 +185,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     // it; the polygon still carries the template it was drawn with.
     polygons.setActiveLabel(templateIdNamed(polygons.allLabels, 'Node'));
 
-    const { segmentId } = rasterize(tumor);
+    const segmentId = rasterize(tumor).segmentId!;
 
     expect(store().getSegment(segmentId).name).toBe('Tumor');
     expect(segmentNamesOf('img-1')).toEqual(['Tumor']);

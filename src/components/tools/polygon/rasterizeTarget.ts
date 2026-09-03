@@ -5,6 +5,7 @@ import type { TypedArray, Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import type { Maybe } from '@/src/types';
@@ -19,10 +20,11 @@ import {
 import { getLPSDirections } from '@/src/utils/lps';
 
 /**
- * The labelmap a polygon rasterizes into. Rasterizing is itself an edit, so it
- * routes through the one entry point that resolves and creates segments: a
- * polygon carrying no segment, or one whose segment was deleted, lands in the
- * default segment rather than failing.
+ * The labelmap a polygon rasterizes into, absent when the segment it lands in
+ * is locked. Rasterizing is itself an edit, so it routes through the one entry
+ * point that resolves and creates segments: a polygon carrying no segment, or
+ * one whose segment was deleted, lands in the default segment rather than
+ * failing.
  */
 export function resolveRasterizeTarget(
   imageId: string,
@@ -43,6 +45,14 @@ export function resolveRasterizeTarget(
   }
 
   const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
+  // A locked segment is not editable, the same refusal paint and the processes
+  // make. Checked before storage is allocated, so a refused polygon leaves no
+  // empty mask behind. A locked neighbour is a different rule and keeps the
+  // voxels a fill claims, which `otherSegmentClearer` already honours.
+  if (segmentationStore.getSegment(resolved).locked) {
+    useMessageStore().addError('Cannot rasterize into a locked segment');
+    return undefined;
+  }
 
   const voxels = segmentationStore.segmentVoxels(resolved);
   const binding = voxels.materialize();
@@ -128,10 +138,10 @@ export function rasterizePolygon({
 
   // A polygon labeled with an unmaterialized template names an identity, not a
   // segment. Rasterizing is the edit that materializes it, on this image.
-  const target = resolveRasterizeTarget(
-    imageId,
-    usePolygonStore().materializeLabelForImage(imageId, segmentId)
-  );
+  const wanted = usePolygonStore().materializeLabelForImage(imageId, segmentId);
+  const target = resolveRasterizeTarget(imageId, wanted);
+  if (!target) return { segmentId: wanted };
+
   const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
   const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
 

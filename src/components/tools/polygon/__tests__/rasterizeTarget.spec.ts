@@ -6,6 +6,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterizeTarget';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 
 const DIMENSIONS: [number, number, number] = [4, 4, 2];
@@ -28,6 +29,10 @@ async function seatImage(id: string, name = 'CT') {
 
 const store = () => useSegmentationStore();
 
+/** The resolved target, for the cases that expect one. */
+const targetOf = (imageId: string, segmentId: string | undefined) =>
+  resolveRasterizeTarget(imageId, segmentId)!;
+
 describe('polygon rasterize target', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -38,7 +43,7 @@ describe('polygon rasterize target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
 
-    const target = resolveRasterizeTarget('img-1', segment.id);
+    const target = targetOf('img-1', segment.id);
 
     expect(target.labelValue).toBe(1);
     expect(
@@ -61,7 +66,7 @@ describe('polygon rasterize target', () => {
     store().segmentVoxels(first.id).materialize();
     const second = store().createSegment(segmentation.id, { name: 'Tumor' });
 
-    const target = resolveRasterizeTarget('img-1', second.id);
+    const target = targetOf('img-1', second.id);
 
     expect(target.labelValue).toBe(2);
     expect(target.artifactId).not.toBe(
@@ -74,8 +79,8 @@ describe('polygon rasterize target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
 
-    const first = resolveRasterizeTarget('img-1', segment.id);
-    const second = resolveRasterizeTarget('img-1', segment.id);
+    const first = targetOf('img-1', segment.id);
+    const second = targetOf('img-1', segment.id);
 
     expect(second.artifactId).toBe(first.artifactId);
     expect(second.labelValue).toBe(first.labelValue);
@@ -89,7 +94,7 @@ describe('polygon rasterize target', () => {
     const other = store().createSegment(segmentation.id, { name: 'Other' });
     store().setActiveSegment(active.id);
 
-    resolveRasterizeTarget('img-1', other.id);
+    targetOf('img-1', other.id);
 
     expect(store().activeSegmentId).toBe(active.id);
   });
@@ -103,10 +108,27 @@ describe('polygon rasterize target', () => {
     expect(() => resolveRasterizeTarget('img-1', segment.id)).toThrow();
   });
 
+  it('refuses a locked segment before allocating storage for it', async () => {
+    await seatImage('img-1');
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
+    store().updateSegment(segment.id, { locked: true });
+
+    expect(resolveRasterizeTarget('img-1', segment.id)).toBeUndefined();
+
+    expect(
+      store().getSegment(segment.id).representations.labelmap
+    ).toBeUndefined();
+    expect(store().segmentLayersForImage('img-1')).toEqual([]);
+    expect(
+      useMessageStore().messages.map((message) => message.title)
+    ).toContain('Cannot rasterize into a locked segment');
+  });
+
   it('rasterizes into a default segment when the image has none', async () => {
     await seatImage('img-1');
 
-    const target = resolveRasterizeTarget('img-1', undefined);
+    const target = targetOf('img-1', undefined);
 
     const segmentation = store().getSegmentationForImage('img-1');
     expect(Object.keys(segmentation!.segments)).toHaveLength(1);
@@ -122,8 +144,8 @@ describe('polygon rasterize target', () => {
   it('reuses the default segment on a second rasterize', async () => {
     await seatImage('img-1');
 
-    const first = resolveRasterizeTarget('img-1', undefined);
-    const second = resolveRasterizeTarget('img-1', undefined);
+    const first = targetOf('img-1', undefined);
+    const second = targetOf('img-1', undefined);
 
     expect(second.artifactId).toBe(first.artifactId);
     expect(second.labelValue).toBe(first.labelValue);
@@ -137,7 +159,7 @@ describe('polygon rasterize target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
 
-    const target = resolveRasterizeTarget('img-1', segment.id);
+    const target = targetOf('img-1', segment.id);
     target.voxels.ensureContains([0, 3, 0, 0, 0, 0]);
     // fillPoly writes voxel offsets into the live buffer, so a copy would be
     // rasterized and thrown away.
@@ -158,7 +180,7 @@ describe('polygon rasterize target', () => {
     store().deleteSegment(segment.id);
 
     // The tool keeps the deleted segment's id; that must not block rasterizing.
-    const target = resolveRasterizeTarget('img-1', segment.id);
+    const target = targetOf('img-1', segment.id);
 
     expect(target.segmentId).not.toBe(segment.id);
     expect(store().getSegmentationForImage('img-1')!.segments).toHaveProperty(

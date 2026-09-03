@@ -168,7 +168,7 @@ describe('placing and rasterizing on another image', () => {
     store().updateSegment(origin.id, { name: 'Lesion' });
 
     await viewImage('img-2');
-    const target = resolveRasterizeTarget('img-2', '');
+    const target = resolveRasterizeTarget('img-2', '')!;
 
     expect(store().getSegment(target.segmentId).name).toBe('Lesion');
     expect(segmentIdsOf('img-2')).toEqual([target.segmentId]);
@@ -181,7 +181,7 @@ describe('placing and rasterizing on another image', () => {
     store().ensureLabelmapBinding(origin.id);
 
     await viewImage('img-2');
-    const target = resolveRasterizeTarget('img-2', '');
+    const target = resolveRasterizeTarget('img-2', '')!;
 
     expect(target.segmentId).not.toBe(origin.id);
     expect(target.artifactId).not.toBe(

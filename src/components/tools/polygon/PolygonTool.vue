@@ -210,8 +210,9 @@ export default defineComponent({
       });
       // The polygon records where its voxels actually landed. This covers an
       // unlabeled polygon and one whose segment was deleted, whose stale id
-      // would otherwise outlive the segment it names.
-      if (tool && tool.label !== rasterized.segmentId) {
+      // would otherwise outlive the segment it names. A refused rasterize
+      // hands back the label it was given, so nothing is renamed.
+      if (tool && rasterized.segmentId && tool.label !== rasterized.segmentId) {
         activeToolStore.updateTool(toolId, { label: rasterized.segmentId });
       }
     }
