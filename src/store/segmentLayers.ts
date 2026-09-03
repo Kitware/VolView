@@ -81,7 +81,11 @@ export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
   };
 }
 
-/** A mask's buffer, positioned where one row of the shared box starts in it. */
+/**
+ * A mask's buffer, positioned where one row of the shared box starts in it.
+ * Pairing the buffer with its offset keeps `rowsIntersect` inside the four
+ * parameters the complexity ratchet allows.
+ */
 type MaskRow = { scalars: Uint8Array; from: number };
 
 const rowAt = (
@@ -118,14 +122,12 @@ export function masksIntersect(a: BoundedScalars, b: BoundedScalars) {
   const shared = clipExtent(a.extent, b.extent);
   if (isEmptyExtent(shared)) return false;
 
-  const [ni, nj, nk] = extentSize(shared);
+  const [ni] = extentSize(shared);
   const i = shared[0];
-  // Rows flat in one loop, since a j loop inside a k loop would nest deeper
-  // than the style allows once the row test is in it.
-  for (let row = 0; row < nj * nk; row += 1) {
-    const j = shared[2] + (row % nj);
-    const k = shared[4] + Math.floor(row / nj);
-    if (rowsIntersect(rowAt(a, i, j, k), rowAt(b, i, j, k), ni)) return true;
+  for (let k = shared[4]; k <= shared[5]; k += 1) {
+    for (let j = shared[2]; j <= shared[3]; j += 1) {
+      if (rowsIntersect(rowAt(a, i, j, k), rowAt(b, i, j, k), ni)) return true;
+    }
   }
   return false;
 }
