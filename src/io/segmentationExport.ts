@@ -13,6 +13,9 @@ export type ExportFile = {
 export const layerFileName = (stem: string, format: string, layer: number) =>
   layer === 0 ? `${stem}.${format}` : `${stem}_layer${layer}.${format}`;
 
+/** The archive every file of one save is bundled into. */
+export const archiveNameFor = (stem: string) => `${stem}.zip`;
+
 /**
  * What a save hands to the browser: the single file itself, or every file in
  * one archive. A labelmap file carries one label per voxel, so segments that
@@ -27,7 +30,7 @@ export async function bundleExportFiles(stem: string, files: ExportFile[]) {
   const zip = new JSZip();
   files.forEach((file) => zip.file(file.name, file.data));
   return {
-    name: `${stem}.zip`,
+    name: archiveNameFor(stem),
     blob: await zip.generateAsync({ type: 'blob' }),
   };
 }

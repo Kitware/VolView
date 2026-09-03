@@ -21,14 +21,14 @@
         ></v-select>
 
         <v-alert
-          v-if="fileCount > 1"
+          v-if="groups.length > 1"
           type="info"
           variant="tonal"
           density="compact"
           data-testid="save-overlap-notice"
         >
           Segments that overlap cannot share one file. Saving writes
-          {{ fileCount }} files, bundled into {{ archiveName }}.
+          {{ groups.length }} files, bundled into {{ archiveName }}.
         </v-alert>
       </v-form>
     </v-card-text>
@@ -54,6 +54,7 @@ import { saveAs } from 'file-saver';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import {
+  archiveNameFor,
   bundleExportFiles,
   layerFileName,
   type ExportFile,
@@ -98,9 +99,10 @@ const fileName = computed({
 const groups = computed(() =>
   segmentationStore.layeredSegments(parentImageId.value)
 );
-const fileCount = computed(() => groups.value.length);
-const archiveName = computed(
-  () => `${sanitizeSegmentGroupFileStem(fileName.value)}.zip`
+// Named by the same function the download uses, so the notice cannot promise
+// an archive the save does not write.
+const archiveName = computed(() =>
+  archiveNameFor(sanitizeSegmentGroupFileStem(fileName.value))
 );
 
 // What leaves VolView is the image's whole segmentation, not one segment's
