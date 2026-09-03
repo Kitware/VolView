@@ -10,6 +10,8 @@ import { createArtifactNamer } from '@/src/store/artifactNaming';
 import {
   boundScalars,
   groupByLayer,
+  masksClearing,
+  masksHolding,
   writeMaskInto,
 } from '@/src/store/segmentLayers';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
@@ -41,7 +43,6 @@ import {
 import {
   emptyExtent,
   extentContains,
-  extentContainsIndex,
   extentSize,
   extentUnion,
   fullExtent,
@@ -49,7 +50,6 @@ import {
   LABELMAP_BACKGROUND_VALUE,
   listSegments,
   makeDefaultSegmentName,
-  maskOffset,
   maskScalars,
   toLabelmapSegment,
   type ActiveSegmentIntent,
@@ -697,21 +697,17 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * value for free, so a write path clears the voxel in every other mask of the
    * same parent image itself. A locked segment is not editable, and losing a
    * voxel is an edit, so it keeps the voxel and the two segments overlap.
-   * Coordinates are PARENT indices. A sibling that does not reach the voxel has
-   * nothing there to clear, so nothing grows.
    */
-  function otherSegmentClearer(segmentId: string) {
-    const siblings = siblingMasks(segmentId, (segment) => !segment.locked);
-    return (i: number, j: number, k: number) => {
-      siblings.forEach((sibling) => {
-        if (!extentContainsIndex(sibling.extent, i, j, k)) return;
-        const offset = maskOffset(sibling, i, j, k);
-        if (sibling.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
-        sibling.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
-        sibling.mask.modified();
-      });
-    };
-  }
+  const otherSegmentClearer = (segmentId: string) =>
+    masksClearing(siblingMasks(segmentId, (segment) => !segment.locked));
+
+  /**
+   * Whether another segment of the same image already holds a voxel. Lock plays
+   * no part: a process writes into empty space only, so occupancy is the whole
+   * question.
+   */
+  const otherSegmentOccupancy = (segmentId: string) =>
+    masksHolding(siblingMasks(segmentId));
 
   /** The image's segments in `order`, or none when it has no segmentation. */
   function imageSegments(parentImageId: string) {
@@ -1452,6 +1448,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     convertImageToLabelmap,
     saveFormat,
     otherSegmentClearer,
+    otherSegmentOccupancy,
     compositeLabelmap,
     layeredSegments,
     editableSegments,

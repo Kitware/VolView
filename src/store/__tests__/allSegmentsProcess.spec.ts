@@ -13,6 +13,7 @@ import { useViewStore } from '@/src/store/views';
 import {
   addSegment,
   labelValueOf,
+  markedVoxels,
   maskValueAt,
   seatImage,
   store,
@@ -27,9 +28,11 @@ import {
 // ACCEPTED BEHAVIOUR CHANGE: a hole used to be filled with the majority label
 // bordering it in the composite of every segment. Per segment, each segment
 // fills only what it encloses by itself, so a cavity two segments close
-// together is no longer filled at all. In exchange the two segment scopes now
-// agree: an enclosed neighbour is claimed either way, where All Segments used
-// to preserve what Selected Segment took.
+// together is no longer filled at all.
+//
+// A fill writes into empty space only. Both segment scopes stop at a voxel
+// another segment holds, locked or not, so no run of a process takes a voxel
+// from a segment the user did not aim at.
 // ---------------------------------------------------------------------------
 
 const SIZE = 7;
@@ -55,6 +58,24 @@ const ringAround = (ci: number, cj: number): Array<[number, number]> =>
     [-1, 0, 1]
       .filter((di) => di !== 0 || dj !== 0)
       .map((di) => [ci + di, cj + dj] as [number, number])
+  );
+
+/** The four sides of a square box, from `from` to `to` inclusive. */
+const boxOutline = (from: number, to: number): Array<[number, number]> =>
+  Array.from({ length: to - from + 1 }, (_, n) => from + n).flatMap((n) => [
+    [n, from] as [number, number],
+    [n, to] as [number, number],
+    [from, n] as [number, number],
+    [to, n] as [number, number],
+  ]);
+
+/** Every cell of a solid square, from `from` to `to` inclusive. */
+const block = (from: number, to: number): Array<[number, number]> =>
+  Array.from({ length: to - from + 1 }, (_, n) => from + n).flatMap((j) =>
+    Array.from(
+      { length: to - from + 1 },
+      (_, n) => [from + n, j] as [number, number]
+    )
   );
 
 const fillHolesOn = async (target: ProcessTarget) =>
@@ -121,27 +142,49 @@ describe('a process running over every segment', () => {
     expect(maskValueAt(right, [3, 1, 0])).toBe(0);
   });
 
-  it('claims an enclosed neighbour, as the selected-segment scope does', async () => {
-    const ring = segmentAt('Ring', ringAround(1, 1));
-    const inside = segmentAt('Inside', [[1, 1]]);
+  it('leaves a segment nested inside another holding every voxel', async () => {
+    const outer = segmentAt('Outer', boxOutline(1, 5));
+    const inner = segmentAt('Inner', block(2, 4));
+    const held = markedVoxels(inner);
 
     await runOverEverySegment();
     usePaintProcessStore().confirmProcess();
 
-    expect(maskValueAt(ring, [1, 1, 0])).toBe(labelValueOf(ring));
-    expect(maskValueAt(inside, [1, 1, 0])).toBe(0);
+    expect(markedVoxels(inner)).toEqual(held);
+    expect(maskValueAt(outer, [3, 3, 0])).toBe(0);
   });
 
-  it('leaves an enclosed neighbour that is locked, and shares the voxel', async () => {
-    const ring = segmentAt('Ring', ringAround(1, 1));
-    const inside = segmentAt('Inside', [[1, 1]]);
-    store().updateSegment(inside, { locked: true });
+  it.each([
+    ['an unlocked', false],
+    ['a locked', true],
+  ])(
+    'leaves %s enclosed neighbour holding the voxel',
+    async (_name, locked) => {
+      const ring = segmentAt('Ring', ringAround(1, 1));
+      const inside = segmentAt('Inside', [[1, 1]]);
+      store().updateSegment(inside, { locked });
+
+      await runOverEverySegment();
+      usePaintProcessStore().confirmProcess();
+
+      expect(maskValueAt(inside, [1, 1, 0])).toBe(labelValueOf(inside));
+      expect(maskValueAt(ring, [1, 1, 0])).toBe(0);
+    }
+  );
+
+  it('gives a voxel nobody held to the first segment that fills it', async () => {
+    // Both enclose (3, 3) by themselves. The earlier run writes it, and the
+    // later one finds it held and leaves it, so it is not taken back.
+    const inner = segmentAt('Inner', ringAround(3, 3));
+    const outer = segmentAt('Outer', boxOutline(1, 5));
 
     await runOverEverySegment();
     usePaintProcessStore().confirmProcess();
 
-    expect(maskValueAt(ring, [1, 1, 0])).toBe(labelValueOf(ring));
-    expect(maskValueAt(inside, [1, 1, 0])).toBe(labelValueOf(inside));
+    expect(maskValueAt(inner, [3, 3, 0])).toBe(labelValueOf(inner));
+    expect(maskValueAt(outer, [3, 3, 0])).toBe(0);
+    expect(maskValueAt(inner, [2, 2, 0])).toBe(labelValueOf(inner));
+    expect(maskValueAt(outer, [2, 2, 0])).toBe(0);
   });
 
   it('skips a locked segment, which is not editable', async () => {

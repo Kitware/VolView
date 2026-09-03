@@ -14,6 +14,7 @@ import { useViewStore } from '@/src/store/views';
 import {
   addSegment,
   labelValueOf,
+  markedVoxels,
   maskValueAt,
   seatImage,
   seedVoxel,
@@ -22,10 +23,11 @@ import {
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
-// A process turning a voxel ON claims it exactly as a brush stroke does: every
-// unlocked segment of the image releases it, a locked one keeps it and the two
-// overlap. The claim happens on confirm rather than on preview, so a cancelled
-// preview leaves the neighbours holding everything they had.
+// A process writes into empty space only. A brush stroke is aimed at a place
+// and claims the voxel from an unlocked neighbour; a process is a sweep the
+// user did not aim, so it stops at every voxel another segment holds, locked or
+// not, and takes nothing from anyone. Nothing outside the active segment
+// changes, so the preview is what confirm leaves behind.
 //
 // The three processes are driven through their real algorithms where those are
 // plain functions. Fill Between's interpolator is itk-wasm, which has no build
@@ -34,6 +36,8 @@ import {
 
 const DIMENSIONS: Index3 = [5, 5, 5];
 const HOLE: Index3 = [2, 2, 2];
+/** A voxel the cube holds throughout, on a slice no process here touches. */
+const INSIDE: Index3 = [2, 2, 1];
 
 const offsetOf = (i: number, j: number, k: number) =>
   i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
@@ -97,7 +101,7 @@ describe.each([
   ['fill holes', runFillHoles],
   ['fill between', runFillBetween],
   ['gaussian smooth', runGaussianSmooth],
-])('%s claiming the voxels it turns on', (_name, run) => {
+])('%s writing only into empty space', (_name, run) => {
   let tumor: string;
 
   beforeEach(async () => {
@@ -115,22 +119,26 @@ describe.each([
     return processStore;
   };
 
-  it('takes the voxel from an unlocked neighbour', async () => {
-    const neighbour = neighbourOwningTheHole('img-1', false);
+  it.each([
+    ['an unlocked', false],
+    ['a locked', true],
+  ])('leaves the voxel with %s neighbour', async (_lock, locked) => {
+    const neighbour = neighbourOwningTheHole('img-1', locked);
 
     (await process()).confirmProcess();
 
-    expect(maskValueAt(tumor, HOLE)).toBe(labelValueOf(tumor));
-    expect(maskValueAt(neighbour, HOLE)).toBe(0);
+    expect(maskValueAt(neighbour, HOLE)).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(tumor, HOLE)).toBe(0);
   });
 
-  it('shares the voxel with a locked neighbour', async () => {
-    const neighbour = neighbourOwningTheHole('img-1', true);
+  it('confirms exactly what the preview showed', async () => {
+    const neighbour = neighbourOwningTheHole('img-1', false);
+    const processStore = await process();
+    const previewed = [markedVoxels(tumor), markedVoxels(neighbour)];
 
-    (await process()).confirmProcess();
+    processStore.confirmProcess();
 
-    expect(maskValueAt(tumor, HOLE)).toBe(labelValueOf(tumor));
-    expect(maskValueAt(neighbour, HOLE)).toBe(labelValueOf(neighbour));
+    expect([markedVoxels(tumor), markedVoxels(neighbour)]).toEqual(previewed);
   });
 
   it('takes nothing from a neighbour when the preview is cancelled', async () => {
@@ -143,11 +151,16 @@ describe.each([
   });
 
   it('leaves the voxels it did not turn on with their owners', async () => {
+    // An overlap the user already has, inside the cube so no algorithm here
+    // rounds it away: a process that turned it on for neither keeps both.
     const neighbour = addSegment('img-1', 'Elsewhere');
+    seedVoxel(neighbour, INSIDE);
     seedVoxel(neighbour, [0, 0, 0]);
 
     (await process()).confirmProcess();
 
     expect(maskValueAt(neighbour, [0, 0, 0])).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(tumor, INSIDE)).toBe(labelValueOf(tumor));
+    expect(maskValueAt(neighbour, INSIDE)).toBe(labelValueOf(neighbour));
   });
 });

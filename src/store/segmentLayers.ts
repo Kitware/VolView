@@ -1,7 +1,9 @@
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 import {
+  extentContainsIndex,
   extentSize,
   isEmptyExtent,
+  LABELMAP_BACKGROUND_VALUE,
   maskOffset,
   maskScalars,
   type Extent3D,
@@ -31,6 +33,31 @@ export function boundScalars(
   const [mi, mj] = extentSize(extent);
   return { mask, scalars: maskScalars(mask), extent, mi, mj };
 }
+
+/** Whether any of these masks holds the voxel at PARENT indices i, j, k. */
+export const masksHolding =
+  (masks: BoundedScalars[]) => (i: number, j: number, k: number) =>
+    masks.some(
+      (bounded) =>
+        extentContainsIndex(bounded.extent, i, j, k) &&
+        bounded.scalars[maskOffset(bounded, i, j, k)] !==
+          LABELMAP_BACKGROUND_VALUE
+    );
+
+/**
+ * Clears the voxel at PARENT indices i, j, k from every one of these masks. A
+ * mask that does not reach the voxel has nothing there to clear, so nothing
+ * grows.
+ */
+export const masksClearing =
+  (masks: BoundedScalars[]) => (i: number, j: number, k: number) =>
+    masks.forEach((bounded) => {
+      if (!extentContainsIndex(bounded.extent, i, j, k)) return;
+      const offset = maskOffset(bounded, i, j, k);
+      if (bounded.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
+      bounded.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
+      bounded.mask.modified();
+    });
 
 /** The box both extents cover, empty when they miss. */
 const sharedExtent = (a: Extent3D, b: Extent3D): Extent3D => [

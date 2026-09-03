@@ -96,34 +96,54 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   /**
-   * A process claims the voxels it turned on the way a brush stroke does: every
-   * unlocked segment of the image releases them, a locked one keeps its own and
-   * the two overlap. Mask offsets are relative to the segment's own extent,
-   * read at commit time because growth moves it.
+   * The extent and strides a run's mask offsets are taken against, absent when
+   * the mask has been reshaped since and they no longer address it. The binding
+   * is read here because `target.voxels` carries none and growth moves it.
    */
-  function claimTurnedOnVoxels(
-    segmentId: string,
-    before: TypedArray | number[],
-    after: TypedArray | number[]
-  ) {
-    const binding = segmentationStore.findSegmentBinding(segmentId);
-    if (!binding || isEmptyExtent(binding.extent)) return;
+  function runMaskBounds(run: PreviewRun) {
+    const binding = segmentationStore.findSegmentBinding(run.target.segmentId);
+    if (!binding || isEmptyExtent(binding.extent)) return undefined;
     const extent = [...binding.extent] as Extent3D;
     const [mi, mj, mk] = extentSize(extent);
-    // A mask reshaped since the run cannot be addressed by these offsets.
-    if (after.length !== mi * mj * mk || before.length !== after.length) return;
+    const addressable =
+      run.processedScalars.length === mi * mj * mk &&
+      run.originalScalars.length === run.processedScalars.length;
+    return addressable ? { extent, mi, mj } : undefined;
+  }
 
-    const clearOtherSegments = segmentationStore.otherSegmentClearer(segmentId);
+  /** The PARENT index a mask offset addresses inside `extent`. */
+  const parentIndexOf = (
+    { extent, mi, mj }: { extent: Extent3D; mi: number; mj: number },
+    offset: number
+  ) =>
+    [
+      (offset % mi) + extent[0],
+      (Math.floor(offset / mi) % mj) + extent[2],
+      Math.floor(offset / (mi * mj)) + extent[4],
+    ] as const;
+
+  /**
+   * Drops from the result every voxel the algorithm turned on that another
+   * segment already holds. A process is a sweep the user did not aim at a
+   * place, so it writes into empty space only and takes nothing from a
+   * neighbour, locked or not. Masking the result rather than the storage keeps
+   * the preview honest: what it shows is what confirm leaves behind.
+   */
+  function maskVoxelsOtherSegmentsHold(run: PreviewRun) {
+    const bounds = runMaskBounds(run);
+    if (!bounds) return;
+
+    const heldByOther = segmentationStore.otherSegmentOccupancy(
+      run.target.segmentId
+    );
+    const before = run.originalScalars;
+    const after = run.processedScalars;
     for (let offset = 0; offset < after.length; offset += 1) {
       const turnedOn =
         after[offset] !== LABELMAP_BACKGROUND_VALUE &&
         before[offset] === LABELMAP_BACKGROUND_VALUE;
-      if (turnedOn) {
-        clearOtherSegments(
-          (offset % mi) + extent[0],
-          (Math.floor(offset / mi) % mj) + extent[2],
-          Math.floor(offset / (mi * mj)) + extent[4]
-        );
+      if (turnedOn && heldByOther(...parentIndexOf(bounds, offset))) {
+        after[offset] = LABELMAP_BACKGROUND_VALUE;
       }
     }
   }
@@ -158,17 +178,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
           writeIfPresent(run.target.voxels, run.processedScalars)
         );
       }
-      // Only on confirm: a cancelled preview must leave the neighbours holding
-      // everything they had. Where two segments of the same run turned the same
-      // background voxel on, each takes it from the other and it stays
-      // background, which is what it was before the run.
-      state.runs.forEach((run) =>
-        claimTurnedOnVoxels(
-          run.target.segmentId,
-          run.originalScalars,
-          run.processedScalars
-        )
-      );
     }
     resetState();
     paintStore.restoreModeAfterProcess();
@@ -311,7 +320,12 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         return;
       }
 
-      runs.forEach((run) => run.target.voxels.apply(run.processedScalars));
+      // Masked against what the segments hold now, so a run that reaches a
+      // voxel an earlier run of the same pass just filled leaves it there.
+      runs.forEach((run) => {
+        maskVoxelsOtherSegmentsHold(run);
+        run.target.voxels.apply(run.processedScalars);
+      });
 
       processState.value = {
         step: 'previewing',
