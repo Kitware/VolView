@@ -2,7 +2,6 @@ import type vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   extentSize,
   isEmptyExtent,
-  LABELMAP_BACKGROUND_VALUE,
   maskOffset,
   maskScalars,
   type Extent3D,
@@ -33,21 +32,6 @@ export function boundScalars(
   return { mask, scalars: maskScalars(mask), extent, mi, mj };
 }
 
-/**
- * A mask as grouping reads it: the box it may hold voxels in, and whether it
- * holds one at a parent index.
- */
-export type LayerMask = {
-  extent: Extent3D;
-  filledAt: (i: number, j: number, k: number) => boolean;
-};
-
-export const layerMaskOf = (bounded: BoundedScalars): LayerMask => ({
-  extent: bounded.extent,
-  filledAt: (i, j, k) =>
-    bounded.scalars[maskOffset(bounded, i, j, k)] !== LABELMAP_BACKGROUND_VALUE,
-});
-
 /** The box both extents cover, empty when they miss. */
 const sharedExtent = (a: Extent3D, b: Extent3D): Extent3D => [
   Math.max(a[0], b[0]),
@@ -58,23 +42,51 @@ const sharedExtent = (a: Extent3D, b: Extent3D): Extent3D => [
   Math.min(a[5], b[5]),
 ];
 
+/** A mask's buffer, positioned where one row of the shared box starts in it. */
+type MaskRow = { scalars: Uint8Array; from: number };
+
+const rowAt = (
+  bounded: BoundedScalars,
+  i: number,
+  j: number,
+  k: number
+): MaskRow => ({
+  scalars: bounded.scalars,
+  from: maskOffset(bounded, i, j, k),
+});
+
+/**
+ * Whether both rows hold a voxel at the same step along i. Background is 0, so
+ * a claimed voxel is a truthy one.
+ */
+function rowsIntersect(a: MaskRow, b: MaskRow, count: number) {
+  const { scalars: av, from: ai } = a;
+  const { scalars: bv, from: bi } = b;
+  for (let n = 0; n < count; n += 1) {
+    if (av[ai + n] && bv[bi + n]) return true;
+  }
+  return false;
+}
+
 /**
  * Whether two masks claim one voxel in common. A mask is bounded to the voxels
  * it holds, so boxes that miss cannot share a voxel and neither buffer is read.
+ * Boxes that meet are swept a row at a time: two segments that touch nowhere
+ * usually still share a box, so the sweep is the common case, and each row
+ * costs one offset per mask with a plain step along i from there.
  */
-export function masksIntersect(a: LayerMask, b: LayerMask) {
+export function masksIntersect(a: BoundedScalars, b: BoundedScalars) {
   const shared = sharedExtent(a.extent, b.extent);
   if (isEmptyExtent(shared)) return false;
 
-  // One flat sweep, since three nested loops would nest deeper than the style
-  // allows and the extents have already cut the common case.
   const [ni, nj, nk] = extentSize(shared);
-  const plane = ni * nj;
-  for (let n = 0; n < plane * nk; n += 1) {
-    const i = shared[0] + (n % ni);
-    const j = shared[2] + (Math.floor(n / ni) % nj);
-    const k = shared[4] + Math.floor(n / plane);
-    if (a.filledAt(i, j, k) && b.filledAt(i, j, k)) return true;
+  const i = shared[0];
+  // Rows flat in one loop, since a j loop inside a k loop would nest deeper
+  // than the style allows once the row test is in it.
+  for (let row = 0; row < nj * nk; row += 1) {
+    const j = shared[2] + (row % nj);
+    const k = shared[4] + Math.floor(row / nj);
+    if (rowsIntersect(rowAt(a, i, j, k), rowAt(b, i, j, k), ni)) return true;
   }
   return false;
 }
@@ -89,13 +101,14 @@ export function groupByLayer<T>(
   items: T[],
   maskOf: (item: T) => BoundedScalars | undefined
 ) {
-  const layers: Array<{ items: T[]; masks: LayerMask[] }> = [];
-  const fits = (layer: { masks: LayerMask[] }, mask: LayerMask | undefined) =>
-    !mask || layer.masks.every((other) => !masksIntersect(mask, other));
+  const layers: Array<{ items: T[]; masks: BoundedScalars[] }> = [];
+  const fits = (
+    layer: { masks: BoundedScalars[] },
+    mask: BoundedScalars | undefined
+  ) => !mask || layer.masks.every((other) => !masksIntersect(mask, other));
 
   items.forEach((item) => {
-    const bounded = maskOf(item);
-    const mask = bounded ? layerMaskOf(bounded) : undefined;
+    const mask = maskOf(item);
     const found = layers.find((layer) => fits(layer, mask));
     const layer = found ?? { items: [], masks: [] };
     if (!found) layers.push(layer);

@@ -5,7 +5,6 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   boundScalars,
   groupByLayer,
-  layerMaskOf,
   masksIntersect,
   writeMaskInto,
   type BoundedScalars,
@@ -55,18 +54,19 @@ const voxelMask = (at: Index3, value?: number) =>
 const layersOf = (masks: Record<string, BoundedScalars | undefined>) =>
   groupByLayer(Object.keys(masks), (name) => masks[name]);
 
-/** A mask that counts how many voxels the intersection test reads from it. */
+/**
+ * A mask that counts how many voxels the intersection test reads from it. The
+ * count is taken on the buffer itself, which is what the sweep indexes.
+ */
 function countingMask(bounded: BoundedScalars) {
-  const layer = layerMaskOf(bounded);
   const reads = { count: 0 };
-  const mask = {
-    extent: layer.extent,
-    filledAt: (i: number, j: number, k: number) => {
-      reads.count += 1;
-      return layer.filledAt(i, j, k);
+  const scalars = new Proxy(bounded.scalars, {
+    get(target, key) {
+      if (Number.isInteger(Number(key))) reads.count += 1;
+      return Reflect.get(target, key);
     },
-  };
-  return { mask, reads };
+  });
+  return { mask: { ...bounded, scalars }, reads };
 }
 
 describe('deciding which masks can share a file', () => {
@@ -148,7 +148,32 @@ describe('testing two masks for a shared voxel', () => {
     const wide = maskOf([0, 3, 0, 0, 0, 0], [[2, 0, 0]]);
     const tall = maskOf([2, 2, 0, 2, 0, 0], [[2, 0, 0]]);
 
-    expect(masksIntersect(layerMaskOf(wide), layerMaskOf(tall))).toBe(true);
+    expect(masksIntersect(wide, tall)).toBe(true);
+  });
+
+  // The pair below is the shape a stride mistake shows up in: two differently
+  // sized boxes, a shared box of 6 by 3 by 2 with no two sides alike, and the
+  // one voxel they share in its far corner. Testing two masks needs no parent,
+  // so these reach past the one the rest of the file writes into.
+  const STRIDE_WIDE: Extent3D = [0, 7, 0, 3, 0, 3];
+  const STRIDE_NARROW: Extent3D = [1, 6, 1, 3, 2, 3];
+
+  it('finds a shared voxel with each mask read at its own stride', () => {
+    const wide = maskOf(STRIDE_WIDE, [[4, 3, 3]]);
+    const narrow = maskOf(STRIDE_NARROW, [[4, 3, 3]]);
+
+    expect(masksIntersect(wide, narrow)).toBe(true);
+  });
+
+  it('separates masks whose boxes meet but whose voxels never do', () => {
+    const wide = maskOf(STRIDE_WIDE, [[4, 3, 3]]);
+    const narrow = maskOf(STRIDE_NARROW, [
+      [4, 3, 2],
+      [3, 3, 3],
+      [4, 2, 3],
+    ]);
+
+    expect(masksIntersect(wide, narrow)).toBe(false);
   });
 });
 
