@@ -50,6 +50,7 @@ import {
   LABELMAP_BACKGROUND_VALUE,
   listSegments,
   makeDefaultSegmentName,
+  maskOffset,
   maskScalars,
   toLabelmapSegment,
   type ActiveSegmentIntent,
@@ -158,14 +159,11 @@ function regrowMask(
   const values = new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]);
 
   if (!isEmptyExtent(from)) {
+    const grown = { extent: to, mi: dimensions[0], mj: dimensions[1] };
     for (let k = 0; k < previousSize[2]; k += 1) {
       for (let j = 0; j < previousSize[1]; j += 1) {
         const source = (j + k * previousSize[1]) * previousSize[0];
-        const target =
-          from[0] -
-          to[0] +
-          (j + from[2] - to[2]) * dimensions[0] +
-          (k + from[4] - to[4]) * dimensions[0] * dimensions[1];
+        const target = maskOffset(grown, from[0], from[2] + j, from[4] + k);
         values.set(previous.subarray(source, source + previousSize[0]), target);
       }
     }

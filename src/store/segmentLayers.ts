@@ -1,5 +1,6 @@
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 import {
+  clipExtent,
   extentContainsIndex,
   extentSize,
   isEmptyExtent,
@@ -59,16 +60,6 @@ export const masksClearing =
       bounded.mask.modified();
     });
 
-/** The box both extents cover, empty when they miss. */
-const sharedExtent = (a: Extent3D, b: Extent3D): Extent3D => [
-  Math.max(a[0], b[0]),
-  Math.min(a[1], b[1]),
-  Math.max(a[2], b[2]),
-  Math.min(a[3], b[3]),
-  Math.max(a[4], b[4]),
-  Math.min(a[5], b[5]),
-];
-
 /** A mask's buffer, positioned where one row of the shared box starts in it. */
 type MaskRow = { scalars: Uint8Array; from: number };
 
@@ -103,7 +94,7 @@ function rowsIntersect(a: MaskRow, b: MaskRow, count: number) {
  * costs one offset per mask with a plain step along i from there.
  */
 export function masksIntersect(a: BoundedScalars, b: BoundedScalars) {
-  const shared = sharedExtent(a.extent, b.extent);
+  const shared = clipExtent(a.extent, b.extent);
   if (isEmptyExtent(shared)) return false;
 
   const [ni, nj, nk] = extentSize(shared);
@@ -157,15 +148,19 @@ export function writeMaskInto(
 ) {
   const { extent, scalars } = bounded;
   const [dx, dy] = dimensions;
-  for (let k = extent[4]; k <= extent[5]; k += 1) {
-    for (let j = extent[2]; j <= extent[3]; j += 1) {
-      const to = j * dx + k * dx * dy;
-      const from = maskOffset(bounded, extent[0], j, k) - extent[0];
-      for (let i = extent[0]; i <= extent[1]; i += 1) {
-        // Background is 0, so a voxel this mask leaves unclaimed keeps
-        // whatever the buffer already holds there.
-        values[to + i] = scalars[from + i] || values[to + i];
-      }
+  const [ni, nj, nk] = extentSize(extent);
+  // Rows flat in one loop, as in masksIntersect: a j loop inside a k loop would
+  // nest deeper than the style allows once the row test is in it.
+  for (let row = 0; row < nj * nk; row += 1) {
+    const j = extent[2] + (row % nj);
+    const k = extent[4] + Math.floor(row / nj);
+    const to = extent[0] + j * dx + k * dx * dy;
+    const from = maskOffset(bounded, extent[0], j, k);
+    for (let n = 0; n < ni; n += 1) {
+      // Background is 0, so a voxel this mask leaves unclaimed keeps whatever
+      // the buffer already holds there.
+      const value = scalars[from + n];
+      if (value) values[to + n] = value;
     }
   }
 }
