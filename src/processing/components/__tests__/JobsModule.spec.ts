@@ -34,6 +34,7 @@ import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { seedVoxel } from '@/src/store/__tests__/segmentMaskFixtures';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -93,6 +94,7 @@ const mountJobsModule = (pinia: ReturnType<typeof createPinia>) =>
         'v-expansion-panel': slotStub,
         'v-expansion-panel-title': slotStub,
         'v-expansion-panel-text': slotStub,
+        'v-alert': slotStub,
       },
     },
   });
@@ -498,6 +500,18 @@ describe('JobsModule — segment group staging', () => {
     return segmentation.id;
   };
 
+  // Two segments claiming one voxel: what a single staged file cannot carry.
+  const seedOverlappingSegments = () => {
+    const store = useSegmentationStore();
+    const segmentation = store.ensureSegmentationForImage('image-1');
+    segmentation.name = 'Overlap';
+    const first = store.createSegment(segmentation.id, { name: 'Tumor' });
+    const second = store.createSegment(segmentation.id, { name: 'Node' });
+    seedVoxel(first.id, [1, 1, 1]);
+    seedVoxel(second.id, [1, 1, 1]);
+    store.setActiveSegment(first.id);
+  };
+
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {
     const p = makeProvider('P');
     p.listTasks = vi.fn().mockResolvedValue([{ id: 'seg', title: 'Segment' }]);
@@ -553,6 +567,45 @@ describe('JobsModule — segment group staging', () => {
       type: 'labelmap',
       uris: ['girder://staged/Liver.seg.nrrd'],
     });
+  });
+
+  const mountWithSpec = async (spec: TaskSpecEnvelope) => {
+    registerFake(useProcessingJobsStore(), stagingProvider(spec));
+    const wrapper = mount();
+    await flushPromises();
+    return wrapper;
+  };
+
+  const overlapNotice = (wrapper: Awaited<ReturnType<typeof mountWithSpec>>) =>
+    wrapper.find('[data-testid="staging-overlap-notice"]');
+
+  it('states the flatten precedence when the staged segments overlap', async () => {
+    seedActiveImage();
+    seedOverlappingSegments();
+
+    const notice = overlapNotice(await mountWithSpec(labelmapSpec(false)));
+
+    expect(notice.exists()).toBe(true);
+    expect(notice.text()).toMatch(/one file for this job/i);
+    expect(notice.text()).toMatch(/listed last wins/i);
+  });
+
+  it('says nothing about overlap when the segments hold no voxel in common', async () => {
+    seedActiveImage();
+    seedSegmentation('Tumor');
+
+    expect(
+      overlapNotice(await mountWithSpec(labelmapSpec(false))).exists()
+    ).toBe(false);
+  });
+
+  it('says nothing about overlap when no segmentation is staged', async () => {
+    seedActiveImage();
+    seedOverlappingSegments();
+
+    const wrapper = await mountWithSpec(envelope('plain', 'No inputs'));
+
+    expect(overlapNotice(wrapper).exists()).toBe(false);
   });
 
   it('reports a staging failure and submits nothing', async () => {

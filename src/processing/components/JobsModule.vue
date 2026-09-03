@@ -64,6 +64,18 @@
               No tasks available.
             </div>
 
+            <v-alert
+              v-if="flattensOverlap"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mb-3"
+              data-testid="staging-overlap-notice"
+            >
+              Overlapping segments are combined into one file for this job.
+              Where two overlap, the one listed last wins.
+            </v-alert>
+
             <div v-if="loadingTask" class="text-caption">
               Loading task spec…
             </div>
@@ -506,6 +518,25 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
     annotationCount: finishedAnnotationCount.value,
   };
 }
+
+// More than one group is how a shared voxel shows up: an export groups an
+// image's segments so that no group holds an overlap, and one file carries one
+// group.
+const segmentationOverlaps = (segmentGroupId: string) =>
+  segmentationStore.layeredSegments(
+    segmentationStore.segmentations[segmentGroupId].parentImageId
+  ).length > 1;
+
+// A job's input is the whole segmentation flattened into one file, where later
+// in the list wins. Said at the point of staging rather than only in code: the
+// staged file is not what the viewport shows, so a silent flatten is the one
+// way this loses data without telling anyone.
+const flattensOverlap = computed(() => {
+  const model = taskModel.value;
+  if (!model) return false;
+  const bound = Object.values(activeSourceBindings(model).labelmap.groups);
+  return bound.flat().some(segmentationOverlaps);
+});
 
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
