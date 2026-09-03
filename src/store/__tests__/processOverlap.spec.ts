@@ -13,6 +13,7 @@ import {
 import { useViewStore } from '@/src/store/views';
 import {
   addSegment,
+  flatIndex,
   labelValueOf,
   markedVoxels,
   maskValueAt,
@@ -39,8 +40,7 @@ const HOLE: Index3 = [2, 2, 2];
 /** A voxel the cube holds throughout, on a slice no process here touches. */
 const INSIDE: Index3 = [2, 2, 1];
 
-const offsetOf = (i: number, j: number, k: number) =>
-  i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
+const offsetOf = flatIndex(DIMENSIONS);
 
 type SegmentAlgorithm = (target: ProcessTarget) => TypedArray | number[];
 

@@ -497,19 +497,17 @@ describe('JobsModule — segment group staging', () => {
     const segment = store.createSegment(segmentation.id, { name: 'Tumor' });
     store.segmentVoxels(segment.id).materialize();
     store.setActiveSegment(segment.id);
-    return segmentation.id;
+    return { segmentationId: segmentation.id, segmentId: segment.id };
   };
 
   // Two segments claiming one voxel: what a single staged file cannot carry.
   const seedOverlappingSegments = () => {
-    const store = useSegmentationStore();
-    const segmentation = store.ensureSegmentationForImage('image-1');
-    segmentation.name = 'Overlap';
-    const first = store.createSegment(segmentation.id, { name: 'Tumor' });
-    const second = store.createSegment(segmentation.id, { name: 'Node' });
-    seedVoxel(first.id, [1, 1, 1]);
+    const { segmentationId, segmentId } = seedSegmentation('Overlap');
+    const second = useSegmentationStore().createSegment(segmentationId, {
+      name: 'Node',
+    });
+    seedVoxel(segmentId, [1, 1, 1]);
     seedVoxel(second.id, [1, 1, 1]);
-    store.setActiveSegment(first.id);
   };
 
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {

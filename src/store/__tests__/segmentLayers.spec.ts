@@ -15,6 +15,10 @@ import {
   maskOffset,
   type Extent3D,
 } from '@/src/types/segmentation';
+import {
+  flatIndex,
+  type Index3,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // One labelmap file carries one label per voxel, so two segments that share a
@@ -22,12 +26,9 @@ import {
 // out: which masks may share a file, and how a mask is written into it.
 // ---------------------------------------------------------------------------
 
-type Index3 = [number, number, number];
-
 const PARENT: Index3 = [4, 4, 4];
 
-const parentOffset = (i: number, j: number, k: number) =>
-  i + j * PARENT[0] + k * PARENT[0] * PARENT[1];
+const parentOffset = flatIndex(PARENT);
 
 /** A mask bounded to `extent`, holding `value` at each named parent voxel. */
 function maskOf(extent: Extent3D, marks: Index3[], value = 1) {

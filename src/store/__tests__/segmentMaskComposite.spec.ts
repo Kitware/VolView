@@ -2,14 +2,18 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
-import { listSegments, type Segment } from '@/src/types/segmentation';
+import {
+  listSegments,
+  maskScalars,
+  type Segment,
+} from '@/src/types/segmentation';
 import {
   addSegment,
   extentOf,
+  flatIndex,
   labelValueOf,
   maskValueAt,
   parentImage,
@@ -39,15 +43,11 @@ import {
 
 const DIMENSIONS: Index3 = [4, 4, 4];
 
-const parentOffset = (i: number, j: number, k: number) =>
-  i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
+const parentOffset = flatIndex(DIMENSIONS);
 
-const compositeScalars = (imageId: string) =>
-  store()
-    .compositeLabelmap(imageId)
-    .labelmap.getPointData()
-    .getScalars()
-    .getData() as TypedArray;
+/** The composite of an image's segments, or of just the named members. */
+const compositeScalars = (imageId: string, members?: Segment[]) =>
+  maskScalars(store().compositeLabelmap(imageId, members).labelmap);
 
 const segmentIdsOf = (imageId: string) =>
   listSegments(store().getSegmentationForImage(imageId)!).map(
@@ -176,11 +176,7 @@ describe('composing the segments of an image into one labelmap', () => {
     expect(labelmap.getDimensions()).toEqual(
       parentImage('img-1').getDimensions()
     );
-    expect(
-      Array.from(
-        labelmap.getPointData().getScalars().getData() as TypedArray
-      ).every((value) => value === 0)
-    ).toBe(true);
+    expect(maskScalars(labelmap).every((value) => value === 0)).toBe(true);
   });
 
   it('copies the voxels out rather than aliasing the masks', () => {
@@ -204,15 +200,6 @@ describe('grouping the segments that cannot share one labelmap', () => {
     await seatImage('img-1', GRID);
   });
 
-  const groupScalars = (group: Segment[]) =>
-    Array.from(
-      store()
-        .compositeLabelmap('img-1', group)
-        .labelmap.getPointData()
-        .getScalars()
-        .getData() as TypedArray
-    );
-
   const layerEntries = () =>
     store()
       .layeredSegments('img-1')
@@ -232,8 +219,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
     const groups = store().layeredSegments('img-1');
 
     expect(groups).toHaveLength(1);
-    expect(groupScalars(groups[0])).toEqual(
-      Array.from(compositeScalars('img-1'))
+    expect(compositeScalars('img-1', groups[0])).toEqual(
+      compositeScalars('img-1')
     );
     expect(store().compositeLabelmap('img-1', groups[0]).segments).toEqual(
       store().compositeLabelmap('img-1').segments
@@ -252,13 +239,13 @@ describe('grouping the segments that cannot share one labelmap', () => {
     expect(groups.map((group) => group.map((segment) => segment.name))).toEqual(
       [['Under'], ['Over']]
     );
-    expect(groupScalars(groups[0])[parentOffset(1, 1, 1)]).toBe(
+    expect(compositeScalars('img-1', groups[0])[parentOffset(1, 1, 1)]).toBe(
       labelValueOf(under)
     );
-    expect(groupScalars(groups[1])[parentOffset(1, 1, 1)]).toBe(
+    expect(compositeScalars('img-1', groups[1])[parentOffset(1, 1, 1)]).toBe(
       labelValueOf(over)
     );
-    expect(groupScalars(groups[0])[parentOffset(2, 2, 2)]).toBe(0);
+    expect(compositeScalars('img-1', groups[0])[parentOffset(2, 2, 2)]).toBe(0);
   });
 
   it('keeps a third segment with the first one it does not overlap', () => {

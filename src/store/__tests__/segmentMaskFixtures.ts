@@ -15,6 +15,11 @@ export const store = () => useSegmentationStore();
 export const voxelCount = (dimensions: Index3) =>
   dimensions[0] * dimensions[1] * dimensions[2];
 
+/** The offset an index lands at in a buffer shaped like `dimensions`. */
+export const flatIndex =
+  (dimensions: Index3) => (i: number, j: number, k: number) =>
+    i + j * dimensions[0] + k * dimensions[0] * dimensions[1];
+
 export type SeatOptions = {
   name?: string;
   dimensions?: Index3;
