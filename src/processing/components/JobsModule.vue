@@ -160,6 +160,7 @@ import {
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { listSegments } from '@/src/types/segmentation';
 import { useMessageStore } from '@/src/store/messages';
 
 import TaskPicker from './TaskPicker.vue';
@@ -531,12 +532,36 @@ const segmentationOverlaps = (segmentGroupId: string) =>
 // in the list wins. Said at the point of staging rather than only in code: the
 // staged file is not what the viewport shows, so a silent flatten is the one
 // way this loses data without telling anyone.
-const flattensOverlap = computed(() => {
+//
+// Refreshed on a signal rather than tracked, because the answer costs a voxel
+// sweep of every pair of the image's masks. A tracked read would make that
+// sweep part of the render effect and pay it again on every mask growth, which
+// is once per stroke that leaves its box, in whatever tab the user is in.
+const flattensOverlap = ref(false);
+
+const refreshFlattensOverlap = () => {
   const model = taskModel.value;
-  if (!model) return false;
-  const bound = Object.values(activeSourceBindings(model).labelmap.groups);
-  return bound.flat().some(segmentationOverlaps);
-});
+  const bound = model
+    ? Object.values(activeSourceBindings(model).labelmap.groups)
+    : [];
+  flattensOverlap.value = bound.flat().some(segmentationOverlaps);
+};
+
+// A mask's box is the only reactive trace a voxel write leaves: painting inside
+// one moves nothing, so this is as fresh as the store can make the notice.
+// Debounced because a stroke grows the box again and again.
+const overlapSignal = () =>
+  [
+    currentImageID.value,
+    ...Object.values(segmentationStore.segmentations).map((segmentation) =>
+      listSegments(segmentation)
+        .map((segment) => segment.representations.labelmap?.extent.join() ?? '')
+        .join(',')
+    ),
+  ].join('|');
+
+watch(taskModel, refreshFlattensOverlap);
+watchDebounced(overlapSignal, refreshFlattensOverlap, { debounce: 150 });
 
 const sourceRefNames = computed(() => {
   const model = taskModel.value;

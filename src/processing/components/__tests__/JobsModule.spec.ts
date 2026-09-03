@@ -599,6 +599,38 @@ describe('JobsModule — segment group staging', () => {
     ).toBe(false);
   });
 
+  it('does not rescan the masks when a stroke grows one', async () => {
+    // The scan walks every pair of masks voxel by voxel. Growing a mask is the
+    // one segmentation edit the store publishes reactively, so a tracked scan
+    // would run on the render path while the user paints in another tab.
+    seedActiveImage();
+    const segmentStore = useSegmentationStore();
+    const segmentation = segmentStore.ensureSegmentationForImage('image-1');
+    const first = segmentStore.createSegment(segmentation.id, { name: 'A' });
+    const second = segmentStore.createSegment(segmentation.id, { name: 'B' });
+    seedVoxel(first.id, [0, 0, 0]);
+    seedVoxel(second.id, [1, 1, 1]);
+    segmentStore.setActiveSegment(first.id);
+
+    const wrapper = await mountWithSpec(labelmapSpec(false));
+    expect(overlapNotice(wrapper).exists()).toBe(false);
+
+    const scans = vi.spyOn(segmentStore, 'layeredSegments');
+    // Grows B's box onto the voxel A holds, which is the overlap.
+    seedVoxel(second.id, [0, 0, 0]);
+    await flushPromises();
+
+    expect(scans).not.toHaveBeenCalled();
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 300);
+    });
+    await flushPromises();
+
+    expect(scans).toHaveBeenCalledTimes(1);
+    expect(overlapNotice(wrapper).exists()).toBe(true);
+  });
+
   it('says nothing about overlap when no segmentation is staged', async () => {
     seedActiveImage();
     seedOverlappingSegments();
