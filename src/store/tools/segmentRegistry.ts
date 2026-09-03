@@ -21,7 +21,7 @@ import { useLabels, type Label, type Labels } from './useLabels';
  * shims still read off a tool store. Identity in it is a projection of the
  * registry's segments; only the per-tool props are the tool store's own.
  */
-export type SegmentLabelApi<Props> = {
+export type ToolSegmentRegistry<Props> = {
   labels: Ref<Labels<Props>>;
   // Every segment a tool may point at, including tools on other images.
   allLabels: Ref<Labels<Props>>;
@@ -62,8 +62,6 @@ export type ToolWireIdentity<Props> = {
   segmentProps?: Labels<Props>;
   templates?: Labels<Props>;
 };
-
-export type ToolSegmentRegistry<Props> = SegmentLabelApi<Props>;
 
 const annotationToolLabelDefault = Object.freeze({
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT as number,
