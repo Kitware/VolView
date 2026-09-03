@@ -164,3 +164,44 @@ describe.each([
     expect(maskValueAt(neighbour, INSIDE)).toBe(labelValueOf(neighbour));
   });
 });
+
+// The result is swept a row at a time, so a mask whose i, j and k counts all
+// differ is what pins the row start against the parent index the sweep asks
+// the neighbouring masks about.
+describe('a process over a mask with no two dimensions alike', () => {
+  const SHAPE: Index3 = [3, 4, 5];
+  const OWNED: Index3 = [1, 2, 3];
+
+  beforeEach(async () => {
+    const pinia = createPinia().use(CorePiniaProviderPlugin());
+    createApp({}).use(pinia);
+    setActivePinia(pinia);
+    await seatImage('img-1', { dimensions: SHAPE });
+    useViewStore().setDataForAllViews('img-1');
+  });
+
+  it('stops at the one voxel a neighbour holds', async () => {
+    const tumor = addSegment('img-1', 'Tumor');
+    store().setActiveSegment(tumor);
+    const voxels = store().segmentVoxels(tumor);
+    voxels.materialize();
+    voxels.ensureContains([0, 2, 0, 3, 0, 4]);
+    seedVoxel(tumor, [0, 0, 0]);
+
+    const neighbour = addSegment('img-1', 'Neighbour');
+    seedVoxel(neighbour, OWNED);
+
+    const processStore = usePaintProcessStore();
+    await processStore.startProcess(async (target) => {
+      const filled = (target.voxels.scalars() as TypedArray).slice();
+      filled.fill(target.labelValue);
+      return filled;
+    });
+    processStore.confirmProcess();
+
+    expect(maskValueAt(tumor, OWNED)).toBe(0);
+    expect(maskValueAt(neighbour, OWNED)).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(tumor, [2, 3, 4])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(tumor, [1, 2, 2])).toBe(labelValueOf(tumor));
+  });
+});

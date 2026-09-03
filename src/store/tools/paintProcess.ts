@@ -111,17 +111,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     return addressable ? { extent, mi, mj } : undefined;
   }
 
-  /** The PARENT index a mask offset addresses inside `extent`. */
-  const parentIndexOf = (
-    { extent, mi, mj }: { extent: Extent3D; mi: number; mj: number },
-    offset: number
-  ) =>
-    [
-      (offset % mi) + extent[0],
-      (Math.floor(offset / mi) % mj) + extent[2],
-      Math.floor(offset / (mi * mj)) + extent[4],
-    ] as const;
-
   /**
    * Drops from the result every voxel the algorithm turned on that another
    * segment already holds. A process is a sweep the user did not aim at a
@@ -133,17 +122,31 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const bounds = runMaskBounds(run);
     if (!bounds) return;
 
+    // Absent when no other segment's box reaches this one, which is the common
+    // case: nothing can then be dropped, so the result is not walked at all.
     const heldByOther = segmentationStore.otherSegmentOccupancy(
-      run.target.segmentId
+      run.target.segmentId,
+      bounds.extent
     );
+    if (!heldByOther) return;
+
+    const { extent } = bounds;
     const before = run.originalScalars;
     const after = run.processedScalars;
-    for (let offset = 0; offset < after.length; offset += 1) {
-      const turnedOn =
-        after[offset] !== LABELMAP_BACKGROUND_VALUE &&
-        before[offset] === LABELMAP_BACKGROUND_VALUE;
-      if (turnedOn && heldByOther(...parentIndexOf(bounds, offset))) {
-        after[offset] = LABELMAP_BACKGROUND_VALUE;
+    const [ni, nj, nk] = extentSize(extent);
+    // Rows flat in one loop, as the mask sweeps are: a voxel's parent index is
+    // then a step along i from the row's own start, not a divide per voxel.
+    for (let row = 0; row < nj * nk; row += 1) {
+      const j = extent[2] + (row % nj);
+      const k = extent[4] + Math.floor(row / nj);
+      const from = row * ni;
+      for (let n = 0; n < ni; n += 1) {
+        const turnedOn =
+          after[from + n] !== LABELMAP_BACKGROUND_VALUE &&
+          before[from + n] === LABELMAP_BACKGROUND_VALUE;
+        if (turnedOn && heldByOther(extent[0] + n, j, k)) {
+          after[from + n] = LABELMAP_BACKGROUND_VALUE;
+        }
       }
     }
   }

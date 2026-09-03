@@ -35,15 +35,25 @@ export function boundScalars(
   return { mask, scalars: maskScalars(mask), extent, mi, mj };
 }
 
-/** Whether any of these masks holds the voxel at PARENT indices i, j, k. */
-export const masksHolding =
-  (masks: BoundedScalars[]) => (i: number, j: number, k: number) =>
-    masks.some(
+/**
+ * Whether any of these masks holds the voxel at PARENT indices i, j, k, over
+ * the box the caller is about to walk. Absent when no mask reaches that box:
+ * clipping once here is what keeps a mask that misses it out of the per-voxel
+ * containment test, and lets the caller skip the walk entirely.
+ */
+export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
+  const reaching = masks.filter(
+    (bounded) => !isEmptyExtent(clipExtent(bounded.extent, within))
+  );
+  if (reaching.length === 0) return undefined;
+  return (i: number, j: number, k: number) =>
+    reaching.some(
       (bounded) =>
         extentContainsIndex(bounded.extent, i, j, k) &&
         bounded.scalars[maskOffset(bounded, i, j, k)] !==
           LABELMAP_BACKGROUND_VALUE
     );
+}
 
 /**
  * Clears the voxel at PARENT indices i, j, k from every one of these masks. A

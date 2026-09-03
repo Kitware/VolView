@@ -700,12 +700,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     masksClearing(siblingMasks(segmentId, (segment) => !segment.locked));
 
   /**
-   * Whether another segment of the same image already holds a voxel. Lock plays
-   * no part: a process writes into empty space only, so occupancy is the whole
-   * question.
+   * Whether another segment of the same image already holds a voxel of
+   * `within`, absent when none of them reaches it. Lock plays no part: a
+   * process writes into empty space only, so occupancy is the whole question.
    */
-  const otherSegmentOccupancy = (segmentId: string) =>
-    masksHolding(siblingMasks(segmentId));
+  const otherSegmentOccupancy = (segmentId: string, within: Extent3D) =>
+    masksHolding(siblingMasks(segmentId), within);
 
   /** The image's segments in `order`, or none when it has no segmentation. */
   function imageSegments(parentImageId: string) {

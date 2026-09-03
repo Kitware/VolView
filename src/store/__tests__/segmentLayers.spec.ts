@@ -5,6 +5,7 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   boundScalars,
   groupByLayer,
+  masksHolding,
   masksIntersect,
   writeMaskInto,
   type BoundedScalars,
@@ -174,6 +175,30 @@ describe('testing two masks for a shared voxel', () => {
     ]);
 
     expect(masksIntersect(wide, narrow)).toBe(false);
+  });
+});
+
+describe('asking whether another mask holds a voxel', () => {
+  const BOX: Extent3D = [0, 1, 0, 1, 0, 1];
+
+  it('is absent when no mask reaches the box the caller walks', () => {
+    expect(masksHolding([voxelMask([3, 3, 3])], BOX)).toBeUndefined();
+  });
+
+  it('drops a mask that misses the box without reading a voxel of it', () => {
+    const outside = countingMask(voxelMask([3, 3, 3]));
+    const held = masksHolding([outside.mask, voxelMask([1, 1, 1])], BOX)!;
+
+    expect(held(1, 1, 1)).toBe(true);
+    expect(held(0, 0, 0)).toBe(false);
+    expect(outside.reads.count).toBe(0);
+  });
+
+  it('finds the voxel a mask reaching the box holds', () => {
+    const held = masksHolding([voxelMask([2, 2, 2])], [0, 3, 0, 3, 0, 3])!;
+
+    expect(held(2, 2, 2)).toBe(true);
+    expect(held(2, 2, 1)).toBe(false);
   });
 });
 
