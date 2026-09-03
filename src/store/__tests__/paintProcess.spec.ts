@@ -281,6 +281,43 @@ describe('Paint process store', () => {
     ).toBe(true);
   });
 
+  it('names the lock rather than reporting nothing to process', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+    const { segmentId, labelMap } = addTestSegment(new Uint8Array([1, 1]));
+    segmentationStore.updateSegment(segmentId, { locked: true });
+
+    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
+      requiresActiveSegment: false,
+    });
+
+    expect(processStore.processState.step).toBe('start');
+    expect(getScalars(labelMap)).toEqual([1, 1]);
+    const titles = messageStore.messages.map((message) => message.title);
+    expect(titles).toContain('Every segment is locked');
+    expect(titles).not.toContain('No segmentation to process');
+  });
+
+  it('does not claim the lock when an unlocked segment simply holds nothing', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+    const { segmentationId, segmentId } = addTestSegment(
+      new Uint8Array([1, 1])
+    );
+    segmentationStore.updateSegment(segmentId, { locked: true });
+    segmentationStore.createSegment(segmentationId, { name: 'Empty' });
+
+    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
+      requiresActiveSegment: false,
+    });
+
+    const titles = messageStore.messages.map((message) => message.title);
+    expect(titles).toContain('No unlocked segment has anything to process');
+    expect(titles).not.toContain('Every segment is locked');
+  });
+
   it('does not clone the active segment onto a merely viewed image', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();

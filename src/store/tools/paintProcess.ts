@@ -5,6 +5,7 @@ import {
   extentSize,
   isEmptyExtent,
   LABELMAP_BACKGROUND_VALUE,
+  listSegments,
   type Extent3D,
   type VoxelStorage,
 } from '@/src/types/segmentation';
@@ -221,6 +222,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     };
   }
 
+  // An image with segments on it and nothing editable is refusing for a reason
+  // the user can act on, so it does not get the empty image's message.
+  function nothingEditable(imageId: string) {
+    const segmentation = segmentationStore.getSegmentationForImage(imageId);
+    const segments = segmentation ? listSegments(segmentation) : [];
+    if (segments.length === 0) return 'No segmentation to process';
+    return segments.every((segment) => segment.locked)
+      ? 'Every segment is locked'
+      : 'No unlocked segment has anything to process';
+  }
+
   // All-segments: one run per editable segment, each on its own bounded mask.
   // Nothing is created, and an image with no editable segment has nothing to
   // process.
@@ -229,7 +241,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       .editableSegments(imageId)
       .map((segment) => targetFor(imageId, segment));
     if (targets.length === 0) {
-      messageStore.addError('No segmentation to process');
+      messageStore.addError(nothingEditable(imageId));
       return undefined;
     }
     // The active segment is not part of the target; it is recorded only so the
