@@ -390,6 +390,46 @@ describe('flat segment list row actions', () => {
     expect(store().getSegment(first.id).locked).toBe(false);
   });
 
+  // The tooltip is the only place the panel can say what locking does, and the
+  // shared stub drops its content, so this mounts one that renders it.
+  const mountWithTooltips = () =>
+    mount(SegmentList, {
+      global: {
+        stubs: {
+          ...globalOptions.stubs,
+          VTooltip: { template: '<span class="tooltip"><slot /></span>' },
+        },
+      },
+    });
+
+  const lockTooltip = (wrapper: VueWrapper, id: string) => {
+    const button = wrapper
+      .find(`[data-id="${id}"]`)
+      .findAll('button')
+      .find((candidate) =>
+        candidate
+          .findAll('i.icon')
+          .some((icon) => icon.text().trim().startsWith('mdi-lock'))
+      );
+    if (!button) throw new Error(`No lock button on row ${id}`);
+    return button.find('.tooltip').text();
+  };
+
+  it('says on the lock that it is what lets two segments share voxels', async () => {
+    const segment = makeSegment('img-1', 'Tumor');
+    const wrapper = mountWithTooltips();
+    await nextTick();
+
+    expect(lockTooltip(wrapper, segment.id)).toMatch(/^Lock\b/);
+    expect(lockTooltip(wrapper, segment.id)).toMatch(/shares its voxels/i);
+
+    store().updateSegment(segment.id, { locked: true });
+    await nextTick();
+
+    expect(lockTooltip(wrapper, segment.id)).toMatch(/^Unlock\b/);
+    expect(lockTooltip(wrapper, segment.id)).toMatch(/takes its voxels/i);
+  });
+
   it('deletes one segment by id', async () => {
     const first = makeSegment('img-1', 'Tumor');
     const second = makeSegment('img-1', 'Node');

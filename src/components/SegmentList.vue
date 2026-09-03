@@ -106,6 +106,12 @@ const toggleLock = (id: string) => {
   segmentationStore.updateSegment(id, { locked: !segment.locked });
 };
 
+// Locking is the whole opt-in for overlap, and nothing else on screen says so.
+const lockTooltip = (locked: boolean) =>
+  locked
+    ? 'Unlock. Painting over this segment takes its voxels.'
+    : 'Lock. Painting over this segment shares its voxels instead of taking them.';
+
 const allVisible = computed(() =>
   segments.value.every((segment) => segment.visible)
 );
@@ -270,7 +276,7 @@ function deleteEditingSegment() {
         >
           <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
           <v-tooltip location="left" activator="parent">{{
-            item.locked ? 'Unlock' : 'Lock'
+            lockTooltip(item.locked)
           }}</v-tooltip>
         </v-btn>
         <v-btn
