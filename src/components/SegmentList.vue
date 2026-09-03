@@ -356,8 +356,10 @@ function deleteEditingSegment() {
 
   <closeable-dialog v-model="saveDialog" max-width="30%">
     <template v-slot="{ close }">
+      <!-- The overlay keeps its content once opened, so the dialog is mounted
+           per open to read the segmentation as it stands now. -->
       <save-segment-group-dialog
-        v-if="viewedSegmentation"
+        v-if="saveDialog && viewedSegmentation"
         :id="viewedSegmentation.id"
         @done="close"
       />

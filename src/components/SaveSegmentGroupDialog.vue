@@ -19,6 +19,17 @@
           v-model="fileFormat"
           :items="EXTENSIONS"
         ></v-select>
+
+        <v-alert
+          v-if="fileCount > 1"
+          type="info"
+          variant="tonal"
+          density="compact"
+          data-testid="save-overlap-notice"
+        >
+          Segments that overlap cannot share one file. Saving writes
+          {{ fileCount }} files, bundled into {{ archiveName }}.
+        </v-alert>
       </v-form>
     </v-card-text>
     <v-card-actions>
@@ -42,6 +53,11 @@ import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { writeSegmentation } from '@/src/io/readWriteImage';
+import {
+  bundleExportFiles,
+  layerFileName,
+  type ExportFile,
+} from '@/src/io/segmentationExport';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
 import { sanitizeSegmentGroupFileStem } from '@/src/io/state-file/segmentGroupArchivePath';
 
@@ -79,6 +95,38 @@ const fileName = computed({
   },
 });
 
+const groups = computed(() =>
+  segmentationStore.layeredSegments(parentImageId.value)
+);
+const fileCount = computed(() => groups.value.length);
+const archiveName = computed(
+  () => `${sanitizeSegmentGroupFileStem(fileName.value)}.zip`
+);
+
+// What leaves VolView is the image's whole segmentation, not one segment's
+// bounded mask, so the masks are composited on the way out. One file carries
+// one label per voxel, so each group of segments that do not overlap makes its
+// own file.
+async function writeGroups(stem: string) {
+  const format = fileFormat.value;
+  const files: ExportFile[] = [];
+  // Written one at a time: serializing copies the whole buffer, and itk-wasm
+  // queues the writes on one shared worker whatever the caller does.
+  for (const [index, members] of groups.value.entries()) {
+    const composite = segmentationStore.compositeLabelmap(
+      parentImageId.value,
+      members
+    );
+    const data = await writeSegmentation(
+      format,
+      composite.labelmap,
+      composite.segments
+    );
+    files.push({ name: layerFileName(stem, format, index), data });
+  }
+  return files;
+}
+
 async function saveSegmentGroup() {
   if (fileName.value.trim().length === 0) {
     return;
@@ -88,15 +136,9 @@ async function saveSegmentGroup() {
   await useErrorMessage('Failed to save segments', async () => {
     const sanitizedFileName = sanitizeSegmentGroupFileStem(fileName.value);
     fileNameValue.value = sanitizedFileName;
-    // What leaves VolView is the image's whole segmentation, not one segment's
-    // bounded mask, so the masks are composited on the way out.
-    const composite = segmentationStore.compositeLabelmap(parentImageId.value);
-    const serialized = await writeSegmentation(
-      fileFormat.value,
-      composite.labelmap,
-      composite.segments
-    );
-    saveAs(new Blob([serialized]), `${sanitizedFileName}.${fileFormat.value}`);
+    const files = await writeGroups(sanitizedFileName);
+    const bundle = await bundleExportFiles(sanitizedFileName, files);
+    saveAs(bundle.blob, bundle.name);
   });
   saving.value = false;
   emit('done');

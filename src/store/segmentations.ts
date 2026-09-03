@@ -7,6 +7,11 @@ import type { RGBAColor, TypedArray, Vector3 } from '@kitware/vtk.js/types';
 import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
 import { createArtifactNamer } from '@/src/store/artifactNaming';
+import {
+  boundScalars,
+  groupByLayer,
+  writeMaskInto,
+} from '@/src/store/segmentLayers';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -665,17 +670,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     );
   }
 
-  /**
-   * A bound segment's buffer with the strides its extent implies. The extent is
-   * copied out of the reactive tree because the callers read it per voxel.
-   */
-  function boundedMask(binding: LabelmapBinding) {
-    const mask = artifactIndex[binding.artifactId];
-    if (!mask || isEmptyExtent(binding.extent)) return undefined;
-    const extent = [...binding.extent] as Extent3D;
-    const [mi, mj] = extentSize(extent);
-    return { mask, scalars: maskScalars(mask), extent, mi, mj };
-  }
+  /** A bound segment's buffer, absent when it has none or holds nothing. */
+  const boundedMask = (binding?: LabelmapBinding) =>
+    binding && boundScalars(artifactIndex[binding.artifactId], binding.extent);
 
   /**
    * The masks of an image's other segments, resolved once per stroke because
@@ -690,8 +687,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return listSegments(segmentation).flatMap((segment) => {
       if (segment.id === segmentId) return [];
       if (only && !only(segment)) return [];
-      const binding = segment.representations.labelmap;
-      const bounded = binding ? boundedMask(binding) : undefined;
+      const bounded = boundedMask(segment.representations.labelmap);
       return bounded ? [bounded] : [];
     });
   }
@@ -717,13 +713,20 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     };
   }
 
+  /** The image's segments in `order`, or none when it has no segmentation. */
+  function imageSegments(parentImageId: string) {
+    const segmentation = getSegmentationForImage(parentImageId);
+    return segmentation ? listSegments(segmentation) : [];
+  }
+
   /**
-   * The image's segments as one parent-shaped labelmap, built on demand and
-   * never stored: what leaves VolView means the whole segmentation, not one
-   * segment's bounded mask. Later in `order` wins where two segments overlap,
-   * which is how their actors stack.
+   * The given segments as one parent-shaped labelmap, built on demand and never
+   * stored: what leaves VolView means the whole segmentation, not one segment's
+   * bounded mask. Later in `order` wins where two segments overlap, which is how
+   * their actors stack. `members` defaults to the image's segments; an export
+   * passes one group so no overlap is flattened away.
    */
-  function compositeLabelmap(parentImageId: string) {
+  function compositeLabelmap(parentImageId: string, members?: Segment[]) {
     const parent = imageCacheStore.getVtkImageData(parentImageId);
     if (!parent) throw new Error('No such parent image');
 
@@ -731,29 +734,28 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const labelmap = allocateMask(parent, fullExtent(dimensions));
     const values = maskScalars(labelmap);
 
-    const segmentation = getSegmentationForImage(parentImageId);
     const segments: LabelmapSegment[] = [];
-    (segmentation ? listSegments(segmentation) : []).forEach((segment) => {
+    (members ?? imageSegments(parentImageId)).forEach((segment) => {
       const binding = segment.representations.labelmap;
       if (!binding) return;
       segments.push(toLabelmapSegment(segment, binding.labelValue));
-
       const bounded = boundedMask(binding);
-      if (!bounded) return;
-      const { scalars: source, extent } = bounded;
-      for (let k = extent[4]; k <= extent[5]; k += 1) {
-        for (let j = extent[2]; j <= extent[3]; j += 1) {
-          for (let i = extent[0]; i <= extent[1]; i += 1) {
-            const value = source[maskOffset(bounded, i, j, k)];
-            if (value === LABELMAP_BACKGROUND_VALUE) continue;
-            values[i + j * dimensions[0] + k * dimensions[0] * dimensions[1]] =
-              value;
-          }
-        }
-      }
+      if (bounded) writeMaskInto(values, dimensions, bounded);
     });
 
     return { labelmap, segments };
+  }
+
+  /**
+   * The image's segments grouped so no group holds an overlap. A labelmap file
+   * carries one label per voxel, so an export writes a file per group. Always
+   * at least one group: an image with no segments still exports one file.
+   */
+  function layeredSegments(parentImageId: string) {
+    const groups = groupByLayer(imageSegments(parentImageId), (segment) =>
+      boundedMask(segment.representations.labelmap)
+    );
+    return groups.length ? groups : [[]];
   }
 
   /**
@@ -1451,6 +1453,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     saveFormat,
     otherSegmentClearer,
     compositeLabelmap,
+    layeredSegments,
     editableSegments,
     segmentLayersForImage,
     removeArtifact,

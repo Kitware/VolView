@@ -5,7 +5,8 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { listSegments } from '@/src/types/segmentation';
+import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import { listSegments, type Segment } from '@/src/types/segmentation';
 import {
   addSegment,
   extentOf,
@@ -26,6 +27,10 @@ import {
 // staging both hand a labelmap to `writeSegmentation`, and a single segment's
 // bounded mask is not what either of them means. It is built on demand, never
 // stored: storage stays N masks.
+//
+// GROUP is what a save composes first: one labelmap carries one label per
+// voxel, so segments that overlap are composed into separate ones and saved as
+// separate files.
 //
 // SPLIT is what arrives: an imported labelmap carries every segment in one
 // buffer, and each label value becomes a segment with a mask cropped to the
@@ -190,6 +195,112 @@ describe('composing the segments of an image into one labelmap', () => {
     expect(compositeScalars('img-1')[parentOffset(1, 1, 1)]).toBe(
       labelValueOf(tumor)
     );
+  });
+});
+
+describe('grouping the segments that cannot share one labelmap', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1', GRID);
+  });
+
+  const groupScalars = (group: Segment[]) =>
+    Array.from(
+      store()
+        .compositeLabelmap('img-1', group)
+        .labelmap.getPointData()
+        .getScalars()
+        .getData() as TypedArray
+    );
+
+  const layerEntries = () =>
+    store()
+      .layeredSegments('img-1')
+      .map((group) =>
+        buildSegNrrdMetadata(
+          store().compositeLabelmap('img-1', group).segments,
+          DIMENSIONS
+        )
+      );
+
+  it('leaves segments that do not overlap composed as one', () => {
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
+    seedVoxel(tumor, [1, 1, 1]);
+    seedVoxel(node, [3, 3, 3]);
+
+    const groups = store().layeredSegments('img-1');
+
+    expect(groups).toHaveLength(1);
+    expect(groupScalars(groups[0])).toEqual(
+      Array.from(compositeScalars('img-1'))
+    );
+    expect(store().compositeLabelmap('img-1', groups[0]).segments).toEqual(
+      store().compositeLabelmap('img-1').segments
+    );
+  });
+
+  it('composes an overlapping segment into one of its own', () => {
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
+    seedVoxel(under, [1, 1, 1]);
+    seedVoxel(over, [1, 1, 1]);
+    seedVoxel(over, [2, 2, 2]);
+
+    const groups = store().layeredSegments('img-1');
+
+    expect(groups.map((group) => group.map((segment) => segment.name))).toEqual(
+      [['Under'], ['Over']]
+    );
+    expect(groupScalars(groups[0])[parentOffset(1, 1, 1)]).toBe(
+      labelValueOf(under)
+    );
+    expect(groupScalars(groups[1])[parentOffset(1, 1, 1)]).toBe(
+      labelValueOf(over)
+    );
+    expect(groupScalars(groups[0])[parentOffset(2, 2, 2)]).toBe(0);
+  });
+
+  it('keeps a third segment with the first one it does not overlap', () => {
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
+    const apart = addSegment('img-1', 'Apart');
+    seedVoxel(under, [1, 1, 1]);
+    seedVoxel(over, [1, 1, 1]);
+    seedVoxel(apart, [3, 3, 3]);
+
+    expect(
+      store()
+        .layeredSegments('img-1')
+        .map((group) => group.map((segment) => segment.name))
+    ).toEqual([['Under', 'Apart'], ['Over']]);
+  });
+
+  it('describes each of them as a self-contained layer', () => {
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
+    seedVoxel(under, [1, 1, 1]);
+    seedVoxel(over, [1, 1, 1]);
+
+    const entries = layerEntries();
+
+    expect(entries).toHaveLength(2);
+    expect(
+      entries.flatMap((file) =>
+        [...file].filter(([key]) => key.endsWith('_Layer'))
+      )
+    ).toEqual([
+      ['Segment0_Layer', '0'],
+      ['Segment0_Layer', '0'],
+    ]);
+    expect(entries.map((file) => file.get('Segment0_LabelValue'))).toEqual([
+      String(labelValueOf(under)),
+      String(labelValueOf(over)),
+    ]);
+  });
+
+  it('composes one labelmap for an image with no segments', () => {
+    expect(store().layeredSegments('img-1')).toEqual([[]]);
   });
 });
 
