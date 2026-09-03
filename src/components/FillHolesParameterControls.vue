@@ -2,18 +2,22 @@
   <div class="d-flex align-start w-100">
     <mini-expansion-panel>
       <template #title
-        >Fill enclosed holes in the segmentation on the axis of the selected
+        >Fill the empty space a segment encloses, on the axis of the selected
         view.</template
       >
       <ul>
-        <li>Finds background regions fully enclosed by segments on a slice.</li>
+        <li>Finds the empty regions one segment closes off by itself.</li>
         <li>
           Fills holes on the current slice by default, or every slice of the
           active view's axis.
         </li>
         <li>
-          All-segments mode fills each hole with the surrounding segment's
-          label; selected-segment mode fills only the active segment's holes.
+          All-segments mode fills every unlocked segment; selected-segment mode
+          fills only the active segment.
+        </li>
+        <li>
+          A gap that two segments only close together stays empty, and a fill
+          never takes space from another segment.
         </li>
       </ul>
     </mini-expansion-panel>
