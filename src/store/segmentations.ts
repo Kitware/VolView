@@ -82,6 +82,27 @@ export type SegmentInit = {
 export type SegmentPatch = Partial<Omit<Segment, 'id' | 'representations'>>;
 
 /**
+ * What a write path is doing to the voxels it touches, which is what decides
+ * whether it may take one a neighbouring segment already holds.
+ *
+ * `aimed` is a gesture the user pointed at a place: paint and polygon CLAIM the
+ * voxel, clearing it from every unlocked neighbour, so the write always lands.
+ * One shared labelmap erased a voxel's old value for free and a mask per
+ * segment does not, so an aimed write clears its neighbours itself. A locked
+ * segment is not editable and losing a voxel is an edit, so it keeps the voxel
+ * and the two segments overlap: locking is the whole opt-in for overlap.
+ *
+ * `sweep` is a run the user aimed at no place at all: Fill Holes, Fill Between
+ * and Smooth pass over whatever the segment already covers, so they write into
+ * empty space only and take nothing from a neighbour, locked or not.
+ *
+ * A new write path picks its policy by saying which of the two it is. Boolean
+ * subtract, scissors and a threshold grow are aimed; a result written over a
+ * whole volume, such as an ML segmentation, is a sweep.
+ */
+export type VoxelGesture = 'aimed' | 'sweep';
+
+/**
  * The labelmap codec the state file writes through. Injected because itk-wasm
  * and the vti worker have no node counterpart.
  */
@@ -673,39 +694,40 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     binding && boundScalars(artifactIndex[binding.artifactId], binding.extent);
 
   /**
-   * The masks of an image's other segments, resolved once per stroke because
-   * the callers below run per voxel.
+   * The masks of an image's other segments that `gesture` may take a voxel
+   * from, resolved once per run because the caller below runs per voxel. A
+   * locked segment is not editable, so an aimed gesture is not offered its mask
+   * at all.
    */
-  function siblingMasks(
-    segmentId: string,
-    only?: (segment: Segment) => boolean
-  ) {
+  function siblingMasks(segmentId: string, gesture: VoxelGesture) {
     const segmentation = segmentationOf(segmentId);
     if (!segmentation) return [];
     return listSegments(segmentation).flatMap((segment) => {
       if (segment.id === segmentId) return [];
-      if (only && !only(segment)) return [];
+      if (gesture === 'aimed' && segment.locked) return [];
       const bounded = boundedMask(segment.representations.labelmap);
       return bounded ? [bounded] : [];
     });
   }
 
   /**
-   * Overwrite-all across N masks: one shared labelmap erased a voxel's old
-   * value for free, so a write path clears the voxel in every other mask of the
-   * same parent image itself. A locked segment is not editable, and losing a
-   * voxel is an edit, so it keeps the voxel and the two segments overlap.
+   * Whether the voxel at PARENT indices i, j, k is this segment's to write,
+   * taking it from the neighbours that have to yield it. Absent when no other
+   * segment reaches `within`, the box the caller is about to walk: every voxel
+   * in it is then uncontested and the question need not be asked per voxel.
+   *
+   * `gesture` is the whole of the policy, so see {@link VoxelGesture}.
    */
-  const otherSegmentClearer = (segmentId: string) =>
-    masksClearing(siblingMasks(segmentId, (segment) => !segment.locked));
-
-  /**
-   * Whether another segment of the same image already holds a voxel of
-   * `within`, absent when none of them reaches it. Lock plays no part: a
-   * process writes into empty space only, so occupancy is the whole question.
-   */
-  const otherSegmentOccupancy = (segmentId: string, within: Extent3D) =>
-    masksHolding(siblingMasks(segmentId), within);
+  function voxelClaim(
+    segmentId: string,
+    gesture: VoxelGesture,
+    within: Extent3D
+  ) {
+    const masks = siblingMasks(segmentId, gesture);
+    if (gesture === 'aimed') return masksClearing(masks, within);
+    const held = masksHolding(masks, within);
+    return held && ((i: number, j: number, k: number) => !held(i, j, k));
+  }
 
   /** The image's segments in `order`, or none when it has no segmentation. */
   function imageSegments(parentImageId: string) {
@@ -758,9 +780,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * process.
    */
   function editableSegments(parentImageId: string) {
-    const segmentation = getSegmentationForImage(parentImageId);
-    if (!segmentation) return [];
-    return listSegments(segmentation).flatMap((segment) => {
+    return imageSegments(parentImageId).flatMap((segment) => {
       const binding = segment.representations.labelmap;
       if (segment.locked || !binding || isEmptyExtent(binding.extent))
         return [];
@@ -770,9 +790,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   /** The segments of an image that have a mask, with their place in `order`. */
   function segmentLayersForImage(parentImageId: string) {
-    const segmentation = getSegmentationForImage(parentImageId);
-    if (!segmentation) return [];
-    return listSegments(segmentation).flatMap((segment, stackIndex) => {
+    return imageSegments(parentImageId).flatMap((segment, stackIndex) => {
       const { artifactId } = segment.representations.labelmap ?? {};
       return artifactId
         ? [{ segmentId: segment.id, artifactId, stackIndex }]
@@ -1445,10 +1463,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     decodeSegments,
     convertImageToLabelmap,
     saveFormat,
-    otherSegmentClearer,
-    otherSegmentOccupancy,
+    voxelClaim,
     compositeLabelmap,
     layeredSegments,
+    imageSegments,
     editableSegments,
     segmentLayersForImage,
     removeArtifact,

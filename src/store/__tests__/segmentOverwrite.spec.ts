@@ -12,6 +12,7 @@ import {
   store,
   type Index3,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import type { Extent3D } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
 // Overwrite-all across N masks. One shared labelmap gave one label per voxel
@@ -19,9 +20,10 @@ import {
 // With a mask per segment nothing erases anything, so the write paths clear
 // the voxel in every OTHER mask of the same parent image themselves.
 //
-// The clearer is a factory because the sibling storage is resolved once per
-// stroke, not once per voxel: `clear` is called for every voxel a brush writes.
-// It takes PARENT index coordinates, the space extents are expressed in.
+// The claim is a factory because the sibling storage is resolved once per
+// stroke, not once per voxel: it is made for every voxel a brush writes. It
+// takes PARENT index coordinates, the space extents are expressed in, and is
+// absent when no neighbour reaches the box the caller is about to walk.
 //
 // A locked segment is exempt. `locked` means not editable, and losing a voxel
 // to a neighbour is an edit, so a locked sibling keeps it while the writing
@@ -31,7 +33,11 @@ import {
 
 const DIMENSIONS: Index3 = [4, 4, 4];
 
-const clearFor = (segmentId: string) => store().otherSegmentClearer(segmentId);
+const WHOLE_IMAGE: Extent3D = [0, 3, 0, 3, 0, 3];
+
+/** The claim a paint or polygon gesture makes: aimed, so it takes the voxel. */
+const clearFor = (segmentId: string) =>
+  store().voxelClaim(segmentId, 'aimed', WHOLE_IMAGE);
 
 /** Two segments of the same image, both holding one voxel. */
 function pairAt(index: Index3) {
@@ -51,7 +57,7 @@ describe('clearing the other segments of an image', () => {
   it('clears the voxel in another segment’s mask', () => {
     const { tumor, node } = pairAt([1, 1, 1]);
 
-    clearFor(node)(1, 1, 1);
+    clearFor(node)?.(1, 1, 1);
 
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(0);
     expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
@@ -65,7 +71,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(second, [1, 1, 1]);
     seedVoxel(painting, [1, 1, 1]);
 
-    clearFor(painting)(1, 1, 1);
+    clearFor(painting)?.(1, 1, 1);
 
     expect(maskValueAt(first, [1, 1, 1])).toBe(0);
     expect(maskValueAt(second, [1, 1, 1])).toBe(0);
@@ -79,7 +85,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(tumor, [2, 1, 1]);
     seedVoxel(node, [1, 1, 1]);
 
-    clearFor(node)(1, 1, 1);
+    clearFor(node)?.(1, 1, 1);
 
     expect(maskValueAt(tumor, [2, 1, 1])).toBe(labelValueOf(tumor));
   });
@@ -91,7 +97,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(node, [3, 3, 3]);
     const extent = extentOf(tumor);
 
-    clearFor(node)(3, 3, 3);
+    clearFor(node)?.(3, 3, 3);
 
     expect(extentOf(tumor)).toEqual(extent);
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
@@ -102,7 +108,7 @@ describe('clearing the other segments of an image', () => {
     const unbound = addSegment('img-1', 'Unbound');
     seedVoxel(tumor, [1, 1, 1]);
 
-    clearFor(tumor)(1, 1, 1);
+    clearFor(tumor)?.(1, 1, 1);
 
     expect(bindingOf(unbound)).toBeUndefined();
   });
@@ -114,7 +120,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(here, [1, 1, 1]);
     seedVoxel(there, [1, 1, 1]);
 
-    clearFor(here)(1, 1, 1);
+    clearFor(here)?.(1, 1, 1);
 
     expect(maskValueAt(there, [1, 1, 1])).toBe(labelValueOf(there));
   });
@@ -123,7 +129,7 @@ describe('clearing the other segments of an image', () => {
     const only = addSegment('img-1', 'Only');
     seedVoxel(only, [1, 1, 1]);
 
-    expect(() => clearFor(only)(1, 1, 1)).not.toThrow();
+    expect(() => clearFor(only)?.(1, 1, 1)).not.toThrow();
     expect(maskValueAt(only, [1, 1, 1])).toBe(labelValueOf(only));
   });
 
@@ -131,7 +137,7 @@ describe('clearing the other segments of an image', () => {
     const { tumor, node } = pairAt([1, 1, 1]);
     store().updateSegment(tumor, { locked: true });
 
-    clearFor(node)(1, 1, 1);
+    clearFor(node)?.(1, 1, 1);
 
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
     expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
@@ -146,7 +152,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(painting, [1, 1, 1]);
     store().updateSegment(locked, { locked: true });
 
-    clearFor(painting)(1, 1, 1);
+    clearFor(painting)?.(1, 1, 1);
 
     expect(maskValueAt(locked, [1, 1, 1])).toBe(labelValueOf(locked));
     expect(maskValueAt(unlocked, [1, 1, 1])).toBe(0);
@@ -158,7 +164,7 @@ describe('clearing the other segments of an image', () => {
     const clear = clearFor(node);
     store().updateSegment(tumor, { locked: false });
 
-    clear(1, 1, 1);
+    clear?.(1, 1, 1);
 
     // A lock lifted mid-stroke takes effect on the next stroke.
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
@@ -175,7 +181,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(node, [3, 3, 3]);
     expect(extentOf(tumor)).toEqual([2, 3, 2, 3, 2, 3]);
 
-    clearFor(node)(3, 3, 3);
+    clearFor(node)?.(3, 3, 3);
 
     expect(maskValueAt(tumor, [3, 3, 3])).toBe(0);
     expect(maskValueAt(tumor, [2, 2, 2])).toBe(labelValueOf(tumor));

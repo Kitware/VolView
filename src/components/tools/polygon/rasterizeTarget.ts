@@ -48,7 +48,7 @@ export function resolveRasterizeTarget(
   // A locked segment is not editable, the same refusal paint and the processes
   // make. Checked before storage is allocated, so a refused polygon leaves no
   // empty mask behind. A locked neighbour is a different rule and keeps the
-  // voxels a fill claims, which `otherSegmentClearer` already honours.
+  // voxels a fill claims, which an aimed `voxelClaim` already honours.
   if (segmentationStore.getSegment(resolved).locked) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
@@ -171,8 +171,11 @@ export function rasterizePolygon({
     return local as Vector2;
   });
 
-  const clearOtherSegments = segmentationStore.otherSegmentClearer(
-    target.segmentId
+  // A polygon is aimed at a place, so filling it takes the voxel.
+  const claimVoxel = segmentationStore.voxelClaim(
+    target.segmentId,
+    'aimed',
+    extent
   );
   const mask = target.voxels.image();
   const grid = createGridAccessor(
@@ -182,7 +185,7 @@ export function rasterizePolygon({
     axisIndex,
     (ijk) => {
       const [i, j, k] = toParent(ijk);
-      clearOtherSegments(i, j, k);
+      claimVoxel?.(i, j, k);
     }
   );
 

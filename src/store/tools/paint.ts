@@ -187,9 +187,9 @@ export const usePaintToolStore = defineStore('paint', () => {
     const extent = [...voxels.binding()!.extent] as Extent3D;
     if (isEmptyExtent(extent)) return;
 
-    // Resolved once per stroke: the clear below runs for every voxel the brush
-    // touches.
-    const clearOtherSegments = segmentationStore.otherSegmentClearer(segmentId);
+    // Resolved once per stroke: the claim below is made for every voxel the
+    // brush touches. A stroke is aimed at a place, so it takes the voxel.
+    const claimVoxel = segmentationStore.voxelClaim(segmentId, 'aimed', extent);
     const parentDimensions = parentImage.getDimensions();
     const maskData = voxels.scalars();
     const [minThreshold, maxThreshold] = thresholdRange.value;
@@ -231,7 +231,7 @@ export const usePaintToolStore = defineStore('paint', () => {
         ? undefined
         : (point) => {
             const [i, j, k] = toParent(point);
-            clearOtherSegments(i, j, k);
+            claimVoxel?.(i, j, k);
           }
     );
   }

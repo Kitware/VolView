@@ -5,7 +5,6 @@ import {
   extentSize,
   isEmptyExtent,
   LABELMAP_BACKGROUND_VALUE,
-  listSegments,
   type Extent3D,
   type VoxelStorage,
 } from '@/src/types/segmentation';
@@ -119,10 +118,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   /**
    * Drops from the result every voxel the algorithm turned on that another
-   * segment already holds. A process is a sweep the user did not aim at a
-   * place, so it writes into empty space only and takes nothing from a
-   * neighbour, locked or not. Masking the result rather than the storage keeps
-   * the preview honest: what it shows is what confirm leaves behind.
+   * segment already holds: a process is a `sweep`, so it takes nothing from a
+   * neighbour. Masking the result rather than the storage keeps the preview
+   * honest: what it shows is what confirm leaves behind.
    */
   function maskVoxelsOtherSegmentsHold(run: PreviewRun) {
     const bounds = runMaskBounds(run);
@@ -130,11 +128,12 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
     // Absent when no other segment's box reaches this one, which is the common
     // case: nothing can then be dropped, so the result is not walked at all.
-    const heldByOther = segmentationStore.otherSegmentOccupancy(
+    const claimVoxel = segmentationStore.voxelClaim(
       run.target.segmentId,
+      'sweep',
       bounds.extent
     );
-    if (!heldByOther) return;
+    if (!claimVoxel) return;
 
     const { extent } = bounds;
     const before = run.originalScalars;
@@ -150,7 +149,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         const turnedOn =
           after[from + n] !== LABELMAP_BACKGROUND_VALUE &&
           before[from + n] === LABELMAP_BACKGROUND_VALUE;
-        if (turnedOn && heldByOther(extent[0] + n, j, k)) {
+        if (turnedOn && !claimVoxel(extent[0] + n, j, k)) {
           after[from + n] = LABELMAP_BACKGROUND_VALUE;
         }
       }
@@ -244,8 +243,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // An image with segments on it and nothing editable is refusing for a reason
   // the user can act on, so it does not get the empty image's message.
   function nothingEditable(imageId: string) {
-    const segmentation = segmentationStore.getSegmentationForImage(imageId);
-    const segments = segmentation ? listSegments(segmentation) : [];
+    const segments = segmentationStore.imageSegments(imageId);
     if (segments.length === 0) return 'No segmentation to process';
     return segments.every((segment) => segment.locked)
       ? 'Every segment is locked'

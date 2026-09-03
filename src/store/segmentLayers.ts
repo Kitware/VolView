@@ -36,15 +36,19 @@ export function boundScalars(
 }
 
 /**
+ * The masks that reach the box the caller is about to walk. Clipping once here
+ * is what keeps a mask that misses the box out of the per-voxel containment
+ * test, and lets the caller skip the walk entirely when none is left.
+ */
+const masksReaching = (masks: BoundedScalars[], within: Extent3D) =>
+  masks.filter((bounded) => !isEmptyExtent(clipExtent(bounded.extent, within)));
+
+/**
  * Whether any of these masks holds the voxel at PARENT indices i, j, k, over
- * the box the caller is about to walk. Absent when no mask reaches that box:
- * clipping once here is what keeps a mask that misses it out of the per-voxel
- * containment test, and lets the caller skip the walk entirely.
+ * the box the caller is about to walk. Absent when no mask reaches that box.
  */
 export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
-  const reaching = masks.filter(
-    (bounded) => !isEmptyExtent(clipExtent(bounded.extent, within))
-  );
+  const reaching = masksReaching(masks, within);
   if (reaching.length === 0) return undefined;
   return (i: number, j: number, k: number) =>
     reaching.some(
@@ -56,19 +60,26 @@ export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
 }
 
 /**
- * Clears the voxel at PARENT indices i, j, k from every one of these masks. A
- * mask that does not reach the voxel has nothing there to clear, so nothing
- * grows.
+ * Clears the voxel at PARENT indices i, j, k from every one of these masks and
+ * answers true: nothing left here can refuse the write, which is the same
+ * per-voxel answer the occupancy test gives. Absent when no mask reaches
+ * `within`, the box the caller is about to walk. A mask that does not reach the
+ * voxel has nothing there to clear, so nothing grows.
  */
-export const masksClearing =
-  (masks: BoundedScalars[]) => (i: number, j: number, k: number) =>
-    masks.forEach((bounded) => {
+export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
+  const reaching = masksReaching(masks, within);
+  if (reaching.length === 0) return undefined;
+  return (i: number, j: number, k: number) => {
+    reaching.forEach((bounded) => {
       if (!extentContainsIndex(bounded.extent, i, j, k)) return;
       const offset = maskOffset(bounded, i, j, k);
       if (bounded.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
       bounded.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
       bounded.mask.modified();
     });
+    return true;
+  };
+}
 
 /** A mask's buffer, positioned where one row of the shared box starts in it. */
 type MaskRow = { scalars: Uint8Array; from: number };
