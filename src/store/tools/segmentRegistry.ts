@@ -275,15 +275,23 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return segment.id;
   };
 
+  // Declaring config labels neither mints segments nor takes over the
+  // selection: they join the template pool the picker offers.
+  const mergeLabels = (newLabels: Maybe<Labels<Props>>) => {
+    const entries = Object.entries(newLabels ?? {});
+    if (entries.length === 0) return;
+    sessionLabels.value = {
+      ...sessionLabels.value,
+      ...Object.fromEntries(entries),
+    } as Labels<Props>;
+  };
+
   // Adding a label declares a template, the same road config labels take. It
   // has no segment to write into until an edit materializes it.
   const addLabel = (label: ToolLabel = {} as ToolLabel) => {
     const { labelName, ...props } = label;
     if (!labelName) return '';
-    sessionLabels.value = {
-      ...sessionLabels.value,
-      [labelName]: props as Props,
-    };
+    mergeLabels({ [labelName]: props } as Labels<Props>);
     const id = templateId(labelName);
     setActiveLabel(id);
     return id;
@@ -381,17 +389,6 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     const existing = findLabelForImage(imageId, templateName);
     if (existing) return existing[0];
     return addLabelForImage(imageId, toTemplateLabel(templateName, template));
-  };
-
-  // Declaring config labels neither mints segments nor takes over the
-  // selection: they join the template pool the picker offers.
-  const mergeLabels = (newLabels: Maybe<Labels<Props>>) => {
-    const entries = Object.entries(newLabels ?? {});
-    if (entries.length === 0) return;
-    sessionLabels.value = {
-      ...sessionLabels.value,
-      ...Object.fromEntries(entries),
-    } as Labels<Props>;
   };
 
   // Loading a second config replaces the first config's labels rather than
