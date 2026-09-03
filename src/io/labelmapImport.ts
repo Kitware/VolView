@@ -211,7 +211,7 @@ function distinctLabelValues(image: vtkLabelMap) {
   // `toLabelMap` result), so a fixed 256-slot presence map gives one
   // branch-free typed-array write per voxel on the hot path, and the 0..255
   // sweep is already ascending (no Set, no per-voxel Number(), no sort).
-  const voxelValues = image.getPointData().getScalars().getData();
+  const voxelValues = maskScalars(image);
   const present = new Uint8Array(256);
   for (let index = 0; index < voxelValues.length; index += 1) {
     present[voxelValues[index]] = 1;
