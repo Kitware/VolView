@@ -4,7 +4,7 @@ import * as zlib from 'node:zlib';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { openUrls, waitForFileExists } from './utils';
+import { openUrls, waitForDownload } from './utils';
 import { ONE_CT_SLICE_DICOM } from './configTestUtils';
 import {
   openAnnotationSegments,
@@ -61,17 +61,7 @@ const downloadSegmentGroup = async (stem: string) => {
   await setValueVueInput(input, stem);
   await volViewPage.saveSegmentsConfirmButton.click();
 
-  await waitForFileExists(filePath, SAVE_TIMEOUT);
-  await browser.waitUntil(
-    () => {
-      try {
-        return fs.statSync(filePath).size > 0;
-      } catch {
-        return false;
-      }
-    },
-    { timeout: 10_000, interval: 500, timeoutMsg: `${stem} stayed 0 bytes` }
-  );
+  await waitForDownload(filePath, SAVE_TIMEOUT);
   return readSegNrrd(filePath);
 };
 

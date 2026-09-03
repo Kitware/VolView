@@ -104,3 +104,15 @@ export const showFirstSegmentGroup = async (timeout?: number) => {
     }
   );
 };
+
+/**
+ * Locks a segment, which is the whole opt-in for overlap: a locked segment
+ * keeps the voxels a later stroke paints over it.
+ */
+export const lockSegment = async (name: string) => {
+  const chip = await chipNamed(SEGMENT_LIST, name);
+  await chip.$('button i[class~="mdi-lock-open"]').click();
+  await chip.$('button i[class~="mdi-lock"]').waitForExist({
+    timeoutMsg: `Expected "${name}" to show as locked`,
+  });
+};
