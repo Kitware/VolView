@@ -43,21 +43,17 @@ const viewingCine = computed(() => isCineImage(currentImageID.value));
 
 // One multiplier each for fill and outline, scaling every segment of the
 // viewed image at once, plus the thickness they share.
-const display = computed(() => {
+const DISPLAY_CONTROLS = [
+  { key: 'fillOpacity', label: 'Fill Opacity', max: 1, step: 0.01 },
+  { key: 'outlineOpacity', label: 'Outline Opacity', max: 1, step: 0.01 },
+  { key: 'outlineThickness', label: 'Outline Thickness', max: 10, step: 1 },
+] as const;
+
+const setDisplay = (patch: SegmentationDisplayPatch) => {
   const segmentation = viewedSegmentation.value;
-  if (!segmentation) return undefined;
-  const write = (patch: SegmentationDisplayPatch) =>
-    segmentationStore.updateSegmentationDisplay(segmentation.id, patch);
-  return {
-    fillOpacity: segmentation.fillOpacity,
-    outlineOpacity: segmentation.outlineOpacity,
-    outlineThickness: segmentation.outlineThickness,
-    setFillOpacity: (fillOpacity: number) => write({ fillOpacity }),
-    setOutlineOpacity: (outlineOpacity: number) => write({ outlineOpacity }),
-    setOutlineThickness: (outlineThickness: number) =>
-      write({ outlineThickness }),
-  };
-});
+  if (!segmentation) return;
+  segmentationStore.updateSegmentationDisplay(segmentation.id, patch);
+};
 
 // --- saving --- //
 
@@ -228,42 +224,20 @@ function deleteEditingSegment() {
       </v-btn>
     </div>
 
-    <div v-if="display" class="my-2">
+    <div v-if="viewedSegmentation" class="my-2">
       <v-slider
+        v-for="control in DISPLAY_CONTROLS"
+        :key="control.key"
         class="mx-4"
-        label="Fill Opacity"
+        :label="control.label"
         min="0"
-        max="1"
-        step="0.01"
+        :max="control.max"
+        :step="control.step"
         density="compact"
         hide-details
         thumb-label
-        :model-value="display.fillOpacity"
-        @update:model-value="display.setFillOpacity($event)"
-      />
-      <v-slider
-        class="mx-4"
-        label="Outline Opacity"
-        min="0"
-        max="1"
-        step="0.01"
-        density="compact"
-        hide-details
-        thumb-label
-        :model-value="display.outlineOpacity"
-        @update:model-value="display.setOutlineOpacity($event)"
-      />
-      <v-slider
-        class="mx-4"
-        label="Outline Thickness"
-        min="0"
-        max="10"
-        step="1"
-        density="compact"
-        hide-details
-        thumb-label
-        :model-value="display.outlineThickness"
-        @update:model-value="display.setOutlineThickness($event)"
+        :model-value="viewedSegmentation[control.key]"
+        @update:model-value="setDisplay({ [control.key]: $event })"
       />
     </div>
 

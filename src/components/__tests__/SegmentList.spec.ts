@@ -557,8 +557,10 @@ describe('segmentation display section', () => {
   });
 
   const slider = (wrapper: VueWrapper, label: string) => {
-    const found = wrapper.find(`.slider[data-label="${label}"]`);
-    if (!found.exists()) throw new Error(`No "${label}" slider`);
+    const found = wrapper
+      .findAllComponents(SliderStub)
+      .find((candidate) => candidate.props('label') === label);
+    if (!found) throw new Error(`No "${label}" slider`);
     return found;
   };
 
@@ -567,11 +569,7 @@ describe('segmentation display section', () => {
     label: string,
     value: number
   ) => {
-    const stub = wrapper
-      .findAllComponents(SliderStub)
-      .find((candidate) => candidate.props('label') === label);
-    if (!stub) throw new Error(`No "${label}" slider`);
-    stub.vm.$emit('update:modelValue', value);
+    slider(wrapper, label).vm.$emit('update:modelValue', value);
     await nextTick();
   };
 
@@ -605,38 +603,23 @@ describe('segmentation display section', () => {
     );
   });
 
-  it('writes the fill multiplier onto the viewed image’s segmentation', async () => {
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, { name: 'Tumor' });
-    const wrapper = mountList();
-    await nextTick();
+  it.each([
+    ['Fill Opacity', 'fillOpacity', 0.25],
+    ['Outline Opacity', 'outlineOpacity', 0.5],
+    ['Outline Thickness', 'outlineThickness', 4],
+  ] as const)(
+    'writes %s onto the viewed image’s segmentation',
+    async (label, key, value) => {
+      const segmentation = store().ensureSegmentationForImage('img-1');
+      store().createSegment(segmentation.id, { name: 'Tumor' });
+      const wrapper = mountList();
+      await nextTick();
 
-    await setSlider(wrapper, 'Fill Opacity', 0.25);
+      await setSlider(wrapper, label, value);
 
-    expect(store().getSegmentationForImage('img-1')!.fillOpacity).toBe(0.25);
-  });
-
-  it('writes the outline multiplier onto the viewed image’s segmentation', async () => {
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, { name: 'Tumor' });
-    const wrapper = mountList();
-    await nextTick();
-
-    await setSlider(wrapper, 'Outline Opacity', 0.5);
-
-    expect(store().getSegmentationForImage('img-1')!.outlineOpacity).toBe(0.5);
-  });
-
-  it('writes the outline thickness onto the viewed image’s segmentation', async () => {
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, { name: 'Tumor' });
-    const wrapper = mountList();
-    await nextTick();
-
-    await setSlider(wrapper, 'Outline Thickness', 4);
-
-    expect(store().getSegmentationForImage('img-1')!.outlineThickness).toBe(4);
-  });
+      expect(store().getSegmentationForImage('img-1')![key]).toBe(value);
+    }
+  );
 
   it('writes only the viewed image’s segmentation', async () => {
     await seatImage('img-2', 'MR');
