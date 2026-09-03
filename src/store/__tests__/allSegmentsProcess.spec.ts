@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { createApp } from 'vue';
+import { createApp, nextTick } from 'vue';
 
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { fillHoles } from '@/src/core/tools/paint/fillHoles';
@@ -252,6 +252,36 @@ describe('a process running over every segment', () => {
 
     expect(markedVoxels(spared)).toEqual(held);
     expect(sparedMask.getMTime()).toBe(sparedTime);
+  });
+
+  it('keeps the preview when the selection moves to another segment', async () => {
+    // The run covers every editable segment, so the selection it started under
+    // is not part of its target and moving off it takes nothing away.
+    const left = segmentAt('Left', ringAround(1, 1));
+    const right = segmentAt('Right', ringAround(5, 5));
+    store().setActiveSegment(left);
+
+    await runOverEverySegment();
+    store().setActiveSegment(right);
+    await nextTick();
+
+    expect(usePaintProcessStore().processState.step).toBe('previewing');
+    expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
+    expect(maskValueAt(right, [5, 5, 0])).toBe(labelValueOf(right));
+  });
+
+  it('drops the preview when a segment it holds a snapshot of is deleted', async () => {
+    // Nothing else watches for this now that an all-segments run outlives a
+    // selection change, and the preview would write back into dead storage.
+    const left = segmentAt('Left', ringAround(1, 1));
+    const right = segmentAt('Right', ringAround(5, 5));
+    store().setActiveSegment(left);
+
+    await runOverEverySegment();
+    store().deleteSegment(right);
+    await nextTick();
+
+    expect(usePaintProcessStore().processState.step).toBe('start');
   });
 
   it('rolls back the segments it already wrote when a later one is refused', async () => {

@@ -26,7 +26,9 @@ type StartState = {
 
 type TargetedState = {
   activeParentImageID: string;
-  segmentId: string;
+  // The segment whose selection owns the run, absent for an all-segments run:
+  // that run belongs to no one segment, so no selection change is about it.
+  watchedSegmentId?: string;
 };
 
 type ComputingState = TargetedState & {
@@ -59,6 +61,12 @@ export type ProcessTarget = {
   segmentId: string;
   voxels: VoxelStorage;
   labelValue: number;
+};
+
+/** What a resolved start has to run, and whose selection owns it. */
+type ResolvedRun = {
+  targets: ProcessTarget[];
+  watchedSegmentId?: string;
 };
 
 /**
@@ -227,7 +235,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   // Segment-scoped: resolveEditTarget creates the segment if needed, then
   // storage is allocated for it.
-  function resolveSegmentScoped(imageId: string) {
+  function resolveSegmentScoped(imageId: string): ResolvedRun | undefined {
     const segmentId = segmentationStore.resolveEditTarget(imageId);
     if (segmentationStore.getSegment(segmentId).locked) {
       messageStore.addError('Cannot process locked segment');
@@ -236,7 +244,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const { labelValue } = segmentationStore.ensureLabelmapBinding(segmentId);
     return {
       targets: [targetFor(imageId, { segmentId, labelValue })],
-      segmentId,
+      watchedSegmentId: segmentId,
     };
   }
 
@@ -253,7 +261,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // All-segments: one run per editable segment, each on its own bounded mask.
   // Nothing is created, and an image with no editable segment has nothing to
   // process.
-  function resolveEverySegment(imageId: string) {
+  function resolveEverySegment(imageId: string): ResolvedRun | undefined {
     const targets = segmentationStore
       .editableSegments(imageId)
       .map((segment) => targetFor(imageId, segment));
@@ -261,9 +269,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError(nothingEditable(imageId));
       return undefined;
     }
-    // The active segment is not part of the target; it is recorded only so the
-    // watcher can cancel when the user moves to another segment.
-    return { targets, segmentId: segmentationStore.activeSegmentId ?? '' };
+    // No watched segment: the selection is not part of the target, so moving
+    // off it is not a reason to throw the run away.
+    return { targets };
   }
 
   // A run the user has already moved past: another process started, or the
@@ -293,7 +301,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       ? resolveSegmentScoped(imageId)
       : resolveEverySegment(imageId);
     if (!resolved) return;
-    const { targets, segmentId } = resolved;
+    const { targets, watchedSegmentId } = resolved;
 
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
@@ -304,7 +312,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     processState.value = {
       step: 'computing',
       activeParentImageID: imageId,
-      segmentId,
+      watchedSegmentId,
     };
 
     try {
@@ -339,7 +347,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       processState.value = {
         step: 'previewing',
         activeParentImageID: imageId,
-        segmentId,
+        watchedSegmentId,
         runs,
         showingOriginal: false,
       };
@@ -403,7 +411,23 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
   );
 
-  // Cancel process when the active segment changes
+  // A preview holds a snapshot of storage another action can delete under it,
+  // so it does not outlive what it would write back into. Storage is its own
+  // matter: an all-segments run watches no segment, and a segment-scoped one is
+  // not the only way to lose a mask.
+  const previewStorageGone = computed(() => {
+    const state = processState.value;
+    if (state.step !== 'previewing') return false;
+    return state.runs.some((run) => !run.target.voxels.exists());
+  });
+
+  watch(previewStorageGone, (gone) => {
+    if (gone) cancelProcess();
+  });
+
+  // A segment-scoped run belongs to the segment it was started on, so moving
+  // off that segment throws it away. An all-segments run watches no segment and
+  // outlives the selection changing under it.
   watch(
     () => segmentationStore.activeSegmentId,
     (segmentId) => {
@@ -411,7 +435,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       if (state.step !== 'computing' && state.step !== 'previewing') {
         return;
       }
-      if (state.segmentId === segmentId) return;
+      if (state.watchedSegmentId === undefined) return;
+      if (state.watchedSegmentId === segmentId) return;
       cancelProcess();
     }
   );
