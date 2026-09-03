@@ -115,7 +115,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
           'the selected segment has nothing on this slice. Scroll to a slice it covers, then try again.'
         );
       }
-      return voxels.snapshot();
+      return undefined;
     }
 
     const worker = await getWorker();

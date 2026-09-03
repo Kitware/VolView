@@ -229,7 +229,9 @@ describe('Fill Holes store', () => {
   });
 
   it('leaves an all-segments fill alone on a slice its mask misses', async () => {
-    // One segment of several missing the slice must not fail the whole pass.
+    // One segment of several missing the slice must not fail the whole pass,
+    // and it hands back no result at all: a mask with nothing to fill is not
+    // copied out, written back, or handed to the renderer as changed.
     const { fillHolesStore, parentImageID, segmentId } =
       await setupFillHolesRun(
         { dimensions: [10, 10, 5], spacing: [1, 1, 2], direction: IDENTITY },
@@ -238,14 +240,15 @@ describe('Fill Holes store', () => {
       );
     const voxels = useSegmentationStore().segmentVoxels(segmentId);
     voxels.scalars()[0] = 1;
+    const held = Array.from(voxels.scalars());
 
     const out = await fillHolesStore.computeAlgorithm(
       segmentTarget(parentImageID, segmentId, 1)
     );
 
     expect(fillHolesWorkerMock).not.toHaveBeenCalled();
-    expect(Array.from(out)).toEqual(Array.from(voxels.scalars()));
-    expect(out).not.toBe(voxels.scalars());
+    expect(out).toBeUndefined();
+    expect(Array.from(voxels.scalars())).toEqual(held);
   });
 
   it('sends the target’s own buffer rather than a copy of it', async () => {

@@ -62,9 +62,15 @@ export type ProcessTarget = {
   labelValue: number;
 };
 
+/**
+ * One segment's new mask contents, or `undefined` where the algorithm has
+ * nothing to do to that segment: a run with no result is dropped rather than
+ * written back, so an untouched mask keeps its buffer and the renderer is not
+ * invalidated for it.
+ */
 export type ProcessAlgorithm = (
   target: ProcessTarget
-) => Promise<TypedArray | number[]>;
+) => Promise<TypedArray | number[] | undefined>;
 
 export const usePaintProcessStore = defineStore('paintProcess', () => {
   const processState = ref<ProcessState>({ step: 'start' });
@@ -152,17 +158,18 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   /**
-   * One segment's preview slot, or nothing when its storage went away while the
-   * algorithm ran. The result is kept as the algorithm's own array rather than
-   * a copy: an algorithm handing back the buffer it was given would leave the
+   * One segment's preview slot, or nothing when the algorithm changed nothing
+   * or its storage went away while the algorithm ran. The result is kept as the
+   * algorithm's own array rather than a copy: an algorithm handing back the buffer it was given would leave the
    * processed result aliasing storage, and the first toggle to the original
    * would erase it.
    */
   function buildRun(
     target: ProcessTarget,
     originalScalars: TypedArray,
-    processedScalars: TypedArray | number[]
+    processedScalars: TypedArray | number[] | undefined
   ): PreviewRun[] {
+    if (processedScalars === undefined) return [];
     if (!target.voxels.exists()) return [];
     if (processedScalars === target.voxels.scalars()) {
       throw new Error('Process returned the storage buffer it was given');
@@ -315,8 +322,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         buildRun(target, snapshots[index], outputs[index])
       );
 
-      // Every mask the run held was deleted while the algorithm ran; there is
-      // then nothing to preview and nothing to roll back.
+      // No segment came back with anything to write: every mask was deleted
+      // while the algorithm ran, or the algorithm had nothing to do to any of
+      // them. There is then nothing to preview and nothing to roll back.
       if (runs.length === 0) {
         resetState();
         paintStore.restoreModeAfterProcess();

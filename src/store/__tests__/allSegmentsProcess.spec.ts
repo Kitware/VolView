@@ -7,6 +7,7 @@ import { fillHoles } from '@/src/core/tools/paint/fillHoles';
 import { useMessageStore } from '@/src/store/messages';
 import {
   usePaintProcessStore,
+  type ProcessAlgorithm,
   type ProcessTarget,
 } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
@@ -87,7 +88,7 @@ const fillHolesOn = async (target: ProcessTarget) =>
     label: target.labelValue,
   });
 
-const runOverEverySegment = (algorithm = fillHolesOn) =>
+const runOverEverySegment = (algorithm: ProcessAlgorithm = fillHolesOn) =>
   usePaintProcessStore().startProcess(algorithm, {
     requiresActiveSegment: false,
   });
@@ -228,6 +229,29 @@ describe('a process running over every segment', () => {
 
     expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
     expect(maskValueAt(right, [5, 5, 0])).toBe(labelValueOf(right));
+  });
+
+  it('drops the run of a segment its algorithm had nothing to do to', async () => {
+    // Defaults are current slice plus every segment, so a segment the slice
+    // misses is the common case. Nothing is copied out for it, nothing is
+    // written back, and the renderer is not told its mask changed.
+    const filled = segmentAt('Filled', ringAround(1, 1));
+    const spared = segmentAt('Spared', ringAround(5, 5));
+    const sparedMask = store().segmentVoxels(spared).image();
+    const held = markedVoxels(spared);
+    const sparedTime = sparedMask.getMTime();
+
+    await runOverEverySegment(async (target) =>
+      target.segmentId === spared ? undefined : fillHolesOn(target)
+    );
+
+    expect(maskValueAt(filled, [1, 1, 0])).toBe(labelValueOf(filled));
+    expect(sparedMask.getMTime()).toBe(sparedTime);
+
+    usePaintProcessStore().cancelProcess();
+
+    expect(markedVoxels(spared)).toEqual(held);
+    expect(sparedMask.getMTime()).toBe(sparedTime);
   });
 
   it('rolls back the segments it already wrote when a later one is refused', async () => {
