@@ -186,15 +186,13 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   function confirmProcess() {
     const state = processState.value;
-    if (state.step === 'previewing') {
-      // Apply commits the processed result. When the user is viewing the
-      // original, the masks currently hold originalScalars, so restore the
-      // processed scalars before finishing or the result is silently discarded.
-      if (state.showingOriginal) {
-        state.runs.forEach((run) =>
-          writeIfPresent(run.target.voxels, run.processedScalars)
-        );
-      }
+    // Apply commits the processed result. When the user is viewing the
+    // original, the masks currently hold originalScalars, so restore the
+    // processed scalars before finishing or the result is silently discarded.
+    if (state.step === 'previewing' && state.showingOriginal) {
+      state.runs.forEach((run) =>
+        writeIfPresent(run.target.voxels, run.processedScalars)
+      );
     }
     resetState();
     paintStore.restoreModeAfterProcess();

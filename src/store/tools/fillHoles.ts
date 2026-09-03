@@ -56,9 +56,7 @@ function maskSliceIndex(
     view.viewInfo.id,
     parentImageId
   );
-  const parentAxis = parentMetadata.lpsOrientation[view.axis];
-  const parentSlice =
-    sliceConfig?.slice ?? Math.floor(parentMetadata.dimensions[parentAxis] / 2);
+  const parentSlice = sliceConfig.slice;
   const sliceIndex = convertSliceIndex(
     parentSlice,
     parentMetadata.lpsOrientation,
