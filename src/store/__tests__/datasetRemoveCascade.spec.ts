@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
@@ -118,6 +119,25 @@ describe('dataset remove — synchronous reference cascade', () => {
     useDatasetStore().remove('img-1');
 
     expect(viewStore.getViewsForData('img-1')).toEqual([]);
+  });
+
+  it('detaches consumers before disposing the removed image', async () => {
+    seatImage('img-1', 'CT');
+    const imageCacheStore = useImageCacheStore();
+    const image = imageCacheStore.imageById['img-1'];
+    const dispose = vi.spyOn(image, 'dispose');
+    const viewStore = useViewStore();
+    bindFirstViewTo('img-1');
+
+    useDatasetStore().remove('img-1');
+
+    expect(imageCacheStore.imageById).not.toHaveProperty('img-1');
+    expect(viewStore.getViewsForData('img-1')).toEqual([]);
+    expect(dispose).not.toHaveBeenCalled();
+
+    await nextTick();
+
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it('drops crop state keyed by the removed image', () => {

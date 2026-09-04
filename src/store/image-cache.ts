@@ -9,7 +9,7 @@ import { Maybe } from '@/src/types';
 import { ImageMetadata } from '@/src/types/image';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { defineStore } from 'pinia';
-import { markRaw, reactive, ref } from 'vue';
+import { markRaw, nextTick, reactive, ref } from 'vue';
 
 /**
  * An internal cache of progressively loadable images.
@@ -37,7 +37,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     const data = image.getVtkImageData();
     // ProgressiveImage initializes with empty vtkImageData before actual data loads.
     // VTK.js volume renderer crashes on empty data (null scalar texture).
-    if (!data.getPointData().getScalars()?.getData()?.length) return null;
+    if (!data?.getPointData().getScalars()?.getData()?.length) return null;
     return data;
   }
 
@@ -116,12 +116,8 @@ export const useImageCacheStore = defineStore('image-cache', () => {
 
   function removeImage(id: string) {
     if (!(id in imageById)) return;
+    const image = imageById[id];
     unregisterListeners(id);
-
-    // Release vtk data and any per-image caches (e.g. cine compressed frames
-    // and decoded-frame LRU). Without this, removing a dataset leaks all of
-    // its memory until the page reloads.
-    imageById[id].dispose();
 
     const idx = imageIds.value.indexOf(id);
     if (idx > -1) imageIds.value.splice(idx, 1);
@@ -129,6 +125,11 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     delete imageStatus[id];
     delete imageLoading[id];
     delete imageErrors[id];
+
+    // Vue tears down image consumers in its next update flush. Keep the VTK
+    // object alive until those consumers have detached their actors and event
+    // handlers, but make it unreachable from the cache immediately.
+    void nextTick(() => image.dispose());
     [...deletionCallbacks].forEach((callback) => callback([id]));
   }
 

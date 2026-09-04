@@ -104,7 +104,6 @@ export default {
     stopResize(ev) {
       if (ev) {
         if (!this.drawerBorder.hasPointerCapture(ev.pointerId)) return;
-        this.drawerBorder.releasePointerCapture(ev.pointerId);
       }
 
       this.$refs.infoPane.$el.style.transition = '';
