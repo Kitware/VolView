@@ -14,6 +14,7 @@ defineEmits([
 
 const props = defineProps<{
   name: string;
+  original: string;
   color: string;
   invalidNames: Set<string>;
   fillOpacity: number;
@@ -21,7 +22,10 @@ const props = defineProps<{
 }>();
 
 function isUniqueEditingName(name: string) {
-  return !props.invalidNames.has(name.trim());
+  const normalized = name.trim();
+  return (
+    normalized === props.original.trim() || !props.invalidNames.has(normalized)
+  );
 }
 
 function uniqueNameRule(name: string) {

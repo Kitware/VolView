@@ -20,7 +20,7 @@ import {
   openAnnotationSegments,
   segmentColor,
   segmentNames,
-  showFirstSegmentGroup,
+  waitForNamedSegments,
 } from './segmentationTestUtils';
 
 // The 5.0.1 fixture's rectangle carries this label.
@@ -97,7 +97,7 @@ describe('Session state lifecycle', () => {
     await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
 
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
   });
 
   it('edited label strokeWidth persists through save/load cycle', async () => {
@@ -189,19 +189,19 @@ describe('Session state lifecycle', () => {
 
     // The 6.1.0 labelMaps entry names this segment and colors it red.
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Prostate']);
     const prostateColor = await segmentColor('Prostate');
 
     const { session, manifest } = await saveAndParseManifest();
-    expect(manifest.version).toEqual('7.1.0');
+    expect(manifest.version).toEqual('7.0.0');
 
     await volViewPage.open(`?urls=[tmp/${session}]`);
     await volViewPage.waitForViews();
     expect(await volViewPage.getNotificationsCount()).toEqual(0);
 
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Prostate']);
     expect(await segmentColor('Prostate')).toEqual(prostateColor);
   });

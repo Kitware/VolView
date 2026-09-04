@@ -11,6 +11,8 @@ export interface GaussianSmoothInput {
   data: TypedArray | number[];
   dimensions: number[];
   spacing: [number, number, number];
+  maskExtent: [number, number, number, number, number, number];
+  parentDimensions: [number, number, number];
   params: GaussianSmoothParams;
 }
 
@@ -169,30 +171,34 @@ function calculateBoundingBox(
   return bounds;
 }
 
-/**
- * A kernel radius of padding on every side, deliberately unclipped: the buffer
- * is one segment's mask, cropped to the voxels that segment covers, so its
- * faces are crop edges rather than the edge of anything real. Sampling outside
- * them reads background, and the convolution's own mirroring then never
- * reaches a voxel inside the mask.
- */
-function expandBoundingBox(
-  bounds: number[],
-  sigmaPixels: [number, number, number],
-  radiusFactor = 1.5
-) {
-  const paddingX = Math.ceil(sigmaPixels[0] * radiusFactor);
-  const paddingY = Math.ceil(sigmaPixels[1] * radiusFactor);
-  const paddingZ = Math.ceil(sigmaPixels[2] * radiusFactor);
-
-  return [
-    bounds[0] - paddingX,
-    bounds[1] + paddingX,
-    bounds[2] - paddingY,
-    bounds[3] + paddingY,
-    bounds[4] - paddingZ,
-    bounds[5] + paddingZ,
-  ];
+function expandBoundingBox({
+  bounds,
+  dimensions,
+  maskExtent,
+  parentDimensions,
+  sigmaPixels,
+  radiusFactor = 1.5,
+}: {
+  bounds: number[];
+  dimensions: number[];
+  maskExtent: GaussianSmoothInput['maskExtent'];
+  parentDimensions: GaussianSmoothInput['parentDimensions'];
+  sigmaPixels: [number, number, number];
+  radiusFactor?: number;
+}) {
+  return sigmaPixels.flatMap((sigma, axis) => {
+    const padding = Math.ceil(sigma * radiusFactor);
+    const lower = bounds[axis * 2] - padding;
+    const upper = bounds[axis * 2 + 1] + padding;
+    // Crop faces read as background. Parent-image faces keep the established
+    // mirrored boundary by ending the convolution volume at that face.
+    return [
+      maskExtent[axis * 2] === 0 ? Math.max(0, lower) : lower,
+      maskExtent[axis * 2 + 1] === parentDimensions[axis] - 1
+        ? Math.min(dimensions[axis] - 1, upper)
+        : upper,
+    ];
+  });
 }
 
 function extractSubVolume(
@@ -269,13 +275,15 @@ function createBinaryMask(data: TypedArray | number[], label: number) {
   return mask;
 }
 
-export function gaussianSmoothLabelMapWorker(input: {
-  data: TypedArray | number[];
-  dimensions: number[];
-  spacing: [number, number, number];
-  params: { sigma: number; label: number };
-}) {
-  const { data: originalData, dimensions, spacing, params } = input;
+export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
+  const {
+    data: originalData,
+    dimensions,
+    spacing,
+    maskExtent,
+    parentDimensions,
+    params,
+  } = input;
   const { sigma, label } = params;
 
   if (sigma <= 0) {
@@ -312,7 +320,13 @@ export function gaussianSmoothLabelMapWorker(input: {
     return outputData;
   }
 
-  const expandedBounds = expandBoundingBox(bounds, sigmaPixels, 1.5);
+  const expandedBounds = expandBoundingBox({
+    bounds,
+    dimensions,
+    maskExtent,
+    parentDimensions,
+    sigmaPixels,
+  });
   const { subData, subDims } = extractSubVolume(
     originalData,
     dimensions,

@@ -14,9 +14,11 @@ import type {
 } from '@/src/processing/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useViewStore } from '@/src/store/views';
 
 // ---------------------------------------------------------------------------
 // Applying an `add-annotations` result.
@@ -342,6 +344,44 @@ describe('applyIntent — add-annotations', () => {
     expect(onlyTool(rulerStore).label).toBe(existingId);
   });
 
+  it('reuses a matching locked segment without mutating it', async () => {
+    const segmentationStore = useSegmentationStore();
+    const segmentation = segmentationStore.ensureSegmentationForImage(IMAGE_ID);
+    const locked = segmentationStore.createSegment(segmentation.id, {
+      name: 'roi',
+      color: [17, 34, 51, 255],
+    });
+    const voxels = segmentationStore.segmentVoxels(locked.id);
+    const { labelValue } = voxels.materialize();
+    voxels.ensureContains([2, 2, 3, 3, 4, 4]);
+    voxels.scalars()[0] = labelValue;
+    voxels.image().modified();
+    segmentationStore.updateSegment(locked.id, { locked: true });
+    const maskBefore = voxels.image();
+    const bindingBefore = {
+      ...voxels.binding()!,
+      extent: [...voxels.binding()!.extent],
+    };
+    const scalarsBefore = Array.from(voxels.snapshot());
+
+    const file = annotationsFile();
+    file.tools.rulers = [];
+    file.tools.polygons = [];
+    serveFile(file);
+
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
+    expect(segmentation.order).toEqual([locked.id]);
+    expect(segmentationStore.getSegment(locked.id)).toMatchObject({
+      name: 'roi',
+      color: [17, 34, 51, 255],
+      locked: true,
+      representations: { labelmap: bindingBefore },
+    });
+    expect(voxels.image()).toBe(maskBefore);
+    expect(Array.from(voxels.snapshot())).toEqual(scalarsBefore);
+    expect(onlyTool(useRectangleStore()).label).toBe(locked.id);
+  });
+
   it('leaves the label picker where the user left it', async () => {
     const rulerStore = useRulerStore();
     const activeBefore = rulerStore.activeLabel;
@@ -358,6 +398,27 @@ describe('applyIntent — add-annotations', () => {
     expect(rulerStore.activeLabel).toBe(activeBefore);
     // The label still landed; only the picker was left alone.
     expect(onlyTool(rulerStore).labelName).toBe('fresh');
+  });
+
+  it('preserves paint intent from another image while labels land', async () => {
+    seatImage('origin-image');
+    seatImage('next-image');
+    const segmentationStore = useSegmentationStore();
+    const originSegmentation =
+      segmentationStore.ensureSegmentationForImage('origin-image');
+    const origin = segmentationStore.createSegment(originSegmentation.id, {
+      name: 'User selection',
+    });
+    segmentationStore.setActiveSegment(origin.id);
+    useViewStore().setDataForAllViews(IMAGE_ID);
+    await nextTick();
+
+    expect(useRectangleStore().activeLabel).toBeUndefined();
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
+    expect(segmentationStore.activeSegmentId).toBe(origin.id);
+
+    const clone = segmentationStore.resolveEditTarget('next-image');
+    expect(segmentationStore.getSegment(clone).name).toBe('User selection');
   });
 
   it('leaves an unlabeled tool unlabeled', async () => {

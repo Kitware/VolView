@@ -91,7 +91,14 @@ const IconStub = defineComponent({
 
 const SegmentEditorStub = defineComponent({
   name: 'SegmentEditor',
-  props: ['name', 'color', 'fillOpacity', 'outlineOpacity', 'invalidNames'],
+  props: [
+    'name',
+    'original',
+    'color',
+    'fillOpacity',
+    'outlineOpacity',
+    'invalidNames',
+  ],
   emits: [
     'done',
     'cancel',
@@ -539,6 +546,13 @@ describe('flat segment list row editing', () => {
     const wrapper = await openEditor(second.id);
 
     expect([...editor(wrapper).props('invalidNames')]).toEqual(['Tumor']);
+  });
+
+  it('passes the unedited name to the editor', async () => {
+    const segment = makeSegment('img-1', 'Tumor');
+    const wrapper = await openEditor(segment.id);
+
+    expect(editor(wrapper).props('original')).toBe('Tumor');
   });
 });
 

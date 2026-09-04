@@ -8,7 +8,7 @@ import { openUrls, waitForDownload } from './utils';
 import { ONE_CT_SLICE_DICOM } from './configTestUtils';
 import {
   openAnnotationSegments,
-  showFirstSegmentGroup,
+  waitForNamedSegments,
 } from './segmentationTestUtils';
 
 const SAVE_TIMEOUT = 40_000;
@@ -85,7 +85,7 @@ describe('Segment identity under rename and recolor', function () {
     const views2D = await volViewPage.getViews2D();
     await volViewPage.paintStrokeOnView(views2D[0]);
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
 
     const stamp = Date.now();
     const before = await downloadSegmentGroup(`identity-before-${stamp}`);

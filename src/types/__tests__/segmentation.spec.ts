@@ -65,6 +65,13 @@ describe('cssColorToRGBA', () => {
   it('parses the named color used by the vector tool label defaults', () => {
     expect(cssColorToRGBA('red')).toEqual([255, 0, 0, 255]);
   });
+
+  it.each([
+    ['orange', [255, 165, 0, 255]],
+    ['rebeccapurple', [102, 51, 153, 255]],
+  ])('parses the CSS color keyword %s', (name, expected) => {
+    expect(cssColorToRGBA(name)).toEqual(expected);
+  });
 });
 
 describe('rgbaToCssColor', () => {

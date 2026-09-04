@@ -85,11 +85,8 @@ export const openAnnotationSegments = async () => {
   await tab.click();
 };
 
-/**
- * The list follows the viewed image, so there is nothing left to pick; the wait
- * stays, because the list renders empty until the image's segments arrive.
- */
-export const showFirstSegmentGroup = async (timeout?: number) => {
+/** Waits for the viewed image to render at least one named segment. */
+export const waitForNamedSegments = async (timeout?: number) => {
   await $(SEGMENT_LIST).waitForDisplayed(timeout ? { timeout } : undefined);
   // A chip renders before its title does, so a name-less chip is not yet a
   // segment the caller can read.

@@ -71,6 +71,37 @@ const snapshot = (imageId: string) =>
     marks: markedVoxels(segment.id),
   }));
 
+const wireSegmentation = (manifest: any) =>
+  manifest.segmentations.find((entry: any) => entry.parentImage === 'img-1');
+
+const wireSegment = (manifest: any, name: string) =>
+  wireSegmentation(manifest).segments.find(
+    (segment: any) => segment.name === name
+  );
+
+function wireArtifactFor(manifest: any, segment: any) {
+  const id = segment.representations.labelmap.artifactId;
+  const artifact = manifest.segmentationArtifacts.find(
+    (candidate: any) => candidate.id === id
+  );
+  return { id, name: artifact.name };
+}
+
+function pointNodeAtTumorArtifact(manifest: any) {
+  const segmentation = wireSegmentation(manifest);
+  const tumor = wireSegment(manifest, 'Tumor');
+  const node = wireSegment(manifest, 'Node');
+  const tumorArtifact = wireArtifactFor(manifest, tumor);
+  const nodeArtifactId = node.representations.labelmap.artifactId;
+  node.representations.labelmap.artifactId = tumorArtifact.id;
+  return { segmentation, tumor, node, tumorArtifact, nodeArtifactId };
+}
+
+const restoredSegment = (name: string) =>
+  listSegments(store().getSegmentationForImage('new-1')!).find(
+    (segment) => segment.name === name
+  )!;
+
 async function buildScene() {
   await seatImage('img-1', { ...GRID, name: 'CT A' });
   await seatImage('img-2', { ...GRID, name: 'CT B' });
@@ -128,7 +159,7 @@ async function roundTrip(
   setActivePinia(createPinia());
   await seatImage('new-1', { ...GRID, name: 'CT A' });
   await seatImage('new-2', { ...GRID, name: 'CT B' });
-  await store().deserialize(
+  const result = await store().deserialize(
     parsed,
     stateFiles,
     { 'img-1': 'new-1', 'img-2': 'new-2' },
@@ -136,6 +167,7 @@ async function roundTrip(
     io
   );
   await nextTick();
+  return result;
 }
 
 describe('bounded masks through the state file', () => {
@@ -189,6 +221,67 @@ describe('bounded masks through the state file', () => {
     });
   });
 
+  it('keeps bindings distinct when wire segmentation and segment ids repeat', async () => {
+    await buildScene();
+
+    let firstWireArtifactId = '';
+    let secondWireArtifactId = '';
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      const first = manifest.segmentations.find(
+        (entry: any) => entry.parentImage === 'img-1'
+      );
+      const second = manifest.segmentations.find(
+        (entry: any) => entry.parentImage === 'img-2'
+      );
+      const firstTumor = first.segments.find(
+        (segment: any) => segment.name === 'Tumor'
+      );
+      const secondTumor = second.segments.find(
+        (segment: any) => segment.name === 'Tumor'
+      );
+      firstWireArtifactId = firstTumor.representations.labelmap.artifactId;
+      secondWireArtifactId = secondTumor.representations.labelmap.artifactId;
+
+      first.id = 'duplicate-segmentation';
+      second.id = 'duplicate-segmentation';
+      first.order = first.order.map((id: string) =>
+        id === firstTumor.id ? 'duplicate-segment' : id
+      );
+      second.order = second.order.map((id: string) =>
+        id === secondTumor.id ? 'duplicate-segment' : id
+      );
+      if (first.activeSegment === firstTumor.id) {
+        first.activeSegment = 'duplicate-segment';
+      }
+      if (second.activeSegment === secondTumor.id) {
+        second.activeSegment = 'duplicate-segment';
+      }
+      firstTumor.id = 'duplicate-segment';
+      secondTumor.id = 'duplicate-segment';
+    });
+
+    const firstTumor = listSegments(
+      store().getSegmentationForImage('new-1')!
+    ).find((segment) => segment.name === 'Tumor')!;
+    const secondTumor = listSegments(
+      store().getSegmentationForImage('new-2')!
+    ).find((segment) => segment.name === 'Tumor')!;
+    expect(firstTumor.representations.labelmap?.artifactId).toBe(
+      result.artifactIdMap[firstWireArtifactId]
+    );
+    expect(secondTumor.representations.labelmap?.artifactId).toBe(
+      result.artifactIdMap[secondWireArtifactId]
+    );
+    expect(markedVoxels(firstTumor.id)).toEqual([
+      [1, 1, 1, 1],
+      [2, 1, 1, 1],
+    ]);
+    expect(markedVoxels(secondTumor.id)).toEqual([[0, 0, 0, 1]]);
+    expect(result.artifactIdMap[firstWireArtifactId]).toBeDefined();
+    expect(result.artifactIdMap[secondWireArtifactId]).toBeDefined();
+    expect(Object.keys(store().artifactMeta)).toHaveLength(4);
+  });
+
   it('restores a mask that covers nothing as one that covers nothing', async () => {
     await buildScene();
 
@@ -238,6 +331,137 @@ describe('bounded masks through the state file', () => {
     // The image's other segments restore as they were.
     expect(named('Node').representations.labelmap).toBeDefined();
     expect(markedVoxels(named('Node').id)).toEqual([[3, 3, 3, 2]]);
+  });
+
+  it('rejects an empty extent that points at foreground mask data', async () => {
+    await buildScene();
+
+    let artifact: ReturnType<typeof wireArtifactFor>;
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      const tumor = wireSegment(manifest, 'Tumor');
+      artifact = wireArtifactFor(manifest, tumor);
+      tumor.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
+    });
+
+    const tumor = restoredSegment('Tumor');
+    expect(tumor.representations.labelmap).toBeUndefined();
+    expect(result.skipped).toContainEqual({
+      name: artifact!.name,
+      reason: 'empty extent references a mask with foreground voxels',
+    });
+    expect(result.artifactIdMap[artifact!.id]).toBeUndefined();
+    expect(Object.keys(store().artifactMeta)).toHaveLength(3);
+  });
+
+  it('rejects every same-sized binding that gives one artifact different locations', async () => {
+    await buildScene();
+
+    let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      refs = pointNodeAtTumorArtifact(manifest);
+      refs.node.representations.labelmap.extent = [0, 1, 0, 0, 0, 0];
+    });
+
+    const restored = listSegments(store().getSegmentationForImage('new-1')!);
+    expect(
+      restored.find((segment) => segment.name === 'Tumor')!.representations
+        .labelmap
+    ).toBeUndefined();
+    expect(
+      restored.find((segment) => segment.name === 'Node')!.representations
+        .labelmap
+    ).toBeUndefined();
+    expect(
+      result.skipped.filter(
+        ({ name, reason }) =>
+          name === refs!.tumorArtifact.name &&
+          reason === 'bindings disagree on the artifact extent'
+      )
+    ).toHaveLength(2);
+    expect(result.artifactIdMap[refs!.tumorArtifact.id]).toBeUndefined();
+    expect(result.artifactIdMap[refs!.nodeArtifactId]).toBeUndefined();
+    expect(Object.keys(store().artifactMeta)).toHaveLength(2);
+  });
+
+  it('does not let an earlier empty binding erase a later valid binding', async () => {
+    await buildScene();
+
+    let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      refs = pointNodeAtTumorArtifact(manifest);
+      refs.node.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
+      refs.segmentation.order = [
+        refs.node.id,
+        ...refs.segmentation.order.filter((id: string) => id !== refs.node.id),
+      ];
+    });
+
+    const tumor = restoredSegment('Tumor');
+    const node = restoredSegment('Node');
+    expect(node.representations.labelmap).toBeUndefined();
+    expect(tumor.representations.labelmap?.artifactId).toBe(
+      result.artifactIdMap[refs!.tumorArtifact.id]
+    );
+    expect(store().segmentVoxels(tumor.id).image().getDimensions()).toEqual([
+      2, 1, 1,
+    ]);
+    expect(markedVoxels(tumor.id)).toEqual([
+      [1, 1, 1, 1],
+      [2, 1, 1, 1],
+    ]);
+    expect(result.skipped).toContainEqual({
+      name: refs!.tumorArtifact.name,
+      reason: 'empty extent references a mask with foreground voxels',
+    });
+    expect(result.artifactIdMap[refs!.nodeArtifactId]).toBeUndefined();
+  });
+
+  it.each([
+    {
+      title: 'an extent whose size differs from its loaded mask',
+      extent: [1, 3, 1, 1, 1, 1],
+      reason: 'extent does not match the loaded mask dimensions',
+    },
+    {
+      title: 'an extent that leaves its parent image',
+      extent: [3, 4, 1, 1, 1, 1],
+      reason: 'extent leaves the parent image',
+    },
+  ])('rejects $title', async ({ extent, reason }) => {
+    await buildScene();
+
+    let artifact: ReturnType<typeof wireArtifactFor>;
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      const tumor = wireSegment(manifest, 'Tumor');
+      artifact = wireArtifactFor(manifest, tumor);
+      tumor.representations.labelmap.extent = extent;
+    });
+
+    expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
+    expect(result.skipped).toContainEqual({ name: artifact!.name, reason });
+    expect(result.artifactIdMap[artifact!.id]).toBeUndefined();
+    expect(Object.keys(store().artifactMeta)).toHaveLength(3);
+  });
+
+  it('keeps a valid binding when another reference to its artifact is invalid', async () => {
+    await buildScene();
+
+    let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      refs = pointNodeAtTumorArtifact(manifest);
+    });
+
+    const tumor = restoredSegment('Tumor');
+    const node = restoredSegment('Node');
+    const tumorArtifactId = result.artifactIdMap[refs!.tumorArtifact.id];
+    expect(tumor.representations.labelmap?.artifactId).toBe(tumorArtifactId);
+    expect(node.representations.labelmap).toBeUndefined();
+    expect(result.skipped).toContainEqual({
+      name: refs!.tumorArtifact.name,
+      reason: 'extent does not match the loaded mask dimensions',
+    });
+    expect(store().artifactMeta[tumorArtifactId]).toBeDefined();
+    expect(result.artifactIdMap[refs!.nodeArtifactId]).toBeUndefined();
   });
 
   it('puts the restored masks back on the parent grid', async () => {

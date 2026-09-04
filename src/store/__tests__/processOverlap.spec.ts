@@ -58,6 +58,8 @@ const runGaussianSmooth: SegmentAlgorithm = (target) =>
     data: target.voxels.scalars(),
     dimensions: DIMENSIONS,
     spacing: [1, 1, 1],
+    maskExtent: target.maskExtent,
+    parentDimensions: target.parentDimensions,
     params: { sigma: 1, label: target.labelValue },
   });
 

@@ -155,6 +155,8 @@ describe('paint process storage', () => {
       const [target] = seen;
       expect(target).toMatchObject({
         parentImageId: 'image-1',
+        parentDimensions: [2, 1, 1],
+        maskExtent: [0, 1, 0, 0, 0, 0],
         labelValue: 3,
       });
       expect(target.voxels.image()).toBe(labelMap);

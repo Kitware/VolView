@@ -81,7 +81,7 @@ function makeParentImage() {
 const migrated = (manifest: Record<string, unknown>): Manifest =>
   ManifestSchema.parse(migrateManifest(JSON.stringify(manifest)));
 
-const descriptorlessComposedManifest = () =>
+const descriptorlessComposedManifest = (visibility = true) =>
   migrated({
     version: '6.4.0',
     dataSources: [
@@ -95,6 +95,28 @@ const descriptorlessComposedManifest = () =>
       },
     ],
     datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
+    viewByID: {
+      Axial: {
+        id: 'Axial',
+        name: 'Axial',
+        type: '2D',
+        config: {
+          'sg-tumor': {
+            layers: {
+              colorBy: { arrayName: '', location: 'pointData' },
+              transferFunction: { preset: '', mappingRange: [0, 1] },
+              opacityFunction: {
+                mode: 0,
+                gaussians: [],
+                mappingRange: [0, 1],
+              },
+              blendConfig: { opacity: 0.4, visibility },
+            },
+            segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
+          },
+        },
+      },
+    },
     segmentGroups: [
       {
         id: 'sg-tumor',
@@ -155,7 +177,10 @@ async function liveCatalog(segmentMetadata?: Map<string, string>) {
 
 // The COLD path: what the loaded restore stage builds from a descriptor-less
 // composed manifest whose artifact materialized as a loaded dataset.
-async function coldCatalog(segmentMetadata?: Map<string, string>) {
+async function coldCatalog(
+  segmentMetadata?: Map<string, string>,
+  visibility = true
+) {
   setActivePinia(createPinia());
   seat('parent-store', 'CT Chest', makeParentImage());
   seat(
@@ -164,10 +189,14 @@ async function coldCatalog(segmentMetadata?: Map<string, string>) {
     makeLabelmapImage(),
     segmentMetadata
   );
-  await completeStateFileRestore(descriptorlessComposedManifest(), [], {
-    'ds-ct': 'parent-store',
-    [leafStateId(3)]: 'artifact-store',
-  });
+  await completeStateFileRestore(
+    descriptorlessComposedManifest(visibility),
+    [],
+    {
+      'ds-ct': 'parent-store',
+      [leafStateId(3)]: 'artifact-store',
+    }
+  );
   return catalogFor('parent-store');
 }
 
@@ -186,6 +215,20 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     expect(live.map((segment) => segment.name)).toEqual(['Tumor 1', 'Tumor 2']);
 
     expect(cold).toEqual(live);
+  });
+
+  it('applies legacy display state after decoding the segment catalog', async () => {
+    await coldCatalog(undefined, false);
+
+    const segmentation =
+      useSegmentationStore().getSegmentationForImage('parent-store')!;
+    const segments = segmentation.order.map((id) => segmentation.segments[id]);
+    expect(segments.map((segment) => segment.fillOpacity)).toEqual([0.4, 0.4]);
+    expect(segments.map((segment) => segment.outlineOpacity)).toEqual([
+      0.25, 0.25,
+    ]);
+    expect(segments.map((segment) => segment.visible)).toEqual([false, false]);
+    expect(segmentation.outlineThickness).toBe(5);
   });
 
   it('embedded .seg.nrrd metadata: identical overlay result in both paths', async () => {

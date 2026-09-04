@@ -1,5 +1,10 @@
 import { pipe } from '@/src/utils/functional';
 import { cssColorToRGBA, emptyExtent } from '@/src/types/segmentation';
+import {
+  dataSourcesById,
+  summarizeDataSource,
+} from '@/src/io/state-file/dataSourceDisplayName';
+import type { DataSourceType } from '@/src/io/state-file/schema';
 
 const migrateOrPass =
   (versions: Array<string>, migrationFunc: (manifest: any) => any) =>
@@ -169,9 +174,9 @@ const migrate630To640 = (inputManifest: any) => ({
 const SEGMENT_TOOL_KEYS = ['rectangles', 'polygons'] as const;
 
 // A manifest saved before `datasets` existed lets every uri source stand in for
-// one, keyed by its stringified source id — mirrors `manifestDatasets`.
+// one, keyed by its stringified source id, matching `manifestDatasets`.
 const datasetDisplayName = (manifest: any, datasetId: string) => {
-  const sources: any[] = Array.isArray(manifest.dataSources)
+  const sources: DataSourceType[] = Array.isArray(manifest.dataSources)
     ? manifest.dataSources
     : [];
   const datasets: any[] = Array.isArray(manifest.datasets)
@@ -180,8 +185,13 @@ const datasetDisplayName = (manifest: any, datasetId: string) => {
         .filter((source) => source.type === 'uri')
         .map((source) => ({ id: String(source.id), dataSourceId: source.id }));
   const dataset = datasets.find((entry) => entry.id === datasetId);
-  const source = sources.find((entry) => entry.id === dataset?.dataSourceId);
-  return typeof source?.name === 'string' ? source.name : datasetId;
+  if (!dataset) return datasetId;
+  return summarizeDataSource(
+    dataset.dataSourceId,
+    dataSourcesById(sources),
+    manifest.datasetFilePath,
+    datasetId
+  );
 };
 
 // Descriptor values in `order`, then any byValue entry `order` forgot.
@@ -195,6 +205,124 @@ const descriptorValues = (descriptors: any) => {
     .filter((value) => !ordered.includes(value))
     .sort((a, b) => a - b);
   return [...ordered, ...rest];
+};
+
+const numberOrUndefined = (value: unknown) =>
+  typeof value === 'number' ? value : undefined;
+
+const booleanOrUndefined = (value: unknown) =>
+  typeof value === 'boolean' ? value : undefined;
+
+const legacyViewGroupDisplay = (view: any, groupId: string) => {
+  const config = view?.config?.[groupId];
+  const blend = config?.layers?.blendConfig;
+  const outline = config?.segmentGroup;
+  return {
+    fillOpacity: numberOrUndefined(blend?.opacity),
+    visible: booleanOrUndefined(blend?.visibility),
+    outlineOpacity: numberOrUndefined(outline?.outlineOpacity),
+    outlineThickness: numberOrUndefined(outline?.outlineThickness),
+  };
+};
+
+const legacyGroupDisplay = (manifest: any, groupId: string) => {
+  // These controls were synchronized across 2D views. Read the first value
+  // each view supplies so a partially populated view does not hide another.
+  return Object.values(manifest.viewByID ?? {})
+    .map((view) => legacyViewGroupDisplay(view, groupId))
+    .reduce(
+      (display, next) => ({
+        fillOpacity: display.fillOpacity ?? next.fillOpacity,
+        visible: display.visible ?? next.visible,
+        outlineOpacity: display.outlineOpacity ?? next.outlineOpacity,
+        outlineThickness: display.outlineThickness ?? next.outlineThickness,
+      }),
+      {} as ReturnType<typeof legacyViewGroupDisplay>
+    );
+};
+
+const migrateLegacyDisplay = (manifest: any) => {
+  const displayByArtifact = new Map<
+    string,
+    ReturnType<typeof legacyGroupDisplay>
+  >();
+  const outlineThicknessByParent = new Map<string, number>();
+  const artifacts: any[] = Array.isArray(manifest.segmentationArtifacts)
+    ? manifest.segmentationArtifacts
+    : [];
+
+  artifacts.forEach((artifact) => {
+    const display = legacyGroupDisplay(manifest, artifact.id);
+    displayByArtifact.set(artifact.id, display);
+    if (
+      !outlineThicknessByParent.has(artifact.parentImage) &&
+      display.outlineThickness !== undefined
+    ) {
+      // Several legacy groups can collapse into one segmentation. The new
+      // model has one thickness for it, so the first configured group in
+      // artifact order deterministically supplies that shared value.
+      outlineThicknessByParent.set(
+        artifact.parentImage,
+        display.outlineThickness
+      );
+    }
+
+    if (!artifact.pendingDecode && !artifact.pendingSplit) return;
+    if (display.fillOpacity !== undefined) {
+      artifact.pendingFillOpacity = display.fillOpacity;
+    }
+    if (display.outlineOpacity !== undefined) {
+      artifact.pendingOutlineOpacity = display.outlineOpacity;
+    }
+    if (display.visible !== undefined) {
+      artifact.pendingVisibility = display.visible;
+    }
+  });
+
+  const segmentations: any[] = Array.isArray(manifest.segmentations)
+    ? manifest.segmentations
+    : [];
+  segmentations.forEach((segmentation) => {
+    if (
+      segmentation.outlineThickness === undefined &&
+      outlineThicknessByParent.has(segmentation.parentImage)
+    ) {
+      segmentation.outlineThickness = outlineThicknessByParent.get(
+        segmentation.parentImage
+      );
+    }
+
+    (Array.isArray(segmentation.segments) ? segmentation.segments : []).forEach(
+      (segment: any) => {
+        const artifactId = segment.representations?.labelmap?.artifactId;
+        const display = displayByArtifact.get(artifactId);
+        if (!display) return;
+        if (display.fillOpacity !== undefined) {
+          segment.fillOpacity = display.fillOpacity;
+        }
+        if (display.outlineOpacity !== undefined) {
+          segment.outlineOpacity = display.outlineOpacity;
+        }
+        if (display.visible !== undefined) {
+          segment.visible = (segment.visible ?? true) && display.visible;
+        }
+      }
+    );
+  });
+
+  // Artifact ids are no longer view layers. Keeping these consumed configs
+  // would restore them under an unmapped data id after the group is split.
+  const artifactIds = new Set(artifacts.map((artifact) => artifact.id));
+  Object.values(manifest.viewByID ?? {}).forEach((view: any) => {
+    if (!view?.config) return;
+    artifactIds.forEach((artifactId) => {
+      const config = view.config[artifactId];
+      if (!config) return;
+      delete config.layers;
+      delete config.segmentGroup;
+      if (Object.keys(config).length === 0) delete view.config[artifactId];
+    });
+  });
 };
 
 // 6.4.0 -> 7.0.0 moves identity off segment groups and off the vector tools'
@@ -246,6 +374,11 @@ const migrate640To700 = (inputManifest: any) => {
   const artifacts = groups.map((group) => {
     const metadata = group.metadata ?? {};
     const descriptors = metadata.segments;
+    const parentImage = metadata.parentImage;
+
+    if (!segmentsByParent.has(parentImage)) {
+      segmentsByParent.set(parentImage, []);
+    }
 
     descriptorValues(descriptors).forEach((value) => {
       const mask = descriptors.byValue[String(value)];
@@ -253,7 +386,7 @@ const migrate640To700 = (inputManifest: any) => {
       if (group.id === activeGroupId && value === activeValue) {
         activeSegmentId = segmentId;
       }
-      addSegment(metadata.parentImage, {
+      addSegment(parentImage, {
         // Every {group, value} is its own segment, equal names included.
         id: segmentId,
         name: mask.name,
@@ -272,7 +405,7 @@ const migrate640To700 = (inputManifest: any) => {
 
     return {
       id: group.id,
-      parentImage: metadata.parentImage,
+      parentImage,
       name: metadata.name,
       ...(group.path === undefined ? {} : { path: group.path }),
       ...(group.dataSourceId === undefined
@@ -284,7 +417,7 @@ const migrate640To700 = (inputManifest: any) => {
       // been applied, so the value to reactivate travels with the artifact.
       ...(!descriptors &&
       group.id === activeGroupId &&
-      activeValue !== undefined
+      typeof activeValue === 'number'
         ? { pendingActiveValue: activeValue }
         : {}),
     };
@@ -362,16 +495,8 @@ const migrate640To700 = (inputManifest: any) => {
   if (segmentations.length > 0) manifest.segmentations = segmentations;
   delete manifest.segmentGroups;
 
+  migrateLegacyDisplay(manifest);
   manifest.version = '7.0.0';
-  return manifest;
-};
-
-// 7.0.0 -> 7.1.0 adds display state (fill/outline opacity, outline thickness)
-// to segments and segmentations. Fields are optional with zod defaults, so
-// this step only stamps the version.
-const migrate700To710 = (inputManifest: any) => {
-  const manifest = JSON.parse(JSON.stringify(inputManifest));
-  manifest.version = '7.1.0';
   return manifest;
 };
 
@@ -384,7 +509,6 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
-    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
-    migrateOrPass(['7.0.0'], migrate700To710)
+    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700)
   );
 };

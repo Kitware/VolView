@@ -107,7 +107,7 @@ const boundTo = (segmentation: any, artifactId: string, labelValue: number) =>
       segment.representations.labelmap?.labelValue === labelValue
   );
 
-describe('migrate640To700 — structural stage', () => {
+describe('migrate640To700: structural stage', () => {
   it('reaches the current manifest version from every legacy version', () => {
     ['6.2.0', '6.3.0', '6.4.0'].forEach((version) => {
       const migrated = migrateManifest(
@@ -187,7 +187,7 @@ describe('migrate640To700 — structural stage', () => {
     );
 
     const parsed = ManifestSchema.parse(migrated);
-    // Parse fills the 7.1.0 display-state defaults the raw migration output
+    // Parse fills the 7.0.0 display-state defaults the raw migration output
     // does not carry; add those to the raw output before checking the
     // migration itself is otherwise lossless.
     const expectedSegmentations = migrated.segmentations.map((wire: any) => ({
@@ -203,6 +203,61 @@ describe('migrate640To700 — structural stage', () => {
     }));
     expect(parsed.segmentations).toEqual(expectedSegmentations);
     expect(parsed.segmentationArtifacts![0]).toMatchObject({ id: 'sg-1' });
+  });
+
+  it.each([
+    {
+      source: 'a named URI',
+      dataSources: [
+        { id: 10, type: 'uri', uri: 'https://ex/scan.nrrd', name: 'CT Chest' },
+      ],
+      expected: 'CT Chest',
+    },
+    {
+      source: 'an unnamed URI',
+      dataSources: [{ id: 10, type: 'uri', uri: 'https://ex/scan.nrrd' }],
+      expected: 'scan.nrrd',
+    },
+    {
+      source: 'a local file',
+      dataSources: [
+        { id: 10, type: 'file', fileId: 42, fileType: 'application/nrrd' },
+      ],
+      datasetFilePath: { '42': 'datasets/42/patient.nrrd' },
+      expected: 'patient.nrrd',
+    },
+    {
+      source: 'an archive member',
+      dataSources: [
+        { id: 10, type: 'uri', uri: 'https://ex/study.zip' },
+        { id: 11, type: 'archive', path: 'study/series/scan.nrrd', parent: 10 },
+      ],
+      datasetSourceId: 11,
+      expected: 'scan.nrrd',
+    },
+    {
+      source: 'a collection',
+      dataSources: [
+        { id: 10, type: 'collection', sources: [11, 12] },
+        { id: 11, type: 'uri', uri: 'https://ex/first.nrrd' },
+        { id: 12, type: 'uri', uri: 'https://ex/second.nrrd' },
+      ],
+      expected: 'first.nrrd, second.nrrd',
+    },
+  ])('names a segmentation from $source', (testCase) => {
+    const migrated = migrate({
+      dataSources: testCase.dataSources,
+      datasets: [
+        { id: 'ds-local', dataSourceId: testCase.datasetSourceId ?? 10 },
+      ],
+      ...(testCase.datasetFilePath
+        ? { datasetFilePath: testCase.datasetFilePath }
+        : {}),
+      segmentGroups: [legacyGroup('sg-1', 'ds-local', [TUMOR])],
+    });
+
+    expect(segmentationFor(migrated, 'ds-local').name).toBe(testCase.expected);
+    expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
 
   it('preserves a path-less group’s dataSourceId', () => {
@@ -314,6 +369,108 @@ describe('migrate640To700 — structural stage', () => {
 
     const parsed = ManifestSchema.parse(migrated) as any;
     expect(parsed.segmentationArtifacts[0].pendingActiveValue).toBe(2);
+  });
+
+  it('does not emit a pending active value for a legacy null selection', () => {
+    const migrated = migrate({
+      segmentGroups: [legacyGroup('sg-blind', 'ds-ct')],
+      tools: {
+        paint: { activeSegmentGroupID: 'sg-blind', activeSegment: null },
+      },
+    });
+
+    expect(
+      migrated.segmentationArtifacts[0].pendingActiveValue
+    ).toBeUndefined();
+    expect(() => ManifestSchema.parse(migrated)).not.toThrow();
+  });
+
+  it('moves legacy group display settings onto the segment model', () => {
+    const migrated = migrate({
+      segmentGroups: [legacyGroup('sg-1', 'ds-ct', [TUMOR])],
+      viewByID: {
+        Axial: {
+          config: {
+            'sg-1': {
+              layers: { blendConfig: { opacity: 0.4, visibility: false } },
+              segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
+            },
+          },
+        },
+      },
+    });
+
+    expect(
+      orderedSegments(segmentationFor(migrated, 'ds-ct'))[0]
+    ).toMatchObject({
+      visible: false,
+      fillOpacity: 0.4,
+      outlineOpacity: 0.25,
+    });
+    expect(segmentationFor(migrated, 'ds-ct').outlineThickness).toBe(5);
+    expect(migrated.segmentationArtifacts[0]).toMatchObject({
+      pendingFillOpacity: 0.4,
+      pendingOutlineOpacity: 0.25,
+      pendingVisibility: false,
+    });
+    expect(migrated.viewByID.Axial.config['sg-1']).toBeUndefined();
+  });
+
+  it('uses the first configured thickness when legacy groups are merged', () => {
+    const migrated = migrate({
+      segmentGroups: [
+        legacyGroup('sg-1', 'ds-ct', [TUMOR]),
+        legacyGroup('sg-2', 'ds-ct', [EDEMA]),
+      ],
+      viewByID: {
+        Axial: {
+          config: {
+            'sg-1': {
+              segmentGroup: { outlineOpacity: 1, outlineThickness: 3 },
+            },
+            'sg-2': {
+              segmentGroup: { outlineOpacity: 1, outlineThickness: 7 },
+            },
+            'ds-ct': { slice: { slice: 2 } },
+          },
+        },
+        Coronal: {
+          config: {
+            'sg-1': {
+              segmentGroup: { outlineOpacity: 0.5, outlineThickness: 9 },
+            },
+          },
+        },
+      },
+    });
+
+    expect(segmentationFor(migrated, 'ds-ct').outlineThickness).toBe(3);
+    expect(migrated.viewByID.Axial.config).toEqual({
+      'ds-ct': { slice: { slice: 2 } },
+    });
+    expect(migrated.viewByID.Coronal.config).toEqual({});
+  });
+
+  it('keeps deferred legacy display settings through schema parsing', () => {
+    const migrated = migrate({
+      segmentGroups: [legacyGroup('sg-blind', 'ds-ct')],
+      viewByID: {
+        Axial: {
+          id: 'Axial',
+          name: 'Axial',
+          type: '2D',
+          config: {
+            'sg-blind': {
+              segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
+            },
+          },
+        },
+      },
+    });
+
+    const parsed = ManifestSchema.parse(migrated) as any;
+    expect(parsed.segmentationArtifacts[0].pendingOutlineOpacity).toBe(0.25);
+    expect(parsed.segmentations[0].outlineThickness).toBe(5);
   });
 
   it('maps the active group and value to the matching segment id', () => {
@@ -546,6 +703,7 @@ const snapshot = (imageId: string) => {
   const segmentation = store.getSegmentationForImage(imageId)!;
   const activeId = store.activeSegmentId;
   return {
+    name: segmentation.name,
     segments: segmentation.order.map((segmentId) => {
       const segment = segmentation.segments[segmentId];
       const binding = segment.representations.labelmap;
@@ -554,6 +712,8 @@ const snapshot = (imageId: string) => {
         color: [...segment.color],
         visible: segment.visible,
         locked: segment.locked,
+        fillOpacity: segment.fillOpacity,
+        outlineOpacity: segment.outlineOpacity,
         binding: binding && {
           labelValue: binding.labelValue,
           extent: [...binding.extent],
@@ -566,6 +726,11 @@ const snapshot = (imageId: string) => {
       activeId && segmentation.segments[activeId]
         ? segmentation.segments[activeId].name
         : undefined,
+    display: {
+      fillOpacity: segmentation.fillOpacity,
+      outlineOpacity: segmentation.outlineOpacity,
+      outlineThickness: segmentation.outlineThickness,
+    },
   };
 };
 
@@ -577,6 +742,28 @@ const legacyScene = () =>
       { id: 3, type: 'uri', uri: 'https://ex/tumor.seg.nrrd', name: 'Tumor' },
     ],
     datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
+    viewByID: {
+      Axial: {
+        id: 'Axial',
+        name: 'Axial',
+        type: '2D',
+        config: {
+          'sg-1': {
+            layers: {
+              colorBy: { arrayName: '', location: 'pointData' },
+              transferFunction: { preset: '', mappingRange: [0, 1] },
+              opacityFunction: {
+                mode: 0,
+                gaussians: [],
+                mappingRange: [0, 1],
+              },
+              blendConfig: { opacity: 0.4, visibility: false },
+            },
+            segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
+          },
+        },
+      },
+    },
     segmentGroups: [
       {
         id: 'sg-1',
@@ -618,8 +805,20 @@ const legacyScene = () =>
     },
   });
 
-const restoreLegacyScene = async () => {
-  const manifest = ManifestSchema.parse(migrateManifest(legacyScene()));
+const legacyLocalFileScene = () => {
+  const manifest = JSON.parse(legacyScene());
+  manifest.dataSources[0] = {
+    id: 1,
+    type: 'file',
+    fileId: 10,
+    fileType: 'application/nrrd',
+  };
+  manifest.datasetFilePath = { '10': 'datasets/10/patient.nrrd' };
+  return JSON.stringify(manifest);
+};
+
+const restoreLegacyScene = async (scene = legacyScene()) => {
+  const manifest = ManifestSchema.parse(migrateManifest(scene));
   await seatImage('store-ct', 'CT');
   await seatImage(
     'store-tumor',
@@ -636,7 +835,7 @@ const restoreLegacyScene = async () => {
   await nextTick();
 };
 
-describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
+describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -678,6 +877,30 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
     expect(polygons.toolByID[polygons.toolIDs[0]].labelName).toBe('Drawn');
   });
 
+  it('restores legacy display state onto durable segments', async () => {
+    await restoreLegacyScene();
+
+    const segmentation =
+      useSegmentationStore().getSegmentationForImage('store-ct')!;
+    const [tumor, edema, drawn] = segmentation.order.map(
+      (id) => segmentation.segments[id]
+    );
+    expect([tumor, edema]).toEqual([
+      expect.objectContaining({
+        visible: false,
+        fillOpacity: 0.4,
+        outlineOpacity: 0.25,
+      }),
+      expect.objectContaining({
+        visible: false,
+        fillOpacity: 0.4,
+        outlineOpacity: 0.25,
+      }),
+    ]);
+    expect(drawn).toMatchObject({ fillOpacity: 1, outlineOpacity: 1 });
+    expect(segmentation.outlineThickness).toBe(5);
+  });
+
   it('offers a legacy label no tool used as a template', async () => {
     await restoreLegacyScene();
 
@@ -696,8 +919,9 @@ describe('migrated 6.4.0 state file — loaded stage and round trip', () => {
   });
 
   it('re-saves as 7.0.0 and reloads identically', async () => {
-    await restoreLegacyScene();
+    await restoreLegacyScene(legacyLocalFileScene());
     const before = snapshot('store-ct');
+    expect(before.name).toBe('patient.nrrd');
 
     const io = makeArtifactIO();
     const zip = new JSZip();

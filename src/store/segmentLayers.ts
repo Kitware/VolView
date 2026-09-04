@@ -83,8 +83,6 @@ export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
 
 /**
  * A mask's buffer, positioned where one row of the shared box starts in it.
- * Pairing the buffer with its offset keeps `rowsIntersect` inside the four
- * parameters the complexity ratchet allows.
  */
 type MaskRow = { scalars: Uint8Array; from: number };
 

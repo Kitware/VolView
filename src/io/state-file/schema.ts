@@ -362,6 +362,11 @@ export const SegmentationArtifact = z
     // Also migration-only: the legacy active paint value, reactivated once the
     // decode above has created the segments it names.
     pendingActiveValue: z.number().optional(),
+    // Also migration-only: display state applied after a legacy artifact has
+    // been decoded into segments.
+    pendingFillOpacity: z.number().optional(),
+    pendingOutlineOpacity: z.number().optional(),
+    pendingVisibility: z.boolean().optional(),
   })
   .refine(
     (data) => data.path !== undefined || data.dataSourceId !== undefined,

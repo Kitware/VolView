@@ -2,16 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { exists, hits, isTest, read, sourceFiles } from './sourceAudit';
 
-// ---------------------------------------------------------------------------
-// The residual group infrastructure is gone, not merely unreferenced. Deleting
-// a module is only real when nothing imports it, so these assertions are the
-// exit greps, run by the suite instead of by hand.
-//
-// The identity audit is folded in here because it analyzed the deleted module
-// and cannot assert against a file that is not there.
-// ---------------------------------------------------------------------------
+// Source-level checks keep deleted group infrastructure from returning.
 
-const IDENTITY_AUDIT = 'src/__tests__/segmentIdentityAudit.spec.ts';
 const SCALAR_PROBE = 'src/components/tools/ScalarProbe.vue';
 const SEGMENTATION_REPRESENTATION =
   'src/components/vtk/VtkSegmentationSliceRepresentation.vue';
@@ -52,14 +44,10 @@ describe('the group layer is deleted', () => {
   });
 
   it('leaves no spec asserting against the deleted module', () => {
-    // Retired or re-pointed, but never left analyzing a file that is gone.
     const specs = sourceFiles(import.meta.url, 'src').filter(isTest);
     expect(hits(specs, /store\/segmentGroups'|useSegmentGroupStore/)).toEqual(
       []
     );
-    expect(
-      exists(IDENTITY_AUDIT) ? hits([IDENTITY_AUDIT], /segmentGroups/) : []
-    ).toEqual([]);
   });
 });
 
@@ -67,18 +55,13 @@ describe('the value-keyed projection has one publisher', () => {
   it('reads segment names from the store projection in the probe', () => {
     const source = read(SCALAR_PROBE);
     expect(source).toContain('labelmapSegmentsByArtifact');
-    // No second map from label value to a segment's display fields: a computed
-    // key on a label value is the signature of rebuilding what the store
-    // already publishes.
+    // A computed label-value key would duplicate the store projection.
     expect(source).not.toMatch(/\[[^\]]*labelValue[^\]]*\]\s*:/);
   });
 
   it('declares the outline settings once, on the segment model', () => {
-    // The per-view group config and the segmentation's own outline fields were
-    // two copies of the same setting; the model is the one that round trips, so
-    // the view-config shape goes with the store that held it.
+    // The segment model is the sole owner of outline settings.
     expect(hits(production, /SegmentGroupConfig/)).toEqual([]);
-    // The renderer still applies an outline; it just reads the surviving copy.
     expect(read(SEGMENTATION_REPRESENTATION)).toMatch(/outlineThickness/);
   });
 });

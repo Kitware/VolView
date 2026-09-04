@@ -12,6 +12,7 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '../segmentations';
 
 export enum ProcessType {
@@ -58,8 +59,10 @@ type ProcessState = StartState | ComputingState | PreviewingState;
  */
 export type ProcessTarget = {
   parentImageId: string;
+  parentDimensions: [number, number, number];
   segmentId: string;
   voxels: VoxelStorage;
+  maskExtent: Extent3D;
   labelValue: number;
 };
 
@@ -199,6 +202,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   const segmentationStore = useSegmentationStore();
+  const imageCacheStore = useImageCacheStore();
   const paintStore = usePaintToolStore();
   const messageStore = useMessageStore();
   const { currentImageID } = useCurrentImage('global');
@@ -221,27 +225,46 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     activeProcessType.value = processType;
   }
 
-  const targetFor = (
-    parentImageId: string,
-    segment: { segmentId: string; labelValue: number }
-  ): ProcessTarget => ({
-    parentImageId,
-    segmentId: segment.segmentId,
-    voxels: segmentationStore.segmentVoxels(segment.segmentId),
-    labelValue: segment.labelValue,
-  });
+  function targetFor(parentImageId: string, segmentId: string) {
+    const parent = segmentationStore.getSegmentationForImage(parentImageId);
+    const voxels = segmentationStore.segmentVoxels(segmentId);
+    const binding = voxels.binding();
+    const image = parent && imageCacheStore.getVtkImageData(parentImageId);
+    if (
+      !binding ||
+      isEmptyExtent(binding.extent) ||
+      !voxels.exists() ||
+      !image
+    ) {
+      return undefined;
+    }
+    return {
+      parentImageId,
+      parentDimensions: [...image.getDimensions()] as [number, number, number],
+      segmentId,
+      voxels,
+      maskExtent: [...binding.extent] as Extent3D,
+      labelValue: binding.labelValue,
+    } satisfies ProcessTarget;
+  }
 
-  // Segment-scoped: resolveEditTarget creates the segment if needed, then
-  // storage is allocated for it.
   function resolveSegmentScoped(imageId: string): ResolvedRun | undefined {
-    const segmentId = segmentationStore.resolveEditTarget(imageId);
+    const segmentId = segmentationStore.findEditTarget(imageId);
+    if (!segmentId) {
+      messageStore.addError('No active segment selected');
+      return undefined;
+    }
     if (segmentationStore.getSegment(segmentId).locked) {
       messageStore.addError('Cannot process locked segment');
       return undefined;
     }
-    const { labelValue } = segmentationStore.ensureLabelmapBinding(segmentId);
+    const target = targetFor(imageId, segmentId);
+    if (!target) {
+      messageStore.addError('No segment content to process');
+      return undefined;
+    }
     return {
-      targets: [targetFor(imageId, { segmentId, labelValue })],
+      targets: [target],
       watchedSegmentId: segmentId,
     };
   }
@@ -262,7 +285,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   function resolveEverySegment(imageId: string): ResolvedRun | undefined {
     const targets = segmentationStore
       .editableSegments(imageId)
-      .map((segment) => targetFor(imageId, segment));
+      .flatMap(({ segmentId }) => {
+        const target = targetFor(imageId, segmentId);
+        return target ? [target] : [];
+      });
     if (targets.length === 0) {
       messageStore.addError(nothingEditable(imageId));
       return undefined;
@@ -292,9 +318,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       return;
     }
 
-    // An all-segments process runs once per editable segment. Only the
-    // segment-scoped path goes through resolveEditTarget, which is the one call
-    // that creates segments.
     const resolved = requiresActiveSegment
       ? resolveSegmentScoped(imageId)
       : resolveEverySegment(imageId);

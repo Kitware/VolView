@@ -43,7 +43,7 @@ declareManifestRefs('primarySelection', (manifest) =>
 );
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '7.1.0';
+export const MANIFEST_VERSION = '7.0.0';
 
 type ManifestCandidate = Record<string, unknown>;
 
@@ -242,7 +242,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   if (process.env.NODE_ENV !== 'production') {
     const resolvable: Record<ManifestRefKind, Set<string>> = {
       dataset: datasetIds,
-      segmentation: new Set(validSegmentations.map((entry) => entry.id)),
       // Every artifact the manifest itself declared, not just the ones that
       // survived pruning: a binding to an artifact dropped here for missing
       // bytes is normalization doing its job, not a cascade that failed to run.
@@ -257,7 +256,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     };
     const kindLabel: Record<ManifestRefKind, string> = {
       dataset: 'dataset',
-      segmentation: 'segmentation',
       segmentationArtifact: 'segmentation artifact',
       view: 'view',
     };

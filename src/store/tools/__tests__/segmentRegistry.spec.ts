@@ -34,6 +34,15 @@ const namesOf = (labels: Record<string, { labelName?: string }>) =>
 const colorsOf = (labels: Record<string, { color?: string }>) =>
   Object.values(labels).map((label) => label.color);
 
+const addLockedSegment = () => {
+  const segmentation = seatAndView('img-1');
+  const segment = segmentationStore().createSegment(segmentation.id, {
+    name: 'Tumor',
+  });
+  segmentationStore().updateSegment(segment.id, { locked: true });
+  return segment;
+};
+
 describe('shared segment registry', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -117,6 +126,27 @@ describe('shared segment registry', () => {
     segmentationStore().deleteSegment(segment.id);
 
     expect(registry.labels.value).toEqual({});
+  });
+
+  it('rejects editing a locked segment', () => {
+    const segment = addLockedSegment();
+    const registry = createSharedSegmentRegistry();
+
+    expect(registry.isLabelLocked(segment.id)).toBe(true);
+    expect(() =>
+      registry.updateLabel(segment.id, { labelName: 'Lesion' })
+    ).toThrow('Cannot edit a locked segment');
+    expect(segmentationStore().getSegment(segment.id).name).toBe('Tumor');
+  });
+
+  it('rejects deleting a locked segment', () => {
+    const segment = addLockedSegment();
+    const registry = createSharedSegmentRegistry();
+
+    expect(() => registry.deleteLabel(segment.id)).toThrow(
+      'Cannot delete a locked segment'
+    );
+    expect(segmentationStore().segmentExists(segment.id)).toBe(true);
   });
 
   it('seeds a segmentation when the viewed image has none', () => {
@@ -298,6 +328,7 @@ describe('local segment registry', () => {
     registry.updateLabel(id, { labelName: 'Lesion' });
 
     expect(registry.labels.value[id]?.labelName).toBe('Lesion');
+    expect(registry.isLabelLocked(id)).toBe(false);
   });
 
   it('recolors through the label api', () => {

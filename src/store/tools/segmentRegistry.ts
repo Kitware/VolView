@@ -32,10 +32,12 @@ export type ToolSegmentRegistry<Props> = {
   // and the annotations that named the old one have to follow it.
   updateLabel: (id: string, patch: Label<Props>) => string;
   deleteLabel: (id: string) => void;
+  isLabelLocked: (id: string) => boolean;
   mergeLabel: (label: Label<Props>) => string;
   mergeLabels: (labels: Maybe<Labels<Props>>) => void;
   findLabel: (name: Maybe<string>) => [string, Label<Props>] | undefined;
   clearDefaultLabels: () => void;
+  replaceConfigLabels: (labels: Maybe<Labels<Props>>) => void;
   mergeLabelForImage: (imageId: Maybe<string>, label: Label<Props>) => string;
   // The segment a label id stands for on an image, minting one for a template
   // that has none there yet. Any other id is handed back untouched.
@@ -112,11 +114,17 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
       list.map((segment) => [segment.id, toLabel(segment)])
     ) as Labels<Props>;
 
-  // Config labels are declared once for the session, before any image loads.
-  // They stay templates: nothing is minted until an edit materializes one, so
-  // the picker offers the viewed image's segments followed by the templates
-  // that image does not have yet.
+  // Saved and user-created templates survive config replacement. Config
+  // templates overlay matching names while their config is active.
   const sessionLabels = ref<Labels<Props>>({}) as Ref<Labels<Props>>;
+  const configLabels = ref<Labels<Props>>({}) as Ref<Labels<Props>>;
+  const effectiveTemplates = computed(
+    () =>
+      ({
+        ...sessionLabels.value,
+        ...configLabels.value,
+      }) as Labels<Props>
+  );
 
   const TEMPLATE_ID_PREFIX = 'config-label:';
   const templateId = (name: string) => `${TEMPLATE_ID_PREFIX}${name}`;
@@ -137,7 +145,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   const templateLabels = computed(
     () =>
       Object.fromEntries(
-        Object.entries(sessionLabels.value).map(([name, props]) => [
+        Object.entries(effectiveTemplates.value).map(([name, props]) => [
           templateId(name),
           toTemplateLabel(name, props),
         ])
@@ -146,7 +154,9 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
 
   const pendingTemplateNames = computed(() => {
     const taken = new Set(currentSegments.value.map((segment) => segment.name));
-    return Object.keys(sessionLabels.value).filter((name) => !taken.has(name));
+    return Object.keys(effectiveTemplates.value).filter(
+      (name) => !taken.has(name)
+    );
   });
 
   const labels = computed(
@@ -203,7 +213,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   const setActiveLabel = (id: string | undefined) => {
     const templateName = id ? templateNameOf(id) : undefined;
     const template = templateName
-      ? sessionLabels.value[templateName]
+      ? effectiveTemplates.value[templateName]
       : undefined;
     if (templateName && template) {
       segmentationStore.setActiveSegmentTemplate({
@@ -252,7 +262,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     (minted) => {
       if (!minted) return;
       const declared = minted.templateName
-        ? sessionLabels.value[minted.templateName]
+        ? effectiveTemplates.value[minted.templateName]
         : undefined;
       if (declared) {
         setProps(minted.segmentId, splitLabel(declared).props);
@@ -275,8 +285,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return segment.id;
   };
 
-  // Declaring config labels neither mints segments nor takes over the
-  // selection: they join the template pool the picker offers.
+  // Restoring templates neither mints segments nor takes over the selection.
   const mergeLabels = (newLabels: Maybe<Labels<Props>>) => {
     const entries = Object.entries(newLabels ?? {});
     if (entries.length === 0) return;
@@ -286,8 +295,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     } as Labels<Props>;
   };
 
-  // Adding a label declares a template, the same road config labels take. It
-  // has no segment to write into until an edit materializes it.
+  // A new label has no segment to write into until an edit materializes it.
   const addLabel = (label: ToolLabel = {} as ToolLabel) => {
     const { labelName, ...props } = label;
     if (!labelName) return '';
@@ -302,8 +310,9 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   const updateTemplate = (name: string, patch: ToolLabel) => {
     const { labelName, ...rest } = patch;
     const renamed = labelName ?? name;
-    const { [name]: existing, ...others } = sessionLabels.value;
-    sessionLabels.value = {
+    const source = configLabels.value[name] ? configLabels : sessionLabels;
+    const { [name]: existing, ...others } = source.value;
+    source.value = {
       ...others,
       [renamed]: { ...existing, ...rest },
     } as Labels<Props>;
@@ -311,13 +320,21 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return templateId(renamed);
   };
 
+  const requireEditableSegment = (id: string, action: 'edit' | 'delete') => {
+    if (!segmentationStore.segmentExists(id)) {
+      throw new Error('Label does not exist');
+    }
+    if (segmentationStore.getSegment(id).locked) {
+      throw new Error(`Cannot ${action} a locked segment`);
+    }
+  };
+
   const updateLabel = (id: string, patch: ToolLabel) => {
     const templateName = templateNameOf(id);
-    if (templateName && sessionLabels.value[templateName]) {
+    if (templateName && effectiveTemplates.value[templateName]) {
       return updateTemplate(templateName, patch);
     }
-    if (!segmentationStore.segmentExists(id))
-      throw new Error('Label does not exist');
+    requireEditableSegment(id, 'edit');
 
     const { identity, props } = splitLabel(patch);
     segmentationStore.updateSegment(id, identity);
@@ -325,15 +342,18 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return id;
   };
 
+  const deleteTemplate = (id: string) => {
+    const name = templateNameOf(id);
+    if (!name || !effectiveTemplates.value[name]) return false;
+    sessionLabels.value = omit(sessionLabels.value, name);
+    configLabels.value = omit(configLabels.value, name);
+    if (activeTemplateName.value === name) setActiveLabel('');
+    return true;
+  };
+
   const deleteLabel = (id: string) => {
-    const templateName = templateNameOf(id);
-    if (templateName && sessionLabels.value[templateName]) {
-      sessionLabels.value = omit(sessionLabels.value, templateName);
-      if (activeTemplateName.value === templateName) setActiveLabel('');
-      return;
-    }
-    if (!segmentationStore.segmentExists(id))
-      throw new Error('Label does not exist');
+    if (deleteTemplate(id)) return;
+    requireEditableSegment(id, 'delete');
 
     // Read before deleting: the store drops the active segment with it.
     const wasActive = id === activeLabel.value;
@@ -344,6 +364,8 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
       setActiveLabel(currentSegments.value[0]?.id ?? '');
     }
   };
+
+  const isLabelLocked = (id: string) => !!findSegment(id)?.locked;
 
   const findLabelForImage = (imageId: Maybe<string>, name: Maybe<string>) => {
     const segmentation = segmentationFor(imageId);
@@ -362,11 +384,11 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   const mergeLabelForImage = (imageId: Maybe<string>, label: ToolLabel) => {
     const existing = findLabelForImage(imageId, label.labelName);
     if (existing) {
+      if (isLabelLocked(existing[0])) return existing[0];
       updateLabel(existing[0], label);
       return existing[0];
     }
     const id = addLabelForImage(imageId, label);
-    if (id) setActiveLabel(id);
     return id;
   };
 
@@ -382,25 +404,44 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   ) => {
     const templateName = labelId ? templateNameOf(labelId) : undefined;
     const template = templateName
-      ? sessionLabels.value[templateName]
+      ? effectiveTemplates.value[templateName]
       : undefined;
     if (!imageId || !templateName || !template) return labelId;
 
+    const label = toTemplateLabel(templateName, template);
     const existing = findLabelForImage(imageId, templateName);
-    if (existing) return existing[0];
-    return addLabelForImage(imageId, toTemplateLabel(templateName, template));
+    const segmentId = existing?.[0] ?? addLabelForImage(imageId, label);
+    segmentationStore.landActiveSegmentTemplate(segmentId, {
+      name: templateName,
+      color: cssColorToRGBA(label.color!),
+    });
+    return segmentId;
   };
 
-  // Loading a second config replaces the first config's labels rather than
-  // adding to them. Segments a template already became are left alone; only
-  // the templates still unmaterialized go.
+  // Segments a config template already became are independent of the template.
   const clearDefaultLabels = () => {
     const active = activeTemplateName.value;
     // An intent pointing at a discarded template would still mint that label on
     // the next edit, with the picker showing nothing selected.
-    if (active && sessionLabels.value[active])
+    if (active && configLabels.value[active])
       segmentationStore.clearActiveSegment();
-    sessionLabels.value = {} as Labels<Props>;
+    configLabels.value = {} as Labels<Props>;
+  };
+
+  const replaceConfigLabels = (configured: Maybe<Labels<Props>>) => {
+    const active = activeTemplateName.value;
+    configLabels.value = { ...(configured ?? {}) } as Labels<Props>;
+    if (!active) return;
+
+    const replacement = effectiveTemplates.value[active];
+    if (!replacement) {
+      segmentationStore.clearActiveSegment();
+      return;
+    }
+    segmentationStore.setActiveSegmentTemplate({
+      name: active,
+      color: cssColorToRGBA(toTemplateLabel(active, replacement).color!),
+    });
   };
 
   // The segments themselves restore with their segmentation; only the props
@@ -410,8 +451,6 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     serialized: Maybe<ToolWireIdentity<Props>>,
     segmentIdMap: Record<string, string>
   ) => {
-    // One assignment, not one per entry: setProps clones the whole record each
-    // time, which is quadratic in the number of restored segments.
     const merged = { ...propsBySegment.value };
     Object.entries(serialized?.segmentProps ?? {}).forEach(
       ([wireId, props]) => {
@@ -423,8 +462,6 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     );
     propsBySegment.value = merged;
 
-    // The saved scene's templates win over the session's: restoring reproduces
-    // the scene that was saved.
     sessionLabels.value = {
       ...sessionLabels.value,
       ...serialized?.templates,
@@ -436,7 +473,8 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     return (labelId: Maybe<string>) => {
       if (!labelId) return '';
       const templateName = templateNameOf(labelId);
-      if (templateName) return sessionLabels.value[templateName] ? labelId : '';
+      if (templateName)
+        return effectiveTemplates.value[templateName] ? labelId : '';
       return segmentIdMap[labelId] || '';
     };
   };
@@ -447,7 +485,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     segmentProps: Object.fromEntries(
       Object.entries(propsBySegment.value).filter(([id]) => !!findSegment(id))
     ) as Labels<Props>,
-    templates: sessionLabels.value,
+    templates: effectiveTemplates.value,
   });
 
   return {
@@ -458,10 +496,12 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     addLabel,
     updateLabel,
     deleteLabel,
+    isLabelLocked,
     mergeLabel,
     mergeLabels,
     findLabel,
     clearDefaultLabels,
+    replaceConfigLabels,
     mergeLabelForImage,
     materializeLabelForImage,
     serializeIdentity,
@@ -482,6 +522,51 @@ export const createLocalSegmentRegistry = <Props extends object = object>(
   } as Props);
   labels.mergeLabels(initialLabels);
 
+  const configCreatedIds = new Map<string, string>();
+  const labelsUnderConfig = new Map<string, ToolLabel>();
+
+  const replaceConfigLabels = (configured: Maybe<Labels<Props>>) => {
+    const activeBefore = labels.activeLabel.value;
+    const next = { ...(configured ?? {}) } as Labels<Props>;
+
+    labelsUnderConfig.forEach((label, id) => {
+      if (labels.labels.value[id]) labels.replaceLabel(id, label);
+    });
+    labelsUnderConfig.clear();
+
+    configCreatedIds.forEach((id, labelName) => {
+      const props = next[labelName];
+      if (!props || !labels.labels.value[id]) {
+        if (labels.labels.value[id]) labels.deleteLabel(id);
+        configCreatedIds.delete(labelName);
+        return;
+      }
+      labels.replaceLabel(id, {
+        ...annotationToolLabelDefault,
+        ...newLabelDefault,
+        ...props,
+        labelName,
+      } as ToolLabel);
+    });
+
+    labels.clearDefaultLabels();
+    Object.entries(next).forEach(([labelName, props]) => {
+      if (configCreatedIds.has(labelName)) return;
+      const label = { ...props, labelName } as ToolLabel;
+      const existing = labels.findLabel(labelName);
+      if (existing) {
+        const [id, previous] = existing;
+        labelsUnderConfig.set(id, { ...previous });
+        labels.updateLabel(id, label);
+        return;
+      }
+      configCreatedIds.set(labelName, labels.mergeLabelWithoutSelection(label));
+    });
+    if (activeBefore && !labels.labels.value[activeBefore]) {
+      labels.setActiveLabel(Object.keys(labels.labels.value)[0]);
+    }
+  };
+
   return {
     ...labels,
     allLabels: labels.labels,
@@ -490,8 +575,10 @@ export const createLocalSegmentRegistry = <Props extends object = object>(
       labels.updateLabel(id, patch);
       return id;
     },
+    isLabelLocked: () => false,
+    replaceConfigLabels,
     mergeLabelForImage: (_imageId: Maybe<string>, label: ToolLabel) =>
-      labels.mergeLabel(label),
+      labels.mergeLabelWithoutSelection(label),
     // Local labels are the tool store's own, so there is no template to mint.
     materializeLabelForImage: (
       _imageId: Maybe<string>,

@@ -280,10 +280,7 @@ const mergeReferencedLabels = (
   const names = new Set(
     tools.flatMap((tool) => (tool.labelName ? [tool.labelName] : []))
   );
-  // A merge that lands on a new name adds a label, and adding one activates it.
-  // Applying a result is not the user picking a label, so the picker is put back.
-  const activeBefore = store.activeLabel;
-  const ids = Object.fromEntries(
+  return Object.fromEntries(
     [...names].map((labelName) => [
       labelName,
       store.mergeLabelForImage(imageId, {
@@ -292,8 +289,6 @@ const mergeReferencedLabels = (
       }),
     ])
   );
-  store.setActiveLabel(activeBefore);
-  return ids;
 };
 
 // `labelName` is deliberately NOT passed through: addTool re-derives it from

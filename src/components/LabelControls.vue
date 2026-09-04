@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, reactive } from 'vue';
 import EditableChipList from '@/src/components/EditableChipList.vue';
-import { LabelsStore } from '@/src/store/tools/useLabels';
+import type { Label, Labels } from '@/src/store/tools/useLabels';
 import type { AnnotationTool } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
 import ToolLabelEditor from '@/src/components/ToolLabelEditor.vue';
@@ -9,9 +9,18 @@ import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import { nonNullable } from '@/src/utils';
 import { NO_NAME } from '@/src/constants';
 
-const props = defineProps<{
-  labelsStore: LabelsStore<Pick<AnnotationTool, 'strokeWidth'>>;
-}>();
+type LabelProps = Pick<AnnotationTool, 'strokeWidth'>;
+type LabelControlStore = {
+  labels: Labels<LabelProps>;
+  activeLabel: string | undefined;
+  setActiveLabel: (id: string | undefined) => void;
+  addLabel: (label?: Label<LabelProps>) => string;
+  updateLabel: (id: string, patch: Label<LabelProps>) => unknown;
+  deleteLabel: (id: string) => void;
+  isLabelLocked: (id: string) => boolean;
+};
+
+const props = defineProps<{ labelsStore: LabelControlStore }>();
 
 const labels = computed(() =>
   Object.entries(props.labelsStore.labels).map(([id, label]) => ({
@@ -74,6 +83,7 @@ const createLabel = () => {
 };
 
 function startEditing(label: LabelID) {
+  if (props.labelsStore.isLabelLocked(label)) return;
   editDialog.value = true;
   editingLabelID.value = label;
   if (editingLabel.value) {
@@ -84,7 +94,11 @@ function startEditing(label: LabelID) {
 }
 
 function stopEditing(commit: boolean) {
-  if (editingLabelID.value && commit) {
+  if (
+    editingLabelID.value &&
+    commit &&
+    !props.labelsStore.isLabelLocked(editingLabelID.value)
+  ) {
     props.labelsStore.updateLabel(editingLabelID.value, editState);
   }
   editDialog.value = false;
@@ -92,7 +106,10 @@ function stopEditing(commit: boolean) {
 }
 
 function deleteEditingLabel() {
-  if (editingLabelID.value) {
+  if (
+    editingLabelID.value &&
+    !props.labelsStore.isLabelLocked(editingLabelID.value)
+  ) {
     props.labelsStore.deleteLabel(editingLabelID.value);
   }
   stopEditing(false);
@@ -119,6 +136,7 @@ function deleteEditingLabel() {
         </template>
         <template #item-append="{ key }">
           <v-btn
+            v-if="!labelsStore.isLabelLocked(key as string)"
             icon="mdi-pencil"
             size="small"
             density="compact"

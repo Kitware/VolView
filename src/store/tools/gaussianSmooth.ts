@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import * as Comlink from 'comlink';
-import type { VoxelStorage } from '@/src/types/segmentation';
 import { gaussianSmoothLabelMapWorker } from '@/src/core/tools/paint/gaussianSmooth.worker';
 import type { ProcessTarget } from '@/src/store/tools/paintProcess';
 
@@ -32,9 +31,10 @@ async function getWorker() {
 }
 
 async function gaussianSmoothLabelMap(
-  voxels: VoxelStorage,
+  target: ProcessTarget,
   params: { sigma: number; label: number }
 ) {
+  const { voxels } = target;
   const labelMap = voxels.image();
   // The worker structured-clones its input, so the live buffer is right here.
   const originalData = voxels.scalars();
@@ -47,6 +47,8 @@ async function gaussianSmoothLabelMap(
     data: originalData,
     dimensions,
     spacing,
+    maskExtent: target.maskExtent,
+    parentDimensions: target.parentDimensions,
     params,
   };
 
@@ -66,7 +68,7 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
       label: target.labelValue,
     };
 
-    return gaussianSmoothLabelMap(target.voxels, params);
+    return gaussianSmoothLabelMap(target, params);
   }
 
   return {

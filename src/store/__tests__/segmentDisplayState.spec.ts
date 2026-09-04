@@ -79,7 +79,7 @@ describe('segmentation display state', () => {
       expect(segment.outlineOpacity).toBe(1);
     });
 
-    it('gives a decoded segment catalog the same defaults', () => {
+    it('takes display state from a decoded segment descriptor', () => {
       const [segment] = store().splitLabelmapIntoSegments(
         'img-1',
         makeImportedLabelmap(),
@@ -90,12 +90,14 @@ describe('segmentation display state', () => {
             color: [255, 0, 0, 255],
             visible: false,
             locked: true,
+            fillOpacity: 0.4,
+            outlineOpacity: 0.25,
           },
         ]
       );
 
-      expect(segment.fillOpacity).toBe(1);
-      expect(segment.outlineOpacity).toBe(1);
+      expect(segment.fillOpacity).toBe(0.4);
+      expect(segment.outlineOpacity).toBe(0.25);
       // The descriptor's own flags still win.
       expect(segment.visible).toBe(false);
       expect(segment.locked).toBe(true);

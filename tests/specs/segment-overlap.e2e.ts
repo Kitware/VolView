@@ -11,7 +11,7 @@ import {
   addSegment,
   lockSegment,
   openAnnotationSegments,
-  showFirstSegmentGroup,
+  waitForNamedSegments,
 } from './segmentationTestUtils';
 
 const SAVE_TIMEOUT = 40_000;
@@ -77,7 +77,7 @@ describe('Painting one segment over another', function () {
     const views2D = await volViewPage.getViews2D();
     await volViewPage.paintStrokeOnView(views2D[0]);
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
   });
 
   // One file carries one label per voxel, so the save announces an archive

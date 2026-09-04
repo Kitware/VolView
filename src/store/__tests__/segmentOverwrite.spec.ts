@@ -103,6 +103,18 @@ describe('clearing the other segments of an image', () => {
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
   });
 
+  it('does not clear an aliased offset outside a neighbour’s extent', () => {
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
+    seedVoxel(tumor, [1, 2, 1]);
+    store().segmentVoxels(tumor).ensureContains([1, 2, 1, 2, 1, 2]);
+    seedVoxel(node, [3, 1, 1]);
+
+    clearFor(node)?.(3, 1, 1);
+
+    expect(maskValueAt(tumor, [1, 2, 1])).toBe(labelValueOf(tumor));
+  });
+
   it('allocates nothing for a segment that has no storage', () => {
     const tumor = addSegment('img-1', 'Tumor');
     const unbound = addSegment('img-1', 'Unbound');

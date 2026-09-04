@@ -158,7 +158,7 @@ const invalidNames = computed(() => {
   const names = new Set(
     segments.value
       .filter((segment) => segment.id !== editingSegmentId.value)
-      .map((segment) => segment.name)
+      .map((segment) => segment.name.trim())
   );
   return names;
 });
@@ -324,6 +324,7 @@ function deleteEditingSegment() {
     <segment-editor
       v-if="!!editingSegment"
       v-model:name="editState.name"
+      :original="editingSegment.name"
       v-model:color="editState.color"
       v-model:fillOpacity="editState.fillOpacity"
       v-model:outlineOpacity="editState.outlineOpacity"

@@ -57,7 +57,7 @@ describe('SegmentationArtifact.source', () => {
     expect(parsed.source).toEqual(artifactWithSource.source);
   });
 
-  it('is optional — a hand-painted artifact without source still validates', () => {
+  it('is optional for a hand-painted artifact without source', () => {
     expect(() => SegmentationArtifact.parse(baseArtifact)).not.toThrow();
     expect(SegmentationArtifact.parse(baseArtifact).source).toBeUndefined();
   });
@@ -161,9 +161,8 @@ describe('paint wire block', () => {
 
 describe('manifest version', () => {
   // The segment model replaces `segmentGroups` with `segmentations` plus
-  // `segmentationArtifacts`, a breaking wire change. 7.1.0 adds display state
-  // to segments and segmentations, additively.
-  it('pins MANIFEST_VERSION at 7.1.0', () => {
-    expect(MANIFEST_VERSION).toBe('7.1.0');
+  // `segmentationArtifacts`, including display state in that breaking change.
+  it('pins MANIFEST_VERSION at 7.0.0', () => {
+    expect(MANIFEST_VERSION).toBe('7.0.0');
   });
 });

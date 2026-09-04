@@ -136,17 +136,35 @@ describe('composing the segments of an image into one labelmap', () => {
     );
   });
 
-  it('skips a segment with no storage and one whose mask is empty', () => {
-    addSegment('img-1', 'Unbound');
+  it('describes segments with no voxels without allocating storage', () => {
+    const unbound = addSegment('img-1', 'Unbound');
     const empty = addSegment('img-1', 'Empty');
     store().segmentVoxels(empty).materialize();
     const tumor = addSegment('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
-    const scalars = compositeScalars('img-1');
+    const { labelmap, segments } = store().compositeLabelmap('img-1');
+    const scalars = maskScalars(labelmap);
 
+    expect(segments.map((segment) => segment.name)).toEqual([
+      'Unbound',
+      'Empty',
+      'Tumor',
+    ]);
+    expect(new Set(segments.map((segment) => segment.value)).size).toBe(3);
+    expect(store().resolveLabelmapBinding(unbound)).toBeUndefined();
     expect(scalars[parentOffset(1, 1, 1)]).toBe(labelValueOf(tumor));
     expect(Array.from(scalars).filter((value) => value !== 0)).toHaveLength(1);
+  });
+
+  it('refuses more segment descriptors than a byte labelmap can encode', () => {
+    Array.from({ length: 256 }, (_, index) =>
+      addSegment('img-1', `Segment ${index + 1}`)
+    );
+
+    expect(() => store().compositeLabelmap('img-1')).toThrow(
+      /at most 255 segments/
+    );
   });
 
   it('describes the image’s segments in order, keyed by label value', () => {

@@ -22,15 +22,13 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
   const labels = ref<ToolLabels>({});
 
   const activeLabel = ref<string | undefined>();
-  // Accepts undefined so a caller that must not disturb the picker — applying a
-  // job's annotations result — can put back an activeLabel that was never set.
   const setActiveLabel = (id: string | undefined) => {
     activeLabel.value = id;
   };
 
   let nextToolColorIndex = 0;
 
-  const addLabel = (label: ToolLabel = {}) => {
+  const createLabel = (label: ToolLabel, activate: boolean) => {
     const id = useIdStore().nextId();
     labels.value[id] = {
       ...labelDefault,
@@ -41,9 +39,11 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
 
     nextToolColorIndex = (nextToolColorIndex + 1) % TOOL_COLORS.length;
 
-    setActiveLabel(id);
+    if (activate) setActiveLabel(id);
     return id;
   };
+
+  const addLabel = (label: ToolLabel = {}) => createLabel(label, true);
 
   const deleteLabel = (id: LabelID) => {
     if (!(id in labels.value)) throw new Error('Label does not exist');
@@ -63,6 +63,11 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
     if (!(id in labels.value)) throw new Error('Label does not exist');
 
     labels.value = { ...labels.value, [id]: { ...labels.value[id], ...patch } };
+  };
+
+  const replaceLabel = (id: LabelID, label: ToolLabel) => {
+    if (!(id in labels.value)) throw new Error('Label does not exist');
+    labels.value = { ...labels.value, [id]: label };
   };
 
   // Flag to indicate if should clear existing labels
@@ -85,7 +90,7 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
    * param label: label to merge
    * param clearDefault: if true, clear initial labels, do nothing if initial labels already cleared
    */
-  const mergeLabel = (label: ToolLabel) => {
+  const mergeLabelWithSelection = (label: ToolLabel, activate: boolean) => {
     const { labelName } = label;
     const matchingName = findLabel(labelName);
 
@@ -95,8 +100,13 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
       return existingID;
     }
 
-    return addLabel(label);
+    return createLabel(label, activate);
   };
+
+  const mergeLabel = (label: ToolLabel) => mergeLabelWithSelection(label, true);
+
+  const mergeLabelWithoutSelection = (label: ToolLabel) =>
+    mergeLabelWithSelection(label, false);
 
   /*
    * If input label has the same name as existing label, update existing label with input label properties.
@@ -117,9 +127,9 @@ export const useLabels = <Props>(newLabelDefault: Props) => {
     addLabel,
     deleteLabel,
     updateLabel,
-    // Exposed for callers that need the merged label's id back — applying a
-    // job's annotations result maps wire label NAMES to store label ids.
+    replaceLabel,
     mergeLabel,
+    mergeLabelWithoutSelection,
     mergeLabels,
     findLabel,
     clearDefaultLabels,

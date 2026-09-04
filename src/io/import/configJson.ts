@@ -203,8 +203,7 @@ const applyLabels = (manifest: Config) => {
   ) => {
     const labelsOrFallback = defaultLabelsIfUndefined(maybeLabels);
     if (!labelsOrFallback) return;
-    store.clearDefaultLabels();
-    store.mergeLabels(labelsOrFallback);
+    store.replaceConfigLabels(labelsOrFallback);
   };
 
   const { rulerLabels, rectangleLabels, polygonLabels } = manifest.labels;

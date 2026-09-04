@@ -9,7 +9,7 @@ import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 // Leaf preparation for composed manifests: a composed
 // manifest's `datasets` covers base images only, so a segmentation artifact
 // wired to an artifact uri entry via `dataSourceId` (no archive `path`) must
-// get a synthesized dataset leaf — otherwise its dataIDMap key never
+// get a synthesized dataset leaf; otherwise its dataIDMap key never
 // materializes and restore hangs on the artifact forever. Unreferenced uri
 // entries and path-carrying artifacts synthesize nothing.
 // ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ type UriLeaf = {
   stateFileLeaf?: { stateID: string };
 };
 
-describe('prepareLeafDataSources — composed-manifest artifacts', () => {
+describe('prepareLeafDataSources: composed-manifest artifacts', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });

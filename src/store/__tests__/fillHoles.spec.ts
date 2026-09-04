@@ -1,26 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { nextTick } from 'vue';
+import { createApp, nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
   FillHolesSegmentScope,
+  FillHolesSliceScope,
   useFillHolesStore,
 } from '@/src/store/tools/fillHoles';
+import { PROCESS_DEFINITIONS } from '@/src/components/processes';
+import {
+  ProcessType,
+  usePaintProcessStore,
+} from '@/src/store/tools/paintProcess';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
 import type { Extent3D } from '@/src/types/segmentation';
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
 
 const fillHolesWorkerMock = vi.hoisted(() => vi.fn(async (input) => input));
 
 // eslint-disable-next-line no-restricted-syntax -- the fill-holes worker has no counterpart in the node test environment
-vi.mock('comlink', () => ({
-  wrap: () => ({
-    fillHolesWorker: fillHolesWorkerMock,
-  }),
-}));
+vi.mock('comlink', () => {
+  const releaseProxy = Symbol('releaseProxy');
+  return {
+    releaseProxy,
+    wrap: () => ({
+      fillHolesWorker: fillHolesWorkerMock,
+      histogram: async () => new Array(256).fill(0),
+      [releaseProxy]: () => {},
+    }),
+  };
+});
 
 function addScalars(image: vtkImageData, values: Uint8Array) {
   image.getPointData().setScalars(
@@ -60,7 +73,9 @@ const UNIT: Vector3 = [1, 1, 1];
 
 describe('Fill Holes store', () => {
   beforeEach(() => {
-    setActivePinia(createPinia());
+    const pinia = createPinia().use(CorePiniaProviderPlugin());
+    createApp({}).use(pinia);
+    setActivePinia(pinia);
     fillHolesWorkerMock.mockClear();
     vi.stubGlobal(
       'Worker',
@@ -131,12 +146,19 @@ describe('Fill Holes store', () => {
     parentImageId: string,
     segmentId: string,
     labelValue: number
-  ) => ({
-    parentImageId,
-    segmentId,
-    labelValue,
-    voxels: useSegmentationStore().segmentVoxels(segmentId),
-  });
+  ) => {
+    const voxels = useSegmentationStore().segmentVoxels(segmentId);
+    return {
+      parentImageId,
+      parentDimensions: [
+        ...useImageCacheStore().getVtkImageData(parentImageId)!.getDimensions(),
+      ] as [number, number, number],
+      segmentId,
+      labelValue,
+      voxels,
+      maskExtent: [...voxels.binding()!.extent] as Extent3D,
+    };
+  };
 
   it('uses the mask axis the active parent view maps to', async () => {
     // Index I points along world axial here, so an active Axial view must be
@@ -284,5 +306,63 @@ describe('Fill Holes store', () => {
     );
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({ label: 1 });
+  });
+
+  it('wires the segment scope into process target selection', async () => {
+    const { fillHolesStore, segmentationStore, parentImageID, segmentId } =
+      await setupFillHolesRun(
+        { dimensions: [7, 3, 1], spacing: UNIT, direction: IDENTITY },
+        [0, 2, 0, 2, 0, 0],
+        0
+      );
+    const first = segmentationStore.segmentVoxels(segmentId);
+    first.apply(new Uint8Array([1, 1, 1, 1, 0, 1, 1, 1, 1]));
+    const segmentation =
+      segmentationStore.getSegmentationForImage(parentImageID)!;
+    const other = segmentationStore.createSegment(segmentation.id, {
+      name: 'Other',
+    });
+    const second = segmentationStore.segmentVoxels(other.id);
+    const { labelValue: otherValue } = second.materialize();
+    second.ensureContains([4, 6, 0, 2, 0, 0]);
+    second.apply(
+      new Uint8Array([
+        otherValue,
+        otherValue,
+        otherValue,
+        otherValue,
+        0,
+        otherValue,
+        otherValue,
+        otherValue,
+        otherValue,
+      ])
+    );
+    fillHolesStore.setSliceScope(FillHolesSliceScope.WholeVolume);
+    fillHolesWorkerMock.mockImplementation(async ({ data, label }) => {
+      const filled = new Uint8Array(data);
+      filled[4] = label;
+      return filled;
+    });
+    const definition = PROCESS_DEFINITIONS.find(
+      ({ type }) => type === ProcessType.FillHoles
+    )!;
+    const run = () =>
+      usePaintProcessStore().startProcess(definition.getAlgorithm(), {
+        requiresActiveSegment: definition.requiresActiveSegment?.() ?? true,
+      });
+
+    fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
+    await run();
+
+    expect(first.scalars()[4]).toBe(1);
+    expect(second.scalars()[4]).toBe(0);
+    usePaintProcessStore().cancelProcess();
+
+    fillHolesStore.setSegmentScope(FillHolesSegmentScope.AllSegments);
+    await run();
+
+    expect(first.scalars()[4]).toBe(1);
+    expect(second.scalars()[4]).toBe(otherValue);
   });
 });

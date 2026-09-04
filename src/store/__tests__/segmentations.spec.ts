@@ -106,6 +106,14 @@ describe('segmentation store', () => {
       expect(store().segmentations[segmentation.id]).toBeTruthy();
     });
 
+    it('names a segmentation after its parent image', async () => {
+      await seatImage('img-1', 't2_tse_tra');
+
+      const segmentation = store().ensureSegmentationForImage('img-1');
+
+      expect(segmentation.name).toBe('t2_tse_tra');
+    });
+
     it('returns the existing segmentation on a second ensure', async () => {
       await seatImage('img-1');
 
@@ -204,6 +212,15 @@ describe('segmentation store', () => {
 
       expect(new Set(names).size).toBe(3);
       names.forEach((name) => expect(name.length).toBeGreaterThan(0));
+    });
+
+    it('normalizes existing names when choosing a default', async () => {
+      await seatImage('img-1');
+      const { id: segmentationId } =
+        store().ensureSegmentationForImage('img-1');
+      store().createSegment(segmentationId, { name: 'Segment 1 ' });
+
+      expect(store().createSegment(segmentationId).name).toBe('Segment 2');
     });
 
     it('takes a name and color from the caller', async () => {
@@ -818,6 +835,20 @@ describe('segmentation store', () => {
       expect(segment.visible).toBe(true);
       expect(segment.locked).toBe(false);
       expect(store().activeSegmentId).toBe(target);
+    });
+
+    it('uses a unique default name after the selected segment is deleted', async () => {
+      await seatImage('img-1');
+      const first = store().resolveEditTarget('img-1');
+      const segmentation = store().getSegmentationForImage('img-1')!;
+      const selected = store().createSegment(segmentation.id);
+      store().setActiveSegment(selected.id);
+      store().deleteSegment(selected.id);
+
+      const replacement = store().resolveEditTarget('img-1');
+
+      expect(segmentOf(first).name).toBe('Segment 1');
+      expect(segmentOf(replacement).name).toBe('Segment 2');
     });
 
     it('binds the seeded default segment to storage for its own image', async () => {

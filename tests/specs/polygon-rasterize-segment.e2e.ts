@@ -12,7 +12,7 @@ import {
   renameLabel,
   segmentColor,
   segmentNames,
-  showFirstSegmentGroup,
+  waitForNamedSegments,
 } from './segmentationTestUtils';
 
 const RASTERIZE_ITEM = '.v-list-item-title=Rasterize';
@@ -60,7 +60,7 @@ describe('Polygon rasterize target', () => {
     await drawSquare(centerX, centerY, half);
 
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Segment 1']);
 
     // The context menu belongs to a placed polygon, and the polygon tool keeps
@@ -91,7 +91,7 @@ describe('Polygon rasterize target', () => {
     await $(RASTERIZE_ITEM).click();
 
     await openAnnotationSegments();
-    await showFirstSegmentGroup();
+    await waitForNamedSegments();
     await browser.waitUntil(async () => (await segmentNames()).length === 1, {
       timeoutMsg:
         'Rasterizing without a label should create one default segment',

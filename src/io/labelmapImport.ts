@@ -207,10 +207,7 @@ async function segBuildDescriptors(
 
 /** Distinct nonzero voxel values, ascending: the segment spine. */
 function distinctLabelValues(image: vtkLabelMap) {
-  // Labelmap scalars are Uint8Array by construction (every caller passes a
-  // `toLabelMap` result), so a fixed 256-slot presence map gives one
-  // branch-free typed-array write per voxel on the hot path, and the 0..255
-  // sweep is already ascending (no Set, no per-voxel Number(), no sort).
+  // Labelmap scalars are bytes, so a presence map yields ascending values.
   const voxelValues = maskScalars(image);
   const present = new Uint8Array(256);
   for (let index = 0; index < voxelValues.length; index += 1) {
@@ -262,11 +259,7 @@ export async function decodeLabelmapSegments(
   // backend CLI carries its real segment names/colors in the NRRD header,
   // captured onto the loaded image at import.
   //
-  // MERGE, not replace: the distinct nonzero voxel values are the spine, so a
-  // labelled voxel with NO `Segment{N}_*` block still gets a default, visible,
-  // manageable segment instead of being dropped. Embedded name/color/
-  // visibility are overlaid onto the matching `LabelValue == voxel value`;
-  // undescribed values keep their default.
+  // Overlay metadata so undescribed voxel values retain a default segment.
   const embedded =
     options.headerMetadata ??
     (imageId !== undefined

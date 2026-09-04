@@ -187,9 +187,9 @@ describe('dataset remove — synchronous reference cascade', () => {
   it('clears the active segment when its parent image is removed', () => {
     seatImage('img-1', 'CT');
     const segmentationStore = useSegmentationStore();
-    const { segmentId, artifactId } = seatSegmentMask('img-1');
+    const { segmentId } = seatSegmentMask('img-1');
     segmentationStore.setActiveSegment(segmentId);
-    expect(segmentationStore.activeArtifactId).toBe(artifactId);
+    expect(segmentationStore.activeSegmentId).toBe(segmentId);
 
     useDatasetStore().remove('img-1');
 

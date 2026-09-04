@@ -74,8 +74,7 @@ describe('Segment download', () => {
     const input = await volViewPage.saveSegmentsFilenameInput;
     await input.waitForDisplayed();
     const stem = await input.getValue();
-    expect(stem.length).toBeGreaterThan(0);
-    expect(stem).not.toMatch(/[<>:"/\\|?*]/);
+    expect(stem).toBe('t2_tse_tra');
 
     const downloadedPath = prepareDownloadedFilePath(`${stem}.seg.nrrd`);
     const confirm = await volViewPage.saveSegmentsConfirmButton;

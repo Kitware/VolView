@@ -13,7 +13,7 @@ import {
 import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 import {
   openAnnotationSegments,
-  showFirstSegmentGroup,
+  waitForNamedSegments,
 } from './segmentationTestUtils';
 
 describe('Sparse manifest.json', () => {
@@ -129,7 +129,7 @@ describe('Sparse manifest.json', () => {
     await openVolViewPage(fileName);
 
     await openAnnotationSegments();
-    await showFirstSegmentGroup(DOWNLOAD_TIMEOUT);
+    await waitForNamedSegments(DOWNLOAD_TIMEOUT);
 
     // Verify the segment group source image is NOT in the Anonymous section
     const dataTab = await $('button[data-testid="module-tab-Data"]');

@@ -211,35 +211,87 @@ describe('Paint process store', () => {
     ).toBe(true);
   });
 
-  it('processes the labelmap of the image being viewed', async () => {
+  it('does not create state for a segment-scoped process on a bare image', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+    const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
+
+    await processStore.startProcess(algorithm);
+
+    expect(algorithm).not.toHaveBeenCalled();
+    expect(
+      segmentationStore.getSegmentationForImage('image-1')
+    ).toBeUndefined();
+    expect(Object.keys(segmentationStore.artifactIndex)).toHaveLength(0);
+    expect(processStore.processState.step).toBe('start');
+    expect(messageStore.messages.map(({ title }) => title)).toContain(
+      'No active segment selected'
+    );
+  });
+
+  it('does not allocate storage for an unbound active segment', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+    const segmentation =
+      segmentationStore.ensureSegmentationForImage('image-1');
+    const segment = segmentationStore.createSegment(segmentation.id, {
+      name: 'Empty',
+    });
+    segmentationStore.setActiveSegment(segment.id);
+    const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
+
+    await processStore.startProcess(algorithm);
+
+    expect(algorithm).not.toHaveBeenCalled();
+    expect(segmentationStore.findSegmentBinding(segment.id)).toBeUndefined();
+    expect(Object.keys(segmentationStore.artifactIndex)).toHaveLength(0);
+    expect(processStore.processState.step).toBe('start');
+    expect(messageStore.messages.map(({ title }) => title)).toContain(
+      'No segment content to process'
+    );
+  });
+
+  it('does not run against an empty bound mask', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const messageStore = useMessageStore();
+    const segmentation =
+      segmentationStore.ensureSegmentationForImage('image-1');
+    const segment = segmentationStore.createSegment(segmentation.id, {
+      name: 'Empty',
+    });
+    const voxels = segmentationStore.segmentVoxels(segment.id);
+    const binding = voxels.materialize();
+    segmentationStore.setActiveSegment(segment.id);
+    const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
+
+    await processStore.startProcess(algorithm);
+
+    expect(algorithm).not.toHaveBeenCalled();
+    expect(Object.keys(segmentationStore.artifactIndex)).toEqual([
+      binding.artifactId,
+    ]);
+    expect(processStore.processState.step).toBe('start');
+    expect(messageStore.messages.map(({ title }) => title)).toContain(
+      'No segment content to process'
+    );
+  });
+
+  it('does not clone the active segment onto the image being viewed', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const { labelMap: firstLabelMap } = addTestSegment();
-    let target: ProcessTarget | undefined;
-    const algorithm = vi.fn(async (resolved: ProcessTarget) => {
-      target = resolved;
-      return new Uint8Array(resolved.voxels.scalars().length).fill(4);
-    });
+    const algorithm = vi.fn(async () => new Uint8Array([4, 4]));
 
     await viewImage('image-2');
     await processStore.startProcess(algorithm);
 
-    const active = segmentationStore.activeSegmentId!;
+    expect(algorithm).not.toHaveBeenCalled();
     expect(
-      segmentationStore.getSegmentationForImage('image-2')!.segments[active]
-    ).toBeDefined();
-    const binding = segmentationStore.resolveLabelmapBinding(active)!;
-    expect(target).toMatchObject({
-      segmentId: active,
-      labelValue: binding.labelValue,
-    });
-    const boundLabelMap = segmentationStore
-      .artifactVoxels(binding.artifactId)
-      .image();
-    expect(target!.voxels.image()).toBe(boundLabelMap);
-    // The clone covers nothing yet, so the process had no voxels to write, and
-    // the segment of the image left behind is untouched either way.
-    expect(getScalars(boundLabelMap)).toEqual([]);
+      segmentationStore.getSegmentationForImage('image-2')
+    ).toBeUndefined();
     expect(getScalars(firstLabelMap)).toEqual([0, 0]);
   });
 

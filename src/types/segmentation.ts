@@ -1,4 +1,5 @@
 import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
+import colorNames from 'color-name';
 
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
@@ -247,29 +248,9 @@ export function fullExtent(dimensions: number[] | Int32Array): Extent3D {
   return [0, dimensions[0] - 1, 0, dimensions[1] - 1, 0, dimensions[2] - 1];
 }
 
-// CSS basic color keywords; the vector tool label defaults in src/config.ts use 'red'.
-// A Map, not an object: a plain one inherits Object.prototype, so 'constructor'
-// and '__proto__' would look up truthy and reach the hex parsers as non-strings.
-const NAMED_COLORS = new Map<string, string>(
-  Object.entries({
-    black: '000000',
-    silver: 'c0c0c0',
-    gray: '808080',
-    white: 'ffffff',
-    maroon: '800000',
-    red: 'ff0000',
-    purple: '800080',
-    fuchsia: 'ff00ff',
-    green: '008000',
-    lime: '00ff00',
-    olive: '808000',
-    yellow: 'ffff00',
-    navy: '000080',
-    blue: '0000ff',
-    teal: '008080',
-    aqua: '00ffff',
-  })
-);
+// A Map, not the package's plain object: prototype keys such as 'constructor'
+// must not be mistaken for colors.
+const NAMED_COLORS = new Map(Object.entries(colorNames));
 
 const HEX_COLOR = /^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/;
 
@@ -281,13 +262,6 @@ const expandShorthandHex = (hex: string) =>
         .join('')
     : hex;
 
-/**
- * Parses the CSS color strings label colors are stored as (hex, with or
- * without an alpha channel, plus the basic color keywords). Unparseable input
- * falls back to opaque black so migrating a state file cannot throw.
- */
-// Config and legacy manifests accept any CSS color string, so the functional
-// syntaxes are parsed too: falling back to black silently discarded them.
 const RGB_COLOR = /^rgba?\(([^)]+)\)$/;
 const HSL_COLOR = /^hsla?\(([^)]+)\)$/;
 
@@ -335,12 +309,15 @@ const hslToRGB = (h: number, s: number, l: number) => {
   ) as [number, number, number];
 };
 
-/** The parsed color, or undefined when the string is not a CSS color we know. */
+/** Parses hex, named, rgb(a), and hsl(a) CSS colors. */
 export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const value = css.trim().toLowerCase();
   if (value === 'transparent') return [0, 0, 0, 0];
 
-  const hex = NAMED_COLORS.get(value) ?? HEX_COLOR.exec(value)?.[1];
+  const named = NAMED_COLORS.get(value);
+  if (named) return [...named, 255] as RGBAColor;
+
+  const hex = HEX_COLOR.exec(value)?.[1];
   if (hex) return hexaToRGBA(expandShorthandHex(hex));
 
   const rgb = RGB_COLOR.exec(value);
@@ -366,6 +343,7 @@ export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   return undefined;
 }
 
+/** Falls back to opaque black for unparseable label colors. */
 export function cssColorToRGBA(css: string): RGBAColor {
   return tryCssColorToRGBA(css) ?? [0, 0, 0, 255];
 }

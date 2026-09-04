@@ -12,6 +12,10 @@ import {
 import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
 import { partition, getURLBasename } from '@/src/utils';
 import { basename } from '@/src/utils/path';
+import {
+  dataSourcesById,
+  summarizeDataSource,
+} from '@/src/io/state-file/dataSourceDisplayName';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useToolStore } from '@/src/store/tools';
@@ -87,45 +91,6 @@ function resolveToLeafSources(
   }
 }
 
-const dataSourcesById = (manifest: Manifest): Record<number, DataSourceType> =>
-  Object.fromEntries(manifest.dataSources.map((ds) => [ds.id, ds]));
-
-const dataSourceDisplayNames = (
-  id: number,
-  byId: Record<number, DataSourceType>,
-  datasetFilePath: Record<string, string> | undefined,
-  visiting = new Set<number>()
-): string[] => {
-  if (visiting.has(id)) return [];
-  const src = byId[id];
-  if (!src) return [];
-
-  const nextVisiting = new Set(visiting).add(id);
-  if (src.type === 'uri') {
-    return [src.name ?? getURLBasename(src.uri) ?? src.uri];
-  }
-  if (src.type === 'file') {
-    const path = datasetFilePath?.[src.fileId];
-    return path ? [basename(path)] : [];
-  }
-  if (src.type === 'archive') return [basename(src.path)];
-  return src.sources.flatMap((sourceId) =>
-    dataSourceDisplayNames(sourceId, byId, datasetFilePath, nextVisiting)
-  );
-};
-
-const summarizeDataSource = (
-  id: number,
-  byId: Record<number, DataSourceType>,
-  datasetFilePath: Record<string, string> | undefined,
-  fallback: string
-): string => {
-  const names = [...new Set(dataSourceDisplayNames(id, byId, datasetFilePath))];
-  if (names.length === 0) return fallback;
-  if (names.length <= 3) return names.join(', ');
-  return `${names.slice(0, 2).join(', ')}, … (${names.length} files)`;
-};
-
 // A composed manifest's `datasets` covers base images only; a segmentation
 // artifact wired to a uri entry via `dataSourceId` (and carrying no archive
 // `path`) still needs its bytes fetched, or the artifact's dataIDMap key never
@@ -134,7 +99,7 @@ const summarizeDataSource = (
 // dataSourceIds are both small integers in real saves, and a shared key would
 // hand the restore to leaf completion order.
 const syntheticLeafSources = (manifest: Manifest): Map<number, string> => {
-  const byId = dataSourcesById(manifest);
+  const byId = dataSourcesById(manifest.dataSources);
   const coveredSourceIds = new Set(
     manifestDatasets(manifest).map((ds) => ds.dataSourceId)
   );
@@ -196,7 +161,7 @@ export const resolveArtifactRestoreSources = (
 };
 
 function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
-  const byId = dataSourcesById(manifest);
+  const byId = dataSourcesById(manifest.dataSources);
 
   const pathToFile: Record<string, File> = Object.fromEntries(
     datasetFiles.map((f) => [f.archivePath, f.file])
@@ -243,7 +208,7 @@ export async function completeStateFileRestore(
   failedLeaves: Array<{ stateID: string; name: string }> = []
 ) {
   const viewStore = useViewStore();
-  const byId = dataSourcesById(manifest);
+  const byId = dataSourcesById(manifest.dataSources);
   const datasets = manifestDatasets(manifest);
   const resolvedDatasets = datasets.filter((ds) => ds.id in stateIDToStoreID);
   const unresolvedDatasets = datasets.filter(

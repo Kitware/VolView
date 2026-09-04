@@ -9,6 +9,8 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useViewStore } from '@/src/store/views';
 import { ManifestSchema } from '@/src/io/state-file/schema';
+import { applyPostStateConfig, config } from '@/src/io/import/configJson';
+import { useRulerStore } from '@/src/store/tools/rulers';
 
 // ---------------------------------------------------------------------------
 // Config labels are declared once for a session, before any image is loaded.
@@ -277,11 +279,10 @@ describe('a second config replaces the first', () => {
 
   it('drops the first config’s untouched templates', async () => {
     const polygons = usePolygonStore();
-    polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
+    polygons.replaceConfigLabels({ Tumor: { color: '#00ff00' } });
     await nextTick();
 
-    polygons.clearDefaultLabels();
-    polygons.mergeLabels({ Node: { color: '#ff0000' } });
+    polygons.replaceConfigLabels({ Node: { color: '#ff0000' } });
     await nextTick();
 
     expect(labelNames(polygons.labels)).toEqual(['Node']);
@@ -290,12 +291,11 @@ describe('a second config replaces the first', () => {
 
   it('does not mint a replaced template on the next edit', async () => {
     const polygons = usePolygonStore();
-    polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
+    polygons.replaceConfigLabels({ Tumor: { color: '#00ff00' } });
     await nextTick();
     polygons.setActiveLabel(labelIdNamed(polygons.labels, 'Tumor'));
 
-    polygons.clearDefaultLabels();
-    polygons.mergeLabels({ Node: { color: '#ff0000' } });
+    polygons.replaceConfigLabels({ Node: { color: '#ff0000' } });
     await nextTick();
     const resolved = store().resolveEditTarget('img-1');
 
@@ -304,13 +304,12 @@ describe('a second config replaces the first', () => {
 
   it('keeps a segment the first config’s template already became', async () => {
     const polygons = usePolygonStore();
-    polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
+    polygons.replaceConfigLabels({ Tumor: { color: '#00ff00' } });
     await nextTick();
     polygons.setActiveLabel(labelIdNamed(polygons.labels, 'Tumor'));
     store().resolveEditTarget('img-1');
 
-    polygons.clearDefaultLabels();
-    polygons.mergeLabels({ Node: { color: '#ff0000' } });
+    polygons.replaceConfigLabels({ Node: { color: '#ff0000' } });
     await nextTick();
 
     expect(segmentNames('img-1')).toEqual(['Tumor']);
@@ -433,5 +432,136 @@ describe('an annotation labeled with an unmaterialized template', () => {
     const restored = await restore({ ...saved!, templates: undefined });
 
     expect(restored.toolByID[restored.toolIDs[0]].label).toBe('');
+  });
+});
+
+describe('config overlays restored labels', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatAndView('img-1');
+  });
+
+  it('preserves a restored template while config wins a live collision', async () => {
+    const rectangles = useRectangleStore();
+    rectangles.deserializeTools(
+      {
+        tools: [
+          {
+            imageID: 'img-1',
+            label: 'config-label:Tumor',
+            placing: false,
+          },
+        ],
+        templates: {
+          Tumor: { color: '#00ff00', fillColor: '#00ff0033' },
+        },
+      },
+      { 'img-1': 'img-1' }
+    );
+
+    applyPostStateConfig(
+      config.parse({
+        labels: {
+          rectangleLabels: {
+            Tumor: { color: '#ff0000', fillColor: '#ff000033' },
+            ConfigOnly: { color: '#0000ff', fillColor: '#0000ff33' },
+          },
+        },
+      })
+    );
+    await nextTick();
+
+    expect(labelNames(rectangles.labels)).toEqual(['Tumor', 'ConfigOnly']);
+    expect(rectangles.toolByID[rectangles.toolIDs[0]]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#ff0000',
+      fillColor: '#ff000033',
+    });
+    expect(rectangles.serializeTools().templates?.Tumor).toMatchObject({
+      color: '#ff0000',
+      fillColor: '#ff000033',
+    });
+
+    applyPostStateConfig(
+      config.parse({
+        labels: {
+          rectangleLabels: {
+            Node: { color: '#ffff00', fillColor: '#ffff0033' },
+          },
+        },
+      })
+    );
+    await nextTick();
+
+    expect(labelNames(rectangles.labels)).toEqual(['Tumor', 'Node']);
+    expect(rectangles.toolByID[rectangles.toolIDs[0]]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#00ff00',
+      fillColor: '#00ff0033',
+    });
+  });
+
+  it('preserves a restored ruler label under a replaced config overlay', async () => {
+    const rulers = useRulerStore();
+    rulers.deserializeTools(
+      {
+        labels: { saved: { labelName: 'Tumor', color: '#00ff00' } },
+        tools: [{ imageID: 'img-1', label: 'saved', placing: false }],
+      },
+      { 'img-1': 'img-1' }
+    );
+
+    applyPostStateConfig(
+      config.parse({
+        labels: { rulerLabels: { Tumor: { color: '#ff0000' } } },
+      })
+    );
+    await nextTick();
+    expect(rulers.rulers[0]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#ff0000',
+    });
+
+    applyPostStateConfig(
+      config.parse({
+        labels: { rulerLabels: { Node: { color: '#0000ff' } } },
+      })
+    );
+    await nextTick();
+
+    expect(labelNames(rulers.labels)).toEqual(['Tumor', 'Node']);
+    expect(rulers.rulers[0]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#00ff00',
+    });
+  });
+
+  it('keeps a ruler on the same config label when its config changes', async () => {
+    applyPostStateConfig(
+      config.parse({
+        labels: { rulerLabels: { Tumor: { color: '#ff0000' } } },
+      })
+    );
+    const rulers = useRulerStore();
+    const label = labelIdNamed(rulers.labels, 'Tumor');
+    const ruler = rulers.addRuler({
+      imageID: 'img-1',
+      label,
+      placing: false,
+    });
+
+    applyPostStateConfig(
+      config.parse({
+        labels: { rulerLabels: { Tumor: { color: '#0000ff' } } },
+      })
+    );
+    await nextTick();
+
+    expect(labelIdNamed(rulers.labels, 'Tumor')).toBe(label);
+    expect(rulers.rulerByID[ruler]).toMatchObject({
+      label,
+      labelName: 'Tumor',
+      color: '#0000ff',
+    });
   });
 });

@@ -190,6 +190,10 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(store().getSegment(segmentId).name).toBe('Tumor');
     expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
     expect(maskValueAt(segmentId, [2, 3, 0])).toBe(labelValueOf(segmentId));
+
+    const nextEdit = store().resolveEditTarget('img-1');
+    expect(store().getSegment(nextEdit).name).toBe('Node');
+    expect(segmentNamesOf('img-1')).toEqual(['Tumor', 'Node']);
   });
 
   it('rasterizes into the segment a template already became', () => {
@@ -201,6 +205,35 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const second = rasterize(tumor, SQUARE, 1);
 
     expect(second.segmentId).toBe(first.segmentId);
+    expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
+  });
+
+  it('lands a rasterized template for the next paint edit', () => {
+    const polygons = usePolygonStore();
+    polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
+    const tumor = templateIdNamed(polygons.allLabels, 'Tumor');
+    polygons.setActiveLabel(tumor);
+
+    const rasterized = rasterize(tumor).segmentId!;
+    const painted = store().resolveEditTarget('img-1');
+
+    expect(painted).toBe(rasterized);
+    expect(store().activeSegmentId).toBe(rasterized);
+    expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
+  });
+
+  it('lands an active template on an existing same-name segment', () => {
+    const polygons = usePolygonStore();
+    polygons.mergeLabels({ Tumor: { color: '#00ff00' } });
+    const tumor = templateIdNamed(polygons.allLabels, 'Tumor');
+    polygons.setActiveLabel(tumor);
+    const existing = addSegment('img-1', 'Tumor');
+
+    const rasterized = rasterize(tumor).segmentId!;
+    const painted = store().resolveEditTarget('img-1');
+
+    expect(rasterized).toBe(existing);
+    expect(painted).toBe(existing);
     expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
   });
 

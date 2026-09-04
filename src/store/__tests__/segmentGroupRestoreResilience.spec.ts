@@ -144,7 +144,7 @@ const restoreGroups = (
     resolveArtifactRestoreSources(manifest)
   );
 
-describe('migrated segment groups — resilient restore', () => {
+describe('migrated segment groups: resilient restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     ioMocks.readImage.mockReset();

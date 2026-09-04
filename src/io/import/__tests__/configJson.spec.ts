@@ -167,6 +167,9 @@ describe('label config', () => {
     expect(labelSummary(useRulerStore())).toEqual([
       { labelName: 'Tumor', color: '#00ff00' },
     ]);
+    expect(useRulerStore().labels[useRulerStore().activeLabel!].labelName).toBe(
+      'Tumor'
+    );
   });
 
   it('applies config labels to an image that is already loaded', async () => {

@@ -53,6 +53,12 @@ function strokeAt(imageId: string, point: [number, number, number]) {
   paintStore.endStroke(point, 2, imageId);
 }
 
+function paintAndLock(segmentId: string) {
+  store().setActiveSegment(segmentId);
+  strokeAt('img-1', [1, 1, 0]);
+  store().updateSegment(segmentId, { locked: true });
+}
+
 describe('paint edit target', () => {
   beforeEach(() => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
@@ -117,20 +123,35 @@ describe('paint edit target', () => {
     const active = boundSegment(segmentation.id, 'Tumor');
     const paintStore = usePaintToolStore();
 
-    store().setActiveSegment(neighbor.id);
-    strokeAt('img-1', [1, 1, 0]);
+    paintAndLock(neighbor.id);
     store().setActiveSegment(active.id);
-    strokeAt('img-1', [2, 1, 0]);
+    strokeAt('img-1', [1, 1, 0]);
+    store().updateSegment(neighbor.id, { locked: false });
 
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
-    strokeAt('img-1', [2, 1, 0]);
 
     const neighborBinding = bindingOf(neighbor.id)!;
     expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(
       neighborBinding.labelValue
     );
     expect(markedVoxels(active.id)).toEqual([]);
+  });
+
+  it('does not erase a foreign label value from the active buffer', async () => {
+    await seatImage('img-1');
+    const segmentation = store().ensureSegmentationForImage('img-1');
+    const foreign = boundSegment(segmentation.id, 'Foreign');
+    const active = boundSegment(segmentation.id, 'Tumor');
+    store().setActiveSegment(active.id);
+    strokeAt('img-1', [1, 1, 0]);
+    const foreignValue = bindingOf(foreign.id)!.labelValue;
+    store().segmentVoxels(active.id).scalars()[0] = foreignValue;
+
+    usePaintToolStore().setMode(PaintMode.Erase);
+    strokeAt('img-1', [1, 1, 0]);
+
+    expect(maskValueAt(active.id, [1, 1, 0])).toBe(foreignValue);
   });
 
   it('blocks a stroke when the active segment is locked', async () => {
@@ -152,9 +173,7 @@ describe('paint edit target', () => {
     const neighbor = boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
 
-    store().setActiveSegment(neighbor.id);
-    strokeAt('img-1', [1, 1, 0]);
-    store().updateSegment(neighbor.id, { locked: true });
+    paintAndLock(neighbor.id);
 
     store().setActiveSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
