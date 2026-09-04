@@ -63,6 +63,7 @@ export default {
     return {
       maxHandlePos: 0,
       dragging: false,
+      pointerId: null,
       initialHandlePos: 0,
       initialMousePosY: 0,
       yOffset: 0,
@@ -96,19 +97,23 @@ export default {
   },
 
   beforeUnmount() {
-    this.resizeObserver.disconnect();
+    this.resizeObserver?.disconnect();
   },
 
   methods: {
     updateMaxHandlePos() {
+      if (!this.$refs.handleContainer) return;
       this.maxHandlePos =
         this.$refs.handleContainer.clientHeight - this.handleHeight;
     },
 
     onDragStart(ev) {
+      const container = this.$refs.handleContainer;
+      if (!container) return;
       ev.preventDefault();
 
       this.dragging = true;
+      this.pointerId = ev.pointerId;
       this.initialMousePosY = ev.pageY;
 
       if (ev.target === this.$refs.handle) {
@@ -116,7 +121,7 @@ export default {
         this.initialHandlePos = getYOffsetFromTransform(handleStyles.transform);
       } else {
         // move handle to mouse pos
-        const { y } = this.$refs.handleContainer.getBoundingClientRect();
+        const { y } = container.getBoundingClientRect();
         this.initialHandlePos = Math.max(
           0,
           Math.min(this.maxHandlePos, ev.pageY - y - this.handleHeight / 2)
@@ -127,11 +132,11 @@ export default {
 
       this.yOffset = 0;
 
-      this.$refs.handleContainer.setPointerCapture(ev.pointerId);
+      container.setPointerCapture(ev.pointerId);
     },
 
     onDragMove(ev) {
-      if (!this.$refs.handleContainer.hasPointerCapture(ev.pointerId)) return;
+      if (ev.pointerId !== this.pointerId) return;
       ev.preventDefault();
 
       this.yOffset = ev.pageY - this.initialMousePosY;
@@ -140,11 +145,11 @@ export default {
     },
 
     onDragEnd(ev) {
-      if (!this.$refs.handleContainer.hasPointerCapture(ev.pointerId)) return;
+      if (ev.pointerId !== this.pointerId) return;
       ev.preventDefault();
-      this.$refs.handleContainer.releasePointerCapture(ev.pointerId);
 
       this.dragging = false;
+      this.pointerId = null;
       const slice = this.getNearestSlice(this.handlePosition);
       this.$emit('update:modelValue', slice);
     },

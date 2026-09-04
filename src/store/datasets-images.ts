@@ -51,8 +51,8 @@ export const useImageStore = defineStore('images', () => {
   }
 
   function deleteData(id: string) {
-    useImageCacheStore().removeImage(id);
     removeFromArray(idList.value, id);
+    useImageCacheStore().removeImage(id);
   }
 
   function checkAllImagesSameSpace() {

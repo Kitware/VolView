@@ -25,8 +25,6 @@ export default defineComponent({
     const onPointer = (down: boolean, ev: PointerEvent) => {
       if (down) {
         grabLineEl.value?.setPointerCapture(ev.pointerId);
-      } else {
-        grabLineEl.value?.releasePointerCapture(ev.pointerId);
       }
       cursor.value = down ? 'grabbing' : 'grab';
     };
