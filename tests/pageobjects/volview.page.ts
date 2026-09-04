@@ -242,6 +242,10 @@ class VolViewPage extends Page {
     return $$('button[data-testid="segment-group-save-button"]');
   }
 
+  get segmentGroupList() {
+    return $('.segment-group-list');
+  }
+
   get saveSegmentGroupFilenameInput() {
     return this.activeDialog.$('#filename');
   }

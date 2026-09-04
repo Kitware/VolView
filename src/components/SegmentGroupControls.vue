@@ -402,7 +402,8 @@ function deleteSelected() {
 </template>
 
 <style>
-.segment-group-list {
+/* Override Vuetify's hidden overflow for lists inside navigation drawers. */
+.v-navigation-drawer .v-list.segment-group-list {
   max-height: 240px;
   overflow-y: auto;
 }
