@@ -1,29 +1,31 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
 import { PROSTATEX_DATASET } from './configTestUtils';
+import { addSegment, openAnnotationSegments } from './segmentationTestUtils';
 
-// Six 48px rows overflow the list's 240px cap.
-const GROUP_COUNT = 6;
+const SEGMENT_COUNT = 20;
 
-describe('Segment group list', () => {
-  it('lets overflowing segment groups scroll', async () => {
+describe('Segment list', () => {
+  it('lets the module panel scroll when segments overflow it', async () => {
     await openUrls([PROSTATEX_DATASET]);
+    await openAnnotationSegments();
 
-    for (let i = 0; i < GROUP_COUNT; i++) {
-      await volViewPage.createSegmentGroup(`Group ${i + 1}`);
+    for (let i = 0; i < SEGMENT_COUNT; i++) {
+      await addSegment();
     }
 
-    const list = await volViewPage.segmentGroupList;
+    const list = await volViewPage.segmentList;
     await list.waitForDisplayed();
 
-    const rows = await list.$$('.v-list-item');
-    expect(rows.length).toEqual(GROUP_COUNT);
+    const segments = await list.$$('.v-chip .text-truncate');
+    expect(segments.length).toEqual(SEGMENT_COUNT);
 
-    const scrollHeight = Number(await list.getProperty('scrollHeight'));
-    const clientHeight = Number(await list.getProperty('clientHeight'));
+    const panel = await $('#module-container');
+    const scrollHeight = Number(await panel.getProperty('scrollHeight'));
+    const clientHeight = Number(await panel.getProperty('clientHeight'));
     expect(scrollHeight).toBeGreaterThan(clientHeight);
 
-    const overflowY = await list.getCSSProperty('overflow-y');
+    const overflowY = await panel.getCSSProperty('overflow-y');
     expect(overflowY.value).toEqual('auto');
   });
 });
