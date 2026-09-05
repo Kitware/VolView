@@ -1,4 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue';
+import deepEqual from 'fast-deep-equal';
 
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
@@ -449,6 +450,36 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     });
   };
 
+  /**
+   * Seats a restored session's templates beside the ones already here, and
+   * says which had to move. A template's name is its identity, so a scene's
+   * own templates keep theirs: annotations already placed against a name must
+   * go on looking the way they were placed. An incoming template that
+   * disagrees with the name it lands on takes a free one instead.
+   */
+  const adoptTemplates = (incoming: Labels<Props>) => {
+    const used = new Set(Object.keys(effectiveTemplates.value));
+    const adopted = {} as Labels<Props>;
+    const renamedTo = new Map<string, string>();
+
+    Object.entries(incoming).forEach(([name, props]) => {
+      if (!used.has(name)) {
+        used.add(name);
+        adopted[name] = props as ToolLabel;
+        return;
+      }
+      if (deepEqual(effectiveTemplates.value[name], props)) return;
+      let free = `${name} (2)`;
+      for (let n = 3; used.has(free); n += 1) free = `${name} (${n})`;
+      used.add(free);
+      adopted[free] = props as ToolLabel;
+      renamedTo.set(name, free);
+    });
+
+    sessionLabels.value = { ...sessionLabels.value, ...adopted };
+    return renamedTo;
+  };
+
   // The segments themselves restore with their segmentation; only the props
   // this tool store owns are re-attached, keyed by the restored segment id.
   // Templates have no segment, so they restore whole.
@@ -467,19 +498,20 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     );
     propsBySegment.value = merged;
 
-    sessionLabels.value = {
-      ...sessionLabels.value,
-      ...serialized?.templates,
-    } as Labels<Props>;
+    const renamedTemplates = adoptTemplates(
+      (serialized?.templates ?? {}) as Labels<Props>
+    );
 
-    // A template keeps its own id across the round trip: it names a session
-    // label, not a segment, so there is nothing to remap it to. A segment the
+    // A template names a session label, not a segment, so it keeps its own id
+    // unless the name was already spoken for and it had to move. A segment the
     // restore did not recreate is a deleted one; leave the tool unlabeled.
     return (labelId: Maybe<string>) => {
       if (!labelId) return '';
       const templateName = templateNameOf(labelId);
-      if (templateName)
-        return effectiveTemplates.value[templateName] ? labelId : '';
+      if (templateName) {
+        const name = renamedTemplates.get(templateName) ?? templateName;
+        return effectiveTemplates.value[name] ? templateId(name) : '';
+      }
       return segmentIdMap[labelId] || '';
     };
   };

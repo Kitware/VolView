@@ -435,6 +435,110 @@ describe('an annotation labeled with an unmaterialized template', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Loading a session adds to the scene rather than replacing it. A template's
+// name is its identity and annotations point at that name, so a restore must
+// not repaint the annotations already here.
+// ---------------------------------------------------------------------------
+describe('restore into a scene that already has templates', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatAndView('img-1');
+  });
+
+  const restoreTumor = (
+    rectangles: ReturnType<typeof useRectangleStore>,
+    template: Record<string, unknown>
+  ) =>
+    rectangles.deserializeTools(
+      {
+        tools: [
+          { imageID: 'img-2', label: 'config-label:Tumor', placing: false },
+        ],
+        templates: { Tumor: template },
+      },
+      { 'img-2': 'img-2' }
+    );
+
+  const placedTumor = async () => {
+    const rectangles = useRectangleStore();
+    rectangles.mergeLabels({
+      Tumor: { color: '#ff0000', fillColor: '#ff000033' },
+    });
+    await nextTick();
+    const id = rectangles.addTool({
+      imageID: 'img-1',
+      placing: false,
+      label: labelIdNamed(rectangles.labels, 'Tumor'),
+    });
+    return { rectangles, id };
+  };
+
+  it('leaves an existing annotation on its own template', async () => {
+    const { rectangles, id } = await placedTumor();
+
+    seatImage('img-2');
+    restoreTumor(rectangles, { color: '#0000ff', fillColor: '#0000ff33' });
+    await nextTick();
+
+    expect(rectangles.toolByID[id]).toMatchObject({
+      labelName: 'Tumor',
+      color: '#ff0000',
+      fillColor: '#ff000033',
+    });
+  });
+
+  it('seats the colliding template under a free name and follows its tools', async () => {
+    const { rectangles } = await placedTumor();
+
+    seatImage('img-2');
+    restoreTumor(rectangles, { color: '#0000ff', fillColor: '#0000ff33' });
+    await nextTick();
+
+    const restored = rectangles.toolByID[rectangles.toolIDs[1]];
+    expect(restored.label).toBe('config-label:Tumor (2)');
+    expect(restored).toMatchObject({
+      labelName: 'Tumor (2)',
+      color: '#0000ff',
+      fillColor: '#0000ff33',
+    });
+    expect(labelNames(rectangles.allLabels)).toEqual(['Tumor', 'Tumor (2)']);
+  });
+
+  it('reuses the template when the restored one says the same thing', async () => {
+    const { rectangles, id } = await placedTumor();
+
+    seatImage('img-2');
+    restoreTumor(rectangles, { color: '#ff0000', fillColor: '#ff000033' });
+    await nextTick();
+
+    expect(labelNames(rectangles.allLabels)).toEqual(['Tumor']);
+    expect(rectangles.toolByID[rectangles.toolIDs[1]].label).toBe(
+      rectangles.toolByID[id].label
+    );
+  });
+
+  it('keeps a config template while the restored one moves aside', async () => {
+    const rectangles = useRectangleStore();
+    rectangles.replaceConfigLabels({
+      Tumor: { color: '#00ff00', fillColor: '#00ff0033' },
+    });
+    await nextTick();
+
+    seatImage('img-2');
+    restoreTumor(rectangles, { color: '#0000ff', fillColor: '#0000ff33' });
+    await nextTick();
+
+    expect(rectangles.toolByID[rectangles.toolIDs[0]]).toMatchObject({
+      labelName: 'Tumor (2)',
+      color: '#0000ff',
+    });
+    expect(rectangles.allLabels['config-label:Tumor']).toMatchObject({
+      color: '#00ff00',
+    });
+  });
+});
+
 describe('config overlays restored labels', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
